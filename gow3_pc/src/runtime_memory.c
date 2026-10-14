@@ -754,6 +754,14 @@ uintptr_t runtime_memory_resolve(const char *name) {
     if (!strcmp(name, "mkgXxsoxWHg#libkernel")) return (uintptr_t)clear_range_name;
     return RUNTIME_LOOKUP(exports,name);
 }
+/* Guest memory for the GPU library's own data (movie frames scaled to the display size,
+ * gpu/shim/gow3_movie.cpp): flexible memory, CPU and GPU read/write. Placed high: games claim
+ * virtual ranges from 0x1000000000 up without reserving them (Uncharted's memory areas, whose
+ * freed pages leave holes that look free here). */
+void *runtime_map_guest_memory(uint64_t size) {
+    void *address=(void *)UINT64_C(0xf000000000);
+    return map_flexible(&address,align_up(size,PAGE),0x33,0)==0 ? address : NULL;
+}
 /* Host-owned memory the guest can see (image, stacks, trampolines) lives in
  * [LOW_MIN, USER_MIN): PS4 code packs pointers into 40-bit fields. */
 #define LOW_MIN UINT64_C(0x0800000000)

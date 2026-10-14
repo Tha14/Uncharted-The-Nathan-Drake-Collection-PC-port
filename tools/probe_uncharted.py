@@ -138,6 +138,9 @@ def resolution_patch(data, width, height, move=True):
         (0x40, 240, width // 8), (0x44, 270, height // 4),
         (0x30, 2560, 2560 * width // 1920), (0x34, 1216, 1216 * height // 1080),
     ]
+    # Diagnostics: UNCHARTED_RES_KEEP=<hex field offsets> leaves those fields at 1080p.
+    keep = {int(v, 16) for v in os.environ.get("UNCHARTED_RES_KEEP", "").replace(",", " ").split()}
+    stores = [store for store in stores if store[0] not in keep]
     changed = 0
     for base in (0x47, 0x40):  # [rdi+disp] and [rax+disp]
         for disp, old, new in stores:
@@ -341,6 +344,7 @@ def run_game(args, game, executable, guest_args, loadexec):
     resolution = (os.environ.get(f"UNCHARTED_RESOLUTION_{game_key.upper()}")
                   or os.environ.get("UNCHARTED_RESOLUTION", "")).lower()
     width, height = (int(value) for value in resolution.split("x")) if resolution else (1920, 1080)
+    render_size = (1920, 1080)
     if (width, height) != (1920, 1080):
         # (The earlier Uncharted 3 failures above 1080p - "Command context dcb full", a corrupted
         # pointer while loading - came with asynchronous readbacks, which also broke it at 1080p.)
@@ -360,7 +364,7 @@ def run_game(args, game, executable, guest_args, loadexec):
                 continue
             if candidate != (width, height):
                 print(f"Drake's Fortune renders at {candidate[0]}x{candidate[1]} instead of {width}x{height}")
-            data = patched
+            data, render_size = patched, candidate
             break
         image.write_bytes(data)
     else:
@@ -388,6 +392,10 @@ def run_game(args, game, executable, guest_args, loadexec):
     env["GOW3_UPSCALER"] = "none"
     if extra_mib:
         env["GOW3_DMEM_MB"] = str(5056 + extra_mib + 64)
+    # The movie player reads its (1080p) movies with the render size: the decoder scales them to it
+    # (gpu/shim/videodec2; else movies come out green and tiled above 1080p).
+    if render_size != (1920, 1080):
+        env["GOW3_MOVIE_SIZE"] = f"{render_size[0]}x{render_size[1]}"
     pad_file=user / "probe-pad.txt"
     pad_file.write_text("",encoding="ascii")
     env["GOW3_PAD_FILE"] = str(pad_file)

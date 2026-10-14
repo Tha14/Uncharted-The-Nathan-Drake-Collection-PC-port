@@ -677,3 +677,21 @@ Next for >1080p:
 - Cause: DMA reads are invisible to the barrier tracker. The window uploads recorded in SyncDmaMemory (end of BindResources) never set needs_barrier, so a read could see a copy mid-flight, and later copies into the arena had no barrier against the draw's reads.
 - Fix: needs_barrier |= IsBufferAccessed(arena, whole) for the window arenas, and ResetBindings registers a shader read of those arenas (dma_read_arenas). Built 00:59; the user's test is pending.
 - The U3 hair shaders were extracted from the actor33 packs (young-drake.pak etc.; scratchpad find_shaders.py and u3shaders/).
+
+## 15 October 2026 (night): update 1.02, resolution causes, movies above 1080p, plan
+
+Plan and test list: analysis/PLAN.md.
+
+- **Update 1.02** (`utndc.v1.02.pkg` → `game/CUSA02344-patch`, metadata from the PKG entries): `tools/probe_uncharted.py` finds `<game folder>-patch|-update` (or UNCHARTED_UPDATE) and runs a linked view (gow3_pc/scripts/game_update.py; fixed a stale link record that kept the view from being removed). All three executables were recompiled. Patches are hex patterns with `??` wildcards and per-version variants.
+  - GPU wait: in 1.02 the 2.0 s timeout jumps straight to `int 0x41` (U1 0x4fdf96). Same bytes in U2/U3 (`c5f258c0 c5f82e05 ???????? 7710 f390 498b00`).
+  - Resolution: the 1.02 constructors no longer store 1920/1080; only the display settings init (U1 0x4d0710, global 0xe76e74: +0x08/+0x18/+0x24/+0x38 sizes, +0x68 60.0f) does, with [rax]. Total check uses lea rsi,[rbp-0x30] in U2/U3.
+- **Frame timing**: dt = rdtsc delta / TSC frequency (U1 1.02 0x9d419), clamped by "Minimum Framerate" (clock update 0xfac70); `forcefps <n>` overrides. Game speed is right above 60.
+- **>1080p crash causes**:
+  - U2 1440p NaN and U3 1440p pointer crash: async readbacks were on (584/230 in flight).
+  - U1 4K "offsetTableIndex != -1": GenerateOffset (U1 1.02 0x662ae0) packs pointers as table<<31 | offset; tables fixed at [0, 2 GiB) and [0x1000000000, +2 GiB) (set at 0x7e156). The moved Render Target Heap is created before the level heaps (0x82, 0x80), so they land past 2 GiB (failed pointer 0x10e92cbd1c, animation loader). 4K frame capture: RTs at CPU area +1008..2393 MiB. Neither 1 MiB alignment nor context 8 (null heap at boot) moves it. U1 renders at most 2880x1620 (move=False) and upscales.
+  - The 13 Oct 1080p assert of the same kind: pointer 0x8007c301a, a rodata string, with the image at 0x800000000 (before --low-image). Table 0 is needed.
+  - U3 1.02 at 4K: CPU area mapped 100 MiB larger than the table (4132 MiB wrapped to 36 MiB). 128 MiB headroom; margin falls back 1.1 → 1.05 → 1.0.
+  - Boot-tested: U1 1440p/1620p, U2 4K, U3 4K.
+- **Movies above 1080p** (green, tiled): the movie player (movie-rendering.cpp, U1 1.02 0x4fb7b1) builds the luma/chroma textures with the display size (+0x08/+0x0c) and the chroma offset W*align(H,64) from +0x24/+0x28; frame buffers are fixed at kSizeFrameBuffer = 4 MiB (movie-player.cpp). Now: gpu/shim/gow3_movie.cpp + videodec2 write a copy scaled to GOW3_MOVIE_SIZE into flexible memory at 0xf000000000 (runtime_map_guest_memory) and ImageInfo reads the planes there. Colors right; the conversion shader (cs c85d9816) still scales by 1920x1080, so the movie fills only the top-left 1920x1080. Next: patch that scale.
+- **Low-end reference**: integrated Radeon (GOW3_GPU_ID=1), U1 title: 21 FPS at 1080p, 44 at 720p.
+- **Red zone** (shadPS4 #5038): Windows exception frames overwrite the SysV red zone. About 340 red-zone blocks per game, none at known crash sites.

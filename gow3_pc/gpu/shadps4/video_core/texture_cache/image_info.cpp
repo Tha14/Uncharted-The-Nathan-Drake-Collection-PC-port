@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "gow3_movie.h"
 #include "common/assert.h"
 #include "core/libraries/kernel/process.h"
 #include "core/libraries/videoout/buffer.h"
@@ -139,6 +140,11 @@ ImageInfo::ImageInfo(const AmdGpu::Image& image, const Shader::ImageResource& de
     bank_swizzle = image.GetBankSwizzle();
 
     guest_address = image.Address();
+    // gow3: movie frames the game describes with its patched display size (gow3_movie.h).
+    if (type == AmdGpu::ImageType::Color2D && resources.levels == 1 && resources.layers == 1 &&
+        !props.is_tiled) {
+        Gow3Movie::Remap(guest_address, size.width, size.height, pitch, num_bits);
+    }
 
     alt_tile = Libraries::Kernel::sceKernelIsNeoMode() && image.alt_tile_mode;
     UpdateSize();

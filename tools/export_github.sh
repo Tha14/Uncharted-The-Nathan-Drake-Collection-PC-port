@@ -34,6 +34,7 @@ find tools launcher -type f ! -path '*/__pycache__/*' ! -path 'tools/pkgtool/*' 
     ! -name '*.pyc' | while read -r path; do copy "$path"; done
 copy Start-Uncharted.cmd
 copy analysis/STATUS.md
+copy analysis/PLAN.md
 cp -r tools/github/. "$dest/"
 
 # Submodules: .gitmodules from the runtime's, under gow3_pc/, pinned at the checked-out commits.

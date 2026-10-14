@@ -28,10 +28,14 @@ public:
 
 private:
     AVFrame* ConvertNV12Frame(AVFrame& frame);
+    bool WriteMovieCopy(const AVFrame& frame, u64 base);
 
 private:
     AVCodecContext* m_codec_context = nullptr;
     SwsContext* m_sws_context = nullptr;
+    SwsContext* m_scale_context = nullptr;
+    AVFrame* m_scaled = nullptr;
 };
+
 
 } // namespace Libraries::Videodec2
