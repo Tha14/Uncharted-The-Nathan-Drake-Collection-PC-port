@@ -1,0 +1,30 @@
+/* Uncharted Launcher.exe: starts the launcher (launcher\uncharted_launcher.pyw) with the Python that
+ * ships next to it (python\pythonw.exe), without a console window. Built by tools/package_windows.sh. */
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <wchar.h>
+
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR arguments, int show)
+{
+    (void)instance, (void)previous, (void)arguments, (void)show;
+    static wchar_t dir[32768], python[32768], line[32768];
+    DWORD length = GetModuleFileNameW(NULL, dir, 32768);
+    if (length == 0 || length >= 32768)
+        return 1;
+    wchar_t *slash = wcsrchr(dir, L'\\');
+    if (slash)
+        *slash = 0;
+    swprintf(python, 32768, L"%ls\\python\\pythonw.exe", dir);
+    swprintf(line, 32768, L"\"%ls\" \"%ls\\launcher\\uncharted_launcher.pyw\"", python, dir);
+
+    STARTUPINFOW startup = {.cb = sizeof(startup)};
+    PROCESS_INFORMATION process;
+    if (!CreateProcessW(python, line, NULL, NULL, FALSE, 0, NULL, dir, &startup, &process)) {
+        MessageBoxW(NULL, L"python\\pythonw.exe was not found next to this file. Extract the whole package.",
+                    L"Uncharted: The Nathan Drake Collection", MB_OK | MB_ICONERROR);
+        return 1;
+    }
+    CloseHandle(process.hThread);
+    CloseHandle(process.hProcess);
+    return 0;
+}

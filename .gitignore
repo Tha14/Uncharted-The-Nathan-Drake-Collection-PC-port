@@ -1,0 +1,12 @@
+# Game files, player data and build output never belong in this repository.
+/game/
+/user/
+/reference/
+/dist/
+*.pkg
+/analysis/*
+!/analysis/STATUS.md
+/gow3_pc/out/
+/Uncharted.lnk
+__pycache__/
+*.pyc

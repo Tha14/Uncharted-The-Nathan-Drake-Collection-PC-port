@@ -1,0 +1,73 @@
+# Builds the runtime with MSYS2 CLANG64 and packages Uncharted-windows (launcher, Python, runtime and
+# DLLs; no game files). The package is the workflow artifact "Uncharted-windows".
+name: Build Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 150
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      # Sources, patches and submodules keep the LF endings they are committed with (git apply).
+      - name: Keep committed line endings
+        shell: pwsh
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # The Windows Python that the package carries (Tkinter and Pillow for the launcher).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install Pillow
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check pillow
+
+      - uses: msys2/setup-msys2@v2
+        id: msys2
+        with:
+          msystem: CLANG64
+          update: true
+          install: git patch
+          pacboy: >-
+            toolchain:p cmake:p ninja:p pkgconf:p python:p
+            vulkan-headers:p vulkan-loader:p vulkan-memory-allocator:p glslang:p
+            sdl3:p fmt:p boost:p robin-map:p xxhash:p ffmpeg:p zydis:p
+            spirv-tools:p spirv-headers:p spirv-cross:p
+
+      - name: Build the runtime
+        run: |
+          git config --global --add safe.directory '*'
+          export MSYS2_ROOT=$(cygpath -u '${{ steps.msys2.outputs.msys2-location }}')
+          gow3_pc/build.sh
+
+      - name: Package
+        run: |
+          export MSYS2_ROOT=$(cygpath -u '${{ steps.msys2.outputs.msys2-location }}')
+          export PYTHON_HOME=$(cygpath -u "$pythonLocation")
+          tools/package_windows.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Uncharted-windows
+          path: dist/Uncharted-windows/
+          if-no-files-found: error
+
+      - name: Upload the build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: gow3_pc/out/gpu-build.log
+          if-no-files-found: ignore
