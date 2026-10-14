@@ -16,37 +16,44 @@ import struct
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Code patches for Drake's Fortune (eboot.bin), applied to the linked image by unique byte
-# pattern: (description, pattern, offset in pattern, original bytes, replacement bytes).
+# Code patches, applied to the linked image by byte pattern (hex, "??" = any byte). A patch lists
+# variants (description, [(pattern, offset in pattern, original bytes, replacement bytes), ...]):
+# the first variant whose pattern occurs exactly once is applied. The variants cover the game
+# versions 1.00 and 1.02 (the update recompiled all three executables).
+def pattern_regex(text):
+    import re
+    text = text.replace(" ", "")
+    return re.compile(b"".join(b"." if text[i:i + 2] == "??" else re.escape(bytes.fromhex(text[i:i + 2]))
+                               for i in range(0, len(text), 2)), re.S)
+
+
+# The wait for a frame's GPU end-of-pipe stamp gives up after 2.0 s (vucomiss [2.0f]; ja). On PC
+# the command processor can pause that long (shader compilation, readbacks), never on a PS4.
+# 1.00 then asserts m_gfxEopTick of frame N-3 in FrameBegin (fg-draw-mgr.cpp:234; U1 0x3fd816);
+# 1.02 halts right there (int 0x41; U1 0x4fdf96). NOP the `ja` that leaves the loop on timeout.
+# The three games have the same loop; only the rip-relative offset of the 2.0f differs.
+GPU_WAIT_PATCH = ("wait for GPU frame completion without the 2 s timeout", [
+    ("c5f258c0 c5f82e05 ???????? 7739 f390 beffffffff", 12, bytes.fromhex("7739"), bytes.fromhex("9090")),
+    ("c5f258c0 c5f82e05 ???????? 7710 f390 498b00", 12, bytes.fromhex("7710"), bytes.fromhex("9090")),
+])
 EBOOT_PATCHES = [
-    # The wait for a frame's GPU end-of-pipe stamp (0x3fd6xx) gives up after 2.0 s, and
-    # FrameBegin then asserts m_gfxEopTick of frame N-3 (fg-draw-mgr.cpp:234). On PC the
-    # command processor can pause that long (shader compilation, readbacks), never on a PS4.
-    # NOP the `ja` that leaves the loop on timeout (vucomiss [2.0f]; ja +0x39 at 0x3fd816).
-    ("wait for GPU frame completion without the 2 s timeout",
-     bytes.fromhex("c5f82e054a3540007739"), 8, bytes.fromhex("7739"), bytes.fromhex("9090")),
+    GPU_WAIT_PATCH,
     # Silent sound effects (footsteps, gunfire, ambience; music and speech fine): the sound config
     # loader (biglib audio acm 0x515a50) opens reverbs/mixers/environments/prototypes.txt through
     # the sound file callback 0x8ef80 with flag 1, which `testb $5,%cl` at 0x8f1da turns into O_CREAT.
     # Our Fios2 rejects READ|CREAT on read-only /app0 with SCE_FIOS_ERROR_READ_ONLY (0x80820015,
     # mapped to EROFS 0x1e) before any kernel call, so no sound prototypes load and every effect
-    # request resolves to nothing. Test bit 2 only: a read request opens read-only.
-    ("sound config files open read-only (no O_CREAT on /app0)",
-     bytes.fromhex("4a8d542b14f6c1050f95c00fb6c0c1e0068db000020000f6c106"), 5,
-     bytes.fromhex("f6c105"), bytes.fromhex("f6c104")),
+    # request resolves to nothing. Test bit 2 only: a read request opens read-only. (1.00 and 1.02)
+    ("sound config files open read-only (no O_CREAT on /app0)", [
+        ("4a8d542b14f6c1050f95c00fb6c0c1e0068db000020000f6c106", 5,
+         bytes.fromhex("f6c105"), bytes.fromhex("f6c104")),
+    ]),
 ]
-
-# Uncharted 2 and 3 share the frame-completion wait with Drake's Fortune byte for byte (same
-# fg-draw-mgr.cpp m_gfxEopTick assert); only the rip-relative offset of the 2.0f differs.
-def gpu_wait_patch(displacement):
-    return ("wait for GPU frame completion without the 2 s timeout",
-            bytes.fromhex("c5f258c0c5f82e05" + displacement + "7739f390beffffffff"), 12,
-            bytes.fromhex("7739"), bytes.fromhex("9090"))
 
 PATCHES = {
     "eboot.bin": EBOOT_PATCHES,
-    "big2-ps4_Shipping.elf": [gpu_wait_patch("ca9d6400")],
-    "big3-ps4_Shipping.elf": [gpu_wait_patch("a298aa00")],
+    "big2-ps4_Shipping.elf": [GPU_WAIT_PATCH],
+    "big3-ps4_Shipping.elf": [GPU_WAIT_PATCH],
 }
 EXECUTABLES = tuple(PATCHES)
 # Exit code of sceSystemServiceLoadExec (runtime_services.c): the game asked for another
@@ -56,15 +63,20 @@ LOADEXEC_EXIT = 30
 
 def apply_patches(image, patches):
     data = bytearray(image.read_bytes())
-    for description, pattern, offset, original, replacement in patches:
-        count = data.count(pattern)
-        if count != 1:
-            raise SystemExit(f"Patch '{description}': pattern found {count} times, expected 1")
-        at = data.find(pattern) + offset
-        if data[at:at + len(original)] != original:
-            raise SystemExit(f"Patch '{description}': unexpected bytes at {at:#x}")
-        data[at:at + len(replacement)] = replacement
-        print(f"Patched: {description} (image offset {at:#x})")
+    for description, variants in patches:
+        for pattern, offset, original, replacement in variants:
+            found = [match.start() for match in pattern_regex(pattern).finditer(data)]
+            if len(found) != 1:
+                continue
+            at = found[0] + offset
+            if data[at:at + len(original)] != original:
+                raise SystemExit(f"Patch '{description}': unexpected bytes at {at:#x}")
+            data[at:at + len(replacement)] = replacement
+            print(f"Patched: {description} (image offset {at:#x})")
+            break
+        else:
+            # An unknown game version: start without it.
+            print(f"Patch '{description}' NOT applied: no variant matches this game version")
     image.write_bytes(data)
 
 
@@ -102,11 +114,22 @@ def game_window_icon(game):
 # and render size (+0x08/+0x18/+0x24/+0x38), aspect, tile grid (+0x40 = width/8, +0x44 =
 # height/4, as the engine's own SetResolution computes them) and a larger size at +0x30/+0x34
 # (2560x1216 at 1080p), scaled with the rest. UNCHARTED_RESOLUTION=<width>x<height>.
-def resolution_patch(data, width, height):
-    anchor = bytes.fromhex("c7470880070000c7470c38040000")  # mov [rdi+8],1920; mov [rdi+0xc],1080
-    first = data.find(anchor)
-    if first < 0:
+class ResolutionTooLarge(Exception):
+    pass
+
+
+# Drake's Fortune above what its GPU area holds: these 16:9 sizes in turn (width/8, height/4 whole).
+U1_FALLBACK_SIZES = [(3200, 1800), (2880, 1620), (2560, 1440), (1920, 1080)]
+
+
+def resolution_patch(data, width, height, move=True):
+    import re
+    # mov [rdi/rax+8],1920; mov [rdi/rax+0xc],1080 (1.00 starts with rdi, 1.02 with rax)
+    anchor = pattern_regex("c7 ?? 08 80070000 c7 ?? 0c 38040000")
+    match = anchor.search(data)
+    if not match:
         raise SystemExit("Resolution patch: display settings code not found")
+    first = match.start()
     start, end = first - 0x40, first + 0x800
     region = bytearray(data[start:end])
     stores = [
@@ -147,51 +170,128 @@ def resolution_patch(data, width, height):
             raise SystemExit(f"Resolution patch: memory table entry {entry_id:#x} found {len(found)} times")
         return found[0]
 
-    # Memory areas: entry 2 = CPU ("onion", context 5), entry 3 = GPU ("garlic", context 6); a
-    # table entry's second field is its context. An area holds at most 4096 MiB (MemoryArea
-    # keeps one physical page id per MiB in a 4096-entry array), so above ~1440p the Render
-    # Target Heap moves to the CPU area; on PC both areas are the same memory.
+    # Memory areas (a table entry's second field is the context it lies in): entry 2 = CPU
+    # ("onion", context 5) and entry 3 = GPU ("garlic", context 6). An area holds at most 4096 MiB
+    # (MemoryArea keeps one physical page id per MiB in a 4096-entry array), so above ~1620p the
+    # Render Target Heap moves to the CPU area; on PC both areas are the same memory. There it is
+    # created before the level and animation heaps (0x82, 0x80) and pushes them up by its size,
+    # past 2 GiB. Uncharted 2 and 3 don't mind; Drake's Fortune can't address them there: its
+    # offset pointers (BP/Shared TGenericOffsetPtr.h GenerateOffset) cover [0, 2 GiB) (its own
+    # image: rodata strings are encoded too) and [0x1000000000, +2 GiB) ("offsetTableIndex != -1"
+    # assert at 4K, pointer 0x10e92cbd1c). Context 8 (on-demand direct memory) doesn't take the
+    # heap (null heap at boot). So Drake's Fortune stops where the GPU area is full (move=False).
     onion_at, onion_old = table_entry(2, 2, 0x100000, 0x40000000)
     garlic_at, garlic_old = table_entry(3, 2, 0x100000, 0x80000000)
     heap_at, heap_old = table_entry(0x85, 6, 0x80, 0x10000000)       # Render Target Heap
     rt_at, rt_old = table_entry(0x84, 6, 0x80, 0x4000000)            # Render Target
     step = 64 * mib  # the engine's direct memory blocks are large-page multiples
 
-    def grown(old):
-        return old + (-(-int(old * (factor * 1.1 - 1)) // step) * step if factor > 1 else 0)
+    def layout(margin):
+        def grown(old):
+            return old + (-(-int(old * (factor * margin - 1)) // step) * step if factor > 1 else 0)
 
-    heap_new, rt_new = grown(heap_old), grown(rt_old)
-    onion_new, garlic_new, heap_context = onion_old, garlic_old + (heap_new - heap_old) + (rt_new - rt_old), 6
-    area_limit = 4096 * mib
-    if garlic_new >= area_limit:
-        # Area sizes must be whole MiB (MemoryArea::Initialize asserts): the moved heap is
-        # rounded up, and the GPU area's rounding goes to the other render target heap.
-        heap_new = -(-heap_new // step) * step
-        onion_new = onion_old + heap_new
-        rest = garlic_old - heap_old - rt_old
-        garlic_new = -(-(rest + rt_new) // step) * step
-        rt_new = garlic_new - rest
-        heap_context = 5
-    if onion_new >= area_limit or garlic_new >= area_limit:
-        raise SystemExit(f"Resolution patch: {width}x{height} needs more memory than the game's areas hold")
+        heap_new, rt_new = grown(heap_old), grown(rt_old)
+        onion_new, garlic_new, heap_context = onion_old, garlic_old + (heap_new - heap_old) + (rt_new - rt_old), 6
+        if garlic_new >= area_limit:
+            if not move:
+                raise ResolutionTooLarge(f"{width}x{height}: the render targets don't fit the GPU area")
+            # Area sizes must be whole MiB (MemoryArea::Initialize asserts): the moved heap is
+            # rounded up, and the GPU area's rounding goes to the other render target heap.
+            heap_new = -(-heap_new // step) * step
+            onion_new = onion_old + heap_new
+            rest = garlic_old - heap_old - rt_old
+            garlic_new = -(-(rest + rt_new) // step) * step
+            rt_new = garlic_new - rest
+            heap_context = 5
+        # Uncharted 3 1.02 maps its CPU area 100 MiB larger than the table says (4132 MiB at 4K
+        # wrapped to 36 MiB, "HeapArena::Allocate: out of memory"): keep 128 MiB below the limit.
+        if onion_new + headroom >= area_limit or garlic_new >= area_limit:
+            raise ResolutionTooLarge(f"{width}x{height} needs more memory than the game's areas hold")
+        return heap_new, rt_new, onion_new, garlic_new, heap_context
+
+    # The render target heaps grow with the pixel count plus 10%, less when that doesn't fit.
+    area_limit, headroom = 4096 * mib, 128 * mib
+    for margin in (1.1, 1.05, 1.0):
+        try:
+            heap_new, rt_new, onion_new, garlic_new, heap_context = layout(margin)
+            break
+        except ResolutionTooLarge:
+            if margin == 1.0:
+                raise
     extra = (onion_new - onion_old) + (garlic_new - garlic_old)
     struct.pack_into("<IIQ", data, heap_at, 0x85, heap_context, heap_new)
     struct.pack_into("<Q", data, rt_at + 8, rt_new)
     struct.pack_into("<Q", data, onion_at + 8, onion_new)
     struct.pack_into("<Q", data, garlic_at + 8, garlic_new)
-    # The memory table check (lea rsi,[rbp-0x20]; movabs rdx,<total>) expects the direct
-    # memory blocks to add up to 4608 MiB.
-    total_old = bytes.fromhex("488d75e048ba") + (0x120000000).to_bytes(8, "little")
-    if data.count(total_old) != 1:
-        raise SystemExit(f"Resolution patch: memory total check found {data.count(total_old)} times")
-    at = data.find(total_old)
-    data[at:at + len(total_old)] = bytes.fromhex("488d75e048ba") + (0x120000000 + extra).to_bytes(8, "little")
+    # The memory table check (ValidateContext: lea rsi,[rbp-0x20 or -0x30]; movabs rdx,<total>)
+    # expects the direct memory blocks (context 2) to add up to 4608 MiB.
+    total_check = pattern_regex("488d75 ?? 48ba 0000002001000000")
+    found = [m.start() for m in total_check.finditer(data)]
+    if len(found) != 1:
+        raise SystemExit(f"Resolution patch: memory total check found {len(found)} times")
+    data[found[0] + 6:found[0] + 14] = (0x120000000 + extra).to_bytes(8, "little")
     print(f"Patched: render resolution {width}x{height} ({changed} stores; render target heaps "
-          f"{heap_new // mib} + {rt_new // mib} MiB in the {'CPU' if heap_context == 5 else 'GPU'} area)")
+          f"{heap_new // mib} + {rt_new // mib} MiB, the first in the {'CPU' if heap_context == 5 else 'GPU'} area)")
     return extra // mib
 
 
 GAME_KEYS = {"eboot.bin": "u1", "big2-ps4_Shipping.elf": "u2", "big3-ps4_Shipping.elf": "u3"}
+UPDATE_SUFFIXES = ("-patch", "-update", "_patch", "_update")
+
+
+def find_update(game):
+    """The game's update (e.g. 1.02, extracted from its PKG): UNCHARTED_UPDATE (a folder, or 0 for
+    none), else a folder next to the game's named like it plus -patch/-update (any case), with or
+    without uroot. An update folder holds eboot.bin and sce_sys/param.sfo."""
+    chosen = os.environ.get("UNCHARTED_UPDATE", "")
+    if chosen == "0":
+        return None
+    if chosen:
+        candidates = [Path(chosen), Path(chosen) / "uroot"]
+    else:
+        title = game.parent if game.name.lower() == "uroot" else game
+        names = {title.name.lower() + suffix for suffix in UPDATE_SUFFIXES}
+        try:
+            siblings = [entry for entry in title.parent.iterdir() if entry.name.lower() in names]
+        except OSError:
+            siblings = []
+        candidates = [path for entry in siblings for path in (entry / "uroot", entry)]
+    for candidate in candidates:
+        if (candidate / "eboot.bin").is_file() and (candidate / "sce_sys/param.sfo").is_file():
+            return candidate.resolve()
+    if chosen:
+        print(f"UNCHARTED_UPDATE={chosen} holds no eboot.bin and sce_sys/param.sfo; starting without it")
+    return None
+
+
+def sfo_value(game, key):
+    try:
+        sys.path.insert(0, str(ROOT / "gow3_pc/scripts"))
+        from patches import game_sfo
+        return game_sfo(game).get(key)
+    except Exception:
+        return None
+    finally:
+        sys.path.pop(0)
+
+
+def game_view(game, update):
+    """The game with its update laid over it, as a folder of links (gow3_pc/scripts/game_update.py).
+    It is made on the game's drive when possible: file links can't cross drives (else copies)."""
+    sys.path.insert(0, str(ROOT / "gow3_pc/scripts"))
+    try:
+        from game_update import create_view
+    finally:
+        sys.path.pop(0)
+    places = [ROOT / "analysis/views"]
+    if Path(game.anchor).resolve() != Path(ROOT.anchor).resolve():
+        places.insert(0, game.parent.parent / ".uncharted-views")
+    for place in places:
+        try:
+            return create_view(game, update, place)
+        except OSError as error:
+            print(f"Game view in {place} failed: {error}")
+    raise SystemExit("Could not combine the game and its update")
 
 
 def ini_value(path, key, default):
@@ -205,7 +305,26 @@ def ini_value(path, key, default):
 
 
 def run_once(args, executable, guest_args, loadexec):
-    game = args.game.resolve()
+    base = args.game.resolve()
+    update = find_update(base)
+    if not update:
+        return run_game(args, base, executable, guest_args, loadexec)
+    print(f"Update {sfo_value(update, 'APP_VER') or '?'}: {update}")
+    view = game_view(base, update)
+    try:
+        return run_game(args, view, executable, guest_args, loadexec)
+    finally:
+        sys.path.insert(0, str(ROOT / "gow3_pc/scripts"))
+        try:
+            from game_update import remove_view
+            remove_view(view)
+        except OSError as error:
+            print(f"Game view {view} not removed: {error}")
+        finally:
+            sys.path.pop(0)
+
+
+def run_game(args, game, executable, guest_args, loadexec):
     out = ROOT / "analysis" / ("uncharted" if executable == "eboot.bin" else Path(executable).stem)
     user = ROOT / "analysis/uncharted-user"
     user.mkdir(parents=True, exist_ok=True)
@@ -223,15 +342,26 @@ def run_once(args, executable, guest_args, loadexec):
                   or os.environ.get("UNCHARTED_RESOLUTION", "")).lower()
     width, height = (int(value) for value in resolution.split("x")) if resolution else (1920, 1080)
     if (width, height) != (1920, 1080):
-        # Uncharted 3 above 1080p: at 4K its compute command buffers fill up ("Command context
-        # dcb full"), and at 1440p loading into the game hits a corrupted pointer: buffers
-        # sized for 1080p overflow. Until those are found it runs at 1080p.
-        if executable == "big3-ps4_Shipping.elf" and width * height > 1920 * 1080:
-            print(f"Uncharted 3: {width}x{height} is not supported yet, using 1920x1080")
-            width, height = 1920, 1080
+        # (The earlier Uncharted 3 failures above 1080p - "Command context dcb full", a corrupted
+        # pointer while loading - came with asynchronous readbacks, which also broke it at 1080p.)
         image = out / "boot-linked.bin"
         data = bytearray(image.read_bytes())
-        extra_mib = resolution_patch(data, width, height)
+        # Drake's Fortune keeps its render targets in the GPU area (see resolution_patch): above
+        # ~1620p it renders at the largest size that fits there, and the output is upscaled.
+        move = executable != "eboot.bin"
+        candidates = [(width, height)] + [size for size in U1_FALLBACK_SIZES if size[0] * size[1] < width * height]
+        extra_mib = 0
+        for candidate in candidates:
+            patched = bytearray(data)
+            try:
+                extra_mib = resolution_patch(patched, *candidate, move=move)
+            except ResolutionTooLarge as error:
+                print(f"Render resolution {error}")
+                continue
+            if candidate != (width, height):
+                print(f"Drake's Fortune renders at {candidate[0]}x{candidate[1]} instead of {width}x{height}")
+            data = patched
+            break
         image.write_bytes(data)
     else:
         extra_mib = 0

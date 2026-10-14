@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import queue
 import shutil
+import struct
 import subprocess
 import sys
 import threading
@@ -73,6 +74,41 @@ def is_game_dir(folder):
         (Path(folder) / "sce_sys" / "param.sfo").is_file()
 
 
+UPDATE_SUFFIXES = ("-patch", "-update", "_patch", "_update")
+
+
+def game_update_dir(folder):
+    """The game's update (e.g. 1.02) next to its folder, found as tools/probe_uncharted.py does:
+    named like the game folder plus -patch or -update, with or without uroot."""
+    folder = Path(folder)
+    title = folder.parent if folder.name.lower() == "uroot" else folder
+    names = {title.name.lower() + suffix for suffix in UPDATE_SUFFIXES}
+    try:
+        for entry in title.parent.iterdir():
+            if entry.name.lower() in names:
+                for candidate in (entry / "uroot", entry):
+                    if is_game_dir(candidate):
+                        return candidate
+    except OSError:
+        pass
+    return None
+
+
+def app_version(folder):
+    """APP_VER of a game folder (sce_sys/param.sfo)."""
+    try:
+        data = (Path(folder) / "sce_sys" / "param.sfo").read_bytes()
+        _, _, keys, values, count = struct.unpack_from("<IIIII", data)
+        for i in range(count):
+            key_at, _, length, _, value_at = struct.unpack_from("<HHIII", data, 20 + i * 16)
+            key = data[keys + key_at:data.index(bytes(1), keys + key_at)].decode()
+            if key == "APP_VER":
+                return data[values + value_at:values + value_at + length].rstrip(bytes(1)).decode()
+    except (OSError, ValueError, struct.error):
+        pass
+    return None
+
+
 def monitor_refresh_hz():
     try:
         user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
@@ -95,18 +131,20 @@ def high_end_fps_limit():
 
 
 RESOLUTIONS = [("1280x720", "720p"), ("1600x900", "900p"), ("1920x1080", "1080p"), ("2560x1440", "1440p"),
-               ("3840x2160", "4K")]
+               ("2880x1620", "1620p"), ("3840x2160", "4K")]
 
 # Quality presets: the game has one detail level (the PS4's); quality here is the resolution the
-# game draws at, how it reaches the screen (FSR 1, sharpening) and the frame rate.
+# game draws at, how it reaches the screen (FSR 1, sharpening) and the frame rate. Above 1080p the
+# render resolution is new (October 2026): confirm in play. All three games draw at 4K
+# natively except Drake's Fortune, which stops at 1620p (its memory layout) and upscales.
 PRESETS = {
     "low": {
-        "title": "LOW", "summary": "30 FPS  •  steady",
-        "detail": "For weak PCs: a locked 30 FPS with two frames queued keeps the frame rate even. "
-                  "Shaders compile in the background to cut stutters.",
-        "resolution": "1920x1080",
-        "values": {"fps_limit": "30", "frames_queued": "2", "vsync": "1", "async_shaders": "1",
-                   "fsr1": "0", "rcas": "1", "rcas_strength": "50"},
+        "title": "LOW", "summary": "60 FPS  •  720p + FSR 1",
+        "detail": "For weak GPUs: the game draws at 720p (about twice as fast as 1080p) and FSR 1 "
+                  "scales it up to the screen. Two frames queued keep the frame rate even.",
+        "resolution": "1280x720",
+        "values": {"fps_limit": "60", "frames_queued": "2", "vsync": "1", "async_shaders": "1",
+                   "fsr1": "1", "rcas": "1", "rcas_strength": "75"},
     },
     "medium": {
         "title": "MEDIUM", "summary": "60 FPS  •  as on PS4",
@@ -116,20 +154,20 @@ PRESETS = {
                    "fsr1": "0", "rcas": "1", "rcas_strength": "75"},
     },
     "high": {
-        "title": "HIGH", "summary": "60 FPS  •  sharpened",
-        "detail": "60 FPS with stronger sharpening. On monitors above 1080p, FSR 1 also scales the "
-                  "image up to the screen.",
-        "resolution": "1920x1080",
+        "title": "HIGH", "summary": "60 FPS  •  1440p",
+        "detail": "Sharper: the game draws at 1440p (new, confirm in play). On 4K monitors FSR 1 scales "
+                  "it up to the screen.",
+        "resolution": "2560x1440",
         "values": {"fps_limit": "60", "frames_queued": "1", "vsync": "1", "async_shaders": "1",
-                   "fsr1": None, "rcas": "1", "rcas_strength": "100"},
+                   "fsr1": None, "rcas": "1", "rcas_strength": "50"},
     },
     "ultra": {
-        "title": "ULTRA", "summary": "Above 60 FPS",
-        "detail": "The frame rate unlocked up to your monitor's refresh rate (experimental), two "
-                  "frames queued for the highest FPS. FSR 1 on monitors above 1080p.",
-        "resolution": "1920x1080",
+        "title": "ULTRA", "summary": "4K  •  above 60 FPS",
+        "detail": "Native 4K (Drake's Fortune: 1620p + FSR 1) with the frame rate unlocked up to your "
+                  "monitor's refresh rate. New, confirm in play; needs a fast GPU.",
+        "resolution": "3840x2160",
         "values": {"fps_limit": None, "frames_queued": "2", "vsync": "1", "async_shaders": "1",
-                   "fsr1": None, "rcas": "1", "rcas_strength": "75"},
+                   "fsr1": None, "rcas": "1", "rcas_strength": "50"},
     },
 }
 PRESET_ORDER = ("low", "medium", "high", "ultra")
@@ -221,9 +259,15 @@ def read_config():
         entry["preset"] = {"balanced": "medium"}.get(entry["preset"], entry["preset"])
         if entry["resolution"] not in resolutions:
             entry["resolution"] = "1920x1080"
+    # Version 4: the presets draw at 720p / 1080p / 1440p / 4K (all were 1080p before).
+    if config.get("version", 1) < 4:
+        for game, entry in games.items():
+            if entry["preset"] in PRESETS:
+                entry["resolution"] = PRESETS[entry["preset"]]["resolution"]
+                write_ini(game, preset_values(entry["preset"]))
     for name in GAME_SETTING_DEFAULTS:
         config.pop(name, None)
-    config["version"] = 3
+    config["version"] = 4
     return config
 
 
@@ -488,7 +532,17 @@ class Launcher:
         write_config(self.config)
         if hasattr(self, "game_dir_label"):
             self.game_dir_label.config(text=f"Game files: {folder}")
+            self.update_label.config(text=self.update_text())
         return True
+
+    def update_text(self):
+        update = game_update_dir(self.game_dir())
+        if update:
+            return f"Game update {app_version(update) or '?'} is used: {update}"
+        folder = self.game_dir()
+        title = folder.parent if folder.name.lower() == "uroot" else folder
+        return (f"Game version {app_version(folder) or '?'}, no update found. For the 1.02 fixes, "
+                f"extract the update next to the game folder as {title.name}-patch.")
 
     def current_game(self):
         return next(g for g in GAMES if g["key"] == self.config.get("game"))
@@ -634,10 +688,9 @@ class Launcher:
             return Segmented(parent, RESOLUTIONS, self.game_settings()["resolution"],
                              self.change_resolution, self.f_small)
         self.widgets["resolution"] = self.row(
-            page, "Render resolution (experimental above 1080p)",
-            "The resolution the game draws at. The games assume 1080p in places: above it, crashes in "
-            "gameplay are known (Drake's Deception stays at 1080p). For a sharp, stable image use 1080p "
-            "with FSR 1 below.", resolution)
+            page, "Render resolution",
+            "The resolution the game draws at (the PS4's is 1080p). Above 1080p is new: if a game crashes "
+            "there, use 1080p with FSR 1 below. Drake's Fortune draws at most 1620p and upscales.", resolution)
         self.ini_choice(page, "display_mode", "Display mode", "Windowed, borderless window or exclusive fullscreen.",
                         [("windowed", "Windowed"), ("borderless", "Borderless"), ("fullscreen", "Fullscreen")])
         self.ini_toggle(page, "vsync", "VSync", "No tearing. With frame rates above the refresh rate the newest "
@@ -720,6 +773,9 @@ class Launcher:
         self.game_dir_label.pack(side="left")
         self.flat_button(folder_row, "Change game folder", self.choose_game_dir).pack(
             side="left", padx=(self.px(10), 0))
+        self.update_label = tk.Label(page, text=self.update_text(), font=self.f_small, bg=BG, fg=DIM,
+                                     anchor="w", justify="left")
+        self.update_label.pack(side="top", fill="x")
         self.ini_label = tk.Label(page, text=f"Settings: {ini_file(self.config['game'])}", font=self.f_small,
                                   bg=BG, fg=DIM, anchor="w")
         self.ini_label.pack(side="top", fill="x")

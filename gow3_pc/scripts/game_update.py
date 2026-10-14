@@ -10,7 +10,7 @@ from pathlib import Path
 import shutil
 import tempfile
 
-from mods import is_link, make_link
+from mods import LINKED, is_link, make_link
 
 
 def overlay(source, dest):
@@ -41,6 +41,7 @@ def remove(path):
             os.rmdir(path)
         else:
             path.unlink()
+        LINKED.pop(str(path), None)  # the name may become a real (merged) folder
     elif path.is_dir():
         for child in list(path.iterdir()):
             remove(child)

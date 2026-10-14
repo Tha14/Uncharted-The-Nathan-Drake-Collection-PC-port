@@ -11,7 +11,13 @@ How to play
 1. Extract this whole folder anywhere (keep everything together).
 2. Start "Uncharted Launcher.exe".
 3. On first Play, select your game folder (CUSA02344). The launcher remembers it.
+   Recommended: the 1.02 update (stability and visual fixes). Extract it next to the game folder,
+   named like it plus "-patch" (e.g. CUSA02344-patch, with or without its uroot folder). The
+   launcher shows the version it uses under Advanced.
 4. Pick a game card and a preset, then press PLAY.
+   Low: 720p + FSR 1 at 60 FPS (weak GPUs). Medium: 1080p 60 (as on PS4).
+   High: 1440p 60. Ultra: 4K with the frame rate unlocked (fast GPUs; Uncharted 1 draws at
+   1620p and upscales).
    In game, Insert or R3 + L2 opens the menu (display, frame rate, overlay).
 
 Notes
@@ -19,4 +25,4 @@ Notes
   and some stutter until the shader cache has filled.
 - Settings are kept per game. Saves and logs are kept in analysis\ next to the launcher.
 - Logs for troubleshooting: Advanced tab -> Open log folder (boot.log).
-- Render resolutions above 1080p are experimental and known to crash in gameplay.
+- Render resolutions above 1080p are new: if a game crashes there, choose Medium (1080p).
