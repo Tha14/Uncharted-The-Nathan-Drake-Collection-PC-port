@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "gow3_movie.h"
 #include "common/assert.h"
 #include "common/types.h"
 #include "shader_recompiler/params.h"
@@ -240,13 +241,14 @@ static constexpr const BinaryInfo& SearchBinaryInfo(const u32* code) {
     UNREACHABLE_MSG("Shader binary info not found.");
 }
 
-static constexpr Shader::ShaderParams GetParams(const auto& sh) {
+static Shader::ShaderParams GetParams(const auto& sh) {
     const auto* code = sh.template Address<u32*>();
     const auto& bininfo = SearchBinaryInfo(code);
     return {
         .user_data = sh.user_data,
         .code = std::span{code, bininfo.length / sizeof(u32)},
-        .hash = bininfo.shader_hash,
+        // gow3: movie shaders patched for the display size get their own key (gow3_movie.h).
+        .hash = Gow3Movie::ShaderKey(bininfo.shader_hash, code, bininfo.length / sizeof(u32)),
     };
 }
 

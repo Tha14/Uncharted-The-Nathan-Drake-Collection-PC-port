@@ -9,6 +9,7 @@
 // GOW3_MOVIE_SIZE=<width>x<height> is that display size (tools/probe_uncharted.py); unset, nothing
 // changes.
 
+#include <cstddef>
 #include <cstdint>
 
 namespace Gow3Movie {
@@ -25,6 +26,16 @@ void RecordFrame(std::uint64_t base, std::uint32_t width, std::uint32_t height, 
 std::uint8_t* ScratchFrame(std::uint64_t base);
 std::uint32_t ScaledPitch();
 std::uint32_t ScaledRows();
+
+// The movie player's conversion shader samples a frame at u = (x + 0.5) / 1920 and
+// v = (y + 0.5) / 1088 with those factors as literals, so above 1080p it covers only the top-left
+// 1920x1080. A shader holding both literals is a movie shader: its cache key gets the display size
+// mixed in (a patched copy never meets an unpatched one in the shader cache), and its literals are
+// rescaled to the display size (the scratch frame). Without GOW3_MOVIE_SIZE nothing changes.
+std::uint64_t ShaderKey(std::uint64_t hash, const std::uint32_t* code, std::size_t words);
+bool IsMovieShader(const std::uint32_t* code, std::size_t words);
+// A movie shader literal at the display size; false for any other value.
+bool MovieShaderConstant(std::uint32_t bits, float& patched);
 
 // An image over a recorded frame described with the display size: the plane in the scratch
 // frame, else as decoded (address, size and pitch in elements). bits: bits per element (8 luma,

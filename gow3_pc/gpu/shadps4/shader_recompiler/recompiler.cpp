@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <bit>
 #include "common/logging/classes.h"
 #include "shader_recompiler/frontend/control_flow_graph.h"
 #include "shader_recompiler/frontend/decode.h"
@@ -11,6 +12,7 @@
 #include "shader_recompiler/ir/program.h"
 #include "shader_recompiler/profile.h"
 #include "shader_recompiler/recompiler.h"
+#include "gow3_movie.h"
 
 namespace Shader {
 
@@ -95,6 +97,22 @@ IR::Program TranslateProgram(const std::span<const u32>& code, Pools& pools, Inf
         Shader::Optimization::LowerFp64ToFp32(program);
     }
     Shader::Optimization::SsaRewritePass(program);
+    // gow3: the movie conversion shader's 1920x1088 sampling literals at the display size the
+    // movie frames are read with (gow3_movie.h; only with GOW3_MOVIE_SIZE).
+    if (Gow3Movie::IsMovieShader(code.data(), code.size())) {
+        for (IR::Block* const block : program.blocks) {
+            for (IR::Inst& inst : block->Instructions()) {
+                for (size_t arg = 0; arg < inst.NumArgs(); ++arg) {
+                    const IR::Value value = inst.Arg(arg);
+                    float patched;
+                    if (value.IsImmediate() && value.Type() == IR::Type::F32 &&
+                        Gow3Movie::MovieShaderConstant(std::bit_cast<u32>(value.F32()), patched)) {
+                        inst.SetArg(arg, IR::Value{patched});
+                    }
+                }
+            }
+        }
+    }
     Shader::Optimization::ConstantPropagationPass(program.post_order_blocks);
     if (info.sw_stage == SwStage::TessellationControl) {
         Shader::Optimization::TessellationPreprocess(program, runtime_info);

@@ -16,7 +16,7 @@ shadPS4 issues for this game).
 | U1 above 1620p | Uncharted 1 encodes pointers to loaded data (animations) as 31-bit offsets into two fixed 2 GiB windows (Bluepoint `GenerateOffset`). At 4K the grown render-target heap no longer fits the GPU area, moves to the CPU area, and is created before the level/animation heaps, so it pushes them past 2 GiB, and the first animation load asserts. Nothing simple moves it (tried: the alignment order, another memory context: null heap). **U1 now renders natively up to 2880x1620** (its GPU area's limit) and FSR 1 scales to 4K. |
 | U3 4K | 1.02 maps U3's CPU area 100 MiB larger than its table says; at 4K that crossed 4 GiB and wrapped to 36 MiB (out of memory at boot). Fixed with headroom. |
 | Native resolutions, boot-tested | U1 1440p and 1620p, U2 4K, U3 4K: real passes at that size, no asserts, 60 FPS on the title screen. Gameplay needs you. |
-| Green, tiled cutscenes above 1080p | Cause: the movie player reads every movie frame with the display size it renders at, but the movies are 1080p and its frame buffers are fixed at 4 MiB. **Partly fixed:** the decoder writes a copy scaled to the display size into separate memory, and the GPU reads that, so the colors are right. **Still wrong:** the conversion shader scales by the movie's own size, so above 1080p the movie fills only the top-left 1920x1080 of the image. Next step in 3.A. |
+| Green, tiled cutscenes above 1080p | **Fixed** (tested on U1's intro movies at 1440p and 1620p: centered, full size, right colors). Cause: the movie player reads each frame at the display size it renders at, but its movies are 1080p, its frame buffers are fixed at 4 MiB, and its conversion shader has 1920x1088 baked in. Now the decoder also writes each frame scaled to the display size into separate memory; the GPU reads the planes from there; and the shader's two scale literals are rescaled (cached separately per resolution). U2/U3 share this code. |
 | Launcher | Presets: **Low** 720p + FSR 1 at 60 FPS, **Medium** 1080p 60, **High** 1440p 60, **Ultra** 4K (U1: 1620p + FSR 1) with the frame rate unlocked. New 1620p option. Your saved per-game presets were moved to the new meaning: U1 High → 1440p, U2 Ultra → 4K, U3 Low → 720p (choose Medium for the old 1080p). |
 
 ## 2. Please test (in this order)
@@ -34,7 +34,7 @@ After each crash, the log is in `analysis/<game>/boot.log` (Advanced → Open lo
 
 ### A. Correct at every resolution (needed before 4K is the default)
 
-1. **Cutscenes above 1080p, finish.** Patch the movie renderer to use the display size where it uses the movie's (the conversion shader's scale factor, in movie-rendering.cpp around U1 1.02 `0x4fb7b1`; the same code exists in U2/U3), or enlarge `kSizeFrameBuffer` (4 MiB, movie-player.cpp) and the movie pool so frames fit at the display size. With the scaled copy already in place, only the scale is missing.
+1. **Cutscenes above 1080p**: fixed (see section 1). Please check one U2/U3 cutscene above 1080p.
 2. **Native 4K for U1.** Make the render-target heap get created after the level heaps, or find a third memory area that accepts it. Until then: 1620p + FSR 1 (2.25x the pixels of 1080p).
 3. **Safe asynchronous readbacks.** Read-protect the pages of every readback still in flight; a CPU read of such a page waits for that readback only. Then async readbacks can be on for all three games (they gave the temple its steady 60 FPS) without the stale reads that crashed U3 and likely U2 at 1440p.
 4. **Windows red zone (seen in shadPS4's report on this game).** On Windows a page-protection fault overwrites the 128 bytes below the stack pointer, which the PS4 compiler's leaf functions use for data. Our runtime takes thousands of such faults. Red-zone use is rare in these games (about 340 blocks each, none at our crash sites), so first a counter: faults whose instruction is in a red-zone function. If it fires in play, rewrite those instructions as shadPS4 does.
@@ -64,7 +64,7 @@ Measured on the integrated Radeon (weaker than a PS4): U1 title screen 21 FPS at
 
 | Bug | Status / next step |
 |---|---|
-| Green cutscenes above 1080p | Partly fixed (colors). A.1 |
+| Green cutscenes above 1080p | Fixed; check one U2/U3 cutscene |
 | U1 native 4K | 1620p + FSR for now. A.2 |
 | U3 crash with async readbacks | Async off for U3. A.3 |
 | U3 hair flicker in sunlight | Fix built last night; please test (2.1) |

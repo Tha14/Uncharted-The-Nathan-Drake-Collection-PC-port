@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <mutex>
+#include <unordered_map>
 
 extern "C" void* runtime_map_guest_memory(std::uint64_t size);
 
@@ -124,6 +125,62 @@ std::uint8_t* ScratchFrame(std::uint64_t base) {
         return static_cast<std::uint8_t*>(address);
     }
     return nullptr;
+}
+
+namespace {
+// The literals of a shader made for 1920x1088 movie frames: 1/1920, 0.5/1920, 1/1088, 0.5/1088.
+constexpr std::uint32_t kU = 0x3a088889, kHalfU = 0x39888889, kV = 0x3a70f0f1, kHalfV = 0x39f0f0f1;
+} // namespace
+
+bool IsMovieShader(const std::uint32_t* code, std::size_t words) {
+    bool u = false, v = false;
+    for (std::size_t i = 0; i < words && !(u && v); ++i) {
+        u |= code[i] == kU;
+        v |= code[i] == kV;
+    }
+    return u && v;
+}
+
+std::uint64_t ShaderKey(std::uint64_t hash, const std::uint32_t* code, std::size_t words) {
+    if (!Display().width || !code) {
+        return hash;
+    }
+    // Per thread: no lock on the draw path; one scan per shader and thread.
+    thread_local std::unordered_map<std::uint64_t, std::uint64_t> keys;
+    if (const auto it = keys.find(hash); it != keys.end()) {
+        return it->second;
+    }
+    std::uint64_t key = hash;
+    if (IsMovieShader(code, words)) {
+        key ^= (std::uint64_t(Display().width) << 32 | Display().height) * 0x9e3779b97f4a7c15ull;
+    }
+    keys.emplace(hash, key);
+    return key;
+}
+
+bool MovieShaderConstant(std::uint32_t bits, float& patched) {
+    const Size& display = Display();
+    if (!display.width) {
+        return false;
+    }
+    // The frame is the display size now; vertically the shader keeps its 1080 / 1088 proportion.
+    const float width = float(display.width), height = float(display.height) * 1088.0f / 1080.0f;
+    switch (bits) {
+    case kU:
+        patched = 1.0f / width;
+        return true;
+    case kHalfU:
+        patched = 0.5f / width;
+        return true;
+    case kV:
+        patched = 1.0f / height;
+        return true;
+    case kHalfV:
+        patched = 0.5f / height;
+        return true;
+    default:
+        return false;
+    }
 }
 
 bool Remap(std::uint64_t& address, std::uint32_t& width, std::uint32_t& height, std::uint32_t& pitch,
