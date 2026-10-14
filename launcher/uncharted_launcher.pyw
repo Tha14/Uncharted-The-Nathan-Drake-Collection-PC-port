@@ -65,7 +65,8 @@ INI_DEFAULTS = {
 }
 LAUNCHER_DEFAULTS = {"game": "u1", "diagnostics": True, "game_dir": ""}
 GAME_KEYS = ("u1", "u2", "u3")
-GAME_SETTING_DEFAULTS = {"preset": "medium", "resolution": "1920x1080", "multithreaded": False}
+GAME_SETTING_DEFAULTS = {"preset": "medium", "resolution": "1920x1080", "multithreaded": False,
+                         "async_readback": False}
 
 
 def is_game_dir(folder):
@@ -506,6 +507,8 @@ class Launcher:
             self.widgets["resolution"].set(settings["resolution"])
         if isinstance(self.widgets.get("multithreaded"), Toggle):
             self.widgets["multithreaded"].set(settings["multithreaded"])
+        if isinstance(self.widgets.get("async_readback"), Toggle):
+            self.widgets["async_readback"].set(settings["async_readback"])
         self.sync_sharpening()
         if hasattr(self, "preset_cards"):
             self.redraw_presets()
@@ -737,6 +740,15 @@ class Launcher:
             page, "Multithreaded rendering (experimental)",
             "Prepares draws on a second CPU thread: more FPS on CPUs with several cores. "
             "Turn it off if the game hangs while loading.", multithreaded)
+
+        def async_readback(parent):
+            return Toggle(parent, self.s, self.game_settings()["async_readback"],
+                          lambda v: self.change_game_setting("async_readback", v))
+        self.widgets["async_readback"] = self.row(
+            page, "Faster GPU readbacks (experimental)",
+            "Results the game reads back from the GPU arrive without waiting for the whole frame: "
+            "more FPS in busy scenes (Uncharted 2 and 3). Drake's Fortune crashes with it while "
+            "loading; turn it off if a game crashes.", async_readback)
         self.fps_note = tk.Label(page, text="", font=self.f_small, bg=BG, fg=GOLD, anchor="w")
         self.fps_note.pack(side="top", fill="x")
         self.update_fps_note()
@@ -886,6 +898,7 @@ class Launcher:
             settings = self.config["games"][key]
             env[f"UNCHARTED_RESOLUTION_{key.upper()}"] = settings["resolution"]
             env[f"UNCHARTED_MULTITHREADED_{key.upper()}"] = "1" if settings["multithreaded"] else "0"
+            env[f"UNCHARTED_ASYNC_READBACK_{key.upper()}"] = "1" if settings["async_readback"] else "0"
         python = Path(sys.executable)
         if python.name.lower() == "pythonw.exe" and python.with_name("python.exe").exists():
             python = python.with_name("python.exe")

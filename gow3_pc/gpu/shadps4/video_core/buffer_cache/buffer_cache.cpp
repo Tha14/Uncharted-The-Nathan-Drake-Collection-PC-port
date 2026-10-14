@@ -71,6 +71,7 @@ BufferCache::BufferCache(const Vulkan::Instance& instance_, Vulkan::Scheduler& s
       stream_buffer{instance, scheduler, MemoryType::Stream, STREAM_BUFFER_SIZE},
       gds_buffer{instance, 0, GDS_BUFFER_SIZE, MemoryType::Stream, "GDS Buffer"},
       memory_semaphore{instance} {
+    page_manager = &tracker;
     while (arena_page_bits > MIN_ARENA_PAGE_BITS &&
            (u64{2} << arena_page_bits) > instance.GetMaxBufferSize()) {
         --arena_page_bits;
@@ -188,6 +189,18 @@ void BufferCache::ExtendWriteFault(VAddr device_addr) {
 static std::atomic<u32> g_write_fault_overlap, g_write_fault_same_page, g_write_fault_window;
 static std::atomic<u64> g_write_fault_gpu_bytes;
 static std::atomic<u32> g_lazy_writes, g_lazy_cpu_wins, g_readback_waits, g_async_readbacks;
+static std::atomic<u32> g_readback_read_waits;
+
+// GOW3_ASYNC_READBACK=1: pages with a readback in flight are read-protected, so the CPU (the game,
+// or the SRT walker) never reads their stale data: a read waits for that readback only. =2 is
+// the earlier unprotected mode (stale reads: Uncharted 3 "dcb full", garbage sharps).
+static bool SafeReadbacks() {
+    static const bool safe = [] {
+        const char* env = std::getenv("GOW3_ASYNC_READBACK");
+        return !(env && env[0] == '2');
+    }();
+    return safe;
+}
 
 // GOW3_LAZY_WRITES=0 restores the download on every CPU write into a GPU-written page.
 static bool LazyWritesEnabled() {
@@ -235,8 +248,9 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
                             double(gpu_bytes) / std::max(1u, overlap + same_page + window_only));
                 std::printf("  lazy writes (no download): %u; GPU-written bytes the CPU overwrote later: %u\n",
                             g_lazy_writes.exchange(0), g_lazy_cpu_wins.exchange(0));
-                std::printf("  async readbacks: %u; CPU writes that waited for one: %u\n",
-                            g_async_readbacks.exchange(0), g_readback_waits.exchange(0));
+                std::printf("  async readbacks: %u; CPU writes that waited for one: %u, CPU reads: %u\n",
+                            g_async_readbacks.exchange(0), g_readback_waits.exchange(0),
+                            g_readback_read_waits.exchange(0));
                 for (size_t i = 0; i < std::min<size_t>(sorted.size(), 10); ++i) {
                     const auto [n, key] = sorted[i];
                     std::printf("  %s %#llx (1 MiB): %u\n", key >> 40 ? "write" : "read",
@@ -249,6 +263,21 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
         }
     }
     const auto flush_request = [this, device_addr, size, is_write] {
+        if (!is_write && SafeReadbacks() && !pending_readbacks.empty()) {
+            // A read of a page whose GPU data is still on its way back (read-protected by
+            // DownloadRangesAsync): that readback completes and unprotects it. Other GPU data
+            // in the window stays as relaxed readbacks leave it.
+            const VAddr page = Common::AlignDown(device_addr, 4096);
+            const VAddr end = Common::AlignUp(device_addr + size, 4096);
+            if (const u64 tick = PendingReadbackTick(page, end - page, false);
+                tick && tick < scheduler.CurrentTick()) { // submitted (only those are read-protected)
+                ++g_readback_read_waits;
+                CompleteReadbacks(true, tick);
+                if (EmulatorSettings.GetReadbacksMode() == GpuReadbacksMode::Relaxed) {
+                    return;
+                }
+            }
+        }
         if (is_write) {
             cpu_write_hot.insert(device_addr >> 20); // runs GPU-side (command or inline)
             // gow3 statistics: does the CPU write hit GPU-written bytes, or only their page?
@@ -607,6 +636,25 @@ void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ran
         }
         runtime.CopyBuffer(arena, download.buffer, copies);
     }
+    if (SafeReadbacks()) {
+        std::vector<VAddr> pages;
+        for (const auto& [address, size] : readback.pieces) {
+            for (VAddr page = Common::AlignDown(address, 4096); page < address + size; page += 4096) {
+                pages.push_back(page);
+            }
+        }
+        std::ranges::sort(pages);
+        const auto [first, last] = std::ranges::unique(pages);
+        pages.erase(first, last);
+        for (size_t i = 0; i < pages.size();) {
+            size_t j = i + 1;
+            while (j < pages.size() && pages[j] == pages[j - 1] + 4096) {
+                ++j;
+            }
+            readback.watched.emplace_back(pages[i], (pages[j - 1] + 4096) - pages[i]);
+            i = j;
+        }
+    }
     readback.tick = scheduler.CurrentTick();
     readback.buffer = download.buffer;
     readback.offset = download.offset;
@@ -617,6 +665,17 @@ void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ran
 }
 
 void BufferCache::CompleteReadbacks(bool wait, u64 wait_until) {
+    // Pages of a readback are read-protected once its submission is out: a read fault waits
+    // for submitted work only (never for the command buffer this thread is still recording).
+    for (auto& readback : pending_readbacks) {
+        if (readback.watching || readback.watched.empty() || readback.tick >= scheduler.CurrentTick()) {
+            continue;
+        }
+        for (const auto& [address, size] : readback.watched) {
+            page_manager->UpdatePageWatchers<true, true>(address, size);
+        }
+        readback.watching = true;
+    }
     auto* semaphore = scheduler.GetWorkSemaphore();
     while (!pending_readbacks.empty()) {
         PendingReadback& readback = pending_readbacks.front();
@@ -661,6 +720,11 @@ void BufferCache::CompleteReadbacks(bool wait, u64 wait_until) {
                     lazy_pages.erase(page);
                     memory_tracker->UnmarkRegionAsGpuModified(page, LAZY_PAGE_SIZE);
                 }
+            }
+        }
+        if (readback.watching) {
+            for (const auto& [address, size] : readback.watched) {
+                page_manager->UpdatePageWatchers<false, true>(address, size);
             }
         }
         staging_pool.FreeDeferred(Vulkan::StagingBufferRef{

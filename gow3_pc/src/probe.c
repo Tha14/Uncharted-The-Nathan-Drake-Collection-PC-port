@@ -272,6 +272,26 @@ static LONG CALLBACK vectored_fault(EXCEPTION_POINTERS *info) {
     DWORD code=record->ExceptionCode;
     if (code==EXCEPTION_SINGLE_STEP && (info->ContextRecord->Dr6&0xf)) return watch_hit(info);
     if (code==EXCEPTION_ACCESS_VIOLATION && record->NumberParameters>=2) {
+        /* GOW3_FAULT_TRACE=1: the first 64 access violations (diagnostics), written directly so
+         * that a fault the process doesn't survive still shows: kind, address, instruction. */
+        static int trace=-1;
+        if (trace<0) { const char *env=getenv("GOW3_FAULT_TRACE"); trace=env && env[0]=='1' ? 64 : 0; }
+        if (trace>0) {
+            --trace;
+            char line[256];
+            uintptr_t rip=(uintptr_t)info->ContextRecord->Rip;
+            HMODULE module=NULL; char name[MAX_PATH]="?";
+            if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCSTR)rip,&module))
+                GetModuleFileNameA(module,name,sizeof(name));
+            const char *base=strrchr(name,'\\');
+            int n=snprintf(line,sizeof(line),"AV %s %p rip %p (%s+%#llx, guest %#llx) thread %lu\n",
+                           record->ExceptionInformation[0]==1 ? "write" : record->ExceptionInformation[0]==8 ? "exec" : "read",
+                           (void *)record->ExceptionInformation[1],(void *)rip,base ? base+1 : name,
+                           module ? (unsigned long long)(rip-(uintptr_t)module) : 0ULL,
+                           image && rip-(uintptr_t)image<0x20000000 ? (unsigned long long)(rip-(uintptr_t)image) : 0ULL,
+                           GetCurrentThreadId());
+            DWORD written; WriteFile(GetStdHandle(STD_OUTPUT_HANDLE),line,(DWORD)n,&written,NULL);
+        }
         /* GPU page tracking (write-protected guest pages) is resolved first, except during a
          * speculative read (draw preparation workers): resolving a GPU-modified page there waits
          * for the GPU thread, which may be waiting for a lock that worker holds (Uncharted 2

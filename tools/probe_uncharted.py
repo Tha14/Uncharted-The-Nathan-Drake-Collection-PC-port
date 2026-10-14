@@ -389,6 +389,11 @@ def run_game(args, game, executable, guest_args, loadexec):
     if multithreaded is not None:
         env["GOW3_DRAW_PIPE"] = multithreaded
         env["GOW3_VK_RECORD_THREAD"] = multithreaded
+    # Asynchronous GPU readbacks, read-protected until they land (launcher option per game; an
+    # explicit GOW3_ASYNC_READBACK wins). Drake's Fortune dies while loading with them (15 Oct).
+    async_readback = os.environ.get(f"UNCHARTED_ASYNC_READBACK_{game_key.upper()}")
+    if async_readback is not None and "GOW3_ASYNC_READBACK" not in os.environ:
+        env["GOW3_ASYNC_READBACK"] = "1" if async_readback == "1" and executable != "eboot.bin" else "0"
     env["GOW3_UPSCALER"] = "none"
     if extra_mib:
         env["GOW3_DMEM_MB"] = str(5056 + extra_mib + 64)

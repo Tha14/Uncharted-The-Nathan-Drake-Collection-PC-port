@@ -298,7 +298,12 @@ private:
         std::vector<std::pair<VAddr, u64>> pieces; ///< address, size
         std::vector<u64> offsets;                  ///< of each piece in `mapped`
         RangeSet rewritten;
+        /// Pages to read-protect (merged ranges) until the data is back: a CPU read of them waits
+        /// for this readback only (GOW3_ASYNC_READBACK=1; =2 leaves them readable, stale).
+        std::vector<std::pair<VAddr, u64>> watched;
+        bool watching = false; ///< `watched` is read-protected (from the first poll after submission)
     };
+    PageManager* page_manager = nullptr;
     std::deque<PendingReadback> pending_readbacks;
     u32 readback_polls = 0;
 

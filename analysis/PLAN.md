@@ -36,7 +36,7 @@ After each crash, the log is in `analysis/<game>/boot.log` (Advanced → Open lo
 
 1. **Cutscenes above 1080p**: fixed (see section 1). Please check one U2/U3 cutscene above 1080p.
 2. **Native 4K for U1.** Make the render-target heap get created after the level heaps, or find a third memory area that accepts it. Until then: 1620p + FSR 1 (2.25x the pixels of 1080p).
-3. **Safe asynchronous readbacks.** Read-protect the pages of every readback still in flight; a CPU read of such a page waits for that readback only. Then async readbacks can be on for all three games (they gave the temple its steady 60 FPS) without the stale reads that crashed U3 and likely U2 at 1440p.
+3. **Safe asynchronous readbacks** (built tonight, launcher option *Faster GPU readbacks*, off by default). Pages of a readback in flight are read-protected once its submission is out, and a CPU read waits for that readback only. Boot-tested: U2 kept the benefit (about 900 readbacks per 5 s, only about 10 reads had to wait), and U3 runs with it. **U1 dies silently while loading** with it, right after a 388 KiB GPU-written range is protected: no exception reaches our handler, which points at a stack inside that range (U1's job system switches stacks itself, outside sceFiber). The launcher keeps it off for U1. Next: find U1's job stacks and keep them readable as the fiber stacks are. Please try it in U2/U3 gameplay (the U3 London pub).
 4. **Windows red zone (seen in shadPS4's report on this game).** On Windows a page-protection fault overwrites the 128 bytes below the stack pointer, which the PS4 compiler's leaf functions use for data. Our runtime takes thousands of such faults. Red-zone use is rare in these games (about 340 blocks each, none at our crash sites), so first a counter: faults whose instruction is in a red-zone function. If it fires in play, rewrite those instructions as shadPS4 does.
 5. **Player targeting reads the display size** (player-targeting.cpp; the U2 NaN was in the look-at code). If the U2 1440p test still crashes with async readbacks off, look there first.
 
@@ -66,7 +66,7 @@ Measured on the integrated Radeon (weaker than a PS4): U1 title screen 21 FPS at
 |---|---|
 | Green cutscenes above 1080p | Fixed; check one U2/U3 cutscene |
 | U1 native 4K | 1620p + FSR for now. A.2 |
-| U3 crash with async readbacks | Async off for U3. A.3 |
+| U3 crash with async readbacks | Safe mode built (A.3); please test U3 with *Faster GPU readbacks* on |
 | U3 hair flicker in sunlight | Fix built last night; please test (2.1) |
 | Treasure pickup | Fixed last night (garbage descriptors tolerated); please test (2.2) |
 | U1 smoke blob, bullet-hit circles | Not started: needs a frame capture in a scene with smoke |

@@ -182,7 +182,8 @@ void AddressSpace::Protect(VAddr virtual_addr, u64 size, MemoryPermission perms)
         runtime_memory_gpu_protect(virtual_addr, size, read, write);
         return;
     }
-    // Protect around the fiber stacks in the range; they keep write access.
+    // Protect around the fiber stacks in the range; they keep read and write access (a stack
+    // page without them kills the process: Windows can't deliver the exception).
     VAddr cursor = virtual_addr;
     const VAddr end = virtual_addr + size;
     std::scoped_lock lock{g_keep_writable_mutex};
@@ -199,7 +200,7 @@ void AddressSpace::Protect(VAddr virtual_addr, u64 size, MemoryPermission perms)
         if (lo > cursor) {
             runtime_memory_gpu_protect(cursor, lo - cursor, read, false);
         }
-        runtime_memory_gpu_protect(lo, hi - lo, read, true);
+        runtime_memory_gpu_protect(lo, hi - lo, true, true); // nor read access (async readbacks)
         cursor = std::max(cursor, hi);
     }
     if (cursor < end) {

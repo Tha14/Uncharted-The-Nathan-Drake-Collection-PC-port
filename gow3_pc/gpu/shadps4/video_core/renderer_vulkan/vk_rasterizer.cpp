@@ -1829,12 +1829,13 @@ void Rasterizer::SyncSmallGpuWrites() {
     std::erase_if(windows, [this](const auto& w) { return !IsMapped(w.first, w.second); });
     // gow3: GOW3_ASYNC_READBACK=1: the copies run after this submission and reach guest memory
     // when the GPU is done (BufferCache::PollReadbacks, per draw), with no wait for the whole
-    // frame on the GPU. Off by default: data the game (or the SRT walker) reads the next
-    // frame can then still be stale (Uncharted 3 "Command context dcb full" at the London
-    // pub; garbage sharps for the treasure pickup effect, cs 8f067540, in U1 and U2).
+    // frame on the GPU; until then their pages are read-protected (a read waits for that
+    // readback). =2: unprotected, as first tried: data the game (or the SRT walker) read the
+    // next frame could be stale (Uncharted 3 "Command context dcb full" at the London pub;
+    // garbage sharps for the treasure pickup effect, cs 8f067540, in U1 and U2). Off by default.
     static const bool async_readback = [] {
         const char* env = std::getenv("GOW3_ASYNC_READBACK");
-        return env && env[0] == '1';
+        return env && (env[0] == '1' || env[0] == '2');
     }();
     if (async_readback) {
         buffer_cache.DownloadRangesAsync(windows);
