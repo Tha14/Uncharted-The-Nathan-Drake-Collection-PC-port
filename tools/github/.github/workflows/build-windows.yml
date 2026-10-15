@@ -16,10 +16,14 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      # Sources, patches and submodules keep the LF endings they are committed with (git apply).
-      - name: Keep committed line endings
+      # Sources, patches and submodules keep the LF endings they are committed with (git apply);
+      # long paths: the checkout folder repeats the repository's long name and FidelityFX's shader
+      # files then pass Windows' 260-character limit.
+      - name: Git settings
         shell: pwsh
-        run: git config --global core.autocrlf false
+        run: |
+          git config --global core.autocrlf false
+          git config --system core.longpaths true
 
       - uses: actions/checkout@v4
         with:
