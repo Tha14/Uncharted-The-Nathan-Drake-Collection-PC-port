@@ -1,6 +1,6 @@
 Uncharted: The Nathan Drake Collection - PC port 0.1.0 (beta)
 =============================================================
-By BilalReloaded - https://github.com/bc160201983/uncharted-pc
+By BilalReloaded - https://github.com/bc160201983/Uncharted-The-Nathan-Drake-Collection-PC-port
 
 Requirements
 - Windows 10 or 11, 64-bit.

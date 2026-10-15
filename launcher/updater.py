@@ -1,4 +1,5 @@
-"""Launcher updates from the project's GitHub releases (bc160201983/uncharted-pc).
+"""Launcher updates from the project's GitHub releases
+(bc160201983/Uncharted-The-Nathan-Drake-Collection-PC-port).
 
 The package's VERSION file (written by tools/package_windows.sh) names the installed version; a
 copy run from the source tree has none and is never updated. An update:
@@ -23,7 +24,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-REPOSITORY = "bc160201983/uncharted-pc"
+REPOSITORY = "bc160201983/Uncharted-The-Nathan-Drake-Collection-PC-port"
 RELEASES_PAGE = f"https://github.com/{REPOSITORY}/releases"
 API = f"https://api.github.com/repos/{REPOSITORY}/releases?per_page=20"
 ASSET = "Uncharted-windows.zip"

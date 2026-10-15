@@ -107,8 +107,8 @@ pacman -S --needed git patch \
   mingw-w64-clang-x86_64-{vulkan-headers,vulkan-loader,vulkan-memory-allocator,glslang} \
   mingw-w64-clang-x86_64-{sdl3,fmt,boost,robin-map,xxhash,ffmpeg,zydis} \
   mingw-w64-clang-x86_64-{spirv-tools,spirv-headers,spirv-cross}
-git clone --recursive https://github.com/bc160201983/uncharted-pc.git
-cd uncharted-pc
+git clone --recursive https://github.com/bc160201983/Uncharted-The-Nathan-Drake-Collection-PC-port.git
+cd Uncharted-The-Nathan-Drake-Collection-PC-port
 gow3_pc/build.sh                 # the runtime: gow3_pc/out/gow3-probe.exe
 tools/package_windows.sh         # dist/Uncharted-windows(.zip); needs a Windows Python 3.10+
                                  # with Pillow (PYTHON_HOME)
@@ -146,5 +146,5 @@ To run from the source tree: `Start-Uncharted.cmd` (launcher), or
 You are welcome to use these fixes in your own port. The GPL asks that you keep the copyright and
 license notices and publish your source code under the same license when you distribute your
 build. Beyond that, a request: **credit this project and link back to it**
-(`https://github.com/bc160201983/uncharted-pc`, by BilalReloaded) in your README or release
+(`https://github.com/bc160201983/Uncharted-The-Nathan-Drake-Collection-PC-port`, by BilalReloaded) in your README or release
 notes, so people can find where a fix came from.
