@@ -24,6 +24,8 @@ from tkinter import messagebox
 
 from PIL import Image, ImageDraw, ImageTk
 
+import updater  # launcher/updater.py: updates from the GitHub releases
+
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "launcher" / "assets"
 DEFAULT_GAME_DIR = ROOT / "game" / "CUSA02344" / "uroot"
@@ -70,7 +72,7 @@ INI_DEFAULTS = {
     "display_mode": "windowed", "vsync": "1", "fps_limit": "60", "frames_queued": "2",
     "async_shaders": "1", "fsr1": "0", "rcas": "1", "rcas_strength": "75", "show_fps": "1",
 }
-LAUNCHER_DEFAULTS = {"game": "u1", "diagnostics": True, "game_dir": ""}
+LAUNCHER_DEFAULTS = {"game": "u1", "diagnostics": True, "game_dir": "", "check_updates": True}
 GAME_KEYS = ("u1", "u2", "u3")
 GAME_SETTING_DEFAULTS = {"preset": "medium", "resolution": "1920x1080", "multithreaded": False,
                          "async_readback": False, "controls": None, "mouse": True, "mouse_sens": "1.0",
@@ -463,6 +465,14 @@ class Launcher:
         write_config(self.config)  # keeps one-time updates (read_config) even without a change
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(150, self.poll)
+        # Updates (launcher/updater.py): what an installed one left behind goes; a newer release
+        # shows the UPDATE button.
+        self.update_release = None
+        self.update_busy = False
+        self.update_result = None
+        root.after(3000, lambda: updater.cleanup(ROOT))
+        if self.config.get("check_updates", True):
+            root.after(1500, self.check_updates)
 
     def restore_window_position(self):
         """The window opens where it was last closed, if that spot is still on a screen."""
@@ -1086,11 +1096,21 @@ class Launcher:
                  "The torch lights where Nate's torch points. Off: as on PS4, it aims where the camera "
                  "looks (turn the camera to face Nate and it lights the wall behind him). "
                  "Needs update 1.02.", torch_forward)
+
+        def check_updates(parent):
+            return Toggle(parent, self.s, self.config.get("check_updates", True),
+                          lambda v: self.change_config("check_updates", v))
+        version = updater.installed_version(ROOT)
+        self.row(page, "Check for updates at start",
+                 f"Installed: {updater.version_text(version) if version else 'source tree (updates with git)'}. "
+                 "New versions come from the project's GitHub releases; the launcher asks before it "
+                 "installs one.", check_updates)
         buttons = tk.Frame(page, bg=BG)
         buttons.pack(side="top", fill="x", pady=(self.px(6), self.px(10)))
         for label, action in (("Open log folder", self.open_logs), ("Open save folder", self.open_saves),
                               ("Desktop shortcut", self.desktop_shortcut), ("Clear shader cache", self.clear_cache),
-                              ("Reset all settings", self.reset)):
+                              ("Reset all settings", self.reset),
+                              ("Check for updates", lambda: self.check_updates(manual=True))):
             self.flat_button(buttons, label, action).pack(side="left", padx=(0, self.px(10)))
         folder_row = tk.Frame(page, bg=BG)
         folder_row.pack(side="top", fill="x", pady=(0, self.px(4)))
@@ -1139,6 +1159,10 @@ class Launcher:
         self.play_button.bind("<Enter>", lambda e: self.draw_play(hover=True))
         self.play_button.bind("<Leave>", lambda e: self.draw_play())
         self.draw_play()
+        self.update_button = tk.Label(inner, text="UPDATE", font=self.f_body_bold, bg=PANEL_HI, fg=GOLD,
+                                      padx=self.px(16), pady=self.px(10), cursor="hand2",
+                                      highlightthickness=1, highlightbackground=GOLD)
+        self.update_button.bind("<Button-1>", lambda e: self.install_update())
         self.set_status(f"Ready to play {self.current_game()['name']}." if self.config.get("game") else "Ready.")
 
     def draw_play(self, hover=False):
@@ -1155,6 +1179,103 @@ class Launcher:
         self.status.config(text=text)
         if detail is not None:
             self.substatus.config(text=detail)
+
+    # -- updates (launcher/updater.py) ------------------------------------------------------
+
+    def check_updates(self, manual=False):
+        current = updater.installed_version(ROOT)
+        if current is None:
+            if manual:
+                messagebox.showinfo(APP_TITLE, "This copy runs from the source tree: update it with git.")
+            return
+        if self.update_busy:
+            return
+        self.update_busy = True
+        if manual:
+            self.set_status("Checking for updates...", "")
+
+        def work():
+            try:
+                self.update_result = (updater.latest_release(current), None)
+            except Exception as error:  # offline, GitHub's rate limit
+                self.update_result = (None, str(error) or error.__class__.__name__)
+        threading.Thread(target=work, daemon=True).start()
+        self.root.after(200, lambda: self.update_checked(manual))
+
+    def update_checked(self, manual):
+        if self.update_result is None:
+            self.root.after(200, lambda: self.update_checked(manual))
+            return
+        release, error = self.update_result
+        self.update_result = None
+        self.update_busy = False
+        if release:
+            self.update_release = release
+            version = updater.version_text(release["version"])
+            self.update_button.config(text=f"UPDATE TO {version}")
+            self.update_button.pack(side="right", padx=(0, self.px(14)))
+            if not self.process:
+                self.set_status(f"Version {version} is available.",
+                                "UPDATE installs it: saves and settings are kept, the launcher restarts.")
+        elif manual:
+            current = updater.version_text(updater.installed_version(ROOT))
+            if error:
+                self.set_status("Could not check for updates.", error)
+            else:
+                self.set_status("No update found.", f"Version {current} is the newest.")
+
+    def install_update(self):
+        release = self.update_release
+        if not release or self.update_busy:
+            return
+        if self.process:
+            messagebox.showinfo(APP_TITLE, "Close the game first: the update replaces the game's runtime.")
+            return
+        version = updater.version_text(release["version"])
+        if not messagebox.askyesno(APP_TITLE, f"Install version {version} ({release['size'] / 1e6:.0f} MB "
+                                   "download)?\n\nSaves, settings and the shader cache are kept. The "
+                                   "launcher closes, installs the update and starts again.\n\n"
+                                   f"What's new: {release['page']}"):
+            return
+        self.update_busy = True
+        self.update_progress = (0, release["size"])
+        self.update_error = None
+        self.update_staged = None
+
+        def progress(done, total):
+            self.update_progress = (done, total)
+
+        def work():
+            try:
+                archive = updater.download(release, ROOT, progress)
+                self.update_staged = updater.stage(archive, ROOT, release["version"])
+            except Exception as error:
+                self.update_error = str(error) or error.__class__.__name__
+        threading.Thread(target=work, daemon=True).start()
+        self.root.after(200, self.update_tick)
+
+    def update_tick(self):
+        if self.update_error:
+            self.update_busy = False
+            self.set_status("The update failed.", "The installed version is unchanged.")
+            messagebox.showerror(APP_TITLE, f"The update could not be installed:\n\n{self.update_error}")
+            return
+        if self.update_staged:
+            self.set_status("Installing the update...", "The launcher starts again in a moment.")
+            try:
+                updater.start_apply(ROOT, self.update_staged)
+            except OSError as error:
+                self.update_busy = False
+                messagebox.showerror(APP_TITLE, f"The update could not be started:\n\n{error}")
+                return
+            self.config["window_xy"] = [self.root.winfo_x(), self.root.winfo_y()]
+            write_config(self.config)
+            self.root.destroy()
+            return
+        done, total = self.update_progress
+        amount = f"{100 * done / total:.0f}%" if total else f"{done / 1e6:.0f} MB"
+        self.set_status(f"Downloading the update... {amount}", "Keep the launcher open.")
+        self.root.after(200, self.update_tick)
 
     # -- settings changes -------------------------------------------------------------------
 

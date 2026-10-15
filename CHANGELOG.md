@@ -13,6 +13,14 @@ Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
   (1080p) that was 44-47 FPS, with 2 it is 56-59. The launcher moves existing settings over
   (not for a game with multithreaded rendering, which Uncharted 2 needs with 1).
 - The game and launcher windows name the port's author in their title bar.
+- **Launcher updates:** at start the launcher looks for a newer release and offers
+  **UPDATE TO x.y.z**; it downloads the package, checks its SHA-256 against the one GitHub publishes,
+  installs it with the new version's own installer (`tools/apply_update.py`: saves, settings and the
+  shader cache stay; on any error every replaced file is put back) and restarts. Advanced tab: the
+  check can be turned off or run now. Tested against a local fake release (install, restart,
+  cleanup) and a locked file (full rollback of 1,077 files).
+- **Automatic releases:** `tools/release.sh X.Y.Z` pushes the tag `vX.Y.Z`; GitHub Actions builds
+  the package and publishes the release with the notes from `tools/release-notes/vX.Y.Z.md`.
 - Profiler: call stacks (`profile_*_stacks.txt`), also of the game's own thread that submits the
   frames, so a wait shows who waits.
 - Packaging: the license step no longer hangs on GitHub Actions (the MSYS2 root `/` made

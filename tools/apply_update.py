@@ -141,8 +141,10 @@ def main():
         window.destroy()
     if not args.no_restart:
         starter = root / "Uncharted Launcher.exe"
-        if starter.exists():
+        try:
             subprocess.Popen([str(starter)], cwd=str(root), close_fds=True)
+        except OSError as error:
+            print(f"Could not start {starter}: {error}", file=sys.stderr, flush=True)
     return 0 if ok else 1
 
 

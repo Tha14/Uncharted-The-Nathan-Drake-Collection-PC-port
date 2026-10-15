@@ -96,6 +96,12 @@ plan and test list: [analysis/PLAN.md](analysis/PLAN.md).
 Intel), 16 GB RAM recommended, a 4-core CPU or better. Saves, logs and settings stay in the
 `analysis` folder next to the launcher.
 
+**Updates** (from version 0.1.1): the launcher checks the releases when it starts and shows
+**UPDATE TO x.y.z** when there is a newer one. It downloads the package, checks its SHA-256 against
+the release, replaces the program files (saves, settings and the shader cache stay) and starts
+again; if anything fails, the installed version is put back. Advanced tab: turn the check off, or
+check now.
+
 ## Building
 
 GitHub Actions builds every push to `main` ([build-windows.yml](.github/workflows/build-windows.yml)).
