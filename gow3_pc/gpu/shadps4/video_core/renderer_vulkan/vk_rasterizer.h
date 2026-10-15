@@ -3,6 +3,11 @@
 
 #pragma once
 
+#include <chrono>
+#include <deque>
+#include <functional>
+#include <unordered_map>
+#include <vector>
 #include "common/recursive_lock.h"
 #include "common/shared_first_mutex.h"
 #include "video_core/buffer_cache/buffer_cache.h"
@@ -121,6 +126,16 @@ public:
     /// Stage A: guest memory the recording thread will write for work handed to it (storage
     /// buffers, DMA, WriteData, fences); constants overlapping it are bound there, not copied here.
     void NotePendingGpuWrite(VAddr address, u64 size);
+    /// gow3: at an end-of-pipe event, the output of dispatches whose results the guest reads
+    /// once it sees that event (eop_readbacks) is read back asynchronously with its pages
+    /// read-protected: a guest read before the GPU is done waits for that readback only.
+    /// (Delaying the event instead broke Uncharted 1: it is the frame's end-of-pipe tick, which
+    /// FrameBegin asserts two frames later.)
+    void ReadBackEopResults();
+    /// gow3: a fence label the runtime writes to guest memory (BufferCache::NoteCpuWrite).
+    void NoteLabelWrite(VAddr address, u64 size) {
+        buffer_cache.NoteCpuWrite(address, size);
+    }
     /// Before a guest-visible write: fences deferred earlier are written first.
     void WaitDeferredSignals() {
         scheduler.WaitDeferredSignals();
@@ -471,11 +486,43 @@ private:
     std::vector<std::pair<VAddr, u64>> small_gpu_writes;
     /// Ranges downloaded after every submission (GOW3_READBACK_TRIGGER "range <lo> <hi>").
     std::vector<std::pair<VAddr, u64>> synced_ranges;
+    /// gow3: storage written by shaders whose results the guest reads right after the next
+    /// end-of-pipe event (ReadBackEopResults). Uncharted 1's mesh ray casts (bullet impacts,
+    /// blood and other decals): the event's interrupt marks the batch done and the game reads
+    /// the hits at once; fences are written when recorded, so it read stale results (no hits).
+    std::vector<std::pair<VAddr, u64>> eop_readbacks;
     bool sync_gpu_constants = [] {
         const char* env = std::getenv("GOW3_SYNC_GPU_CONSTANTS");
         return env && env[0] == '1';
     }();
     void SyncSmallGpuWrites();
+    /// gow3: before the SRT walker of `info` runs on the GPU command thread: the tables it reads
+    /// that hold GPU-written bytes not yet in guest memory are downloaded (one GPU wait).
+    void SyncSrtTables(const Shader::Info& info);
+    struct SrtNode {
+        s32 parent;      ///< -1: a pointer in the user data
+        u32 offset;      ///< byte offset of the pointer in the user data or the parent table
+        u32 extent;      ///< bytes the walker reads from this table
+        bool dynamic;    ///< the pointer's offset is computed (not followed)
+    };
+    struct SrtCopy {
+        u32 flat_dw;     ///< destination dword in the flattened user data
+        s32 node;        ///< source table (-1: the user data)
+        u32 src_off;     ///< byte offset in that table
+    };
+    /// Tables a walker reads and what it copies from them, decoded from its code (parents
+    /// first), per walker.
+    struct SrtPlan {
+        std::vector<SrtNode> nodes;
+        std::vector<SrtCopy> copies;
+    };
+    std::unordered_map<const void*, SrtPlan> srt_plans;
+    const SrtPlan& SrtPlanFor(const Shader::Info& info);
+    /// Guest address of each plan table for this user data (0: unknown), without downloads.
+    void ResolveSrtTables(const SrtPlan& plan, const Shader::Info& info, VAddr* address);
+    /// Diagnostics for a garbage V#: where the walker took flattened dword `flat_dw` from.
+    void DescribeSharpSource(const Shader::Info& info, u32 flat_dw, const char* problem);
+    u64 srt_syncs = 0, srt_sync_reports = 0;
     void SyncDmaMemory(const Shader::Info* stage);
     /// VS of the draw whose dynamic state is being set (diagnostic overrides).
     mutable u32 dynamic_vs_hash = 0;

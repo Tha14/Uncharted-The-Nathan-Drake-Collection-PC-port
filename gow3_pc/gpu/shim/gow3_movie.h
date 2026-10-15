@@ -22,10 +22,16 @@ void RecordFrame(std::uint64_t base, std::uint32_t width, std::uint32_t height, 
                  std::uint32_t rows);
 
 // The scratch frame for the game's frame buffer at base (mapped on first use): the display size
-// in NV12, luma pitch ScaledPitch(), chroma after ScaledRows() rows. Null when none can be mapped.
+// in NV12, luma pitch ScaledPitch(), chroma (pitch ScaledChromaPitch()) after ScaledRows() rows.
+// Null when none can be mapped.
 std::uint8_t* ScratchFrame(std::uint64_t base);
 std::uint32_t ScaledPitch();
 std::uint32_t ScaledRows();
+/// Bytes per chroma row (2-byte texels): its width padded to 64 texels, as the GPU reads a
+/// linear texture (1440 texels at 1620p are read with a pitch of 1472).
+std::uint32_t ScaledChromaPitch();
+/// Bytes of a scratch frame: luma, then the chroma plane (ScaledRows() / 2 rows).
+std::uint64_t ScaledFrameBytes();
 
 // The movie player's conversion shader samples a frame at u = (x + 0.5) / 1920 and
 // v = (y + 0.5) / 1088 with those factors as literals, so above 1080p it covers only the top-left

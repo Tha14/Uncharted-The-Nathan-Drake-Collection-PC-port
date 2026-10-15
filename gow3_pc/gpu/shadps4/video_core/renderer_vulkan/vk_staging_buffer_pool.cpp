@@ -3,6 +3,8 @@
 
 #include "gow3_toggles.h"
 #include <algorithm>
+#include <chrono>
+#include <cstdio>
 #include <bit>
 #include <cstdlib>
 #include <cstring>
@@ -168,6 +170,27 @@ void StagingBufferPool::TickFrame() {
         TrimLarge(cache);
     }
     PublishStats();
+    // gow3 statistics: the pool's size over time (a growing pool means growing per-use scans
+    // and driver allocations).
+    static auto last = std::chrono::steady_clock::now();
+    if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds(5)) {
+        last = now;
+        u64 ring_blocks = 0, large = 0, held = 0, large_bytes = 0;
+        for (const Ring& ring : rings) {
+            ring_blocks += ring.blocks.size();
+        }
+        for (const auto& cache : large_caches) {
+            large += cache.size();
+            for (const LargeBuffer& entry : cache) {
+                held += entry.held;
+                large_bytes += entry.buffer->SizeBytes();
+            }
+        }
+        std::printf("Staging pool: %llu ring blocks (16 MB), %llu large buffers (%llu held, %llu MB)\n",
+                    static_cast<unsigned long long>(ring_blocks), static_cast<unsigned long long>(large),
+                    static_cast<unsigned long long>(held),
+                    static_cast<unsigned long long>(large_bytes >> 20));
+    }
 }
 
 void StagingBufferPool::TrimRing(Ring& ring) {

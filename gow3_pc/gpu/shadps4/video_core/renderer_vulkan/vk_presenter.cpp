@@ -445,7 +445,9 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
                 const bool bc5 = format == vk::Format::eBc5UnormBlock ||
                                  format == vk::Format::eBc5SnormBlock;
                 const bool compressed = bc1 || bc5;
-                const u32 bytes = depth16 ? 2 : bc5 ? 16 : (bc1 || format == vk::Format::eR16G16B16A16Sfloat ? 8 : 4);
+                const u32 bytes = format == vk::Format::eR8Unorm ? 1
+                                  : format == vk::Format::eR8G8Unorm || depth16 ? 2
+                                  : bc5 ? 16 : (bc1 || format == vk::Format::eR16G16B16A16Sfloat ? 8 : 4);
                 if (image.info.num_samples != 1 ||
                     (!depth && !compressed && image.info.num_bits != bytes * 8)) continue;
                 runtime.Transit(&image, vk::ImageLayout::eTransferSrcOptimal,

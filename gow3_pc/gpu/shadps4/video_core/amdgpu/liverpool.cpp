@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "gow3_profiler.h"
 #include <chrono>
 #include <pthread.h>
 #ifndef _WIN32
@@ -111,6 +112,7 @@ void Liverpool::Process(std::stop_token stoken) {
     }
 #else
     Gow3Stats::gpu_thread_id.store(GetCurrentThreadId());
+    Gow3Profiler::Start(GetCurrentThreadId(), "GPU command thread");
 #endif
     gpu_id = std::this_thread::get_id();
 #if defined(__linux__) || defined(_WIN32)
@@ -262,6 +264,18 @@ void SignalEop(const PM4CmdEventWriteEop& eop) {
 void RunEventWriteEop(Vulkan::Rasterizer& rasterizer, const u8* data) {
     const auto eop = *reinterpret_cast<const PM4CmdEventWriteEop*>(data);
     rasterizer.ProcessDownloadImages();
+    rasterizer.ReadBackEopResults();
+    // The label is written through the backing view: older GPU data there must not come back.
+    switch (eop.data_sel.Value()) {
+    case DataSelect::None:
+        break;
+    case DataSelect::Data32Low:
+        rasterizer.NoteLabelWrite(reinterpret_cast<VAddr>(eop.Address<u32>()), 4);
+        break;
+    default:
+        rasterizer.NoteLabelWrite(reinterpret_cast<VAddr>(eop.Address<u32>()), 8);
+        break;
+    }
     // Guest memory copies on the copy threads precede the fence the guest sees.
     // GOW3_ASYNC_FENCES=1 writes it once they are done instead of waiting for them; measured
     // slower (79 vs 83 FPS): the guest waits on these fences, and later fences stall it more
@@ -282,6 +296,34 @@ void RunEventWriteEop(Vulkan::Rasterizer& rasterizer, const u8* data) {
         rasterizer.WaitDeferredSignals();
         SignalEop(eop);
     }
+}
+
+// gow3: a compute queue RELEASE_MEM (fence, GDS counter store, interrupt) runs in order with the
+// dispatches handed to the draw recording thread (Rasterizer::RunInOrder) instead of draining
+// that thread first: Uncharted 2 releases after nearly every dispatch (~45k drains per second,
+// a third of the command thread's time with multithreaded rendering).
+struct ComputeRelease {
+    PM4CmdReleaseMem packet;
+    u32 pipe_id;
+};
+
+void RunComputeReleaseMem(Vulkan::Rasterizer& rasterizer, const u8* data) {
+    alignas(ComputeRelease) u8 storage[sizeof(ComputeRelease)];
+    std::memcpy(storage, data, sizeof(storage));
+    const auto& release = *reinterpret_cast<const ComputeRelease*>(storage);
+    const u32 pipe_id = release.pipe_id;
+    // Copies deferred to the recording thread precede writes the guest sees, and so do
+    // graphics fences deferred to it.
+    rasterizer.WaitHostCopies();
+    rasterizer.WaitDeferredSignals();
+    rasterizer.ProcessDownloadImages();
+    release.packet.SignalFence(
+        [pipe_id] {
+            Platform::IrqC::Instance()->Signal(static_cast<Platform::InterruptId>(pipe_id));
+        },
+        [&rasterizer](VAddr dst, u16 gds_index, u16 num_dwords) {
+            rasterizer.CopyBuffer(dst, gds_index, num_dwords * sizeof(u32), false, true);
+        });
 }
 
 void RunDmaData(Vulkan::Rasterizer& rasterizer, const u8* data) {
@@ -344,6 +386,7 @@ void RunEventWriteEos(Vulkan::Rasterizer& rasterizer, const u8* data) {
     rasterizer.WaitHostCopies();
     rasterizer.WaitDeferredSignals();
     rasterizer.ProcessDownloadImages();
+    rasterizer.NoteLabelWrite(event_eos.Address<VAddr>(), 4);
     event_eos.SignalFence([](void* address, u64 value, u32 num_bytes) {
         auto* memory = Core::Memory::Instance();
         Gow3WriteLog::Note(reinterpret_cast<u64>(address), &value, num_bytes, Gow3WriteLog::Fence);
@@ -1372,9 +1415,6 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
     size_t acb_size = acb.size_bytes();
     while (!acb.empty()) {
         ProcessCommands();
-        if (rasterizer) {
-            rasterizer->DrainDrawPipe(Vulkan::DrawPipe::ReasonCompute); // gow3: compute work uses the caches
-        }
 
         auto* header = reinterpret_cast<const PM4Header*>(acb.data());
         u32 next_dw_off = header->type3.NumWords() + 1;
@@ -1416,6 +1456,38 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
         }
 
         const PM4ItOpcode opcode = header->type3.opcode;
+
+        // gow3: compute work uses the caches, so the draw recording thread runs dry first. Not for
+        // no-ops and register writes (per-queue compute state, or SH registers the draw packets
+        // snapshot) nor for dispatches (handed to that thread in stream order, or drained by
+        // DispatchDirect/Indirect themselves): Uncharted 2 drained ~900 times per frame here,
+        // 20-25% of the command thread's time with multithreaded rendering.
+        if (rasterizer && opcode != PM4ItOpcode::Nop && opcode != PM4ItOpcode::SetShReg &&
+            opcode != PM4ItOpcode::SetQueueReg && opcode != PM4ItOpcode::DispatchDirect &&
+            opcode != PM4ItOpcode::DispatchIndirect && opcode != PM4ItOpcode::ReleaseMem) {
+            rasterizer->DrainDrawPipe(Vulkan::DrawPipe::ReasonCompute);
+            // GOW3_FRAME_STATS: which compute packets drain, per 5 s.
+            static const bool stats = std::getenv("GOW3_FRAME_STATS") != nullptr;
+            if (stats) {
+                static std::array<u32, 256> counts{};
+                static auto last = std::chrono::steady_clock::now();
+                ++counts[static_cast<u32>(opcode) & 0xff];
+                if (const auto now = std::chrono::steady_clock::now();
+                    now - last >= std::chrono::seconds(5)) {
+                    last = now;
+                    std::string text;
+                    for (u32 op = 0; op < counts.size(); ++op) {
+                        if (counts[op]) {
+                            text += fmt::format(" {}={}", magic_enum::enum_name(PM4ItOpcode(op)),
+                                                counts[op]);
+                        }
+                    }
+                    std::printf("Compute drains (5 s):%s\n", text.c_str());
+                    std::fflush(stdout);
+                    counts.fill(0);
+                }
+            }
+        }
 
         const auto* it_body = reinterpret_cast<const u32*>(header) + 1;
         switch (opcode) {
@@ -1604,23 +1676,17 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
             break;
         }
         case PM4ItOpcode::ReleaseMem: {
-            // gow3: copies deferred to the recording thread precede writes the guest sees, and
-            // so do graphics fences deferred to it (the pipe was drained before this packet).
-            if (rasterizer) {
-                rasterizer->WaitHostCopies();
-                rasterizer->WaitDeferredSignals();
-            }
             const auto* release_mem = reinterpret_cast<const PM4CmdReleaseMem*>(header);
             if (rasterizer) {
-                rasterizer->ProcessDownloadImages();
+                ComputeRelease release{.packet = *release_mem, .pipe_id = queue.pipe_id};
+                rasterizer->RunInOrder(&RunComputeReleaseMem, &release, sizeof(release));
+                break;
             }
             release_mem->SignalFence(
                 [pipe_id = queue.pipe_id] {
                     Platform::IrqC::Instance()->Signal(static_cast<Platform::InterruptId>(pipe_id));
                 },
-                [this](VAddr dst, u16 gds_index, u16 num_dwords) {
-                    rasterizer->CopyBuffer(dst, gds_index, num_dwords * sizeof(u32), false, true);
-                });
+                [](VAddr, u16, u16) {});
             break;
         }
         case PM4ItOpcode::EventWrite: {

@@ -274,7 +274,9 @@ void PatchImageSharp(const ResourceDiscovery& resource, Info& info, Descriptors&
             case AmdGpu::ImageType::Color2DMsaa:
             case AmdGpu::ImageType::Color2DMsaaArray:
             default:
-                UNREACHABLE_MSG("Invalid image type {}", view_type);
+                // gow3: an MSAA view with a mip argument comes only from a garbage T#.
+                LOG_WARNING(Render_Recompiler, "Mip storage on image type {}", view_type);
+                return body->Arg(2);
             }
         }();
 
@@ -887,8 +889,11 @@ void PatchImageArgs(IR::Inst& inst, Info& info) {
                     inst_info.has_lod.Assign(false);
                     skip_lod = true;
                 } else {
-                    UNREACHABLE_MSG(
-                        "Encountered a _mip instruction with MSAA image, and mipid is non-zero");
+                    // gow3: only a garbage T# (an unused resource table slot) gets here.
+                    LOG_WARNING(Render_Recompiler,
+                                "_mip instruction on an MSAA image with a non-zero mip, ignored");
+                    inst_info.has_lod.Assign(false);
+                    skip_lod = true;
                 }
             }
             return {ir.CompositeConstruct(body->Arg(0), body->Arg(1)), body->Arg(skip_lod ? 3 : 2)};

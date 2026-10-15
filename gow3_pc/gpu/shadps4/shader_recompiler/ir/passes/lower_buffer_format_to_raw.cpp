@@ -196,8 +196,28 @@ static void StoreBufferFormat(IR::IREmitter& ir, const IR::Value handle, const I
 static bool IsUsableBufferFormat(AmdGpu::DataFormat data_format, AmdGpu::NumberFormat num_format) {
     using DF = AmdGpu::DataFormat;
     using NF = AmdGpu::NumberFormat;
-    if (data_format == DF::FormatInvalid || u32(data_format) > u32(DF::Format32_32_32_32)) {
+    // The formats Load/StoreBufferFormat handle; any other stopped there.
+    switch (data_format) {
+    case DF::Format8:
+    case DF::Format8_8:
+    case DF::Format8_8_8_8:
+    case DF::Format16:
+    case DF::Format16_16:
+    case DF::Format10_11_11:
+    case DF::Format2_10_10_10:
+    case DF::Format16_16_16_16:
+    case DF::Format32:
+    case DF::Format32_32:
+    case DF::Format32_32_32:
+    case DF::Format32_32_32_32:
+        break;
+    default:
         return false;
+    }
+    const bool full_32 = data_format == DF::Format32 || data_format == DF::Format32_32 ||
+                         data_format == DF::Format32_32_32 || data_format == DF::Format32_32_32_32;
+    if (full_32 && num_format != NF::Uint && num_format != NF::Sint && num_format != NF::Float) {
+        return false; // 32-bit normalized/scaled (the cs 8f067540 Treasures-screen stop, 15 Oct)
     }
     switch (num_format) {
     case NF::Unorm:

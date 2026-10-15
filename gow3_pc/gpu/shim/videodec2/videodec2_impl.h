@@ -35,6 +35,8 @@ private:
     SwsContext* m_sws_context = nullptr;
     SwsContext* m_scale_context = nullptr;
     AVFrame* m_scaled = nullptr;
+    /// The scaled frame assembled in host memory before it is written to the scratch frame.
+    std::vector<u8> m_movie_copy;
 };
 
 

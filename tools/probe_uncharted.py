@@ -50,6 +50,28 @@ EBOOT_PATCHES = [
     ]),
 ]
 
+# Uncharted 2's player torch aims with the camera. The torch update (Flashlight Active
+# 0x69a190) aims the light along the torch joint (camera mode 9: the camera's horizontal forward,
+# 0x69afbd), and then, every frame, the player light (record 0 of the light table 0x1157760) is
+# re-aimed: target = pos + dir * K, dir = the camera's forward vector (0x104e820 + 0x270),
+# pos = target - dir * K (function 0x698b50 and a copy inlined next to UpdatePadLightBar,
+# 0x3fd78d). Turn the camera to face Nate and the light falls on the wall behind him. Skip both
+# re-aims and take the joint path in every camera mode: the light follows the torch, like the
+# beam drawn from it. Optional (UNCHARTED_TORCH_FORWARD=0 keeps the original); 1.02 only (1.00
+# lays this code out differently).
+TORCH_FORWARD_PATCHES = [
+    ("Uncharted 2 torch: no re-aim along the camera (frame update copy)", [
+        ("488d05cc9fd500 8b4850 84c9 7440 8a50", 12, bytes.fromhex("7440"), bytes.fromhex("eb40")),
+    ]),
+    ("Uncharted 2 torch: no re-aim along the camera (flashlight.cpp)", [
+        ("488d0509ecab00 8b4850 84c9 7440 8a50", 12, bytes.fromhex("7440"), bytes.fromhex("eb40")),
+    ]),
+    ("Uncharted 2 torch: aimed by its joint in every camera mode", [
+        ("833df040de0009 0f8534010000 4885c00f842b010000", 7,
+         bytes.fromhex("0f8534010000"), bytes.fromhex("90e934010000")),
+    ]),
+]
+
 PATCHES = {
     "eboot.bin": EBOOT_PATCHES,
     "big2-ps4_Shipping.elf": [GPU_WAIT_PATCH],
@@ -337,7 +359,10 @@ def run_game(args, game, executable, guest_args, loadexec):
         if script != "content_profile.py":
             prepare_command += ["--executable", executable]
         subprocess.run(prepare_command, check=True)
-    apply_patches(out / "boot-linked.bin", PATCHES[executable])
+    patches = list(PATCHES[executable])
+    if executable == "big2-ps4_Shipping.elf" and os.environ.get("UNCHARTED_TORCH_FORWARD", "1") != "0":
+        patches.extend(TORCH_FORWARD_PATCHES)
+    apply_patches(out / "boot-linked.bin", patches)
     # Settings per game (the launcher keeps them apart): the started game's own, also when the
     # Collection menu switches games.
     game_key = GAME_KEYS[executable]
@@ -383,7 +408,7 @@ def run_game(args, game, executable, guest_args, loadexec):
     env["GOW3_CONFIG"] = os.environ.get("UNCHARTED_CONFIG_FILE") or str(settings)
     # Frame rates above 60 need the fast vblank (GOW3_VBLANK_HZ=0); an explicit one is kept.
     if "GOW3_VBLANK_HZ" not in os.environ:
-        limit = ini_value(settings, "fps_limit", "60")
+        limit = ini_value(Path(env["GOW3_CONFIG"]), "fps_limit", "60")
         if limit.isdigit() and (int(limit) == 0 or int(limit) > 60):
             env["GOW3_VBLANK_HZ"] = "0"
     multithreaded = os.environ.get(f"UNCHARTED_MULTITHREADED_{game_key.upper()}")
@@ -397,11 +422,8 @@ def run_game(args, game, executable, guest_args, loadexec):
         value = os.environ.get(f"UNCHARTED_{launcher_key}_{game_key.upper()}")
         if value is not None and runtime_key not in os.environ:
             env[runtime_key] = value
-    # Asynchronous GPU readbacks, read-protected until they land (launcher option per game; an
-    # explicit GOW3_ASYNC_READBACK wins). Drake's Fortune dies while loading with them (15 Oct).
-    async_readback = os.environ.get(f"UNCHARTED_ASYNC_READBACK_{game_key.upper()}")
-    if async_readback is not None and "GOW3_ASYNC_READBACK" not in os.environ:
-        env["GOW3_ASYNC_READBACK"] = "1" if async_readback == "1" and executable != "eboot.bin" else "0"
+    # GPU readbacks are asynchronous in every game since 15 Oct (the runtime default; the old
+    # launcher option is gone). GOW3_ASYNC_READBACK=0 in the environment restores the wait.
     env["GOW3_UPSCALER"] = "none"
     if extra_mib:
         env["GOW3_DMEM_MB"] = str(5056 + extra_mib + 64)
@@ -439,6 +461,22 @@ def run_game(args, game, executable, guest_args, loadexec):
     # Retest 14 Oct 21:5x after the capture-job and draw-prep deadlock fixes: hair/cobweb shadow
     # casters read light matrices that a GPU copy shader writes in the same submission.
     # Result: no visual change, ~3 FPS slower, no hang on Continue any more. Off.
+    # U2 flashlight test (15 Oct): the light sits exactly at the camera (its source, a GPU-written
+    # joint transform, may read as zero). The file analysis/uncharted-user/precise-readbacks turns
+    # Precise readbacks on for the next start.
+    if (user / "precise-readbacks").exists():
+        env.setdefault("GOW3_READBACKS", "2")
+        print("Readbacks: precise (analysis/uncharted-user/precise-readbacks)")
+    # Test settings for the next start without code changes: KEY=VALUE lines (# comments) in
+    # analysis/uncharted-user/test-env.txt; they override everything set above.
+    test_env = user / "test-env.txt"
+    if test_env.exists():
+        for line in test_env.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, value = line.split("=", 1)
+                env[key.strip()] = value.strip()
+                print(f"Test setting: {key.strip()}={value.strip()}")
     # GPU-written constants back to guest memory for the SRT walker: write "auto"/"off" or
     # "<lo> <hi>" (hex range, one-off) into this file. GOW3_SYNC_GPU_CONSTANTS=1 starts it on.
     if diagnostics:

@@ -181,6 +181,9 @@ public:
         return profile;
     }
 
+    /// gow3 statistics: sizes of the cache's maps (growth over time).
+    std::string DebugSizes() const;
+
 private:
     bool QueueShader(Program& program, Shader::HwStage stage, Shader::SwStage l_stage,
                      const Shader::ShaderParams& params, Shader::RuntimeInfo runtime_info,
@@ -198,6 +201,9 @@ private:
     void PumpWarmUp();
     void StopWarmUp();
     bool AsyncCompilation() const;
+    /// gow3: this draw's shaders and pipeline compile at once instead of being skipped while
+    /// they compile in the background (draws into small color targets only).
+    bool sync_compile = false;
     bool RefreshGraphicsKey(PipelineSelection& sel);
     bool RefreshGraphicsStages(PipelineSelection& sel);
     bool RefreshComputeKey();

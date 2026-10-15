@@ -5,6 +5,11 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <map>
+#include <mutex>
+#include <string>
+#include <vector>
+#include "core/memory.h"
 #include "shader_recompiler/info.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
@@ -238,48 +243,98 @@ static bool ExecuteCopyShaderHLE(const Shader::Info& info, const AmdGpu::Compute
     return true;
 }
 
-// gow3: Uncharted's per-object constant copy (cs 2d215c3b, ~33 dispatches per frame of ~11
-// workgroups): workgroup i copies 32-bit element i (buffer_load_format/store through the V#s in
-// s[0:3] and s[4:7]) while i < dst.num_records. Done in guest memory here, the GPU never owns
-// those pages: the game's later CPU writes into them needed a download with a full GPU wait
-// each (temple: ~200 per second, about half the frame time), and the CPU-side SRT walker sees
-// the constants at once. GOW3_SCALAR_COPY_GPU=1 keeps the GPU copy.
+// gow3: Uncharted's constant copies. Disassembled (bin.psarc):
+//   cs 2d215c3b: i = group                  (one dword per workgroup)
+//   cs 6a6422a9: i = group * 64 + thread    (64 dwords per workgroup, U2)
+//   v = buffer_load_format_x(s[0:3], i); if (i < s6) buffer_store_format_x(s[4:7], i, v)
+// Loads past src.num_records read 0, stores past dst.num_records are dropped. Done here, the
+// result is in guest memory at once (the CPU-side SRT walker reads these constant blocks) and in
+// the GPU's copy in stream order (BufferCache::WriteThrough), and never becomes GPU data: the
+// game's later CPU writes into the per-frame ring need no download. Before 15 Oct the count
+// ignored s6 (elements past it were overwritten) and only 2d215c3b was handled.
+// GOW3_SCALAR_COPY_GPU=1 keeps the GPU copy.
 static constexpr u64 SCALAR_COPY_SHADER_HASH = 0x2d215c3b;
+static constexpr u64 SCALAR_COPY64_SHADER_HASH = 0x6a6422a9;
 
 static bool ExecuteScalarCopyHLE(const Shader::Info& info, const AmdGpu::ComputeProgram& cs_program,
-                                 Rasterizer& rasterizer) {
-    static const bool keep_gpu = std::getenv("GOW3_SCALAR_COPY_GPU") != nullptr;
-    if (keep_gpu || info.buffers.size() < 2 || cs_program.dim_y != 1 || cs_program.dim_z != 1) {
+                                 Rasterizer& rasterizer, u32 per_group) {
+    static std::atomic<u32> on_cpu, on_gpu;
+    // Why a copy stays on the GPU: the first two of each kind per shader (GOW3_FAULT_STATS).
+    const auto to_gpu = [&](const char* reason, VAddr src_addr = 0, VAddr dst_addr = 0,
+                            u64 size = 0) {
+        static std::mutex mutex;
+        static std::map<std::pair<u64, std::string>, u32> reports;
+        ++on_gpu;
+        std::scoped_lock lock{mutex};
+        if (reports[{info.pgm_hash, reason}]++ < 2) {
+            std::printf("Scalar copy %llx on the GPU: %s (%#llx -> %#llx, %llu bytes)\n",
+                        static_cast<unsigned long long>(info.pgm_hash), reason,
+                        static_cast<unsigned long long>(src_addr),
+                        static_cast<unsigned long long>(dst_addr),
+                        static_cast<unsigned long long>(size));
+            std::fflush(stdout);
+        }
         return false;
+    };
+    static const bool keep_gpu = std::getenv("GOW3_SCALAR_COPY_GPU") != nullptr;
+    const auto ud = info.UserData();
+    if (keep_gpu) {
+        return false;
+    }
+    if (info.buffers.size() < 2 || ud.size() <= 6) {
+        return to_gpu("bindings");
+    }
+    if (cs_program.dim_y != 1 || cs_program.dim_z != 1) {
+        return to_gpu("2D dispatch");
+    }
+    if (per_group > 1 && cs_program.num_thread_x.full != per_group) {
+        return to_gpu("workgroup size");
     }
     const auto src = info.buffers[0].GetSharp(info);
     const auto dst = info.buffers[1].GetSharp(info);
     const auto plain_dword = [](const AmdGpu::Buffer& buffer) {
-        return buffer.data_format == u32(AmdGpu::DataFormat::Format32) && buffer.stride >= 4 &&
-               buffer.base_address != 0;
+        return buffer.data_format == u32(AmdGpu::DataFormat::Format32) && buffer.stride == 4 &&
+               buffer.base_address != 0 && buffer.base_address % 4 == 0;
     };
     if (!plain_dword(src) || !plain_dword(dst)) {
-        return false;
+        return to_gpu(!plain_dword(src) ? "source format/stride" : "destination format/stride",
+                      src.base_address, dst.base_address);
     }
-    const u32 count = std::min<u32>(cs_program.dim_x, dst.num_records);
+    const u64 count = std::min<u64>({u64(cs_program.dim_x) * per_group, ud[6], dst.num_records});
     if (count == 0) {
         return true;
     }
-    const u32 readable = std::min<u32>(count, src.num_records);
+    const u64 readable = std::min<u64>(count, src.num_records);
     const VAddr src_addr = src.base_address;
     const VAddr dst_addr = dst.base_address;
-    const u64 src_size = u64(src.stride) * (readable ? readable : 1);
-    const u64 dst_size = u64(dst.stride) * count;
+    const u64 size = count * 4;
     auto& buffer_cache = rasterizer.GetBufferCache();
-    // Byte-precise: pages with other GPU-written bytes stay GPU-modified for a while (lazy CPU
-    // writes, asynchronous readbacks), and a page-level check sent most copies to the GPU, whose
-    // result reached the SRT walker a frame late (garbage sharps for new effects).
-    static std::atomic<u32> on_cpu, on_gpu;
-    if (!rasterizer.IsMapped(src_addr, src_size) || !rasterizer.IsMapped(dst_addr, dst_size) ||
-        buffer_cache.IsRangeGpuWritten(src_addr, src_size) ||
-        !buffer_cache.PrepareHostWrite(dst_addr, dst_size)) {
-        ++on_gpu;
-        return false; // GPU-written data involved: the GPU copies it in order
+    // GPU-written source bytes: the GPU copies them in order (the SRT walker then downloads the
+    // destination when it reads it, Rasterizer::SyncSrtTables). Surface copies (depth, MiBs)
+    // stay on the GPU too.
+    if (size > 64_KB) {
+        return to_gpu("size", src_addr, dst_addr, size);
+    }
+    if (!rasterizer.IsMapped(dst_addr, size)) {
+        return to_gpu("destination unmapped", src_addr, dst_addr, size);
+    }
+    if (readable && !rasterizer.IsMapped(src_addr, readable * 4)) {
+        return to_gpu("source unmapped", src_addr, dst_addr, size);
+    }
+    if (readable && buffer_cache.IsRangeGpuWritten(src_addr, readable * 4)) {
+        return to_gpu("GPU-written source", src_addr, dst_addr, size);
+    }
+    // Uploads recorded before this dispatch read guest memory on the copy threads.
+    rasterizer.GetRuntime().GetScheduler().WaitHostCopies();
+    std::vector<u32> values(count, 0u);
+    if (readable) {
+        auto* memory = Core::Memory::Instance();
+        if (!memory->TryReadBacking(src_addr, values.data(), readable * 4)) {
+            std::memcpy(values.data(), reinterpret_cast<const void*>(src_addr), readable * 4);
+        }
+    }
+    if (!buffer_cache.WriteThrough(dst_addr, values.data(), size)) {
+        return to_gpu("write-through refused", src_addr, dst_addr, size);
     }
     ++on_cpu;
     static const bool stats = std::getenv("GOW3_FAULT_STATS") != nullptr;
@@ -292,12 +347,6 @@ static bool ExecuteScalarCopyHLE(const Shader::Info& info, const AmdGpu::Compute
             std::fflush(stdout);
         }
     }
-    // Uploads recorded before this dispatch read guest memory on the copy threads.
-    rasterizer.GetRuntime().GetScheduler().WaitHostCopies();
-    for (u32 i = 0; i < count; ++i) {
-        const u32 value = i < readable ? *reinterpret_cast<const u32*>(src_addr + u64(i) * src.stride) : 0u;
-        *reinterpret_cast<u32*>(dst_addr + u64(i) * dst.stride) = value;
-    }
     return true;
 }
 
@@ -307,7 +356,9 @@ bool ExecuteShaderHLE(const Shader::Info& info, const AmdGpu::Regs& regs,
     case COPY_SHADER_HASH:
         return ExecuteCopyShaderHLE(info, cs_program, rasterizer);
     case SCALAR_COPY_SHADER_HASH:
-        return ExecuteScalarCopyHLE(info, cs_program, rasterizer);
+        return ExecuteScalarCopyHLE(info, cs_program, rasterizer, 1);
+    case SCALAR_COPY64_SHADER_HASH:
+        return ExecuteScalarCopyHLE(info, cs_program, rasterizer, 64);
     default:
         return false;
     }

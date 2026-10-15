@@ -51,6 +51,11 @@ struct RangeSet {
         return boost::icl::contains(m_ranges_set, interval);
     }
 
+    /// gow3: number of disjoint ranges (statistics).
+    size_t Count() const {
+        return m_ranges_set.iterative_size();
+    }
+
     bool Intersects(VAddr base_address, size_t size) const {
         const VAddr end_address = base_address + size;
         IntervalType interval{base_address, end_address};

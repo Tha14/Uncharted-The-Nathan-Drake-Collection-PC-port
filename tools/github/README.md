@@ -5,6 +5,10 @@ Thieves* and *Drake's Deception*) natively on Windows. The game's own x86-64 cod
 on the PC; a runtime supplies the PS4 system libraries, and a Vulkan renderer executes the PS4 GPU
 work.
 
+By **BilalReloaded** ([YouTube](https://www.youtube.com/@BilalReloaded/videos),
+[GitHub](https://github.com/bc160201983)), October 2026. What changed and when:
+[CHANGELOG.md](CHANGELOG.md).
+
 > **No game files are in this repository or its builds.** You need your own copy of the game
 > (the dumped CUSA02344 folder). This project is not affiliated with Sony, Naughty Dog or
 > Bluepoint Games.
@@ -32,13 +36,13 @@ plan and test list: [analysis/PLAN.md](analysis/PLAN.md).
   | Low | 720p + FSR 1 to the screen | 60 | weak GPUs (about twice as fast as 1080p) |
   | Medium | 1080p (as on PS4) | 60 | most PCs |
   | High | 1440p | 60 | fast GPUs |
-  | Ultra | 4K (Drake's Fortune: 1620p + FSR 1) | up to the monitor's refresh rate | very fast GPUs |
+  | Ultra | 4K (Drake's Fortune: 1620p + FSR 1) | up to 120 (experimental) | very fast GPUs |
 
 - **Display:** windowed, borderless or exclusive fullscreen; render resolution 720p, 900p, 1080p,
   1440p, 1620p or 4K; FSR 1 upscaling; RCAS sharpening; FPS counter.
-- **Performance:** frame rate limit 30 / 60 / 120 / 144 / 165 / 240 / unlimited (the game's
-  simulation follows the real frame time, so the speed stays right above 60); frames queued;
-  background shader compilation; multithreaded rendering and faster GPU readbacks (experimental).
+- **Performance:** frame rate limit 30 / 60 / 120 (60 is the PS4's; 120 is experimental, and
+  faster rates break the games' movement, so they are not offered); frames queued; background
+  shader compilation; multithreaded rendering (experimental).
 - **Keyboard and mouse:** mouse look (sensitivity, invert Y), right mouse aim, left mouse fire, WASD,
   and every action remappable per game in the **Controls** tab (two bindings per action, keys or
   mouse buttons). Controllers (DualSense, DualShock 4, Xbox) work at the same time.
@@ -53,8 +57,8 @@ plan and test list: [analysis/PLAN.md](analysis/PLAN.md).
 - shadPS4-derived Vulkan renderer with a persistent shader/pipeline cache, asynchronous shader
   compilation, and fixes for this game: GPU-written constants synced back to the CPU, MUBUF
   ADDR64 loads (character shadows), direct memory access for the tiled lighting, depth/stencil
-  aliasing, lazy CPU writes into GPU data (steady 60 FPS in heavy scenes), tolerant handling of
-  garbage descriptors.
+  aliasing, CPU writes next to GPU data without stalls, GPU ray-cast results returned to the game
+  (Drake's Fortune's bullet impacts, blood and decals), tolerant handling of garbage descriptors.
 - Render resolution patch: the games' display settings and memory map are rewritten for the chosen
   resolution; cutscene movies are scaled to it and their conversion shader adjusted.
 - FFmpeg-based video decoding (Videodec2), ATRAC9 audio (LibAtrac9), SDL3 window and controllers.
@@ -109,8 +113,20 @@ To run from the source tree: `Start-Uncharted.cmd` (launcher), or
 
 ## Credits and license
 
+- **Uncharted port, launcher and game fixes: BilalReloaded**
+  ([YouTube](https://www.youtube.com/@BilalReloaded/videos),
+  [GitHub](https://github.com/bc160201983)), 2026. The fixes and their dates are listed in
+  [CHANGELOG.md](CHANGELOG.md); the commit history shows each change.
 - The runtime started from the [gow3_pc](https://github.com/FelipePrado0/gow3_pc) project
   (whose internal names, such as `GOW3_*` settings, it keeps) and the
   [shadPS4](https://github.com/shadps4-emu/shadPS4) video core.
 - Third-party code: FSR (AMD), imgui, magic_enum, miniz, xbyak, LibAtrac9, FFmpeg, SDL3.
 - Licensed under the GNU GPL v2 or later (see `gow3_pc/LICENSE`).
+
+### Reusing this work
+
+You are welcome to use these fixes in your own port. The GPL asks that you keep the copyright and
+license notices and publish your source code under the same license when you distribute your
+build. Beyond that, a request: **credit this project and link back to it**
+(`https://github.com/bc160201983/uncharted-pc`, by BilalReloaded) in your README or release
+notes, so people can find where a fix came from.

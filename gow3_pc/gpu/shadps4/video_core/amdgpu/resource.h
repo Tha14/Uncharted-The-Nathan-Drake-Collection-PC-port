@@ -491,7 +491,7 @@ struct Sampler {
         case AnisoRatio::Sixteen:
             return 16.0f;
         default:
-            UNREACHABLE();
+            return 1.0f; // gow3: reserved ratios (garbage S#, unused table slot)
         }
     }
 };

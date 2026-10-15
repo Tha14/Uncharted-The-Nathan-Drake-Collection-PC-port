@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <format>
+#include <string>
+
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -166,6 +169,30 @@ public:
         return (flags & (Dirty | Registered | Aliased)) == Registered &&
                image.track_addr == image.guest_begin && image.track_addr_end == image.guest_end &&
                image.lru_touched_tick == gc_tick;
+    }
+
+    /// gow3 statistics: sizes of the cache's containers (growth over time).
+    std::string DebugSizes() {
+        std::scoped_lock lock{mutex};
+        std::size_t images = 0, backings = 0, views = 0, max_views = 0;
+        for (u32 index = 0; index < slot_images.capacity(); ++index) {
+            ImageId id{};
+            id.index = index;
+            if (!slot_images.is_allocated(id)) {
+                continue;
+            }
+            const Image& image = slot_images[id];
+            ++images;
+            for (const auto& backing : image.backing_images) {
+                ++backings;
+                views += backing.image_view_ids.size();
+                max_views = std::max<std::size_t>(max_views, backing.image_view_ids.size());
+            }
+        }
+        return std::format("{} images ({} backings, {} views, at most {} per backing), {} view "
+                           "slots, {} samplers, {} alias states, {} surface metas",
+                           images, backings, views, max_views, slot_image_views.size(),
+                           samplers.size(), alias_states.size(), surface_metas.size());
     }
 
     /// Updates image contents if it was modified by CPU.

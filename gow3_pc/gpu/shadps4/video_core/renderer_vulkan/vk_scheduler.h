@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <format>
+#include <string>
+
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -830,6 +833,13 @@ public:
     /// the write cannot overtake an earlier fence. Otherwise the guest, seeing the later value,
     /// may free memory the earlier fence then writes into (corrupted heap, guest fault).
     void WaitDeferredSignals();
+
+    /// gow3 statistics: sizes of the scheduler's queues (growth over time).
+    std::string DebugSizes() {
+        return std::format("{} pending ops, {} full chunks, {} free chunks, {} queued chunks",
+                           num_pending_ops.load(std::memory_order_relaxed), full_chunks.size(),
+                           free_chunks.size(), recorder_queue.size());
+    }
 
     /// Whether a render pass with exactly this state is open.
     [[nodiscard]] bool IsRenderingWith(const RenderState& state) const {

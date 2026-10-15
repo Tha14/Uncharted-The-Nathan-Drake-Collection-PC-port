@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <bit>
 #include <cstdlib>
+#include <string>
+#include <fmt/format.h>
 #include <magic_enum/magic_enum.hpp>
 #include "gow3_copy.h"
 #include "gow3_toggles.h"
@@ -195,18 +197,25 @@ static std::atomic<u32> g_readback_read_waits;
 // or the SRT walker) never reads their stale data: a read waits for that readback only. =2 is
 // the earlier unprotected mode (stale reads: Uncharted 3 "dcb full", garbage sharps).
 static bool SafeReadbacks() {
+    // GOW3_ASYNC_READBACK=1: pages of pending readbacks are read-protected (a CPU read waits for
+    // its readback). Default (unset, 2): not protected, the CPU reads the previous value.
     static const bool safe = [] {
         const char* env = std::getenv("GOW3_ASYNC_READBACK");
-        return !(env && env[0] == '2');
+        return env && env[0] == '1';
     }();
     return safe;
 }
 
-// GOW3_LAZY_WRITES=0 restores the download on every CPU write into a GPU-written page.
+// GOW3_LAZY_WRITES=1: a CPU write into a GPU-written page goes ahead without a download; the
+// GPU bytes are merged in later where guest memory still matches a snapshot. Off by default
+// since 15 Oct: a byte the CPU rewrites with its previous value is indistinguishable from an
+// untouched one, so the merge put stale GPU bytes back into rewritten data (Uncharted 2's
+// skinning tables in the per-frame ring: half-float V#s, a GPU hang and game asserts at the
+// treasure screen).
 static bool LazyWritesEnabled() {
     static const bool enabled = [] {
         const char* env = std::getenv("GOW3_LAZY_WRITES");
-        return !(env && env[0] == '0');
+        return env && env[0] == '1';
     }();
     // Precise readbacks read-protect GPU-written pages: the records would be read through a
     // protected page.
@@ -246,8 +255,14 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
                             "%u elsewhere in the window; %.1f GPU-written bytes per faulting page\n",
                             overlap, same_page, window_only,
                             double(gpu_bytes) / std::max(1u, overlap + same_page + window_only));
-                std::printf("  lazy writes (no download): %u; GPU-written bytes the CPU overwrote later: %u\n",
-                            g_lazy_writes.exchange(0), g_lazy_cpu_wins.exchange(0));
+                std::printf("  lazy writes (no download): %u; GPU-written bytes the CPU overwrote later: %u; "
+                            "writes into pages shared with GPU data in flight: %llu\n",
+                            g_lazy_writes.exchange(0), g_lazy_cpu_wins.exchange(0),
+                            static_cast<unsigned long long>(std::exchange(g_shared_writes_count, 0)));
+                std::printf("  tracking: %zu lazy/shared pages, %zu pending readbacks, %zu pages with "
+                            "GPU write records, %zu GPU-written ranges\n",
+                            lazy_pages.size(), pending_readbacks.size(), page_writes.size(),
+                            gpu_modified_ranges.Count());
                 std::printf("  async readbacks: %u; CPU writes that waited for one: %u, CPU reads: %u\n",
                             g_async_readbacks.exchange(0), g_readback_waits.exchange(0),
                             g_readback_read_waits.exchange(0));
@@ -263,7 +278,7 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
         }
     }
     const auto flush_request = [this, device_addr, size, is_write] {
-        if (!is_write && SafeReadbacks() && !pending_readbacks.empty()) {
+        if (!is_write && !pending_readbacks.empty()) {
             // A read of a page whose GPU data is still on its way back (read-protected by
             // DownloadRangesAsync): that readback completes and unprotects it. Other GPU data
             // in the window stays as relaxed readbacks leave it.
@@ -297,6 +312,38 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
             if (const u64 tick = PendingReadbackTick(device_addr, size, true)) {
                 ++g_readback_waits;
                 CompleteReadbacks(true, tick);
+            }
+            // gow3: finished readbacks of this page first (no wait): it may be clean already.
+            CompleteReadbacks(false);
+            if (!gpu_modified_ranges.Intersects(page, 4096)) {
+                lazy_pages.erase(page);
+                memory_tracker->UnmarkRegionAsGpuModified(page, 4096);
+                memory_tracker->MarkRegionAsCpuModified(device_addr, size);
+                return;
+            }
+            // gow3: the GPU bytes in this page come from work still in flight (recorded in this
+            // submission or not finished): the guest, a frame ahead, writes next to them (false
+            // sharing: ~90 per second in heavy U2 scenes, each a download waiting for all GPU
+            // work). The write goes ahead; the page's GPU bytes stay the GPU's (uploads skip
+            // them) until the next readback brings them. No guest bytes are compared (the
+            // lazy-write merge did, and put stale GPU bytes back into rewritten data).
+            if (!gpu_modified_ranges.Intersects(device_addr, size)) {
+                if (GpuBytesInFlight(page)) {
+                    auto& slot = lazy_pages[page];
+                    if (!slot) {
+                        slot = std::make_unique<LazyPage>();
+                    }
+                    slot->gpu_wins = true;
+                    gpu_modified_ranges.ForEachInRange(page, 4096, [&](VAddr lo, VAddr hi) {
+                        for (VAddr byte = lo; byte < hi; ++byte) {
+                            slot->tracked.set(byte - page);
+                        }
+                    });
+                    shared_readbacks.emplace_back(page, 4096);
+                    memory_tracker->MarkRegionAsCpuModified(device_addr, size);
+                    ++g_shared_writes_count;
+                    return;
+                }
             }
             if (TryLazyWrite(device_addr, size)) {
                 return;
@@ -459,6 +506,104 @@ bool BufferCache::PrepareHostWrite(VAddr address, u64 size) {
     return true;
 }
 
+bool BufferCache::GpuBytesInFlight(VAddr page) {
+    std::bitset<4096> covered;
+    if (const auto it = page_writes.find(page >> 12); it != page_writes.end()) {
+        auto* semaphore = scheduler.GetWorkSemaphore();
+        semaphore->Refresh(); // the cached value lags: finished work would count as running
+        for (const auto& write : it->second) {
+            // Recorded since the last readback (the next one brings it) or not finished yet.
+            if (write.tick >= last_readback_tick || !semaphore->IsFree(write.tick)) {
+                for (u32 byte = write.lo; byte < write.hi; ++byte) {
+                    covered.set(byte);
+                }
+            }
+        }
+    }
+    for (const auto& readback : pending_readbacks) {
+        for (const auto& [address, size] : readback.pieces) {
+            const VAddr lo = std::max(address, page);
+            const VAddr hi = std::min(address + size, page + 4096);
+            for (VAddr byte = lo; byte < hi; ++byte) {
+                covered.set(byte - page);
+            }
+        }
+    }
+    bool all = true;
+    gpu_modified_ranges.ForEachInRange(page, 4096, [&](VAddr lo, VAddr hi) {
+        for (VAddr byte = lo; byte < hi && all; ++byte) {
+            all = covered.test(byte - page);
+        }
+    });
+    return all;
+}
+
+static std::atomic<u32> g_labels_in_readbacks{0};
+
+u32 BufferCache::TakeLabelsInReadbacks() {
+    return g_labels_in_readbacks.exchange(0, std::memory_order_relaxed);
+}
+
+void BufferCache::NoteCpuWrite(VAddr address, u64 size) {
+    bool inside = false;
+    for (auto& readback : pending_readbacks) {
+        readback.rewritten.Add(address, size);
+        for (const auto& [lo, n] : readback.pieces) {
+            inside |= address < lo + n && lo < address + size;
+        }
+    }
+    if (inside) {
+        g_labels_in_readbacks.fetch_add(1, std::memory_order_relaxed);
+    }
+    if (!gpu_modified_ranges.Intersects(address, size)) {
+        return;
+    }
+    gpu_modified_ranges.Subtract(address, size);
+    for (VAddr page = Common::AlignDown(address, LAZY_PAGE_SIZE); page < address + size;
+         page += LAZY_PAGE_SIZE) {
+        if (!gpu_modified_ranges.Intersects(page, LAZY_PAGE_SIZE)) {
+            lazy_pages.erase(page);
+            memory_tracker->UnmarkRegionAsGpuModified(page, LAZY_PAGE_SIZE);
+        }
+    }
+}
+
+bool BufferCache::WriteThrough(VAddr address, const void* data, u64 size) {
+    if (size == 0 || size > 64_KB || address % 4 != 0 || size % 4 != 0) {
+        return false;
+    }
+    if (!memory->TryWriteBacking(reinterpret_cast<void*>(address), data, size)) {
+        return false;
+    }
+    // The GPU's copy, in order with the work recorded so far (resident and synchronized first).
+    const auto [arena, offset] = ObtainBuffer(address, static_cast<u32>(size), false);
+    const auto staging = staging_pool.Request(size, VideoCore::MemoryType::HostUncached, 4);
+    std::memcpy(staging.mapped, data, size);
+    staging.Flush();
+    const vk::BufferCopy copy{
+        .srcOffset = staging.offset,
+        .dstOffset = offset,
+        .size = size,
+    };
+    runtime.CopyBuffer(staging.buffer, arena, std::span{&copy, 1});
+    // Newest value in both views: not GPU data any more; readbacks recorded earlier must not
+    // write their older values over it.
+    if (gpu_modified_ranges.Intersects(address, size)) {
+        gpu_modified_ranges.Subtract(address, size);
+        for (VAddr page = Common::AlignDown(address, LAZY_PAGE_SIZE); page < address + size;
+             page += LAZY_PAGE_SIZE) {
+            if (!gpu_modified_ranges.Intersects(page, LAZY_PAGE_SIZE)) {
+                lazy_pages.erase(page);
+                memory_tracker->UnmarkRegionAsGpuModified(page, LAZY_PAGE_SIZE);
+            }
+        }
+    }
+    for (auto& readback : pending_readbacks) {
+        readback.rewritten.Add(address, size);
+    }
+    return true;
+}
+
 void BufferCache::SnapshotLazyPages(VAddr address, u64 size) {
     const VAddr end = address + size;
     for (VAddr page = Common::AlignDown(address, LAZY_PAGE_SIZE); page < end;
@@ -472,7 +617,9 @@ void BufferCache::SnapshotLazyPages(VAddr address, u64 size) {
                     slot = std::make_unique<LazyPage>();
                 }
                 record = slot.get();
-                memory->CopySparseMemory(page, guest.data(), LAZY_PAGE_SIZE);
+                if (!memory->TryReadBacking(page, guest.data(), LAZY_PAGE_SIZE)) {
+                    memory->CopySparseMemory(page, guest.data(), LAZY_PAGE_SIZE);
+                }
             }
             for (VAddr byte = lo; byte < hi; ++byte) {
                 const size_t i = byte - page;
@@ -499,7 +646,9 @@ void BufferCache::ForEachLazyUploadPiece(VAddr address, u64 size, Func&& func) {
         const VAddr page = it->first;
         LazyPage& record = *it->second;
         std::array<u8, LAZY_PAGE_SIZE> guest;
-        memory->CopySparseMemory(page, guest.data(), LAZY_PAGE_SIZE);
+        if (!memory->TryReadBacking(page, guest.data(), LAZY_PAGE_SIZE)) {
+            memory->CopySparseMemory(page, guest.data(), LAZY_PAGE_SIZE);
+        }
         const VAddr lo_limit = std::max(page, address);
         const VAddr hi_limit = std::min(page + LAZY_PAGE_SIZE, end);
         boost::container::small_vector<std::pair<VAddr, VAddr>, 8> cpu_wins;
@@ -517,7 +666,7 @@ void BufferCache::ForEachLazyUploadPiece(VAddr address, u64 size, Func&& func) {
                 if (!record.tracked.test(i)) {
                     continue;
                 }
-                if (guest[i] == record.bytes[i]) {
+                if (record.gpu_wins || guest[i] == record.bytes[i]) {
                     add_run(skips, byte);
                 } else {
                     record.tracked.reset(i);
@@ -553,7 +702,12 @@ void BufferCache::WriteBackGpuData(VAddr address, const u8* data, u64 size,
         const VAddr page = it->first;
         LazyPage& record = *it->second;
         std::array<u8, LAZY_PAGE_SIZE> guest;
-        memory->CopySparseMemory(page, guest.data(), LAZY_PAGE_SIZE);
+        // Through the backing view: the page may still be read-protected for this very readback
+        // (CompleteReadbacks unwatches after the write-back); a read fault there completed the
+        // same readback again, recursively, until the stack ran out (U2 silent exit, 15 Oct).
+        if (!memory->TryReadBacking(page, guest.data(), LAZY_PAGE_SIZE)) {
+            memory->CopySparseMemory(page, guest.data(), LAZY_PAGE_SIZE);
+        }
         const VAddr lo = std::max(page, address);
         const VAddr hi = std::min(page + LAZY_PAGE_SIZE, end);
         for (VAddr byte = lo; byte < hi; ++byte) {
@@ -562,6 +716,13 @@ void BufferCache::WriteBackGpuData(VAddr address, const u8* data, u64 size,
                 continue;
             }
             const bool still_gpu = rewritten && rewritten->Contains(byte, 1);
+            if (record.gpu_wins) {
+                // The GPU's bytes: written back; tracked while newer GPU data is still to come.
+                if (!still_gpu) {
+                    record.tracked.reset(i);
+                }
+                continue;
+            }
             if (guest[i] == record.bytes[i]) {
                 if (rewritten) {
                     // Written now; the GPU's newer value is stale in guest memory again.
@@ -593,7 +754,8 @@ void BufferCache::WriteBackGpuData(VAddr address, const u8* data, u64 size,
     }
 }
 
-void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ranges) {
+void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ranges, bool protect) {
+    last_readback_tick = scheduler.CurrentTick();
     PendingReadback readback;
     struct Copy {
         const Buffer* arena;
@@ -636,7 +798,7 @@ void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ran
         }
         runtime.CopyBuffer(arena, download.buffer, copies);
     }
-    if (SafeReadbacks()) {
+    if (SafeReadbacks() || protect) {
         std::vector<VAddr> pages;
         for (const auto& [address, size] : readback.pieces) {
             for (VAddr page = Common::AlignDown(address, 4096); page < address + size; page += 4096) {
@@ -899,6 +1061,46 @@ std::pair<const Buffer*, u64> BufferCache::ObtainBuffer(VAddr device_addr, u32 s
             Gow3Stats::buffer_upload_bytes.load(std::memory_order_relaxed) - uploaded_before;
     }
     if (is_written) {
+        // Small writes only (counters, constant blocks: at most two pages): the CPU writes next
+        // to these; larger GPU data in a page the CPU writes is downloaded as before.
+        if (size <= 4096) {
+            const u64 tick = scheduler.CurrentTick();
+            const VAddr end = device_addr + size;
+            for (VAddr page = Common::AlignDown(device_addr, 4096); page < end; page += 4096) {
+                auto& writes = page_writes[page >> 12];
+                const auto lo = static_cast<u16>(std::max(device_addr, page) - page);
+                const auto hi = static_cast<u16>(std::min(end, page + 4096) - page);
+                // The same range written again (every frame): its newest tick is what counts.
+                // Appending instead grew each page's list by one entry per frame, and the prune
+                // below scanned it all on every binding (Uncharted 2: about 1 MB of memory per
+                // second, the frame rate falling from 42 to 31 FPS over a few minutes).
+                const auto same = std::find_if(writes.begin(), writes.end(), [&](const PageWrite& w) {
+                    return w.lo == lo && w.hi == hi;
+                });
+                if (same != writes.end()) {
+                    same->tick = std::max(same->tick, tick);
+                    continue;
+                }
+                if (writes.size() >= 16) {
+                    // Entries GpuBytesInFlight no longer counts: finished, older than the last
+                    // readback. If the page is still full, the oldest go (its CPU writes may
+                    // then download as before).
+                    auto* semaphore = scheduler.GetWorkSemaphore();
+                    writes.erase(std::remove_if(writes.begin(), writes.end(),
+                                                [&](const PageWrite& w) {
+                                                    return w.tick < last_readback_tick &&
+                                                           semaphore->IsFree(w.tick);
+                                                }),
+                                 writes.end());
+                    if (writes.size() >= 16) {
+                        std::sort(writes.begin(), writes.end(),
+                                  [](const PageWrite& a, const PageWrite& b) { return a.tick < b.tick; });
+                        writes.erase(writes.begin(), writes.begin() + (writes.size() - 8));
+                    }
+                }
+                writes.push_back({lo, hi, tick});
+            }
+        }
         gpu_modified_ranges.Add(device_addr, size);
         for (auto& readback : pending_readbacks) {
             readback.rewritten.Add(device_addr, size);

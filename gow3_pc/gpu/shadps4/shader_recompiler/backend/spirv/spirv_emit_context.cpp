@@ -3,6 +3,7 @@
 
 #include "common/assert.h"
 #include "common/div_ceil.h"
+#include "common/logging/log.h"
 #include "shader_recompiler/backend/spirv/spirv_emit_context.h"
 #include "shader_recompiler/frontend/fetch_shader.h"
 #include "shader_recompiler/ir/attribute.h"
@@ -980,8 +981,11 @@ spv::ImageFormat GetFormat(const AmdGpu::Image& image) {
         image.GetNumberFmt() == AmdGpu::NumberFormat::Float) {
         return spv::ImageFormat::Rgba32f;
     }
-    UNREACHABLE_MSG("Unknown storage format data_format={}, num_format={}", image.GetDataFmt(),
-                    image.GetNumberFmt());
+    // gow3: only garbage T#s reach this (unused resource table slots); R32ui keeps the module
+    // valid for atomics.
+    LOG_WARNING(Render_Recompiler, "Unknown storage format data_format={}, num_format={}",
+                image.GetDataFmt(), image.GetNumberFmt());
+    return spv::ImageFormat::R32ui;
 }
 
 Id ImageType(EmitContext& ctx, const ImageResource& desc, Id sampled_type) {

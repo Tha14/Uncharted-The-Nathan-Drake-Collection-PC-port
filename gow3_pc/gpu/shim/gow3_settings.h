@@ -9,6 +9,9 @@
 
 #include <atomic>
 #include <cstdint>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace Gow3Settings {
 
@@ -61,7 +64,7 @@ struct Values {
     // Graphics (gow3_graphics.h). Live: applied on the next frame.
     std::atomic<int> display_mode{0};
     std::atomic<bool> vsync{true};
-    std::atomic<int> fps_limit{0};
+    std::atomic<int> fps_limit{60};
     std::atomic<bool> async_shaders{true};
     std::atomic<bool> fsr1{false};
     std::atomic<bool> rcas{true};
@@ -123,6 +126,10 @@ bool ResolutionNeedsRestart();
 /// A startup graphics option differs from the one this launch started with.
 bool GraphicsNeedRestart();
 /// Writes the file (menu changes).
+/// Key and value lines as the settings file holds them.
+using KeyValues = std::vector<std::pair<std::string, std::string>>;
+/// The current settings as file lines.
+KeyValues Current();
 void Save();
 
 /// Render resolution divisor of a preset (1.0 native, 1.5 quality, ...).

@@ -25,6 +25,11 @@ struct Archive;
 
 namespace Shader {
 
+struct Info;
+/// gow3: called before the SRT walker reads guest memory (Rasterizer::SyncSrtTables: tables
+/// with GPU-written bytes not yet in guest memory are downloaded first).
+inline void (*g_srt_pre_walk)(const Info& info) = nullptr;
+
 enum class Qualifier : u8 {
     None,
     Smooth,
@@ -242,6 +247,9 @@ struct Info : InfoPersistent {
         ASSERT(user_data.size() <= NUM_USER_DATA_REGS);
         std::memcpy(flattened_ud_buf.data(), user_data.data(), user_data.size_bytes());
         if (srt_info.walker_func) {
+            if (g_srt_pre_walk) {
+                g_srt_pre_walk(*this);
+            }
             srt_info.walker_func(user_data.data(), flattened_ud_buf.data());
         }
     }

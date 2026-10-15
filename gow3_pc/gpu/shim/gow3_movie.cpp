@@ -75,6 +75,14 @@ std::uint32_t ScaledRows() {
     return Align64(Display().height);
 }
 
+std::uint32_t ScaledChromaPitch() {
+    return Align64(Display().width / 2) * 2;
+}
+
+std::uint64_t ScaledFrameBytes() {
+    return std::uint64_t(ScaledPitch()) * ScaledRows() + std::uint64_t(ScaledChromaPitch()) * ScaledRows() / 2;
+}
+
 void RecordFrame(std::uint64_t base, std::uint32_t width, std::uint32_t height, std::uint32_t pitch,
                  std::uint32_t rows) {
     if (!Display().width || !base) {
@@ -109,7 +117,7 @@ std::uint8_t* ScratchFrame(std::uint64_t base) {
         if (entry.base.load(std::memory_order_acquire)) {
             continue;
         }
-        const std::uint64_t bytes = std::uint64_t(ScaledPitch()) * ScaledRows() * 3 / 2;
+        const std::uint64_t bytes = ScaledFrameBytes();
         void* address = runtime_map_guest_memory(bytes);
         if (!address) {
             std::printf("Movie: no scratch frame (%llu bytes) for %#llx; movies are shown as decoded\n",
@@ -203,7 +211,7 @@ bool Remap(std::uint64_t& address, std::uint32_t& width, std::uint32_t& height, 
         }
         if (const std::uint64_t copy = FindScratch(base)) {
             address = luma ? copy : copy + std::uint64_t(ScaledPitch()) * ScaledRows();
-            pitch = luma ? ScaledPitch() : ScaledPitch() / 2;
+            pitch = luma ? ScaledPitch() : ScaledChromaPitch() / 2;
             return true;
         }
         const std::uint64_t layout = frame.layout.load(std::memory_order_acquire);

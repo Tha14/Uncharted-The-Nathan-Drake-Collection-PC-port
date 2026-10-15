@@ -135,7 +135,13 @@ struct ImageResource {
             image.type = u64(AmdGpu::ImageType::Color2DArray);
             image.depth = (image.depth + 1) * 6 - 1;
         }
-        if (!image.Valid()) {
+        // gow3: garbage T#s (resource table slots holding other data for this draw: Uncharted
+        // 2's treasure effects) stop the decoders: reserved tile modes and swizzles, inverted
+        // mip ranges. Such slots are not sampled by the shader; a null image keeps it safe.
+        const auto reserved_swizzle = [](u64 sel) { return sel == 2 || sel == 3; };
+        if (!image.Valid() || image.tiling_index > 26 || image.last_level < image.base_level ||
+            reserved_swizzle(image.dst_sel_x) || reserved_swizzle(image.dst_sel_y) ||
+            reserved_swizzle(image.dst_sel_z) || reserved_swizzle(image.dst_sel_w)) {
             image = AmdGpu::Image::Null(is_depth);
         } else if (is_depth) {
             const auto data_fmt = image.GetDataFmt();

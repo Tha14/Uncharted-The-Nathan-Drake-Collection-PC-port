@@ -4,11 +4,14 @@
 #include "gow3_graphics.h"
 
 #include <algorithm>
+#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace Gow3Settings {
 
@@ -153,6 +156,11 @@ Values& Get() {
     return values;
 }
 
+namespace {
+/// The settings as the game last read or wrote them (see Save).
+KeyValues synced;
+} // namespace
+
 void Load() {
     auto& v = Get();
     if (FILE* file = std::fopen(Path(), "r")) {
@@ -202,6 +210,7 @@ void Load() {
                                                  : v.engine_fps.load();
     v.startup_deferred_readback = v.deferred_readback;
     v.startup_stale_readback = v.stale_readback;
+    synced = Current();
 }
 
 bool GraphicsNeedRestart() {
@@ -257,15 +266,49 @@ bool ResolutionNeedsRestart() {
          (v.upscaler == UpscalerTaa) != (v.startup_upscaler == UpscalerTaa));
 }
 
-void Save() {
-    const auto& v = Get();
-    FILE* file = std::fopen(Path(), "w");
-    if (!file) {
-        std::printf("Settings: cannot write %s\n", Path());
-        return;
+namespace {
+
+void Append(std::string& out, const char* format, ...) {
+    char buffer[1024];
+    va_list args;
+    va_start(args, format);
+    const int n = std::vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    if (n > 0) {
+        out.append(buffer, std::min<size_t>(size_t(n), sizeof(buffer) - 1));
     }
-    std::fprintf(file,
-                 "# Uncharted settings (launcher and in-game menu: Insert / R3+L2)\n"
+}
+
+const std::string* Find(const KeyValues& values, const std::string& key) {
+    for (const auto& [k, value] : values) {
+        if (k == key) return &value;
+    }
+    return nullptr;
+}
+
+KeyValues ReadFile() {
+    KeyValues values;
+    if (FILE* file = std::fopen(Path(), "r")) {
+        char line[256];
+        while (std::fgets(line, sizeof(line), file)) {
+            std::string text{line};
+            text.erase(text.find_last_not_of(" \t\r\n") + 1);
+            const auto eq = text.find('=');
+            if (!text.empty() && text[0] != '#' && eq != std::string::npos) {
+                values.emplace_back(text.substr(0, eq), text.substr(eq + 1));
+            }
+        }
+        std::fclose(file);
+    }
+    return values;
+}
+
+} // namespace
+
+KeyValues Current() {
+    const auto& v = Get();
+    std::string text;
+    Append(text,
                  "upscaler=%s\npreset=%d\nsharpen=%d\nsharpness=%.2f\njitter=%d\n"
                  "reactive=%d\nobject_motion=%d\nreactive_scale=%.2f\nreactive_threshold=%.2f\nreactive_max=%.2f\n"
                  "debug_view=%d\nshow_fps=%d\nfsr4_auto_exposure=%d\nfsr4_invert_jitter=%d\n",
@@ -275,8 +318,8 @@ void Save() {
                  v.reactive_scale.load(), v.reactive_threshold.load(), v.reactive_max.load(),
                  v.debug_view.load(), int(v.show_fps.load()),
                  int(v.fsr4_auto_exposure.load()), int(v.fsr4_invert_jitter.load()));
-    std::fprintf(file, "output_res=%dx%d\n", OutputWidths[v.output_res], OutputHeights[v.output_res]);
-    std::fprintf(file,
+    Append(text, "output_res=%dx%d\n", OutputWidths[v.output_res], OutputHeights[v.output_res]);
+    Append(text,
                  "overlay_fps=%d\noverlay_frametime=%d\noverlay_upscaler=%d\noverlay_gpu=%d\n"
                  "overlay_cpu=%d\noverlay_ram=%d\noverlay_vram=%d\noverlay_scale=%d\noverlay_corner=%d\n"
                  "overlay_opacity=%d\noverlay_layout=%d\nmenu_tab=%d\n",
@@ -284,7 +327,7 @@ void Save() {
                  int(v.overlay_items >> 3 & 1), int(v.overlay_items >> 4 & 1), int(v.overlay_items >> 5 & 1),
                  int(v.overlay_items >> 6 & 1), v.overlay_scale.load(), v.overlay_corner.load(),
                  v.overlay_opacity.load(), v.overlay_layout.load(), v.menu_tab.load());
-    std::fprintf(file,
+    Append(text,
                  "display_mode=%s\nvsync=%d\nfps_limit=%d\nasync_shaders=%d\n"
                  "fsr1=%d\nrcas=%d\nrcas_strength=%d\nframes_queued=%d\n"
                  "deferred_readback=%d\nstale_readback=%d\n"
@@ -295,9 +338,44 @@ void Save() {
                  int(v.deferred_readback.load()), int(v.stale_readback.load()),
                  int(v.restart_unconfirmed.load()));
     // Read by run.sh at start.
-    std::fprintf(file, "live_resolution=%s\n", v.live_resolution < 0 ? "auto"
+    Append(text, "live_resolution=%s\n", v.live_resolution < 0 ? "auto"
                                                   : v.live_resolution ? "1" : "0");
+    KeyValues values;
+    for (size_t at = 0; at < text.size();) {
+        const size_t line_end = text.find('\n', at);
+        const std::string line = text.substr(at, line_end - at);
+        const size_t eq = line.find('=');
+        values.emplace_back(line.substr(0, eq), line.substr(eq + 1));
+        at = line_end + 1;
+    }
+    return values;
+}
+
+void Save() {
+    // Keys the in-game menu left alone since the game last read or wrote the file keep the
+    // file's value: the launcher may have changed them while the game ran (it used to be
+    // overwritten with the game's older value, e.g. a 165 FPS limit after choosing 60).
+    const KeyValues ours = Current();
+    const KeyValues file_values = ReadFile();
+    std::string text = "# Uncharted settings (launcher and in-game menu: Insert / R3+L2)\n";
+    for (const auto& [key, value] : ours) {
+        const std::string* base = Find(synced, key);
+        const std::string* theirs = Find(file_values, key);
+        text += key + "=" + (base && *base == value && theirs ? *theirs : value) + "\n";
+    }
+    for (const auto& [key, value] : file_values) {
+        if (!Find(ours, key)) {
+            text += key + "=" + value + "\n";
+        }
+    }
+    FILE* file = std::fopen(Path(), "w");
+    if (!file) {
+        std::printf("Settings: cannot write %s\n", Path());
+        return;
+    }
+    std::fputs(text.c_str(), file);
     std::fclose(file);
+    synced = ours;
 }
 
 float PresetScale(int preset) {

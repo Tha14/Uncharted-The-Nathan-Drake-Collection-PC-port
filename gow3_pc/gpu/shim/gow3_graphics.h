@@ -15,8 +15,10 @@ inline constexpr std::array<std::string_view, DisplayModeCount> DisplayModeKeys 
 inline constexpr std::array<const char*, DisplayModeCount> DisplayModeNames = {
     "Windowed", "Borderless", "Fullscreen"};
 
-/// Present rate limits; 0 = unlimited.
-inline constexpr std::array<int, 7> FpsLimits = {30, 60, 120, 144, 165, 240, 0};
+/// Present rate limits. Uncharted: at most 120; faster, movement timing breaks (Drake's
+/// Fortune at 140-160 FPS: running slows, Nate fell through the world).
+inline constexpr int MaxFpsLimit = 120;
+inline constexpr std::array<int, 3> FpsLimits = {30, 60, MaxFpsLimit};
 
 /// Game patch suffixes ("Resolution Patch - <name>"); "native" is no resolution patch.
 inline constexpr std::array<std::string_view, 6> Resolutions = {"native", "480p", "720p",
@@ -35,9 +37,10 @@ constexpr int IndexOf(const std::array<T, N>& values, const T& value, int fallba
 inline int ParseDisplayMode(std::string_view text) {
     return IndexOf(DisplayModeKeys, text, Windowed);
 }
-/// A listed limit, else unlimited.
+/// A listed limit; unlimited (0) and faster ones (earlier lists had 144-240) are the maximum.
 inline int ParseFpsLimit(int value) {
-    return IndexOf(FpsLimits, value, -1) >= 0 ? value : 0;
+    if (IndexOf(FpsLimits, value, -1) >= 0) return value;
+    return value == 0 || value > MaxFpsLimit ? MaxFpsLimit : 60;
 }
 /// Index into Resolutions; unknown text is native.
 inline int ParseResolution(std::string_view text) {
@@ -74,10 +77,10 @@ inline int EffectiveFps(int limit, int engine_fps) {
     return limit == 0 || limit > engine_fps ? engine_fps : limit;
 }
 
-/// The present thread's frame limit; 0 stays vblank paced (60 Hz unless the frame rate is
-/// unlocked: GOW3_VBLANK_HZ=0).
+/// The present thread's frame limit, at most MaxFpsLimit (also for 0 and older, faster
+/// settings). Above 60 it needs the fast vblank (GOW3_VBLANK_HZ=0); at 60 Hz the vblank paces.
 inline int PresentLimit(int limit) {
-    return limit;
+    return limit == 0 || limit > MaxFpsLimit ? MaxFpsLimit : limit;
 }
 
 } // namespace Gow3Graphics

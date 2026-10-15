@@ -60,7 +60,10 @@ GOLD_HI = "#e9bc66"
 INK = "#2a1c0e"
 STOP_RED = "#b5533c"
 
-FPS_LIMITS = [(30, "30"), (60, "60"), (120, "120"), (144, "144"), (165, "165"), (240, "240"), (0, "Unlimited")]
+# At most 120: faster, the game's movement timing breaks (Drake's Fortune at 140-160 FPS: running
+# slows, Nate fell through the world). The runtime caps older, faster settings at 120 too.
+MAX_FPS = 120
+FPS_LIMITS = [(30, "30"), (60, "60"), (MAX_FPS, str(MAX_FPS))]
 
 # Runtime options in probe.ini (key -> default) and launcher-only ones.
 INI_DEFAULTS = {
@@ -200,14 +203,16 @@ def monitor_refresh_hz():
         return 60
 
 
-def high_end_fps_limit():
-    """The highest listed limit the monitor shows, at least 120."""
-    hz = monitor_refresh_hz()
-    best = 120
-    for value, _ in FPS_LIMITS:
-        if value and 120 <= value <= hz:
-            best = value
-    return best
+def fps_limit_value(value):
+    """A listed limit; unlimited (0) and faster ones (earlier versions offered 144-240) are 120."""
+    listed = {str(v) for v, _ in FPS_LIMITS}
+    if value in listed:
+        return value
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return "60"
+    return str(MAX_FPS) if number == 0 or number > MAX_FPS else "60"
 
 
 RESOLUTIONS = [("1280x720", "720p"), ("1600x900", "900p"), ("1920x1080", "1080p"), ("2560x1440", "1440p"),
@@ -242,11 +247,11 @@ PRESETS = {
                    "fsr1": None, "rcas": "1", "rcas_strength": "50"},
     },
     "ultra": {
-        "title": "ULTRA", "summary": "4K  •  above 60 FPS",
-        "detail": "Native 4K (Drake's Fortune: 1620p + FSR 1) with the frame rate unlocked up to your "
-                  "monitor's refresh rate. New, confirm in play; needs a fast GPU.",
+        "title": "ULTRA", "summary": "4K  •  up to 120 FPS",
+        "detail": "Native 4K (Drake's Fortune: 1620p + FSR 1) with the frame rate unlocked up to 120 "
+                  "(experimental). New, confirm in play; needs a fast GPU.",
         "resolution": "3840x2160",
-        "values": {"fps_limit": None, "frames_queued": "2", "vsync": "1", "async_shaders": "1",
+        "values": {"fps_limit": str(MAX_FPS), "frames_queued": "2", "vsync": "1", "async_shaders": "1",
                    "fsr1": None, "rcas": "1", "rcas_strength": "50"},
     },
 }
@@ -270,8 +275,6 @@ def fsr1_for(resolution):
 
 def preset_values(name):
     values = dict(PRESETS[name]["values"])
-    if values["fps_limit"] is None:
-        values["fps_limit"] = str(high_end_fps_limit())
     if values["fsr1"] is None:
         values["fsr1"] = fsr1_for(PRESETS[name]["resolution"])
     return values
@@ -301,7 +304,15 @@ def read_ini(game):
         if "=" in line and not line.lstrip().startswith("#"):
             key, value = line.split("=", 1)
             values[key.strip()] = value.strip()
+    values["fps_limit"] = fps_limit_value(values["fps_limit"])
     return values
+
+
+def ini_mtime(game):
+    try:
+        return ini_file(game).stat().st_mtime_ns
+    except OSError:
+        return None
 
 
 def write_ini(game, updates):
@@ -424,7 +435,7 @@ class Launcher:
         self.config = read_config()
         if self.config.get("game") not in GAME_KEYS:
             self.config["game"] = "u1"
-        self.ini = read_ini(self.config["game"])
+        self.reload_ini()
         self.process = None
         self.output = queue.Queue()
         self.last_output = 0.0
@@ -591,7 +602,7 @@ class Launcher:
             write_config(self.config)
         if changed:
             # Each game keeps its own settings: show the selected game's.
-            self.ini = read_ini(key)
+            self.reload_ini()
             self.refresh_controls()
         if hasattr(self, "status") and not self.process:
             self.set_status(f"Ready to play {self.current_game()['name']}.")
@@ -602,6 +613,18 @@ class Launcher:
 
     def save_ini(self, updates):
         write_ini(self.config["game"], updates)
+        self.ini_seen = ini_mtime(self.config["game"])
+
+    def reload_ini(self):
+        """The selected game's settings from its file (the in-game menu writes it too)."""
+        self.ini = read_ini(self.config["game"])
+        self.ini_seen = ini_mtime(self.config["game"])
+
+    def follow_ini(self):
+        """Shows changes the in-game menu saved (Insert, then closing the menu)."""
+        if ini_mtime(self.config["game"]) != getattr(self, "ini_seen", None):
+            self.reload_ini()
+            self.refresh_controls()
 
     def refresh_controls(self):
         """Every control shows the selected game's settings."""
@@ -616,8 +639,6 @@ class Launcher:
             self.widgets["resolution"].set(settings["resolution"])
         if isinstance(self.widgets.get("multithreaded"), Toggle):
             self.widgets["multithreaded"].set(settings["multithreaded"])
-        if isinstance(self.widgets.get("async_readback"), Toggle):
-            self.widgets["async_readback"].set(settings["async_readback"])
         if isinstance(self.widgets.get("mouse"), Toggle):
             self.widgets["mouse"].set(settings.get("mouse", True))
             self.widgets["mouse_sens"].set(settings.get("mouse_sens", "1.0"))
@@ -841,7 +862,8 @@ class Launcher:
     def page_performance(self):
         page = self.page()
         self.ini_choice(page, "fps_limit", "Frame rate limit",
-                        "Above 60 the frame rate is unlocked (experimental): if the game runs too fast, choose 60.",
+                        "60 is the PS4's. 120 unlocks the frame rate (experimental): if the game runs too fast "
+                        "or Nate falls through the world, choose 60. Faster breaks the game's movement.",
                         [(str(v), label) for v, label in FPS_LIMITS])
         self.ini_choice(page, "frames_queued", "Frames queued", "1 has the lowest input delay; 2 keeps the frame "
                                                                "rate steadier on slower PCs.",
@@ -857,14 +879,6 @@ class Launcher:
             "Prepares draws on a second CPU thread: more FPS on CPUs with several cores. "
             "Turn it off if the game hangs while loading.", multithreaded)
 
-        def async_readback(parent):
-            return Toggle(parent, self.s, self.game_settings()["async_readback"],
-                          lambda v: self.change_game_setting("async_readback", v))
-        self.widgets["async_readback"] = self.row(
-            page, "Faster GPU readbacks (experimental)",
-            "Results the game reads back from the GPU arrive without waiting for the whole frame: "
-            "more FPS in busy scenes (Uncharted 2 and 3). Drake's Fortune crashes with it while "
-            "loading; turn it off if a game crashes.", async_readback)
         self.fps_note = tk.Label(page, text="", font=self.f_small, bg=BG, fg=GOLD, anchor="w")
         self.fps_note.pack(side="top", fill="x")
         self.update_fps_note()
@@ -875,8 +889,9 @@ class Launcher:
             return
         limit = self.ini.get("fps_limit", "60")
         hz = monitor_refresh_hz()
-        if limit in ("0",) or int(limit or 60) > 60:
-            self.fps_note.config(text=f"Frame rate unlocked (your monitor: {hz} Hz). Applied when the game starts.")
+        if int(limit) > 60:
+            self.fps_note.config(text=f"Frame rate unlocked up to {limit} FPS (your monitor: {hz} Hz). "
+                                      "Applied when the game starts.")
         else:
             self.fps_note.config(text="")
 
@@ -1054,6 +1069,14 @@ class Launcher:
                           lambda v: self.change_config("diagnostics", v))
         self.row(page, "Performance log", "Writes frame rate and GPU wait statistics to the log every 5 seconds, "
                                           "for troubleshooting. A very small cost.", diagnostics)
+
+        def torch_forward(parent):
+            return Toggle(parent, self.s, self.config.get("torch_forward", True),
+                          lambda v: self.change_config("torch_forward", v))
+        self.row(page, "Torch follows Nate (Uncharted 2)",
+                 "The torch lights where Nate's torch points. Off: as on PS4, it aims where the camera "
+                 "looks (turn the camera to face Nate and it lights the wall behind him). "
+                 "Needs update 1.02.", torch_forward)
         buttons = tk.Frame(page, bg=BG)
         buttons.pack(side="top", fill="x", pady=(self.px(6), self.px(10)))
         for label, action in (("Open log folder", self.open_logs), ("Open save folder", self.open_saves),
@@ -1167,11 +1190,13 @@ class Launcher:
                                            "(CUSA02344, the folder with eboot.bin and sce_sys).")
             if not self.choose_game_dir():
                 return
+        self.follow_ini()  # the in-game menu's last changes, not older values kept here
         self.save_ini({k: self.ini.get(k, v) for k, v in INI_DEFAULTS.items()})
         write_config(self.config)
         game = self.current_game()
         env = os.environ.copy()
         env["UNCHARTED_DIAGNOSTICS"] = "1" if self.config.get("diagnostics", True) else "0"
+        env["UNCHARTED_TORCH_FORWARD"] = "1" if self.config.get("torch_forward", True) else "0"
         # Every game's own options: the Collection menu starts the others itself, and
         # tools/probe_uncharted.py applies the started game's (its settings file decides the
         # vblank rate for frame rates above 60).
@@ -1180,7 +1205,6 @@ class Launcher:
             settings = self.config["games"][key]
             env[f"UNCHARTED_RESOLUTION_{key.upper()}"] = settings["resolution"]
             env[f"UNCHARTED_MULTITHREADED_{key.upper()}"] = "1" if settings["multithreaded"] else "0"
-            env[f"UNCHARTED_ASYNC_READBACK_{key.upper()}"] = "1" if settings["async_readback"] else "0"
             keys, mouse = control_maps(settings.get("controls"))
             env[f"UNCHARTED_KEY_MAP_{key.upper()}"] = keys
             env[f"UNCHARTED_MOUSE_MAP_{key.upper()}"] = mouse
@@ -1209,13 +1233,33 @@ class Launcher:
         self.started_at = time.time()
         self.last_output = time.time()
         self.game_started = False
+        # The start script's output (preparation, patches, the runtime's log path): kept for
+        # "the game does not start" reports.
+        try:
+            self.run_log = open(USER_DIR / "launcher-last-run.log", "w", encoding="utf-8")
+            self.run_log.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {' '.join(command)}\n")
+        except OSError:
+            self.run_log = None
         threading.Thread(target=self.read_output, args=(self.process,), daemon=True).start()
         self.set_status(f"Starting {game['name']}...", "Preparing game files and code patches.")
         self.draw_play()
 
     def read_output(self, process):
+        log = getattr(self, "run_log", None)
         for line in process.stdout:
             self.output.put(line.rstrip())
+            if log:
+                try:
+                    log.write(line)
+                    log.flush()
+                except (OSError, ValueError):
+                    log = None
+        if log:
+            try:
+                log.write(f"exit code {process.wait()}\n")
+                log.close()
+            except (OSError, ValueError):
+                pass
 
     def poll(self):
         while True:
@@ -1229,6 +1273,9 @@ class Launcher:
                 name = next((g["name"] for g in GAMES if g["exe"] == target), target)
                 self.set_status(f"Switching to {name}...", "The Collection is starting another game.")
                 self.game_started = False
+        self.poll_count = getattr(self, "poll_count", 0) + 1
+        if self.poll_count % 7 == 0:  # about once a second
+            self.follow_ini()
         if self.process:
             if self.process.poll() is not None:
                 self.finished(self.process.returncode)

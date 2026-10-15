@@ -15,6 +15,7 @@
 #include "videodec_error.h"
 
 #include "common/support/avdec.h"
+#include "core/memory.h"
 #include "gow3_movie.h"
 
 // The last decoded frame's guest range (runtime_videodec.c): the texture cache reports the
@@ -381,18 +382,32 @@ bool VdecDecoder::WriteMovieCopy(const AVFrame& frame, u64 base) {
         return false;
     }
     const u32 pitch = Gow3Movie::ScaledPitch(), rows = Gow3Movie::ScaledRows();
-    u8* chroma = dst + (u64)pitch * rows;
+    const u32 chroma_pitch = Gow3Movie::ScaledChromaPitch();
+    const u64 bytes = Gow3Movie::ScaledFrameBytes();
+    m_movie_copy.assign(bytes, 0);
+    u8* copy = m_movie_copy.data();
+    u8* chroma = copy + (u64)pitch * rows;
     // The rows up to the aligned height repeat the last one (sampling at the bottom edge reads
     // them at heights that aren't a multiple of 16, e.g. 1620).
     for (u32 y = 0; y < rows; ++y) {
         const u32 from = std::min(y, height - 1);
-        std::memcpy(dst + (u64)y * pitch, m_scaled->data[0] + (u64)from * m_scaled->linesize[0], width);
+        std::memcpy(copy + (u64)y * pitch, m_scaled->data[0] + (u64)from * m_scaled->linesize[0], width);
         if (y < rows / 2) {
             const u32 chroma_from = std::min(y, height / 2 - 1);
-            std::memcpy(chroma + (u64)y * pitch, m_scaled->data[1] + (u64)chroma_from * m_scaled->linesize[1],
-                        width);
+            std::memcpy(chroma + (u64)y * chroma_pitch,
+                        m_scaled->data[1] + (u64)chroma_from * m_scaled->linesize[1], width);
         }
     }
+    // The GPU caches learn of the new frame explicitly (one write through the backing view, no
+    // page faults per row). Invalidated before (any GPU copy of these pages goes back first)
+    // and after the write.
+    auto* memory = Core::Memory::Instance();
+    const VAddr address = reinterpret_cast<VAddr>(dst);
+    memory->InvalidateMemory(address, bytes);
+    if (!memory->TryWriteBacking(dst, copy, bytes)) {
+        std::memcpy(dst, copy, bytes);
+    }
+    memory->InvalidateMemory(address, bytes);
     return true;
 }
 

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <format>
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
@@ -643,8 +644,31 @@ void PipelineCache::FinishCompilations() {
 }
 
 bool PipelineCache::AsyncCompilation() const {
-    return compiler && Gow3Settings::Get().async_shaders.load(std::memory_order_relaxed);
+    return compiler && !sync_compile &&
+           Gow3Settings::Get().async_shaders.load(std::memory_order_relaxed);
 }
+
+namespace {
+// gow3: a draw whose color targets are all small (lookup tables, 1x1 luminance, the end of
+// downsample chains). Such draws are often made once: Uncharted's 256x8 light ramp is drawn at
+// load, and skipped while its pipeline compiled in the background the torch and flashlights lit
+// nothing for the whole session (Uncharted 1 got synchronous compilation for it, 14 Oct; U2
+// showed the same, 15 Oct). Compiling these at once costs a short stall the first time only.
+bool SmallTargetDraw(const AmdGpu::Regs& regs) {
+    bool any = false;
+    for (u32 cb = 0; cb < AmdGpu::NUM_COLOR_BUFFERS; ++cb) {
+        const auto& col_buf = regs.color_buffers[cb];
+        if (!col_buf || !regs.color_target_mask.GetMask(cb)) {
+            continue;
+        }
+        if (u64(col_buf.Pitch()) * col_buf.Height() > 256 * 256) {
+            return false;
+        }
+        any = true;
+    }
+    return any;
+}
+} // namespace
 
 void PipelineCache::SeedWorkerCaches() {
     if (!compiler || worker_caches_seeded) {
@@ -722,6 +746,13 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
         }
     }
     sel.draw_indirect_params = params;
+    sync_compile = SmallTargetDraw(liverpool->regs);
+    struct SyncReset {
+        bool& flag;
+        ~SyncReset() {
+            flag = false;
+        }
+    } sync_reset{sync_compile};
     if (!RefreshGraphicsKey(sel)) {
         if (sel.compilation_pending) {
             ++g_gow3_pending_draws;
@@ -765,6 +796,18 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
         }
         ++g_gow3_pending_draws;
         return nullptr;
+    }
+    if (sync_compile) {
+        // Queued in the background earlier: waited for, not compiled twice.
+        if (const auto pending = pending_graphics.find(sel.graphics_key);
+            pending != pending_graphics.end()) {
+            pending.value()->job.Wait();
+            PublishGraphics();
+            if (const auto found = graphics_pipelines.find(sel.graphics_key);
+                found != graphics_pipelines.end()) {
+                return found->second.get();
+            }
+        }
     }
     const auto [it, is_new] = graphics_pipelines.try_emplace(sel.graphics_key);
     if (is_new) {
@@ -1394,5 +1437,13 @@ std::optional<std::vector<u32>> PipelineCache::GetShaderPatch(u64 hash, Shader::
     std::vector<u32> code(file.GetSize() / sizeof(u32));
     file.Read(code);
     return code;
+}
+} // namespace Vulkan
+
+namespace Vulkan {
+std::string PipelineCache::DebugSizes() const {
+    return std::format("{} graphics and {} compute pipelines, {} programs, {} pending compiles",
+                       graphics_pipelines.size(), compute_pipelines.size(), program_cache.size(),
+                       pending_graphics.size());
 }
 } // namespace Vulkan

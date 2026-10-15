@@ -330,7 +330,7 @@ vk::SamplerAddressMode ClampMode(AmdGpu::ClampMode mode) {
     case AmdGpu::ClampMode::ClampBorder:
         return vk::SamplerAddressMode::eClampToBorder;
     default:
-        UNREACHABLE();
+        return vk::SamplerAddressMode::eRepeat; // gow3: reserved value (garbage S#, unused table slot)
     }
 }
 
@@ -353,7 +353,7 @@ vk::CompareOp DepthCompare(AmdGpu::DepthCompare comp) {
     case AmdGpu::DepthCompare::Always:
         return vk::CompareOp::eAlways;
     default:
-        UNREACHABLE();
+        return vk::CompareOp::eNever; // gow3: reserved value (garbage S#, unused table slot)
     }
 }
 
@@ -366,7 +366,7 @@ vk::Filter Filter(AmdGpu::Filter filter) {
     case AmdGpu::Filter::AnisoLinear:
         return vk::Filter::eLinear;
     default:
-        UNREACHABLE();
+        return vk::Filter::eNearest; // gow3: reserved value (garbage S#, unused table slot)
     }
 }
 
@@ -379,7 +379,7 @@ vk::SamplerReductionMode FilterMode(AmdGpu::FilterMode mode) {
     case AmdGpu::FilterMode::Max:
         return vk::SamplerReductionMode::eMax;
     default:
-        UNREACHABLE();
+        return vk::SamplerReductionMode::eWeightedAverage; // gow3: reserved value (garbage S#, unused table slot)
     }
 }
 
@@ -392,7 +392,7 @@ vk::SamplerMipmapMode MipFilter(AmdGpu::MipFilter filter) {
     case AmdGpu::MipFilter::None:
         return vk::SamplerMipmapMode::eNearest;
     default:
-        UNREACHABLE();
+        return vk::SamplerMipmapMode::eNearest; // gow3: reserved value (garbage S#, unused table slot)
     }
 }
 
@@ -407,7 +407,7 @@ vk::BorderColor BorderColor(AmdGpu::BorderColor color) {
     case AmdGpu::BorderColor::Custom:
         return vk::BorderColor::eFloatCustomEXT;
     default:
-        UNREACHABLE();
+        return vk::BorderColor::eFloatTransparentBlack; // gow3: reserved value (garbage S#, unused table slot)
     }
 }
 
@@ -426,7 +426,9 @@ vk::ComponentSwizzle ComponentSwizzle(AmdGpu::CompSwizzle comp_swizzle) {
     case AmdGpu::CompSwizzle::Alpha:
         return vk::ComponentSwizzle::eA;
     default:
-        UNREACHABLE();
+        // gow3: the reserved values (2, 3) come only from garbage T#s (unused resource table
+        // slots: Uncharted 2's treasure effects); they read zero instead of stopping.
+        return vk::ComponentSwizzle::eZero;
     }
 }
 

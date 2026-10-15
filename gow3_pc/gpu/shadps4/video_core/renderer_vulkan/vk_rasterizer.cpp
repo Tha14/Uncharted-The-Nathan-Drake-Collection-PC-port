@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <chrono>
 #include <mutex>
+#include <thread>
 #include <filesystem>
 #include <boost/container/small_vector.hpp>
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
@@ -15,6 +16,7 @@
 #include "gow3_watch_range.h"
 #include "video_core/renderer_vulkan/vk_frame_capture.h"
 #include "common/debug.h"
+#include "common/decoder.h"
 #include "core/debug_state.h"
 #include "core/emulator_settings.h"
 #include "core/memory.h"
@@ -71,6 +73,15 @@ Rasterizer::Rasterizer(const Instance& instance_, Scheduler& scheduler_, Runtime
         liverpool->BindRasterizer(this);
     }
     memory->SetRasterizer(this);
+    static Rasterizer* srt_rasterizer;
+    static const bool srt_sync = [] {
+        const char* env = std::getenv("GOW3_SRT_SYNC");
+        return !env || env[0] != '0';
+    }();
+    if (srt_sync) {
+        srt_rasterizer = this;
+        Shader::g_srt_pre_walk = [](const Shader::Info& info) { srt_rasterizer->SyncSrtTables(info); };
+    }
 
     GpuProfiler::Init(instance, scheduler);
     if (DrawPipeWanted()) {
@@ -85,7 +96,9 @@ Rasterizer::Rasterizer(const Instance& instance_, Scheduler& scheduler_, Runtime
     });
 }
 
-Rasterizer::~Rasterizer() = default;
+Rasterizer::~Rasterizer() {
+    Shader::g_srt_pre_walk = nullptr;
+}
 
 inline const AmdGpu::Regs& Rasterizer::Regs() const {
     return stage_regs ? *stage_regs : liverpool->regs;
@@ -102,6 +115,42 @@ inline const AmdGpu::ComputeProgram& Rasterizer::CsRegs() const {
 inline AmdGpu::CbDbExtent Rasterizer::DbExtent() const {
     return stage_regs ? pipe_db_extent : liverpool->last_db_extent;
 }
+
+namespace {
+/// gow3: compute shaders whose output the guest reads as soon as the next end-of-pipe event
+/// fires (Rasterizer::eop_readbacks): Uncharted 1's Cs_RayTraceGatherHits (the closest hit of
+/// each mesh ray cast).
+bool IsEopReadbackShader(u64 hash) {
+    return hash == 0xc92150ba;
+}
+
+/// gow3: a T# that passes the format check but cannot be a real texture: Uncharted 2's treasure
+/// effects fetch T#s from resource table slots that hold other data (CPU-written; the shader
+/// branches using them are not taken). Built, such an image spans gigabytes or reaches past
+/// mapped memory (tracked, uploaded, out of device memory) or has reserved swizzles.
+/// The raw fields, before anything decodes them (unknown tile modes, reserved swizzles and
+/// image types stop the decoders).
+bool PlausibleTSharp(const AmdGpu::Image& tsharp) {
+    if (!tsharp.Valid() || tsharp.tiling_index > 26 || tsharp.last_level < tsharp.base_level) {
+        return false; // 27-30 reserved, 31 (linear general) unhandled
+    }
+    for (const u32 swizzle : {u32(tsharp.dst_sel_x), u32(tsharp.dst_sel_y),
+                              u32(tsharp.dst_sel_z), u32(tsharp.dst_sel_w)}) {
+        if (swizzle == 2 || swizzle == 3) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool PlausibleImage(const VideoCore::ImageInfo& info, const AmdGpu::Image& tsharp,
+                    Core::MemoryManager* memory) {
+    if (info.guest_size == 0 || info.guest_size >= 1_GB) {
+        return false;
+    }
+    return memory->ClampRangeSize(info.guest_address, info.guest_size) == info.guest_size;
+}
+} // namespace
 
 namespace {
 /// magic_enum::enum_contains, from a table: it scans every enumerator (per texture per draw).
@@ -1597,6 +1646,18 @@ void Rasterizer::OnSubmit() {
     }
     texture_cache.RunGarbageCollector();
     runtime.TickFrame();
+    // gow3 statistics: container sizes, to find what grows while the frame rate falls.
+    static auto sizes_at = std::chrono::steady_clock::now();
+    if (const auto now = std::chrono::steady_clock::now(); now - sizes_at >= std::chrono::seconds(5)) {
+        sizes_at = now;
+        std::printf("Sizes: textures: %s\n", texture_cache.DebugSizes().c_str());
+        std::printf("Sizes: buffers: %s\n", buffer_cache.DebugSizes().c_str());
+        std::printf("Sizes: pipelines: %s; scheduler: %s\n", pipeline_cache.DebugSizes().c_str(),
+                    scheduler.DebugSizes().c_str());
+        std::printf("Sizes: rasterizer: %zu SRT plans, %zu keep-alive entries, %zu small GPU writes\n",
+                    srt_plans.size(), pipe_keepalive.size(), small_gpu_writes.size());
+        std::fflush(stdout);
+    }
 }
 
 // gow3: Uncharted writes per-object constants with a GPU copy shader (2d215c3b) and its draws read
@@ -1755,6 +1816,34 @@ void Rasterizer::SyncDmaMemory(const Shader::Info* stage) {
     }
 }
 
+void Rasterizer::ReadBackEopResults() {
+    if (eop_readbacks.empty()) {
+        return;
+    }
+    std::erase_if(eop_readbacks, [this](const auto& r) { return !IsMapped(r.first, r.second); });
+    static u32 described = 0;
+    for (const auto& [address, size] : eop_readbacks) {
+        if (described < 6) {
+            ++described;
+            std::printf("EOP readback range %#llx size %llu\n", static_cast<unsigned long long>(address),
+                        static_cast<unsigned long long>(size));
+        }
+    }
+    buffer_cache.DownloadRangesAsync(eop_readbacks, true);
+    eop_readbacks.clear();
+    static u32 readbacks = 0;
+    static auto last = std::chrono::steady_clock::now();
+    ++readbacks;
+    if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds(5)) {
+        std::printf("EOP readbacks (5 s): %u (ray cast results, read-protected until copied); "
+                    "fence labels inside one: %u\n",
+                    readbacks, VideoCore::BufferCache::TakeLabelsInReadbacks());
+        std::fflush(stdout);
+        readbacks = 0;
+        last = now;
+    }
+}
+
 void Rasterizer::SyncSmallGpuWrites() {
     buffer_cache.PollReadbacks();
     static const char* trigger = std::getenv("GOW3_READBACK_TRIGGER");
@@ -1809,6 +1898,10 @@ void Rasterizer::SyncSmallGpuWrites() {
     if (!synced_ranges.empty()) {
         buffer_cache.DownloadRanges(synced_ranges);
     }
+    // Pages the CPU now shares with GPU data in flight (BufferCache: shared write path).
+    for (const auto& range : buffer_cache.TakeSharedReadbacks()) {
+        small_gpu_writes.push_back(range);
+    }
     if (!sync_gpu_constants || small_gpu_writes.empty()) {
         return;
     }
@@ -1833,15 +1926,238 @@ void Rasterizer::SyncSmallGpuWrites() {
     // readback). =2: unprotected, as first tried: data the game (or the SRT walker) read the
     // next frame could be stale (Uncharted 3 "Command context dcb full" at the London pub;
     // garbage sharps for the treasure pickup effect, cs 8f067540, in U1 and U2). Off by default.
+    // Since 15 Oct the default is 2 (unset): with the copy shaders and CP fills/copies written
+    // through (BufferCache::WriteThrough), GPU-written resource tables downloaded on demand
+    // (SyncSrtTables) and no lazy-write merges, these readbacks only keep CPU-read GPU results
+    // (luminance and the like) about a frame behind, as on the console; the full wait per
+    // submission cost ~12 ms per frame in heavy scenes. GOW3_ASYNC_READBACK=0 waits instead.
     static const bool async_readback = [] {
         const char* env = std::getenv("GOW3_ASYNC_READBACK");
-        return env && (env[0] == '1' || env[0] == '2');
+        return !(env && env[0] == '0');
     }();
     if (async_readback) {
         buffer_cache.DownloadRangesAsync(windows);
     } else {
         buffer_cache.DownloadRanges(windows);
     }
+}
+
+// gow3: resource tables (SRT) that another shader writes earlier in the same command stream.
+// Uncharted 2's treasure pickup effect (cs 7d7e7206, 8f067540) bound garbage V#s and the GPU
+// faulted (device lost): the CPU-side walker reads guest memory, which receives GPU writes only
+// at the per-submission readback (SyncSmallGpuWrites) or later, so a new effect's tables were not
+// there yet. The tables a walker reads come from its code (PushPtr: push rdi; mov rdi,
+// [rdi + off]; reads [rdi + off]; pop rdi). Tables with GPU-written bytes are downloaded before
+// the walk (one GPU wait each). GOW3_SRT_SYNC=0 turns this off.
+const Rasterizer::SrtPlan& Rasterizer::SrtPlanFor(const Shader::Info& info) {
+    const auto& srt = info.srt_info;
+    auto [it, inserted] = srt_plans.try_emplace(reinterpret_cast<const void*>(srt.walker_func));
+    auto& plan = it->second;
+    if (!inserted) {
+        return plan;
+    }
+    // Straight-line code: rdi is the current table (the user data at the start), rsi the
+    // flattened buffer; values pass through r10.
+    std::vector<s32> saved;
+    s32 current = -1;
+    s32 last_node = -2;
+    u32 last_off = 0;
+    const u8* code = reinterpret_cast<const u8*>(srt.walker_func);
+    const u8* end = code + srt.walker_func_size;
+    ZydisDecodedInstruction inst;
+    ZydisDecodedOperand ops[ZYDIS_MAX_OPERAND_COUNT];
+    while (code < end && ZYAN_SUCCESS(Common::Decoder::Instance()->decodeInstruction(
+                             inst, ops, const_cast<u8*>(code), end - code))) {
+        code += inst.length;
+        const bool rdi_reg = inst.operand_count_visible > 0 &&
+                             ops[0].type == ZYDIS_OPERAND_TYPE_REGISTER &&
+                             ops[0].reg.value == ZYDIS_REGISTER_RDI;
+        if (inst.mnemonic == ZYDIS_MNEMONIC_RET) {
+            break;
+        } else if (inst.mnemonic == ZYDIS_MNEMONIC_PUSH && rdi_reg) {
+            saved.push_back(current);
+        } else if (inst.mnemonic == ZYDIS_MNEMONIC_POP && rdi_reg) {
+            current = saved.empty() ? -1 : saved.back();
+            if (!saved.empty()) {
+                saved.pop_back();
+            }
+        } else if (inst.mnemonic == ZYDIS_MNEMONIC_XOR && rdi_reg) {
+            // A pointer load the fault handler patched out: a null table.
+            plan.nodes.push_back({current, 0, 0, true});
+            current = s32(plan.nodes.size() - 1);
+        } else if (inst.mnemonic == ZYDIS_MNEMONIC_MOV && inst.operand_count_visible == 2 &&
+                   ops[1].type == ZYDIS_OPERAND_TYPE_MEMORY &&
+                   ops[1].mem.base == ZYDIS_REGISTER_RDI) {
+            const bool indexed = ops[1].mem.index != ZYDIS_REGISTER_NONE;
+            const u32 disp = ops[1].mem.disp.has_displacement ? u32(ops[1].mem.disp.value) : 0;
+            if (rdi_reg) {
+                plan.nodes.push_back({current, disp, 0, indexed});
+                current = s32(plan.nodes.size() - 1);
+            } else {
+                last_node = indexed ? -2 : current;
+                last_off = disp;
+                if (current >= 0) {
+                    // A computed read offset: the first KiB.
+                    const u32 extent = indexed ? 1024 : disp + ops[1].size / 8;
+                    plan.nodes[current].extent = std::max(plan.nodes[current].extent, extent);
+                }
+            }
+        } else if (inst.mnemonic == ZYDIS_MNEMONIC_MOV && inst.operand_count_visible == 2 &&
+                   ops[0].type == ZYDIS_OPERAND_TYPE_MEMORY &&
+                   ops[0].mem.base == ZYDIS_REGISTER_RSI && last_node != -2) {
+            const u32 disp = ops[0].mem.disp.has_displacement ? u32(ops[0].mem.disp.value) : 0;
+            for (u32 b = 0; b < ops[0].size / 8; b += 4) {
+                plan.copies.push_back({(disp + b) / 4, last_node, last_off + b});
+            }
+        }
+    }
+    return plan;
+}
+
+void Rasterizer::ResolveSrtTables(const SrtPlan& plan, const Shader::Info& info, VAddr* address) {
+    const auto user_data = std::as_bytes(info.user_data);
+    for (size_t i = 0; i < plan.nodes.size(); ++i) {
+        const auto& node = plan.nodes[i];
+        address[i] = 0;
+        if (node.dynamic) {
+            continue;
+        }
+        u64 value = 0;
+        if (node.parent < 0) {
+            if (node.offset + sizeof(value) > user_data.size()) {
+                continue;
+            }
+            std::memcpy(&value, user_data.data() + node.offset, sizeof(value));
+        } else {
+            const VAddr table = address[node.parent];
+            if (!table || !IsMapped(table + node.offset, sizeof(value))) {
+                continue;
+            }
+            std::memcpy(&value, reinterpret_cast<const void*>(table + node.offset), sizeof(value));
+        }
+        address[i] = value & 0xFFFFFFFFFFFFULL;
+    }
+}
+
+void Rasterizer::SyncSrtTables(const Shader::Info& info) {
+    const auto& srt = info.srt_info;
+    if (!srt.walker_func || !srt.walker_func_size || !OnStageA() ||
+        PipelineCache::capturing_for_gpu_thread) {
+        return;
+    }
+    const auto& plan = SrtPlanFor(info);
+    if (plan.nodes.empty()) {
+        return;
+    }
+    const auto user_data = std::as_bytes(info.user_data);
+    boost::container::small_vector<VAddr, 16> address(plan.nodes.size(), 0);
+    for (size_t i = 0; i < plan.nodes.size(); ++i) {
+        const auto& node = plan.nodes[i];
+        if (node.dynamic) {
+            continue;
+        }
+        u64 value = 0;
+        if (node.parent < 0) {
+            if (node.offset + sizeof(value) > user_data.size()) {
+                continue;
+            }
+            std::memcpy(&value, user_data.data() + node.offset, sizeof(value));
+        } else {
+            const VAddr table = address[node.parent];
+            if (!table || !IsMapped(table + node.offset, sizeof(value))) {
+                continue;
+            }
+            std::memcpy(&value, reinterpret_cast<const void*>(table + node.offset), sizeof(value));
+        }
+        const VAddr table = value & 0xFFFFFFFFFFFFULL;
+        address[i] = table;
+        if (!table || !node.extent || !buffer_cache.IsRangeGpuWritten(table, node.extent) ||
+            !IsMapped(table, node.extent)) {
+            continue;
+        }
+        DrainDrawPipe();
+        const std::pair<VAddr, u64> range{table, node.extent};
+        buffer_cache.DownloadRanges(std::span{&range, 1});
+        ++srt_syncs;
+        if (srt_sync_reports < 16) {
+            ++srt_sync_reports;
+            std::printf("SRT sync: shader %016llx table %#llx (+%u bytes, level %d) had "
+                        "GPU-written data; downloaded before the walk\n",
+                        static_cast<unsigned long long>(info.pgm_hash),
+                        static_cast<unsigned long long>(table), node.extent,
+                        node.parent < 0 ? 1 : 2);
+            std::fflush(stdout);
+        }
+    }
+    static const bool stats = std::getenv("GOW3_FRAME_STATS") != nullptr;
+    if (stats && srt_syncs) {
+        static auto report = std::chrono::steady_clock::now();
+        if (const auto now = std::chrono::steady_clock::now(); now - report >= std::chrono::seconds(5)) {
+            report = now;
+            std::printf("SRT sync (5 s): %llu tables downloaded before the walk\n",
+                        static_cast<unsigned long long>(srt_syncs));
+            std::fflush(stdout);
+            srt_syncs = 0;
+        }
+    }
+}
+
+void Rasterizer::DescribeSharpSource(const Shader::Info& info, u32 flat_dw, const char* problem) {
+    static std::unordered_map<u64, u32> per_shader;
+    static u32 total = 0;
+    if (total >= 40 || per_shader[info.pgm_hash]++ >= 4) {
+        return;
+    }
+    ++total;
+    const auto ud = info.user_data;
+    std::string text = fmt::format("Garbage V# ({}): shader {:016x} flat dword {}", problem,
+                                   info.pgm_hash, flat_dw);
+    if (flat_dw < info.flattened_ud_buf.size() && flat_dw + 4 <= info.flattened_ud_buf.size()) {
+        text += fmt::format(" = {:08x} {:08x} {:08x} {:08x}", info.flattened_ud_buf[flat_dw],
+                            info.flattened_ud_buf[flat_dw + 1], info.flattened_ud_buf[flat_dw + 2],
+                            info.flattened_ud_buf[flat_dw + 3]);
+    }
+    text += "; user data";
+    for (const u32 v : ud) {
+        text += fmt::format(" {:08x}", v);
+    }
+    if (flat_dw < Shader::NUM_USER_DATA_REGS || !info.srt_info.walker_func) {
+        std::printf("%s; from the user data\n", text.c_str());
+        std::fflush(stdout);
+        return;
+    }
+    const auto& plan = SrtPlanFor(info);
+    boost::container::small_vector<VAddr, 16> address(plan.nodes.size(), 0);
+    ResolveSrtTables(plan, info, address.data());
+    const auto copy = std::ranges::find(plan.copies, flat_dw, &SrtCopy::flat_dw);
+    if (copy == plan.copies.end()) {
+        std::printf("%s; source not found in the walker (%zu tables, %zu copies)\n", text.c_str(),
+                    plan.nodes.size(), plan.copies.size());
+        std::fflush(stdout);
+        return;
+    }
+    for (s32 n = copy->node; n >= 0; n = plan.nodes[n].parent) {
+        const auto& node = plan.nodes[n];
+        text += fmt::format("; table {} at {:#x} (+{} in {}{}, {} bytes read{})", n, address[n],
+                            node.offset, node.parent < 0 ? "user data" : "table ",
+                            node.parent < 0 ? std::string{} : std::to_string(node.parent),
+                            node.extent, node.dynamic ? ", computed offset" : "");
+        if (address[n] && node.extent) {
+            text += fmt::format(" gpu-written {}",
+                                buffer_cache.IsRangeGpuWritten(address[n], node.extent));
+        }
+    }
+    if (copy->node >= 0 && address[copy->node]) {
+        const VAddr src = address[copy->node] + copy->src_off;
+        text += fmt::format("; read at {:#x}", src);
+        if (IsMapped(src, 16)) {
+            const u32* p = reinterpret_cast<const u32*>(src);
+            text += fmt::format(" now {:08x} {:08x} {:08x} {:08x} gpu-written {}", p[0], p[1], p[2],
+                                p[3], buffer_cache.IsRangeGpuWritten(src, 16));
+        }
+    }
+    std::printf("%s\n", text.c_str());
+    std::fflush(stdout);
 }
 
 const PreparedStage* Rasterizer::FindPreparedStage(const Shader::Info& stage) const {
@@ -1912,13 +2228,14 @@ bool Rasterizer::TexturesBindableOnHelper(const Shader::Info& stage,
         const auto num_fmt = tsharp.GetNumberFmt();
         if (tsharp.Address() == 0 || data_fmt == AmdGpu::DataFormat::FormatInvalid ||
             !memory->IsValidGpuMapping(tsharp.Address(), 0) ||
-            !IsKnownFormat(data_fmt, num_fmt)) {
+            !IsKnownFormat(data_fmt, num_fmt) || !PlausibleTSharp(tsharp)) {
             continue; // null descriptor
         }
         const auto& entry =
             prepared ? CachedImageDescEntry(tsharp, image_desc, prepared->image_hashes[image_index])
                      : CachedImageDescEntry(tsharp, image_desc);
-        if (entry.found_generation != generation) {
+        if (entry.found_generation != generation ||
+            !PlausibleImage(entry.desc.info, tsharp, memory)) {
             return false;
         }
         VideoCore::ImageId image_id = entry.found_id;
@@ -2570,13 +2887,42 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
                                      reinterpret_cast<const void*>(vsharp.base_address),
                                      memory->ClampRangeSize(vsharp.base_address, vsharp.GetSize()));
             }
-            if (vsharp.base_address == 0 || vsharp.GetSize() == 0) {
+            // gow3: garbage V#s. Uncharted 2's treasure effect shaders (cs 7d7e7206, 8f067540)
+            // fetch V#s from table slots that hold floats for that effect (CPU-written: the
+            // branches using them are not taken). Bound, they span random guest memory: written
+            // ones made gigabytes of game data "GPU-modified" (stale GPU copies written back over
+            // it: the game's fg-draw-mgr assert), and the arena over them ran out of device
+            // memory. A V# reaching past mapped memory, other than an unbounded raw buffer
+            // (num_records ~0), or spanning 1 GiB is bound as null. Normal play has none.
+            const bool unbound = vsharp.base_address == 0 || vsharp.GetSize() == 0;
+            const u64 mapped_size =
+                unbound ? 0 : memory->ClampRangeSize(vsharp.base_address, vsharp.GetSize());
+            const bool garbage =
+                !unbound && (mapped_size >= 1_GB || (mapped_size != vsharp.GetSize() &&
+                                                     vsharp.num_records < 0xFFFF0000u));
+            if (garbage) {
+                static u32 garbage_reports = 0;
+                if (garbage_reports < 32) {
+                    ++garbage_reports;
+                    LOG_ERROR(Render, "Ignoring a garbage V# for stage {:#x}: {:#x}, {} of {} bytes "
+                              "mapped, num_records {}, stride {}", stage.pgm_hash,
+                              vsharp.base_address, mapped_size, vsharp.GetSize(),
+                              vsharp.num_records, vsharp.stride);
+                }
+                if (!prepared && (desc.sharp_fetch.load_mask & 1)) {
+                    DescribeSharpSource(stage, desc.sharp_fetch.offsets[0], "garbage");
+                }
+            }
+            if (unbound || garbage) {
                 buffer_infos.emplace_back(VK_NULL_HANDLE, 0, VK_WHOLE_SIZE);
             } else {
                 const u64 size = memory->ClampRangeSize(vsharp.base_address, vsharp.GetSize());
                 if (size != vsharp.GetSize()) {
                     LOG_ERROR(Render, "Clamped size from {} to {} for stage {:#x}",
                               vsharp.GetSize(), size, stage.pgm_hash);
+                    if (!prepared && (desc.sharp_fetch.load_mask & 1)) {
+                        DescribeSharpSource(stage, desc.sharp_fetch.offsets[0], "size");
+                    }
                 }
                 const auto [buffer, offset] = buffer_cache.ObtainBuffer(
                     vsharp.base_address, size, desc.is_written, desc.is_formatted);
@@ -2592,6 +2938,9 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
                 if (desc.is_written) {
                     Gow3WatchRange::Note("storage", stage.pgm_hash, binding.buffer,
                                          vsharp.base_address, size);
+                    if (IsEopReadbackShader(stage.pgm_hash) && eop_readbacks.size() < 256) {
+                        eop_readbacks.emplace_back(vsharp.base_address, size);
+                    }
                     // Small writes (constants) and writes into windows where the CPU writes into
                     // GPU data (each such CPU write otherwise downloads with a full GPU wait).
                     if (sync_gpu_constants && small_gpu_writes.size() < 16384) {
@@ -2724,12 +3073,15 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
         }
 
         if (!memory->IsValidGpuMapping(tsharp.Address(), 0) ||
-            !IsKnownFormat(data_fmt, num_fmt)) {
+            !IsKnownFormat(data_fmt, num_fmt) || !PlausibleTSharp(tsharp)) {
             LOG_WARNING(Render_Vulkan,
                         "Rejecting invalid T# address={:#x}, pitch={}, width={}, "
                         "data_format={}, num_format={}",
                         tsharp.Address(), tsharp.pitch, tsharp.width, static_cast<u32>(data_fmt),
                         static_cast<u32>(num_fmt));
+            if (!prepared && !on_helper && (image_desc.sharp_fetch.load_mask & 1)) {
+                DescribeSharpSource(stage, image_desc.sharp_fetch.offsets[0], "texture");
+            }
             image_bindings.emplace_back(VideoCore::ImageId{}, &image_desc_storage.emplace_back());
             image_binding_entries.push_back(nullptr);
             binding_proxy_ok.push_back(false);
@@ -2750,6 +3102,21 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
         auto& desc_entry =
             prepared ? CachedImageDescEntry(tsharp, image_desc, prepared->image_hashes[image_index])
                      : CachedImageDescEntry(tsharp, image_desc);
+        if (!PlausibleImage(desc_entry.desc.info, tsharp, memory)) {
+            static u32 reports = 0;
+            if (reports < 32) {
+                ++reports;
+                LOG_WARNING(Render_Vulkan,
+                            "Ignoring a garbage T# for stage {:#x}: {:#x}, {} bytes, {}x{}",
+                            stage.pgm_hash, tsharp.Address(), desc_entry.desc.info.guest_size,
+                            tsharp.width + 1, tsharp.height + 1);
+            }
+            image_bindings.emplace_back(VideoCore::ImageId{}, &image_desc_storage.emplace_back());
+            image_binding_entries.push_back(nullptr);
+            binding_proxy_ok.push_back(false);
+            image_descriptor_array_sizes.push_back(1);
+            continue;
+        }
         // GOW3_SCENE_DEBUG: proxied scene targets this binding reads at the native size, and why.
         const auto debug_native = [&](const VideoCore::Image& image) {
             if (!scene_debug_frame || proxy_candidate || !image.scene_proxy) return;
@@ -3562,6 +3929,14 @@ void Rasterizer::FillBuffer(VAddr address, u32 num_bytes, u32 value, bool is_gds
             std::fill(buffer, buffer + (num_bytes / sizeof(u32)), value);
             return;
         }
+        // gow3: small fills into pages holding other GPU data (fence and frame labels the game
+        // reads on the CPU) land in guest memory too, not only in the GPU's copy.
+        if (num_bytes <= 64_KB) {
+            const std::vector<u32> pattern(num_bytes / sizeof(u32), value);
+            if (buffer_cache.WriteThrough(address, pattern.data(), num_bytes)) {
+                return;
+            }
+        }
     }
     const auto [buffer, offset] = [&] -> std::pair<const VideoCore::Buffer*, u64> {
         if (is_gds) {
@@ -3570,6 +3945,10 @@ void Rasterizer::FillBuffer(VAddr address, u32 num_bytes, u32 value, bool is_gds
         return buffer_cache.ObtainBuffer(address, num_bytes, true);
     }();
     runtime.FillBuffer(buffer, offset, num_bytes, value);
+    // gow3: GPU-side writes into guest memory come back with this submission's readback.
+    if (!is_gds && sync_gpu_constants && num_bytes <= 4096 && small_gpu_writes.size() < 16384) {
+        small_gpu_writes.emplace_back(address, num_bytes);
+    }
 }
 
 void Rasterizer::CopyBuffer(VAddr dst, VAddr src, u32 num_bytes, bool dst_gds, bool src_gds) {
@@ -3586,6 +3965,20 @@ void Rasterizer::CopyBuffer(VAddr dst, VAddr src, u32 num_bytes, bool dst_gds, b
             !texture_cache.FindImageFromRange(src, num_bytes)) {
             // Both buffers were not transferred to GPU yet. Can safely copy in host memory.
             std::memcpy(std::bit_cast<void*>(dst), std::bit_cast<void*>(src), num_bytes);
+            return;
+        }
+    }
+    // gow3: a small copy whose source bytes are current in guest memory, into a page holding
+    // other GPU data: made in guest memory and in the GPU's copy alike (BufferCache::WriteThrough)
+    // so the CPU sees it without a download.
+    if (!dst_gds && !src_gds && num_bytes <= 64_KB && dst % 4 == 0 && num_bytes % 4 == 0 &&
+        IsMapped(src, num_bytes) && !buffer_cache.IsRangeGpuWritten(src, num_bytes) &&
+        !texture_cache.FindImageFromRange(src, num_bytes)) {
+        std::vector<u8> data(num_bytes);
+        if (!memory->TryReadBacking(src, data.data(), num_bytes)) {
+            std::memcpy(data.data(), std::bit_cast<const void*>(src), num_bytes);
+        }
+        if (buffer_cache.WriteThrough(dst, data.data(), num_bytes)) {
             return;
         }
     }
@@ -3609,6 +4002,11 @@ void Rasterizer::CopyBuffer(VAddr dst, VAddr src, u32 num_bytes, bool dst_gds, b
         .size = num_bytes,
     };
     runtime.CopyBuffer(src_buffer, dst_buffer, std::span{&copy, 1});
+    // gow3: GPU-side copies into guest memory (GDS counters the CPU reads) come back with this
+    // submission's readback, so the CPU's writes next to them wait for that readback at most.
+    if (!dst_gds && sync_gpu_constants && num_bytes <= 4096 && small_gpu_writes.size() < 16384) {
+        small_gpu_writes.emplace_back(dst, num_bytes);
+    }
 }
 
 u32 Rasterizer::ReadDataFromGds(u32 gds_offset) {

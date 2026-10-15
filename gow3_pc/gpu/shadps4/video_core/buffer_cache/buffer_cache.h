@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <format>
+#include <string>
+
 #include "gow3_copy.h"
 
 #include <array>
@@ -11,7 +14,9 @@
 #include <deque>
 #include <map>
 #include <memory>
+#include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <boost/container/small_vector.hpp>
 
 #include "common/interval_set.h"
@@ -125,10 +130,39 @@ public:
     /// when GPU-written bytes are in the range: the GPU must do that write.
     bool PrepareHostWrite(VAddr address, u64 size);
 
+    /// gow3: a small write the GPU thread makes for the guest (copy shader HLE, CP fills and
+    /// copies), done at this point of the command stream in guest memory (backing view) and in
+    /// the GPU's copy alike. The bytes stop being GPU data: no download, no protection change,
+    /// and pending readbacks do not bring older GPU values back over them. False (nothing done)
+    /// when the range is unsuitable (unaligned, over 64 KiB, unmapped).
+    bool WriteThrough(VAddr address, const void* data, u64 size);
+
+    /// gow3: the runtime writes [address, address + size) through the backing view (fence
+    /// labels): the bytes stop being GPU data, and pending readbacks do not bring older GPU
+    /// values back over them. Uncharted 2: a ray-cast readback covering the frame's end-of-pipe
+    /// label restored its old value (assert m_gfxEopTick in FrameBegin).
+    void NoteCpuWrite(VAddr address, u64 size);
+
+    /// gow3 statistics: sizes of the cache's containers (growth over time).
+    std::string DebugSizes() const {
+        std::size_t entries = 0;
+        for (const auto& [page, writes] : page_writes) {
+            entries += writes.size();
+        }
+        return std::format("{} page write records ({} entries), {} lazy pages, {} hot windows, {} "
+                           "arenas, {} pending readbacks, {} GPU-written ranges",
+                           page_writes.size(), entries, lazy_pages.size(), cpu_write_hot.size(),
+                           arenas.size(), pending_readbacks.size(), gpu_modified_ranges.Count());
+    }
+    /// Labels NoteCpuWrite found inside a pending readback since the last call (statistics).
+    static u32 TakeLabelsInReadbacks();
+
     /// gow3: DownloadRanges without the GPU wait. The copies run after the work already
     /// recorded; PollReadbacks writes them to guest memory once the GPU has run them. Until
     /// then the ranges stay GPU-modified (a CPU write into them waits for its readback).
-    void DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ranges);
+    /// `protect`: its pages are read-protected until it completes (a read waits for it), as
+    /// for every readback with GOW3_ASYNC_READBACK=1.
+    void DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ranges, bool protect = false);
 
     /// gow3: writes the readbacks the GPU has finished to guest memory (GPU-side, per draw).
     void PollReadbacks() {
@@ -136,6 +170,7 @@ public:
             CompleteReadbacks(false);
         }
     }
+
 
     /// Finds a buffer for the specified region.
     [[nodiscard]] std::pair<const Buffer*, u64> ObtainBuffer(VAddr device_addr, u32 size,
@@ -270,6 +305,7 @@ private:
     IntervalList<Backing> resident_ranges;
     std::unordered_set<u64> cpu_write_hot; ///< see IsCpuWriteHot
 
+
     // gow3: a CPU write into a page with GPU-written bytes used to download the page with a full
     // GPU wait (~800 per 5 s in the U1 temple, half the frame time). The writes never hit the
     // GPU-written bytes themselves, so the page is unprotected without a download instead. The
@@ -281,7 +317,33 @@ private:
     struct LazyPage {
         std::array<u8, LAZY_PAGE_SIZE> bytes{}; ///< guest bytes at the write fault
         std::bitset<LAZY_PAGE_SIZE> tracked;    ///< GPU-written bytes with a stale guest copy
+        /// gow3: shared page (CPU writes next to GPU data still in flight): the tracked bytes
+        /// are the GPU's, without comparing guest bytes (uploads skip them, readbacks write them).
+        bool gpu_wins = false;
     };
+    /// gow3: the GPU writes into each 4 KiB page (writes up to 1 MiB): byte range and tick.
+    struct PageWrite {
+        u16 lo, hi;
+        u64 tick;
+    };
+    std::unordered_map<u64, boost::container::small_vector<PageWrite, 4>> page_writes;
+    /// Scheduler tick when the last per-submission readback was recorded: GPU writes from then
+    /// on come back with the next one.
+    u64 last_readback_tick = 0;
+    /// Every GPU byte in `page` is from work in flight, from this submission (the next
+    /// readback brings it) or in a pending readback: the CPU can write next to it.
+    bool GpuBytesInFlight(VAddr page);
+    /// Pages shared with the CPU whose GPU bytes the next readback must bring back.
+    std::vector<std::pair<VAddr, u64>> shared_readbacks;
+    u64 g_shared_writes_count = 0;
+
+public:
+    /// gow3: the shared pages' GPU bytes for the next readback (Rasterizer::SyncSmallGpuWrites).
+    std::vector<std::pair<VAddr, u64>> TakeSharedReadbacks() {
+        return std::exchange(shared_readbacks, {});
+    }
+
+private:
     std::map<VAddr, std::unique_ptr<LazyPage>> lazy_pages;
 
     // gow3: DownloadRangesAsync. The per-submission readback of small GPU writes (the CPU-side
