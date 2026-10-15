@@ -20,7 +20,7 @@ Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
   check can be turned off or run now. Tested against a local fake release (install, restart,
   cleanup) and a locked file (full rollback of 1,077 files).
 - **Automatic releases:** `tools/release.sh X.Y.Z` pushes the tag `vX.Y.Z`; GitHub Actions builds
-  the package and publishes the release with the notes from `tools/release-notes/vX.Y.Z.md`.
+  the package and publishes the release (marked Latest) with the notes from `tools/release-notes/vX.Y.Z.md`.
 - Profiler: call stacks (`profile_*_stacks.txt`), also of the game's own thread that submits the
   frames, so a wait shows who waits.
 - Packaging: the license step no longer hangs on GitHub Actions (the MSYS2 root `/` made
