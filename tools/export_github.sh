@@ -25,8 +25,15 @@ copy() {  # copy <relative path>
 }
 
 submodules=$(git -C gow3_pc config -f .gitmodules --get-regexp '\.path$' | awk '{print $2}')
+# The runtime's own God of War III material stays out (its docs, launcher, patches, packaging and
+# run scripts); tools/github-overlay replaces its READMEs with this project's.
 git -C gow3_pc ls-files -co --exclude-standard | while read -r path; do
-    case $path in .github/*|.gitmodules) continue ;; esac
+    case $path in
+        .github/*|.gitmodules|README.md|README.*.md|docs/*|launcher/*|patches/*|run.py|run.sh) continue ;;
+        packaging/linux/*|packaging/appimage.sh|packaging/default.nix|packaging/gow3-entry.c) continue ;;
+        packaging/windows/README*|packaging/windows/package.sh|packaging/windows/build_dlss.sh) continue ;;
+        packaging/windows/make_icon.py|tests/test_launcher_*|tests/test_button_icons.py) continue ;;
+    esac
     grep -qxF -- "$path" <<< "$submodules" && continue
     [[ -f gow3_pc/$path ]] && copy "gow3_pc/$path"
 done
@@ -36,6 +43,7 @@ copy Start-Uncharted.cmd
 copy analysis/STATUS.md
 copy analysis/PLAN.md
 cp -r tools/github/. "$dest/"
+cp -r tools/github-overlay/. "$dest/"
 
 # Submodules: .gitmodules from the runtime's, under gow3_pc/, pinned at the checked-out commits.
 : > "$dest/.gitmodules"
