@@ -8,6 +8,15 @@ Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
 - **First release, 0.1.0 (beta).** The package now carries `LICENSE.txt`, `CHANGELOG.md` and
   the licenses of all bundled libraries (`licenses/`).
+- **Faster heavy scenes with every preset: 2 frames queued** (Low and Medium had 1). With 1 the
+  CPU waited for the GPU to finish the previous frame every frame; in Uncharted 2's museum
+  (1080p) that was 44-47 FPS, with 2 it is 56-59. The launcher moves existing settings over
+  (not for a game with multithreaded rendering, which Uncharted 2 needs with 1).
+- The game and launcher windows name the port's author in their title bar.
+- Profiler: call stacks (`profile_*_stacks.txt`), also of the game's own thread that submits the
+  frames, so a wait shows who waits.
+- Packaging: the license step no longer hangs on GitHub Actions (the MSYS2 root `/` made
+  `//usr/bin/pacman` a network path).
 - **Uncharted 2: Nate floating above the ground or invisible fixed.** A CPU shortcut for one of
   the game's small GPU copy shaders (6a6422a9) copied the player's data before the game had
   finished it; that copy runs on the GPU again.

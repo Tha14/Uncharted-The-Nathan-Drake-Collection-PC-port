@@ -35,8 +35,10 @@ plan and test list: [analysis/PLAN.md](analysis/PLAN.md).
   |---|---|---|---|
   | Low | 720p + FSR 1 to the screen | 60 | weak GPUs (about twice as fast as 1080p) |
   | Medium | 1080p (as on PS4) | 60 | most PCs |
-  | High | 1440p, 2 frames queued | 60 | fast GPUs |
+  | High | 1440p | 60 | fast GPUs |
   | Ultra | 4K (Drake's Fortune: 1620p + FSR 1) | up to 120 (experimental) | very fast GPUs |
+
+  Every preset queues 2 frames: the next frame is prepared while the GPU draws the last one.
 
 - **Display:** windowed, borderless or exclusive fullscreen; render resolution 720p, 900p, 1080p,
   1440p, 1620p or 4K; FSR 1 upscaling; RCAS sharpening; FPS counter.

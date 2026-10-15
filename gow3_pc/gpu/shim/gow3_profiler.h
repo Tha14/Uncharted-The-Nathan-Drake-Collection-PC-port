@@ -8,4 +8,7 @@ namespace Gow3Profiler {
 /// Samples the thread (a Windows thread id) for as long as the process runs.
 void Start(unsigned long thread_id, const char* name);
 
+/// Samples the calling thread (guest threads: the game's flip thread).
+void StartCurrent(const char* name);
+
 } // namespace Gow3Profiler

@@ -14,6 +14,9 @@ cd -- "$(dirname -- "$0")/.."
 python=${PYTHON:-python}
 python_home=${PYTHON_HOME:-$("$python" -c 'import sys, os; print(os.path.dirname(sys.executable))')}
 msys=${MSYS2_ROOT:-/c/msys64}
+# Inside the MSYS2 shell (GitHub Actions) its root is "/": without the slash, "$msys/usr" stays a
+# local path ("//usr/..." is a network share, each try timed out after ~11 s).
+msys=${msys%/}
 [[ -d $msys/clang64/bin ]] && export PATH="$msys/clang64/bin:$PATH"
 [[ -f gow3_pc/out/gow3-probe.exe ]] || { echo 'Build the runtime first: gow3_pc/build.sh' >&2; exit 1; }
 
@@ -29,8 +32,10 @@ ldd gow3_pc/out/gow3-probe.exe | awk '/clang64/ {print $3}' | sort -u | while re
 done
 
 cp gow3_pc/scripts/*.py "$stage/gow3_pc/scripts/"
-cp tools/probe_uncharted.py "$stage/tools/"
-cp launcher/uncharted_launcher.pyw "$stage/launcher/"
+cp tools/probe_uncharted.py tools/apply_update.py "$stage/tools/"
+cp launcher/uncharted_launcher.pyw launcher/updater.py "$stage/launcher/"
+# The package's version (tools/VERSION; the launcher's updates compare it with the releases).
+cp tools/VERSION "$stage/VERSION"
 cp launcher/assets/uncharted.ico launcher/assets/icon.png "$stage/launcher/assets/"
 # The runtime's optimizations known to break Uncharted (GOW3_TOGGLE_FILE).
 cp tools/defaults/disabled-optimizations.txt "$stage/analysis/uncharted-user/"
@@ -51,21 +56,22 @@ for dir in gow3_pc/gpu/third_party/* gow3_pc/third_party/*; do
     done
 done
 head -n 24 gow3_pc/gpu/third_party/gcn/include/gcn/si_ci_vi_merged_offset.h > "$licenses/gcn-headers.txt"
-pacman=$msys/usr/bin/pacman
+pacman=$(command -v pacman || echo "$msys/usr/bin/pacman")
+# Three pacman calls in all (one per DLL took minutes on the CI runner).
+dlls=()
+for dll in "$stage"/gow3_pc/out/*.dll; do
+    dlls+=("$(cygpath -m "$msys/clang64/bin/$(basename -- "$dll")")")
+done
+mapfile -t packages < <({ "$pacman" -Qqo "${dlls[@]}" 2>/dev/null || true; } | sort -u)
+{ "$pacman" -Qlq "${packages[@]}" | grep '/share/licenses/.*[^/]$' || true; } | while read -r file; do
+    name=${file#*/share/licenses/}
+    mkdir -p "$licenses/msys2/$(dirname -- "$name")"
+    cp "$msys$file" "$licenses/msys2/$name"
+done
 {
     echo "Third-party packages whose DLLs ship in gow3_pc\\out (MSYS2 CLANG64 builds)."
     echo "Their sources: https://repo.msys2.org/mingw/sources/ and https://packages.msys2.org/"
-    echo
-    for dll in "$stage"/gow3_pc/out/*.dll; do
-        "$pacman" -Qqo "$(cygpath -m "$msys/clang64/bin/$(basename -- "$dll")")" || true
-    done | sort -u | while read -r package; do
-        "$pacman" -Qi "$package" | awk -F' *: ' '/^(Name|Version|Licenses|URL) /{print}'
-        echo
-        { "$pacman" -Qlq "$package" | grep '/share/licenses/.*[^/]$' || true; } | while read -r file; do
-            mkdir -p "$licenses/msys2/${package#mingw-w64-clang-x86_64-}"
-            cp "$msys$file" "$licenses/msys2/${package#mingw-w64-clang-x86_64-}/"
-        done
-    done
+    "$pacman" -Qi "${packages[@]}" | awk '/^Name /{print ""} /^(Name|Version|Licenses|URL) /{print}'
 } > "$licenses/THIRD-PARTY.txt"
 
 "$python_home/python.exe" tools/copy_python.py "$python_home" "$stage/python"

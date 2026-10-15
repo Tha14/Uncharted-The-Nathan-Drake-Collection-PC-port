@@ -54,7 +54,7 @@ inline int ParseEngineFps(int value) {
 /// Frames the GPU command thread may queue ahead of the GPU; 0 = unbounded.
 inline constexpr std::array<int, 3> FramesQueued = {1, 2, 0};
 inline int ParseFramesQueued(int value) {
-    return IndexOf(FramesQueued, value, -1) >= 0 ? value : 1;
+    return IndexOf(FramesQueued, value, -1) >= 0 ? value : 2;
 }
 /// RCAS strength in percent; invalid values fall back to 75.
 inline int ParseRcasStrength(int value) {

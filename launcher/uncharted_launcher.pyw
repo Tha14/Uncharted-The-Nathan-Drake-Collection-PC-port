@@ -67,7 +67,7 @@ FPS_LIMITS = [(30, "30"), (60, "60"), (MAX_FPS, str(MAX_FPS))]
 
 # Runtime options in probe.ini (key -> default) and launcher-only ones.
 INI_DEFAULTS = {
-    "display_mode": "windowed", "vsync": "1", "fps_limit": "60", "frames_queued": "1",
+    "display_mode": "windowed", "vsync": "1", "fps_limit": "60", "frames_queued": "2",
     "async_shaders": "1", "fsr1": "0", "rcas": "1", "rcas_strength": "75", "show_fps": "1",
 }
 LAUNCHER_DEFAULTS = {"game": "u1", "diagnostics": True, "game_dir": ""}
@@ -233,9 +233,9 @@ PRESETS = {
     },
     "medium": {
         "title": "MEDIUM", "summary": "60 FPS  •  as on PS4",
-        "detail": "The PS4 original: 1080p at 60 FPS with the lowest input delay. Right for most PCs.",
+        "detail": "The PS4 original: 1080p at 60 FPS. Right for most PCs.",
         "resolution": "1920x1080",
-        "values": {"fps_limit": "60", "frames_queued": "1", "vsync": "1", "async_shaders": "1",
+        "values": {"fps_limit": "60", "frames_queued": "2", "vsync": "1", "async_shaders": "1",
                    "fsr1": "0", "rcas": "1", "rcas_strength": "75"},
     },
     "high": {
@@ -356,9 +356,16 @@ def read_config():
             if entry["preset"] in PRESETS:
                 entry["resolution"] = PRESETS[entry["preset"]]["resolution"]
                 write_ini(game, preset_values(entry["preset"]))
+    # Version 5: every preset queues 2 frames (with 1 the CPU waits for the GPU each frame: heavy
+    # Uncharted 2 scenes ran at 45 instead of 57 FPS). Not with multithreaded rendering, where
+    # Uncharted 2 needs 1.
+    if config.get("version", 1) < 5:
+        for game, entry in games.items():
+            if entry["preset"] in PRESETS and not entry.get("multithreaded"):
+                write_ini(game, {"frames_queued": "2"})
     for name in GAME_SETTING_DEFAULTS:
         config.pop(name, None)
-    config["version"] = 4
+    config["version"] = 5
     return config
 
 
@@ -443,7 +450,7 @@ class Launcher:
         self.widgets = {}
         self.images = []
         self.fonts()
-        root.title(f"{APP_TITLE} - Launcher")
+        root.title(f"{APP_TITLE} - Launcher by BilalReloaded")
         root.configure(bg=BG)
         root.resizable(False, False)
         self.width = self.px(1180)
@@ -865,8 +872,9 @@ class Launcher:
                         "60 is the PS4's. 120 unlocks the frame rate (experimental): if the game runs too fast "
                         "or Nate falls through the world, choose 60. Faster breaks the game's movement.",
                         [(str(v), label) for v, label in FPS_LIMITS])
-        self.ini_choice(page, "frames_queued", "Frames queued", "1 has the lowest input delay; 2 keeps the frame "
-                                                               "rate steadier on slower PCs.",
+        self.ini_choice(page, "frames_queued", "Frames queued", "2 (recommended): the next frame is prepared "
+                                                               "while the GPU draws (Uncharted 2's museum: 45 -> "
+                                                               "57 FPS). 1 has the lowest input delay.",
                         [("1", "1"), ("2", "2"), ("0", "Unlimited")])
         self.ini_toggle(page, "async_shaders", "Compile shaders in the background",
                         "Fewer stutters in new areas. Drake's Fortune always compiles them first (its lighting needs it).")

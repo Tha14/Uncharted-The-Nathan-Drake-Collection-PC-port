@@ -323,7 +323,7 @@ void PerformanceTab() {
         if (EmulatorSettings.GetVblankFrequency() <= 60 && (s.fps_limit == 0 || s.fps_limit > 60)) {
             InfoRow("Effective limit", "60 FPS until the game is started with 120");
         }
-        static const char* const queued_labels[] = {"1 (lowest latency)", "2", "Unlimited"};
+        static const char* const queued_labels[] = {"1 (lowest latency)", "2 (recommended)", "Unlimited"};
         ChoiceRow("Frames queued", s.frames_queued, queued_labels, G::FramesQueued.data(),
                   int(G::FramesQueued.size()), "More frames queued: steadier FPS, slower response to input.");
         CheckRow("Compile new shaders in the background", s.async_shaders,
