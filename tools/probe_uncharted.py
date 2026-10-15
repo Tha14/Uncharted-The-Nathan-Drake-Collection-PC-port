@@ -379,7 +379,8 @@ def run_game(args, game, executable, guest_args, loadexec):
     settings = user / f"probe-{game_key}.ini"
     if not settings.exists() and (user / "probe.ini").exists():
         shutil.copy2(user / "probe.ini", settings)  # earlier versions shared one file
-    env["GOW3_CONFIG"] = str(settings)
+    # UNCHARTED_CONFIG_FILE: another settings file (tests that must not touch the player's).
+    env["GOW3_CONFIG"] = os.environ.get("UNCHARTED_CONFIG_FILE") or str(settings)
     # Frame rates above 60 need the fast vblank (GOW3_VBLANK_HZ=0); an explicit one is kept.
     if "GOW3_VBLANK_HZ" not in os.environ:
         limit = ini_value(settings, "fps_limit", "60")

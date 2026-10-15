@@ -904,6 +904,12 @@ class Launcher:
             python = python.with_name("python.exe")
         command = [str(python), "-u", str(RUN_SCRIPT), "--boot", "--seconds", "0", "--executable", game["exe"],
                    "--game", str(self.game_dir())]
+        # The game window may take the foreground (Windows only lets the foreground process do
+        # that; the game starts two processes down): fullscreen and keyboard input need the focus.
+        try:
+            ctypes.windll.user32.AllowSetForegroundWindow(-1)  # ASFW_ANY
+        except (AttributeError, OSError):
+            pass
         try:
             self.process = subprocess.Popen(command, cwd=str(ROOT), env=env, stdout=subprocess.PIPE,
                                             stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,

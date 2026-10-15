@@ -41,6 +41,7 @@ private:
     std::mutex text_mutex;
     bool text_requested{}, text_active{};
     int display_mode = -1; ///< applied Gow3Settings display mode (window thread)
+    int windowed_width = 0, windowed_height = 0; ///< the windowed size: 16:9 inside the desktop
     void ApplyDisplayMode(int mode);
     int text_state{};
     std::string text, text_prompt, base_title;

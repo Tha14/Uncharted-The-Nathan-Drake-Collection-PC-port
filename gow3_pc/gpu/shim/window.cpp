@@ -1,4 +1,5 @@
 // gow3: SDL3 window for the Vulkan swapchain (X11 or Wayland).
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -13,16 +14,31 @@
 namespace Frontend {
 
 WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}, height{height_} {
+    // Exclusive fullscreen stays up when another window takes the focus (SDL minimizes it by
+    // default; started from the launcher, the game window often starts without the focus).
+    SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
     // Gamepads are sampled by runtime_pad.c; their events are pumped here with the window's.
     if (!SDL_InitSubSystem(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
         UNREACHABLE_MSG("Failed to initialize SDL video: {}", SDL_GetError());
+    }
+    // Windowed: the requested size, made 16:9 and smaller than the desktop's usable area (a
+    // 1920x1080 window on a 1920x1080 screen put its title bar off screen, over the taskbar).
+    windowed_width = width_;
+    windowed_height = height_;
+    if (SDL_Rect usable{}; SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable) && usable.w > 0 &&
+                           usable.h > 0) {
+        const int max_w = usable.w * 85 / 100, max_h = usable.h * 85 / 100;
+        if (windowed_width > max_w || windowed_height > max_h) {
+            windowed_width = std::min(max_w, max_h * 16 / 9);
+            windowed_height = windowed_width * 9 / 16;
+        }
     }
     SDL_PropertiesID props = SDL_CreateProperties();
     SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, title);
     SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, SDL_WINDOWPOS_CENTERED);
     SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, SDL_WINDOWPOS_CENTERED);
-    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, width_);
-    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, height_);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, windowed_width);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, windowed_height);
     SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_RESIZABLE_BOOLEAN, true);
     SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_VULKAN_BOOLEAN, true);
     base_title = title;
@@ -74,10 +90,18 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}
 // Windowed, borderless (desktop-sized, no mode change) or exclusive fullscreen at the desktop
 // mode. Window thread only (SDL). The swapchain follows the size events.
 void WindowSDL::ApplyDisplayMode(int mode) {
+    const bool was_fullscreen = display_mode > Gow3Graphics::Windowed;
     display_mode = mode;
     if (mode == Gow3Graphics::Windowed) {
         SDL_SetWindowFullscreen(window, false);
+        SDL_SyncWindow(window);
+        if (was_fullscreen) { // back at the windowed size, centered
+            SDL_SetWindowSize(window, windowed_width, windowed_height);
+            SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+        }
     } else {
+        // Borderless: a desktop-sized window. Fullscreen: exclusive, in the desktop's resolution
+        // at its refresh rate.
         const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(window));
         const bool exclusive = mode == Gow3Graphics::Fullscreen && desktop;
         if (!SDL_SetWindowFullscreenMode(window, exclusive ? desktop : nullptr)) {
@@ -86,7 +110,11 @@ void WindowSDL::ApplyDisplayMode(int mode) {
         SDL_SetWindowFullscreen(window, true);
     }
     SDL_SyncWindow(window);
-    std::printf("Window: %s\n", Gow3Graphics::DisplayModeNames[mode]);
+    SDL_RaiseWindow(window); // the focus: keyboard input, and no minimized exclusive fullscreen
+    int w = 0, h = 0;
+    SDL_GetWindowSizeInPixels(window, &w, &h);
+    std::printf("Window: %s, %dx%d\n", Gow3Graphics::DisplayModeNames[mode], w, h);
+    std::fflush(stdout);
 }
 
 WindowSDL::~WindowSDL() {
