@@ -35,8 +35,45 @@ cp launcher/assets/uncharted.ico launcher/assets/icon.png "$stage/launcher/asset
 # The runtime's optimizations known to break Uncharted (GOW3_TOGGLE_FILE).
 cp tools/defaults/disabled-optimizations.txt "$stage/analysis/uncharted-user/"
 cp tools/README-Windows.txt "$stage/README.txt"
+cp gow3_pc/LICENSE "$stage/LICENSE.txt"
+cp tools/github/CHANGELOG.md "$stage/CHANGELOG.md"
+
+# Licenses of the sources built into the runtime, and of every MSYS2 package whose DLL ships: its
+# license files and, in THIRD-PARTY.txt, its version, license and source (some packages, FFmpeg
+# among them, carry no license file).
+licenses=$stage/licenses
+mkdir -p "$licenses"
+for dir in gow3_pc/gpu/third_party/* gow3_pc/third_party/*; do
+    for file in "$dir"/LICENSE* "$dir"/COPYING* "$dir"/COPYRIGHT*; do
+        [[ -f $file ]] || continue
+        mkdir -p "$licenses/$(basename -- "$dir")"
+        cp "$file" "$licenses/$(basename -- "$dir")/"
+    done
+done
+head -n 24 gow3_pc/gpu/third_party/gcn/include/gcn/si_ci_vi_merged_offset.h > "$licenses/gcn-headers.txt"
+pacman=$msys/usr/bin/pacman
+{
+    echo "Third-party packages whose DLLs ship in gow3_pc\\out (MSYS2 CLANG64 builds)."
+    echo "Their sources: https://repo.msys2.org/mingw/sources/ and https://packages.msys2.org/"
+    echo
+    for dll in "$stage"/gow3_pc/out/*.dll; do
+        "$pacman" -Qqo "$(cygpath -m "$msys/clang64/bin/$(basename -- "$dll")")" || true
+    done | sort -u | while read -r package; do
+        "$pacman" -Qi "$package" | awk -F' *: ' '/^(Name|Version|Licenses|URL) /{print}'
+        echo
+        { "$pacman" -Qlq "$package" | grep '/share/licenses/.*[^/]$' || true; } | while read -r file; do
+            mkdir -p "$licenses/msys2/${package#mingw-w64-clang-x86_64-}"
+            cp "$msys$file" "$licenses/msys2/${package#mingw-w64-clang-x86_64-}/"
+        done
+    done
+} > "$licenses/THIRD-PARTY.txt"
 
 "$python_home/python.exe" tools/copy_python.py "$python_home" "$stage/python"
+# Python's own license is python\LICENSE.txt; Pillow's goes with the others.
+for file in "$python_home"/Lib/site-packages/pillow-*.dist-info/licenses/* \
+    "$python_home"/Lib/site-packages/pillow-*.dist-info/LICENSE*; do
+    [[ -f $file ]] && { mkdir -p "$licenses/pillow"; cp "$file" "$licenses/pillow/"; }
+done
 
 windres tools/windows_starter/starter.rc -O coff -o dist/stage/starter.res.o
 clang -O2 -municode -mwindows tools/windows_starter/starter.c dist/stage/starter.res.o \

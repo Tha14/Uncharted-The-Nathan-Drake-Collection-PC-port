@@ -1,5 +1,6 @@
-Uncharted: The Nathan Drake Collection - PC port (test build)
+Uncharted: The Nathan Drake Collection - PC port 0.1.0 (beta)
 =============================================================
+By BilalReloaded - https://github.com/bc160201983/uncharted-pc
 
 Requirements
 - Windows 10 or 11, 64-bit.
@@ -16,8 +17,8 @@ How to play
    launcher shows the version it uses under Advanced.
 4. Pick a game card and a preset, then press PLAY.
    Low: 720p + FSR 1 at 60 FPS (weak GPUs). Medium: 1080p 60 (as on PS4).
-   High: 1440p 60. Ultra: 4K with the frame rate unlocked (fast GPUs; Uncharted 1 draws at
-   1620p and upscales).
+   High: 1440p 60 with 2 frames queued. Ultra: 4K at up to 120 FPS (fast GPUs; Uncharted 1
+   draws at 1620p and upscales).
    In game, Insert or R3 + L2 opens the menu (display, frame rate, overlay).
 5. Keyboard and mouse work out of the box (WASD move, mouse look, right mouse aim, left mouse
    fire, Space jump, Left Ctrl cover, F melee, R reload). Change them per game in the launcher's
@@ -29,3 +30,11 @@ Notes
 - Settings are kept per game. Saves and logs are kept in analysis\ next to the launcher.
 - Logs for troubleshooting: Advanced tab -> Open log folder (boot.log).
 - Render resolutions above 1080p are new: if a game crashes there, choose Medium (1080p).
+- The heaviest Uncharted 2 scenes run at about 40-45 FPS at any resolution (CPU-bound).
+- Multithreaded rendering is experimental: in Uncharted 2 use it only with 1 frame queued.
+- Changes: CHANGELOG.md.
+
+License
+GNU GPL v2 or later (LICENSE.txt); the source is at the address above. The licenses of the
+bundled libraries are in licenses\ (THIRD-PARTY.txt lists every DLL package, its version,
+license and source). Not affiliated with Sony, Naughty Dog or Bluepoint Games.

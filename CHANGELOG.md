@@ -6,6 +6,8 @@ Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
 ## 15 October 2026
 
+- **First release, 0.1.0 (beta).** The package now carries `LICENSE.txt`, `CHANGELOG.md` and
+  the licenses of all bundled libraries (`licenses/`).
 - **Uncharted 2: Nate floating above the ground or invisible fixed.** A CPU shortcut for one of
   the game's small GPU copy shaders (6a6422a9) copied the player's data before the game had
   finished it; that copy runs on the GPU again.

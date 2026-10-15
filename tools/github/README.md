@@ -135,7 +135,9 @@ To run from the source tree: `Start-Uncharted.cmd` (launcher), or
   (whose internal names, such as `GOW3_*` settings, it keeps) and the
   [shadPS4](https://github.com/shadps4-emu/shadPS4) video core.
 - Third-party code: FSR (AMD), imgui, magic_enum, miniz, xbyak, LibAtrac9, FFmpeg, SDL3.
-- Licensed under the GNU GPL v2 or later (see `gow3_pc/LICENSE`).
+- Licensed under the GNU GPL v2 or later (see `gow3_pc/LICENSE`). The Windows package carries
+  `LICENSE.txt` and a `licenses` folder with the license of every bundled library
+  (`licenses/THIRD-PARTY.txt` lists each DLL package with its version, license and source).
 
 ### Reusing this work
 
