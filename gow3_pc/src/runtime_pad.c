@@ -245,8 +245,11 @@ static void sample_host(PadData *d) {
         }
     }
     /* The keyboard works with or without a gamepad: its buttons add to the pad's, and a stick
-     * follows the keys only while one of them is held. */
-    if (!k) return;
+     * follows the keys only while one of them is held. GOW3_KEYBOARD=0 turns it off (typing in
+     * another window that lost the focus to the game would otherwise press buttons). */
+    static int keyboard=-1;
+    if (keyboard<0) { const char *env=getenv("GOW3_KEYBOARD"); keyboard=!(env && env[0]=='0'); }
+    if (!k || !keyboard) return;
     for (size_t i=0;i<key_map.count;++i) if (k[key_map.entries[i].source]) d->buttons|=key_map.entries[i].ps;
     if (d->buttons & BTN_L2) d->l2=255;
     if (d->buttons & BTN_R2) d->r2=255;

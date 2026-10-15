@@ -563,8 +563,10 @@ def main():
     parser.add_argument("--boot", action="store_true", help="Execute guest code after preparation")
     parser.add_argument("--executable", choices=EXECUTABLES, default="eboot.bin")
     parser.add_argument("--guest-arg", action="append", default=None,
-                        help="The game's argv, program name first (repeatable). Uncharted 2/3 started directly "
-                             "get the Collection menu's argv: eboot.bin ispartofuccollection")
+                        help="The game's argv, program name first (repeatable). A game started directly gets "
+                             "the Collection menu's argv: eboot.bin ispartofuccollection")
+    parser.add_argument("--collection-menu", action="store_true",
+                        help="Start eboot.bin with the Collection's game selection instead of Drake's Fortune")
     parser.add_argument("--cpu-only", action="store_true")
     parser.add_argument("--capture", action="store_true", help="Request a renderer frame dump every three seconds")
     parser.add_argument("--seconds", type=int, default=30, help="External process time limit; 0 disables it")
@@ -577,7 +579,13 @@ def main():
     executable = args.executable
     guest_args = args.guest_arg
     if guest_args is None:
-        guest_args = ["/app0/eboot.bin"] if executable == "eboot.bin" else ["eboot.bin", "ispartofuccollection"]
+        # As the Collection menu starts each game: "ispartofuccollection" makes eboot.bin start
+        # Drake's Fortune itself (without it, it shows the Collection's game selection, whose
+        # cursor is on the last game played: the U1 card started U2/U3 after one press of Cross).
+        if executable == "eboot.bin" and args.collection_menu:
+            guest_args = ["/app0/eboot.bin"]
+        else:
+            guest_args = ["eboot.bin", "ispartofuccollection"]
     while True:
         loadexec.unlink(missing_ok=True)
         result = run_once(args, executable, guest_args, loadexec)
