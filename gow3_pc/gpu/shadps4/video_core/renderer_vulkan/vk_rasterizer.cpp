@@ -120,8 +120,18 @@ namespace {
 /// gow3: compute shaders whose output the guest reads as soon as the next end-of-pipe event
 /// fires (Rasterizer::eop_readbacks): Uncharted 1's Cs_RayTraceGatherHits (the closest hit of
 /// each mesh ray cast).
+/// GOW3_EOP_READBACK: 0 off, 1 (default) asynchronous with the pages read-protected, 2 waiting
+/// for the GPU at the event (diagnostics).
+int EopReadbackMode() {
+    static const int mode = [] {
+        const char* env = std::getenv("GOW3_EOP_READBACK");
+        return env && env[0] >= '0' && env[0] <= '2' ? env[0] - '0' : 1;
+    }();
+    return mode;
+}
+
 bool IsEopReadbackShader(u64 hash) {
-    return hash == 0xc92150ba;
+    return hash == 0xc92150ba && EopReadbackMode() != 0;
 }
 
 /// gow3: a T# that passes the format check but cannot be a real texture: Uncharted 2's treasure
@@ -1829,7 +1839,11 @@ void Rasterizer::ReadBackEopResults() {
                         static_cast<unsigned long long>(size));
         }
     }
-    buffer_cache.DownloadRangesAsync(eop_readbacks, true);
+    if (EopReadbackMode() == 2) {
+        buffer_cache.DownloadRanges(eop_readbacks);
+    } else {
+        buffer_cache.DownloadRangesAsync(eop_readbacks, true, true);
+    }
     eop_readbacks.clear();
     static u32 readbacks = 0;
     static auto last = std::chrono::steady_clock::now();
@@ -2943,7 +2957,23 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
                     }
                     // Small writes (constants) and writes into windows where the CPU writes into
                     // GPU data (each such CPU write otherwise downloads with a full GPU wait).
-                    if (sync_gpu_constants && small_gpu_writes.size() < 16384) {
+                    static const u64 readback_skip = [] {
+                        const char* env = std::getenv("GOW3_READBACK_SKIP");
+                        return env ? std::strtoull(env, nullptr, 16) : 0ULL;
+                    }();
+                    if (size <= 4096 && Gow3Stats::enabled) {
+                        static std::mutex writers_mutex;
+                        static std::unordered_map<u64, u32> writers;
+                        std::scoped_lock lock{writers_mutex};
+                        if (writers[stage.pgm_hash]++ < 3) {
+                            std::printf("Small GPU write: shader %#llx slot %u at %#llx size %llu\n",
+                                        static_cast<unsigned long long>(stage.pgm_hash), binding.buffer,
+                                        static_cast<unsigned long long>(vsharp.base_address),
+                                        static_cast<unsigned long long>(size));
+                        }
+                    }
+                    if (sync_gpu_constants && small_gpu_writes.size() < 16384 &&
+                        stage.pgm_hash != readback_skip) {
                         if (size <= 4096) {
                             small_gpu_writes.emplace_back(vsharp.base_address, size);
                         } else if (buffer_cache.IsCpuWriteHot(vsharp.base_address, size)) {

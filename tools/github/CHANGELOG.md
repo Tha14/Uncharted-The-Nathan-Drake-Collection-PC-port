@@ -6,6 +6,18 @@ Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
 ## 15 October 2026
 
+- **Uncharted 2: Nate floating above the ground or invisible fixed.** A CPU shortcut for one of
+  the game's small GPU copy shaders (6a6422a9) copied the player's data before the game had
+  finished it; that copy runs on the GPU again.
+- **Uncharted 2: crash with multithreaded rendering fixed** (game assert `m_gfxEopTick` in
+  `FrameBegin` after 1-3 minutes): GPU memory copies and fills no longer overtake the frame's
+  end-of-pipe timestamp. Still open with 2 frames queued, see the known issues.
+- **Heavy scenes: stalls removed.** CPU writes into ring memory whose old GPU data was still being
+  read back waited for the GPU (a third of each frame with multithreaded rendering); the
+  per-draw stream buffer grew from 128 to 512 MiB (it filled up with 2 frames queued);
+  "Frames queued 2" is now the High preset's default. Heavy Uncharted 2 scenes: about 33 -> 40-45
+  FPS (4K, multithreaded off).
+- Built-in sampling profiler for the GPU threads (`GOW3_PROFILE=<seconds>`).
 - **Drake's Fortune: bullet impacts, bullet holes and blood.** The game traces its bullet and
   decal rays on the GPU (`Cs_RayTrace`, `Cs_RayTraceGatherHits`) and reads the hits once the
   frame's end-of-pipe event fires. That event was signalled before the GPU had produced the

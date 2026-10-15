@@ -276,9 +276,21 @@ static bool ExecuteScalarCopyHLE(const Shader::Info& info, const AmdGpu::Compute
         }
         return false;
     };
-    static const bool keep_gpu = std::getenv("GOW3_SCALAR_COPY_GPU") != nullptr;
+    // GOW3_SCALAR_COPY_GPU: every scalar copy on the GPU; =1 only the one-per-group one
+    // (2d215c3b). The 64-wide one (6a6422a9) runs on the GPU unless GOW3_SCALAR_COPY64_CPU=1:
+    // Uncharted 2 copies data with it that it completes after queueing the frame (the player's;
+    // the CPU copy, made when the command is processed, read it early: Nate was drawn floating
+    // or not at all, 15 Oct).
+    static const int keep_gpu = [] {
+        const char* env = std::getenv("GOW3_SCALAR_COPY_GPU");
+        if (env) {
+            return std::atoi(env) == 1 ? 1 : -1;
+        }
+        const char* cpu64 = std::getenv("GOW3_SCALAR_COPY64_CPU");
+        return cpu64 && cpu64[0] == '1' ? 0 : 64;
+    }();
     const auto ud = info.UserData();
-    if (keep_gpu) {
+    if (keep_gpu == -1 || keep_gpu == int(per_group)) {
         return false;
     }
     if (info.buffers.size() < 2 || ud.size() <= 6) {

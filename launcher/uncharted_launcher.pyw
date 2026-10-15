@@ -240,10 +240,10 @@ PRESETS = {
     },
     "high": {
         "title": "HIGH", "summary": "60 FPS  •  1440p",
-        "detail": "Sharper: the game draws at 1440p (new, confirm in play). On 4K monitors FSR 1 scales "
-                  "it up to the screen.",
+        "detail": "Sharper: the game draws at 1440p. On 4K monitors FSR 1 scales it up to the screen. "
+                  "Two frames queued keep heavy scenes faster.",
         "resolution": "2560x1440",
-        "values": {"fps_limit": "60", "frames_queued": "1", "vsync": "1", "async_shaders": "1",
+        "values": {"fps_limit": "60", "frames_queued": "2", "vsync": "1", "async_shaders": "1",
                    "fsr1": None, "rcas": "1", "rcas_strength": "50"},
     },
     "ultra": {
@@ -877,7 +877,8 @@ class Launcher:
         self.widgets["multithreaded"] = self.row(
             page, "Multithreaded rendering (experimental)",
             "Prepares draws on a second CPU thread: more FPS on CPUs with several cores. "
-            "Turn it off if the game hangs while loading.", multithreaded)
+            "Turn it off if the game hangs while loading. Uncharted 2: use it with 1 frame queued "
+            "(with 2 it can crash after a few minutes).", multithreaded)
 
         self.fps_note = tk.Label(page, text="", font=self.f_small, bg=BG, fg=GOLD, anchor="w")
         self.fps_note.pack(side="top", fill="x")

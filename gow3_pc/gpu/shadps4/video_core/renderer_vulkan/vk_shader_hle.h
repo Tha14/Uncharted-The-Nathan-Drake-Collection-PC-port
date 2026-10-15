@@ -20,4 +20,5 @@ class Rasterizer;
 bool ExecuteShaderHLE(const Shader::Info& info, const AmdGpu::Regs& regs,
                       const AmdGpu::ComputeProgram& cs_program, Rasterizer& rasterizer);
 
+
 } // namespace Vulkan

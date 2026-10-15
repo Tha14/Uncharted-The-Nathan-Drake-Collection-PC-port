@@ -18,7 +18,7 @@ By **BilalReloaded** ([YouTube](https://www.youtube.com/@BilalReloaded/videos),
 | Game | Plays | Notes |
 |---|---|---|
 | Uncharted: Drake's Fortune | Yes | 60 FPS in the tested areas. Native rendering up to 2880x1620 (4K output through FSR 1). |
-| Uncharted 2: Among Thieves | Yes | 1080p tested in play; 1440p and 4K start, play testing in progress. |
+| Uncharted 2: Among Thieves | Yes | Played at 1440p and 4K. Light scenes 60 FPS; the heaviest scenes 40-45 FPS (CPU-bound, see below). |
 | Uncharted 3: Drake's Deception | Yes | 1080p tested in play; 1440p and 4K start, play testing in progress. |
 
 The Collection menu, switching between the three games, saves, audio (music, speech, effects),
@@ -35,7 +35,7 @@ plan and test list: [analysis/PLAN.md](analysis/PLAN.md).
   |---|---|---|---|
   | Low | 720p + FSR 1 to the screen | 60 | weak GPUs (about twice as fast as 1080p) |
   | Medium | 1080p (as on PS4) | 60 | most PCs |
-  | High | 1440p | 60 | fast GPUs |
+  | High | 1440p, 2 frames queued | 60 | fast GPUs |
   | Ultra | 4K (Drake's Fortune: 1620p + FSR 1) | up to 120 (experimental) | very fast GPUs |
 
 - **Display:** windowed, borderless or exclusive fullscreen; render resolution 720p, 900p, 1080p,
@@ -63,10 +63,24 @@ plan and test list: [analysis/PLAN.md](analysis/PLAN.md).
   resolution; cutscene movies are scaled to it and their conversion shader adjusted.
 - FFmpeg-based video decoding (Videodec2), ATRAC9 audio (LibAtrac9), SDL3 window and controllers.
 
+## Known issues
+
+- **Frame rate in the heaviest Uncharted 2 scenes is about 40-45 FPS** at any resolution: the
+  PS4's GPU command processing runs on one CPU core here (3,000-5,600 draws per frame). Lighter
+  scenes reach 60. More optimization is planned.
+- **Multithreaded rendering (experimental) with "Frames queued 2"** can still end Uncharted 2 with
+  the game assert `m_gfxEopTick` after a few minutes. Use multithreaded rendering with 1 frame
+  queued, or leave it off (the default).
+- Drake's Fortune renders at most 2880x1620 (its memory layout) and upscales to 4K; turn on FSR 1.
+- Frame rates above 120 are not offered: the games' movement breaks (Drake's Fortune at 160 FPS
+  dropped Nate through the world).
+- Uncharted 3 has had less play testing than the other two.
+
 ## Playing
 
-1. Download the latest **Uncharted-windows** package from the
-   [Actions](../../actions/workflows/build-windows.yml) tab (latest successful run → Artifacts),
+1. Download **Uncharted-windows.zip** from the latest release on the
+   [Releases](../../releases) page (or a newer build from the
+   [Actions](../../actions/workflows/build-windows.yml) tab, latest successful run → Artifacts),
    or build it yourself (below). Extract it anywhere.
 2. Start **Uncharted Launcher.exe**. On the first Play, select your game folder: the dumped
    `CUSA02344` folder (the one holding `eboot.bin` and `sce_sys`, often called `uroot`).

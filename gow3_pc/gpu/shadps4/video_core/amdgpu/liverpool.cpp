@@ -329,6 +329,14 @@ void RunComputeReleaseMem(Vulkan::Rasterizer& rasterizer, const u8* data) {
 void RunDmaData(Vulkan::Rasterizer& rasterizer, const u8* data) {
     const auto* dma_data = reinterpret_cast<const PM4DmaData*>(data);
     ASSERT(dma_data->command.das == 0);
+    // A copy or fill into guest memory can be made there at once (CopyBuffer/FillBuffer's CPU
+    // paths): like WriteData, not before the copies and fences deferred to the recording thread.
+    // Uncharted 2 with multithreaded rendering: a DMA-written frame marker overtook the deferred
+    // end-of-pipe timestamp of that frame (assert m_gfxEopTick in FrameBegin).
+    if (dma_data->dst_sel == DmaDataDst::Memory || dma_data->dst_sel == DmaDataDst::MemoryUsingL2) {
+        rasterizer.WaitHostCopies();
+        rasterizer.WaitDeferredSignals();
+    }
     if (dma_data->src_sel == DmaDataSrc::Data && dma_data->dst_sel == DmaDataDst::Gds) {
         rasterizer.FillBuffer(dma_data->dst_addr_lo, dma_data->NumBytes(),
                                dma_data->data, true);

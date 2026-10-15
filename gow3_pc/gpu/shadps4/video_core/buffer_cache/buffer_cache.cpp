@@ -41,7 +41,13 @@ void DumpDeviceFault(const Instance& instance);
 namespace VideoCore {
 
 static constexpr size_t GDS_BUFFER_SIZE = 64_KB;
-static constexpr size_t STREAM_BUFFER_SIZE = 128_MB;
+// gow3: 512 MiB (GOW3_STREAM_MB overrides; 64-2048): with two frames queued Uncharted 2's heavy
+// scenes wrapped the 128 MiB ring in under two frames and waited for the GPU (1.3 s per 5 s).
+static size_t StreamBufferSize() {
+    const char* env = std::getenv("GOW3_STREAM_MB");
+    const size_t mb = env ? std::clamp<size_t>(std::strtoull(env, nullptr, 10), 64, 2048) : 512;
+    return mb * 1_MB;
+}
 
 static constexpr auto ARENA_USAGE =
     vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst |
@@ -70,7 +76,7 @@ BufferCache::BufferCache(const Vulkan::Instance& instance_, Vulkan::Scheduler& s
       staging_pool{runtime_.GetStagingPool()}, liverpool{liverpool_},
       memory{Core::Memory::Instance()}, texture_cache{texture_cache_},
       memory_tracker{std::make_unique<MemoryTracker>(tracker)},
-      stream_buffer{instance, scheduler, MemoryType::Stream, STREAM_BUFFER_SIZE},
+      stream_buffer{instance, scheduler, MemoryType::Stream, StreamBufferSize()},
       gds_buffer{instance, 0, GDS_BUFFER_SIZE, MemoryType::Stream, "GDS Buffer"},
       memory_semaphore{instance} {
     page_manager = &tracker;
@@ -192,6 +198,7 @@ static std::atomic<u32> g_write_fault_overlap, g_write_fault_same_page, g_write_
 static std::atomic<u64> g_write_fault_gpu_bytes;
 static std::atomic<u32> g_lazy_writes, g_lazy_cpu_wins, g_readback_waits, g_async_readbacks;
 static std::atomic<u32> g_readback_read_waits;
+static std::atomic<u32> g_readback_yields;
 
 // GOW3_ASYNC_READBACK=1: pages with a readback in flight are read-protected, so the CPU (the game,
 // or the SRT walker) never reads their stale data: a read waits for that readback only. =2 is
@@ -263,9 +270,10 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
                             "GPU write records, %zu GPU-written ranges\n",
                             lazy_pages.size(), pending_readbacks.size(), page_writes.size(),
                             gpu_modified_ranges.Count());
-                std::printf("  async readbacks: %u; CPU writes that waited for one: %u, CPU reads: %u\n",
+                std::printf("  async readbacks: %u; CPU writes that waited for one: %u, CPU reads: %u; "
+                            "ray-cast pieces dropped for CPU writes: %u\n",
                             g_async_readbacks.exchange(0), g_readback_waits.exchange(0),
-                            g_readback_read_waits.exchange(0));
+                            g_readback_read_waits.exchange(0), g_readback_yields.exchange(0));
                 for (size_t i = 0; i < std::min<size_t>(sorted.size(), 10); ++i) {
                     const auto [n, key] = sorted[i];
                     std::printf("  %s %#llx (1 MiB): %u\n", key >> 40 ? "write" : "read",
@@ -307,10 +315,68 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
                 ++g_write_fault_window;
             }
             g_write_fault_gpu_bytes += gpu_bytes_in_page;
+            // gow3: ray-cast result readbacks (yield_to_cpu): a CPU write into one is the guest
+            // refilling the buffer for its next batch, so the pending GPU values of that piece
+            // are dropped, not waited for. With multithreaded rendering the recording thread
+            // runs behind and every such write waited for the GPU (Uncharted 2: about 8 ms per
+            // frame, a third of it).
+            for (auto& readback : pending_readbacks) {
+                if (!readback.yield_to_cpu) {
+                    continue;
+                }
+                for (const auto& [piece, piece_size] : readback.pieces) {
+                    if (piece < device_addr + size && device_addr < piece + piece_size) {
+                        readback.rewritten.Add(piece, piece_size);
+                        gpu_modified_ranges.Subtract(piece, piece_size);
+                        ++g_readback_yields;
+                    }
+                }
+            }
+            // gow3: bulk GPU data read back for a CPU-hot window (pieces over 64 KiB: skinning
+            // output and the like in the per-frame rings). A CPU write into one of its pages is
+            // the guest reusing that ring memory: the page's part of the piece is dead and is
+            // dropped instead of waited for. With multithreaded rendering every such write waited
+            // about 18 ms for the GPU (Uncharted 2: 20+ per second, a third of the frame). Small
+            // pieces (constants the CPU reads back) still wait.
+            {
+                const VAddr pages_lo = Common::AlignDown(device_addr, 4096);
+                const VAddr pages_hi = Common::AlignUp(device_addr + size, 4096);
+                for (auto& readback : pending_readbacks) {
+                    for (const auto& [piece, piece_size] : readback.pieces) {
+                        if (piece_size <= 64_KB || piece >= device_addr + size ||
+                            device_addr >= piece + piece_size) {
+                            continue;
+                        }
+                        const VAddr lo = std::max(piece, pages_lo);
+                        const VAddr hi = std::min(piece + piece_size, pages_hi);
+                        readback.rewritten.Add(lo, hi - lo);
+                        gpu_modified_ranges.Subtract(lo, hi - lo);
+                        ++g_readback_yields;
+                    }
+                }
+            }
             // The newest GPU data of the written bytes is on its way back: wait for that
             // readback only, not for all GPU work.
             if (const u64 tick = PendingReadbackTick(device_addr, size, true)) {
                 ++g_readback_waits;
+                static std::atomic<u32> described{0};
+                if (described.fetch_add(1) < 24) {
+                    for (const auto& readback : pending_readbacks) {
+                        for (const auto& [piece, piece_size] : readback.pieces) {
+                            if (piece < device_addr + size && device_addr < piece + piece_size) {
+                                std::printf("Readback wait: CPU write %#llx+%llu into piece %#llx+%llu "
+                                            "(tick %llu, now %llu)\n",
+                                            static_cast<unsigned long long>(device_addr),
+                                            static_cast<unsigned long long>(size),
+                                            static_cast<unsigned long long>(piece),
+                                            static_cast<unsigned long long>(piece_size),
+                                            static_cast<unsigned long long>(readback.tick),
+                                            static_cast<unsigned long long>(scheduler.CurrentTick()));
+                            }
+                        }
+                    }
+                    std::fflush(stdout);
+                }
                 CompleteReadbacks(true, tick);
             }
             // gow3: finished readbacks of this page first (no wait): it may be clean already.
@@ -754,7 +820,8 @@ void BufferCache::WriteBackGpuData(VAddr address, const u8* data, u64 size,
     }
 }
 
-void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ranges, bool protect) {
+void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ranges, bool protect,
+                                      bool yield_to_cpu) {
     last_readback_tick = scheduler.CurrentTick();
     PendingReadback readback;
     struct Copy {
@@ -818,6 +885,7 @@ void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ran
         }
     }
     readback.tick = scheduler.CurrentTick();
+    readback.yield_to_cpu = yield_to_cpu;
     readback.buffer = download.buffer;
     readback.offset = download.offset;
     readback.size = download.size;

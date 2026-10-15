@@ -72,7 +72,11 @@ void Start(unsigned long thread_id, const char* name) {
                 sorted.emplace_back(n, rip);
             }
             std::sort(sorted.rbegin(), sorted.rend());
-            const std::string path = dir + "/profile_" + std::to_string(report++) + ".txt";
+            std::string tag = label;
+            for (char& c : tag) {
+                c = c == ' ' ? '-' : c;
+            }
+            const std::string path = dir + "/profile_" + tag + "_" + std::to_string(report++) + ".txt";
             if (FILE* f = std::fopen(path.c_str(), "w")) {
                 std::fprintf(f, "# %s, %zu samples in %d s\n", label.c_str(), samples.size(), period);
                 for (const auto& [n, rip] : sorted) {

@@ -162,7 +162,10 @@ public:
     /// then the ranges stay GPU-modified (a CPU write into them waits for its readback).
     /// `protect`: its pages are read-protected until it completes (a read waits for it), as
     /// for every readback with GOW3_ASYNC_READBACK=1.
-    void DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ranges, bool protect = false);
+    /// `yield_to_cpu`: a CPU write into a piece drops its GPU values instead of waiting for
+    /// them (the guest refills the buffer; see Rasterizer::ReadBackEopResults).
+    void DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ranges, bool protect = false,
+                             bool yield_to_cpu = false);
 
     /// gow3: writes the readbacks the GPU has finished to guest memory (GPU-side, per draw).
     void PollReadbacks() {
@@ -364,6 +367,7 @@ private:
         /// for this readback only (GOW3_ASYNC_READBACK=1; =2 leaves them readable, stale).
         std::vector<std::pair<VAddr, u64>> watched;
         bool watching = false; ///< `watched` is read-protected (from the first poll after submission)
+        bool yield_to_cpu = false; ///< see DownloadRangesAsync
     };
     PageManager* page_manager = nullptr;
     std::deque<PendingReadback> pending_readbacks;
