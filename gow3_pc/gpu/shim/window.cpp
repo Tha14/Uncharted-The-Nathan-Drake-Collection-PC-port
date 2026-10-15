@@ -10,6 +10,7 @@
 #include "gow3_overlay.h"
 #include "gow3_graphics.h"
 #include "gow3_settings.h"
+#include "gow3_mouse.h"
 
 namespace Frontend {
 
@@ -155,6 +156,9 @@ bool WindowSDL::PollEvents() {
     if (!text_active) {
         Gow3Overlay::UpdateTextInput(window);
     }
+    // Mouse look: captured while the game has the focus and neither the menu nor a text dialog
+    // is open.
+    Gow3Mouse::Update(window, !text_active && !Gow3Overlay::CapturesInput());
     if (const int mode = Gow3Settings::Get().display_mode; mode != display_mode) {
         ApplyDisplayMode(mode);
     }
@@ -185,6 +189,9 @@ bool WindowSDL::PollEvents() {
             text_active = false;
             SDL_StopTextInput(window);
             UpdateTextTitle();
+            continue;
+        }
+        if (Gow3Mouse::OnEvent(event)) {
             continue;
         }
         if (Gow3Overlay::HandleEvent(event)) {

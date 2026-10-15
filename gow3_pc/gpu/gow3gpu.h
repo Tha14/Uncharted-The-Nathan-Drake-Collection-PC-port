@@ -35,6 +35,9 @@ int gow3gpu_choice_begin(const char *title, const char *const *items, const char
 int gow3gpu_choice_poll(void);
 /* 1 while the in-game settings menu is open: the game's pad input is held neutral. */
 int gow3gpu_overlay_captures_input(void);
+/* Mouse movement since the last call (pixels) and held sources (bit 0 left, 1 middle, 2 right,
+ * 3 X1, 4 X2, 5 wheel up, 6 wheel down); returns 1 while the mouse is captured (gow3_mouse.h). */
+int gow3gpu_mouse_take(float *dx, float *dy, unsigned *buttons);
 /* Number of symbols registered by the vendored libraries (diagnostics). */
 unsigned gow3gpu_symbol_count(void);
 #ifdef __cplusplus

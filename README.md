@@ -39,8 +39,12 @@ plan and test list: [analysis/PLAN.md](analysis/PLAN.md).
 - **Performance:** frame rate limit 30 / 60 / 120 / 144 / 165 / 240 / unlimited (the game's
   simulation follows the real frame time, so the speed stays right above 60); frames queued;
   background shader compilation; multithreaded rendering and faster GPU readbacks (experimental).
+- **Keyboard and mouse:** mouse look (sensitivity, invert Y), right mouse aim, left mouse fire, WASD,
+  and every action remappable per game in the **Controls** tab (two bindings per action, keys or
+  mouse buttons). Controllers (DualSense, DualShock 4, Xbox) work at the same time.
 - **Game update 1.02** is used automatically when it sits next to the game folder (see below).
-- Log and save folders, desktop shortcut, shader cache reset, game folder selection.
+- Log and save folders, desktop shortcut, shader cache reset, game folder selection, links to the
+  author's [YouTube](https://www.youtube.com/@BilalReloaded/videos) and GitHub.
 
 **In game:** `Insert` or `R3 + L2` opens the menu (display mode, frame rate, sharpening, overlay).
 

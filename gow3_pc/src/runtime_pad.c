@@ -1,17 +1,22 @@
-/* libScePad on SDL3 gamepads, with a keyboard fallback. SDL events are pumped
- * by the window thread (gpu/shim/window.cpp); here state is only sampled.
+/* libScePad on SDL3 gamepads, with keyboard and mouse. SDL events are pumped by the window
+ * thread (gpu/shim/window.cpp); here state is only sampled.
  *
- * Default keyboard layout (GOW3_KEY_MAP changes the buttons, see apply_button_map):
- *   WASD left stick, arrow keys right stick, Space Cross, LShift Circle,
- *   E Square, Q Triangle, 1 L1, 3 R1, R L2, F R2, Z L3, C R3,
- *   Enter Options, Tab left touchpad (photo mode), Backspace right touchpad (pause menu),
- *   IJKL d-pad (I up, K down, J left, L right). */
+ * Default keyboard and mouse layout (GOW3_KEY_MAP / GOW3_MOUSE_MAP change it, see
+ * apply_button_map; the launcher's Controls tab writes them):
+ *   WASD left stick, mouse (or the arrow keys) right stick, right mouse L2 (aim), left mouse
+ *   R2 (fire), Space Cross (jump), Left Ctrl Circle (cover, roll), F Square (melee),
+ *   R Triangle (reload, pick up), Q / mouse X1 L1, E / mouse X2 R1, Left Shift L3,
+ *   V / middle mouse R3, Escape or Enter Options, Tab left touchpad, Backspace right touchpad,
+ *   1 2 3 4 d-pad left right up down, mouse wheel d-pad right (up) and left (down).
+ * GOW3_KEYBOARD=0 / GOW3_MOUSE=0 turn the keyboard / mouse off. Mouse look: GOW3_MOUSE_SENS
+ * (sensitivity, default 1), GOW3_MOUSE_INVERT=1 (invert Y). */
 #define _GNU_SOURCE
 #include "runtime.h"
 #include "gpu/gow3gpu.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <pthread.h>
 #include <time.h>
 #include <SDL3/SDL.h>
@@ -149,12 +154,28 @@ static ButtonMap pad_map={{
     {SDL_GAMEPAD_BUTTON_DPAD_LEFT,BTN_LEFT}, {SDL_GAMEPAD_BUTTON_DPAD_RIGHT,BTN_RIGHT},
 },15};
 static ButtonMap key_map={{
-    {SDL_SCANCODE_SPACE,BTN_CROSS}, {SDL_SCANCODE_LSHIFT,BTN_CIRCLE}, {SDL_SCANCODE_E,BTN_SQUARE},
-    {SDL_SCANCODE_Q,BTN_TRIANGLE}, {SDL_SCANCODE_1,BTN_L1}, {SDL_SCANCODE_3,BTN_R1},
-    {SDL_SCANCODE_R,BTN_L2}, {SDL_SCANCODE_F,BTN_R2}, {SDL_SCANCODE_Z,BTN_L3}, {SDL_SCANCODE_C,BTN_R3},
-    {SDL_SCANCODE_RETURN,BTN_OPTIONS}, {SDL_SCANCODE_TAB,CLICK_LEFT}, {SDL_SCANCODE_BACKSPACE,CLICK_RIGHT},
-    {SDL_SCANCODE_I,BTN_UP}, {SDL_SCANCODE_K,BTN_DOWN}, {SDL_SCANCODE_J,BTN_LEFT}, {SDL_SCANCODE_L,BTN_RIGHT},
-},17};
+    {SDL_SCANCODE_SPACE,BTN_CROSS}, {SDL_SCANCODE_LCTRL,BTN_CIRCLE}, {SDL_SCANCODE_F,BTN_SQUARE},
+    {SDL_SCANCODE_R,BTN_TRIANGLE}, {SDL_SCANCODE_Q,BTN_L1}, {SDL_SCANCODE_E,BTN_R1},
+    {SDL_SCANCODE_LSHIFT,BTN_L3}, {SDL_SCANCODE_V,BTN_R3},
+    {SDL_SCANCODE_ESCAPE,BTN_OPTIONS}, {SDL_SCANCODE_RETURN,BTN_OPTIONS},
+    {SDL_SCANCODE_TAB,CLICK_LEFT}, {SDL_SCANCODE_BACKSPACE,CLICK_RIGHT},
+    {SDL_SCANCODE_1,BTN_LEFT}, {SDL_SCANCODE_2,BTN_RIGHT}, {SDL_SCANCODE_3,BTN_UP}, {SDL_SCANCODE_4,BTN_DOWN},
+},16};
+/* Mouse sources (bits of gow3gpu_mouse_take): left, middle, right, X1, X2, wheel up, wheel down. */
+enum { MOUSE_LEFT=1, MOUSE_MIDDLE, MOUSE_RIGHT, MOUSE_X1, MOUSE_X2, MOUSE_WHEEL_UP, MOUSE_WHEEL_DOWN };
+static const char *const mouse_names[]={"left","middle","right","x1","x2","wheel_up","wheel_down"};
+static ButtonMap mouse_map={{
+    {MOUSE_RIGHT,BTN_L2}, {MOUSE_LEFT,BTN_R2}, {MOUSE_MIDDLE,BTN_R3}, {MOUSE_X1,BTN_L1}, {MOUSE_X2,BTN_R1},
+    {MOUSE_WHEEL_UP,BTN_RIGHT}, {MOUSE_WHEEL_DOWN,BTN_LEFT},
+},7};
+/* Keys that move a stick: ls_up ls_down ls_left ls_right (left stick), rs_* (right stick). */
+enum { LS_UP, LS_DOWN, LS_LEFT, LS_RIGHT, RS_UP, RS_DOWN, RS_LEFT, RS_RIGHT, STICK_KEYS };
+static const char *const stick_key_names[STICK_KEYS]={"ls_up","ls_down","ls_left","ls_right","rs_up","rs_down","rs_left","rs_right"};
+typedef struct { struct { int source, direction; } entries[32]; size_t count; } StickKeyMap;
+static StickKeyMap stick_keys={{
+    {SDL_SCANCODE_W,LS_UP}, {SDL_SCANCODE_S,LS_DOWN}, {SDL_SCANCODE_A,LS_LEFT}, {SDL_SCANCODE_D,LS_RIGHT},
+    {SDL_SCANCODE_UP,RS_UP}, {SDL_SCANCODE_DOWN,RS_DOWN}, {SDL_SCANCODE_LEFT,RS_LEFT}, {SDL_SCANCODE_RIGHT,RS_RIGHT},
+},8};
 
 static char *trim(char *text) {
     while (*text==' ' || *text=='\t') ++text;
@@ -163,13 +184,26 @@ static char *trim(char *text) {
     return text;
 }
 
-/* Applies a GOW3_PAD_MAP/GOW3_KEY_MAP value; returns how many entries were used. Bad entries are
- * logged and skipped, so their PS4 button keeps its default. */
-static int apply_button_map(ButtonMap *map, const char *spec, bool keyboard) {
+/* Applies a GOW3_PAD_MAP / GOW3_KEY_MAP / GOW3_MOUSE_MAP value; returns how many entries were
+ * used. The first entry for a PS4 button (or stick key direction) replaces its defaults, further
+ * entries add sources, and an empty name leaves it unbound ("r3="). Bad entries are logged and
+ * skipped, so their button keeps its default. */
+enum { MAP_PAD, MAP_KEYBOARD, MAP_MOUSE };
+static int map_source(int kind, const char *name) {
+    if (kind==MAP_KEYBOARD) { int code=(int)SDL_GetScancodeFromName(name); return code>(int)SDL_SCANCODE_UNKNOWN ? code : -1; }
+    if (kind==MAP_MOUSE) {
+        for (size_t i=0;i<sizeof(mouse_names)/sizeof(*mouse_names);++i) if (!SDL_strcasecmp(name,mouse_names[i])) return (int)i+1;
+        return -1;
+    }
+    int button=(int)SDL_GetGamepadButtonFromString(name);
+    return button>(int)SDL_GAMEPAD_BUTTON_INVALID ? button : -1;
+}
+static int apply_button_map(ButtonMap *map, const char *spec, int kind) {
     if (!spec || !*spec) return 0;
-    char copy[1024];
+    char copy[2048];
     snprintf(copy,sizeof(copy),"%s",spec);
     int used=0;
+    uint32_t replaced=0, sticks_replaced=0;
     char *entry=copy;
     while (entry) {
         char *next=strchr(entry,',');
@@ -183,17 +217,38 @@ static int apply_button_map(ButtonMap *map, const char *spec, bool keyboard) {
         *eq=0;
         const char *button=trim(entry), *name=trim(eq+1);
         entry=next;
+        int direction=-1;
+        if (kind==MAP_KEYBOARD)
+            for (int i=0;i<STICK_KEYS;++i) if (!SDL_strcasecmp(button,stick_key_names[i])) direction=i;
         uint32_t ps=0;
         for (size_t i=0;i<sizeof(ps_names)/sizeof(*ps_names);++i) if (!SDL_strcasecmp(button,ps_names[i].name)) ps=ps_names[i].ps;
-        const int source=!*name ? -1 : keyboard ? (int)SDL_GetScancodeFromName(name) : (int)SDL_GetGamepadButtonFromString(name);
-        if (!ps || source<=(keyboard ? (int)SDL_SCANCODE_UNKNOWN : (int)SDL_GAMEPAD_BUTTON_INVALID)) {
+        const int source=*name ? map_source(kind,name) : -1;
+        if ((!ps && direction<0) || (*name && source<0)) {
             printf("Runtime: pad map: ignored '%s=%s'\n",button,name);
             continue;
         }
-        size_t kept=0;
-        for (size_t i=0;i<map->count;++i) if (map->entries[i].ps!=ps) map->entries[kept++]=map->entries[i];
-        map->count=kept;
-        if (map->count<sizeof(map->entries)/sizeof(*map->entries)) map->entries[map->count++]=(ButtonSource){source,ps};
+        if (direction>=0) {
+            if (!(sticks_replaced & (1u<<direction))) {
+                sticks_replaced|=1u<<direction;
+                size_t kept=0;
+                for (size_t i=0;i<stick_keys.count;++i)
+                    if (stick_keys.entries[i].direction!=direction) stick_keys.entries[kept++]=stick_keys.entries[i];
+                stick_keys.count=kept;
+            }
+            if (source>=0 && stick_keys.count<sizeof(stick_keys.entries)/sizeof(*stick_keys.entries)) {
+                stick_keys.entries[stick_keys.count].source=source;
+                stick_keys.entries[stick_keys.count++].direction=direction;
+            }
+            ++used;
+            continue;
+        }
+        if (!(replaced & ps)) {
+            replaced|=ps;
+            size_t kept=0;
+            for (size_t i=0;i<map->count;++i) if (map->entries[i].ps!=ps) map->entries[kept++]=map->entries[i];
+            map->count=kept;
+        }
+        if (source>=0 && map->count<sizeof(map->entries)/sizeof(*map->entries)) map->entries[map->count++]=(ButtonSource){source,ps};
         ++used;
     }
     return used;
@@ -203,13 +258,49 @@ static void load_button_maps(void) {
     static bool loaded;
     if (loaded) return;
     loaded=true;
-    const int pad=apply_button_map(&pad_map,getenv("GOW3_PAD_MAP"),false);
-    const int keys=apply_button_map(&key_map,getenv("GOW3_KEY_MAP"),true);
-    if (pad || keys) printf("Runtime: pad map: %d gamepad and %d keyboard buttons remapped\n",pad,keys);
+    const int pad=apply_button_map(&pad_map,getenv("GOW3_PAD_MAP"),MAP_PAD);
+    const int keys=apply_button_map(&key_map,getenv("GOW3_KEY_MAP"),MAP_KEYBOARD);
+    const int mouse=apply_button_map(&mouse_map,getenv("GOW3_MOUSE_MAP"),MAP_MOUSE);
+    if (pad || keys || mouse)
+        printf("Runtime: pad map: %d gamepad, %d keyboard and %d mouse entries\n",pad,keys,mouse);
 }
 
 static void key_axis(uint8_t *axis, bool negative, bool positive) {
     if (negative || positive) *axis=(uint8_t)(128-(negative ? 128 : 0)+(positive ? 127 : 0));
+}
+/* The mouse: its buttons through mouse_map, its movement as the right stick. The stick follows
+ * the mouse's speed (pixels per ms, smoothed over ~25 ms), starts past the games' stick dead
+ * zone so slow movements turn the camera too, and lets go when the mouse rests. */
+static void sample_mouse(PadData *d) {
+    static int enabled=-1; static float sensitivity=1.0f, invert=1.0f;
+    if (enabled<0) {
+        const char *env=getenv("GOW3_MOUSE"); enabled=!(env && env[0]=='0');
+        const char *sens=getenv("GOW3_MOUSE_SENS"); if (sens && atof(sens)>0) sensitivity=(float)atof(sens);
+        const char *inv=getenv("GOW3_MOUSE_INVERT"); if (inv && inv[0]=='1') invert=-1.0f;
+    }
+    if (!enabled) return;
+    float dx=0, dy=0; unsigned held=0;
+    const int captured=gow3gpu_mouse_take(&dx,&dy,&held);
+    for (size_t i=0;i<mouse_map.count;++i)
+        if (held & (1u<<(mouse_map.entries[i].source-1))) d->buttons|=mouse_map.entries[i].ps;
+    static float vx, vy; static uint64_t last, last_motion;
+    const uint64_t now=d->timestamp;
+    float dt=last ? (float)(now-last)/1000.0f : 16.0f;
+    last=now;
+    if (dt<1.0f) dt=1.0f;
+    if (dt>50.0f) dt=50.0f;
+    if (dx!=0.0f || dy!=0.0f) last_motion=now;
+    const float blend=dt/(dt+25.0f);
+    vx+=(dx/dt-vx)*blend;
+    vy+=(dy/dt-vy)*blend;
+    if (!captured || now-last_motion>60000) { vx=vy=0; return; }
+    float sx=vx*sensitivity*0.12f, sy=vy*sensitivity*0.12f*invert;
+    const float magnitude=sqrtf(sx*sx+sy*sy);
+    if (magnitude<0.002f) return;
+    const float out=magnitude+0.15f>1.0f ? 1.0f : magnitude+0.15f;
+    sx*=out/magnitude; sy*=out/magnitude;
+    d->right_x=(uint8_t)(sx<-1.0f ? 0 : sx>1.0f ? 255 : (int)(128.0f+sx*127.0f));
+    d->right_y=(uint8_t)(sy<-1.0f ? 0 : sy>1.0f ? 255 : (int)(128.0f+sy*127.0f));
 }
 static void sample_host(PadData *d) {
     memset(d,0,sizeof(*d));
@@ -249,14 +340,18 @@ static void sample_host(PadData *d) {
      * another window that lost the focus to the game would otherwise press buttons). */
     static int keyboard=-1;
     if (keyboard<0) { const char *env=getenv("GOW3_KEYBOARD"); keyboard=!(env && env[0]=='0'); }
-    if (!k || !keyboard) return;
-    for (size_t i=0;i<key_map.count;++i) if (k[key_map.entries[i].source]) d->buttons|=key_map.entries[i].ps;
+    if (k && keyboard) {
+        for (size_t i=0;i<key_map.count;++i) if (k[key_map.entries[i].source]) d->buttons|=key_map.entries[i].ps;
+        bool held[STICK_KEYS]={0};
+        for (size_t i=0;i<stick_keys.count;++i) if (k[stick_keys.entries[i].source]) held[stick_keys.entries[i].direction]=true;
+        key_axis(&d->left_x,held[LS_LEFT],held[LS_RIGHT]);
+        key_axis(&d->left_y,held[LS_UP],held[LS_DOWN]);
+        key_axis(&d->right_x,held[RS_LEFT],held[RS_RIGHT]);
+        key_axis(&d->right_y,held[RS_UP],held[RS_DOWN]);
+    }
+    sample_mouse(d);
     if (d->buttons & BTN_L2) d->l2=255;
     if (d->buttons & BTN_R2) d->r2=255;
-    key_axis(&d->left_x,k[SDL_SCANCODE_A],k[SDL_SCANCODE_D]);
-    key_axis(&d->left_y,k[SDL_SCANCODE_W],k[SDL_SCANCODE_S]);
-    key_axis(&d->right_x,k[SDL_SCANCODE_LEFT],k[SDL_SCANCODE_RIGHT]);
-    key_axis(&d->right_y,k[SDL_SCANCODE_UP],k[SDL_SCANCODE_DOWN]);
 }
 
 /* GOW3_PAD_FILE=<file>: scripted input for automated runs. The file holds whitespace-separated

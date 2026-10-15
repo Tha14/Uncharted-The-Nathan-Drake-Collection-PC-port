@@ -19,6 +19,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+import webbrowser
 from tkinter import messagebox
 
 from PIL import Image, ImageDraw, ImageTk
@@ -33,9 +34,12 @@ RUN_SCRIPT = ROOT / "tools" / "probe_uncharted.py"
 CONFIG_FILE = Path(os.environ.get("APPDATA", Path.home())) / "Uncharted Launcher" / "launcher.json"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 APP_TITLE = "Uncharted: The Nathan Drake Collection"
+# The author's links in the launcher header: label, address, color, hover color.
+LINKS = (("YouTube", "https://www.youtube.com/@BilalReloaded/videos", "#d6302a", "#ef4038"),
+         ("GitHub", "https://github.com/bc160201983", "#24292f", "#3a4048"))
 
 GAMES = [
-    {"key": "u1", "number": "1", "title": "DRAKE'S FORTUNE", "name": "Uncharted: Drake's Fortune", "subtitle": "Opens the Collection menu",
+    {"key": "u1", "number": "1", "title": "DRAKE'S FORTUNE", "name": "Uncharted: Drake's Fortune", "subtitle": "Starts Uncharted 1 directly",
      "exe": "eboot.bin", "log": "uncharted"},
     {"key": "u2", "number": "2", "title": "AMONG THIEVES", "name": "Uncharted 2: Among Thieves", "subtitle": "Starts Uncharted 2 directly",
      "exe": "big2-ps4_Shipping.elf", "log": "big2-ps4_Shipping"},
@@ -66,7 +70,82 @@ INI_DEFAULTS = {
 LAUNCHER_DEFAULTS = {"game": "u1", "diagnostics": True, "game_dir": ""}
 GAME_KEYS = ("u1", "u2", "u3")
 GAME_SETTING_DEFAULTS = {"preset": "medium", "resolution": "1920x1080", "multithreaded": False,
-                         "async_readback": False}
+                         "async_readback": False, "controls": None, "mouse": True, "mouse_sens": "1.0",
+                         "mouse_invert": False}
+
+# Keyboard and mouse controls (runtime_pad.c): action -> up to two bindings, "key:<SDL key name>"
+# or "mouse:<left|middle|right|x1|x2|wheel_up|wheel_down>". Stick directions take keys only.
+CONTROL_GROUPS = (
+    ("MOVEMENT", (("ls_up", "Move forward"), ("ls_down", "Move back"), ("ls_left", "Move left"),
+                  ("ls_right", "Move right"), ("rs_up", "Look up"), ("rs_down", "Look down"),
+                  ("rs_left", "Look left"), ("rs_right", "Look right"))),
+    ("WEAPONS (D-PAD)", (("left", "D-pad left"), ("right", "D-pad right"), ("up", "D-pad up"),
+                         ("down", "D-pad down"))),
+    ("ACTIONS", (("cross", "Jump, climb  (Cross)"), ("circle", "Cover, roll, drop  (Circle)"),
+                 ("square", "Melee  (Square)"), ("triangle", "Reload, pick up  (Triangle)"),
+                 ("l2", "Aim  (L2)"), ("r2", "Fire  (R2)"), ("l1", "Grenade aim  (L1)"),
+                 ("r1", "Grenade throw  (R1)"), ("l3", "L3"), ("r3", "R3"),
+                 ("options", "Pause menu  (Options)"), ("touchpad_left", "Touchpad left"),
+                 ("touchpad_right", "Touchpad right"))),
+)
+STICK_ACTIONS = {"ls_up", "ls_down", "ls_left", "ls_right", "rs_up", "rs_down", "rs_left", "rs_right"}
+DEFAULT_CONTROLS = {
+    "ls_up": ["key:W"], "ls_down": ["key:S"], "ls_left": ["key:A"], "ls_right": ["key:D"],
+    "rs_up": ["key:Up"], "rs_down": ["key:Down"], "rs_left": ["key:Left"], "rs_right": ["key:Right"],
+    "left": ["key:1", "mouse:wheel_down"], "right": ["key:2", "mouse:wheel_up"], "up": ["key:3"],
+    "down": ["key:4"],
+    "cross": ["key:Space"], "circle": ["key:Left Ctrl"], "square": ["key:F"], "triangle": ["key:R"],
+    "l2": ["mouse:right"], "r2": ["mouse:left"], "l1": ["key:Q", "mouse:x1"], "r1": ["key:E", "mouse:x2"],
+    "l3": ["key:Left Shift"], "r3": ["key:V", "mouse:middle"], "options": ["key:Escape", "key:Return"],
+    "touchpad_left": ["key:Tab"], "touchpad_right": ["key:Backspace"],
+}
+MOUSE_SENSITIVITIES = [("0.5", "0.5x"), ("0.75", "0.75x"), ("1.0", "1x"), ("1.5", "1.5x"), ("2.0", "2x"),
+                       ("3.0", "3x")]
+MOUSE_LABELS = {"left": "Left mouse", "middle": "Middle mouse", "right": "Right mouse", "x1": "Mouse back",
+                "x2": "Mouse forward", "wheel_up": "Wheel up", "wheel_down": "Wheel down"}
+# Tk key names -> SDL key names (letters and digits map to themselves, upper case).
+TK_TO_SDL = {
+    "space": "Space", "Return": "Return", "Escape": "Escape", "Tab": "Tab", "BackSpace": "Backspace",
+    "Shift_L": "Left Shift", "Shift_R": "Right Shift", "Control_L": "Left Ctrl", "Control_R": "Right Ctrl",
+    "Alt_L": "Left Alt", "Alt_R": "Right Alt", "Caps_Lock": "CapsLock", "Up": "Up", "Down": "Down",
+    "Left": "Left", "Right": "Right", "Delete": "Delete", "Home": "Home", "End": "End", "Prior": "PageUp",
+    "Next": "PageDown", "minus": "-", "equal": "=", "bracketleft": "[", "bracketright": "]",
+    "backslash": "\\", "semicolon": ";", "apostrophe": "'", "grave": "`", "period": ".", "slash": "/",
+    "KP_Divide": "Keypad /", "KP_Multiply": "Keypad *", "KP_Subtract": "Keypad -", "KP_Add": "Keypad +",
+    "KP_Enter": "Keypad Enter", "KP_Decimal": "Keypad .", "Pause": "Pause", "Scroll_Lock": "ScrollLock",
+}
+TK_TO_SDL.update({f"F{n}": f"F{n}" for n in range(1, 13)})
+TK_TO_SDL.update({f"KP_{n}": f"Keypad {n}" for n in range(10)})
+# Keys the runtime keeps for itself: Insert opens the in-game menu, F9 records the pad.
+RESERVED_KEYS = {"Insert", "F9", "comma"}
+
+
+def merged_controls(controls):
+    merged = {action: list(bindings) for action, bindings in DEFAULT_CONTROLS.items()}
+    for action, bindings in (controls or {}).items():
+        if action in merged:
+            merged[action] = list(bindings)[:2]
+    return merged
+
+
+def control_maps(controls):
+    """GOW3_KEY_MAP and GOW3_MOUSE_MAP for a game's controls (every action listed, so unbound ones
+    lose the runtime's defaults)."""
+    keys, mouse = [], []
+    for action, bindings in merged_controls(controls).items():
+        names = [b[4:] for b in bindings if b.startswith("key:")]
+        keys += [f"{action}={name}" for name in names] or [f"{action}="]
+        if action not in STICK_ACTIONS:
+            buttons = [b[6:] for b in bindings if b.startswith("mouse:")]
+            mouse += [f"{action}={name}" for name in buttons] or [f"{action}="]
+    return ",".join(keys), ",".join(mouse)
+
+
+def binding_label(binding):
+    if not binding:
+        return "—"
+    kind, _, name = binding.partition(":")
+    return MOUSE_LABELS.get(name, name) if kind == "mouse" else name
 
 
 def is_game_dir(folder):
@@ -438,6 +517,36 @@ class Launcher:
         canvas.create_text(x + self.px(3), y + self.px(86),
                            text="DRAKE'S FORTUNE  •  AMONG THIEVES  •  DRAKE'S DECEPTION",
                            font=self.f_small, fill="#6b4c22", anchor="w")
+        self.draw_links(canvas, w)
+
+    def draw_links(self, canvas, width):
+        """The author's YouTube channel and GitHub as badges in the top right of the hero."""
+        right, top, height = width - self.px(22), self.px(18), self.px(30)
+        for label, url, color, hover in reversed(LINKS):
+            tag = f"link-{label}"
+            text = canvas.create_text(0, 0, text=label, font=self.f_body_bold, fill="white", anchor="w", tags=tag)
+            x1, _, x2, _ = canvas.bbox(text)
+            badge_w = (x2 - x1) + self.px(46)
+            left = right - badge_w
+            mid = top + height // 2
+            canvas.coords(text, left + self.px(34), mid)
+            badge = round_rect(canvas, left, top, right, top + height, height // 2, fill=color, outline=color, tags=tag)
+            canvas.tag_lower(badge, text)
+            # Icon: YouTube's play triangle on white, GitHub's code brackets.
+            icon_x = left + self.px(12)
+            if label == "YouTube":
+                round_rect(canvas, icon_x, mid - self.px(7), icon_x + self.px(16), mid + self.px(7), self.px(4),
+                           fill="white", outline="white", tags=tag)
+                canvas.create_polygon(icon_x + self.px(6), mid - self.px(4), icon_x + self.px(6), mid + self.px(4),
+                                      icon_x + self.px(12), mid, fill=color, outline=color, tags=tag)
+            else:
+                canvas.create_text(icon_x + self.px(8), mid, text="</>", font=self.f_small, fill="white", tags=tag)
+            canvas.tag_bind(tag, "<Button-1>", lambda e, u=url: webbrowser.open(u))
+            canvas.tag_bind(tag, "<Enter>", lambda e, b=badge, c=hover: (canvas.itemconfig(b, fill=c, outline=c),
+                                                                       canvas.config(cursor="hand2")))
+            canvas.tag_bind(tag, "<Leave>", lambda e, b=badge, c=color: (canvas.itemconfig(b, fill=c, outline=c),
+                                                                       canvas.config(cursor="")))
+            right = left - self.px(10)
 
     def build_cards(self):
         frame = tk.Frame(self.root, bg=BG)
@@ -509,6 +618,12 @@ class Launcher:
             self.widgets["multithreaded"].set(settings["multithreaded"])
         if isinstance(self.widgets.get("async_readback"), Toggle):
             self.widgets["async_readback"].set(settings["async_readback"])
+        if isinstance(self.widgets.get("mouse"), Toggle):
+            self.widgets["mouse"].set(settings.get("mouse", True))
+            self.widgets["mouse_sens"].set(settings.get("mouse_sens", "1.0"))
+            self.widgets["mouse_invert"].set(settings.get("mouse_invert", False))
+        if hasattr(self, "binding_slots"):
+            self.refresh_bindings()
         self.sync_sharpening()
         if hasattr(self, "preset_cards"):
             self.redraw_presets()
@@ -557,7 +672,7 @@ class Launcher:
         strip.pack(side="top", fill="x")
         self.tab_buttons = {}
         for name, label in (("setup", "QUICK SETUP"), ("display", "DISPLAY"), ("performance", "PERFORMANCE"),
-                            ("advanced", "ADVANCED")):
+                            ("controls", "CONTROLS"), ("advanced", "ADVANCED")):
             cell = tk.Frame(strip, bg=BG)
             cell.pack(side="left", padx=(0, self.px(26)))
             text = tk.Label(cell, text=label, font=self.f_tab, bg=BG, fg=MUTED, cursor="hand2")
@@ -575,6 +690,7 @@ class Launcher:
             "setup": self.page_setup(),
             "display": self.page_display(),
             "performance": self.page_performance(),
+            "controls": self.page_controls(),
             "advanced": self.page_advanced(),
         }
 
@@ -764,6 +880,172 @@ class Launcher:
         else:
             self.fps_note.config(text="")
 
+    def page_controls(self):
+        page = self.page()
+        settings = self.game_settings()
+        top = tk.Frame(page, bg=BG)
+        top.pack(side="top", fill="x")
+        tk.Label(top, text="Mouse", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
+        self.widgets["mouse"] = Toggle(top, self.s, settings.get("mouse", True),
+                                       lambda v: self.change_game_setting("mouse", v))
+        self.widgets["mouse"].pack(side="left", padx=(self.px(8), self.px(22)))
+        tk.Label(top, text="Sensitivity", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
+        self.widgets["mouse_sens"] = Segmented(top, MOUSE_SENSITIVITIES, settings.get("mouse_sens", "1.0"),
+                                               lambda v: self.change_game_setting("mouse_sens", v), self.f_small)
+        self.widgets["mouse_sens"].pack(side="left", padx=(self.px(8), self.px(22)))
+        tk.Label(top, text="Invert Y", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
+        self.widgets["mouse_invert"] = Toggle(top, self.s, settings.get("mouse_invert", False),
+                                              lambda v: self.change_game_setting("mouse_invert", v))
+        self.widgets["mouse_invert"].pack(side="left", padx=(self.px(8), 0))
+        self.flat_button(top, "Reset controls", self.reset_controls).pack(side="right")
+        self.controls_hint = tk.Label(
+            page, text="Click a slot, then press a key or a mouse button (right-click a slot to clear it). "
+                       "In game the mouse is captured; Alt+Tab or Insert (menu) frees it. A controller "
+                       "always works too.", font=self.f_small, bg=BG, fg=MUTED, anchor="w", justify="left",
+            wraplength=self.px(1080))
+        self.controls_hint.pack(side="top", fill="x", pady=(self.px(6), self.px(4)))
+        holder = tk.Frame(page, bg=BG)
+        holder.pack(side="top", fill="both", expand=True)
+        canvas = tk.Canvas(holder, bg=BG, highlightthickness=0)
+        bar = tk.Scrollbar(holder, orient="vertical", command=canvas.yview)
+        inner = tk.Frame(canvas, bg=BG)
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=inner, anchor="nw")
+        canvas.configure(yscrollcommand=bar.set)
+        bar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        def scroll(event):
+            if self.capturing is None:
+                canvas.yview_scroll(int(-event.delta / 120), "units")
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", scroll))
+        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+        self.capturing = None
+        self.binding_slots = {}
+        columns = [tk.Frame(inner, bg=BG), tk.Frame(inner, bg=BG)]
+        columns[0].grid(row=0, column=0, sticky="n", padx=(0, self.px(36)))
+        columns[1].grid(row=0, column=1, sticky="n")
+        for index, (group, actions) in enumerate(CONTROL_GROUPS):
+            column = columns[0 if index < 2 else 1]
+            tk.Label(column, text=group, font=self.f_small, bg=BG, fg=GOLD, anchor="w").pack(
+                side="top", fill="x", pady=(self.px(6 if index % 2 else 2), self.px(2)))
+            for action, label in actions:
+                row = tk.Frame(column, bg=BG)
+                row.pack(side="top", fill="x", pady=self.px(1))
+                tk.Label(row, text=label, font=self.f_small, bg=BG, fg=TEXT, anchor="w",
+                         width=26).pack(side="left")
+                for slot in (0, 1):
+                    cell = tk.Label(row, text="", font=self.f_small, bg=PANEL, fg=TEXT, width=14,
+                                    pady=self.px(3), cursor="hand2", highlightthickness=1,
+                                    highlightbackground=LINE)
+                    cell.pack(side="left", padx=(self.px(6), 0))
+                    cell.bind("<Button-1>", lambda e, a=action, i=slot: self.start_capture(a, i))
+                    cell.bind("<Button-3>", lambda e, a=action, i=slot: self.set_binding(a, i, None))
+                    self.binding_slots[(action, slot)] = cell
+        self.refresh_bindings()
+        return page
+
+    def game_controls(self):
+        return merged_controls(self.game_settings().get("controls"))
+
+    def refresh_bindings(self):
+        controls = self.game_controls()
+        for (action, slot), cell in self.binding_slots.items():
+            bindings = controls.get(action, [])
+            capturing = self.capturing == (action, slot)
+            cell.config(text="Press a key…" if capturing else binding_label(bindings[slot] if slot < len(bindings) else None),
+                        bg=PANEL_HI if capturing else PANEL, fg=GOLD if capturing else TEXT)
+
+    def start_capture(self, action, slot):
+        self.stop_capture()
+        self.capturing = (action, slot)
+        self.refresh_bindings()
+        self.root.focus_set()
+        # After this click: the next key, mouse button or wheel step is the binding.
+        self.root.after(200, self.arm_capture)
+
+    def arm_capture(self):
+        if self.capturing is None:
+            return
+        self.root.bind_all("<KeyPress>", self.capture_key)
+        self.root.bind_all("<ButtonPress>", self.capture_button)
+        self.root.bind_all("<MouseWheel>", self.capture_wheel)
+
+    def stop_capture(self):
+        if getattr(self, "capturing", None) is None:
+            return
+        self.capturing = None
+        for sequence in ("<KeyPress>", "<ButtonPress>", "<MouseWheel>"):
+            self.root.unbind_all(sequence)
+        self.refresh_bindings()
+
+    def capture_key(self, event):
+        keysym = event.keysym
+        if keysym in RESERVED_KEYS:
+            self.controls_hint.config(text=f"{keysym} is used by the game window (Insert opens the menu, F9 "
+                                           "records input, comma separates bindings). Choose another key.",
+                                      fg=STOP_RED)
+            self.stop_capture()
+            return "break"
+        name = TK_TO_SDL.get(keysym) or (keysym.upper() if len(keysym) == 1 and keysym.isalnum() else None)
+        if not name:
+            self.controls_hint.config(text=f"The key {keysym} can't be used. Choose another key.", fg=STOP_RED)
+            self.stop_capture()
+            return "break"
+        action, slot = self.capturing
+        self.set_binding(action, slot, f"key:{name}")
+        return "break"
+
+    def capture_button(self, event):
+        names = {1: "left", 2: "middle", 3: "right", 4: "x1", 5: "x2"}
+        if event.num in names:
+            self.capture_mouse(names[event.num])
+        return "break"
+
+    def capture_wheel(self, event):
+        self.capture_mouse("wheel_up" if event.delta > 0 else "wheel_down")
+        return "break"
+
+    def capture_mouse(self, name):
+        action, slot = self.capturing
+        if action in STICK_ACTIONS:
+            self.controls_hint.config(text="Stick directions take keys; the mouse moves the camera by itself.",
+                                      fg=STOP_RED)
+            self.stop_capture()
+            return
+        self.set_binding(action, slot, f"mouse:{name}")
+
+    def set_binding(self, action, slot, binding):
+        controls = self.game_controls()
+        if binding:
+            # A key or button does one thing: it leaves the action it had.
+            for other, bindings in controls.items():
+                if binding in bindings and (other, bindings.index(binding)) != (action, slot):
+                    bindings.remove(binding)
+        bindings = controls[action]
+        while len(bindings) <= slot:
+            bindings.append(None)
+        bindings[slot] = binding
+        controls[action] = [b for b in bindings if b][:2]
+        self.game_settings()["controls"] = controls
+        write_config(self.config)
+        self.controls_hint.config(
+            text="Saved for " + self.current_game()["name"] + ". Click a slot, then press a key or a mouse button "
+                 "(right-click a slot to clear it).", fg=MUTED)
+        self.capturing = None
+        for sequence in ("<KeyPress>", "<ButtonPress>", "<MouseWheel>"):
+            self.root.unbind_all(sequence)
+        self.refresh_bindings()
+
+    def reset_controls(self):
+        name = self.current_game()["name"]
+        if not messagebox.askyesno(APP_TITLE, f"Reset {name}'s keyboard and mouse controls?"):
+            return
+        settings = self.game_settings()
+        settings.update({"controls": None, "mouse": True, "mouse_sens": "1.0", "mouse_invert": False})
+        write_config(self.config)
+        self.refresh_controls()
+
     def page_advanced(self):
         page = self.page()
 
@@ -899,6 +1181,12 @@ class Launcher:
             env[f"UNCHARTED_RESOLUTION_{key.upper()}"] = settings["resolution"]
             env[f"UNCHARTED_MULTITHREADED_{key.upper()}"] = "1" if settings["multithreaded"] else "0"
             env[f"UNCHARTED_ASYNC_READBACK_{key.upper()}"] = "1" if settings["async_readback"] else "0"
+            keys, mouse = control_maps(settings.get("controls"))
+            env[f"UNCHARTED_KEY_MAP_{key.upper()}"] = keys
+            env[f"UNCHARTED_MOUSE_MAP_{key.upper()}"] = mouse
+            env[f"UNCHARTED_MOUSE_{key.upper()}"] = "1" if settings.get("mouse", True) else "0"
+            env[f"UNCHARTED_MOUSE_SENS_{key.upper()}"] = settings.get("mouse_sens", "1.0")
+            env[f"UNCHARTED_MOUSE_INVERT_{key.upper()}"] = "1" if settings.get("mouse_invert") else "0"
         python = Path(sys.executable)
         if python.name.lower() == "pythonw.exe" and python.with_name("python.exe").exists():
             python = python.with_name("python.exe")
@@ -1055,6 +1343,12 @@ class Launcher:
 def main():
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        pass
+    # Its own taskbar identity: without it the launcher's window is grouped under Python
+    # (pythonw.exe) and the taskbar shows Python's icon instead of Uncharted's.
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("BilalReloaded.Uncharted.Launcher")
     except Exception:
         pass
     root = tk.Tk()

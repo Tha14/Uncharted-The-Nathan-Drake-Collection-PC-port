@@ -19,6 +19,9 @@ How to play
    High: 1440p 60. Ultra: 4K with the frame rate unlocked (fast GPUs; Uncharted 1 draws at
    1620p and upscales).
    In game, Insert or R3 + L2 opens the menu (display, frame rate, overlay).
+5. Keyboard and mouse work out of the box (WASD move, mouse look, right mouse aim, left mouse
+   fire, Space jump, Left Ctrl cover, F melee, R reload). Change them per game in the launcher's
+   CONTROLS tab. Alt+Tab or Insert frees the mouse.
 
 Notes
 - The first start of each game prepares files and compiles shaders: expect a slow first load

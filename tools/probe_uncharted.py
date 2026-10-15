@@ -390,6 +390,13 @@ def run_game(args, game, executable, guest_args, loadexec):
     if multithreaded is not None:
         env["GOW3_DRAW_PIPE"] = multithreaded
         env["GOW3_VK_RECORD_THREAD"] = multithreaded
+    # Keyboard and mouse (launcher Controls tab, per game; explicit GOW3_* values win).
+    for launcher_key, runtime_key in (("KEY_MAP", "GOW3_KEY_MAP"), ("MOUSE_MAP", "GOW3_MOUSE_MAP"),
+                                      ("MOUSE", "GOW3_MOUSE"), ("MOUSE_SENS", "GOW3_MOUSE_SENS"),
+                                      ("MOUSE_INVERT", "GOW3_MOUSE_INVERT")):
+        value = os.environ.get(f"UNCHARTED_{launcher_key}_{game_key.upper()}")
+        if value is not None and runtime_key not in os.environ:
+            env[runtime_key] = value
     # Asynchronous GPU readbacks, read-protected until they land (launcher option per game; an
     # explicit GOW3_ASYNC_READBACK wins). Drake's Fortune dies while loading with them (15 Oct).
     async_readback = os.environ.get(f"UNCHARTED_ASYNC_READBACK_{game_key.upper()}")
