@@ -20,5 +20,9 @@ class Rasterizer;
 bool ExecuteShaderHLE(const Shader::Info& info, const AmdGpu::Regs& regs,
                       const AmdGpu::ComputeProgram& cs_program, Rasterizer& rasterizer);
 
+/// gow3 diagnostics (GOW3_SCALAR_COPY_CHECK=1): compares the sources of the CPU scalar copies made
+/// since the last submission with guest memory now (Rasterizer::OnSubmit).
+void CheckScalarCopySources();
+
 
 } // namespace Vulkan

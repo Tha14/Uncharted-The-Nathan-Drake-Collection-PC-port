@@ -18,7 +18,8 @@ inline constexpr std::array<const char*, DisplayModeCount> DisplayModeNames = {
 /// Present rate limits. Uncharted: at most 120; faster, movement timing breaks (Drake's
 /// Fortune at 140-160 FPS: running slows, Nate fell through the world).
 inline constexpr int MaxFpsLimit = 120;
-inline constexpr std::array<int, 3> FpsLimits = {30, 60, MaxFpsLimit};
+/// 40-55 for tests (Uncharted 3's cloth flickers at 60 FPS but not at 30, 16 Oct).
+inline constexpr std::array<int, 7> FpsLimits = {30, 40, 45, 50, 55, 60, MaxFpsLimit};
 
 /// Game patch suffixes ("Resolution Patch - <name>"); "native" is no resolution patch.
 inline constexpr std::array<std::string_view, 6> Resolutions = {"native", "480p", "720p",
@@ -54,7 +55,7 @@ inline int ParseEngineFps(int value) {
 /// Frames the GPU command thread may queue ahead of the GPU; 0 = unbounded.
 inline constexpr std::array<int, 3> FramesQueued = {1, 2, 0};
 inline int ParseFramesQueued(int value) {
-    return IndexOf(FramesQueued, value, -1) >= 0 ? value : 2;
+    return IndexOf(FramesQueued, value, -1) >= 0 ? value : 1;
 }
 /// RCAS strength in percent; invalid values fall back to 75.
 inline int ParseRcasStrength(int value) {

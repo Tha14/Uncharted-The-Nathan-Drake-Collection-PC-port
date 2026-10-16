@@ -52,6 +52,10 @@ public:
     [[nodiscard]] u8* Data(u64 offset) noexcept {
         return buffer.mapped_data.data() + offset;
     }
+    /// The ring's buffer (late-constant refresh, vk_rasterizer.cpp).
+    [[nodiscard]] VideoCore::Buffer& Storage() noexcept {
+        return buffer;
+    }
 
     /// Stage A, after writing: makes the bytes visible to the GPU.
     void Flush(u64 offset, u64 size) {

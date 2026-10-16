@@ -38,13 +38,14 @@ plan and test list: [analysis/PLAN.md](analysis/PLAN.md).
   | High | 1440p | 60 | fast GPUs |
   | Ultra | 4K (Drake's Fortune: 1620p + FSR 1) | up to 120 (experimental) | very fast GPUs |
 
-  Every preset queues 2 frames: the next frame is prepared while the GPU draws the last one.
+  Every preset queues 1 frame. 2 frames queued is faster in heavy scenes, but GPU results
+  reach the game a frame later: keep it at 1.
 
 - **Display:** windowed, borderless or exclusive fullscreen; render resolution 720p, 900p, 1080p,
   1440p, 1620p or 4K; FSR 1 upscaling; RCAS sharpening; FPS counter.
-- **Performance:** frame rate limit 30 / 60 / 120 (60 is the PS4's; 120 is experimental, and
-  faster rates break the games' movement, so they are not offered); frames queued; background
-  shader compilation; multithreaded rendering (experimental).
+- **Performance:** frame rate limit 30 / 40 / 45 / 50 / 55 / 60 / 120 (60 is the PS4's; 120 is
+  experimental, and faster rates break the games' movement, so they are not offered); frames
+  queued; background shader compilation; multithreaded rendering (experimental).
 - **Keyboard and mouse:** mouse look (sensitivity, invert Y), right mouse aim, left mouse fire, WASD,
   and every action remappable per game in the **Controls** tab (two bindings per action, keys or
   mouse buttons). Controllers (DualSense, DualShock 4, Xbox) work at the same time.
@@ -67,12 +68,17 @@ plan and test list: [analysis/PLAN.md](analysis/PLAN.md).
 
 ## Known issues
 
-- **Frame rate in the heaviest Uncharted 2 scenes is about 40-45 FPS** at any resolution: the
+- **Frame rate in the heaviest Uncharted 2 scenes is about 50 FPS** at any resolution: the
   PS4's GPU command processing runs on one CPU core here (3,000-5,600 draws per frame). Lighter
   scenes reach 60. More optimization is planned.
-- **Multithreaded rendering (experimental) with "Frames queued 2"** can still end Uncharted 2 with
-  the game assert `m_gfxEopTick` after a few minutes. Use multithreaded rendering with 1 frame
-  queued, or leave it off (the default).
+- **Multithreaded rendering is experimental:** its crashes with 1 frame queued are fixed, but it
+  gives no speed-up on fast CPUs, and with "Frames queued 2" Uncharted 2 can still stop with the
+  game assert `m_gfxEopTick`. Leave it off (the default) unless you test it.
+- **Uncharted 3:** Sully's shirt in the bar can flicker at 60 FPS (not at 30).
+- **Recording with OBS Game Capture:** if OBS keeps losing and re-hooking the game, the game's
+  memory use grows (each hook creates DirectX devices in the game). With an NVIDIA card set
+  NVIDIA Control Panel -> Manage 3D settings -> Program settings -> Uncharted.exe ->
+  **Vulkan/OpenGL present method: Prefer native**, or use OBS **Window Capture**.
 - Drake's Fortune renders at most 2880x1620 (its memory layout) and upscales to 4K; turn on FSR 1.
 - Frame rates above 120 are not offered: the games' movement breaks (Drake's Fortune at 160 FPS
   dropped Nate through the world).

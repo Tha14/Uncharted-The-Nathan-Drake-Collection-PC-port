@@ -2,7 +2,15 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "gow3_profiler.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
+#include <array>
+#include <map>
+#include <string>
+#include <fmt/format.h>
 #include <chrono>
+#include <thread>
 #include <pthread.h>
 #ifndef _WIN32
 #include <sys/resource.h>
@@ -88,6 +96,17 @@ Liverpool::~Liverpool() {
 }
 
 void Liverpool::ProcessCommands() {
+    // gow3: fences deferred until their ray-cast readbacks land are written as soon as those land
+    // (checked every 64 packets: the semaphore query is a kernel call), not only per submission.
+    if (rasterizer) {
+        static u32 packets = 0;
+        auto& cache = rasterizer->GetBufferCache();
+        // With multithreaded rendering only while the draw recording thread is idle: it owns the
+        // readbacks while it runs (and lands them itself, per draw).
+        if (cache.HasDeferredSignals() && (++packets & 63) == 0 && rasterizer->DrawPipeIdle()) {
+            cache.PollReadbacksNow();
+        }
+    }
     if (num_commands && rasterizer) {
         rasterizer->DrainDrawPipe(Vulkan::DrawPipe::ReasonCommands); // gow3: commands touch the caches
     }
@@ -123,6 +142,25 @@ void Liverpool::Process(std::stop_token stoken) {
         {
             const auto idle_start = std::chrono::steady_clock::now();
             std::unique_lock lk{submit_mutex};
+            // gow3: fences waiting for ray-cast readbacks are written when those land: poll for
+            // them while there is nothing else to do (the guest may wait on such a fence first).
+            while (rasterizer && rasterizer->GetBufferCache().HasDeferredSignals() &&
+                   !(num_commands || num_submits || submit_done) && !stoken.stop_requested()) {
+                lk.unlock();
+                // Multithreaded rendering: the draw recording thread finishes first (it owns the
+                // readbacks while it runs; nothing new reaches it while this thread is idle).
+                rasterizer->DrainDrawPipe(Vulkan::DrawPipe::ReasonCommands);
+                // The readback those fences wait for may still be in the open command buffer
+                // (the guest waits for the fence before it submits more): send it to the GPU.
+                if (rasterizer->GetBufferCache().HasUnsubmittedReadback()) {
+                    rasterizer->Flush();
+                }
+                rasterizer->GetBufferCache().PollReadbacksNow();
+                lk.lock();
+                if (rasterizer->GetBufferCache().HasDeferredSignals()) {
+                    submit_cv.wait_for(lk, std::chrono::milliseconds{1});
+                }
+            }
             Common::CondvarWait(submit_cv, lk, stoken,
                                 [this] { return num_commands || num_submits || submit_done; });
             Gow3Stats::gpu_idle_ns.fetch_add(
@@ -247,10 +285,43 @@ bool PipelinedOpcode(PM4ItOpcode opcode) {
 } // namespace
 
 namespace {
+// gow3 diagnostics (GOW3_EOP_RANGE_TRACE=<lo>:<hi>[:<counter>] hex guest addresses): fence
+// writes into [lo, hi) with the time, the writing thread and the 8-byte value at <counter> (e.g. the
+// game's frame counter), 4000 lines at most.
+static void TraceEopWrite(u64 address, u64 data) {
+    static const std::array<u64, 3> range = [] {
+        std::array<u64, 3> out{};
+        const char* env = std::getenv("GOW3_EOP_RANGE_TRACE");
+        for (int i = 0; env && *env && i < 3; ++i) {
+            char* end = nullptr;
+            out[i] = std::strtoull(env, &end, 16);
+            env = end && *end == ':' ? end + 1 : nullptr;
+        }
+        return out;
+    }();
+    if (!range[1] || address < range[0] || address >= range[1]) {
+        return;
+    }
+    static std::atomic<int> lines{0};
+    if (lines.fetch_add(1) >= 4000) {
+        return;
+    }
+    static const auto t0 = std::chrono::steady_clock::now();
+    u64 counter = 0;
+    if (range[2]) {
+        std::memcpy(&counter, reinterpret_cast<const void*>(range[2]), sizeof(counter));
+    }
+    std::printf("EOP trace: t=%.2f ms label %#llx = %#llx, counter %llu, thread %lu\n",
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
+                static_cast<unsigned long long>(address), static_cast<unsigned long long>(data),
+                static_cast<unsigned long long>(counter), static_cast<unsigned long>(GetCurrentThreadId()));
+}
+
 void SignalEop(const PM4CmdEventWriteEop& eop) {
     eop.SignalFence(
         [](void* address, u64 data, u32 num_bytes) {
             auto* memory = Core::Memory::Instance();
+            TraceEopWrite(reinterpret_cast<u64>(address), data);
             Gow3WriteLog::Note(reinterpret_cast<u64>(address), &data, num_bytes, Gow3WriteLog::Fence);
             if (!memory->TryWriteBacking(address, &data, num_bytes)) {
                 memcpy(address, &data, num_bytes);
@@ -264,7 +335,7 @@ void SignalEop(const PM4CmdEventWriteEop& eop) {
 void RunEventWriteEop(Vulkan::Rasterizer& rasterizer, const u8* data) {
     const auto eop = *reinterpret_cast<const PM4CmdEventWriteEop*>(data);
     rasterizer.ProcessDownloadImages();
-    rasterizer.ReadBackEopResults();
+    const bool results_pending = rasterizer.ReadBackEopResults();
     // The label is written through the backing view: older GPU data there must not come back.
     switch (eop.data_sel.Value()) {
     case DataSelect::None:
@@ -284,16 +355,53 @@ void RunEventWriteEop(Vulkan::Rasterizer& rasterizer, const u8* data) {
         const char* env = std::getenv("GOW3_ASYNC_FENCES");
         return env && env[0] == '1';
     }();
+    // gow3 16 Oct: a fence after ray-cast results (and later fences to the same label) is
+    // written once those results are back in guest memory: the guest reads them as soon as
+    // it sees the fence. Written at once, it read the stale buffer (Uncharted 2: NPCs placed
+    // from old results fell from the sky). GOW3_DEFER_RAYCAST_FENCES=0: at once, as before.
+    static const bool defer = [] {
+        const char* env = std::getenv("GOW3_DEFER_RAYCAST_FENCES");
+        return !(env && env[0] == '0');
+    }();
+    auto& cache = rasterizer.GetBufferCache();
+    const bool wait_readbacks = defer && (results_pending || cache.HasDeferredSignals());
     if (async_fences && !Gow3Toggle::Disabled(Gow3Toggle::AsyncFences)) {
         Gow3Copy::AfterCopies([eop] { SignalEop(eop); });
-    } else if (Vulkan::DrawPipe::OnStageB() && !Gow3Toggle::Disabled(Gow3Toggle::RecorderFences)) {
+    } else if (Vulkan::DrawPipe::OnStageB() && !Gow3Toggle::Disabled(Gow3Toggle::RecorderFences) &&
+               !wait_readbacks) {
         // The draw recording thread does not wait: the Vulkan recording thread signals the
-        // fence after the copies queued before it.
+        // fence after the copies queued before it. A fence after readbacks takes the path below
+        // on this thread too: signalled here, it overtook its readback and Uncharted 2's NPCs
+        // floated again with multithreaded rendering (16 Oct).
         rasterizer.SignalAfterHostCopies([eop] { SignalEop(eop); });
     } else {
         // Labels are written in order: not before the ones deferred to the recording thread.
         rasterizer.WaitHostCopies();
         rasterizer.WaitDeferredSignals();
+        const VAddr label =
+            eop.data_sel.Value() == DataSelect::None ? 0 : reinterpret_cast<VAddr>(eop.Address<u32>());
+        u64 value = 0;
+        u32 bytes = 0;
+        if (eop.data_sel.Value() == DataSelect::Data32Low) {
+            value = eop.DataDWord();
+            bytes = 4;
+        } else if (eop.data_sel.Value() == DataSelect::Data64) {
+            value = eop.DataQWord();
+            bytes = 8;
+        }
+        // While any fence waits for its readback, later ones queue behind it: end-of-pipe fences
+        // complete in order (the guest frees command buffers of frame N once it sees frame N+1
+        // done; a later fence written first let Uncharted 2 overwrite a command buffer the GPU
+        // thread was still reading).
+        if (wait_readbacks &&
+            cache.DeferUntilLastReadback([eop] { SignalEop(eop); }, label, value, bytes)) {
+            // The GPU starts on the ray casts now rather than when the frame's command buffer is
+            // submitted at its end: the fence (and the guest waiting for it) follows sooner.
+            if (results_pending) {
+                rasterizer.Flush();
+            }
+            return;
+        }
         SignalEop(eop);
     }
 }
@@ -438,6 +546,58 @@ void Liverpool::NotePendingWrite(const PM4CmdWriteData& write_data, u32 num_byte
     std::memcpy(&data, write_data.data, num_bytes);
     pending_fences.push_back(
         {write_data.Address<VAddr>(), data, num_bytes, rasterizer->DrawPipeHead()});
+}
+
+// gow3: a GPU wait on a fence deferred until its ray-cast readback lands (RunEventWriteEop): the
+// GPU would have written that fence before reaching the wait, so the readback lands now (its
+// command buffer is submitted first if it is still open). Statistics: GOW3_FAULT_STATS lines.
+bool Liverpool::LandDeferredFenceFor(const PM4CmdWaitRegMem& wait, const Regs& state) {
+    if (!rasterizer || wait.mem_space.Value() != PM4CmdWaitRegMem::MemSpace::Memory ||
+        wait.Test(state.reg_array)) {
+        return false;
+    }
+    auto& cache = rasterizer->GetBufferCache();
+    if (!cache.HasDeferredSignals()) {
+        return false;
+    }
+    // Multithreaded rendering: the deferred fences belong to the draw recording thread while it
+    // runs (an unmet wait drains it anyway).
+    rasterizer->DrainDrawPipe(Vulkan::DrawPipe::ReasonCommands);
+    u64 tick = 0;
+    u32 value = 0;
+    if (!cache.DeferredFenceTick(wait.Address<VAddr>(), tick, &value)) {
+        return false;
+    }
+    // The deferred value counts as written: the GPU runs in stream order, so it would have written
+    // the fence before reaching this wait. Safe because deferred fences complete in order (see
+    // RunEventWriteEop). GOW3_DEFERRED_WAITS=land: the readback lands first instead (the GPU
+    // thread waits for the GPU: Uncharted 2 at 42 instead of 60 FPS).
+    static const bool pass = [] {
+        const char* env = std::getenv("GOW3_DEFERRED_WAITS");
+        return !(env && std::string_view{env} == "land");
+    }();
+    if (pass) {
+        return wait.TestValue(value);
+    }
+    static std::atomic<u32> landed{0};
+    static std::atomic<u64> waited_us{0};
+    static auto last = std::chrono::steady_clock::now();
+    const auto start = std::chrono::steady_clock::now();
+    if (cache.HasUnsubmittedReadback()) {
+        rasterizer->Flush();
+    }
+    cache.LandReadbacks(tick);
+    const auto now = std::chrono::steady_clock::now();
+    ++landed;
+    waited_us += std::chrono::duration_cast<std::chrono::microseconds>(now - start).count();
+    if (now - last >= std::chrono::seconds{5}) {
+        last = now;
+        const u32 n = landed.exchange(0);
+        std::printf("GPU waits on deferred fences (5 s): %u, %.2f ms waiting in all\n", n,
+                    waited_us.exchange(0) / 1e3);
+        std::fflush(stdout);
+    }
+    return false;
 }
 
 bool Liverpool::PendingFenceValue(VAddr address, u32& value) {
@@ -760,9 +920,50 @@ void ScanDcb(std::span<const u32> dcb, int depth) {
 }
 } // namespace
 
+// gow3 test (GOW3_GFX_START_DELAY_US): a graphics submission starts at least this long after the
+// guest submitted it, like a PS4 GPU still busy with the previous frame.
+static std::atomic<s64> g_last_gfx_submit_ns{0};
+static s64 SteadyNs() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+
 Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<const u32> ccb,
                                            u64 seq) {
     FIBER_ENTER(dcb_task_name);
+    static const s64 start_delay_ns = [] {
+        const char* env = std::getenv("GOW3_GFX_START_DELAY_US");
+        return env ? std::atoll(env) * 1000 : 0;
+    }();
+    // gow3 test (GOW3_GFX_WAIT_SUBMIT_DONE_MS): a graphics submission starts once the guest
+    // finished the frame it belongs to (sceGnmSubmitDone), at most this long after it was submitted
+    // (a PS4 GPU still busy with the previous frame reads the frame's data late).
+    static const s64 wait_done_ns = [] {
+        const char* env = std::getenv("GOW3_GFX_WAIT_SUBMIT_DONE_MS");
+        return env ? std::atoll(env) * 1000000 : 0;
+    }();
+    if (wait_done_ns > 0) {
+        u64 gen = 0;
+        s64 submitted = 0;
+        {
+            std::scoped_lock lock{gfx_submit_gen_mutex};
+            if (!gfx_submit_gens.empty()) {
+                std::tie(gen, submitted) = gfx_submit_gens.front();
+                gfx_submit_gens.pop_front();
+            }
+        }
+        while (submit_done_gen.load(std::memory_order_acquire) <= gen &&
+               SteadyNs() < submitted + wait_done_ns) {
+            std::this_thread::sleep_for(std::chrono::microseconds{100});
+        }
+    }
+    if (start_delay_ns > 0) {
+        const s64 until = g_last_gfx_submit_ns.load(std::memory_order_acquire) + start_delay_ns;
+        for (s64 now = SteadyNs(); now < until; now = SteadyNs()) {
+            std::this_thread::sleep_for(std::chrono::nanoseconds{std::min<s64>(until - now, 200000)});
+        }
+    }
     // Top-level buffers enqueued for the draw preparation workers (nested IBs are not).
     Vulkan::DrawPreparation* draw_prep =
         seq != NoSeq && rasterizer ? &rasterizer->GetDrawPreparation() : nullptr;
@@ -798,10 +999,35 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
         default:
             UNREACHABLE_MSG("Wrong PM4 type {}", type);
             break;
-        case 0:
+        case 0: {
+            const VAddr at = reinterpret_cast<VAddr>(header);
+            std::printf("Invalid packet at %#llx: offset %#llx in a command buffer at %#llx of %zu dwords "
+                        "left (depth %d)\n",
+                        static_cast<unsigned long long>(at),
+                        static_cast<unsigned long long>(at - base_addr),
+                        static_cast<unsigned long long>(base_addr), dcb.size(), dcb_depth);
+            if (rasterizer) {
+                auto& cache = rasterizer->GetBufferCache();
+                std::printf("  GPU-written: %d, readback in flight: tick %llu, current tick %llu\n",
+                            int(cache.IsRangeGpuWritten(at, 64)),
+                            static_cast<unsigned long long>(cache.PendingReadbackTickFor(at, 64)),
+                            0ULL);
+            }
+            const u32* words = reinterpret_cast<const u32*>(base_addr);
+            std::printf("  first dwords:");
+            for (int i = 0; i < 8; ++i) {
+                std::printf(" %08x", words[i]);
+            }
+            std::printf("\n  at the packet:");
+            for (int i = 0; i < 8 && size_t(i) < dcb.size(); ++i) {
+                std::printf(" %08x", dcb[i]);
+            }
+            std::printf("\n");
+            std::fflush(stdout);
             UNREACHABLE_MSG("Unimplemented PM4 type 0, base reg: {}, size: {}",
                             header->type0.base.Value(), header->type0.NumWords());
             break;
+        }
         case 2:
             // Type-2 packet are used for padding purposes
             dcb = NextPacket(dcb, 1);
@@ -1280,6 +1506,39 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
             case PM4ItOpcode::WaitRegMem: {
                 const auto* wait_reg_mem = reinterpret_cast<const PM4CmdWaitRegMem*>(header);
                 // ASSERT(wait_reg_mem->engine.Value() == PM4CmdWaitRegMem::Engine::Me);
+                // gow3 diagnostics (GOW3_WAIT_TRACE=1): graphics waits on memory, 5 s statistics
+                // by address window and whether they were met at once.
+                static const bool wait_trace = [] {
+                    const char* env = std::getenv("GOW3_WAIT_TRACE");
+                    return env && env[0] == '1';
+                }();
+                if (wait_trace && wait_reg_mem->mem_space.Value() == PM4CmdWaitRegMem::MemSpace::Memory) {
+                    static std::map<u64, std::array<u64, 2>> waits; // 1 MiB window -> (waits, unmet)
+                    static auto last = std::chrono::steady_clock::now();
+                    static int lines = 0;
+                    const bool met = wait_reg_mem->Test(regs.reg_array);
+                    auto& w = waits[wait_reg_mem->Address<VAddr>() >> 20];
+                    ++w[0];
+                    w[1] += !met;
+                    if (lines < 40) {
+                        ++lines;
+                        std::printf("Wait trace: gfx wait %#llx ref %#x mask %#x func %u, value now %#x: %s\n",
+                                    static_cast<unsigned long long>(wait_reg_mem->Address<VAddr>()),
+                                    wait_reg_mem->ref, wait_reg_mem->mask,
+                                    unsigned(wait_reg_mem->function.Value()),
+                                    *wait_reg_mem->Address<u32*>(), met ? "met" : "waits");
+                    }
+                    if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds{5}) {
+                        last = now;
+                        std::string text;
+                        for (const auto& [window, n] : waits) {
+                            text += fmt::format(" {:#x}: {} ({} unmet)", window << 20, n[0], n[1]);
+                        }
+                        std::printf("Wait trace (5 s): gfx memory waits by window:%s\n", text.c_str());
+                        std::fflush(stdout);
+                        waits.clear();
+                    }
+                }
                 // Optimization: VO label waits are special because the emulator
                 // will write to the label when presentation is finished. So if
                 // there are no other submits to yield to we can sleep the thread
@@ -1291,6 +1550,9 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                         rasterizer->DrainDrawPipe(static_cast<u32>(opcode));
                     }
                     vo_port->WaitVoLabel([&] { return wait_reg_mem->Test(regs.reg_array); });
+                    break;
+                }
+                if (LandDeferredFenceFor(*wait_reg_mem, regs)) {
                     break;
                 }
                 // gow3: a fence handed to the draw recording thread counts as written: that
@@ -1678,8 +1940,10 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
         case PM4ItOpcode::WaitRegMem: {
             const auto* wait_reg_mem = reinterpret_cast<const PM4CmdWaitRegMem*>(header);
             ASSERT(wait_reg_mem->engine.Value() == PM4CmdWaitRegMem::Engine::Me);
-            while (!wait_reg_mem->Test(regs.reg_array)) {
-                YIELD_ASC(vqid);
+            if (!LandDeferredFenceFor(*wait_reg_mem, regs)) {
+                while (!wait_reg_mem->Test(regs.reg_array)) {
+                    YIELD_ASC(vqid);
+                }
             }
             break;
         }
@@ -1752,6 +2016,12 @@ Liverpool::CmdBuffer Liverpool::CopyCmdBuffers(std::span<const u32> dcb, std::sp
 
 void Liverpool::SubmitGfx(std::span<const u32> dcb, std::span<const u32> ccb) {
     auto& queue = mapped_queues[GfxQueueId];
+    g_last_gfx_submit_ns.store(SteadyNs(), std::memory_order_release);
+    static const bool wait_done_test = std::getenv("GOW3_GFX_WAIT_SUBMIT_DONE_MS") != nullptr;
+    if (wait_done_test) { // the test switch only: otherwise nothing takes these off again
+        std::scoped_lock lock{gfx_submit_gen_mutex};
+        gfx_submit_gens.emplace_back(submit_done_gen.load(std::memory_order_acquire), SteadyNs());
+    }
 
     if (EmulatorSettings.IsCopyGpuBuffers()) {
         std::tie(dcb, ccb) = CopyCmdBuffers(dcb, ccb);

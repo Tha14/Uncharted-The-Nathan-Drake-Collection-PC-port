@@ -4,7 +4,60 @@ Uncharted: The Nathan Drake Collection PC port, by **BilalReloaded**
 ([YouTube](https://www.youtube.com/@BilalReloaded/videos), [GitHub](https://github.com/bc160201983)).
 Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
-## 15 October 2026
+## 16 October 2026 (0.1.2)
+
+- **Uncharted 2: blurry background while aiming fixed.** The aiming depth of field reads its focus
+  distance from a 1x1 texture the GPU renders; it was never copied back to the game (the distance
+  stayed 0, so everything behind Nate was out of focus). Tiny GPU-rendered textures now come back
+  with the frame's "done" fence (Uncharted 2 only; the other two games do not need it). Above 1080p
+  the game also measured the depth at the wrong spot (the crosshair's 1080p HUD position over the
+  larger render): that position is now scaled to the render size, so it is right at every
+  resolution.
+- **Uncharted 2: GPU hang ("Device lost") after a long session fixed.** The treasure pickup effect
+  takes some buffer descriptors from table slots that hold other data; one that pointed into mapped
+  memory with ~1e9 records hung the GPU. Such descriptors (unaligned, huge stride or over 64 MiB)
+  are now ignored for its two shaders.
+- **Multithreaded rendering:** the Uncharted 3 crash within minutes (flips overtook the frame's
+  fences; the GPU-written range set was read and changed by two threads) and the Uncharted 2
+  floating NPCs (fences did not wait for their readbacks on the recording thread) are fixed;
+  Uncharted 3 ran 8 minutes crash-free. Still experimental.
+- **Faster heavy scenes:** optimizations that were off since the grey-world and floating hunts
+  (threaded recording, draw preparation, prepared resources, deferred stream copies, parallel
+  copies) are on again by default: heaviest Uncharted 2 view 43.8 -> 49.0 FPS, Uncharted 3 about 9%
+  less GPU-command-thread work.
+- **74-85% less GPU readback in all three games:** windows the CPU stopped writing into cool down
+  after 3 s, and small GPU writes come back on their own instead of with the whole 64 KiB around
+  them (the effect shaders' data the game never reads made up nearly all of it). Uncharted 2
+  2.9 -> 0.46 GB per 5 s, Uncharted 3 3.1 -> 0.48, Drake's Fortune 0.63 -> 0.16.
+- **Frame rate limits 40, 45, 50 and 55** in the in-game menu and the launcher.
+- Profiler (`GOW3_PROFILE`): no longer freezes or crashes the game (own lock-free stack unwinder).
+- New diagnostics: `GOW3_READBACK_STATS=1` (readback bytes per window, why and who wrote them),
+  `GOW3_TRACE_PS=<hashes>` (render targets, viewport, textures and constants of a shader's draws).
+
+- **Uncharted 3: crash in the Cartagena museum and characters flying around fixed.** GPU results
+  were copied back to the game without protection: a late copy could land on data the game had
+  just written (garbage pointers, a broken GPU command list). New GPU data is now read-protected
+  until it is back; the game's reads of it wait, everything else runs on.
+- **Uncharted 2: NPCs coming from the sky fixed.** The game places characters on the ground with
+  GPU ray casts and reads the results once a GPU "done" counter is set. That counter was written
+  when the command was recorded, before the GPU had run it, and a shortcut from 15 October threw
+  nearly every result away. The counter is now written once the results are back in game memory,
+  in strict order with the frame's other counters (as on the console).
+- **Uncharted 2: NPCs floating in the air, Nate's feet sinking into the floor and NPC legs
+  flickering while they walk fixed** (also in 0.1.1). The game reads back data that a GPU copy
+  shader writes every frame; the port returned it with the next submission, a frame late. Those
+  small copies now come back before the frame's "done" fence the game waits for (no FPS cost; the
+  shader's large copies, which the game never reads, are left out). Every preset queues 1 frame
+  again; the launcher moves preset settings back from 2 to 1.
+- **Faster heavy scenes:** guest-memory copies for the GPU no longer take a lock (10-15% of the GPU
+  command thread in heavy Uncharted 2 scenes: 7.9 -> 6.4 microseconds per draw); GPU checkpoints
+  (crash diagnosis, ~2%) only on request (`UNCHARTED_GPU_CHECKPOINTS=1`).
+- Protected copy-back without the cost: pages where the game reads its own data beside GPU results
+  and results the game reads every frame (such as scene brightness) stay readable; Uncharted 2
+  went from 33-46 to 60 FPS with protection on. A deadlock that hung Uncharted 3 while loading
+  with protection on is fixed (uploads copy through an unprotected view of the same memory).
+- Tracking of small GPU writes no longer grows over a session.
+
 
 - **First release, 0.1.0 (beta).** The package now carries `LICENSE.txt`, `CHANGELOG.md` and
   the licenses of all bundled libraries (`licenses/`).

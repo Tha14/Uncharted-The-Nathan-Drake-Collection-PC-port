@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <bit>
 #include <atomic>
 #include <cmath>
 #include <cstdio>
@@ -51,6 +52,42 @@ static Shader::PushData MakeUserData(const AmdGpu::Regs& regs) {
     return push_data;
 }
 
+extern "C" void runtime_exec_watch_retarget(uint64_t address);
+namespace {
+// gow3 16 Oct: a depth image sampled by a draw that also has it as its depth attachment
+// (Uncharted 3's half-resolution depth, 960x540 D32S8, with depth writes on) used to be bound as
+// a texture in DepthStencilReadOnlyOptimal and then moved to the attachment layout before the
+// render pass: the descriptor named a stale layout and every such draw had two transitions
+// (Vulkan synchronization validation: write-after-write and read-after-write hazards). On NVIDIA
+// objects flickered as flat-coloured shapes. Both uses now share the general layout, like a
+// colour target in a feedback loop.
+constexpr vk::ImageLayout DepthFeedbackLayout = vk::ImageLayout::eGeneral;
+constexpr vk::PipelineStageFlags2 DepthFeedbackStages =
+    vk::PipelineStageFlagBits2::eEarlyFragmentTests | vk::PipelineStageFlagBits2::eLateFragmentTests |
+    vk::PipelineStageFlagBits2::eAllGraphics;
+constexpr vk::AccessFlags2 DepthFeedbackAccess = vk::AccessFlagBits2::eShaderRead |
+                                                 vk::AccessFlagBits2::eDepthStencilAttachmentRead |
+                                                 vk::AccessFlagBits2::eDepthStencilAttachmentWrite;
+// Opt-in (GOW3_DEPTH_FEEDBACK_GENERAL=1) until tested in Uncharted 1 and 2; it removed the
+// validation hazards in Uncharted 3 but not its flicker.
+bool DepthFeedbackGeneral() {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_DEPTH_FEEDBACK_GENERAL");
+        return env && env[0] == '1';
+    }();
+    return enabled;
+}
+} // namespace
+namespace {
+bool SrtCheckEnabled();
+void NoteSrtWalk(const Shader::Info& info);
+extern Rasterizer* g_srt_check_rasterizer;
+bool LateConstantsEnabled();
+void NoteLateGuestCopy(VideoCore::Buffer& buffer, u64 offset, VAddr address, u32 size);
+void NoteLateFlatCopy(VideoCore::Buffer& buffer, u64 offset, const Shader::Info& stage, u32 size);
+void RefreshLateConstants(Core::MemoryManager* memory);
+} // namespace
+
 Rasterizer::Rasterizer(const Instance& instance_, Scheduler& scheduler_, Runtime& runtime_,
                        AmdGpu::Liverpool* liverpool_)
     : instance{instance_}, scheduler{scheduler_}, runtime{runtime_}, page_manager{this},
@@ -82,6 +119,10 @@ Rasterizer::Rasterizer(const Instance& instance_, Scheduler& scheduler_, Runtime
         srt_rasterizer = this;
         Shader::g_srt_pre_walk = [](const Shader::Info& info) { srt_rasterizer->SyncSrtTables(info); };
     }
+    if (SrtCheckEnabled()) {
+        g_srt_check_rasterizer = this;
+        Shader::g_srt_post_walk = &NoteSrtWalk;
+    }
 
     GpuProfiler::Init(instance, scheduler);
     if (DrawPipeWanted()) {
@@ -91,6 +132,9 @@ Rasterizer::Rasterizer(const Instance& instance_, Scheduler& scheduler_, Runtime
     // gow3: this thread joins the texture binding helper before it changes image state.
     runtime.SetImageAccessHook(&JoinBindHelper, this);
     scheduler.SetSubmitCallback([this](Vulkan::SubmitInfo& info) {
+        if (LateConstantsEnabled()) {
+            RefreshLateConstants(memory);
+        }
         runtime.FlushBarriers();
         buffer_cache.SubmitPendingArenaBinds(info);
     });
@@ -117,6 +161,258 @@ inline AmdGpu::CbDbExtent Rasterizer::DbExtent() const {
 }
 
 namespace {
+// gow3 16 Oct: late constants (GOW3_LATE_CONSTANTS=1). Uncharted 3 fills some per-object constants
+// after it submitted the draws that read them: a PS4 GPU reads them when it runs the draw, here
+// they were copied when the draw was processed. About 0.7% of resource-table walks read zeros the
+// game replaced before the submission (GOW3_SRT_CHECK), and objects flickered as flat-coloured
+// shapes. Constant copies and flattened resource tables made for the GPU are compared with guest
+// memory right before their command buffer is submitted, and refreshed where the game changed them.
+struct LateConstant {
+    VideoCore::Buffer* buffer;
+    u64 offset;
+    u32 size;
+    VAddr address;                // guest bytes copied (0: flattened user data)
+    Shader::PFN_SrtWalker walker; // flattened user data: the walk to repeat
+    std::vector<u32> user_data;
+};
+std::mutex g_late_mutex;
+std::vector<LateConstant> g_late;
+std::atomic<u64> g_late_refreshed{0}, g_late_checked{0}, g_late_bytes{0};
+
+bool LateConstantsEnabled() {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_LATE_CONSTANTS");
+        return env && env[0] == '1';
+    }();
+    return enabled;
+}
+
+void NoteLateGuestCopy(VideoCore::Buffer& buffer, u64 offset, VAddr address, u32 size) {
+    std::scoped_lock lock{g_late_mutex};
+    if (g_late.size() < 200000) {
+        g_late.push_back({&buffer, offset, size, address, nullptr, {}});
+    }
+}
+
+void NoteLateFlatCopy(VideoCore::Buffer& buffer, u64 offset, const Shader::Info& stage, u32 size) {
+    if (!stage.srt_info.walker_func) {
+        return; // only user data registers: nothing in memory to change
+    }
+    const auto user_data = stage.UserData();
+    std::scoped_lock lock{g_late_mutex};
+    if (g_late.size() < 200000) {
+        g_late.push_back({&buffer, offset, size, 0, stage.srt_info.walker_func,
+                          std::vector<u32>(user_data.begin(), user_data.end())});
+    }
+}
+
+void RefreshLateConstants(Core::MemoryManager* memory) {
+    std::vector<LateConstant> entries;
+    {
+        std::scoped_lock lock{g_late_mutex};
+        entries.swap(g_late);
+    }
+    std::vector<u8> now;
+    for (const auto& entry : entries) {
+        u8* dst = entry.buffer->mapped_data.data() + entry.offset;
+        now.resize(entry.size);
+        if (entry.address) {
+            memory->CopySparseMemory(entry.address, now.data(), entry.size);
+        } else {
+            auto* flat = reinterpret_cast<u32*>(now.data());
+            const size_t dwords = entry.size / sizeof(u32);
+            std::fill(flat, flat + dwords, 0u);
+            std::memcpy(flat, entry.user_data.data(),
+                        std::min(entry.user_data.size(), dwords) * sizeof(u32));
+            sigjmp_buf recover;
+            if (sigsetjmp(recover, 0)) {
+                runtime_fault_recover = nullptr;
+                continue;
+            }
+            runtime_fault_recover = &recover;
+            entry.walker(entry.user_data.data(), flat);
+            runtime_fault_recover = nullptr;
+        }
+        ++g_late_checked;
+        if (std::memcmp(dst, now.data(), entry.size) != 0) {
+            std::memcpy(dst, now.data(), entry.size);
+            entry.buffer->Flush(entry.offset, entry.size);
+            ++g_late_refreshed;
+            g_late_bytes += entry.size;
+        }
+    }
+    static auto last = std::chrono::steady_clock::now();
+    if (const auto t = std::chrono::steady_clock::now(); t - last >= std::chrono::seconds{5}) {
+        last = t;
+        std::printf("Late constants (5 s): %llu copies checked before submission, %llu refreshed "
+                    "(%.1f KB)\n",
+                    static_cast<unsigned long long>(g_late_checked.exchange(0)),
+                    static_cast<unsigned long long>(g_late_refreshed.exchange(0)),
+                    g_late_bytes.exchange(0) / 1e3);
+        std::fflush(stdout);
+    }
+}
+
+// gow3 diagnostics (GOW3_SRT_CHECK=1): a sample of resource-table walks (user data and the
+// flattened result) is walked again at the next submission. A table the game changed in between
+// was completed after the draw was processed: the walk read old descriptors (5 s statistics).
+Rasterizer* g_srt_check_rasterizer = nullptr;
+
+struct SrtWalkCheck {
+    Shader::PFN_SrtWalker walker;
+    size_t walker_size;
+    u64 hash;
+    std::vector<u32> user_data;
+    std::vector<u32> flat;
+    s64 walk_ns;
+};
+s64 SrtNowNs() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+std::mutex g_srt_check_mutex;
+std::vector<SrtWalkCheck> g_srt_checks;
+
+bool SrtCheckEnabled() {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_SRT_CHECK");
+        return env && env[0] == '1';
+    }();
+    return enabled;
+}
+
+void NoteSrtWalk(const Shader::Info& info) {
+    static std::atomic<u32> sample{0};
+    if ((sample.fetch_add(1, std::memory_order_relaxed) & 3) != 0) {
+        return;
+    }
+    std::scoped_lock lock{g_srt_check_mutex};
+    if (g_srt_checks.size() >= 50000) {
+        return;
+    }
+    g_srt_checks.push_back({info.srt_info.walker_func, info.srt_info.walker_func_size, info.pgm_hash,
+                            std::vector<u32>(info.user_data.begin(), info.user_data.end()),
+                            info.flattened_ud_buf, SrtNowNs()});
+}
+
+void CheckSrtWalks() {
+    if (!SrtCheckEnabled()) {
+        return;
+    }
+    std::vector<SrtWalkCheck> checks;
+    {
+        std::scoped_lock lock{g_srt_check_mutex};
+        checks.swap(g_srt_checks);
+    }
+    static std::map<u64, std::pair<u64, u64>> stats; // shader -> (walks checked, changed)
+    static std::map<std::string, u64> kinds;           // what the caches knew about the source
+    static std::array<u64, 5> ages{};                  // walk to check: <2, <5, <10, <20, more ms
+    static std::map<u64, u64> windows;                 // 1 MiB window of the source
+    static auto last = std::chrono::steady_clock::now();
+    static u32 described = 0;
+    std::vector<u32> now;
+    for (const auto& check : checks) {
+        now.assign(check.flat.size(), 0);
+        std::memcpy(now.data(), check.user_data.data(),
+                    std::min(check.user_data.size(), now.size()) * sizeof(u32));
+        sigjmp_buf recover;
+        if (sigsetjmp(recover, 0)) {
+            runtime_fault_recover = nullptr;
+            continue;
+        }
+        runtime_fault_recover = &recover;
+        check.walker(check.user_data.data(), now.data());
+        runtime_fault_recover = nullptr;
+        auto& s = stats[check.hash];
+        ++s.first;
+        if (now != check.flat) {
+            ++s.second;
+            size_t first = 0;
+            u32 differ = 0;
+            for (size_t i = 0; i < now.size(); ++i) {
+                if (now[i] != check.flat[i]) {
+                    if (!differ++) {
+                        first = i;
+                    }
+                }
+            }
+            const char* kind = "unknown";
+            VAddr source = 0;
+            if (g_srt_check_rasterizer) {
+                source = g_srt_check_rasterizer->SrtSourceAddress(check.walker, check.walker_size,
+                                                                  check.user_data, u32(first), &kind);
+            }
+            ++kinds[kind];
+            ++windows[source >> 20];
+            {
+                const s64 age_ms = (SrtNowNs() - check.walk_ns) / 1000000;
+                ++ages[age_ms < 2 ? 0 : age_ms < 5 ? 1 : age_ms < 10 ? 2 : age_ms < 20 ? 3 : 4];
+            }
+            // GOW3_SRT_WATCH=1: watch the first late-changed source for the game code writing it.
+            static const bool watch = [] {
+                const char* env = std::getenv("GOW3_SRT_WATCH");
+                return env && env[0] == '1';
+            }();
+            static bool watching = false;
+            if (watch && !watching && source) {
+                watching = true;
+                runtime_exec_watch_retarget(source);
+            }
+            if (described < 16) {
+                ++described;
+                std::printf("SRT check: shader %016llx table changed after the walk: %u of %zu dwords, first "
+                            "dword %zu %#x -> %#x, from %#llx (%s)\n",
+                            static_cast<unsigned long long>(check.hash), differ, now.size(), first,
+                            check.flat[first], now[first], static_cast<unsigned long long>(source), kind);
+            }
+        }
+    }
+    if (const auto t = std::chrono::steady_clock::now(); t - last >= std::chrono::seconds{5}) {
+        last = t;
+        std::vector<std::pair<u64, u64>> changed;
+        u64 walks = 0, total_changed = 0;
+        for (const auto& [hash, s] : stats) {
+            walks += s.first;
+            total_changed += s.second;
+            if (s.second) {
+                changed.emplace_back(s.second, hash);
+            }
+        }
+        std::ranges::sort(changed, std::greater{});
+        std::string top;
+        for (size_t i = 0; i < std::min<size_t>(changed.size(), 6); ++i) {
+            top += fmt::format(" {:016x}x{}/{}", changed[i].second, changed[i].first,
+                               stats[changed[i].second].first);
+        }
+        std::string kind_text, window_text;
+        for (const auto& [kind, n] : kinds) {
+            kind_text += fmt::format(" {} {}", kind, n);
+        }
+        std::vector<std::pair<u64, u64>> sorted_windows;
+        for (const auto& [window, n] : windows) {
+            sorted_windows.emplace_back(n, window);
+        }
+        std::ranges::sort(sorted_windows, std::greater{});
+        for (size_t i = 0; i < std::min<size_t>(sorted_windows.size(), 5); ++i) {
+            window_text += fmt::format(" {:#x}x{}", sorted_windows[i].second << 20, sorted_windows[i].first);
+        }
+        std::printf("SRT check (5 s): %llu sampled walks, %llu tables changed by the submission;%s; sources:%s; "
+                    "windows:%s\n",
+                    static_cast<unsigned long long>(walks), static_cast<unsigned long long>(total_changed),
+                    top.c_str(), kind_text.c_str(), window_text.c_str());
+        std::printf("SRT check (5 s): changed tables by walk age at the check: <2 ms %llu, 2-5 %llu, 5-10 %llu, "
+                    "10-20 %llu, 20+ %llu\n",
+                    (unsigned long long)ages[0], (unsigned long long)ages[1], (unsigned long long)ages[2],
+                    (unsigned long long)ages[3], (unsigned long long)ages[4]);
+        ages = {};
+        kinds.clear();
+        windows.clear();
+        std::fflush(stdout);
+        stats.clear();
+    }
+}
+
 /// gow3: compute shaders whose output the guest reads as soon as the next end-of-pipe event
 /// fires (Rasterizer::eop_readbacks): Uncharted 1's Cs_RayTraceGatherHits (the closest hit of
 /// each mesh ray cast).
@@ -130,8 +426,23 @@ int EopReadbackMode() {
     return mode;
 }
 
+/// gow3 16 Oct: Uncharted 2's 64-wide copy shader (6a6422a9, run on the GPU: its sources are
+/// completed after the frame is queued) writes data the game reads back on the CPU (one value
+/// in a 1 KiB block it rewrites every frame). Read back with the submission, that block counted
+/// as recurring (readable, a frame old): NPCs floated in the air and Nate sank into the floor,
+/// fixed by precise readbacks at ~50 FPS. As an end-of-pipe readback the fence after it waits
+/// for it. GOW3_COPY64_EOP_READBACK=1.
+bool Copy64EopReadback() {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_COPY64_EOP_READBACK");
+        return env && env[0] == '1';
+    }();
+    return enabled;
+}
+
 bool IsEopReadbackShader(u64 hash) {
-    return hash == 0xc92150ba && EopReadbackMode() != 0;
+    return (hash == 0xc92150ba || (hash == 0x6a6422a9 && Copy64EopReadback())) &&
+           EopReadbackMode() != 0;
 }
 
 /// gow3: a T# that passes the format check but cannot be a real texture: Uncharted 2's treasure
@@ -580,6 +891,13 @@ void Rasterizer::CollectRingBindings(const Shader::Info& stage, const PreparedDr
             memory->CopySparseMemory(address, dst, size);
         }
         constant_ring->Flush(*offset, size);
+        if (LateConstantsEnabled()) {
+            if (source) {
+                NoteLateFlatCopy(constant_ring->Storage(), *offset, stage, static_cast<u32>(size));
+            } else {
+                NoteLateGuestCopy(constant_ring->Storage(), *offset, address, static_cast<u32>(size));
+            }
+        }
         out.push_back({index, static_cast<u32>(size), *offset, address});
     };
     for (u32 index = 0; index < stage.buffers.size(); ++index) {
@@ -1537,6 +1855,41 @@ void Rasterizer::DispatchRecord(const ComputePipeline* pipeline) {
     if (ExecuteShaderHLE(cs, Regs(), cs_program, *this)) {
         return;
     }
+    // gow3 diagnostics (GOW3_DUMP_CS_CONST=<hex shader hash>): the first 32 dwords (as floats) of
+    // every buffer the dispatch reads that is up to 4 KiB, with a timestamp, 2000 lines at most.
+    static const u64 dump_cs = [] {
+        const char* env = std::getenv("GOW3_DUMP_CS_CONST");
+        return env ? std::strtoull(env, nullptr, 16) : 0ULL;
+    }();
+    if (dump_cs && cs.pgm_hash == dump_cs) {
+        static std::atomic<int> lines{0};
+        static const auto t0 = std::chrono::steady_clock::now();
+        for (u32 i = 0; i < cs.buffers.size() && lines.load() < 2000; ++i) {
+            const auto& desc = cs.buffers[i];
+            if (desc.IsSpecial() || desc.is_written) {
+                continue;
+            }
+            const auto sharp = desc.GetSharp(cs);
+            if (!sharp.base_address || sharp.GetSize() == 0 || sharp.GetSize() > 4096 ||
+                !IsMapped(sharp.base_address, std::min<u64>(sharp.GetSize(), 128))) {
+                continue;
+            }
+            float values[32]{};
+            const u64 bytes = std::min<u64>(sharp.GetSize(), sizeof(values));
+            memory->CopySparseMemory(sharp.base_address, reinterpret_cast<u8*>(values), bytes);
+            std::string text;
+            for (u64 k = 0; k < bytes / 4; ++k) {
+                text += fmt::format(" {:.5g}", values[k]);
+            }
+            const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+            std::printf("CS const %llx t=%.1f buf %u @%#llx size %u:%s\n",
+                        static_cast<unsigned long long>(cs.pgm_hash), ms, i,
+                        static_cast<unsigned long long>(sharp.base_address), unsigned(sharp.GetSize()),
+                        text.c_str());
+            ++lines;
+        }
+        std::fflush(stdout);
+    }
 
     if (!BindResources(pipeline)) {
         return;
@@ -1641,6 +1994,9 @@ void Rasterizer::Finish() {
 
 void Rasterizer::OnSubmit() {
     DrainDrawPipe();
+    memory->CheckCopiedSources();
+    CheckSrtWalks();
+    CheckScalarCopySources();
     if (fault_process_pending) {
         fault_process_pending = false;
         buffer_cache.ProcessFaultBuffer();
@@ -1826,9 +2182,22 @@ void Rasterizer::SyncDmaMemory(const Shader::Info* stage) {
     }
 }
 
-void Rasterizer::ReadBackEopResults() {
+bool Rasterizer::ReadBackEopResults() {
+    // gow3: tiny GPU-written images (TextureCache::ProcessTinyReadbacks), unprotected: the CPU
+    // reads the previous value until they land (Uncharted 2 reads its aim focus distance every
+    // frame; a read fault waiting for the GPU each time stalled its threads). Queued first, so the
+    // fence waits for the last readback below if there is one.
+    bool soft_pending = false;
+    if (!eop_soft_readbacks.empty()) {
+        std::erase_if(eop_soft_readbacks, [this](const auto& r) { return !IsMapped(r.first, r.second); });
+        if (!eop_soft_readbacks.empty()) {
+            buffer_cache.DownloadRangesAsync(eop_soft_readbacks, false, true);
+            soft_pending = true;
+        }
+        eop_soft_readbacks.clear();
+    }
     if (eop_readbacks.empty()) {
-        return;
+        return soft_pending;
     }
     std::erase_if(eop_readbacks, [this](const auto& r) { return !IsMapped(r.first, r.second); });
     static u32 described = 0;
@@ -1839,23 +2208,26 @@ void Rasterizer::ReadBackEopResults() {
                         static_cast<unsigned long long>(size));
         }
     }
+    bool pending = false;
     if (EopReadbackMode() == 2) {
         buffer_cache.DownloadRanges(eop_readbacks);
     } else {
         buffer_cache.DownloadRangesAsync(eop_readbacks, true, true);
+        pending = true;
     }
     eop_readbacks.clear();
     static u32 readbacks = 0;
     static auto last = std::chrono::steady_clock::now();
     ++readbacks;
     if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds(5)) {
-        std::printf("EOP readbacks (5 s): %u (ray cast results, read-protected until copied); "
-                    "fence labels inside one: %u\n",
+        std::printf("EOP readbacks (5 s): %u (ray cast results and 6a6422a9 copies, read-protected "
+                    "until copied); fence labels inside one: %u\n",
                     readbacks, VideoCore::BufferCache::TakeLabelsInReadbacks());
         std::fflush(stdout);
         readbacks = 0;
         last = now;
     }
+    return pending;
 }
 
 void Rasterizer::SyncSmallGpuWrites() {
@@ -1919,12 +2291,21 @@ void Rasterizer::SyncSmallGpuWrites() {
     if (!sync_gpu_constants || small_gpu_writes.empty()) {
         return;
     }
-    // Merged into 64 KiB windows: the copy shader writes many small neighbouring pieces.
+    // Merged in 256-byte granules (GOW3_SMALL_READBACK_ALIGN=<bytes>, a power of two). They were
+    // 64 KiB windows ("the copy shader writes many small neighbouring pieces"): with the effect
+    // shaders' small writes (cs 8f067540) spread over 30 MiB, the windows joined up and every
+    // GPU-written byte between them came back each submission, ~2.3 GB per 5 s in Uncharted 2
+    // and 3 that the CPU never reads (16 Oct). Neighbouring pieces still merge.
+    static const u64 granule = [] {
+        const char* env = std::getenv("GOW3_SMALL_READBACK_ALIGN");
+        const u64 value = env ? std::strtoull(env, nullptr, 0) : 0;
+        return value >= 64 && std::has_single_bit(value) ? value : u64(256);
+    }();
     std::sort(small_gpu_writes.begin(), small_gpu_writes.end());
     std::vector<std::pair<VAddr, u64>> windows;
     for (const auto& [address, size] : small_gpu_writes) {
-        const VAddr start = Common::AlignDown(address, 64_KB);
-        const VAddr end = Common::AlignUp(address + size, 64_KB);
+        const VAddr start = Common::AlignDown(address, granule);
+        const VAddr end = Common::AlignUp(address + size, granule);
         if (!windows.empty() && start <= windows.back().first + windows.back().second) {
             const VAddr back_end = windows.back().first + windows.back().second;
             windows.back().second = std::max(back_end, end) - windows.back().first;
@@ -2028,6 +2409,42 @@ const Rasterizer::SrtPlan& Rasterizer::SrtPlanFor(const Shader::Info& info) {
     return plan;
 }
 
+VAddr Rasterizer::SrtSourceAddress(Shader::PFN_SrtWalker walker, size_t walker_size,
+                                   std::span<const u32> user_data, u32 flat_dw, const char** kind) {
+    Shader::Info info{};
+    info.srt_info.walker_func = walker;
+    info.srt_info.walker_func_size = walker_size;
+    info.user_data = user_data;
+    const auto& plan = SrtPlanFor(info);
+    std::vector<VAddr> address(plan.nodes.size(), 0);
+    ResolveSrtTables(plan, info, address.data());
+    *kind = "not in plan";
+    for (const auto& copy : plan.copies) {
+        if (copy.flat_dw != flat_dw) {
+            continue;
+        }
+        if (copy.node < 0) {
+            *kind = "user data";
+            return 0;
+        }
+        const VAddr source = address[copy.node] ? address[copy.node] + copy.src_off : 0;
+        if (!source) {
+            *kind = "table unknown";
+            return 0;
+        }
+        if (buffer_cache.IsRangeGpuWritten(source, 4)) {
+            *kind = buffer_cache.PendingReadbackTickFor(source, 4) ? "GPU-written, readback pending"
+                                                                        : "GPU-written";
+        } else if (buffer_cache.IsRegionCpuModified(source, 4)) {
+            *kind = "CPU-written since upload";
+        } else {
+            *kind = "untracked/clean";
+        }
+        return source;
+    }
+    return 0;
+}
+
 void Rasterizer::ResolveSrtTables(const SrtPlan& plan, const Shader::Info& info, VAddr* address) {
     const auto user_data = std::as_bytes(info.user_data);
     for (size_t i = 0; i < plan.nodes.size(); ++i) {
@@ -2085,7 +2502,7 @@ void Rasterizer::SyncSrtTables(const Shader::Info& info) {
         }
         const VAddr table = value & 0xFFFFFFFFFFFFULL;
         address[i] = table;
-        if (!table || !node.extent || !buffer_cache.IsRangeGpuWritten(table, node.extent) ||
+        if (!table || !node.extent || !buffer_cache.IsRangeGpuWrittenShared(table, node.extent) ||
             !IsMapped(table, node.extent)) {
             continue;
         }
@@ -2549,6 +2966,47 @@ void Rasterizer::ResolveVertexBuffers(const GraphicsPipeline* pipeline,
         }
     }
 
+    // gow3 diagnostics (GOW3_TRACE_BIND_RANGE=<lo>:<hi> hex): vertex buffers in the range, by
+    // vertex shader, 5 s statistics.
+    {
+        static const std::pair<u64, u64> trace_range = [] {
+            const char* env = std::getenv("GOW3_TRACE_BIND_RANGE");
+            if (!env) {
+                return std::pair<u64, u64>{0, 0};
+            }
+            char* end = nullptr;
+            const u64 lo = std::strtoull(env, &end, 16);
+            const u64 hi = end && *end == ':' ? std::strtoull(end + 1, nullptr, 16) : 0;
+            return std::pair<u64, u64>{lo, hi};
+        }();
+        if (trace_range.second > trace_range.first) {
+            for (const auto& buffer : guest_buffers) {
+                if (buffer.base_address < trace_range.second &&
+                    buffer.base_address + buffer.GetSize() > trace_range.first) {
+                    static std::mutex mutex;
+                    static std::map<std::pair<u64, u64>, u32> seen;
+                    static auto last = std::chrono::steady_clock::now();
+                    std::scoped_lock lock{mutex};
+                    ++seen[{pipeline->GetStage(Shader::SwStage::Vertex).pgm_hash,
+                            pipeline->GetStage(Shader::SwStage::Fragment).pgm_hash}];
+                    if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds{5}) {
+                        last = now;
+                        std::string text;
+                        for (const auto& [key, n] : seen) {
+                            text += fmt::format(" vs {:08x} ps {:08x} x{}", key.first, key.second, n);
+                        }
+                        std::printf("Vertex trace (5 s):%s (e.g. %#llx size %u stride %u)\n", text.c_str(),
+                                    static_cast<unsigned long long>(buffer.base_address),
+                                    unsigned(buffer.GetSize()), unsigned(buffer.GetStride()));
+                        std::fflush(stdout);
+                        seen.clear();
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
     // Merge connecting ranges together
     if (!ranges.empty()) {
         std::ranges::sort(ranges, [](const BufferRange& lhv, const BufferRange& rhv) {
@@ -2804,6 +3262,56 @@ bool Rasterizer::IsComputeImageClear(const Pipeline* pipeline) {
     return true;
 }
 
+static bool TracedShader(u64 hash);
+
+// gow3 16 Oct: Uncharted 2's aim depth of field focuses on the depth under the crosshair: ps
+// 9f801363 samples a 24-pixel box of the scene depth at uv = c[6] * (ndc * c[2] + 0.5) + c[0]
+// (and 1 - c[1] + ... for v), c = 8 floats the game writes per frame. c[0], c[1] are the crosshair
+// in pixels of the HUD's 1920x1080 space times 1 / render size (c[6], c[7]): with our render
+// resolution above 1080p the box left the crosshair (4K: uv 0.25 instead of 0.5, the depth of the
+// wall beside Nate) and everything behind the target was blurred while aiming. The centre is
+// corrected to the HUD space for every render size (no change at 1080p). GOW3_AIM_FOCUS_FIX=0: off.
+static void FixAimFocusCentre(Core::MemoryManager* memory, VAddr address) {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_AIM_FOCUS_FIX");
+        return !(env && env[0] == '0');
+    }();
+    if (!enabled || !memory->IsValidGpuMapping(address, 32)) {
+        return;
+    }
+    float c[8];
+    memory->CopySparseMemory(address, reinterpret_cast<u8*>(c), sizeof(c));
+    const float inv_width = c[6], inv_height = c[7];
+    if (!(inv_width > 0.0f && inv_width < 1.0f && inv_height > 0.0f && inv_height < 1.0f)) {
+        return;
+    }
+    const float x_scale = 1920.0f * inv_width, y_scale = 1080.0f * inv_height;
+    if (std::abs(x_scale - 1.0f) < 1e-4f && std::abs(y_scale - 1.0f) < 1e-4f) {
+        return; // 1080p: already right
+    }
+    // The block may be bound by more than one draw: values corrected once stay as they are.
+    static std::mutex mutex;
+    static std::unordered_map<VAddr, std::pair<float, float>> corrected;
+    std::scoped_lock lock{mutex};
+    if (const auto it = corrected.find(address);
+        it != corrected.end() && it->second == std::pair{c[0], c[1]}) {
+        return;
+    }
+    const float fixed[2] = {c[0] / x_scale, c[1] / y_scale};
+    memory->TryWriteBacking(reinterpret_cast<void*>(address), fixed, sizeof(fixed));
+    if (corrected.size() >= 512) {
+        corrected.clear();
+    }
+    corrected[address] = {fixed[0], fixed[1]};
+    static bool reported = false;
+    if (!reported) {
+        reported = true;
+        std::printf("Aim focus: crosshair box centre %.4f,%.4f -> %.4f,%.4f (render %ux%u)\n", c[0], c[1],
+                    fixed[0], fixed[1], u32(1.0f / inv_width + 0.5f), u32(1.0f / inv_height + 0.5f));
+        std::fflush(stdout);
+    }
+}
+
 void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* prepared,
                              Shader::Backend::Bindings& binding,
                              Shader::PushData& push_data, u32& write_index) {
@@ -2811,6 +3319,33 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
     for (u32 buffer_index = 0; buffer_index < stage.buffers.size(); ++buffer_index) {
         const auto& desc = stage.buffers[buffer_index];
         const RingBinding* ring = num_ring_stages ? FindRingBinding(stage, buffer_index) : nullptr;
+        if (TracedShader(stage.pgm_hash) && !desc.IsSpecial()) {
+            static std::atomic<int> traced{0};
+            if (traced.fetch_add(1) < 40) {
+                VAddr address = 0;
+                u64 size = 0;
+                if (ring) {
+                    address = ring->address;
+                    size = ring->size;
+                } else {
+                    const auto vsharp = prepared ? prepared->buffer_sharps[buffer_index] : desc.GetSharp(stage);
+                    address = vsharp.base_address;
+                    size = vsharp.GetSize();
+                }
+                std::string text = fmt::format("PS trace buffer: shader {:08x} slot {} at {:#x} size {}{}:",
+                                               stage.pgm_hash, buffer_index, address, size, ring ? " (ring)" : "");
+                if (address && memory->IsValidGpuMapping(address, 0)) {
+                    float values[16]{};
+                    memory->CopySparseMemory(address, reinterpret_cast<u8*>(values),
+                                             std::min<u64>(size, sizeof(values)));
+                    for (u32 i = 0; i < std::min<u64>(size / 4, 16); ++i) {
+                        text += fmt::format(" {}", values[i]);
+                    }
+                }
+                std::printf("%s\n", text.c_str());
+                std::fflush(stdout);
+            }
+        }
         if (ring) {
             // Copied by the GPU command thread into the constant ring (read-only).
             if (FrameCapture::Active() && memory->IsValidGpuMapping(ring->address, 0)) {
@@ -2839,6 +3374,9 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
                 }
                 const u64 offset =
                     vk_buffer.Copy(stage.FlatUserData().data(), ubo_size, alignment);
+                if (LateConstantsEnabled()) {
+                    NoteLateFlatCopy(vk_buffer, offset, stage, ubo_size);
+                }
                 buffer_infos.emplace_back(vk_buffer.Handle(), offset, ubo_size);
             } else if (desc.buffer_type == Shader::BufferType::ClipPlanes) {
                 // Permutations compiled without enabled planes never read the buffer, so the
@@ -2911,9 +3449,17 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
             const bool unbound = vsharp.base_address == 0 || vsharp.GetSize() == 0;
             const u64 mapped_size =
                 unbound ? 0 : memory->ClampRangeSize(vsharp.base_address, vsharp.GetSize());
+            // gow3 16 Oct: the treasure effect's float slots can also make a V# that lands in mapped
+            // memory: after 90 minutes one with an unaligned base, a stride of ~15 KB and ~1e9
+            // records was bound, the GPU hung (OBS's own device was removed with DEVICE_HUNG at the
+            // same moment) and the game stopped with "Device lost during submit". For these two
+            // shaders an unaligned base, a stride of 8 KiB or more or over 64 MiB is garbage too.
+            const bool treasure_effect = stage.pgm_hash == 0x8f067540 || stage.pgm_hash == 0x7d7e7206;
             const bool garbage =
-                !unbound && (mapped_size >= 1_GB || (mapped_size != vsharp.GetSize() &&
-                                                     vsharp.num_records < 0xFFFF0000u));
+                !unbound && (mapped_size >= 1_GB ||
+                             (mapped_size != vsharp.GetSize() && vsharp.num_records < 0xFFFF0000u) ||
+                             (treasure_effect && ((vsharp.base_address & 3) != 0 || vsharp.stride >= 8192 ||
+                                                  vsharp.GetSize() > 64_MB)));
             if (garbage) {
                 static u32 garbage_reports = 0;
                 if (garbage_reports < 32) {
@@ -2931,12 +3477,49 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
                 buffer_infos.emplace_back(VK_NULL_HANDLE, 0, VK_WHOLE_SIZE);
             } else {
                 const u64 size = memory->ClampRangeSize(vsharp.base_address, vsharp.GetSize());
+                // gow3 diagnostics (GOW3_TRACE_BIND_RANGE=<lo>:<hi> hex): bindings that overlap
+                // the range, by shader and slot, 5 s statistics.
+                {
+                    static const std::pair<u64, u64> trace_range = [] {
+                        const char* env = std::getenv("GOW3_TRACE_BIND_RANGE");
+                        if (!env) {
+                            return std::pair<u64, u64>{0, 0};
+                        }
+                        char* end = nullptr;
+                        const u64 lo = std::strtoull(env, &end, 16);
+                        const u64 hi = end && *end == ':' ? std::strtoull(end + 1, nullptr, 16) : 0;
+                        return std::pair<u64, u64>{lo, hi};
+                    }();
+                    if (trace_range.second > trace_range.first &&
+                        vsharp.base_address < trace_range.second &&
+                        vsharp.base_address + size > trace_range.first) {
+                        static std::mutex mutex;
+                        static std::map<std::tuple<u64, u32, bool>, u32> seen;
+                        static auto last = std::chrono::steady_clock::now();
+                        std::scoped_lock lock{mutex};
+                        ++seen[{stage.pgm_hash, binding.buffer, bool(desc.is_written)}];
+                        if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds{5}) {
+                            last = now;
+                            std::string text;
+                            for (const auto& [key, n] : seen) {
+                                text += fmt::format(" {:08x}/slot{}{}x{}", std::get<0>(key), std::get<1>(key),
+                                                    std::get<2>(key) ? "(write)" : "", n);
+                            }
+                            std::printf("Bind trace (5 s):%s\n", text.c_str());
+                            std::fflush(stdout);
+                            seen.clear();
+                        }
+                    }
+                }
                 if (size != vsharp.GetSize()) {
                     LOG_ERROR(Render, "Clamped size from {} to {} for stage {:#x}",
                               vsharp.GetSize(), size, stage.pgm_hash);
                     if (!prepared && (desc.sharp_fetch.load_mask & 1)) {
                         DescribeSharpSource(stage, desc.sharp_fetch.offsets[0], "size");
                     }
+                }
+                if (stage.pgm_hash == 0x9f801363 && !desc.is_written && size >= 32) {
+                    FixAimFocusCentre(memory, vsharp.base_address);
                 }
                 const auto [buffer, offset] = buffer_cache.ObtainBuffer(
                     vsharp.base_address, size, desc.is_written, desc.is_formatted);
@@ -2952,8 +3535,30 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
                 if (desc.is_written) {
                     Gow3WatchRange::Note("storage", stage.pgm_hash, binding.buffer,
                                          vsharp.base_address, size);
+                    VideoCore::NoteGpuWriter(vsharp.base_address, size, stage.pgm_hash);
                     if (IsEopReadbackShader(stage.pgm_hash) && eop_readbacks.size() < 256) {
-                        eop_readbacks.emplace_back(vsharp.base_address, size);
+                        // The whole bound buffer counts as GPU-written (up to 9 MiB for
+                        // 6a6422a9); read back only what this dispatch writes: dword i for
+                        // i < min(groups * 64, s6, num_records) (vk_shader_hle.cpp). Only its
+                        // small copies: the game reads a value in 1 KiB blocks (~160 per second),
+                        // while its two large copies per frame (~0.2 and ~2.4 MB, never read in
+                        // a precise-readback run) were 300 MB/s of readback.
+                        u64 readback_size = size;
+                        if (stage.pgm_hash == 0x6a6422a9) {
+                            const auto ud = stage.UserData();
+                            readback_size = 0;
+                            if (vsharp.stride == 4 && ud.size() > 6) {
+                                const u64 count = std::min<u64>(
+                                    {u64(CsRegs().dim_x) * 64, ud[6], vsharp.num_records});
+                                readback_size = std::min<u64>(size, count * 4);
+                            }
+                            if (readback_size > 64_KB) {
+                                readback_size = 0;
+                            }
+                        }
+                        if (readback_size) {
+                            eop_readbacks.emplace_back(vsharp.base_address, readback_size);
+                        }
                     }
                     // Small writes (constants) and writes into windows where the CPU writes into
                     // GPU data (each such CPU write otherwise downloads with a full GPU wait).
@@ -2976,6 +3581,8 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
                         stage.pgm_hash != readback_skip) {
                         if (size <= 4096) {
                             small_gpu_writes.emplace_back(vsharp.base_address, size);
+                            VideoCore::NoteReadbackKind(vsharp.base_address, size,
+                                                        VideoCore::ReadbackSmallWrite);
                         } else if (buffer_cache.IsCpuWriteHot(vsharp.base_address, size)) {
                             // Only the hot 1 MiB windows of a large write.
                             const VAddr end = vsharp.base_address + size;
@@ -2985,6 +3592,8 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
                                     const VAddr lo = std::max(window, VAddr(vsharp.base_address));
                                     const VAddr hi = std::min(window + 1_MB, end);
                                     small_gpu_writes.emplace_back(lo, hi - lo);
+                                    VideoCore::NoteReadbackKind(lo, hi - lo,
+                                                                VideoCore::ReadbackHotWindow);
                                 }
                             }
                         }
@@ -3047,6 +3656,21 @@ Rasterizer::ImageDescCacheEntry& Rasterizer::CachedImageDescEntry(const AmdGpu::
     return entry;
 }
 
+// gow3 diagnostics: GOW3_TRACE_PS=<hex hash>[,...] (see BeginRenderingFull): their textures too.
+static bool TracedShader(u64 hash) {
+    static const std::vector<u64> hashes = [] {
+        std::vector<u64> out;
+        const char* env = std::getenv("GOW3_TRACE_PS");
+        while (env && *env) {
+            char* end = nullptr;
+            out.push_back(std::strtoull(env, &end, 16));
+            env = end && *end == ',' ? end + 1 : nullptr;
+        }
+        return out;
+    }();
+    return !hashes.empty() && std::ranges::find(hashes, hash) != hashes.end();
+}
+
 void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* prepared,
                               Shader::Backend::Bindings& binding, u32& write_index,
                               bool& barrier, bool on_helper) {
@@ -3086,6 +3710,18 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
         const auto& image_desc = stage.images[image_index];
         const auto tsharp =
             prepared ? prepared->image_sharps[image_index] : image_desc.GetSharp(stage);
+        if (TracedShader(stage.pgm_hash)) {
+            static std::atomic<int> traced{0};
+            if (traced.fetch_add(1) < 80) {
+                std::printf("PS trace texture: shader %08llx image %u at %#llx %ux%u pitch %u levels %u-%u "
+                            "format %u/%u\n",
+                            static_cast<unsigned long long>(stage.pgm_hash), image_index,
+                            static_cast<unsigned long long>(tsharp.Address()), u32(tsharp.width) + 1,
+                            u32(tsharp.height) + 1, u32(tsharp.pitch) + 1, u32(tsharp.base_level),
+                            u32(tsharp.last_level), u32(tsharp.GetDataFmt()), u32(tsharp.GetNumberFmt()));
+                std::fflush(stdout);
+            }
+        }
         // gow3: a hash lookup per texture per draw for a diagnostic only.
         static const bool warn_meta = std::getenv("GOW3_WARN_META_TEXTURE") != nullptr;
         if (warn_meta && texture_cache.IsMeta(tsharp.Address())) {
@@ -3277,8 +3913,13 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
             }
             // The image is either bound as storage in a separate descriptor or bound as render
             // target in feedback loop. Depth images are excluded because they can't be bound as
-            // storage and feedback loop doesn't make sense for them
-            if ((binding.force_general || binding.is_target) && !image.info.props.is_depth) {
+            // storage; a depth target sampled by its own draw shares the general layout with the
+            // attachment (DepthFeedbackLayout).
+            if (DepthFeedbackGeneral() && binding.is_target && image.info.props.is_depth &&
+                !is_storage) {
+                barrier |= runtime.Transit(&image, DepthFeedbackLayout, DepthFeedbackStages,
+                                           DepthFeedbackAccess);
+            } else if ((binding.force_general || binding.is_target) && !image.info.props.is_depth) {
                 if (instance.IsAttachmentFeedbackLoopLayoutSupported() && image.binding.is_target) {
                     barrier |= runtime.Transit(
                         &image, vk::ImageLayout::eAttachmentFeedbackLoopOptimalEXT,
@@ -3478,6 +4119,12 @@ bool Rasterizer::BindTexturesFromSet(const Shader::Info& stage, const PreparedSt
             ++proxy_samples;
             continue;
         }
+        if (DepthFeedbackGeneral() && image.info.props.is_depth && image.binding.is_target) {
+            barrier |= runtime.Transit(&image, DepthFeedbackLayout, DepthFeedbackStages,
+                                       DepthFeedbackAccess);
+            image_infos.emplace_back(VK_NULL_HANDLE, entry.view, image.backing->state.layout);
+            continue;
+        }
         const auto new_layout = image.info.props.is_depth
                                     ? vk::ImageLayout::eDepthStencilReadOnlyOptimal
                                     : vk::ImageLayout::eShaderReadOnlyOptimal;
@@ -3570,6 +4217,55 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
                                          image.info.guest_address, image.info.guest_size);
                 }
             }
+        }
+    }
+    // gow3 diagnostics (GOW3_TRACE_PS=<hex hash>[,<hash>...]): draws with these pixel shaders:
+    // render targets, depth, viewport and scissors (60 lines at most).
+    {
+        static const std::vector<u64> trace_ps = [] {
+            std::vector<u64> out;
+            const char* env = std::getenv("GOW3_TRACE_PS");
+            while (env && *env) {
+                char* end = nullptr;
+                out.push_back(std::strtoull(env, &end, 16));
+                env = end && *end == ',' ? end + 1 : nullptr;
+            }
+            return out;
+        }();
+        const auto* ps = pipeline->GetStages()[u32(Shader::SwStage::Fragment)];
+        static std::atomic<int> traced{0};
+        if (ps && !trace_ps.empty() && std::ranges::find(trace_ps, ps->pgm_hash) != trace_ps.end() &&
+            traced.fetch_add(1) < 60) {
+            const auto* vs = pipeline->GetStages()[u32(Shader::SwStage::Vertex)];
+            std::string text = fmt::format("PS trace: ps {:08x} vs {:08x}", ps->pgm_hash, vs ? vs->pgm_hash : 0);
+            for (u32 cb = 0; cb < cb_descs.size(); ++cb) {
+                if (cb_descs[cb].first) {
+                    const auto& image = texture_cache.GetImage(cb_descs[cb].first);
+                    text += fmt::format("; rt{} {:#x} {}x{} {}", cb, image.info.guest_address,
+                                        image.info.size.width, image.info.size.height,
+                                        vk::to_string(image.info.pixel_format));
+                }
+            }
+            if (db_desc.first) {
+                const auto& depth = texture_cache.GetImage(db_desc.first);
+                text += fmt::format("; depth {:#x} {}x{}", depth.info.guest_address, depth.info.size.width,
+                                    depth.info.size.height);
+            }
+            const auto& vp = regs.viewports[0];
+            text += fmt::format("; viewport scale {} {} offset {} {}", vp.xscale, vp.yscale, vp.xoffset,
+                                vp.yoffset);
+            const auto& s = regs.screen_scissor;
+            text += fmt::format("; screen scissor {},{}-{},{}", s.top_left_x, s.top_left_y, s.bottom_right_x,
+                                s.bottom_right_y);
+            const auto scissor = [](const AmdGpu::ViewportScissor& v) {
+                return fmt::format("{},{}-{},{}", u32(v.top_left_x), u32(v.top_left_y), u32(v.bottom_right_x),
+                                   u32(v.bottom_right_y));
+            };
+            text += fmt::format("; window {} generic {} vp0 {}; window offset {},{}", scissor(regs.window_scissor),
+                                scissor(regs.generic_scissor), scissor(regs.viewport_scissors[0]),
+                                s32(regs.window_offset.window_x_offset), s32(regs.window_offset.window_y_offset));
+            std::printf("%s\n", text.c_str());
+            std::fflush(stdout);
         }
     }
     if (std::popcount(key.mrt_mask & 0x7f) >= 5 && db_desc.first &&
@@ -3744,7 +4440,10 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
                                     ? vk::ImageLayout::eDepthReadOnlyStencilAttachmentOptimal
                                 : has_stencil ? vk::ImageLayout::eDepthStencilReadOnlyOptimal
                                               : vk::ImageLayout::eDepthReadOnlyOptimal;
-        if (!reduced) needs_barrier |= runtime.Transit(&image, new_layout,
+        if (!reduced && DepthFeedbackGeneral() && image.binding.is_bound) {
+            needs_barrier |= runtime.Transit(&image, DepthFeedbackLayout, DepthFeedbackStages,
+                                             DepthFeedbackAccess);
+        } else if (!reduced) needs_barrier |= runtime.Transit(&image, new_layout,
                                          vk::PipelineStageFlagBits2::eEarlyFragmentTests |
                                              vk::PipelineStageFlagBits2::eLateFragmentTests,
                                          vk::AccessFlagBits2::eDepthStencilAttachmentWrite |
@@ -3758,6 +4457,24 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
         auto& attachment = state.depth_stencil_attachment;
         attachment.image_view = *image_view.image_view;
         attachment.image_layout = image.backing->state.layout;
+        {
+            static const u64 trace_address = [] {
+                const char* env = std::getenv("GOW3_TRACE_IMAGE");
+                return env ? std::strtoull(env, nullptr, 16) : 0ULL;
+            }();
+            if (trace_address && image.info.guest_address == trace_address) {
+                static std::atomic<int> lines{0};
+                if (lines.fetch_add(1) < 300) {
+                    std::printf("Trace image: depth attachment, reduced %d, storage %d, stencil write %d, "
+                                "depth write %d, layout %s, state access %s\n",
+                                int(reduced), int(desc.view_info.is_storage), int(stencil_write),
+                                int(regs.depth_control.depth_write_enable),
+                                vk::to_string(image.backing->state.layout).c_str(),
+                                vk::to_string(image.backing->state.access_mask).c_str());
+                    std::fflush(stdout);
+                }
+            }
+        }
         attachment.clear_value = {};
         attachment.is_clear = 0;
 
@@ -3978,6 +4695,7 @@ void Rasterizer::FillBuffer(VAddr address, u32 num_bytes, u32 value, bool is_gds
     // gow3: GPU-side writes into guest memory come back with this submission's readback.
     if (!is_gds && sync_gpu_constants && num_bytes <= 4096 && small_gpu_writes.size() < 16384) {
         small_gpu_writes.emplace_back(address, num_bytes);
+        VideoCore::NoteReadbackKind(address, num_bytes, VideoCore::ReadbackCpWrite);
     }
 }
 
@@ -4036,6 +4754,7 @@ void Rasterizer::CopyBuffer(VAddr dst, VAddr src, u32 num_bytes, bool dst_gds, b
     // submission's readback, so the CPU's writes next to them wait for that readback at most.
     if (!dst_gds && sync_gpu_constants && num_bytes <= 4096 && small_gpu_writes.size() < 16384) {
         small_gpu_writes.emplace_back(dst, num_bytes);
+        VideoCore::NoteReadbackKind(dst, num_bytes, VideoCore::ReadbackCpWrite);
     }
 }
 
@@ -4085,6 +4804,11 @@ bool Rasterizer::ReadMemory(VAddr addr, u64 size, bool assume_locks) {
 void Rasterizer::ProcessDownloadImages() {
     DrainDrawPipe();
     texture_cache.ProcessDownloadImages();
+    for (const auto& range : texture_cache.TakeTinyReadbacks()) {
+        if (eop_soft_readbacks.size() < 64) {
+            eop_soft_readbacks.push_back(range);
+        }
+    }
 }
 
 bool Rasterizer::IsMapped(VAddr addr, u64 size) {

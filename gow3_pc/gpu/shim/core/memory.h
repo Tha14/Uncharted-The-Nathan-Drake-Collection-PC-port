@@ -18,6 +18,8 @@ public:
     }
     u64 ClampRangeSize(VAddr virtual_addr, u64 size);
     void CopySparseMemory(VAddr source, u8* dest, u64 size);
+    /// gow3 diagnostics (GOW3_UPLOAD_CHECK=1): compares sampled earlier copies with guest memory now.
+    void CheckCopiedSources();
     bool TryWriteBacking(void* address, const void* data, u64 size);
     /// gow3: reads guest memory through the backing view (page protection does not apply).
     bool TryReadBacking(VAddr address, void* data, u64 size);

@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstdlib>
 #include <unordered_set>
 #include "shader_recompiler/ir/breadth_first_search.h"
 #include "shader_recompiler/ir/ir_emitter.h"
+#include "shader_recompiler/ir/passes/resource_pass.h"
 #include "shader_recompiler/ir/program.h"
 #include "shader_recompiler/profile.h"
 
@@ -110,6 +112,72 @@ static NodeSet FindDivergentLoops(const IR::AbstractSyntaxList& syntax_list) {
     return divergent_loops;
 }
 
+// GCN waves run in lockstep, so games load from a buffer what another invocation of the wave
+// stored without a barrier. Inserts one after such stores. (shadPS4 PR #5310; gow3 16 Oct 2026:
+// Uncharted 3's objects flickered as flat-coloured shapes on NVIDIA, 32-lane subgroups, and not
+// on an AMD GPU, which runs these shaders with 64 lanes.)
+static void EmitBufferBarriers(IR::Program& program) {
+    using Type = IR::AbstractSyntaxNode::Type;
+    // Index of the last load from each buffer, counting instructions in program order.
+    std::array<u32, NUM_BUFFERS> last_load{};
+    // Threads that skip one just run to the end.
+    NodeSet early_outs;
+    u32 index{};
+    for (const IR::AbstractSyntaxNode& node : program.syntax_list) {
+        if (node.type == Type::Block) {
+            for (const IR::Inst& inst : node.data.block->Instructions()) {
+                ++index;
+                if (IsBufferInstruction(inst) && !IsBufferStore(inst)) {
+                    last_load[inst.Arg(0).U32()] = index;
+                }
+            }
+        } else if (node.type == Type::EndIf) {
+            early_outs.emplace(node.data.end_if.merge);
+        } else if (node.type != Type::Return) {
+            early_outs.clear();
+        }
+    }
+    const NodeSet divergent_loops = FindDivergentLoops(program.syntax_list);
+    NodeSet divergence_end;
+    u32 divergence_depth{};
+    std::vector<u32> loops;
+    index = 0;
+    for (const IR::AbstractSyntaxNode& node : program.syntax_list) {
+        if (node.type == Type::If && !early_outs.contains(node.data.if_node.merge) &&
+            IsDivergent(node.data.if_node.cond)) {
+            divergence_end.emplace(node.data.if_node.merge);
+            ++divergence_depth;
+        } else if (node.type == Type::EndIf) {
+            divergence_depth -= static_cast<u32>(divergence_end.contains(node.data.end_if.merge));
+        } else if (node.type == Type::Loop) {
+            loops.push_back(index);
+            divergence_depth += static_cast<u32>(divergent_loops.contains(node.data.loop.merge));
+        } else if (node.type == Type::Repeat) {
+            loops.pop_back();
+            divergence_depth -= static_cast<u32>(divergent_loops.contains(node.data.repeat.merge));
+        } else if (node.type == Type::Block) {
+            const auto emit_barrier = [&](IR::Block::iterator insert_point) {
+                IR::IREmitter{*node.data.block, insert_point}.Barrier(true);
+            };
+            // Last store to a buffer that is loaded later, in a loop also on the next iteration.
+            IR::Inst* store{};
+            for (IR::Inst& inst : node.data.block->Instructions()) {
+                ++index;
+                if (store && IsBufferInstruction(inst) && !IsBufferStore(inst)) {
+                    emit_barrier(IR::Block::InstructionList::s_iterator_to(inst));
+                    store = nullptr;
+                } else if (divergence_depth == 0 && IsBufferStore(inst) && !IsBufferAtomic(inst) &&
+                           last_load[inst.Arg(0).U32()] > (loops.empty() ? index : loops.front())) {
+                    store = &inst;
+                }
+            }
+            if (store) {
+                emit_barrier(std::next(IR::Block::InstructionList::s_iterator_to(*store)));
+            }
+        }
+    }
+}
+
 static constexpr u32 GcnSubgroupSize = 64;
 
 void SharedMemoryBarrierPass(IR::Program& program, const RuntimeInfo& runtime_info,
@@ -121,6 +189,16 @@ void SharedMemoryBarrierPass(IR::Program& program, const RuntimeInfo& runtime_in
     const u32 shared_memory_size = cs_info.shared_memory_size;
     const u32 threadgroup_size =
         cs_info.workgroup_size[0] * cs_info.workgroup_size[1] * cs_info.workgroup_size[2];
+    // Opt-in while untested in Uncharted 1/2 (it did not fix Uncharted 3's flicker). Cached
+    // shaders do not record the switch: clear the pipeline cache when changing it.
+    static const bool buffer_barriers = [] {
+        const char* env = std::getenv("GOW3_WAVE_BUFFER_BARRIERS");
+        return env && env[0] == '1';
+    }();
+    if (buffer_barriers && threadgroup_size == GcnSubgroupSize &&
+        profile.subgroup_size != GcnSubgroupSize) {
+        EmitBufferBarriers(program);
+    }
     // The compiler can only omit barriers when the local workgroup size is the same as the HW
     // subgroup.
     if (shared_memory_size == 0 || threadgroup_size != GcnSubgroupSize ||

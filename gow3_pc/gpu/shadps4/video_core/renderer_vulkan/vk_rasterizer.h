@@ -131,7 +131,7 @@ public:
     /// read-protected: a guest read before the GPU is done waits for that readback only.
     /// (Delaying the event instead broke Uncharted 1: it is the frame's end-of-pipe tick, which
     /// FrameBegin asserts two frames later.)
-    void ReadBackEopResults();
+    bool ReadBackEopResults();
     /// gow3: a fence label the runtime writes to guest memory (BufferCache::NoteCpuWrite).
     void NoteLabelWrite(VAddr address, u64 size) {
         buffer_cache.NoteCpuWrite(address, size);
@@ -141,6 +141,10 @@ public:
         scheduler.WaitDeferredSignals();
     }
     /// Runs `signal` after the guest memory copies issued so far, without waiting here.
+    /// gow3: draws go through the two-stage draw pipeline (multithreaded rendering).
+    bool DrawPipeActive() const {
+        return UseDrawPipe();
+    }
     void SignalAfterHostCopies(std::function<void()> signal) {
         scheduler.SignalAfterHostCopies(std::move(signal));
     }
@@ -491,6 +495,7 @@ private:
     /// blood and other decals): the event's interrupt marks the batch done and the game reads
     /// the hits at once; fences are written when recorded, so it read stale results (no hits).
     std::vector<std::pair<VAddr, u64>> eop_readbacks;
+    std::vector<std::pair<VAddr, u64>> eop_soft_readbacks; ///< gow3: tiny images, unprotected
     bool sync_gpu_constants = [] {
         const char* env = std::getenv("GOW3_SYNC_GPU_CONSTANTS");
         return env && env[0] == '1';
@@ -520,6 +525,13 @@ private:
     const SrtPlan& SrtPlanFor(const Shader::Info& info);
     /// Guest address of each plan table for this user data (0: unknown), without downloads.
     void ResolveSrtTables(const SrtPlan& plan, const Shader::Info& info, VAddr* address);
+public:
+    /// gow3 diagnostics (GOW3_SRT_CHECK): the guest address the walker copies flattened dword
+    /// `flat_dw` from for this user data (0: unknown) and what the caches know about it.
+    VAddr SrtSourceAddress(Shader::PFN_SrtWalker walker, size_t walker_size,
+                           std::span<const u32> user_data, u32 flat_dw, const char** kind);
+
+private:
     /// Diagnostics for a garbage V#: where the walker took flattened dword `flat_dw` from.
     void DescribeSharpSource(const Shader::Info& info, u32 flat_dw, const char* problem);
     u64 srt_syncs = 0, srt_sync_reports = 0;

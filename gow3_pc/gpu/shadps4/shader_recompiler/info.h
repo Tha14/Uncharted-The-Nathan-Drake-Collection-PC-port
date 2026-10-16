@@ -29,6 +29,8 @@ struct Info;
 /// gow3: called before the SRT walker reads guest memory (Rasterizer::SyncSrtTables: tables
 /// with GPU-written bytes not yet in guest memory are downloaded first).
 inline void (*g_srt_pre_walk)(const Info& info) = nullptr;
+/// gow3 diagnostics: called after each resource-table walk (GOW3_SRT_CHECK).
+inline void (*g_srt_post_walk)(const Info& info) = nullptr;
 
 enum class Qualifier : u8 {
     None,
@@ -251,6 +253,9 @@ struct Info : InfoPersistent {
                 g_srt_pre_walk(*this);
             }
             srt_info.walker_func(user_data.data(), flattened_ud_buf.data());
+            if (g_srt_post_walk) {
+                g_srt_post_walk(*this);
+            }
         }
     }
 

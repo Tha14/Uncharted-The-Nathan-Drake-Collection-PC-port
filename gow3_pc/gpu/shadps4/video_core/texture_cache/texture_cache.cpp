@@ -161,7 +161,105 @@ void TextureCache::CancelReadbacks(VAddr address, u64 size) {
 
 // gow3: every copy is recorded first and the GPU is waited for once. A wait per image (as
 // before) left the GPU mostly idle in God of War III's gameplay, at about 2 FPS.
+bool TextureCache::IsTinyReadbackImage(const Image& image) const {
+    // One row of texels, linear (or a single texel): its guest bytes are then contiguous and in
+    // texel order (a tiled image's texels are swizzled within its tiles).
+    if (!tiny_readbacks || image.info.guest_address == 0 || image.info.props.is_depth ||
+        image.info.size.height != 1 || image.info.size.depth != 1 ||
+        image.info.resources.layers != 1 || (image.info.props.is_tiled && image.info.size.width > 1)) {
+        return false;
+    }
+    const u64 bytes = u64{image.info.size.width} * (image.info.num_bits / 8);
+    return bytes != 0 && bytes <= 4096;
+}
+
+void TextureCache::QueueTinyReadback(ImageId image_id, const Image& image) {
+    if (!IsTinyReadbackImage(image)) {
+        return;
+    }
+    std::unique_lock lk{download_images_mutex};
+    tiny_downloads.emplace(image_id);
+}
+
+void TextureCache::CancelTinyReadbacks(VAddr, u64) {
+    // The copies go through the buffer cache (GPU-written range, end-of-pipe readback), which
+    // handles CPU writes and unmaps of the range itself.
+}
+
+std::vector<std::pair<VAddr, u64>> TextureCache::TakeTinyReadbacks() {
+    std::scoped_lock lock{tiny_mutex};
+    return std::exchange(tiny_ranges, {});
+}
+
+// gow3 16 Oct: the image's texels are copied into the buffer cache's copy of its guest bytes
+// (marked GPU-written there), and the range joins the end-of-pipe readbacks of the rasterizer
+// (Rasterizer::ReadBackEopResults, unprotected): the fence after it is written once the bytes
+// are in guest memory. Landing on its own after the fence (the first version), a copy could
+// overwrite memory the game had already reused after seeing that fence (U2 asserted
+// m_gfxEopTick after skipping a movie).
+void TextureCache::ProcessTinyReadbacks() {
+    if (!tiny_readbacks) {
+        return;
+    }
+    std::unordered_set<ImageId> ids;
+    {
+        std::unique_lock lk{download_images_mutex};
+        if (tiny_downloads.empty()) {
+            return;
+        }
+        ids.swap(tiny_downloads);
+    }
+    for (const ImageId image_id : ids) {
+        if (!slot_images.is_allocated(image_id)) {
+            continue;
+        }
+        Image& image = slot_images[image_id];
+        if (False(image.flags & ImageFlagBits::Registered) ||
+            False(image.flags & ImageFlagBits::GpuModified) || !IsTinyReadbackImage(image)) {
+            continue;
+        }
+        const u32 bytes_per_texel = image.info.num_bits / 8;
+        const u32 bytes = image.info.size.width * bytes_per_texel;
+        const VAddr address = image.info.guest_address;
+        const auto [buffer, offset] = buffer_cache.ObtainBuffer(address, bytes, true, false);
+        if (offset % bytes_per_texel != 0) {
+            continue;
+        }
+        const vk::BufferImageCopy copy = {
+            .bufferOffset = offset,
+            .bufferRowLength = 0,
+            .bufferImageHeight = 0,
+            .imageSubresource =
+                {
+                    .aspectMask = vk::ImageAspectFlagBits::eColor,
+                    .mipLevel = 0,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                },
+            .imageOffset = {0, 0, 0},
+            .imageExtent = {image.info.size.width, 1, 1},
+        };
+        runtime.DownloadImage(&image, buffer, std::span{&copy, 1});
+        std::scoped_lock lock{tiny_mutex};
+        if (tiny_ranges.size() < 64) {
+            tiny_ranges.emplace_back(address, bytes);
+        }
+        ++tiny_landed;
+        tiny_last_address = address;
+    }
+    std::scoped_lock lock{tiny_mutex};
+    const auto now = std::chrono::steady_clock::now();
+    if (tiny_landed && now - tiny_report >= std::chrono::seconds(5)) {
+        std::printf("Tiny image readbacks (5 s): %u copied (last %#llx)\n", tiny_landed,
+                    static_cast<unsigned long long>(tiny_last_address));
+        std::fflush(stdout);
+        tiny_landed = 0;
+        tiny_report = now;
+    }
+}
+
 void TextureCache::ProcessDownloadImages() {
+    ProcessTinyReadbacks();
     if (deferred_readbacks) {
         // Upload workers must finish reading RAM before these pages become inaccessible.
         scheduler.WaitHostCopies();
@@ -476,6 +574,8 @@ void TextureCache::MarkAsMaybeDirty(ImageId image_id, Image& image) {
 }
 
 void TextureCache::InvalidateMemory(VAddr addr, size_t size) {
+    // A CPU write: a tiny readback still on its way must not overwrite it.
+    CancelTinyReadbacks(addr, size);
     std::scoped_lock lock{mutex};
     const auto pages_start = PageManager::GetPageAddr(addr);
     const auto pages_end = PageManager::GetNextPageAddr(addr + size - 1);
@@ -549,6 +649,7 @@ void TextureCache::InvalidateMemoryFromGPU(VAddr address, size_t max_size) {
 
 void TextureCache::UnmapMemory(VAddr cpu_addr, size_t size) {
     CancelReadbacks(cpu_addr, size);
+    CancelTinyReadbacks(cpu_addr, size);
     std::scoped_lock lk{mutex};
 
     ImageIds deleted_images;
@@ -1074,6 +1175,8 @@ ImageView& TextureCache::FindTexture(ImageId image_id, const ImageDesc& desc, Vi
             image.info.guest_address != 0) {
             std::unique_lock lk{download_images_mutex};
             download_images.emplace(image_id);
+        } else {
+            QueueTinyReadback(image_id, image);
         }
     }
     if (refresh) {
@@ -1104,6 +1207,8 @@ ImageView& TextureCache::FindRenderTarget(ImageId image_id, const ImageDesc& des
     if (readback_linear_images && (!image.info.props.is_tiled || image.info.size.width <= 8)) {
         std::unique_lock lk{download_images_mutex};
         download_images.emplace(image_id);
+    } else {
+        QueueTinyReadback(image_id, image);
     }
     image.usage.render_target = 1u;
     UpdateImage(image_id);
@@ -1623,6 +1728,11 @@ void TextureCache::TouchImage(const Image& image) {
 void TextureCache::DeleteImage(ImageId image_id) {
     Image& image = slot_images[image_id];
     CancelReadbacks(image.info.guest_address, image.info.guest_size);
+    CancelTinyReadbacks(image.info.guest_address, image.info.guest_size);
+    if (tiny_readbacks) {
+        std::unique_lock lk{download_images_mutex};
+        tiny_downloads.erase(image_id);
+    }
     ASSERT_MSG(!image.IsTracked(), "Image was not untracked");
     ASSERT_MSG(False(image.flags & ImageFlagBits::Registered), "Image was not unregistered");
 

@@ -40,6 +40,72 @@ void DumpDeviceFault(const Instance& instance);
 
 namespace VideoCore {
 
+// GOW3_READ_SOURCES=1 (with GOW3_FAULT_STATS=1): CPU reads of GPU-written bytes and the shaders
+// that wrote their windows. Off with the default diagnostics: a lock and map update per GPU write.
+bool ReadbackStatsEnabled() {
+    static const bool on = [] {
+        const char* env = std::getenv("GOW3_READBACK_STATS");
+        return env && env[0] == '1';
+    }();
+    return on;
+}
+
+static bool FaultStatsEnabled() {
+    static const bool on = [] {
+        const char* stats = std::getenv("GOW3_FAULT_STATS");
+        const char* sources = std::getenv("GOW3_READ_SOURCES");
+        return (stats && stats[0] == '1' && sources && sources[0] == '1') || ReadbackStatsEnabled();
+    }();
+    return on;
+}
+
+static std::mutex g_rb_stats_mutex;
+static std::unordered_map<u64, std::array<u64, 2>> g_rb_window_bytes; ///< window -> bytes, pieces
+static std::unordered_map<u64, u32> g_rb_window_kinds;                ///< window -> ReadbackKind bits
+
+void NoteReadbackKind(VAddr address, u64 size, u32 kind) {
+    if (!ReadbackStatsEnabled() || size == 0) {
+        return;
+    }
+    std::scoped_lock lock{g_rb_stats_mutex};
+    for (u64 window = address >> 20; window <= (address + size - 1) >> 20; ++window) {
+        g_rb_window_kinds[window] |= kind;
+    }
+}
+static std::mutex g_writers_mutex;
+static std::unordered_map<u64, std::map<u64, u32>> g_window_writers; ///< window -> shader -> writes
+/// CPU reads that hit GPU-written bytes (not only their page): window -> (reads, addresses).
+static std::unordered_map<u64, std::pair<u32, std::map<VAddr, u32>>> g_gpu_byte_reads;
+
+void NoteGpuWriter(VAddr address, u64 size, u64 shader_hash) {
+    if (!FaultStatsEnabled() || size == 0) {
+        return;
+    }
+    std::scoped_lock lock{g_writers_mutex};
+    const u64 first = address >> 20;
+    const u64 last = std::min<u64>((address + size - 1) >> 20, first + 63);
+    for (u64 window = first; window <= last; ++window) {
+        ++g_window_writers[window][shader_hash];
+    }
+}
+
+/// "; written by <shader>x<writes> ..." for the statistics, empty unless GOW3_READ_SOURCES=1.
+static std::string WindowWriters(u64 window) {
+    if (!FaultStatsEnabled()) {
+        return {};
+    }
+    std::scoped_lock lock{g_writers_mutex};
+    const auto it = g_window_writers.find(window);
+    if (it == g_window_writers.end()) {
+        return "; written by no shader";
+    }
+    std::string out = "; written by";
+    for (const auto& [hash, n] : it->second) {
+        out += fmt::format(" {:08x}x{}", hash, n);
+    }
+    return out;
+}
+
 static constexpr size_t GDS_BUFFER_SIZE = 64_KB;
 // gow3: 512 MiB (GOW3_STREAM_MB overrides; 64-2048): with two frames queued Uncharted 2's heavy
 // scenes wrapped the 128 MiB ring in under two frames and waited for the GPU (1.3 s per 5 s).
@@ -198,6 +264,20 @@ static std::atomic<u32> g_write_fault_overlap, g_write_fault_same_page, g_write_
 static std::atomic<u64> g_write_fault_gpu_bytes;
 static std::atomic<u32> g_lazy_writes, g_lazy_cpu_wins, g_readback_waits, g_async_readbacks;
 static std::atomic<u32> g_readback_read_waits;
+// gow3 statistics (GOW3_FAULT_STATS=1): read faults on pages with GPU data on its way back that
+// hit those GPU bytes, or only other data on their page; time the faulting thread waited for the
+// GPU thread to take the request, and for the readback itself (microseconds).
+static std::atomic<u32> g_read_on_gpu_bytes, g_read_same_page;
+static std::atomic<u32> g_pieces_recurring, g_pieces_protected;
+static std::atomic<u64> g_readback_bytes;
+// gow3 statistics: fences deferred to ray-cast readbacks (label, delay until written).
+static std::atomic<u32> g_deferred_fences;
+static std::atomic<u64> g_deferred_us, g_deferred_max_us;
+static std::atomic<u32> g_swept_pages, g_swept_windows;
+static constexpr auto RecurringWindow = std::chrono::milliseconds{500};
+static std::atomic<u64> g_read_queue_us, g_read_wait_us;
+static std::mutex g_read_pieces_mutex;
+static std::unordered_map<u64, u32> g_read_pieces; ///< (piece address << 16 | size) -> reads
 static std::atomic<u32> g_readback_yields;
 
 // GOW3_ASYNC_READBACK=1: pages with a readback in flight are read-protected, so the CPU (the game,
@@ -270,14 +350,71 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
                             "GPU write records, %zu GPU-written ranges\n",
                             lazy_pages.size(), pending_readbacks.size(), page_writes.size(),
                             gpu_modified_ranges.Count());
+                {
+                    const u32 on_bytes = g_read_on_gpu_bytes.exchange(0);
+                    const u32 same_page = g_read_same_page.exchange(0);
+                    const u64 total_us = g_read_queue_us.exchange(0);
+                    const u64 wait_us = g_read_wait_us.exchange(0);
+                    std::printf("  CPU read faults on readback pages: %u on the GPU bytes, %u elsewhere on "
+                                "their page; %.1f ms in all, %.1f ms of it waiting for the GPU; readback "
+                                "pieces: %u recurring (readable), %u new (protected)\n",
+                                on_bytes, same_page, total_us / 1e3, wait_us / 1e3,
+                                g_pieces_recurring.exchange(0), g_pieces_protected.exchange(0));
+                    std::scoped_lock lock{g_read_pieces_mutex};
+                    std::vector<std::pair<u32, u64>> pieces;
+                    for (const auto& [key, n] : g_read_pieces) {
+                        pieces.emplace_back(n, key);
+                    }
+                    std::ranges::sort(pieces, std::greater{});
+                    for (size_t i = 0; i < std::min<size_t>(pieces.size(), 6); ++i) {
+                        std::printf("    read piece %#llx+%llu: %u\n",
+                                    static_cast<unsigned long long>(pieces[i].second >> 16),
+                                    static_cast<unsigned long long>(pieces[i].second & 0xffff), pieces[i].first);
+                    }
+                    g_read_pieces.clear();
+                }
+                {
+                    const u32 n = g_deferred_fences.exchange(0);
+                    std::printf("  ray-cast fences written after their readback: %u, %.2f ms on average, "
+                                "%.2f ms at most\n",
+                                n, n ? g_deferred_us.exchange(0) / 1e3 / n : 0.0,
+                                g_deferred_max_us.exchange(0) / 1e3);
+                }
+                std::printf("  readback bytes: %.1f MB; swept: %u pages with finished GPU writes, %u cooled "
+                            "hot windows\n",
+                            g_readback_bytes.exchange(0) / 1e6, g_swept_pages.exchange(0),
+                            g_swept_windows.exchange(0));
                 std::printf("  async readbacks: %u; CPU writes that waited for one: %u, CPU reads: %u; "
-                            "ray-cast pieces dropped for CPU writes: %u\n",
+                            "CPU writes into pending ray-cast results: %u\n",
                             g_async_readbacks.exchange(0), g_readback_waits.exchange(0),
                             g_readback_read_waits.exchange(0), g_readback_yields.exchange(0));
                 for (size_t i = 0; i < std::min<size_t>(sorted.size(), 10); ++i) {
                     const auto [n, key] = sorted[i];
-                    std::printf("  %s %#llx (1 MiB): %u\n", key >> 40 ? "write" : "read",
-                                (unsigned long long)((key & ((1ULL << 40) - 1)) << 20), n);
+                    const u64 window = key & ((1ULL << 40) - 1);
+                    std::printf("  %s %#llx (1 MiB): %u%s\n", key >> 40 ? "write" : "read",
+                                (unsigned long long)(window << 20), n, WindowWriters(window).c_str());
+                }
+                {
+                    std::unordered_map<u64, std::pair<u32, std::map<VAddr, u32>>> byte_reads;
+                    {
+                        std::scoped_lock lock{g_writers_mutex};
+                        byte_reads.swap(g_gpu_byte_reads);
+                    }
+                    for (const auto& [window, entry] : byte_reads) {
+                        std::string top;
+                        std::vector<std::pair<u32, VAddr>> sorted_addresses;
+                        for (const auto& [address, n] : entry.second) {
+                            sorted_addresses.emplace_back(n, address);
+                        }
+                        std::ranges::sort(sorted_addresses, std::greater{});
+                        for (size_t i = 0; i < std::min<size_t>(sorted_addresses.size(), 8); ++i) {
+                            top += fmt::format(" {:#x}x{}", sorted_addresses[i].second,
+                                               sorted_addresses[i].first);
+                        }
+                        std::printf("  reads of GPU bytes in %#llx (1 MiB): %u at%s%s\n",
+                                    static_cast<unsigned long long>(window << 20), entry.first,
+                                    top.c_str(), WindowWriters(window).c_str());
+                    }
                 }
                 std::fflush(stdout);
                 windows.clear();
@@ -286,6 +423,14 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
         }
     }
     const auto flush_request = [this, device_addr, size, is_write] {
+        if (!is_write && FaultStatsEnabled() && gpu_modified_ranges.Intersects(device_addr, size)) {
+            std::scoped_lock lock{g_writers_mutex};
+            auto& [reads, addresses] = g_gpu_byte_reads[device_addr >> 20];
+            ++reads;
+            if (addresses.size() < 64 || addresses.contains(device_addr)) {
+                ++addresses[device_addr];
+            }
+        }
         if (!is_write && !pending_readbacks.empty()) {
             // A read of a page whose GPU data is still on its way back (read-protected by
             // DownloadRangesAsync): that readback completes and unprotects it. Other GPU data
@@ -295,14 +440,44 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
             if (const u64 tick = PendingReadbackTick(page, end - page, false);
                 tick && tick < scheduler.CurrentTick()) { // submitted (only those are read-protected)
                 ++g_readback_read_waits;
+                VAddr hit = 0;
+                u64 hit_size = 0;
+                for (const auto& readback : pending_readbacks) {
+                    for (const auto& [piece, piece_size] : readback.pieces) {
+                        if (piece < device_addr + size && device_addr < piece + piece_size) {
+                            hit = piece;
+                            hit_size = piece_size;
+                        }
+                    }
+                }
+                if (hit) {
+                    ++g_read_on_gpu_bytes;
+                    std::scoped_lock lock{g_read_pieces_mutex};
+                    ++g_read_pieces[(hit << 16) | std::min<u64>(hit_size, 0xffff)];
+                } else {
+                    // False sharing: the CPU reads its own data beside GPU bytes still on their
+                    // way back. Nothing to wait for: the page stops being read-protected, now
+                    // and (noisy_pages) for the next readbacks of the coming 10 seconds.
+                    ++g_read_same_page;
+                    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds{10};
+                    for (VAddr p = page; p < end; p += 4096) {
+                        noisy_pages[p >> 12] = until;
+                        UnwatchPage(p);
+                    }
+                    return;
+                }
+                const auto wait_start = std::chrono::steady_clock::now();
                 CompleteReadbacks(true, tick);
+                g_read_wait_us += std::chrono::duration_cast<std::chrono::microseconds>(
+                                      std::chrono::steady_clock::now() - wait_start)
+                                      .count();
                 if (EmulatorSettings.GetReadbacksMode() == GpuReadbacksMode::Relaxed) {
                     return;
                 }
             }
         }
         if (is_write) {
-            cpu_write_hot.insert(device_addr >> 20); // runs GPU-side (command or inline)
+            cpu_write_hot[device_addr >> 20] = std::chrono::steady_clock::now(); // GPU-side (command or inline)
             // gow3 statistics: does the CPU write hit GPU-written bytes, or only their page?
             const VAddr page = Common::AlignDown(device_addr, 4096);
             u64 gpu_bytes_in_page = 0;
@@ -320,14 +495,17 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
             // are dropped, not waited for. With multithreaded rendering the recording thread
             // runs behind and every such write waited for the GPU (Uncharted 2: about 8 ms per
             // frame, a third of it).
+            // 16 Oct: dropping them threw away nearly every ray-cast batch's results in
+            // Uncharted 2 (~250 per 5 s): the guest had read the stale buffer at once (the fence
+            // was written when recorded) and refilled it, and NPCs placed with those results fell
+            // from the sky. Ray-cast fences now wait for their readback (RunEventWriteEop), so the
+            // guest reads first; a write into pending results waits for them below (counted).
             for (auto& readback : pending_readbacks) {
                 if (!readback.yield_to_cpu) {
                     continue;
                 }
                 for (const auto& [piece, piece_size] : readback.pieces) {
                     if (piece < device_addr + size && device_addr < piece + piece_size) {
-                        readback.rewritten.Add(piece, piece_size);
-                        gpu_modified_ranges.Subtract(piece, piece_size);
                         ++g_readback_yields;
                     }
                 }
@@ -350,7 +528,7 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
                         const VAddr lo = std::max(piece, pages_lo);
                         const VAddr hi = std::min(piece + piece_size, pages_hi);
                         readback.rewritten.Add(lo, hi - lo);
-                        gpu_modified_ranges.Subtract(lo, hi - lo);
+                        GpuRangesSubtract(lo, hi - lo);
                         ++g_readback_yields;
                     }
                 }
@@ -406,6 +584,7 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
                         }
                     });
                     shared_readbacks.emplace_back(page, 4096);
+                    NoteReadbackKind(page, 4096, ReadbackSharedPage);
                     memory_tracker->MarkRegionAsCpuModified(device_addr, size);
                     ++g_shared_writes_count;
                     return;
@@ -435,7 +614,13 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
     if (assume_locks) {
         flush_request();
     } else {
+        const auto queued = std::chrono::steady_clock::now();
         liverpool->SendCommand<true>(std::move(flush_request));
+        if (!is_write) {
+            g_read_queue_us += std::chrono::duration_cast<std::chrono::microseconds>(
+                                   std::chrono::steady_clock::now() - queued)
+                                   .count();
+        }
     }
 }
 
@@ -468,7 +653,7 @@ void BufferCache::DownloadRanges(std::span<const std::pair<VAddr, u64>> ranges) 
                 pending.push_back({arena, start, end - start, total_size_bytes});
                 total_size_bytes += (end - start + 63) & ~u64(63);
             });
-            gpu_modified_ranges.Subtract(range, range_size);
+            GpuRangesSubtract(range, range_size);
         });
     }
     if (total_size_bytes == 0) {
@@ -523,7 +708,7 @@ void BufferCache::DownloadMemory(const Buffer* arena, VAddr device_addr, u64 siz
             total_size_bytes += (new_size + align - 1) & mask;
         };
         gpu_modified_ranges.ForEachInRange(address, size, add_download);
-        gpu_modified_ranges.Subtract(address, size);
+        GpuRangesSubtract(address, size);
     });
     if (total_size_bytes == 0) {
         return;
@@ -624,7 +809,7 @@ void BufferCache::NoteCpuWrite(VAddr address, u64 size) {
     if (!gpu_modified_ranges.Intersects(address, size)) {
         return;
     }
-    gpu_modified_ranges.Subtract(address, size);
+    GpuRangesSubtract(address, size);
     for (VAddr page = Common::AlignDown(address, LAZY_PAGE_SIZE); page < address + size;
          page += LAZY_PAGE_SIZE) {
         if (!gpu_modified_ranges.Intersects(page, LAZY_PAGE_SIZE)) {
@@ -655,7 +840,7 @@ bool BufferCache::WriteThrough(VAddr address, const void* data, u64 size) {
     // Newest value in both views: not GPU data any more; readbacks recorded earlier must not
     // write their older values over it.
     if (gpu_modified_ranges.Intersects(address, size)) {
-        gpu_modified_ranges.Subtract(address, size);
+        GpuRangesSubtract(address, size);
         for (VAddr page = Common::AlignDown(address, LAZY_PAGE_SIZE); page < address + size;
              page += LAZY_PAGE_SIZE) {
             if (!gpu_modified_ranges.Intersects(page, LAZY_PAGE_SIZE)) {
@@ -742,7 +927,7 @@ void BufferCache::ForEachLazyUploadPiece(VAddr address, u64 size, Func&& func) {
         });
         // The CPU overwrote these after the GPU: they are uploaded and stop being GPU data.
         for (const auto& [lo, hi] : cpu_wins) {
-            gpu_modified_ranges.Subtract(lo, hi - lo);
+            GpuRangesSubtract(lo, hi - lo);
             g_lazy_cpu_wins += u32(hi - lo);
         }
         it = record.tracked.none() ? lazy_pages.erase(it) : std::next(it);
@@ -867,8 +1052,26 @@ void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ran
     }
     if (SafeReadbacks() || protect) {
         std::vector<VAddr> pages;
+        const auto now = std::chrono::steady_clock::now();
         for (const auto& [address, size] : readback.pieces) {
+            if (!protect) {
+                if (const auto it = landed_pieces.find(address);
+                    it != landed_pieces.end() && it->second.first == size &&
+                    now - it->second.second < RecurringWindow) {
+                    ++g_pieces_recurring;
+                    continue;
+                }
+                ++g_pieces_protected;
+            }
             for (VAddr page = Common::AlignDown(address, 4096); page < address + size; page += 4096) {
+                if (!protect) {
+                    if (const auto it = noisy_pages.find(page >> 12); it != noisy_pages.end()) {
+                        if (it->second > now) {
+                            continue;
+                        }
+                        noisy_pages.erase(it);
+                    }
+                }
                 pages.push_back(page);
             }
         }
@@ -890,8 +1093,88 @@ void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ran
     readback.offset = download.offset;
     readback.size = download.size;
     readback.mapped = download.mapped;
+    g_readback_bytes += readback.size;
+    if (ReadbackStatsEnabled()) {
+        static auto last = std::chrono::steady_clock::now();
+        std::string text;
+        {
+            std::scoped_lock lock{g_rb_stats_mutex};
+            for (const auto& [address, size] : readback.pieces) {
+                auto& entry = g_rb_window_bytes[address >> 20];
+                entry[0] += size;
+                ++entry[1];
+                if (protect) {
+                    g_rb_window_kinds[address >> 20] |= ReadbackEop;
+                }
+            }
+            if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds{5}) {
+                last = now;
+                std::vector<std::pair<u64, u64>> top;
+                u64 total = 0;
+                for (const auto& [window, entry] : g_rb_window_bytes) {
+                    top.emplace_back(entry[0], window);
+                    total += entry[0];
+                }
+                std::ranges::sort(top, std::greater{});
+                text = fmt::format("Readback windows (5 s): {:.1f} MB in {} windows\n", total / 1e6, top.size());
+                for (size_t i = 0; i < std::min<size_t>(top.size(), 16); ++i) {
+                    const u64 window = top[i].second;
+                    const u32 kinds = g_rb_window_kinds[window];
+                    text += fmt::format("  {:#x}: {:.1f} MB, {} pieces, {}{}{}{}{}{}\n", window << 20,
+                                        top[i].first / 1e6, g_rb_window_bytes[window][1],
+                                        kinds & ReadbackSmallWrite ? "small " : "",
+                                        kinds & ReadbackHotWindow ? "hot " : "",
+                                        kinds & ReadbackCpWrite ? "cp " : "",
+                                        kinds & ReadbackSharedPage ? "shared " : "",
+                                        kinds & ReadbackEop ? "eop " : "", "");
+                }
+                g_rb_window_bytes.clear();
+                g_rb_window_kinds.clear();
+            }
+        }
+        if (!text.empty()) {
+            // Writers per window (NoteGpuWriter is on with these statistics).
+            std::string out;
+            size_t pos = 0;
+            while (pos < text.size()) {
+                const size_t end = text.find('\n', pos);
+                std::string line = text.substr(pos, end - pos);
+                if (line.starts_with("  0x")) {
+                    const u64 window = std::strtoull(line.c_str() + 2, nullptr, 16) >> 20;
+                    line += WindowWriters(window);
+                }
+                out += line + "\n";
+                pos = end + 1;
+            }
+            std::fputs(out.c_str(), stdout);
+            std::fflush(stdout);
+        }
+    }
     pending_readbacks.push_back(std::move(readback));
     ++g_async_readbacks;
+    SweepTracking();
+}
+
+void BufferCache::SweepTracking() {
+    const auto now = std::chrono::steady_clock::now();
+    if (now - last_tracking_sweep < std::chrono::seconds{2}) {
+        return;
+    }
+    last_tracking_sweep = now;
+    // Pages whose small GPU writes all finished before the last readback: GpuBytesInFlight
+    // ignores such entries, so the page's record only cost memory and hash-table size.
+    auto* semaphore = scheduler.GetWorkSemaphore();
+    semaphore->Refresh();
+    g_swept_pages += static_cast<u32>(std::erase_if(page_writes, [&](const auto& entry) {
+        return std::ranges::all_of(entry.second, [&](const PageWrite& w) {
+            return w.tick < last_readback_tick && semaphore->IsFree(w.tick);
+        });
+    }));
+    if (HotWindowTtl().count()) {
+        g_swept_windows += static_cast<u32>(std::erase_if(cpu_write_hot, [&](const auto& entry) {
+            return now - entry.second >= HotWindowTtl();
+        }));
+    }
 }
 
 void BufferCache::CompleteReadbacks(bool wait, u64 wait_until) {
@@ -934,8 +1217,19 @@ void BufferCache::CompleteReadbacks(bool wait, u64 wait_until) {
         }
         for (const auto& [address, size] : readback.pieces) {
             readback.rewritten.ForEachNotInRange(address, size, [&](VAddr lo, size_t gap) {
-                gpu_modified_ranges.Subtract(lo, gap);
+                GpuRangesSubtract(lo, gap);
             });
+        }
+        {
+            const auto now = std::chrono::steady_clock::now();
+            if (landed_pieces.size() > 8192) {
+                std::erase_if(landed_pieces, [&](const auto& entry) {
+                    return now - entry.second.second >= RecurringWindow;
+                });
+            }
+            for (const auto& [address, size] : readback.pieces) {
+                landed_pieces[address] = {size, now};
+            }
         }
         // Pages left without GPU data stop being GPU-modified (pieces are in address order).
         VAddr last_page = ~0ULL;
@@ -964,7 +1258,114 @@ void BufferCache::CompleteReadbacks(bool wait, u64 wait_until) {
             .mapped = readback.mapped,
             .type = VideoCore::MemoryType::HostCached,
         });
+        auto landed = std::move(readback.on_landed);
         pending_readbacks.pop_front();
+        for (auto& fn : landed) {
+            --deferred_signals;
+            fn();
+        }
+    }
+}
+
+bool BufferCache::DeferUntilLastReadback(std::function<void()> fn, VAddr label, u64 value, u32 bytes) {
+    if (pending_readbacks.empty()) {
+        return false;
+    }
+    ++deferred_signals;
+    ++g_deferred_fences;
+    {
+        static std::mutex labels_mutex;
+        static std::unordered_map<VAddr, u32> seen;
+        std::scoped_lock lock{labels_mutex};
+        if (seen.size() < 12 && seen[label]++ == 0) {
+            std::printf("Deferred fence: label %#llx (tick %llu)\n", static_cast<unsigned long long>(label),
+                        static_cast<unsigned long long>(pending_readbacks.back().tick));
+            std::fflush(stdout);
+        }
+    }
+    fn = [fn = std::move(fn), start = std::chrono::steady_clock::now()] {
+        const u64 us = std::chrono::duration_cast<std::chrono::microseconds>(
+                           std::chrono::steady_clock::now() - start)
+                           .count();
+        g_deferred_us += us;
+        u64 max = g_deferred_max_us.load();
+        while (us > max && !g_deferred_max_us.compare_exchange_weak(max, us)) {
+        }
+        fn();
+    };
+    if (label) {
+        deferred_labels.insert(label);
+        deferred_values[label] = {value, bytes ? bytes : 4u, pending_readbacks.back().tick};
+        pending_readbacks.back().on_landed.emplace_back([this, label, fn = std::move(fn)] {
+            if (const auto it = deferred_labels.find(label); it != deferred_labels.end()) {
+                deferred_labels.erase(it);
+            }
+            if (!deferred_labels.contains(label)) {
+                deferred_values.erase(label);
+            }
+            fn();
+        });
+    } else {
+        pending_readbacks.back().on_landed.emplace_back(std::move(fn));
+    }
+    return true;
+}
+
+bool BufferCache::DeferredFenceTick(VAddr address, u64& tick, u32* value) const {
+    for (const auto& [label, deferred] : deferred_values) {
+        if (address >= label && address + sizeof(u32) <= label + deferred.bytes) {
+            tick = deferred.tick;
+            if (value) {
+                *value = static_cast<u32>(deferred.value >> ((address - label) * 8));
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+void BufferCache::LandReadbacks(u64 tick) {
+    CompleteReadbacks(true, tick);
+}
+
+bool BufferCache::HasUnsubmittedReadback() const {
+    return !pending_readbacks.empty() && pending_readbacks.back().tick >= scheduler.CurrentTick();
+}
+
+void BufferCache::PollReadbacksNow() {
+    if (pending_readbacks.empty()) {
+        return;
+    }
+    scheduler.GetWorkSemaphore()->Refresh();
+    readback_polls = 0;
+    CompleteReadbacks(false);
+}
+
+void BufferCache::UnwatchPage(VAddr page) {
+    for (auto& readback : pending_readbacks) {
+        for (size_t i = 0; i < readback.watched.size(); ++i) {
+            const auto [address, size] = readback.watched[i];
+            if (page < address || page >= address + size) {
+                continue;
+            }
+            if (readback.watching) {
+                page_manager->UpdatePageWatchers<false, true>(page, 4096);
+            }
+            // Split the range around the page.
+            const VAddr tail = page + 4096;
+            const u64 tail_size = address + size - tail;
+            if (page > address) {
+                readback.watched[i].second = page - address;
+                if (tail_size) {
+                    readback.watched.emplace(readback.watched.begin() + i + 1, tail, tail_size);
+                }
+            } else if (tail_size) {
+                readback.watched[i] = {tail, tail_size};
+            } else {
+                readback.watched.erase(readback.watched.begin() + i);
+            }
+            break;
+        }
     }
 }
 
@@ -1169,7 +1570,7 @@ std::pair<const Buffer*, u64> BufferCache::ObtainBuffer(VAddr device_addr, u32 s
                 writes.push_back({lo, hi, tick});
             }
         }
-        gpu_modified_ranges.Add(device_addr, size);
+        GpuRangesAdd(device_addr, size);
         for (auto& readback : pending_readbacks) {
             readback.rewritten.Add(device_addr, size);
         }

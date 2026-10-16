@@ -314,16 +314,16 @@ void PerformanceTab() {
     auto& s = Gow3Settings::Get();
     ImGui::SeparatorText("Live");
     if (BeginRows("##live")) {
-        static const char* const fps_labels[] = {"30", "60", "120"};
+        static const char* const fps_labels[] = {"30", "40", "45", "50", "55", "60", "120"};
         static_assert(std::size(fps_labels) == G::FpsLimits.size());
         ChoiceRow("Frame rate limit", s.fps_limit, fps_labels, G::FpsLimits.data(), int(G::FpsLimits.size()),
-                  "Caps the frame rate. 60 is the PS4's; above 120 the game's movement breaks.");
+                  "Caps the frame rate, live. 60 is the PS4's; above 120 the game's movement breaks. 40-55 are for tests.");
         // At a 60 Hz vblank the game waits for the next vblank: above 60 FPS needs the faster
         // vblank, which the launcher sets at start when its limit is above 60.
         if (EmulatorSettings.GetVblankFrequency() <= 60 && (s.fps_limit == 0 || s.fps_limit > 60)) {
             InfoRow("Effective limit", "60 FPS until the game is started with 120");
         }
-        static const char* const queued_labels[] = {"1 (lowest latency)", "2 (recommended)", "Unlimited"};
+        static const char* const queued_labels[] = {"1 (recommended)", "2 (faster; U2 NPCs float)", "Unlimited"};
         ChoiceRow("Frames queued", s.frames_queued, queued_labels, G::FramesQueued.data(),
                   int(G::FramesQueued.size()), "More frames queued: steadier FPS, slower response to input.");
         CheckRow("Compile new shaders in the background", s.async_shaders,

@@ -147,6 +147,28 @@ static LONG fatal_exception(EXCEPTION_POINTERS *info) {
     fprintf(stderr,"  rax=%016llx rbx=%016llx rcx=%016llx rdx=%016llx\n  rsi=%016llx rdi=%016llx rbp=%016llx rsp=%016llx\n",
             c->Rax,c->Rbx,c->Rcx,c->Rdx,c->Rsi,c->Rdi,c->Rbp,c->Rsp);
     if (gpu_enabled) gow3gpu_dump_guest_writes(info);
+    /* Host code: unwound with the executable's unwind tables (optimized host code keeps no frame
+     * pointers); stops at guest code, which has none. */
+    {
+        CONTEXT ctx=*c;
+        for (int depth=0; depth<40; ++depth) {
+            DWORD64 image_base=0;
+            PRUNTIME_FUNCTION fn=RtlLookupFunctionEntry(ctx.Rip,&image_base,NULL);
+            describe_address(where,sizeof(where),(uintptr_t)ctx.Rip);
+            fprintf(stderr,"  host #%d %s\n",depth,where);
+            if (!fn) {
+                if (depth) break;
+                /* A leaf function: its return address is on top of the stack. */
+                DWORD64 ret=0; SIZE_T got=0;
+                if (!ReadProcessMemory(GetCurrentProcess(),(void *)(uintptr_t)ctx.Rsp,&ret,sizeof(ret),&got) || got!=sizeof(ret)) break;
+                ctx.Rip=ret; ctx.Rsp+=8;
+                continue;
+            }
+            PVOID handler_data=NULL; DWORD64 establisher=0;
+            RtlVirtualUnwind(UNW_FLAG_NHANDLER,image_base,ctx.Rip,fn,&ctx,&handler_data,&establisher,NULL);
+            if (!ctx.Rip) break;
+        }
+    }
     /* rbp chain (guest and host code keep frame pointers). */
     uintptr_t rbp=(uintptr_t)c->Rbp;
     for (int depth=0; depth<24 && rbp; ++depth) {
@@ -202,10 +224,20 @@ static LONG watch_hit(EXCEPTION_POINTERS *info) {
 static uint64_t exec_watch[4];
 static int exec_watch_count;
 static HANDLE exec_watch_ready;
+static DWORD exec_watch_armed[8192];
+static volatile LONG exec_watch_armed_count;
+/* Diagnostics: points data watch 0 at `address` (8-byte writes) and re-arms every thread
+ * (needs GOW3_EXEC_WATCH set at start, e.g. w:0). Called by the GPU library's checks. */
+void runtime_exec_watch_retarget(uint64_t address) {
+    exec_watch[0]=address|(1ull<<63);
+    if (exec_watch_count<1) exec_watch_count=1;
+    InterlockedExchange(&exec_watch_armed_count,0);
+    printf("Exec watch: data watch moved to %#llx\n",(unsigned long long)address);
+    fflush(stdout);
+}
 static DWORD WINAPI exec_watch_thread(LPVOID unused) {
     (void)unused;
-    static DWORD armed[8192];
-    int armed_count=0;
+    DWORD *armed=exec_watch_armed;
     DWORD self=GetCurrentThreadId(), pid=GetCurrentProcessId();
     ULONGLONG start=GetTickCount64();
     const char *secs=getenv("GOW3_EXEC_WATCH_SECONDS");
@@ -217,6 +249,7 @@ static DWORD WINAPI exec_watch_thread(LPVOID unused) {
             for (BOOL ok=Thread32First(snap,&te); ok; ok=Thread32Next(snap,&te)) {
                 if (te.th32OwnerProcessID!=pid || te.th32ThreadID==self) continue;
                 int known=0;
+                const LONG armed_count=exec_watch_armed_count;
                 for (int i=0;i<armed_count;++i) if (armed[i]==te.th32ThreadID) { known=1; break; }
                 if (known || armed_count==8192) continue;
                 HANDLE t=OpenThread(THREAD_SUSPEND_RESUME|THREAD_GET_CONTEXT|THREAD_SET_CONTEXT,FALSE,te.th32ThreadID);
@@ -236,7 +269,7 @@ static DWORD WINAPI exec_watch_thread(LPVOID unused) {
                                 ctx.Dr7|=1ull<<(2*i);
                             }
                         }
-                        if (SetThreadContext(t,&ctx)) armed[armed_count++]=te.th32ThreadID;
+                        if (SetThreadContext(t,&ctx)) armed[InterlockedIncrement(&exec_watch_armed_count)-1]=te.th32ThreadID;
                     }
                     ResumeThread(t);
                 }
@@ -247,7 +280,7 @@ static DWORD WINAPI exec_watch_thread(LPVOID unused) {
         if (round==0) SetEvent(exec_watch_ready);
         Sleep(round<200 ? 1 : 20);
     }
-    printf("Exec watch: done (%d threads armed)\n",armed_count);
+    printf("Exec watch: done (%ld threads armed)\n",(long)exec_watch_armed_count);
     return 0;
 }
 static void start_exec_watch(void) {

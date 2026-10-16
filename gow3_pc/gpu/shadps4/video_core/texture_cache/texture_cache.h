@@ -22,6 +22,7 @@
 #include <thread>
 #include <unordered_set>
 #include <boost/container/small_vector.hpp>
+#include <deque>
 #include <queue>
 #include <tsl/robin_map.h>
 
@@ -129,6 +130,9 @@ public:
 
     /// Schedules a copy of pending images for download back to CPU memory.
     void ProcessDownloadImages();
+    /// gow3: guest ranges of tiny images copied into the buffer cache since the last call; the
+    /// rasterizer reads them back with the next end-of-pipe fence.
+    std::vector<std::pair<VAddr, u64>> TakeTinyReadbacks();
     bool ResolveReadbacks(VAddr address, u64 size, bool assume_locks = true,
                           ReadbackSource source = ReadbackSource::Unknown);
     void CancelReadbacks(VAddr address, u64 size);
@@ -416,6 +420,18 @@ private:
     /// Records the copy of a GPU-modified image into a deferred staging allocation.
     std::optional<PendingDownload> RecordImageDownload(ImageId image_id);
 
+    /// gow3 16 Oct: tiny GPU-written images (one row of at most 4 KiB, linear or a single texel)
+    /// go back to guest memory with the next end-of-pipe fence (ProcessTinyReadbacks). Uncharted 2
+    /// reads its aim focus distance from a 1x1 R32F render target; never copied back, it stayed 0
+    /// and everything behind Nate was blurred while aiming. The general deferred image readback
+    /// (GOW3_READBACK_LINEAR + GOW3_DEFERRED_READBACK) fixed it too, but a CPU read of a pending
+    /// copy made the game thread wait for the GPU (~50 times a second) and U2 asserted
+    /// m_gfxEopTick in FrameBegin. GOW3_TINY_IMAGE_READBACK=1: on (set for U2 by the launcher).
+    [[nodiscard]] bool IsTinyReadbackImage(const Image& image) const;
+    void QueueTinyReadback(ImageId image_id, const Image& image);
+    void ProcessTinyReadbacks();
+    void CancelTinyReadbacks(VAddr address, u64 size);
+
     /// Thread function for copying downloaded images out to CPU memory.
     void DownloadedImagesThread(const std::stop_token& token);
 
@@ -471,6 +487,16 @@ private:
     Common::SlotVector<ImageView> slot_image_views;
     tsl::robin_map<u64, Sampler> samplers;
     std::unordered_set<ImageId> download_images;
+    std::unordered_set<ImageId> tiny_downloads; ///< gow3: under download_images_mutex
+    std::vector<std::pair<VAddr, u64>> tiny_ranges; ///< gow3: under tiny_mutex (TakeTinyReadbacks)
+    std::mutex tiny_mutex;
+    u32 tiny_landed = 0; ///< gow3: 5 s statistics (under tiny_mutex)
+    VAddr tiny_last_address = 0;
+    std::chrono::steady_clock::time_point tiny_report{};
+    const bool tiny_readbacks = [] {
+        const char* value = std::getenv("GOW3_TINY_IMAGE_READBACK");
+        return value && value[0] == '1'; // on for Uncharted 2 (tools/probe_uncharted.py)
+    }();
     u64 total_used_memory = 0;
     u64 gc_evictions = 0, gc_downloads = 0; ///< gow3: pressure report
     std::chrono::steady_clock::time_point gc_report_time{};

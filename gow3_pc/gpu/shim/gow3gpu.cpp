@@ -1,3 +1,5 @@
+#include <fmt/format.h>
+#include <tuple>
 #include "gow3_write_log.h"
 // gow3: glue between the C loader and the vendored shadPS4 video core.
 #include "gow3_overlay.h"
@@ -37,6 +39,7 @@ extern "C" {
 int runtime_memory_is_mapped(uintptr_t address, uint64_t size);
 int runtime_memory_write_backing(uintptr_t address, const void* data, uint64_t size);
 int runtime_memory_read_backing(uintptr_t address, void* data, uint64_t size);
+void runtime_memory_copy_backing(uintptr_t address, void* dest, uint64_t size);
 uint64_t runtime_memory_clamp(uintptr_t address, uint64_t size);
 int runtime_memory_region(uintptr_t address, uintptr_t* start, uintptr_t* end, int* mapped);
 void runtime_memory_gpu_protect(uintptr_t address, uint64_t size, int read, int write);
@@ -107,7 +110,18 @@ void MemoryManager::InvalidateMemory(VAddr address, u64 size) {
 u64 MemoryManager::ClampRangeSize(VAddr virtual_addr, u64 size) {
     return runtime_memory_clamp(virtual_addr, size);
 }
+// gow3: through the backing view (runtime_memory_copy_backing): uploads run while the GPU thread
+// holds the buffer tracker's locks, and must not fault on pages read-protected for readbacks.
 static void CopySparseSerial(VAddr source, u8* dest, u64 size) {
+    // GOW3_UPLOAD_BACKING=0: through the guest view, as before 16 Oct (diagnosis).
+    static const bool backing = [] {
+        const char* env = std::getenv("GOW3_UPLOAD_BACKING");
+        return !(env && env[0] == '0');
+    }();
+    if (backing) {
+        runtime_memory_copy_backing(source, dest, size);
+        return;
+    }
     while (size) {
         uintptr_t start = 0, end = 0;
         int mapped = 0;
@@ -120,7 +134,93 @@ static void CopySparseSerial(VAddr source, u8* dest, u64 size) {
         source += n; dest += n; size -= n;
     }
 }
+// gow3 diagnostics (GOW3_UPLOAD_CHECK=1): a sample of the guest copies made for the GPU (up to
+// 64 KiB) is hashed; at the frame's submit-done the guest bytes are hashed again. A source that
+// changed was written by the game after the copy was taken (5 s statistics by 1 MiB window).
+namespace {
+struct CopiedSource {
+    VAddr source;
+    u64 size;
+    u64 hash;
+};
+std::mutex g_copied_mutex;
+std::vector<CopiedSource> g_copied;
+bool UploadCheckEnabled() {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_UPLOAD_CHECK");
+        return env && env[0] == '1';
+    }();
+    return enabled;
+}
+u64 HashBytes(const u8* data, u64 size) {
+    u64 h = 1469598103934665603ULL;
+    for (u64 i = 0; i < size; ++i) {
+        h = (h ^ data[i]) * 1099511628211ULL;
+    }
+    return h;
+}
+} // namespace
+
+void MemoryManager::CheckCopiedSources() {
+    if (!UploadCheckEnabled()) {
+        return;
+    }
+    std::vector<CopiedSource> copies;
+    {
+        std::scoped_lock lock{g_copied_mutex};
+        copies.swap(g_copied);
+    }
+    static std::map<u64, std::pair<u64, u64>> windows; // 1 MiB window -> (copies, changed)
+    static u64 checked = 0, changed = 0;
+    static auto last = std::chrono::steady_clock::now();
+    std::vector<u8> now;
+    for (const auto& copy : copies) {
+        now.resize(copy.size);
+        CopySparseSerial(copy.source, now.data(), copy.size);
+        auto& w = windows[copy.source >> 20];
+        ++w.first;
+        ++checked;
+        if (HashBytes(now.data(), copy.size) != copy.hash) {
+            ++w.second;
+            ++changed;
+        }
+    }
+    if (const auto t = std::chrono::steady_clock::now(); t - last >= std::chrono::seconds{5}) {
+        last = t;
+        std::vector<std::tuple<u64, u64, u64>> sorted;
+        for (const auto& [window, n] : windows) {
+            if (n.second) {
+                sorted.emplace_back(n.second, n.first, window);
+            }
+        }
+        std::ranges::sort(sorted, std::greater{});
+        std::string text;
+        for (size_t i = 0; i < std::min<size_t>(sorted.size(), 8); ++i) {
+            const auto [c, n, window] = sorted[i];
+            text += fmt::format(" {:#x}: {}/{}", window << 20, c, n);
+        }
+        std::printf("Upload check (5 s): %llu sampled copies, %llu sources changed by submit-done;%s\n",
+                    static_cast<unsigned long long>(checked), static_cast<unsigned long long>(changed),
+                    text.c_str());
+        std::fflush(stdout);
+        windows.clear();
+        checked = changed = 0;
+    }
+}
+
 void MemoryManager::CopySparseMemory(VAddr source, u8* dest, u64 size) {
+    if (UploadCheckEnabled() && size <= 64 * 1024) {
+        CopySparseSerial(source, dest, size);
+        static std::atomic<u32> sample{0};
+        if ((sample.fetch_add(1, std::memory_order_relaxed) & 3) == 0) {
+            const u64 hash = HashBytes(dest, size);
+            std::scoped_lock lock{g_copied_mutex};
+            if (g_copied.size() < 100000) {
+                g_copied.push_back({source, size, hash});
+            }
+        }
+        return;
+    }
     // gow3: large uploads (streaming) are split across the copy threads.
     constexpr u64 Chunk = 512 * 1024;
     if (size < 4 * Chunk || !Gow3Copy::Enabled()) {

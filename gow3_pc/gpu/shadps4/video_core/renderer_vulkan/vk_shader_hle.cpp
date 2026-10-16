@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -256,6 +257,92 @@ static bool ExecuteCopyShaderHLE(const Shader::Info& info, const AmdGpu::Compute
 static constexpr u64 SCALAR_COPY_SHADER_HASH = 0x2d215c3b;
 static constexpr u64 SCALAR_COPY64_SHADER_HASH = 0x6a6422a9;
 
+// gow3 diagnostics (GOW3_SCALAR_COPY_CHECK=1): each CPU scalar copy keeps what it read; at the
+// next submission, and at the one after, its source is read again. A source that changed in
+// between was completed by the game after the copy was made (5 s statistics, by shader).
+struct ScalarCopyCheck {
+    u64 hash;
+    VAddr src;
+    std::vector<u32> values;
+    bool second;
+};
+static std::mutex g_copy_check_mutex;
+static std::vector<ScalarCopyCheck> g_copy_checks;
+
+static bool ScalarCopyCheckEnabled() {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_SCALAR_COPY_CHECK");
+        return env && env[0] == '1';
+    }();
+    return enabled;
+}
+
+void CheckScalarCopySources() {
+    if (!ScalarCopyCheckEnabled()) {
+        return;
+    }
+    std::vector<ScalarCopyCheck> checks;
+    {
+        std::scoped_lock lock{g_copy_check_mutex};
+        checks.swap(g_copy_checks);
+    }
+    static std::map<u64, std::array<u64, 5>> stats; // copies, changed at submit, dwords, changed one later, dwords
+    static auto last = std::chrono::steady_clock::now();
+    static u32 described = 0;
+    auto* memory = Core::Memory::Instance();
+    std::vector<ScalarCopyCheck> keep;
+    for (auto& check : checks) {
+        std::vector<u32> now(check.values.size());
+        if (!memory->TryReadBacking(check.src, now.data(), now.size() * 4)) {
+            std::memcpy(now.data(), reinterpret_cast<const void*>(check.src), now.size() * 4);
+        }
+        u64 differ = 0;
+        for (size_t i = 0; i < now.size(); ++i) {
+            differ += now[i] != check.values[i];
+        }
+        auto& s = stats[check.hash];
+        if (!check.second) {
+            ++s[0];
+            if (differ) {
+                ++s[1];
+                s[2] += differ;
+                if (described < 8) {
+                    ++described;
+                    std::printf("Scalar copy check: %llx source %#llx (%zu dwords) changed by the submission: "
+                                "%llu dwords, first %#x -> %#x\n",
+                                static_cast<unsigned long long>(check.hash),
+                                static_cast<unsigned long long>(check.src), now.size(),
+                                static_cast<unsigned long long>(differ), check.values[0], now[0]);
+                }
+            } else {
+                check.second = true;
+                keep.push_back(std::move(check));
+            }
+        } else if (differ) {
+            ++s[3];
+            s[4] += differ;
+        }
+    }
+    {
+        std::scoped_lock lock{g_copy_check_mutex};
+        for (auto& check : keep) {
+            g_copy_checks.push_back(std::move(check));
+        }
+    }
+    if (const auto t = std::chrono::steady_clock::now(); t - last >= std::chrono::seconds{5}) {
+        last = t;
+        for (const auto& [hash, s] : stats) {
+            std::printf("Scalar copy check (5 s): %llx: %llu copies; source changed by the submission: %llu "
+                        "(%llu dwords); unchanged then, changed by the next one: %llu (%llu dwords)\n",
+                        static_cast<unsigned long long>(hash), static_cast<unsigned long long>(s[0]),
+                        static_cast<unsigned long long>(s[1]), static_cast<unsigned long long>(s[2]),
+                        static_cast<unsigned long long>(s[3]), static_cast<unsigned long long>(s[4]));
+        }
+        std::fflush(stdout);
+        stats.clear();
+    }
+}
+
 static bool ExecuteScalarCopyHLE(const Shader::Info& info, const AmdGpu::ComputeProgram& cs_program,
                                  Rasterizer& rasterizer, u32 per_group) {
     static std::atomic<u32> on_cpu, on_gpu;
@@ -304,12 +391,50 @@ static bool ExecuteScalarCopyHLE(const Shader::Info& info, const AmdGpu::Compute
     }
     const auto src = info.buffers[0].GetSharp(info);
     const auto dst = info.buffers[1].GetSharp(info);
+    // Diagnostics (GOW3_SCALAR_COPY_CHECK=1): the descriptors as read for the copy (flattened user
+    // data) against the dispatch's user data registers s[0:3] and s[4:7].
+    if (ScalarCopyCheckEnabled() && ud.size() >= 8) {
+        static std::atomic<u32> checked{0}, src_differ{0}, dst_differ{0}, described{0};
+        static auto last = std::chrono::steady_clock::now();
+        static std::mutex last_mutex;
+        const bool s_diff = std::memcmp(&src, ud.data(), 16) != 0;
+        const bool d_diff = std::memcmp(&dst, ud.data() + 4, 16) != 0;
+        ++checked;
+        src_differ += s_diff;
+        dst_differ += d_diff;
+        if ((s_diff || d_diff) && described.fetch_add(1) < 8) {
+            const u32* s = reinterpret_cast<const u32*>(&src);
+            const u32* d = reinterpret_cast<const u32*>(&dst);
+            std::printf("Scalar copy sharps: %llx used src %08x %08x %08x %08x dst %08x %08x %08x %08x; "
+                        "registers %08x %08x %08x %08x / %08x %08x %08x %08x\n",
+                        static_cast<unsigned long long>(info.pgm_hash), s[0], s[1], s[2], s[3], d[0], d[1],
+                        d[2], d[3], ud[0], ud[1], ud[2], ud[3], ud[4], ud[5], ud[6], ud[7]);
+        }
+        std::scoped_lock lock{last_mutex};
+        if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds{5}) {
+            last = now;
+            std::printf("Scalar copy sharps (5 s): %u checked, source differs from s[0:3]: %u, destination "
+                        "from s[4:7]: %u\n",
+                        checked.exchange(0), src_differ.exchange(0), dst_differ.exchange(0));
+            std::fflush(stdout);
+        }
+    }
     const auto plain_dword = [](const AmdGpu::Buffer& buffer) {
         return buffer.data_format == u32(AmdGpu::DataFormat::Format32) && buffer.stride == 4 &&
                buffer.base_address != 0 && buffer.base_address % 4 == 0;
     };
     if (!plain_dword(src) || !plain_dword(dst)) {
         return to_gpu(!plain_dword(src) ? "source format/stride" : "destination format/stride",
+                      src.base_address, dst.base_address);
+    }
+    // A load returns the X channel through the descriptor's swizzle (constant 0 or 1, or another
+    // channel); swizzled and thread-indexed descriptors address memory differently. Only plain
+    // linear dwords are copied here.
+    const auto linear = [](const AmdGpu::Buffer& buffer) {
+        return buffer.swizzle_enable == 0 && buffer.add_tid_enable == 0;
+    };
+    if (src.dst_sel_x != 4 || !linear(src) || !linear(dst)) {
+        return to_gpu(src.dst_sel_x != 4 ? "source channel swizzle" : "swizzled/thread-indexed descriptor",
                       src.base_address, dst.base_address);
     }
     const u64 count = std::min<u64>({u64(cs_program.dim_x) * per_group, ud[6], dst.num_records});
@@ -347,6 +472,13 @@ static bool ExecuteScalarCopyHLE(const Shader::Info& info, const AmdGpu::Compute
     }
     if (!buffer_cache.WriteThrough(dst_addr, values.data(), size)) {
         return to_gpu("write-through refused", src_addr, dst_addr, size);
+    }
+    if (ScalarCopyCheckEnabled() && readable) {
+        std::scoped_lock lock{g_copy_check_mutex};
+        if (g_copy_checks.size() < 200000) {
+            g_copy_checks.push_back({info.pgm_hash, src_addr,
+                                     std::vector<u32>(values.begin(), values.begin() + readable), false});
+        }
     }
     ++on_cpu;
     static const bool stats = std::getenv("GOW3_FAULT_STATS") != nullptr;

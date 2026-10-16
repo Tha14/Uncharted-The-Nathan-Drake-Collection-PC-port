@@ -1,3 +1,4 @@
+#include <atomic>
 // SPDX-FileCopyrightText: Copyright 2025 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -198,7 +199,25 @@ bool Runtime::Transit(VideoCore::Image* image, vk::ImageLayout dst_layout,
     BeforeImageAccess();
     if (scene_targets) scene_targets->NativeAccess(*image, dst_access);
     const size_t prev_num_barriers = static_cast<size_t>(image_barriers.size());
+    // gow3 diagnostics (GOW3_TRACE_IMAGE=<hex guest address>): this image's transitions.
+    static const u64 trace_address = [] {
+        const char* env = std::getenv("GOW3_TRACE_IMAGE");
+        return env ? std::strtoull(env, nullptr, 16) : 0ULL;
+    }();
+    const bool trace = trace_address && image->info.guest_address == trace_address;
+    const auto before = image->backing->state;
     image->GetBarriers(image_barriers, dst_layout, dst_access, dst_stage, subres_range);
+    if (trace) {
+        static std::atomic<int> lines{0};
+        if (lines.fetch_add(1) < 300) {
+            std::printf("Trace image: transit %s/%s/%s -> %s/%s/%s, barrier %d, caller %p\n",
+                        vk::to_string(before.layout).c_str(), vk::to_string(before.access_mask).c_str(),
+                        vk::to_string(before.pl_stage).c_str(), vk::to_string(dst_layout).c_str(),
+                        vk::to_string(dst_access).c_str(), vk::to_string(dst_stage).c_str(),
+                        int(image_barriers.size() != prev_num_barriers), __builtin_return_address(0));
+            std::fflush(stdout);
+        }
+    }
     return image_barriers.size() != prev_num_barriers;
 }
 

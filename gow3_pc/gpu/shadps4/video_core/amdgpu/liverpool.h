@@ -33,6 +33,8 @@ struct VideoOutPort;
 
 namespace AmdGpu {
 
+struct PM4CmdWaitRegMem;
+
 union PM4Header;
 
 struct Liverpool {
@@ -81,6 +83,7 @@ struct Liverpool {
     std::deque<PendingFence> pending_fences;
     void NotePendingFences(const auto& event);
     bool PendingFenceValue(VAddr address, u32& value);
+    bool LandDeferredFenceFor(const PM4CmdWaitRegMem& wait, const Regs& state);
     void NotePendingWrite(const struct PM4CmdWriteData& write_data, u32 num_bytes);
     /// gow3: running checksum of graphics-register packets (see ApplyGraphicsRegisterPacket).
     u64 gfx_reg_checksum{};
@@ -99,7 +102,13 @@ public:
     void SubmitGfx(std::span<const u32> dcb, std::span<const u32> ccb);
     void SubmitAsc(u32 gnm_vqid, std::span<const u32> acb);
 
+    /// gow3 test (GOW3_GFX_WAIT_SUBMIT_DONE_MS): sceGnmSubmitDone calls so far.
+    static inline std::atomic<u64> submit_done_gen{0};
+    std::mutex gfx_submit_gen_mutex;
+    std::deque<std::pair<u64, s64>> gfx_submit_gens; ///< per queued graphics submission
+
     void SubmitDone() noexcept {
+        submit_done_gen.fetch_add(1, std::memory_order_acq_rel);
         std::scoped_lock lk{submit_mutex};
         mapped_queues[GfxQueueId].ccb_buffer_offset = 0;
         mapped_queues[GfxQueueId].dcb_buffer_offset = 0;

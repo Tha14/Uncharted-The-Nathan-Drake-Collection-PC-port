@@ -734,3 +734,98 @@ Plan and test list: analysis/PLAN.md.
 - **MT crash fix held** (11+ minutes with the draw pipe, 15:53 session). **MT frame time:** the wait profile showed buffer_cache.cpp:846 (CompleteReadbacks wait) about 1.5 s per 5 s: every ray-cast readback (about 36/s) had a guest write into its 1 KiB range while pending ("CPU writes that waited for one" = readbacks), about 8 ms each, a third of the frame. Only with the draw pipe (non-MT sessions: 0 waits): the recording thread runs behind, so the guest refills the result buffer for its next batch before the readback is submitted. Fix: EOP readbacks are yield_to_cpu: a CPU write into a piece adds it to `rewritten` and drops it from gpu_modified_ranges (no wait, no download); counted as "ray-cast pieces dropped for CPU writes" (in test).
 - Live toggle A/B in MT (cost per draw on the recording thread): PreparedResources/DrawPreparation (4096/8192) 3.3 -> 3.2 us/draw, at most +1 FPS; DeferredStreamCopies/ParallelCopies (16384/131072) about +1-2 FPS in non-MT (noise). The default mask 159760 stays.
 - **Frames queued 1 -> 2 (U2, 17:4x):** the draw recording thread spent 41% in ZwWaitForMultipleObjects and vk_presenter.cpp:609 waited 2.2 s per 5 s (CPU and GPU took turns; GPU 50-70%). With 2 frames queued the present waits went to 0 and the heavy spot rose from 33-37 to 42-50 FPS (MT), but the FrameBegin m_gfxEopTick assert came back after about 6 minutes (MT + 2 queued, 17:48, log u2-mt-q2-crash-1748). MT + 1 queued ran 24 minutes after the DMA fix. With threaded Vulkan recording off (mask bit 16, the default) EOP signals are not deferred to the copy threads, and the EOP flip runs in order on the recording thread (SignalFlip waits for deferred signals), so the remaining MT race is not yet understood. Next: non-MT + 2 queued (no crash seen without MT).
+
+
+## 16 October 2026: readbacks, ray-cast fences, floating NPCs (0.1.2)
+
+- **U3 Cartagena crash / flying characters:** async readbacks unprotected (GOW3_ASYNC_READBACK unset =
+  2) let late readbacks overwrite fresh guest data (0xffff... pointers, compute ring with a garbage
+  IB). U2/U3 now use mode 1 (probe_uncharted.py). Mode 1 hung U3 loading: the GPU thread faulted on a
+  read-protected page inside MemoryTracker::ForEachUploadRange (region spinlock held) and the handler
+  took the same lock -> uploads copy through the backing view (runtime_memory_copy_backing).
+- **Mode 1 cost:** 89% of read faults were false sharing (BufferCache::noisy_pages: unprotect for
+  10 s), the rest the 16-byte luminance (cs 7095d6c2/4f81a8f) read every frame -> recurring pieces
+  (same address and size landed < 500 ms ago) stay readable. U2 33-46 -> 60 FPS with mode 1.
+- **U2 NPCs from the sky:** EOP labels written at record time; the guest read ray-cast results
+  (cs c92150ba) before the GPU ran them, and the 15 Oct drop of pending ray-cast pieces on CPU
+  writes discarded ~250 of ~250 per 5 s. Now an EOP that carries ray-cast readbacks writes its
+  label/interrupt when the readback lands (BufferCache::DeferUntilLastReadback); while one is
+  pending all later EOPs queue behind it (strict order: a later fence first let U2 overwrite a DCB
+  the GPU thread was reading, "Unimplemented PM4 type 0"); the command buffer is flushed at once;
+  readbacks are polled every 64 packets and while idle; WAIT_REG_MEM counts a deferred value as
+  written (landing it instead cost 18 FPS). Without the flush the readback was never submitted ->
+  FrameBegin m_gfxEopTick assert (the ray-cast EOP is the frame EOP in U2). Fences land in 2-9 ms.
+- **Floating Nate/NPCs (U2), confirmed by the user in play:** 2 frames queued, DeferredStreamCopies
+  (toggle 16384) and a hot-window cooldown each brought it back (they delay or drop GPU data the
+  game reads, or copy guest data later). Defaults: 1 frame queued (launcher config version 6),
+  mask 159760, no cooldown (GOW3_HOT_WINDOW_TTL=<s> for tests).
+- **Performance:** runtime_memory_copy/read/write_backing use the per-thread region cache (the
+  winpthreads rwlock per call was 10-15% of the GPU thread): heavy U2 7.9 -> 6.4 us/draw. GPU
+  checkpoints only with UNCHARTED_GPU_CHECKPOINTS=1 (~2%). Profiler call stacks (GOW3_PROFILE,
+  profile_*_stacks.txt). Remaining in heavy U2 (3,000 draws, ~50 FPS): driver ~19%, per-draw stream
+  copies ~9% (must stay inline, see above), image allocation churn ~2.6%, readback volume ~2 GB/5 s.
+
+## 16 October 2026 (night): U2 floating NPCs / sinking Nate / leg flicker - real cause and fix
+
+- The earlier settings "fixes" (frames queued 1, mask 159760, hot-window cooldown) were
+  coincidences: 0.1.1 rebuilt from its tag floats too, and so does another port (Supermedo #33).
+- Ruled out by user tests: MXCSR/x87 defaults (FTZ+DAZ 0x9fc0 / 0x037f on every guest thread),
+  exact synchronous ray casts (GOW3_EOP_READBACK=2), both scalar-copy HLEs on the GPU
+  (GOW3_SCALAR_COPY_GPU=all), the old upload path, GDS-to-memory counter copies (a per-frame
+  statistic in a 7-slot ring at 0x1037521bf4).
+- Precise readbacks (GOW3_READBACKS=2) fixed it (3 user checks) at ~50 FPS: the guest polls fence
+  labels (guest code 0xc1e20a / 0xc1e5bd) on a page that also holds GPU data, 60k read faults/s.
+- GOW3_FAULT_STATS now lists, per 1 MiB window, the CPU reads that hit GPU-written bytes (with
+  addresses) and the shaders that wrote the window. In precise mode the guest read only the
+  luminance value and one value (e.g. 0x1062820014) in 1 KiB blocks written every frame by copy
+  shader 6a6422a9. Read back with the submission they counted as recurring pieces (readable, a
+  frame old).
+- Fix (GOW3_COPY64_EOP_READBACK=1, set for Uncharted 2 in probe_uncharted.py): 6a6422a9 outputs
+  join the end-of-pipe readbacks (Rasterizer::eop_readbacks; the fence waits for them,
+  RunEventWriteEop). Only the dwords the dispatch writes (min(groups * 64, s6, num_records)) and
+  only copies up to 64 KiB: its two large copies per frame (~0.2 and ~2.4 MB) were +300 MB/s of
+  readback and are never read. User: NPCs and Nate on the floor, no leg flicker (the flicker came
+  back in a run with the fix off), 60 FPS. Readback volume ~2.95 GB/5 s, as before the fix.
+- Next for low-end PCs: the pre-existing ~600 MB/s of readbacks (hot windows).
+
+
+## 16 October 2026 (afternoon/evening): MT fixes, readback cut, optimizations on, U2 aim focus, GPU hang (0.1.2)
+
+- **Multithreaded rendering:** U3 m_gfxEopTick assert = flips queued on the GPU command thread
+  overtook the end-of-pipe fences the recording thread writes later (driver.cpp QueueFlipInOrder
+  through RunInOrder); then a crash in SyncSrtTables = boost::icl RangeSet gpu_modified_ranges read by
+  stage A while stage B changed it (shared_mutex, GpuRangesAdd/Subtract). U3 MT 8 min clean. U2
+  floating came back with MT: the stage-B fence path skipped DeferUntilLastReadback; fences with
+  readbacks now take the waiting path there too, flips likewise; stage A drains before touching
+  readback state; deferred_signals atomic (user-confirmed).
+- **Readback volume** (GOW3_READBACK_STATS=1): nearly all was 1 MiB windows of the effect shaders
+  (cs 8f067540, 7d7e7206, 0c936dd6), which the CPU never reads (precise-readback statistics). Hot
+  windows cool after 3 s (GOW3_HOT_WINDOW_TTL), small writes read back in 256-byte granules
+  (GOW3_SMALL_READBACK_ALIGN): U2 2.9 -> 0.46 GB/5 s, U3 3.1 -> 0.48, U1 0.63 -> 0.16 (user-confirmed U2).
+- **Disabled-optimizations default 159760 -> 0** (tools/defaults): live A/B at one spot, heaviest U2
+  view 43.8 -> 49.0 FPS; U3 GPU command thread idle 22 -> 29%. Played for hours by the user.
+- **U2 aim blur:** the aiming depth of field (debug "Enable Aiming Dof", on) reads its focus distance
+  from a 1x1 R32F render target (guest code 0x44e2cb reads *(u32*)ptr << 8): never copied back, 0.
+  Chain: ps 9f801363 (32x32 crop of the depth at 8 CPU constants) -> 0a15b09b (16x16) -> 784b6f74
+  (1x1 min). TextureCache::ProcessTinyReadbacks copies 1-row images into the buffer cache and the
+  range comes back with the next EOP fence, unprotected (GOW3_TINY_IMAGE_READBACK=1, U2 only).
+  First versions crashed (m_gfxEopTick): protected pages made game threads wait for the GPU; then
+  whole pitch rows of staging garbage; then a landing after the fence onto reused memory. Above
+  1080p the crop centre c[0],c[1] = HUD crosshair (1920x1080 space) / render size: 0.25 at 4K;
+  FixAimFocusCentre divides by 1920*c[6], 1080*c[7] (GOW3_AIM_FOCUS_FIX=0 off). 4K/1440p/1080p
+  verified (GOW3_TRACE_PS dumps render targets, viewport, textures and constants).
+- **U2 GPU hang after 90 min** (game: "Device lost during submit" after "GPU wait: 1 seconds"; OBS:
+  DXGI_ERROR_DEVICE_HUNG the same second): cs 8f067540 bound a garbage V# in mapped memory
+  (unaligned, stride ~15 KB, ~1e9 records). For 8f067540/7d7e7206 an unaligned base, stride >= 8192
+  or size > 64 MiB is garbage (real bindings <= 33 KB, aligned).
+- **Memory/thread growth with OBS:** threads starting in nvwgf2umx.dll (NVIDIA D3D driver) grew ~6/s
+  (~90 MB/s) only with OBS's implicit Vulkan layer (obs-vulkan64.json; DISABLE_VULKAN_OBS_CAPTURE=1
+  stops it) while OBS kept re-hooking ("failed to open shared handle"); NVIDIA presents Vulkan
+  through DXGI/D3D12 here, so OBS hooks both. Not a port leak; README/release notes give the
+  NVIDIA "Prefer native" present method or Window Capture.
+- Profiler: RtlLookupFunctionEntry deadlocked with the target suspended and RtlVirtualUnwind read
+  garbage frames; now its own .pdata lookup and unwinder with checked reads.
+- Frame rate limits 40-55 (overlay and launcher) for the U3 cloth flicker tests (60 FPS only).
+- GitHub: #1 (U3 crash) and #4 (U1 crash after the boat scene, v0.1.1; user-tested fixed) answered
+  and closed.
+

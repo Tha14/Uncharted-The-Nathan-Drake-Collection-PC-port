@@ -1,4 +1,4 @@
-Uncharted: The Nathan Drake Collection - PC port 0.1.0 (beta)
+Uncharted: The Nathan Drake Collection - PC port (beta)
 =============================================================
 By BilalReloaded - https://github.com/bc160201983/Uncharted-The-Nathan-Drake-Collection-PC-port
 
@@ -17,7 +17,7 @@ How to play
    launcher shows the version it uses under Advanced.
 4. Pick a game card and a preset, then press PLAY.
    Low: 720p + FSR 1 at 60 FPS (weak GPUs). Medium: 1080p 60 (as on PS4).
-   High: 1440p 60 with 2 frames queued. Ultra: 4K at up to 120 FPS (fast GPUs; Uncharted 1
+   High: 1440p 60. Ultra: 4K at up to 120 FPS (fast GPUs; Uncharted 1
    draws at 1620p and upscales).
    In game, Insert or R3 + L2 opens the menu (display, frame rate, overlay).
 5. Keyboard and mouse work out of the box (WASD move, mouse look, right mouse aim, left mouse

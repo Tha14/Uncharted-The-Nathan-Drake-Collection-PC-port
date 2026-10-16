@@ -65,11 +65,12 @@ STOP_RED = "#b5533c"
 # At most 120: faster, the game's movement timing breaks (Drake's Fortune at 140-160 FPS: running
 # slows, Nate fell through the world). The runtime caps older, faster settings at 120 too.
 MAX_FPS = 120
-FPS_LIMITS = [(30, "30"), (60, "60"), (MAX_FPS, str(MAX_FPS))]
+FPS_LIMITS = [(30, "30"), (40, "40"), (45, "45"), (50, "50"), (55, "55"), (60, "60"),
+              (MAX_FPS, str(MAX_FPS))]
 
 # Runtime options in probe.ini (key -> default) and launcher-only ones.
 INI_DEFAULTS = {
-    "display_mode": "windowed", "vsync": "1", "fps_limit": "60", "frames_queued": "2",
+    "display_mode": "windowed", "vsync": "1", "fps_limit": "60", "frames_queued": "1",
     "async_shaders": "1", "fsr1": "0", "rcas": "1", "rcas_strength": "75", "show_fps": "1",
 }
 LAUNCHER_DEFAULTS = {"game": "u1", "diagnostics": True, "game_dir": "", "check_updates": True}
@@ -228,24 +229,23 @@ PRESETS = {
     "low": {
         "title": "LOW", "summary": "60 FPS  •  720p + FSR 1",
         "detail": "For weak GPUs: the game draws at 720p (about twice as fast as 1080p) and FSR 1 "
-                  "scales it up to the screen. Two frames queued keep the frame rate even.",
+                  "scales it up to the screen.",
         "resolution": "1280x720",
-        "values": {"fps_limit": "60", "frames_queued": "2", "vsync": "1", "async_shaders": "1",
+        "values": {"fps_limit": "60", "frames_queued": "1", "vsync": "1", "async_shaders": "1",
                    "fsr1": "1", "rcas": "1", "rcas_strength": "75"},
     },
     "medium": {
         "title": "MEDIUM", "summary": "60 FPS  •  as on PS4",
         "detail": "The PS4 original: 1080p at 60 FPS. Right for most PCs.",
         "resolution": "1920x1080",
-        "values": {"fps_limit": "60", "frames_queued": "2", "vsync": "1", "async_shaders": "1",
+        "values": {"fps_limit": "60", "frames_queued": "1", "vsync": "1", "async_shaders": "1",
                    "fsr1": "0", "rcas": "1", "rcas_strength": "75"},
     },
     "high": {
         "title": "HIGH", "summary": "60 FPS  •  1440p",
-        "detail": "Sharper: the game draws at 1440p. On 4K monitors FSR 1 scales it up to the screen. "
-                  "Two frames queued keep heavy scenes faster.",
+        "detail": "Sharper: the game draws at 1440p. On 4K monitors FSR 1 scales it up to the screen.",
         "resolution": "2560x1440",
-        "values": {"fps_limit": "60", "frames_queued": "2", "vsync": "1", "async_shaders": "1",
+        "values": {"fps_limit": "60", "frames_queued": "1", "vsync": "1", "async_shaders": "1",
                    "fsr1": None, "rcas": "1", "rcas_strength": "50"},
     },
     "ultra": {
@@ -253,7 +253,7 @@ PRESETS = {
         "detail": "Native 4K (Drake's Fortune: 1620p + FSR 1) with the frame rate unlocked up to 120 "
                   "(experimental). New, confirm in play; needs a fast GPU.",
         "resolution": "3840x2160",
-        "values": {"fps_limit": str(MAX_FPS), "frames_queued": "2", "vsync": "1", "async_shaders": "1",
+        "values": {"fps_limit": str(MAX_FPS), "frames_queued": "1", "vsync": "1", "async_shaders": "1",
                    "fsr1": None, "rcas": "1", "rcas_strength": "50"},
     },
 }
@@ -365,9 +365,15 @@ def read_config():
         for game, entry in games.items():
             if entry["preset"] in PRESETS and not entry.get("multithreaded"):
                 write_ini(game, {"frames_queued": "2"})
+    # Version 6: every preset queues 1 frame again: with 2, GPU results the game reads came a frame
+    # later and Uncharted 2's Nate and NPCs stood above the floor (16 Oct). Custom settings stay.
+    if config.get("version", 1) < 6:
+        for game, entry in games.items():
+            if entry["preset"] in PRESETS:
+                write_ini(game, {"frames_queued": "1"})
     for name in GAME_SETTING_DEFAULTS:
         config.pop(name, None)
-    config["version"] = 5
+    config["version"] = 6
     return config
 
 
@@ -882,9 +888,9 @@ class Launcher:
                         "60 is the PS4's. 120 unlocks the frame rate (experimental): if the game runs too fast "
                         "or Nate falls through the world, choose 60. Faster breaks the game's movement.",
                         [(str(v), label) for v, label in FPS_LIMITS])
-        self.ini_choice(page, "frames_queued", "Frames queued", "2 (recommended): the next frame is prepared "
-                                                               "while the GPU draws (Uncharted 2's museum: 45 -> "
-                                                               "57 FPS). 1 has the lowest input delay.",
+        self.ini_choice(page, "frames_queued", "Frames queued", "1 (recommended). 2 is faster in heavy scenes, but "
+                                                               "GPU results reach the game a frame later: in "
+                                                               "Uncharted 2 Nate and NPCs then float above the floor.",
                         [("1", "1"), ("2", "2"), ("0", "Unlimited")])
         self.ini_toggle(page, "async_shaders", "Compile shaders in the background",
                         "Fewer stutters in new areas. Drake's Fortune always compiles them first (its lighting needs it).")

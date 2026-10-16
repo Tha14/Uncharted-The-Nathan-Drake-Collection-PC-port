@@ -335,7 +335,15 @@ def run_once(args, executable, guest_args, loadexec):
     if not update:
         return run_game(args, base, executable, guest_args, loadexec)
     print(f"Update {sfo_value(update, 'APP_VER') or '?'}: {update}")
-    view = game_view(base, update)
+    try:
+        view = game_view(base, update)
+    except SystemExit as error:
+        # exFAT/FAT32 drives (USB sticks) hold no links ([WinError 1] Incorrect function): the
+        # game still starts, as dumped, instead of not at all.
+        print(f"{error}: starting the game without its update. exFAT and FAT32 drives (USB "
+              "sticks) cannot hold the links that combine them: copy the update's files over the "
+              "game folder, or keep both on an NTFS drive.")
+        return run_game(args, base, executable, guest_args, loadexec)
     try:
         return run_game(args, view, executable, guest_args, loadexec)
     finally:
@@ -422,8 +430,28 @@ def run_game(args, game, executable, guest_args, loadexec):
         value = os.environ.get(f"UNCHARTED_{launcher_key}_{game_key.upper()}")
         if value is not None and runtime_key not in os.environ:
             env[runtime_key] = value
-    # GPU readbacks are asynchronous in every game since 15 Oct (the runtime default; the old
-    # launcher option is gone). GOW3_ASYNC_READBACK=0 in the environment restores the wait.
+    # GPU readbacks are asynchronous. Unprotected (the runtime default, 2) crashed Uncharted 3
+    # within a minute in the Cartagena museum (guest reads of 0xffff... pointers, a compute ring
+    # with a garbage indirect buffer) and let characters fly or NPCs fall from the sky (U2, U3,
+    # 16 Oct, also on an RTX 5060 laptop). Waiting for every readback (0) was correct but cost U2
+    # ~20 FPS. Protected (1) since 16 Oct: new GPU data stays read-protected until it lands,
+    # recurring results (the same piece read back again, e.g. luminance) stay readable one frame
+    # old as on the console, and pages where the CPU reads other data beside GPU bytes are left
+    # readable (BufferCache::noisy_pages): U2 and U3 at 60 FPS, U3 crash-free for 6 minutes.
+    # GOW3_ASYNC_READBACK in the environment overrides it (0 waits, 1 protected, 2 unprotected).
+    if executable in ("big2-ps4_Shipping.elf", "big3-ps4_Shipping.elf"):
+        env.setdefault("GOW3_ASYNC_READBACK", "1")
+    # Uncharted 2 reads back data its 64-wide copy shader (cs 6a6422a9) writes on the GPU: read
+    # back with the submission it arrived a frame late, and NPCs floated in the air while Nate's
+    # feet sank into the floor (also in 0.1.1 and other ports). It now comes back at the frame's
+    # end-of-pipe fence, which waits for it (16 Oct; precise readbacks fixed it too, at ~50 FPS).
+    if executable == "big2-ps4_Shipping.elf":
+        env.setdefault("GOW3_COPY64_EOP_READBACK", "1")
+        # Its aim depth of field reads the focus distance from a 1x1 render target the GPU writes;
+        # never copied back it stayed 0 and everything behind Nate was blurred while aiming. Tiny
+        # GPU-written images now come back with the frame's end-of-pipe fence (16 Oct). Drake's
+        # Fortune and Uncharted 3 aim sharp without it, so they skip the copy and the wait.
+        env.setdefault("GOW3_TINY_IMAGE_READBACK", "1")
     env["GOW3_UPSCALER"] = "none"
     if extra_mib:
         env["GOW3_DMEM_MB"] = str(5056 + extra_mib + 64)
@@ -526,7 +554,10 @@ def run_game(args, game, executable, guest_args, loadexec):
     # index computed on the GPU (waterfall loop over v_readfirstlane); the CPU-side SRT walker
     # cannot pre-read those, so they are read from guest memory on the GPU.
     env.setdefault("GOW3_DIRECT_MEMORY_ACCESS", "1")
-    if diagnostics:
+    # GPU checkpoints (which draw a lost device was on) cost ~2% of the GPU command thread in heavy
+    # Uncharted 2 scenes: only on request (UNCHARTED_GPU_CHECKPOINTS=1), no longer with the
+    # performance log every player has on (16 Oct).
+    if os.environ.get("UNCHARTED_GPU_CHECKPOINTS") == "1":
         env.setdefault("GOW3_GPU_CHECKPOINTS", "1")
     # The game asserts when the GPU finishes a frame more than 2 s late (FrameBegin,
     # m_gfxEopTick); cached pipelines avoid recompiling every shader on each run.
@@ -560,6 +591,21 @@ def run_game(args, game, executable, guest_args, loadexec):
     command += ["--guest-path", guest_args[0] if guest_args else "/app0/" + executable]
     for value in guest_args[1:]:
         command += ["--guest-arg", value]
+    # Diagnostics: UNCHARTED_RENDERDOC=<RenderDoc folder or renderdoccmd.exe> loads RenderDoc's
+    # Vulkan layer (its capture library) into the game: F12 captures a frame (RenderDoc's default
+    # folder, %TEMP%\RenderDoc). Found through this process's environment only; nothing is
+    # registered, and the game's log stays as it is.
+    renderdoc = os.environ.get("UNCHARTED_RENDERDOC")
+    if renderdoc:
+        layer_dir = Path(renderdoc)
+        layer_dir = layer_dir if layer_dir.is_dir() else layer_dir.parent
+        if (layer_dir / "renderdoc.json").is_file():
+            env["VK_ADD_LAYER_PATH"] = str(layer_dir) + (os.pathsep + env["VK_ADD_LAYER_PATH"]
+                                                         if env.get("VK_ADD_LAYER_PATH") else "")
+            env["VK_INSTANCE_LAYERS"] = "VK_LAYER_RENDERDOC_Capture"
+            env["ENABLE_VULKAN_RENDERDOC_CAPTURE"] = "1"
+            env["GOW3_PIPELINE_BINARIES"] = "0"
+            print(f"RenderDoc: Vulkan layer from {layer_dir}")
     if not args.boot:
         command.append("--check-imports")
     if args.cpu_only:

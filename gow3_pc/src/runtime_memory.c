@@ -837,9 +837,16 @@ void runtime_memory_set_gpu_hooks(GpuRange map, GpuRange unmap, GpuRange invalid
     write_unlock();
     flush_hooks();
 }
+/* The region cache (below): backing reads and writes inside one cached mapping take no lock. The
+ * GPU thread copies through the backing view for every upload and every landed readback; the
+ * read-write lock there cost Uncharted 2 ~15% of the GPU thread (winpthreads, 16 Oct). */
+static const void *cached_backing(uintptr_t address, uint64_t size);
+static void cache_region(size_t i);
 /* Writes through the backing view; 0 when part of the range has no backing. */
 int runtime_memory_write_backing(uintptr_t address, const void *data, uint64_t size) {
+    { const void *fast=cached_backing(address,size); if (fast) { memcpy((void *)fast,data,size); return 1; } }
     read_lock();
+    { size_t first=vma_index(address); if (first<vma_count && vmas[first].start<=address) cache_region(first); }
     int ok=1;
     for (uintptr_t at=address, end=address+size; at<end && ok;) {
         size_t i=vma_index(at);
@@ -854,6 +861,7 @@ int runtime_memory_write_backing(uintptr_t address, const void *data, uint64_t s
 /* Reads through the backing view (no guest/GPU page protection applies); 0 when part of the
  * range has no backing. */
 int runtime_memory_read_backing(uintptr_t address, void *data, uint64_t size) {
+    { const void *fast=cached_backing(address,size); if (fast) { memcpy(data,fast,size); return 1; } }
     read_lock();
     int ok=1;
     for (uintptr_t at=address, end=address+size; at<end && ok;) {
@@ -866,9 +874,35 @@ int runtime_memory_read_backing(uintptr_t address, void *data, uint64_t size) {
     read_unlock();
     return ok;
 }
+/* GPU uploads (CopySparseMemory): copies guest memory through the backing view and zero-fills
+ * unmapped parts. The GPU thread copies while it holds the buffer tracker's locks; through the
+ * guest view, a page read-protected for an async readback (GOW3_ASYNC_READBACK=1) faulted into a
+ * handler that needs the same locks (Uncharted 3 hung while loading, 16 Oct). An upload copies
+ * CPU-written bytes only, so it never needs to wait for a readback's GPU bytes. */
+void runtime_memory_copy_backing(uintptr_t address, void *dest, uint64_t size) {
+    unsigned char *out=dest;
+    { const void *fast=cached_backing(address,size); if (fast) { memcpy(dest,fast,size); return; } }
+    read_lock();
+    { size_t first=vma_index(address); if (first<vma_count && vmas[first].start<=address) cache_region(first); }
+    for (uintptr_t at=address, end=address+size; at<end;) {
+        size_t i=vma_index(at);
+        uintptr_t next=end;
+        if (i<vma_count && vmas[i].start<=at) {
+            next=vmas[i].end<end ? vmas[i].end : end;
+            if (vmas[i].kind==KIND_RESERVED) memset(out+(at-address),0,next-at);
+            else if (backing_base) memcpy(out+(at-address),backing_base+vmas[i].phys+(at-vmas[i].start),next-at);
+            else memcpy(out+(at-address),(const void *)at,next-at);
+        } else {
+            if (i<vma_count && vmas[i].start<end) next=vmas[i].start;
+            memset(out+(at-address),0,next-at);
+        }
+        at=next;
+    }
+    read_unlock();
+}
 /* Per-thread cache of recently found regions for the GPU's per-draw queries:
  * entries hold for as long as the table generation they were read at. */
-typedef struct { uint64_t generation; uintptr_t start, end; int kind; } CachedRegion;
+typedef struct { uint64_t generation; uintptr_t start, end; int kind; uint64_t phys; } CachedRegion;
 static __thread CachedRegion region_cache[8];
 static __thread unsigned region_cache_next;
 static const CachedRegion *cached_region(uintptr_t address) {
@@ -880,11 +914,18 @@ static const CachedRegion *cached_region(uintptr_t address) {
     }
     return NULL;
 }
+/* The backing address of [address, address + size) when it lies in one cached, backed mapping. */
+static const void *cached_backing(uintptr_t address, uint64_t size) {
+    if (!backing_base || (runtime_disabled_optimizations & 1)) return NULL;
+    const CachedRegion *c=cached_region(address);
+    if (!c || c->kind==KIND_RESERVED || size>c->end-address) return NULL;
+    return backing_base+c->phys+(address-c->start);
+}
 /* Called under the read lock after a lookup of address. */
 static void cache_region(size_t i) {
     uint64_t generation=__atomic_load_n(&table_generation,__ATOMIC_ACQUIRE);
     if (i==vma_count || (generation & 1)) return;
-    region_cache[region_cache_next++ % 8]=(CachedRegion){generation,vmas[i].start,vmas[i].end,vmas[i].kind};
+    region_cache[region_cache_next++ % 8]=(CachedRegion){generation,vmas[i].start,vmas[i].end,vmas[i].kind,vmas[i].phys};
 }
 /* Mapped length from address, up to size, across adjacent mappings. */
 uint64_t runtime_memory_clamp(uintptr_t address, uint64_t size) {

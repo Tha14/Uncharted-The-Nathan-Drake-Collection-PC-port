@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2025-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstring>
+#include <functional>
+#include "video_core/renderer_vulkan/vk_draw_pipe.h"
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -622,6 +625,30 @@ bool VideoOutDriver::SubmitFlip(VideoOutPort* port, s32 index, s64 flip_arg,
     return true;
 }
 
+// Runs a flip queued through the draw pipeline (SubmitFlipInternal) in stream order: on the draw
+// recording thread after the fences the Vulkan recording thread signals, else at once.
+static void QueueFlipInOrder(Vulkan::Rasterizer& rasterizer, const u8* data) {
+    std::function<void()>* task;
+    std::memcpy(&task, data, sizeof(task));
+    const auto run = [task] {
+        (*task)();
+        delete task;
+    };
+    auto& cache = rasterizer.GetBufferCache();
+    // A fence before the flip waiting for its readback (RunEventWriteEop): the flip queues
+    // behind it.
+    if (Vulkan::DrawPipe::OnStageB() && !Gow3Toggle::Disabled(Gow3Toggle::RecorderFences) &&
+        !cache.HasDeferredSignals()) {
+        rasterizer.SignalAfterHostCopies(run);
+        return;
+    }
+    rasterizer.WaitHostCopies();
+    rasterizer.WaitDeferredSignals();
+    if (!cache.HasDeferredSignals() || !cache.DeferUntilLastReadback(run, 0)) {
+        run();
+    }
+}
+
 void VideoOutDriver::SubmitFlipInternal(VideoOutPort* port, s32 index, s64 flip_arg, bool is_eop) {
     Vulkan::Frame* frame;
     if (index == -1) {
@@ -633,17 +660,45 @@ void VideoOutDriver::SubmitFlipInternal(VideoOutPort* port, s32 index, s64 flip_
         frame = presenter->PrepareFrame(group, buffer.address_left);
     }
 
-    {
-        std::scoped_lock lock{mutex};
-        requests.push({
-            .frame = frame,
-            .port = port,
-            .flip_arg = flip_arg,
-            .index = index,
-            .eop = is_eop,
-        });
+    const auto queue_flip = [this, frame, port, flip_arg, index, is_eop] {
+        {
+            std::scoped_lock lock{mutex};
+            requests.push({
+                .frame = frame,
+                .port = port,
+                .flip_arg = flip_arg,
+                .index = index,
+                .eop = is_eop,
+            });
+        }
+        request_cv.notify_one();
+    };
+    // gow3 16 Oct: a fence deferred until its ray-cast results are back (RunEventWriteEop) comes
+    // before this frame's flip, as on the console: the guest takes a finished flip as its frame's
+    // end-of-pipe being done (Uncharted 2 asserted m_gfxEopTick in FrameBegin when the flip came
+    // first). Presenting waits for the frame's GPU work anyway, so this costs no frame rate.
+    // GOW3_DEFER_FLIPS=0: queued at once.
+    static const bool defer_flips = [] {
+        const char* env = std::getenv("GOW3_DEFER_FLIPS");
+        return !(env && env[0] == '0');
+    }();
+    auto& rasterizer = presenter->GetRasterizer();
+    // gow3 16 Oct: with multithreaded rendering (draw pipeline) end-of-pipe fences are written by
+    // the Vulkan recording thread after the copies before them (RunEventWriteEop, RecorderFences),
+    // later than this point on the GPU command thread. Queued at once, the flip overtook its
+    // frame's fence, the guest went on (a finished flip means its frame is done) and Uncharted 3
+    // asserted m_gfxEopTick of frame N-3 in FrameBegin within a minute. The flip now goes through
+    // the draw pipeline in stream order and is queued after the fences recorded before it.
+    if (defer_flips && rasterizer.DrawPipeActive()) {
+        auto* task = new std::function<void()>(queue_flip);
+        rasterizer.RunInOrder(&QueueFlipInOrder, &task, sizeof(task), Gow3Toggle::RecorderFences);
+        return;
     }
-    request_cv.notify_one();
+    auto& buffer_cache = rasterizer.GetBufferCache();
+    if (!defer_flips || !buffer_cache.HasDeferredSignals() ||
+        !buffer_cache.DeferUntilLastReadback(queue_flip, 0)) {
+        queue_flip();
+    }
 }
 
 void VideoOutDriver::PresentThread(std::stop_token token) {

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <chrono>
 #include <algorithm>
 #include <cstdio>
 #include <limits>
@@ -84,6 +85,17 @@ void Swapchain::Create(u32 width_, u32 height_) {
 void Swapchain::Recreate(u32 width_, u32 height_) {
     LOG_DEBUG(Render_Vulkan, "Recreate the swapchain: width={} height={} HDR={}", width_, height_,
               needs_hdr);
+    // gow3: how often (a capture hook such as OBS's sets itself up per swapchain).
+    static u32 recreations = 0;
+    static auto last = std::chrono::steady_clock::now();
+    ++recreations;
+    if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds(5)) {
+        std::printf("Swapchain: %u recreations (5 s), now %ux%u (was %ux%u)\n", recreations, width_,
+                    height_, width, height);
+        std::fflush(stdout);
+        recreations = 0;
+        last = now;
+    }
     Create(width_, height_);
 }
 
