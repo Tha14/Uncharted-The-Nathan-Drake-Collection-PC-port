@@ -1156,3 +1156,22 @@ Plan and test list: analysis/PLAN.md.
   45 -> 18 ms, unsafe). Opt-in, no measured gain: GOW3_IMAGE_REAPER=1 (frees on a thread),
   GOW3_ASYNC_IRQ=1 (compute interrupts on a delivery thread). Multithreaded rendering on 4 cores:
   U2 108 -> 120 (cap), worst frame 50 -> 10 ms; U3 114.5 -> 112, U1 102 -> 103, pacing worse.
+
+## 18 October 2026 (night): 0.2.3 (U1 weapon flicker, U2 focus NaN)
+
+- **U1 weapons flat grey on some frames (user, GitHub #23):** only with multithreaded rendering (the
+  user's A/B; my checkpoint run: 11 flicker frames/min with the draw pipe, 0 with the start script's
+  override). Not anti-aliasing, not the live optimization toggles (texture/buffer groups off: same
+  rate). The draw pipe already snapshots user data, the walked SRT tables and ring constants at
+  stage A, so the race is elsewhere (not found; GOW3_PIPE_VERIFY=<n> reports tables that changed).
+  probe_uncharted.py turns multithreaded rendering off for eboot.bin
+  (UNCHARTED_U1_MULTITHREADED_TEST=1 keeps it). Live flicker counter: scratchpad gunwatch.py
+  (flash = grey-blue ~(54,74,74) where both neighbour frames are near black).
+- **U2 `m_lookAt.X() == m_lookAt.X()` (#24, and the user's 16 Oct session):** PlayerBase::UpdateFocus
+  (U2 1.02 0x7272e0; point [player+0x2b0], velocity +0x2c0, target rbp-0x60, snap 0x72769a). The
+  assert path now clears the velocity and takes the snap when the target is a number
+  (FOCUS_NAN_PATCHES). Test (scratchpad focusnan2b.sh): GOW3_EXEC_WATCH=7272e0 gives the player in
+  rdi; NaN written to player+0x2b0: without the fix the assert, with it the point is 150.11 again
+  3 s later and tracks (155.9 after walking).
+- **Frame capture** read buffer contents at guest address 0 (IsValidGpuMapping only checks 40 bits):
+  now through TryReadBacking; unreadable buffers are listed as such.

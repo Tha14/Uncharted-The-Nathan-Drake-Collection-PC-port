@@ -4,6 +4,17 @@ Uncharted: The Nathan Drake Collection PC port, by **BilalReloaded**
 ([YouTube](https://www.youtube.com/@BilalReloaded/videos), [GitHub](https://github.com/bc160201983)).
 Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
+## 18 October 2026 (0.2.3)
+
+- **Uncharted 1: guns flickering flat grey** (#23). With multithreaded rendering on, Nate's rifle
+  and pistol (and at times other objects) were drawn flat grey on some frames. Drake's Fortune now
+  always runs without multithreaded rendering: it gained nothing from it there.
+- **Uncharted 2 crash `m_lookAt.X() == m_lookAt.X()`** (#24): the point Nate looks at could become
+  invalid (NaN) and the game stopped at its own check, as Uncharted 3 did in #13. Uncharted 2 now
+  resets that point to where the player looks instead, as the Uncharted 3 fix does.
+- **Frame captures** (diagnostics): a capture requested during play could end the game when a
+  shader had a buffer at address 0; such buffers are now skipped.
+
 ## 18 October 2026 (0.2.2)
 
 - **Windows 10: all three games crashed at start on some PCs** (#22): the games' job code runs on

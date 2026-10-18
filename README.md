@@ -108,7 +108,8 @@ controller buttons).
   of showing more at the sides (GitHub #20). A fix is in progress; 16:9 shows the full view.
 - **Slower CPUs:** the PS4's GPU commands are processed on one CPU core (3,000-5,600 draws per frame
   in the heaviest scenes); on older CPUs those scenes can drop below 60 FPS.
-- **Multithreaded rendering is experimental:** its crashes with 1 frame queued are fixed. It is
+- **Multithreaded rendering is experimental:** its crashes with 1 frame queued are fixed. Drake's
+  Fortune always runs without it (its guns flickered grey with it, GitHub #23). It is
   meant for low-end PCs and laptops (see the presets above) and gives no speed-up on fast CPUs;
   with "Frames queued 2" Uncharted 2 can still stop with the game assert `m_gfxEopTick`, so keep 1.
 - **Recording with OBS Game Capture:** if OBS keeps losing and re-hooking the game, the game's

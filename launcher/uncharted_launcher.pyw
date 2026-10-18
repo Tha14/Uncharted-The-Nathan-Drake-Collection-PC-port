@@ -1342,7 +1342,8 @@ class Launcher:
             page, "Multithreaded rendering (experimental)",
             "Prepares draws on a second CPU thread: more FPS on CPUs with several cores. "
             "Turn it off if the game hangs while loading. Uncharted 2: use it with 1 frame queued "
-            "(with 2 it can crash after a few minutes).", multithreaded)
+            "(with 2 it can crash after a few minutes). Drake's Fortune always runs without it "
+            "(its weapons flickered grey with it).", multithreaded)
 
         def job_threads(parent):
             value = "off" if self.config.get("job_sleep", "auto") == "off" else "on"

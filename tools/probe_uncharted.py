@@ -196,6 +196,21 @@ FOCUS_NAN_PATCHES = {
              bytes.fromhex("c5d057edc5f8284580c5f8c2c800c5f850c183f80f0f84a5feffffcd41") + b"\xcc" * 24),
         ]),
     ],
+    # Uncharted 2 (1.02) PlayerBase::UpdateFocus (player-base.cpp:1101, 0x7272e0): the same spring
+    # (point [player + 0x2b0], velocity + 0x2c0, target at rbp-0x60) and the same NaN assert (GitHub
+    # #24, and the user's own U2 session on 16 Oct). Its reset when the point is far off (0x72769a)
+    # snaps the point to the target. The assert's path (53 bytes) now clears the velocity and takes
+    # that snap when the target is a number; a NaN target still asserts.
+    "big2-ps4_Shipping.elf": [
+        ("Uncharted 2 player focus: reset instead of asserting on NaN", [
+            ("c4e37904c900 c5f0c2c900 c5f850c1 83f80f 743a 488b05???????? 4885c0 7427 488d3d????????"
+             " 488d35???????? 488d15???????? 488d0d???????? 41b84d040000 4531c9 ffd0 cd41", 20,
+             bytes.fromhex("488b05e267e4004885c07427488d3d7d4c7600488d352c4b7600488d158c4c7600"
+                           "488d0dbdcb6c0041b84d0400004531c9ffd0cd41"),
+             bytes.fromhex("c5f8284da0c5f0c2d100c5f850c283f80f7511c5e857d2c5f82993c0020000"
+                           "e9e7feffffcd41") + b"\xcc" * 15),
+        ]),
+    ],
 }
 
 # Everything unlocked (launcher -> Advanced -> Unlock all chapters, UNCHARTED_UNLOCK=1): the three
@@ -614,6 +629,14 @@ def run_game(args, game, executable, guest_args, loadexec):
         if limit.isdigit() and (int(limit) == 0 or int(limit) > 60):
             env["GOW3_VBLANK_HZ"] = "0"
     multithreaded = os.environ.get(f"UNCHARTED_MULTITHREADED_{game_key.upper()}")
+    # Drake's Fortune: its weapons (and at times other objects) drew with another draw's look on
+    # some frames with multithreaded rendering (flat grey guns, the player and GitHub #23, 18 Oct
+    # 2026), and it gains nothing from it (4 cores: 101.8 vs 103.2 FPS). Off until that is fixed;
+    # UNCHARTED_U1_MULTITHREADED_TEST=1 keeps the launcher's choice (tests).
+    if executable == "eboot.bin" and multithreaded == "1" and \
+            os.environ.get("UNCHARTED_U1_MULTITHREADED_TEST") != "1":
+        print("Multithreaded rendering: off for Drake's Fortune (its weapons flicker with it)")
+        multithreaded = "0"
     if multithreaded is not None:
         env["GOW3_DRAW_PIPE"] = multithreaded
         env["GOW3_VK_RECORD_THREAD"] = multithreaded

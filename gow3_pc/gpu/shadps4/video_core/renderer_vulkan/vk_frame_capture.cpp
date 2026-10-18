@@ -2,12 +2,14 @@
 #include "video_core/renderer_vulkan/vk_frame_capture.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <format>
 #include <mutex>
 
+#include "core/memory.h"
 #include "video_core/renderer_vulkan/vk_common.h"
 #include "video_core/texture_cache/image_info.h"
 
@@ -341,9 +343,22 @@ void FrameCapture::Dispatch(u64 cs_hash, u32 x, u32 y, u32 z) {
 }
 
 void FrameCapture::Buffer(u64 stage_hash, u32 slot, VAddr address, const void* data, u64 size) {
-    const u64 bytes = std::min<u64>(size, 1024) & ~u64(3);
+    u64 bytes = std::min<u64>(size, 1024) & ~u64(3);
     std::string out = std::format("  buffer stage {:016x} slot {} at {:#x} size {}:", stage_hash,
                                   slot, address, size);
+    // gow3 18 Oct 2026: guest buffers are read through the backing view, which reports unmapped
+    // memory instead of faulting. A compute dispatch bound a buffer at guest address 0 and the
+    // capture read it directly: a capture requested in play ended Uncharted with a null read.
+    std::array<float, 256> copy{};
+    if (address != 0) {
+        if (!Core::Memory::Instance()->TryReadBacking(address, copy.data(), bytes)) {
+            pending_buffers.push_back(out + " (not readable)");
+            return;
+        }
+        data = copy.data();
+    } else if (data == nullptr) {
+        bytes = 0;
+    }
     const auto* words = static_cast<const float*>(data);
     for (u64 i = 0; i < bytes / 4; ++i) {
         if (i % 8 == 0) {
