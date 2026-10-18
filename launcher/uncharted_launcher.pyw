@@ -85,7 +85,7 @@ INI_DEFAULTS = {
 CHEATS = (("invincible", "Invincible", "Nate takes no damage. All three games."),
           ("ammo", "Infinite ammo", "Ammo never runs out. All three games."),
           ("noreload", "No reload", "The magazine never empties. Uncharted 2 and 3."),
-          ("grenades", "Infinite grenades", "Uncharted 3."),
+          ("grenades", "Infinite grenades", "Grenades never run out. Uncharted 3."),
           ("onehit", "One-hit kills", "Enemies go down with one hit. Uncharted 3."))
 LAUNCHER_DEFAULTS = {"game": "u1", "diagnostics": True, "game_dir": "", "check_updates": True, "language": "1",
                      "unlock": False}
@@ -1333,7 +1333,7 @@ class Launcher:
         strip.pack(side="top", fill="x")
         self.tab_buttons = {}
         for name, label in (("setup", "QUICK SETUP"), ("display", "DISPLAY"), ("performance", "PERFORMANCE"),
-                            ("controls", "CONTROLS"), ("advanced", "ADVANCED")):
+                            ("controls", "CONTROLS"), ("cheats", "CHEATS"), ("advanced", "ADVANCED")):
             cell = tk.Frame(strip, bg=BG)
             cell.pack(side="left", padx=(0, self.px(26)))
             text = tk.Label(cell, text=label, font=self.f_tab, bg=BG, fg=MUTED, cursor="hand2")
@@ -1355,6 +1355,7 @@ class Launcher:
             "display": self.page_display(),
             "performance": self.page_performance(),
             "controls": self.page_controls(),
+            "cheats": self.page_cheats(),
             "advanced": self.page_advanced(),
         }
 
@@ -1896,6 +1897,16 @@ class Launcher:
         self.save_controls()
         self.refresh_controls()
 
+    def page_cheats(self):
+        page = self.page()
+        tk.Label(page, text="The games' own developer switches, applied when a game starts. They need update 1.02.",
+                 font=self.f_small, bg=BG, fg=MUTED, anchor="w").pack(side="top", fill="x", pady=(0, self.px(6)))
+        for name, title, hint in CHEATS:
+            def cheat(parent, key="cheat_" + name):
+                return Toggle(parent, self.s, self.config.get(key, False), lambda v, k=key: self.change_config(k, v))
+            self.row(page, title, hint, cheat)
+        return page
+
     def page_advanced(self):
         page = self.page()
 
@@ -1915,15 +1926,6 @@ class Launcher:
         self.row(page, "Unlock all chapters",
                  "Every chapter in Chapter Select and the Brutal difficulty from the start, in all three "
                  "games. Your saves and progress stay as they are. Needs update 1.02.", unlock)
-
-        tk.Label(page, text="CHEATS", font=self.f_small, bg=BG, fg=GOLD, anchor="w").pack(
-            side="top", fill="x", pady=(self.px(4), 0))
-        tk.Label(page, text="The games' own developer switches. Applied when a game starts; need update 1.02.",
-                 font=self.f_small, bg=BG, fg=MUTED, anchor="w").pack(side="top", fill="x", pady=(0, self.px(6)))
-        for name, title, hint in CHEATS:
-            def cheat(parent, key="cheat_" + name):
-                return Toggle(parent, self.s, self.config.get(key, False), lambda v, k=key: self.change_config(k, v))
-            self.row(page, title, hint, cheat)
 
         def diagnostics(parent):
             return Toggle(parent, self.s, self.config.get("diagnostics", True),

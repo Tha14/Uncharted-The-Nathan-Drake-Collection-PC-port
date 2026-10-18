@@ -20,7 +20,7 @@ Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 - **Fewer shader hitches**: compute shaders found in the game's command buffers are compiled in
   the background before the GPU needs them, instead of all at once on the frame that first uses
   them (`GOW3_COMPUTE_PRECOMPILE=0` turns it off).
-- **Cheats** (#26): Launcher -> Advanced -> **Cheats**: Invincible, Infinite ammo, No reload
+- **Cheats** (#26): the launcher's new **Cheats** tab: Invincible, Infinite ammo, No reload
   (Uncharted 2 and 3), Infinite grenades and One-hit kills (Uncharted 3). They switch on the games'
   own developer options; they need update 1.02. In Uncharted 1 and 2 the infinite ammo option lives
   in the games' settings system, which resets it every frame, so the places that read it are

@@ -241,6 +241,11 @@ def _ammo_reader(pattern, jne_at):
     return (pattern, jne_at, b"\x75", b"\xeb")
 
 
+def cheat_names(executable):
+    """The cheats asked for (UNCHARTED_CHEATS, launcher -> Cheats)."""
+    return [name for name in os.environ.get("UNCHARTED_CHEATS", "").replace(" ", "").split(",") if name]
+
+
 CHEAT_PATCHES = {
     "eboot.bin": {"ammo": [
         (f"Uncharted 1 infinite ammo (reader {n})", [_ammo_reader(pattern, at)])
@@ -797,7 +802,7 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
         patches.extend(UNLOCK_PATCHES.get(executable, []))
     if os.environ.get("UNCHARTED_FOCUS_RESET", "1") != "0":
         patches.extend(FOCUS_NAN_PATCHES.get(executable, []))
-    for cheat in os.environ.get("UNCHARTED_CHEATS", "").replace(" ", "").split(","):
+    for cheat in cheat_names(executable):
         patches.extend(CHEAT_PATCHES.get(executable, {}).get(cheat, []))
     # Ultrawide render sizes (the launcher's aspect ratio): the wider view (HOR_PLUS_PATCHES).
     size = (os.environ.get(f"UNCHARTED_RESOLUTION_{GAME_KEYS[executable].upper()}")
@@ -852,7 +857,7 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
     else:
         extra_mib = 0
     env = os.environ.copy()
-    wanted = [name for name in os.environ.get("UNCHARTED_CHEATS", "").replace(" ", "").split(",") if name]
+    wanted = cheat_names(executable)
     if wanted and "GOW3_POKE" not in env:
         if (sfo_value(game, "APP_VER") or "") >= "01.02":
             pokes = [CHEATS[executable][name] for name in wanted if name in CHEATS.get(executable, {})]
