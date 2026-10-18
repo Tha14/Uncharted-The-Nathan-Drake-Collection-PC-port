@@ -90,7 +90,43 @@ static void ResetSubmissionLock(Platform::InterruptId irq) {
 static void WaitGpuIdle() {
     HLE_TRACE;
     std::unique_lock lock{m_wait_idle};
+    // gow3 measurement only (GOW3_SUBMIT_NO_WAIT=1): never wait. Unsafe in play (late fence
+    // writes into freed guest memory, see Liverpool::Process); for the upper bound of the wait.
+    static const bool no_wait = [] {
+        const char* env = std::getenv("GOW3_SUBMIT_NO_WAIT");
+        return env && env[0] == '1';
+    }();
+    if (submission_lock == 0 || no_wait) {
+        return;
+    }
+    // gow3 diagnostics (GOW3_SUBMIT_WAIT_STATS=1): how long the guest's submissions wait here
+    // for the previous frame's GPU work after sceGnmSubmitDone, every 5 s.
+    static const bool stats = [] {
+        const char* env = std::getenv("GOW3_SUBMIT_WAIT_STATS");
+        return env && env[0] == '1';
+    }();
+    const auto start = std::chrono::steady_clock::now();
     cv_lock.wait(lock, [] { return submission_lock == 0; });
+    if (stats) {
+        using Clock = std::chrono::steady_clock;
+        static Clock::time_point window = start;
+        static double waited_ms = 0.0, longest_ms = 0.0;
+        static u32 waits = 0;
+        const auto now = Clock::now();
+        const double ms = std::chrono::duration<double, std::milli>(now - start).count();
+        waited_ms += ms;
+        longest_ms = std::max(longest_ms, ms);
+        ++waits;
+        if (now - window >= std::chrono::seconds(5)) {
+            const double span = std::chrono::duration<double, std::milli>(now - window).count();
+            std::printf("Submit waits (5 s): %u waits, %.1f ms in all (%.1f%% of the time), "
+                        "longest %.2f ms\n",
+                        waits, waited_ms, 100.0 * waited_ms / span, longest_ms);
+            window = now;
+            waited_ms = longest_ms = 0.0;
+            waits = 0;
+        }
+    }
 }
 
 // Write a special ending NOP packet with N DWs data block

@@ -1111,3 +1111,48 @@ Plan and test list: analysis/PLAN.md.
   added. Also measured: SubmitDone -> WaitGpuIdle serializes guest submission with the GPU
   thread (kept: the reference found heap corruption without it).
 
+
+## 18 October 2026 (afternoon): unlock all chapters; #18; other copies of the game
+
+- **Unlock all chapters (UNCHARTED_UNLOCK=1, launcher Advanced, off by default).** All three 1.02
+  executables keep Bluepoint's tweak flags (debug menu items "Unlock Crushing/Brutal difficulty by
+  default", "Unlock Chapter Select by default") in the struct behind U3 [0x1dd26a0] (+0x2c60/61/62),
+  U2 (+0x2da0/a1/a2), U1 (+0x2c30/31/32; U1 reads them as one dword). The constructor sets Crushing
+  1, Brutal 0, chapters 0, then copies Crushing and chapters from the *bp-ucctweaks* table. Patches
+  (UNLOCK_PATCHES): chapters = 1 where the table is read, Brutal = 1 where it is cleared (U1 has two
+  identical constructor copies, told apart by their call displacement). Verified on the user's saves
+  (U1 at Plane-wrecked, U2 at 33%, U3 at ch. 3): Chapters menu reaches U1 22, U2 26, U3 22; Brutal listed in
+  all three. 1.00: no match (option does nothing).
+- **#18 (U3 device lost after the museum guard scene, RTX 5070 Ti):** both logs stop when young
+  Sully streams in mid-play (sullivan-young, cloth cs 1c957b01, DMA fs 9eb7be58/4f83b1de/43573568/
+  78f8ad3b); GPU stuck 2.2 s on one submission, then TDR. Same U3 executable as ours. My bench save
+  (user's) loads at the checkpoint after it (anim-col-thrown-out), where Sully loads with the level:
+  no hang on the 5080. Their first log loaded a checkpoint before it and hung within 10 s. Asked for
+  their save + launcher-last-run.log.
+- **Other copies:** 1.02 executables are the same across regions (#17's CUSA02826 U3 = ours: same
+  size and relocation count); saves/caches go by TITLE_ID from param.sfo. Base 1.00 is the problem:
+  only 4/8 U1, 2/10 U2, 2/9 U3 patches match (no m_gfxEopTick wait, NaN focus reset, job sleep,
+  aim range, torch), and the mouse-look sites are 1.02 offsets with a byte check (off on 1.00).
+  Dry-run checker: scratchpad patchmatch.py <uroot>...
+
+## 18 October 2026 (evening): 0.2.2 fixes (#21, #22) and the GPU command thread profile
+
+- **#22 (all three games at start, Windows 10 19041, i5-8600K):** FAST_FAIL_INVALID_SET_OF_CONTEXT
+  in ntdll!RtlGuardRestoreContext after a handled fault at U1 0x4fc0b2 (`push rbx`) on a sceFiber
+  stack in guest flexible memory (rsp 0x12002504a0), outside the TEB's stack. probe.c
+  cover_current_stack(), first thing in vectored_fault: TEB StackLimit/StackBase name the
+  allocation holding rsp (or the thread's own stack again). GoW3 has no fibers.
+- **#21 (U3 Syria, 0.2.1):** PatchImageSharp asserted "FMask storage instructions are not
+  supported" during a level load (garbage T#). Now a warning: the store is dropped (atomics give 0).
+- **Launcher:** start and callback errors go to analysis/uncharted-user/launcher-error.log and a
+  message box (pythonw has no console; a player's 0.2.1 launcher closed silently).
+- **GPU allocation records** (image.cpp, for GPU fault reports) only with GOW3_GPU_CHECKPOINTS: they
+  grew by every image and buffer made in a session and each free searched them.
+- **Profile (U2, 1440p, RTX 5080, GOW3_PROFILE):** GPU command thread ~25% buffer bookkeeping
+  (ObtainBuffer: SynchronizeMemory, GpuRangesAdd, protect), ~3% image frees in the kernel
+  (D3DKMTDestroyAllocation2), ~7% interrupt delivery. On 4 cores (affinity 0x55) the game uses
+  1.6 cores and its submissions wait 16-22% in WaitGpuIdle after sceGnmSubmitDone
+  (GOW3_SUBMIT_WAIT_STATS=1; GOW3_SUBMIT_NO_WAIT=1 is a measurement only: +5% FPS, worst frame
+  45 -> 18 ms, unsafe). Opt-in, no measured gain: GOW3_IMAGE_REAPER=1 (frees on a thread),
+  GOW3_ASYNC_IRQ=1 (compute interrupts on a delivery thread). Multithreaded rendering on 4 cores:
+  U2 108 -> 120 (cap), worst frame 50 -> 10 ms; U3 114.5 -> 112, U1 102 -> 103, pacing worse.

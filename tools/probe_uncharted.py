@@ -198,6 +198,46 @@ FOCUS_NAN_PATCHES = {
     ],
 }
 
+# Everything unlocked (launcher -> Advanced -> Unlock all chapters, UNCHARTED_UNLOCK=1): the three
+# games keep Bluepoint's tweak flags "Unlock Chapter Select by default" and "Unlock Brutal
+# difficulty by default" (debug menu; +2/+1 after the Crushing flag, which the Collection already
+# sets). At start the game fills the first and the chapter one from the *bp-ucctweaks* table
+# (Crushing on, chapters off); Brutal starts off. The chapter flag is now set where the table is
+# read, Brutal where it is cleared (1.02; U1 has two copies of that constructor).
+UNLOCK_PATCHES = {
+    "eboot.bin": [
+        (f"Uncharted 1 chapter select unlocked ({copy})", [
+            (f"e8{call} 4885c0 7411 8a08 888b302c0000 8a4001 8883322c0000", 18,
+             bytes.fromhex("8a40018883322c0000"), bytes.fromhex("c683322c0000016690")),
+        ]) for copy, call in (("1", "fe250000"), ("2", "f51d0000"))
+    ] + [
+        (f"Uncharted 1 Brutal difficulty unlocked ({copy})", [
+            (f"e8{call} c683302c000001 c683312c000000", 12,
+             bytes.fromhex("c683312c000000"), bytes.fromhex("c683312c000001")),
+        ]) for copy, call in (("1", "ea3b0000"), ("2", "e1330000"))
+    ],
+    "big2-ps4_Shipping.elf": [
+        ("Uncharted 2 chapter select unlocked", [
+            ("833800 0f9583a02d0000 83780400 0f9583a22d0000", 10,
+             bytes.fromhex("837804000f9583a22d0000"), bytes.fromhex("c683a22d0000010f1f4000")),
+        ]),
+        ("Uncharted 2 Brutal difficulty unlocked", [
+            ("c683a02d000001 c683a12d000000 c683a22d000000", 7,
+             bytes.fromhex("c683a12d000000"), bytes.fromhex("c683a12d000001")),
+        ]),
+    ],
+    "big3-ps4_Shipping.elf": [
+        ("Uncharted 3 chapter select unlocked", [
+            ("833800 0f9583602c0000 83780400 0f9583622c0000", 10,
+             bytes.fromhex("837804000f9583622c0000"), bytes.fromhex("c683622c0000010f1f4000")),
+        ]),
+        ("Uncharted 3 Brutal difficulty unlocked", [
+            ("c683602c000001 c683612c000000 c683622c000000", 7,
+             bytes.fromhex("c683612c000000"), bytes.fromhex("c683612c000001")),
+        ]),
+    ],
+}
+
 PATCHES = {
     "eboot.bin": EBOOT_PATCHES,
     "big2-ps4_Shipping.elf": [GPU_WAIT_PATCH],
@@ -507,6 +547,8 @@ def run_game(args, game, executable, guest_args, loadexec):
         patches.extend(AIM_RANGE_PATCHES.get(executable, []))
     if os.environ.get("UNCHARTED_FRAME_WAIT", "1") != "0":
         patches.extend(FRAME_BEGIN_WAIT_PATCHES.get(executable, []))
+    if os.environ.get("UNCHARTED_UNLOCK", "0") == "1":
+        patches.extend(UNLOCK_PATCHES.get(executable, []))
     if os.environ.get("UNCHARTED_FOCUS_RESET", "1") != "0":
         patches.extend(FOCUS_NAN_PATCHES.get(executable, []))
     if job_sleep_enabled():
@@ -608,6 +650,11 @@ def run_game(args, game, executable, guest_args, loadexec):
         # GPU-written images now come back with the frame's end-of-pipe fence (16 Oct). Drake's
         # Fortune and Uncharted 3 aim sharp without it, so they skip the copy and the wait.
         env.setdefault("GOW3_TINY_IMAGE_READBACK", "1")
+    # The PS4's system language (launcher -> Advanced -> Language; runtime_services.c): each game's
+    # main menu offers it next to English (Square). 1 = English (US).
+    language = os.environ.get("UNCHARTED_LANGUAGE", "").strip()
+    if language.isdigit():
+        env.setdefault("GOW3_LANGUAGE", language)
     # Temporal anti-aliasing (in-game menu -> Image: TAA, FSR 3.1/FSR 4 Native AA, DLAA) at the
     # render size, as in the reference Uncharted port (docs: analysis/STATUS.md): the camera comes
     # from the motion blur's camera velocity pass (shader f4b18264; all three games share the post

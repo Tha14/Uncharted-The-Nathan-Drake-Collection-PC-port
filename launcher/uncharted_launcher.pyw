@@ -78,7 +78,34 @@ INI_DEFAULTS = {
     "async_shaders": "1", "fsr1": "0", "rcas": "1", "rcas_strength": "75", "show_fps": "1",
     "upscaler": "off",
 }
-LAUNCHER_DEFAULTS = {"game": "u1", "diagnostics": True, "game_dir": "", "check_updates": True}
+LAUNCHER_DEFAULTS = {"game": "u1", "diagnostics": True, "game_dir": "", "check_updates": True, "language": "1",
+                     "unlock": False}
+
+# The PS4's system language (its id, as sceSystemServiceParamGetInt reports it) for the 22 languages
+# the Collection has text for (all three games; text1/ps4/<n>.common in core.psarc). Each game's main
+# menu then offers it next to English (Square). Spoken languages depend on the copy of the game:
+# its sound1 speech packs (SPEECH_PACKS).
+LANGUAGES = [("1", "English (US)"), ("18", "English (UK)"), ("2", "Français"), ("4", "Deutsch"),
+             ("5", "Italiano"), ("3", "Español (España)"), ("20", "Español (Latinoamérica)"),
+             ("7", "Português (Portugal)"), ("17", "Português (Brasil)"), ("6", "Nederlands"),
+             ("14", "Dansk"), ("15", "Norsk"), ("13", "Svenska"), ("12", "Suomi"), ("16", "Polski"),
+             ("23", "Čeština"), ("25", "Ελληνικά"), ("8", "Русский"), ("19", "Türkçe"),
+             ("0", "日本語"), ("9", "한국어"), ("10", "中文 (繁體)")]
+SPEECH_PACKS = {"english": ("1", "18"), "french": ("2",), "german": ("4",), "italian": ("5",),
+                "spanish": ("3", "20"), "portuguese": ("7", "17"), "dutch": ("6",), "danish": ("14",),
+                "norwegian": ("15",), "swedish": ("13",), "finnish": ("12",), "polish": ("16",),
+                "czech": ("23",), "greek": ("25",), "russian": ("8",), "turkish": ("19",),
+                "japanese": ("0",), "korean": ("9",), "chinese": ("10",)}
+
+
+def voice_languages(game_dir):
+    """Language ids with speech in this copy of the game (its *_ps4.psarc speech packs)."""
+    ids = set()
+    for pattern in ("u*data/build/main/sound1/speech/*_ps4.psarc",
+                    "u*data/build/main/sound1/streams/speech/*_ps4.psarc"):
+        for pack in Path(game_dir).glob(pattern) if game_dir else ():
+            ids.update(SPEECH_PACKS.get(pack.name.removesuffix("_ps4.psarc").lower(), ()))
+    return ids
 GAME_KEYS = ("u1", "u2", "u3")
 GAME_SETTING_DEFAULTS = {"preset": "medium", "resolution": "1920x1080", "aspect": "16:9", "multithreaded": False,
                          "async_readback": False, "controls": None, "mouse": True, "mouse_sens": "1.0",
@@ -796,6 +823,34 @@ class Segmented(tk.Frame):
         for option, item in self.labels.items():
             selected = option == self.value
             item.config(bg=GOLD if selected else PANEL, fg=INK if selected else TEXT)
+
+
+class Dropdown(tk.Label):
+    """A choice from a longer list: the current one, and a menu of all on click."""
+
+    def __init__(self, parent, options, value, command, font):
+        super().__init__(parent, font=font, bg=PANEL, fg=TEXT, padx=12, pady=5, cursor="hand2", anchor="w",
+                         highlightthickness=1, highlightbackground=LINE)
+        self.options, self.command, self.font = options, command, font
+        self.set(value)
+        self.bind("<Button-1>", lambda e: self.open())
+        self.bind("<Enter>", lambda e: self.config(bg=PANEL_HI))
+        self.bind("<Leave>", lambda e: self.config(bg=PANEL))
+
+    def set(self, value, notify=False):
+        self.value = value
+        label = next((label for option, label in self.options if option == value), value)
+        self.config(text=f"{label}   \u25be")
+        if notify:
+            self.command(value)
+
+    def open(self):
+        menu = tk.Menu(self, tearoff=0, bg=PANEL, fg=TEXT, activebackground=GOLD, activeforeground=INK,
+                       font=self.font, bd=0)
+        for option, label in self.options:
+            menu.add_command(label=("\u2713  " if option == self.value else "     ") + label,
+                             command=lambda v=option: self.set(v, notify=True))
+        menu.tk_popup(self.winfo_rootx(), self.winfo_rooty() + self.winfo_height())
 
 
 class Launcher:
@@ -1593,6 +1648,25 @@ class Launcher:
     def page_advanced(self):
         page = self.page()
 
+        def language(parent):
+            voices = voice_languages(self.game_dir())
+            options = [(code, label + ("  (+ voices)" if code in voices else "")) for code, label in LANGUAGES]
+            return Dropdown(parent, options, self.config.get("language", "1"),
+                            lambda v: self.change_config("language", v), self.f_small)
+        self.widgets["language"] = self.row(
+            page, "Language",
+            "The language the PS4 would be set to. Each game's main menu then offers it next to English: "
+            "press Square there to switch the menus and subtitles to it. Spoken "
+            "language: the ones marked + voices are in your copy of the game.", language)
+
+        def unlock(parent):
+            return Toggle(parent, self.s, self.config.get("unlock", False),
+                          lambda v: self.change_config("unlock", v))
+        self.row(page, "Unlock all chapters",
+                 "All three games: every chapter in Chapter Select and the Brutal difficulty from the "
+                 "start, without finishing the game first (the Collection's own switches for it). "
+                 "Your saves and progress stay as they are. Needs update 1.02.", unlock)
+
         def diagnostics(parent):
             return Toggle(parent, self.s, self.config.get("diagnostics", True),
                           lambda v: self.change_config("diagnostics", v))
@@ -1844,6 +1918,8 @@ class Launcher:
         env["UNCHARTED_DIAGNOSTICS"] = "1" if self.config.get("diagnostics", True) else "0"
         env["UNCHARTED_TORCH_FORWARD"] = "1" if self.config.get("torch_forward", True) else "0"
         env["UNCHARTED_JOB_SLEEP"] = "0" if self.config.get("job_sleep", "auto") == "off" else "1"
+        env["UNCHARTED_LANGUAGE"] = str(self.config.get("language", "1"))
+        env["UNCHARTED_UNLOCK"] = "1" if self.config.get("unlock", False) else "0"
         # Every game's own options: the Collection menu starts the others itself, and
         # tools/probe_uncharted.py applies the started game's (its settings file decides the
         # vblank rate for frame rates above 60).
@@ -2042,9 +2118,38 @@ def main():
     except Exception:
         pass
     root = tk.Tk()
+    # Errors in button and timer callbacks go to the error log too (pythonw has no console).
+    root.report_callback_exception = lambda kind, value, trace: log_launcher_error(kind, value, trace)
     Launcher(root)
     root.mainloop()
 
 
+def log_launcher_error(kind, value, trace):
+    """Appends an error to analysis/uncharted-user/launcher-error.log: the launcher runs under
+    pythonw, so an error at start used to close it without a word (GitHub #21, 0.2.1)."""
+    import traceback
+    text = "".join(traceback.format_exception(kind, value, trace))
+    path = USER_DIR / "launcher-error.log"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as log:
+            log.write(time.strftime("%Y-%m-%d %H:%M:%S ") + APP_TITLE + "\n" + text + "\n")
+    except OSError:
+        pass
+    return text, path
+
+
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        text, path = log_launcher_error(*sys.exc_info())
+        try:
+            fallback = tk.Tk()
+            fallback.withdraw()
+            messagebox.showerror(APP_TITLE, f"The launcher could not start:\n\n{text[-1500:]}\n"
+                                            f"This was saved to:\n{path}")
+            fallback.destroy()
+        except Exception:
+            pass
+        raise

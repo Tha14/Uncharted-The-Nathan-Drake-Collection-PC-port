@@ -21,7 +21,10 @@
 
 #include <vk_mem_alloc.h>
 
-namespace VideoCore { void DescribeGpuMemory(u64 memory, u64 offset); }
+namespace VideoCore {
+void DescribeGpuMemory(u64 memory, u64 offset);
+void FlushImageReaper(); // texture_cache/image.cpp
+}
 namespace Vulkan {
 
 namespace {
@@ -298,6 +301,7 @@ Instance::Instance(const Frontend::WindowSystemInfo& window_info, s32 physical_d
 
 Instance::~Instance() {
     ImGui::Core::Shutdown(GetDevice());
+    VideoCore::FlushImageReaper();
     vmaDestroyAllocator(allocator);
 }
 

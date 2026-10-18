@@ -78,6 +78,10 @@ plan and test list: [analysis/PLAN.md](analysis/PLAN.md).
 - **Keyboard and mouse:** mouse look (sensitivity, invert Y), right mouse aim, left mouse fire, WASD,
   and every action remappable per game in the **Controls** tab (two bindings per action, keys or
   mouse buttons). Controllers (DualSense, DualShock 4, Xbox) work at the same time.
+- **Language** (Advanced tab): any of the 22 languages the games have text for; each game's main
+  menu then offers it next to English (Square). Voices: the languages in your copy of the game.
+- **Unlock all chapters** (Advanced tab, off by default): every chapter and the Brutal difficulty
+  from the start in all three games; saves are untouched.
 - **Game update 1.02** is used automatically when it sits next to the game folder (see below).
 - Log and save folders, desktop shortcut, shader cache reset, game folder selection, links to the
   author's [YouTube](https://www.youtube.com/@BilalReloaded/videos) and GitHub.
@@ -100,6 +104,8 @@ controller buttons).
 ## Known issues
 
 - **Drake's Fortune:** the grenade launcher can kill the player (GitHub #6). Being looked at.
+- **Ultrawide (21:9 / 32:9)** keeps the 16:9 width of view and cuts off the top and bottom instead
+  of showing more at the sides (GitHub #20). A fix is in progress; 16:9 shows the full view.
 - **Slower CPUs:** the PS4's GPU commands are processed on one CPU core (3,000-5,600 draws per frame
   in the heaviest scenes); on older CPUs those scenes can drop below 60 FPS.
 - **Multithreaded rendering is experimental:** its crashes with 1 frame queued are fixed. It is

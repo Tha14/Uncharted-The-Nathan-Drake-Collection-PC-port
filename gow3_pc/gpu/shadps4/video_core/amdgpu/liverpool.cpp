@@ -560,7 +560,7 @@ void RunComputeReleaseMem(Vulkan::Rasterizer& rasterizer, const u8* data) {
         rasterizer.SignalAfterHostCopies([packet = release.packet, pipe_id, backing] {
             packet.SignalFence(
                 [pipe_id] {
-                    Platform::IrqC::Instance()->Signal(static_cast<Platform::InterruptId>(pipe_id));
+                    Platform::IrqC::Instance()->SignalAsync(static_cast<Platform::InterruptId>(pipe_id));
                 },
                 [](VAddr, u16, u16) {},
                 [backing](void* address, u64 value, u32 num_bytes) {
@@ -583,7 +583,7 @@ void RunComputeReleaseMem(Vulkan::Rasterizer& rasterizer, const u8* data) {
     // Uncharted 3 at 4K, ~40 a second at ~1.7 ms each on the GPU command thread.
     release.packet.SignalFence(
         [pipe_id] {
-            Platform::IrqC::Instance()->Signal(static_cast<Platform::InterruptId>(pipe_id));
+            Platform::IrqC::Instance()->SignalAsync(static_cast<Platform::InterruptId>(pipe_id));
         },
         [&rasterizer](VAddr dst, u16 gds_index, u16 num_dwords) {
             rasterizer.CopyBuffer(dst, gds_index, num_dwords * sizeof(u32), false, true);
@@ -2179,7 +2179,7 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
             }
             release_mem->SignalFence(
                 [pipe_id = queue.pipe_id] {
-                    Platform::IrqC::Instance()->Signal(static_cast<Platform::InterruptId>(pipe_id));
+                    Platform::IrqC::Instance()->SignalAsync(static_cast<Platform::InterruptId>(pipe_id));
                 },
                 [](VAddr, u16, u16) {});
             break;

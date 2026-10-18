@@ -4,6 +4,32 @@ Uncharted: The Nathan Drake Collection PC port, by **BilalReloaded**
 ([YouTube](https://www.youtube.com/@BilalReloaded/videos), [GitHub](https://github.com/bc160201983)).
 Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
+## 18 October 2026 (0.2.2)
+
+- **Windows 10: all three games crashed at start on some PCs** (#22): the games' job code runs on
+  PS4 fibers with their own stacks, and some Windows 10 builds end the process when an exception
+  resumes on a stack the thread doesn't have registered. The port now registers the stack in use
+  before resuming.
+- **Uncharted 3 crash in Syria** (#21, `PatchImageSharp`): a damaged image description while a
+  level loads made the shader translator stop the game; that one write is now skipped.
+- **All the Collection's languages.** Launcher -> Advanced -> **Language**: the language the PS4
+  would be set to, from the 22 the games have text for (English US/UK, French, German, Italian,
+  Spanish and Latin American Spanish, Portuguese and Brazilian Portuguese, Dutch, Danish,
+  Norwegian, Swedish, Finnish, Polish, Czech, Greek, Russian, Turkish, Japanese, Korean,
+  Traditional Chinese). Each game's main menu then offers it next to English: press **Square**
+  to switch its menus and subtitles. Spoken language depends on your copy of the game: the list
+  marks the languages it has voices for (the European CUSA02344 has English, Polish, Russian and
+  Turkish). Before, the port always reported English, so only English was offered.
+- **Unlock all chapters.** Launcher -> Advanced -> **Unlock all chapters**: every chapter in each
+  game's Chapters menu (Drake's Fortune 1-22, Among Thieves 1-26, Drake's Deception 1-22) and the
+  Brutal difficulty from the start, without finishing the games first. It turns on the
+  Collection's own "unlock by default" switches, so saves and progress are untouched. Off by
+  default; needs update 1.02.
+- **Launcher errors are shown and saved** (`analysis\uncharted-user\launcher-error.log`); an error
+  at start used to close it silently.
+- **Long sessions:** a diagnostics list that grew with every GPU image and buffer made in a session
+  (never shrunk, searched on every free) is now kept only with the GPU fault diagnostics on.
+
 ## 18 October 2026 (0.2.1)
 
 - **NVIDIA DLAA and AMD FSR 4 Native AA are in the package.** The 0.2.0 build could not fetch

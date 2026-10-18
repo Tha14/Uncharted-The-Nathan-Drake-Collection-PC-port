@@ -12,6 +12,10 @@
 #include "video_core/texture_cache/image.h"
 
 #include <vk_mem_alloc.h>
+#include <condition_variable>
+#include <cstdlib>
+#include <thread>
+#include "common/thread.h"
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -27,7 +31,20 @@ struct GpuAllocationRecord {
 };
 static std::mutex gpu_allocations_mutex;
 static std::vector<GpuAllocationRecord> gpu_allocations;
+/// gow3: the records are kept only with the GPU fault diagnostics on (GOW3_GPU_CHECKPOINTS, the
+/// one reader: Vulkan::DescribeBoundAddress). Always on, the list grew by every image and buffer
+/// made in a session (never shrunk) and each free searched it (18 Oct 2026).
+static bool GpuAllocationRecords() {
+    static const bool on = [] {
+        const char* env = std::getenv("GOW3_GPU_CHECKPOINTS");
+        return env && env[0] != '0';
+    }();
+    return on;
+}
 void RecordGpuAllocation(u64 handle, const VmaAllocationInfo& info, const char* what) {
+    if (!GpuAllocationRecords()) {
+        return;
+    }
     std::scoped_lock lock{gpu_allocations_mutex};
     GpuAllocationRecord record{u64(info.deviceMemory), info.offset, info.size, handle, {}, true};
     std::snprintf(record.what, sizeof(record.what), "%s", what);
@@ -35,6 +52,9 @@ void RecordGpuAllocation(u64 handle, const VmaAllocationInfo& info, const char* 
 }
 /// Appends the guest identity of a texture cache image to its allocation record.
 void NoteGpuAllocation(u64 handle, VAddr guest_address, u32 guest_size) {
+    if (!GpuAllocationRecords()) {
+        return;
+    }
     std::scoped_lock lock{gpu_allocations_mutex};
     for (auto it = gpu_allocations.rbegin(); it != gpu_allocations.rend(); ++it) {
         if (it->handle == handle && it->alive) {
@@ -46,6 +66,9 @@ void NoteGpuAllocation(u64 handle, VAddr guest_address, u32 guest_size) {
     }
 }
 void RecordGpuFree(u64 handle) {
+    if (!GpuAllocationRecords()) {
+        return;
+    }
     std::scoped_lock lock{gpu_allocations_mutex};
     for (auto it = gpu_allocations.rbegin(); it != gpu_allocations.rend(); ++it) {
         if (it->handle == handle && it->alive) {
@@ -144,17 +167,102 @@ static vk::FormatFeatureFlags2 FormatFeatureFlags(const vk::ImageUsageFlags usag
     return feature_flags;
 }
 
+namespace {
+/// gow3: images and their memory are freed on this thread instead of the GPU command thread.
+/// Freeing a dedicated allocation is a kernel call (D3DKMTDestroyAllocation2): about 3% of the
+/// GPU command thread in Uncharted 2 (18 Oct 2026). VMA is internally synchronized; nothing
+/// uses an image once its UniqueImage is gone. Opt-in (GOW3_IMAGE_REAPER=1): memory freed a
+/// little later could make an allocation within budget fail on a 4 GB GPU; no FPS gain measured.
+class ImageReaper {
+public:
+    static bool Enabled() {
+        static const bool enabled = [] {
+            const char* env = std::getenv("GOW3_IMAGE_REAPER");
+            return env && env[0] == '1';
+        }();
+        return enabled;
+    }
+
+    static ImageReaper& Get() {
+        static ImageReaper* reaper = new ImageReaper; // lives until the process ends
+        return *reaper;
+    }
+
+    void Destroy(VmaAllocator allocator, VkImage image, VmaAllocation allocation) {
+        {
+            std::scoped_lock lock{mutex};
+            queue.push_back({allocator, image, allocation});
+        }
+        work_cv.notify_one();
+    }
+
+    /// Waits until every queued image is freed (before the allocator goes).
+    void Flush() {
+        std::unique_lock lock{mutex};
+        idle_cv.wait(lock, [this] { return queue.empty() && !busy; });
+    }
+
+private:
+    struct Item {
+        VmaAllocator allocator;
+        VkImage image;
+        VmaAllocation allocation;
+    };
+
+    ImageReaper() {
+        std::thread([this] { Run(); }).detach();
+    }
+
+    void Run() {
+        Common::SetCurrentThreadName("gow3:ImageReaper");
+        std::vector<Item> items;
+        while (true) {
+            {
+                std::unique_lock lock{mutex};
+                busy = false;
+                idle_cv.notify_all();
+                work_cv.wait(lock, [this] { return !queue.empty(); });
+                items.swap(queue);
+                busy = true;
+            }
+            for (const auto& item : items) {
+                vmaDestroyImage(item.allocator, item.image, item.allocation);
+            }
+            items.clear();
+        }
+    }
+
+    std::mutex mutex;
+    std::condition_variable work_cv, idle_cv;
+    std::vector<Item> queue;
+    bool busy = false;
+};
+
+void DestroyImage(VmaAllocator allocator, vk::Image image, VmaAllocation allocation) {
+    RecordGpuFree(u64(VkImage(image)));
+    if (ImageReaper::Enabled()) {
+        ImageReaper::Get().Destroy(allocator, image, allocation);
+    } else {
+        vmaDestroyImage(allocator, image, allocation);
+    }
+}
+} // namespace
+
+void FlushImageReaper() {
+    if (ImageReaper::Enabled()) {
+        ImageReaper::Get().Flush();
+    }
+}
+
 UniqueImage::~UniqueImage() {
     if (image) {
-        RecordGpuFree(u64(VkImage(image)));
-        vmaDestroyImage(allocator, image, allocation);
+        DestroyImage(allocator, image, allocation);
     }
 }
 
 void UniqueImage::Destroy() {
     if (image) {
-        RecordGpuFree(u64(VkImage(image)));
-        vmaDestroyImage(allocator, image, allocation);
+        DestroyImage(allocator, image, allocation);
         image = vk::Image{};
         allocation = {};
     }
@@ -181,11 +289,14 @@ void UniqueImage::Create(const vk::ImageCreateInfo& image_ci) {
                vk::to_string(vk::Result{result}));
     image = vk::Image{unsafe_image};
     size_bytes = alloc_info.size;
-    char what[96];
-    std::snprintf(what, sizeof(what), "image %ux%ux%u mips %u layers %u %s", image_ci.extent.width,
-                  image_ci.extent.height, image_ci.extent.depth, image_ci.mipLevels,
-                  image_ci.arrayLayers, vk::to_string(image_ci.format).c_str());
-    RecordGpuAllocation(u64(unsafe_image), alloc_info, what);
+    if (GpuAllocationRecords()) {
+        char what[96];
+        std::snprintf(what, sizeof(what), "image %ux%ux%u mips %u layers %u %s",
+                      image_ci.extent.width, image_ci.extent.height, image_ci.extent.depth,
+                      image_ci.mipLevels, image_ci.arrayLayers,
+                      vk::to_string(image_ci.format).c_str());
+        RecordGpuAllocation(u64(unsafe_image), alloc_info, what);
+    }
 }
 
 Image::Image(const Vulkan::Instance& instance, Vulkan::Runtime& runtime_,

@@ -15,6 +15,12 @@
 #include <mutex>
 #include <unordered_map>
 #include <queue>
+#include <condition_variable>
+#include <cstdlib>
+#include <thread>
+#include <vector>
+
+#include "common/thread.h"
 
 namespace Platform {
 
@@ -83,7 +89,60 @@ struct IrqController {
         }
     }
 
+    /// gow3 18 Oct 2026: Signal on the interrupt delivery thread, in the order queued. The
+    /// handlers wake the guest's interrupt threads (equeue events, a kernel call each): Uncharted
+    /// 3 raises ~2,200 compute interrupts a frame, which the GPU command thread paid for. Labels
+    /// and fences are written before the interrupt is queued, as before. Signals
+    /// in place (the default: no measured gain on 4 or 16 cores, 18 Oct; GOW3_ASYNC_IRQ=1 on).
+    void SignalAsync(InterruptId irq) {
+        static const bool enabled = [] {
+            const char* env = std::getenv("GOW3_ASYNC_IRQ");
+            return env && env[0] == '1';
+        }();
+        if (!enabled) {
+            Signal(irq);
+            return;
+        }
+        std::call_once(async_started, [this] {
+            std::thread([this] { DeliverAsync(); }).detach();
+        });
+        {
+            std::scoped_lock lock{async_mutex};
+            async_queue.push_back(irq);
+            if (!async_waiting) {
+                return; // the delivery thread is awake and takes it with the rest
+            }
+        }
+        async_cv.notify_one();
+    }
+
 private:
+    void DeliverAsync() {
+        Common::SetCurrentThreadName("gow3:Irq");
+        std::vector<InterruptId> batch;
+        while (true) {
+            {
+                std::unique_lock lock{async_mutex};
+                while (async_queue.empty()) {
+                    async_waiting = true;
+                    async_cv.wait(lock);
+                    async_waiting = false;
+                }
+                batch.swap(async_queue);
+            }
+            for (const InterruptId irq : batch) {
+                Signal(irq);
+            }
+            batch.clear();
+        }
+    }
+
+    std::once_flag async_started;
+    std::mutex async_mutex;
+    std::condition_variable async_cv;
+    std::vector<InterruptId> async_queue;
+    bool async_waiting = false;
+
     struct IrqContext {
         std::unordered_map<void*, IrqHandler> persistent_handlers{};
         std::queue<IrqHandler> one_time_subscribers{};

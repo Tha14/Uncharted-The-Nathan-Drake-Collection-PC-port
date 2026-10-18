@@ -344,9 +344,37 @@ static void start_exec_watch(void) {
     WaitForSingleObject(exec_watch_ready,5000);
     printf("Exec watch: %d breakpoints armed from %s\n",exec_watch_count,env ? env : "(file)");
 }
+/* GitHub #22 (18 Oct 2026, Windows 10 19041, all three games at start): the games run their job
+ * code on PS4 fibers whose stacks lie in guest memory (gow3_fiber.cpp), outside the stack the
+ * thread's TEB names. Resuming from any exception there, ntdll's RtlGuardRestoreContext ended the
+ * process (FAST_FAIL_INVALID_SET_OF_CONTEXT: the context's rsp outside the TEB stack). The TEB now
+ * names the stack the thread is on before an exception is handled: the guest allocation holding
+ * rsp, or the thread's own stack again once it is back there. */
+static void cover_current_stack(const CONTEXT *context) {
+    NT_TIB *tib=(NT_TIB *)NtCurrentTeb();
+    const uintptr_t sp=(uintptr_t)context->Rsp;
+    if (sp>=(uintptr_t)tib->StackLimit && sp<(uintptr_t)tib->StackBase) return;
+    static _Thread_local uintptr_t own_limit, own_base;
+    if (!own_base) { own_limit=(uintptr_t)tib->StackLimit; own_base=(uintptr_t)tib->StackBase; }
+    if (sp>=own_limit && sp<own_base) {
+        tib->StackLimit=(PVOID)own_limit; tib->StackBase=(PVOID)own_base;
+        return;
+    }
+    MEMORY_BASIC_INFORMATION region;
+    if (!VirtualQuery((LPCVOID)sp,&region,sizeof(region)) || region.State!=MEM_COMMIT) return;
+    uintptr_t low=(uintptr_t)region.AllocationBase, high=(uintptr_t)region.BaseAddress+region.RegionSize;
+    /* The rest of the allocation above rsp (protection changes split it into regions). */
+    for (int i=0;i<256;++i) {
+        MEMORY_BASIC_INFORMATION next;
+        if (!VirtualQuery((LPCVOID)high,&next,sizeof(next)) || next.AllocationBase!=region.AllocationBase) break;
+        high=(uintptr_t)next.BaseAddress+next.RegionSize;
+    }
+    tib->StackLimit=(PVOID)low; tib->StackBase=(PVOID)high;
+}
 static LONG CALLBACK vectored_fault(EXCEPTION_POINTERS *info) {
     const EXCEPTION_RECORD *record=info->ExceptionRecord;
     DWORD code=record->ExceptionCode;
+    cover_current_stack(info->ContextRecord);
     if (code==EXCEPTION_SINGLE_STEP && (info->ContextRecord->Dr6&0xf)) return watch_hit(info);
     if (code==EXCEPTION_ACCESS_VIOLATION && record->NumberParameters>=2) {
         /* GOW3_FAULT_TRACE=1: the first 64 access violations (diagnostics), written directly so
