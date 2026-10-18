@@ -364,18 +364,27 @@ bool VdecDecoder::WriteMovieCopy(const AVFrame& frame, u64 base) {
     if (!m_scaled) {
         return false;
     }
-    if ((u32)m_scaled->width != width || (u32)m_scaled->height != height) {
+    // The movie keeps its own shape inside the display size: black bars at the top and bottom
+    // (16:10) or at the sides (ultrawide) instead of a stretched picture. 16:9 sizes fill it.
+    u32 fit_width = width, fit_height = height;
+    if ((u64)frame.width * height > (u64)frame.height * width) {
+        fit_height = std::min(height, (u32)((u64)width * frame.height / frame.width) & ~1u);
+    } else {
+        fit_width = std::min(width, (u32)((u64)height * frame.width / frame.height) & ~1u);
+    }
+    const u32 left = (width - fit_width) / 2 & ~1u, top = (height - fit_height) / 2 & ~1u;
+    if ((u32)m_scaled->width != fit_width || (u32)m_scaled->height != fit_height) {
         av_frame_unref(m_scaled);
         m_scaled->format = AV_PIX_FMT_NV12;
-        m_scaled->width = (int)width;
-        m_scaled->height = (int)height;
+        m_scaled->width = (int)fit_width;
+        m_scaled->height = (int)fit_height;
         if (av_frame_get_buffer(m_scaled, 0) < 0) {
             av_frame_unref(m_scaled);
             return false;
         }
     }
     m_scale_context = sws_getCachedContext(m_scale_context, frame.width, frame.height, AV_PIX_FMT_NV12,
-                                           (int)width, (int)height, AV_PIX_FMT_NV12, SWS_BICUBIC,
+                                           (int)fit_width, (int)fit_height, AV_PIX_FMT_NV12, SWS_BICUBIC,
                                            nullptr, nullptr, nullptr);
     if (!m_scale_context || sws_scale(m_scale_context, frame.data, frame.linesize, 0, frame.height,
                                       m_scaled->data, m_scaled->linesize) < 0) {
@@ -384,19 +393,26 @@ bool VdecDecoder::WriteMovieCopy(const AVFrame& frame, u64 base) {
     const u32 pitch = Gow3Movie::ScaledPitch(), rows = Gow3Movie::ScaledRows();
     const u32 chroma_pitch = Gow3Movie::ScaledChromaPitch();
     const u64 bytes = Gow3Movie::ScaledFrameBytes();
-    m_movie_copy.assign(bytes, 0);
+    // Black (video range) around the picture.
+    m_movie_copy.assign(bytes, 128);
     u8* copy = m_movie_copy.data();
     u8* chroma = copy + (u64)pitch * rows;
+    std::memset(copy, 16, (u64)pitch * rows);
+    for (u32 y = 0; y < fit_height; ++y) {
+        std::memcpy(copy + (u64)(top + y) * pitch + left,
+                    m_scaled->data[0] + (u64)y * m_scaled->linesize[0], fit_width);
+        if (y < fit_height / 2) {
+            std::memcpy(chroma + (u64)(top / 2 + y) * chroma_pitch + left,
+                        m_scaled->data[1] + (u64)y * m_scaled->linesize[1], fit_width);
+        }
+    }
     // The rows up to the aligned height repeat the last one (sampling at the bottom edge reads
     // them at heights that aren't a multiple of 16, e.g. 1620).
-    for (u32 y = 0; y < rows; ++y) {
-        const u32 from = std::min(y, height - 1);
-        std::memcpy(copy + (u64)y * pitch, m_scaled->data[0] + (u64)from * m_scaled->linesize[0], width);
-        if (y < rows / 2) {
-            const u32 chroma_from = std::min(y, height / 2 - 1);
-            std::memcpy(chroma + (u64)y * chroma_pitch,
-                        m_scaled->data[1] + (u64)chroma_from * m_scaled->linesize[1], width);
-        }
+    for (u32 y = height; y < rows; ++y) {
+        std::memcpy(copy + (u64)y * pitch, copy + (u64)(height - 1) * pitch, width);
+    }
+    for (u32 y = height / 2; y < rows / 2; ++y) {
+        std::memcpy(chroma + (u64)y * chroma_pitch, chroma + (u64)(height / 2 - 1) * chroma_pitch, width);
     }
     // The GPU caches learn of the new frame explicitly (one write through the backing view, no
     // page faults per row). Invalidated before (any GPU copy of these pages goes back first)
