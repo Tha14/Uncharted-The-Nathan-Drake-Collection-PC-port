@@ -3,7 +3,8 @@
 
 Pick a game, set display and performance options (presets for low-end and high-end PCs) and play.
 Runtime options are kept in analysis/uncharted-user/probe.ini, the same file the in-game menu
-(Insert / R3+L2) reads and writes; launcher-only options in %APPDATA%/Uncharted Launcher.
+(Insert / R3+L2) reads and writes; launcher-only options in %APPDATA%/Uncharted Launcher (under
+Wine/Proton in ~/.local/share/uncharted-launcher, the same for every prefix).
 The game is started through tools/probe_uncharted.py (preparation, code patches, Collection game
 switches), with the options below passed as environment variables.
 """
@@ -34,7 +35,65 @@ STARTER_EXE = ROOT / "Uncharted Launcher.exe"  # the packaged build's starter (t
 USER_DIR = ROOT / "analysis" / "uncharted-user"
 INI_FILE = USER_DIR / "probe.ini"
 RUN_SCRIPT = ROOT / "tools" / "probe_uncharted.py"
-CONFIG_FILE = Path(os.environ.get("APPDATA", Path.home())) / "Uncharted Launcher" / "launcher.json"
+PREFIX_CONFIG_FILE = Path(os.environ.get("APPDATA", Path.home())) / "Uncharted Launcher" / "launcher.json"
+
+
+def wine_kernel32():
+    """kernel32 when the launcher runs under Wine (Proton, Lutris, CrossOver), else None."""
+    try:
+        if hasattr(ctypes.windll.ntdll, "wine_get_version"):
+            return ctypes.windll.kernel32
+    except (AttributeError, OSError):
+        pass
+    return None
+
+
+WINE = wine_kernel32()
+
+
+def _wine_string(pointer, wide):
+    """A string Wine returned in memory of the process heap, which is freed."""
+    if not pointer:
+        return None
+    try:
+        return ctypes.wstring_at(pointer) if wide else ctypes.string_at(pointer).decode("utf-8", "replace")
+    finally:
+        WINE.GetProcessHeap.restype = ctypes.c_void_p
+        WINE.HeapFree.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p]
+        WINE.HeapFree(WINE.GetProcessHeap(), 0, pointer)
+
+
+def unix_path(path):
+    """The Linux path of a Windows path under Wine, else None."""
+    if not WINE:
+        return None
+    function = WINE.wine_get_unix_file_name
+    function.argtypes, function.restype = [ctypes.c_wchar_p], ctypes.c_void_p
+    return _wine_string(function(str(path)), wide=False)
+
+
+def windows_path(path):
+    """The Windows path of a Linux path under Wine (in this prefix's drive letters), else None."""
+    if not WINE or not path:
+        return None
+    function = WINE.wine_get_dos_file_name
+    function.argtypes, function.restype = [ctypes.c_char_p], ctypes.c_void_p
+    return _wine_string(function(path.encode("utf-8")), wide=True)
+
+
+def shared_config_file():
+    """Under Wine: launcher.json in the Linux user's data folder. Each Steam shortcut has a prefix
+    (and an %APPDATA%) of its own, so a game started from its shortcut (--play) would not see the
+    launcher's options; this folder is the same for all of them, and outside the port's folder."""
+    home = os.environ.get("HOME", "")
+    data = os.environ.get("XDG_DATA_HOME") or (home + "/.local/share" if home.startswith("/") else "")
+    folder = windows_path(data) if data.startswith("/") else None
+    if not folder and os.environ.get("WINEHOMEDIR", "").startswith("\\??\\"):
+        folder = str(Path(os.environ["WINEHOMEDIR"][4:]) / ".local" / "share")  # set by Wine itself
+    return Path(folder) / "uncharted-launcher" / "launcher.json" if folder else None
+
+
+CONFIG_FILE = (WINE and shared_config_file()) or PREFIX_CONFIG_FILE
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 APP_TITLE = "Uncharted: The Nathan Drake Collection"
 # Credits shown on the Advanced page: the anti-aliasing technologies.
@@ -809,25 +868,57 @@ def write_ini(game, updates):
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def load_config_file(path):
+    """A launcher.json as a dict; {} when missing. One that can't be read (cut off while written)
+    is kept beside it as .bad, and the other copy or the defaults apply."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except OSError:
+        return {}
+    except ValueError:
+        try:
+            shutil.copy2(path, path.with_name(path.name + ".bad"))
+        except OSError:
+            pass
+        return {}
+
+
 def read_config():
     config = dict(LAUNCHER_DEFAULTS)
-    try:
-        config.update(json.loads(CONFIG_FILE.read_text(encoding="utf-8")))
-    except (OSError, ValueError):
-        pass
+    stored = load_config_file(CONFIG_FILE)
+    if CONFIG_FILE != PREFIX_CONFIG_FILE:
+        # Under Wine the shared file wins; what it lacks comes from this prefix's own file (the place
+        # earlier versions used), game by game. That file is left as it is.
+        older = load_config_file(PREFIX_CONFIG_FILE)
+        if older:
+            games = {}
+            for source in (older, stored):
+                for game, entry in (source.get("games") if isinstance(source.get("games"), dict) else {}).items():
+                    if isinstance(entry, dict):
+                        games.setdefault(game, {}).update(entry)
+            stored = {**older, **stored, "games": games}
+    config.update(stored)
     # Version 2: render resolutions above 1080p crash in gameplay; earlier presets chose them.
     if config.get("version", 1) < 2:
         config["resolution"] = "1920x1080"
     # Version 3: preset, resolution and multithreading per game; the shared values start all three.
-    games = config.setdefault("games", {})
+    if not isinstance(config.get("games"), dict):
+        config["games"] = {}
+    games = config["games"]
     resolutions = [r for r, _ in RESOLUTIONS]
     for game in GAME_KEYS:
-        entry = games.setdefault(game, {})
+        if not isinstance(games.get(game), dict):
+            games[game] = {}
+        entry = games[game]
         for name, default in GAME_SETTING_DEFAULTS.items():
             entry.setdefault(name, config.get(name, default))
         entry["preset"] = {"balanced": "medium"}.get(entry["preset"], entry["preset"])
+        # A value that isn't valid (another version, a hand edit) falls back alone.
         if entry["resolution"] not in resolutions:
             entry["resolution"] = "1920x1080"
+        if entry.get("aspect") not in ASPECT_WIDTHS:
+            entry["aspect"] = "16:9"
     # Version 4: the presets draw at 720p / 1080p / 1440p / 4K (all were 1080p before).
     if config.get("version", 1) < 4:
         for game, entry in games.items():
@@ -850,12 +941,21 @@ def read_config():
     for name in GAME_SETTING_DEFAULTS:
         config.pop(name, None)
     config["version"] = 6
+    # Under Wine the game folder is also kept as a Linux path: another prefix can show the same
+    # folder under another drive letter (Launcher.game_dir).
+    folder = config.get("game_dir")
+    if WINE and folder and not config.get("game_dir_unix") and Path(folder).exists():
+        config["game_dir_unix"] = unix_path(folder)
     return config
 
 
 def write_config(config):
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    # Through a temporary file: a launcher and a game started from a shortcut may write at once, and
+    # a write cut short must not leave half a file.
+    temporary = CONFIG_FILE.with_name(f"{CONFIG_FILE.name}.{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    os.replace(temporary, CONFIG_FILE)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1294,7 +1394,14 @@ class Launcher:
 
     def game_dir(self):
         folder = self.config.get("game_dir") or ""
-        return Path(folder) if folder else DEFAULT_GAME_DIR
+        if not folder:
+            return DEFAULT_GAME_DIR
+        if WINE and not Path(folder).exists():
+            # Chosen in another prefix (another Steam shortcut): the same folder by its Linux path.
+            here = windows_path(self.config.get("game_dir_unix"))
+            if here and Path(here).exists():
+                return Path(here)
+        return Path(folder)
 
     def choose_game_dir(self):
         from tkinter import filedialog
@@ -1308,6 +1415,8 @@ class Launcher:
                                             "Choose the game's root folder (CUSA02344).")
             return False
         self.config["game_dir"] = folder
+        if WINE:
+            self.config["game_dir_unix"] = unix_path(folder)
         write_config(self.config)
         if hasattr(self, "game_dir_label"):
             self.game_dir_label.config(text=f"Game files: {folder}")
