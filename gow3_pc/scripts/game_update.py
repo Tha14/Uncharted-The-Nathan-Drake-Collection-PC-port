@@ -64,7 +64,9 @@ def create_view(base, update, out):
     Path(out).mkdir(parents=True, exist_ok=True)
     target = Path(tempfile.mkdtemp(prefix='game-update-', dir=out))
     try:
-        for entry in base.iterdir():
+        # Folders first: a drive without links (exFAT, FAT32) fails at the first one, before
+        # any file is copied.
+        for entry in sorted(base.iterdir(), key=lambda entry: not entry.is_dir()):
             make_link(target / entry.name, entry)
         overlay(update, target)
     except BaseException:

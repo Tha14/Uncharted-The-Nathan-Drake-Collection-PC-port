@@ -166,6 +166,11 @@ public:
 
     const ComputePipeline* GetComputePipeline();
 
+    /// gow3 18 Oct 2026: compiles the compute program of a dispatch seen ahead of the GPU thread
+    /// (Liverpool's precompile scanner, at submit time) on a compiler worker: translation,
+    /// specialization, module and pipeline. Any thread; never waits for the GPU thread.
+    void PrecompileCompute(const AmdGpu::ComputeProgram& cs);
+
     using Result = std::tuple<const Shader::Info*, vk::ShaderModule,
                               std::optional<Shader::Gcn::FetchShaderData>, u64>;
     Result GetProgram(PipelineSelection& sel, Shader::HwStage stage, Shader::SwStage l_stage,
@@ -185,6 +190,20 @@ public:
     std::string DebugSizes() const;
 
 private:
+    struct PrecompiledCompute;
+    void RunPrecompile(PrecompiledCompute& job);
+    /// GPU thread: takes the finished precompiles into the caches.
+    void AdoptPrecompiled();
+    void Adopt(PrecompiledCompute& job);
+    /// GPU thread, at a compute program it has not got: waits for its precompile while it runs
+    /// (true: adopted), or takes back one not started yet (false: compile it here).
+    bool TakePrecompiled(u64 hash);
+    std::mutex precompile_mutex;
+    std::condition_variable precompile_cv;
+    tsl::robin_map<u64, std::shared_ptr<PrecompiledCompute>> precompile_jobs; ///< by program hash
+    std::atomic<bool> precompile_ready{false};
+    std::atomic<u32> precompile_stats[5]{}; ///< queued, adopted in time, waited, taken back, failed
+    std::atomic<u64> precompile_wait_ns{};
     bool QueueShader(Program& program, Shader::HwStage stage, Shader::SwStage l_stage,
                      const Shader::ShaderParams& params, Shader::RuntimeInfo runtime_info,
                      Shader::Backend::Bindings binding, size_t permutation, bool initial,

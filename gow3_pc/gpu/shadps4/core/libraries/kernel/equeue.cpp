@@ -1,10 +1,12 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <immintrin.h>
 #include "common/shared_handle_table.h"
 #include <thread>
 #include <magic_enum/magic_enum.hpp>
@@ -194,6 +196,41 @@ int EqueueInternal::WaitForEvents(OrbisKernelEvent* ev, int num, const OrbisKern
         return count > 0;
     };
 
+    // gow3 18 Oct 2026 (GOW3_EQUEUE_SPIN_US=<n>): watch for a trigger for up to n us before
+    // sleeping. Uncharted 3's interrupt handler threads take ~2,200 compute interrupts a frame,
+    // each one a kernel wakeup (~7% of the GPU command thread on a Ryzen laptop); a waiter
+    // still spinning when the next one comes takes it without being woken. No wakeup is lost:
+    // the sleep below re-checks under the lock, as before.
+    static const u32 spin_us = [] {
+        const char* env = std::getenv("GOW3_EQUEUE_SPIN_US");
+        const int value = env ? std::atoi(env) : 0;
+        return value > 0 ? static_cast<u32>(std::min(value, 2000)) : 0u;
+    }();
+    if (spin_us) {
+        const u32 limit = micros ? std::min(spin_us, micros) : spin_us;
+        const auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(limit);
+        u64 seen = m_matched.load(std::memory_order_acquire);
+        {
+            std::scoped_lock lock{m_mutex};
+            if (predicate()) {
+                return count;
+            }
+        }
+        for (u32 polls = 0;; ++polls) {
+            if (const u64 now = m_matched.load(std::memory_order_acquire); now != seen) {
+                seen = now;
+                std::scoped_lock lock{m_mutex};
+                if (predicate()) {
+                    return count;
+                }
+            }
+            if ((polls & 63) == 63 && std::chrono::steady_clock::now() >= until) {
+                break;
+            }
+            _mm_pause();
+        }
+    }
+
     if (micros == 0) {
         // Wait indefinitely for events
         std::unique_lock lock{m_mutex};
@@ -233,6 +270,9 @@ bool EqueueInternal::TriggerEvent(u64 ident, s16 filter, void* trigger_data) {
                 }
                 has_found = true;
             }
+        }
+        if (has_found) {
+            m_matched.fetch_add(1, std::memory_order_release);
         }
     }
     // gow3: every waiter re-checks; with several threads waiting on one queue, a single

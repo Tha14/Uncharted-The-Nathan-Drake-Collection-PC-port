@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <atomic>
+#include <cstdio>
 #include "common/assert.h"
 #include "common/types.h"
 #include "core/address_space.h"
@@ -35,7 +37,18 @@ struct PageState {
             if constexpr (delta == 1) {
                 return ++num_read_watchers;
             } else if (delta == -1) {
-                ASSERT_MSG(num_read_watchers > 0, "Not enough watchers");
+                // gow3 18 Oct 2026: a landing readback's read watch can outlive the page's
+                // state (reset when the range was unmapped or remapped meanwhile): the page is
+                // unwatched already, which is what the decrement wants. Was a fatal assert (U3,
+                // Radeon 780M, once in ~4 minutes of play).
+                if (num_read_watchers == 0) {
+                    static std::atomic<u32> logged{0};
+                    if (logged.fetch_add(1, std::memory_order_relaxed) < 8) {
+                        std::printf("Page watchers: read watch removed from an unwatched page "
+                                    "(ignored)\n");
+                    }
+                    return 0;
+                }
                 return --num_read_watchers;
             } else {
                 return num_read_watchers;

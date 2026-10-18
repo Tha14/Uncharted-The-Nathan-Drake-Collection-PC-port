@@ -32,7 +32,7 @@ ldd gow3_pc/out/gow3-probe.exe | awk '/clang64/ {print $3}' | sort -u | while re
 done
 
 cp gow3_pc/scripts/*.py "$stage/gow3_pc/scripts/"
-cp tools/probe_uncharted.py tools/apply_update.py "$stage/tools/"
+cp tools/probe_uncharted.py tools/hang_report.py tools/apply_update.py "$stage/tools/"
 cp launcher/uncharted_launcher.pyw launcher/updater.py "$stage/launcher/"
 # The package's version (tools/VERSION; the launcher's updates compare it with the releases).
 cp tools/VERSION "$stage/VERSION"

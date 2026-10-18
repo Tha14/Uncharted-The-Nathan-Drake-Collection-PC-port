@@ -164,8 +164,11 @@ struct PageManager::Impl {
         if (fault_page != last_fault_page) {
             last_fault_page = fault_page;
             fault_repeats = 0;
-        } else if (++fault_repeats >= 4 && self &&
+        } else if (++fault_repeats >= 4 && self && (addr >> PM_PAGE_BITS) < NUM_ADDRESS_PAGES &&
                    self->cached_pages[addr >> PM_PAGE_BITS].num_read_watchers != 0) {
+            // (Only guest addresses: the SRT walker's garbage pointers fault at -1, reported for
+            // non-canonical addresses; indexing the page table with that faulted inside this
+            // handler, again and again: Uncharted 3 froze, 18 Oct evening.)
             // Only a read-protected page (a readback holds it) can keep an instruction faulting;
             // write faults repeat on hot pages the GPU keeps writing (not stuck).
             fault_repeats = 0;
@@ -524,6 +527,14 @@ void PageManager::OnGpuMap(VAddr address, size_t size) {
 
 void PageManager::OnGpuUnmap(VAddr address, size_t size) {
     impl->OnUnmap(address, size);
+}
+
+bool PageManager::IsReadWatched(VAddr addr) const {
+    const u64 page = addr >> PM_PAGE_BITS;
+    if (page >= Impl::NUM_ADDRESS_PAGES) {
+        return false;
+    }
+    return __atomic_load_n(&impl->cached_pages[page].num_read_watchers, __ATOMIC_RELAXED) != 0;
 }
 
 template <bool track, bool is_read>

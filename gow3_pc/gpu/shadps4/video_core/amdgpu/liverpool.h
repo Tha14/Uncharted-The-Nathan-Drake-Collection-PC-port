@@ -4,6 +4,8 @@
 #pragma once
 
 #include <cstdlib>
+#include <functional>
+#include <unordered_set>
 
 #include <condition_variable>
 #include <deque>
@@ -101,6 +103,14 @@ public:
 
     void SubmitGfx(std::span<const u32> dcb, std::span<const u32> ccb);
     void SubmitAsc(u32 gnm_vqid, std::span<const u32> acb);
+
+    /// gow3 18 Oct 2026: compute shader precompile (GOW3_COMPUTE_PRECOMPILE, on by default).
+    /// Submitted command buffers are copied to a scanner thread, which follows the compute
+    /// program registers ahead of the GPU thread and calls the hook with each dispatch's state
+    /// (a program not seen before). New areas and cutscenes dispatch hundreds of compute shaders
+    /// never compiled before, which the GPU thread compiled one after another (1-2 s frames).
+    using PrecompileHook = std::function<void(const ComputeProgram&)>;
+    void SetComputePrecompileHook(PrecompileHook hook);
 
     /// gow3 test (GOW3_GFX_WAIT_SUBMIT_DONE_MS): sceGnmSubmitDone calls so far.
     static inline std::atomic<u64> submit_done_gen{0};
@@ -278,6 +288,19 @@ private:
     Libraries::VideoOut::VideoOutPort* vo_port{};
     const bool guest_markers_enabled;
     std::jthread process_thread{};
+    // gow3: compute precompile scanner (SetComputePrecompileHook).
+    void ScanForPrecompile(u32 queue, std::span<const u32> words);
+    void PrecompileScanner(std::stop_token stop);
+    void ScanPackets(u32 queue, std::span<const u32> words, int depth);
+    std::mutex precompile_hook_mutex;
+    PrecompileHook precompile_hook;
+    std::atomic<bool> precompile_enabled{false};
+    std::mutex scan_mutex;
+    std::condition_variable_any scan_cv;
+    std::deque<std::pair<u32, std::vector<u32>>> scan_queue;
+    std::array<ComputeProgram, NumTotalQueues> scan_cs{};
+    std::unordered_set<u64> scan_seen; ///< program addresses already reported
+    std::jthread scan_thread{};
     std::atomic<u32> num_submits{};
     /// gow3: false from a submission until its draws and deferred fences are done (stage A
     /// decrements num_submits once it has decoded a submission, before that). Under

@@ -1175,3 +1175,266 @@ Plan and test list: analysis/PLAN.md.
   3 s later and tracks (155.9 after walking).
 - **Frame capture** read buffer contents at guest address 0 (IsValidGpuMapping only checks 40 bits):
   now through TryReadBacking; unreadable buffers are listed as such.
+
+## 18 October 2026, evening: ultrawide Hor+ (#20), #24 = game 1.00, launcher usability (unreleased)
+
+- **Ultrawide (#20) fixed: Hor+ in all three games** (HOR_PLUS_PATCHES, probe_uncharted.py; only
+  for render sizes wider than 16:9, UNCHARTED_HOR_PLUS=0 disables). The render camera holds
+  zoom = 1/tan(hFOV/2) and aspect = h/w (U2/U3 +0x254/+0x250, U1 +0x294/+0x290); projection
+  x = zoom, y = zoom/aspect. Every perspective read of zoom in the camera update and in the
+  frustum-plane builder (culling) now gets zoom * min(1, aspect*16/9) through a 37-byte stub
+  (vmovss k; vmulss aspect; vminss 1.0; vmulss zoom; jmp back) in a dead assert branch (cave
+  starts with int 0x41, which the runtime treats as fatal). Sites (1.02 VAs): U1 0x2c982e,
+  0x2c9ac7, planes 0x2ca4ca; U2 0x9dc8fe, 0x9dcb55, planes 0x9dd41d; U3 0x11c1107 (both infinite
+  paths), 0x11c11e1, 0x11c1406, planes 0x11c1f21. Orthographic branches (U2 +0x280, U3 +0x268,
+  U1 +0x2a4) untouched; U3's sub-pixel offset term at 0x11c15e2 keeps the old zoom (negligible).
+  apply_patches gained multi-change variants (pattern, [(offset, original, replacement)...]),
+  all or none. Static check: scratchpad horplus_verify.py (disassembly of every stub, no branch
+  from outside into a cave). Bench (scratchpad uwtest2.sh, GAME=u1|u2|u3): 3440x1440 on/off in
+  all three games, 5120x1440 in U2: wider at the sides, the 16:9 vertical view, edge objects
+  drawn, no faults.
+- **#24 reporter runs game 1.00** (entry/image sizes match our 1.00 exactly): the 1.02 pattern
+  patches are skipped there (U2/U3 focus NaN, FrameBegin wait...). The launcher now asks once at
+  Play when the game is older than 1.02 with no update next to it (confirm_without_update), and the
+  launch log says so. Red-zone clobbering by Windows exception dispatch was ruled out on Windows 11
+  (scratchpad/redzone/redzone_test.c).
+- **Launcher:** pages scroll (the Advanced buttons had been hidden since 0.2.2 by the fixed 330 px
+  body), more room, GPU-based Recommended preset (gpu_names/gpu_tier), plainer hints, recommended
+  choices starred, Advanced tools grouped, double-click a game card to play, #25 direct start.
+
+## 18 October 2026, evening: laptop work merged into this tree
+
+The three laptop sections below were written on the user's ROG Zephyrus G14 (USB copy, G:\uncharted
+here) and merged on the desktop on 18 Oct evening: a three-way merge (base: the 0.1.2 export) of the
+nine files changed on both sides, the nine laptop-only files copied. Conflict choices: liverpool.cpp
+keeps SignalAsync; buffer_cache takes the residency pool and the timeline semaphore; vk_rasterizer
+keeps both hang fixes (desktop ReleaseStuckPage after 4 faults, laptop LandWatchedReadback at the
+first) and WaitDrawPipeForCapture; image.cpp keeps the GpuAllocationRecords gate with the laptop's
+slow-create log and SpareBlockKeeper; probe.c / probe_uncharted.py keep the desktop's later work. One
+duplicated declaration block (old-base merge) removed; scratchpad merge_dupcheck.py found no other.
+Not merged: D:\uncharted-cmd (command-thread session, unmeasured). Desktop check of the merged build:
+U1/U2/U3 single-threaded and U2/U3 multithreaded at 60 FPS, no faults; U3 landed 10 readbacks
+through the new watch path. Benchmark runs and scripts: analysis/laptop-bench/.
+
+## 18 October 2026 (night, laptop): Radeon 780M optimization (RTX 5060 switched off)
+
+Laptop: ROG Zephyrus G14 GA403UM, Ryzen 9 270 (8C/16T, 16 MB L3) + Radeon 780M (driver
+32.0.21036.1002, Jan 2025), 16 GB, 2880x1800 120 Hz; D: is exFAT; Windows power mode Best
+performance. **But G-Helper was in Silent (30 W total, 18 W CPU) and GPU Eco the whole night**
+(found 07:50 by the RTX session): every number below is power-limited. The user switched to
+Balanced (80 W) and GPU Standard at ~07:50; re-measured numbers follow in a later section.
+Measured with a gated scratchpad bench (Continue to the latest save, stand still; keyboard and
+mouse off; saves backed up and restored): Frame stats every 5 s, GOW3_PROFILE, GOW3_GPU_PROFILE.
+The camera view at the checkpoint varies between runs (1100-1550 draws in U3), so CPU-bound
+results are compared in draws per second.
+
+**Fixed / added (all in the laptop copy):**
+- **Update 1.02 never ran on the laptop**: exFAT holds no links, so the game view failed and
+  every game ran 1.00 (no Bluepoint fixes; JOB_SLEEP, FRAME_BEGIN_WAIT, AIM_RANGE and torch
+  patches unmatched). New: `--app0-overlay <dir>` (runtime_file.c): the update is laid over the
+  game by the runtime, indexed once, names without case, merged directory listings; probe.c reads
+  param.sfo through it. probe_uncharted.py `boot_view` copies what the prepare scripts read
+  (executables, sce_module, sce_sys; ~90 MB in analysis/views/boot-CUSA02344-01.02). Used only
+  when the link view fails (NTFS unchanged). Log: `Runtime: /app0 overlay ...: 172 files, 33
+  folders`. game_update.py links folders first (exFAT fails before copying files).
+- **Error 1450 at start (16 GB PCs)**: the 6080 MiB guest pool was a SEC_COMMIT section (the
+  whole pool charged against the commit limit at start). Now SEC_RESERVE, committed per direct
+  allocation / flexible map (`host_commit`), retrying up to 10 s (lock released while it sleeps)
+  while a system-managed page file grows.
+- **Flexible memory split (pre-existing, found by review)**: split_at kept the parent's phys for
+  the right piece of a flexible VMA, so after a partial mprotect/munmap of flexible memory backing
+  copies hit the left piece's pages and flex_free zeroed live memory (reproduced with a harness).
+  Fixed for every backed kind. Candidate for random guest corruption on every PC.
+- **AMD allocation stalls**: vkAllocateMemory takes ~0.6 ms/MiB on this driver (170 ms per
+  256 MiB VMA block). New: `Slow image create` log; image.cpp SpareBlockKeeper holds a 64 MiB
+  spare so the next images find a block (after an image burst; GOW3_SPARE_IMAGE_BLOCK=0 off);
+  buffer arenas take resident ranges from 64 MiB chunks allocated ahead on a thread
+  (GOW3_RESIDENCY_CHUNKS=0 off): level-start frames with >10 ms residency 10 -> 0. One ~170 ms
+  image-block stall at level start remains (120 images in one frame).
+- **Side-queue page fetches** (CPU writes beside GPU data): a timeline semaphore instead of a
+  fence (vkResetFences is a kernel call on AMD: 6% of the U3 command thread).
+- **U1 shader compiles**: synchronous since 14 Oct (dark interiors); the 15 Oct small-target
+  rule (SmallTargetDraw) covers the LUT draw, so U1 compiles in the background again (froze
+  1-2.4 s per new area; now worst frame ~120 ms). UNCHARTED_U1_SYNC_SHADERS=1 restores it.
+  To check: U1 temple torch light.
+- **Multithreaded rendering races** (pre-existing): readbacks landed twice (`AddDelta: Not enough
+  watchers`, `FreeDeferred on an allocation that is not held`, STATUS_HEAP_CORRUPTION) in U3
+  within 1-3 minutes on the laptop. Fixes: a shader capture for the command thread waits for the
+  draw pipe to run dry before handling its fault (WaitDrawPipeForCapture); the pipe ring has one
+  producer again (RunInOrder from the recording thread runs inline, from any other thread, e.g.
+  an EOP flip signalled on a copy thread, goes through the command thread). The watcher assert
+  is a logged no-op. GOW3_FEWER_DRAINS=1 (off by default): fewer draw-pipe drains.
+- Diagnostics/tests: GOW3_RING_STATS=1, GOW3_GPU_THREAD_PRIORITY / GOW3_GPU_THREAD_CORE (no
+  effect measured), GOW3_EQUEUE_SPIN_US=<n> (waiter spins before sleeping).
+
+**Measurements (1.02, 1080p, fullscreen 2880x1800, job sleep on, frames queued 1):**
+- Levels are CPU-bound on the GPU command thread: U3 Cartagena ~54K draws/s single-threaded (49
+  FPS at 1100 draws, 35 at 1530), U2 ~57K (36 FPS at 1600), U1 ~95K (37 FPS at 2620). Menus are
+  GPU-bound (U3 50-55, U2 42-50).
+- Multithreaded rendering, final build (race fixes): U3 43.9 FPS vs 35.4 single-threaded in the
+  same 1540-draw view (~68K vs 54K draws/s, +24%); U2 no change; U1 slightly slower (34.6 vs
+  36.5). No readback crash in 4 multithreaded runs since the fixes (it crashed 3 of 3 U3 runs
+  before them). GOW3_FEWER_DRAINS=1 is about as fast; left off. But 2 of 5 multithreaded U3 runs on the
+  final build stopped flipping right after the level loaded (0 of 2 single-threaded): suggested
+  off for now.
+- 2 frames queued: menus +10%, but U2 levels 9 FPS and U1 27 FPS (ray-cast fences landed 71 ms
+  late): keep 1.
+- GPU (U3 level, 780M, 1080p): ~17-18 ms/frame; 60 FPS on the 780M needs ~900p + FSR 1.
+- **Memory pressure (16 GB + 780M)**: the 780M's "video memory" is system RAM. During U2 the
+  system had 177 MB of commit left (game ~4.3 GB private + ~5 GB guest section + GPU memory, plus
+  ~3 GB of other apps), and that run had a 2.1 s frame. U3 stopped flipping right after the level
+  loaded in 5 of ~10 runs late in the night (both single- and multithreaded, process alive, no
+  log message): the desktop's 17 Oct "U3 stops flipping on the AMD iGPU" (job fibers waiting in
+  an allocator). Likely made worse by memory pressure; not resolved. Close other programs; the
+  RTX 5060 (own 8 GB) avoids most of it.
+- Experiments that did not help or broke things: GPU command thread priority/core (no effect);
+  routing RunInOrder from other threads through the command thread (hangs: the command thread
+  can wait for the flip it would queue; reverted); GOW3_EQUEUE_SPIN_US (a run with it stopped
+  flipping; left off by default).
+- Command thread (single-threaded U3 level): compute 54% (dispatch binding 28%, compute release
+  fences 19%: signal + interrupt + event wakeup ~16%, waiting for deferred signals 7%), draws 30%;
+  BindBuffers/ObtainBuffer 24%, AMD driver ~10%. Per-draw constant copies were 23-29% of stage A
+  with multithreaded rendering.
+
+## 18 October 2026 (morning, laptop): U3 "stops flipping" on the 780M - cause found and fixed
+
+The hang behind "multithreaded rendering off on the laptop" (and the desktop's 17 Oct "U3 on
+the AMD iGPU stops flipping"). Found from two hung runs with full minidumps and lldb stacks
+(scratchpad hang-catcher: no Frame stats line for 25 s -> MiniDumpWriteDump + `lldb -p`).
+
+- **Where it hangs**: not "after the level loaded" but at the menu -> level-load transition
+  (Continue): every laptop hang (7 overnight runs, 2 today) stopped in Frame stats window 5-6,
+  before the loading screen's first window, right as cs 67921bad/c92150ba run for the first time.
+  It hit single-threaded too (2 of ~12 overnight), with multithreaded rendering more often.
+- **What hangs**: one NdJobWorkerThread sits on a single guest store (+0xea50b1, `movl $0,0x10(%r8)`,
+  zeroing a new pool item) for the whole hang: 20-22 s kernel time, ~6 s user, i.e. an endless
+  access-violation loop. Its page is PAGE_NOACCESS. Every other thread waits for that job: the
+  main thread polls the job counter (WaitForCounter usleep loop, +0xd9756a), another worker spins
+  on a guest lock the stuck job holds (+0xea611e), the GPU command thread sleeps in
+  Liverpool::Process (no commands, no deferred fences), recorder and draw pipe idle.
+- **Why the page stays NOACCESS**: it is the `watched` range of the only pending buffer readback
+  (dump 1: tick 4316, watched 0x1065c56000+8 KiB, GPU piece 0x1065c56d60+1 KiB, the store at
+  0x1065c57180 is just past it; dump 2: tick 4297, watched 0x1065c72000+8 KiB, store 0x1065c732e0).
+  Read watches (EOP/ray-cast readbacks, "read-protected until copied") make a page inaccessible
+  until the readback lands (PageState::Perms). A CPU **write** fault there
+  (Rasterizer::OnWriteFault -> InvalidateMemory -> memory tracker) marks the page CPU-modified and
+  reports "handled", but nothing lifts the readback's watch: the store faults again, and again,
+  until the GPU command thread lands that readback. It only polls while it processes work or
+  while fences are deferred to readbacks; here it had none (deferred_signals 0, cached GPU tick
+  4314 < readback tick 4316 < current 4317: the GPU finished long ago, nobody looked). The guest
+  submits nothing until that job finishes: livelock.
+- **Why the 780M**: the readback is still in flight when the job initializes its item beside the
+  GPU's 1 KiB result block (false sharing in one page); on the RTX it has normally landed during
+  command processing. Multithreaded rendering records the readback later in the submission, so
+  the command thread goes idle with it pending more often. Not memory pressure (no commit-limit
+  messages in any U3 log; commit headroom fell to 270 MB in clean runs too), not RunInOrder, not
+  equeue wakeups.
+- **Fix** (vk_rasterizer.cpp/.h, buffer_cache.cpp/.h, page_manager.cpp/.h): after a write or read
+  fault is handled, Rasterizer::LandWatchedReadback checks whether a readback still read-protects
+  the page (PageManager::IsReadWatched) and, if so, lands the readbacks that watch it
+  (BufferCache::LandReadbacksWatching -> CompleteReadbacks(wait, tick); on the GPU thread through
+  SendCommand<true> for guest threads, inline on GPU-side threads). Watches start only after the
+  readback's submission, so the wait is for work already sent to the GPU. The retried store then
+  succeeds. Logs "Readback watch: a fault at ... landing the readback (n so far)" (first 8, then
+  powers of two) and warns if a page is read-protected with no buffer readback owning the watch.
+- **Results** (U3, multithreaded rendering, job sleep on, 1080p, 780M as GOW3_GPU_ID=0 with the
+  RTX on; each run: boot, Continue, load, 40 s standing in the level, which covers every hang
+  seen; the desktop's struck within 35 s of the level start):
+  - Before (05:27 build): 2 of 8 runs this morning hung (07:46, 08:11), both at the transition;
+    overnight 7 of ~25 U3 runs, 2 of them single-threaded.
+  - After (08:43 build and the 08:48 rebuild that includes it): **7 of 7 runs clean** (08:43-08:48
+    in Balanced 80 W, 09:12-09:18). In every run the new path ran 65 to 500+ times, starting in the
+    transition window, and 1-3 times per run at exactly the two stores that livelocked in the
+    dumps (0x1065c57180, 0x1065c732e0). No "no pending buffer readback" warning, no errors.
+  - RTX 5060 runs on the same build (other session): 1-17 landings per run (the readback has
+    usually landed before the guest touches the page), U3 multithreaded 60 FPS, no errors.
+  - Level frame rate unchanged within noise (43.6-45.7 FPS at 1116-1535 draws, once 40.9); the
+    long frames left are the level-start ones (shader compiles, the ~200 ms image-block stall).
+- **So**: multithreaded rendering no longer needs to be off on the laptop for this reason (it gave
+  U3 +24% overnight, measured in Silent mode). The command-thread session reported that every U3
+  run of its own hung at level start before this fix.
+- Tools (u3-hang session scratchpad): hangrun2.sh (gated run + hang catcher + per-second memory
+  log + early stop), minidump.py, mdump.py (minidump reader: fibers, threads, memory), dis.sh
+  (guest disassembly). Memory note: reference-hang-dump-analysis.
+- **Follow-up (09:20, stopped by the user before verification)**: an independent review (handbook
+  session) found a multithreaded race the fix makes more frequent: Liverpool::ProcessCommands
+  drained the draw pipe once before its command loop, so a command queued after that check (it is
+  also called inside the packet loops, while the recording thread is busy), or one behind a flip
+  command that woke the recording thread, could land readbacks concurrently with it (double
+  landing, as before the 18 Oct night fixes). liverpool.cpp now drains before each command. Built
+  at 09:21 (out/gow3-probe.exe) but **not yet run**: the next session should repeat a few
+  multithreaded 780M runs and the RTX single-threaded 1440p case.
+- The hang is not 780M-only: before the fix it also hit on the RTX 5060 single-threaded at 1440p
+  (RTX session, run u3-rtx-st-1440-1018-075834: three level-start frames, the last with 27.9 ms of
+  write faults, then no flips) and twice single-threaded at 1080p in the command-thread session
+  (08:03, 08:07). Same symptom; consistent with the cause (the GPU still busy with the readback
+  when the job writes beside it).
+
+## 18 October 2026 (morning, laptop): power mode, 80 W numbers, session coordination
+
+- **Power mode**: G-Helper was in Silent (30 W total, CPU 18 W) with GPU Eco from 17 Oct 23:58
+  (found by the RTX session at ~07:50). The user switched to Balanced/Turbo (80 W) and GPU
+  Standard. With the RTX on, the 780M is GOW3_GPU_ID=0 (`gow3-gpu-capabilities.exe --list`).
+- **780M at Turbo, single-threaded, job sleep on** (build 05:27): CPU-bound levels barely moved
+  (U3 34.9 FPS at 1517 draws = 53K draws/s vs 54K in Silent: one busy thread fits even in
+  18 W). U3 900p + FSR: menu 55.5, level 36.0 at 1534 draws; U2 900p + FSR: menu 53.7, level 40.3
+  at 1606 draws (65K/s); U1 1080p: level 36.5 at 2621 draws (96K/s). U2 at the user's 2560x1440
+  on the 780M: level 27.2 FPS with 13 hitch windows (menu 37): use 900p + FSR there.
+- **Output size is not the 780M's limit**: U3 in a 1920x1080 window was no faster than 2880x1800
+  fullscreen (menu 54 vs 53); 720p + FSR locks the menu at 60. The GOW3_FULLSCREEN_RES experiment
+  was reverted.
+- **Launcher (with the user's approval)**: job_sleep "on", multithreaded off for u1/u2/u3,
+  frames_queued 1 (backup: %APPDATA%\Uncharted Launcher\launcher.json.bak-20261018). Not changed:
+  resolutions (U2 is still 2560x1440).
+- **Coordination**: several sessions share D:\uncharted: analysis/laptop-bench/SHARING.md, a
+  first-come-first-served lock for builds and game runs (lock.sh take/try/release/leave/show,
+  QUEUE), EDITS.md for files in progress. A review of the U3 hang fix found a draw-pipe race
+  (ProcessCommands drained once before its loop; a command queued after it, or behind a flip that
+  woke the recording thread, could land readbacks while that thread did); the u3-hang session
+  made it drain before each command (built 09:21, not run yet).
+- **Remaining for 60 FPS**: levels need ~1.7x the command thread's throughput (U3 ~91K, U2 ~96K
+  draws/s at their draw counts). The command-thread session's changes (D:\uncharted-cmd, RESUME.md:
+  readback `rewritten` clipping, batched compute interrupts, a stream-copy thread, smaller items)
+  are built but not measured. Multithreaded rendering gave U3 +24% before the hang fix; re-check
+  with the hang and drain fixes. All sessions were stopped at the user's request at 09:23.
+
+## 18 October 2026 (21:15): host crash in TextureCache::FindDepthTarget fixed
+
+The user's U2 session on the merged build ended after 38 min: `Fault: read access to 0x7dd5edd0 at
+Uncharted.exe+0x11474b` (GPU command thread; FindDepthTarget <- BeginRenderingFull <- DrawRecord).
+FindDepthTarget held `Image& image` across `slot_images.insert` (the stencil placeholder); SlotVector
+Reserve moves every image and frees the old storage when it grows, so `image.image_uid` (rbx+0x58)
+and `image.FindView` read freed memory. Pre-existing (not from the laptop merge). Fixed by fetching
+the image again after the insert; ResolveDepthOverlap had the same pattern (`cache_image` used after
+inserting the recreated depth image) and is fixed too. ExpandImage, FindImage and ResolveOverlap
+fetch references after their inserts (fine). Smoke: U2/U3 60 FPS, no faults.
+
+## 18 October 2026 (21:35): U3 freeze = endless nested fault in the stuck-page check (since 0.2.0)
+
+The user's U3 froze (0 CPU, 146 threads); lldb (scratchpad freeze-u3-stacks.txt): the GPU command
+thread nested in GuestFaultSignalHandler -> cached_pages[addr >> 12] -> fault -> the same handler,
+again and again. Shader d701fef2's SRT walk read through garbage user data (0x6f36c37e6c..., then
+non-canonical addresses, reported as fault address -1); after 4 faults on that "page" the 18 Oct
+morning stuck-page rule (fault_repeats >= 4) indexed the page table with -1 >> 12. Fixed: the rule
+only looks at addresses below NUM_ADDRESS_PAGES (as the laptop's IsReadWatched already did). The
+walker then skips such loads as before. Smoke: U3 60 FPS, no faults.
+
+## 18 October 2026 (22:00): long-session safety net
+
+- **Run history** (scratchpad run_history.py over analysis/<game>/attempts, 1,019 kept runs): every
+  user crash/freeze signature of 15-18 Oct is fixed or not seen since: FrameBegin m_gfxEopTick
+  int 0x41 (U2 0xbd444a x9, U3 0xe3b8fa x11 bench; FRAME_BEGIN_WAIT_PATCHES), U1 host fault =
+  my frame capture (fixed), ntdll+0x1ff2a (16 Oct MT work), GPU-library STOPs (14-15 Oct),
+  FindDepthTarget and the nested-fault freeze (fixed today).
+- **Fault-handler depth guard** (probe.c vectored_fault): a fault nested more than 8 deep inside
+  gow3gpu_handle_fault reports and stops instead of recursing until the stack runs out.
+- **Hang watchdog** (probe_uncharted.py hang_watchdog + tools/hang_report.py): no Frame stats line
+  for 30 s (UNCHARTED_HANG_SECONDS; needs diagnostics) -> every thread's state from the launching
+  process: StackWalk64 with the modules' unwind tables (module+offset), guest rbp chains, thread
+  names, grouped by stack -> analysis/<game>/hang-<time>.txt (newest 10; ~20 KB, 0.2 s), copied into
+  the run's attempts folder, named in boot.log after the game ends; minidump in dumps/ in the source
+  tree (UNCHARTED_HANG_DUMP; ~340 MB, newest 2). Not written into boot.log while the game runs: the
+  game writes through its own file position and overwrote appended text. Launcher: "The game
+  froze" message whenever a report exists (also after STOP). Tested by suspending a bench game
+  (scratchpad suspend_game.py): report + resume clean; offsets symbolize with llvm-addr2line.
+

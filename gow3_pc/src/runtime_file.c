@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -95,8 +96,79 @@ void runtime_file_configure(const char *app0,const char *user) {
         runtime_file_mount(guest,path);
     }
 }
-/* Resolve a guest path to a host path; returns 0 or a host errno. */
-static int translate(const char *guest,char *out,size_t size) {
+/* Update layers over /app0 and /hostapp (--app0-overlay, the first added wins). A game update
+ * (1.02) holds only the files it changes: those are read from the update and everything else
+ * from the game, as the PS4 mounts a patch over the disc. The probe uses this where the two
+ * can't be combined as a folder of links (exFAT and FAT32 drives). Each layer is indexed once
+ * at start, names without case, so a lookup costs no system call; the index never changes. */
+#define MAX_OVERLAYS 4
+typedef struct { char *key, *rel; int dir; } OverlayEntry;
+typedef struct { char root[512]; OverlayEntry *entries; size_t count, capacity, files, dirs; } Overlay;
+static Overlay overlays[MAX_OVERLAYS];
+static size_t overlay_count;
+static int overlay_mount(const char *guest) { return !strcmp(guest,"/app0") || !strcmp(guest,"/hostapp"); }
+/* A mount-relative guest path as an index key: no leading, trailing or doubled slashes, no "."
+ * components, lower case. Returns its length (0 for the mount's root) or -1 if too long. */
+static int overlay_key(const char *rest,char *key,size_t size) {
+    size_t n=0;
+    while (*rest) {
+        while (*rest=='/' || *rest=='\\') ++rest;
+        if (!*rest) break;
+        const char *end=rest;
+        while (*end && *end!='/' && *end!='\\') ++end;
+        if (end-rest==1 && rest[0]=='.') { rest=end; continue; }
+        if (n+(size_t)(end-rest)+2>size) return -1;
+        if (n) key[n++]='/';
+        for (;rest<end;++rest) key[n++]=(char)(*rest>='A' && *rest<='Z' ? *rest+32 : *rest);
+    }
+    key[n]=0;
+    return (int)n;
+}
+static int overlay_compare(const void *a,const void *b) { return strcmp(((const OverlayEntry *)a)->key,((const OverlayEntry *)b)->key); }
+static const OverlayEntry *overlay_find(const Overlay *o,const char *key) {
+    OverlayEntry probe={(char *)key,NULL,0};
+    return bsearch(&probe,o->entries,o->count,sizeof(*o->entries),overlay_compare);
+}
+static void overlay_index(Overlay *o,const char *rel) {
+    char path[1100];
+    snprintf(path,sizeof(path),"%s%s%s",o->root,*rel ? "/" : "",rel);
+    DIR *d=opendir(path);
+    if (!d) return;
+    struct dirent *e;
+    while ((e=readdir(d))) {
+        if (!strcmp(e->d_name,".") || !strcmp(e->d_name,"..")) continue;
+        char child[1024], host[1100], key[1024];
+        HostStat s;
+        if ((size_t)snprintf(child,sizeof(child),"%s%s%s",rel,*rel ? "/" : "",e->d_name)>=sizeof(child)) continue;
+        snprintf(host,sizeof(host),"%s/%s",o->root,child);
+        if (host_stat(host,&s) || overlay_key(child,key,sizeof(key))<=0) continue;
+        if (o->count==o->capacity) {
+            o->capacity=o->capacity ? o->capacity*2 : 256;
+            o->entries=realloc(o->entries,o->capacity*sizeof(*o->entries));
+            if (!o->entries) { fputs("Out of memory indexing an /app0 overlay\n",stderr); exit(1); }
+        }
+        int dir=S_ISDIR(s.st_mode);
+        o->entries[o->count++]=(OverlayEntry){strdup(key),strdup(child),dir};
+        if (dir) { ++o->dirs; overlay_index(o,child); } else ++o->files;
+    }
+    closedir(d);
+}
+int runtime_file_add_overlay(const char *root) {
+    if (overlay_count==MAX_OVERLAYS || strlen(root)>=sizeof(overlays[0].root)) return -1;
+    Overlay *o=&overlays[overlay_count];
+    snprintf(o->root,sizeof(o->root),"%s",root);
+    /* Trailing separators go, except a drive root's ("E:" alone is that drive's current folder). */
+    for (size_t n=strlen(o->root);n>1 && !(n==3 && o->root[1]==':') && (o->root[n-1]=='/' || o->root[n-1]=='\\');) o->root[--n]=0;
+    overlay_index(o,"");
+    if (!o->count) { printf("Runtime: /app0 overlay %s is empty or unreadable; not used\n",root); return -1; }
+    qsort(o->entries,o->count,sizeof(*o->entries),overlay_compare);
+    printf("Runtime: /app0 overlay %s: %zu files, %zu folders over the game\n",o->root,o->files,o->dirs);
+    ++overlay_count;
+    return 0;
+}
+/* Resolve a guest path to a host path (through the /app0 overlays unless base_only);
+ * returns 0 or a host errno. */
+static int resolve(const char *guest,char *out,size_t size,int base_only) {
     if (!guest || !*guest) return ENOENT;
     char buffer[1024];
     if (guest[0]!='/') snprintf(buffer,sizeof(buffer),"/app0/%s",guest);
@@ -110,12 +182,18 @@ static int translate(const char *guest,char *out,size_t size) {
         if (!strncmp(buffer,mounts[i].guest,n) && (buffer[n]=='/' || !buffer[n]) && n>best) { best=n; m=&mounts[i]; }
     }
     int result=0;
+    char key[1024];
+    const Overlay *layer=NULL; const OverlayEntry *hit=NULL;
+    if (m && overlay_count && !base_only && overlay_mount(m->guest) && overlay_key(buffer+best,key,sizeof(key))>0)
+        for (size_t i=0;i<overlay_count && !hit;++i) if ((hit=overlay_find(&overlays[i],key))) layer=&overlays[i];
     if (!m) result=ENOENT;
+    else if (hit) { if ((size_t)snprintf(out,size,"%s/%s",layer->root,hit->rel)>=size) result=ENAMETOOLONG; }
     else if ((size_t)snprintf(out,size,"%s%s",m->host,buffer+best)>=size) result=ENAMETOOLONG;
     pthread_mutex_unlock(&lock);
     if (result==ENOENT) fprintf(stderr,"Runtime: no mount for guest path %s\n",guest);
     return result;
 }
+static int translate(const char *guest,char *out,size_t size) { return resolve(guest,out,size,0); }
 int32_t runtime_file_available_space_kb(const char *guest,uint64_t *kb) {
     if (!guest || !kb) return ERR(22);
     char host[1024];
@@ -184,6 +262,48 @@ static Listing *list_directory(const char *path) {
     closedir(d);
     return l;
 }
+/* A folder of /app0 that is in the game and in an overlay lists the entries of both (names
+ * without case, the chosen layer's first). */
+static void merge_listing(Listing *l,const char *path) {
+    Listing *other=list_directory(path);
+    if (!other) return;
+    size_t bytes=l->count ? l->offsets[l->count-1]+strlen(l->names+l->offsets[l->count-1])+1 : 0;
+    for (size_t i=0;i<other->count;++i) {
+        const char *name=other->names+other->offsets[i];
+        size_t j=0;
+        while (j<l->count && strcasecmp(l->names+l->offsets[j],name)) ++j;
+        if (j<l->count) continue;
+        size_t n=strlen(name)+1;
+        l->offsets=realloc(l->offsets,(l->count+1)*sizeof(size_t));
+        l->types=realloc(l->types,l->count+1);
+        l->names=realloc(l->names,bytes+n);
+        if (!l->offsets || !l->types || !l->names) { fputs("Out of memory listing directory\n",stderr); exit(1); }
+        memcpy(l->names+bytes,name,n);
+        l->offsets[l->count]=bytes; l->types[l->count]=other->types[i];
+        ++l->count; bytes+=n;
+    }
+    free_listing(other);
+}
+static void merge_layers(const char *guest,const char *chosen,Listing *l) {
+    char base[1024], key[1024], layer[1100];
+    if (!overlay_count || resolve(guest,base,sizeof(base),1)) return;
+    if (strcmp(base,chosen)) merge_listing(l,base);
+    const char *rest=guest; /* relative guest paths are under /app0 */
+    if (guest[0]=='/') {
+        if (!strncmp(guest,"/app0",5) && (!guest[5] || guest[5]=='/')) rest=guest+5;
+        else if (!strncmp(guest,"/hostapp",8) && (!guest[8] || guest[8]=='/')) rest=guest+8;
+        else return;
+    }
+    int n=overlay_key(rest,key,sizeof(key));
+    if (n<0) return;
+    for (size_t i=0;i<overlay_count;++i) {
+        const OverlayEntry *e=n ? overlay_find(&overlays[i],key) : NULL;
+        if (n && (!e || !e->dir)) continue;
+        if (n) snprintf(layer,sizeof(layer),"%s/%s",overlays[i].root,e->rel);
+        else snprintf(layer,sizeof(layer),"%s",overlays[i].root);
+        if (strcmp(layer,chosen)) merge_listing(l,layer);
+    }
+}
 static void convert_stat(const HostStat *s,GuestStat *g) {
     memset(g,0,sizeof(*g));
     g->dev=(uint32_t)s->st_dev; g->ino=(uint32_t)s->st_ino;
@@ -248,6 +368,7 @@ static int64_t do_open(const char *guest,int flags,int mode) {
     if (!host_stat(path,&s) && S_ISDIR(s.st_mode)) {
         if (flags&3) return -EISDIR;
         if (!(dir=list_directory(path))) return -EACCES;
+        merge_layers(guest,path,dir);
     } else if (flags&0x20000) {
         e=errno==ENOENT ? ENOENT : ENOTDIR;
         if (e==ENOENT) { ++missing; printf("Runtime: open(%s) -> not found\n",guest); }
@@ -271,7 +392,7 @@ static int64_t do_open(const char *guest,int flags,int mode) {
     }
     struct stat s;
     Listing *dir=NULL;
-    if (!fstat(host,&s) && S_ISDIR(s.st_mode)) dir=list_directory(path);
+    if (!fstat(host,&s) && S_ISDIR(s.st_mode) && (dir=list_directory(path))) merge_layers(guest,path,dir);
 #endif
     pthread_mutex_lock(&lock);
     int fd=-1;

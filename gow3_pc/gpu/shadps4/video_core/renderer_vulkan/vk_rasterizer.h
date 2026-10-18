@@ -7,6 +7,8 @@
 #include <deque>
 #include <functional>
 #include <unordered_map>
+#include <unordered_set>
+#include <array>
 #include <vector>
 #include "common/recursive_lock.h"
 #include "common/shared_first_mutex.h"
@@ -170,6 +172,9 @@ public:
     /// gow3: a guest instruction keeps faulting on one page (see BufferCache::ReleaseStuckPage).
     void ReleaseStuckPage(VAddr page, bool is_write, bool assume_locks);
     bool ReadMemory(VAddr addr, u64 size, bool assume_locks = false);
+    /// gow3: after a fault: lands a buffer readback that still read-protects the page of `addr`.
+    void LandWatchedReadback(VAddr addr, bool assume_locks);
+    void WaitDrawPipeForCapture();
     void ProcessDownloadImages();
     bool IsMapped(VAddr addr, u64 size);
     void MapMemory(VAddr addr, u64 size);
@@ -630,6 +635,12 @@ private:
         return nullptr;
     }
     std::unique_ptr<ConstantRing> constant_ring;
+    // gow3: Rasterizer::Flush calls (either pipe stage), and the GOW3_RING_STATS counters.
+    std::atomic<u64> flush_count{0};
+    u64 ring_copy_count = 0, ring_copy_bytes = 0, ring_repeat_count = 0, ring_repeat_bytes = 0;
+    std::array<u64, 4> ring_size_buckets{};
+    std::unordered_set<u64> ring_seen;
+    u64 ring_seen_flush = ~0ULL;
     /// Submissions (prepared draws) kept alive until stage B reaches the position.
     std::deque<std::pair<u64, std::shared_ptr<const void>>> pipe_keepalive;
     std::unique_ptr<DrawPipe> draw_pipe;

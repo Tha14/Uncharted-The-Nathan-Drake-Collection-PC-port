@@ -108,6 +108,9 @@ Rasterizer::Rasterizer(const Instance& instance_, Scheduler& scheduler_, Runtime
                                                   *camera_motion, *scene_targets);
     if (!EmulatorSettings.IsNullGPU()) {
         liverpool->BindRasterizer(this);
+        // gow3: compute shaders seen ahead of this thread compile on the compiler workers.
+        liverpool->SetComputePrecompileHook(
+            [this](const AmdGpu::ComputeProgram& cs) { pipeline_cache.PrecompileCompute(cs); });
     }
     memory->SetRasterizer(this);
     static Rasterizer* srt_rasterizer;
@@ -144,6 +147,7 @@ Rasterizer::Rasterizer(const Instance& instance_, Scheduler& scheduler_, Runtime
 }
 
 Rasterizer::~Rasterizer() {
+    liverpool->SetComputePrecompileHook({}); // before the pipeline cache goes
     Shader::g_srt_pre_walk = nullptr;
 }
 
@@ -899,7 +903,42 @@ void Rasterizer::CollectRingBindings(const Shader::Info& stage, const PreparedDr
     }
     const u64 alignment = std::max<u64>(instance.StorageMinAlignment(),
                                         instance.UniformMinAlignment());
+    // gow3 diagnostics (GOW3_RING_STATS=1): guest copies per 5 s, their sizes, and how many
+    // repeat a range already copied since the last flush.
+    static const bool ring_stats = [] {
+        const char* env = std::getenv("GOW3_RING_STATS");
+        return env && env[0] == '1';
+    }();
+    if (ring_stats) {
+        static auto last = std::chrono::steady_clock::now();
+        if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds(5)) {
+            last = now;
+            std::printf("Ring copies (5 s): %llu copies, %.1f MB; repeated within a flush: %llu, "
+                        "%.1f MB; sizes <=256 %llu, <=1K %llu, <=4K %llu, <=16K %llu\n",
+                        (unsigned long long)ring_copy_count, ring_copy_bytes / 1e6,
+                        (unsigned long long)ring_repeat_count, ring_repeat_bytes / 1e6,
+                        (unsigned long long)ring_size_buckets[0], (unsigned long long)ring_size_buckets[1],
+                        (unsigned long long)ring_size_buckets[2], (unsigned long long)ring_size_buckets[3]);
+            std::fflush(stdout);
+            ring_copy_count = ring_copy_bytes = ring_repeat_count = ring_repeat_bytes = 0;
+            ring_size_buckets = {};
+        }
+    }
     const auto copy = [&](u32 index, const void* source, VAddr address, u64 size) {
+        if (ring_stats && !source) {
+            ++ring_copy_count;
+            ring_copy_bytes += size;
+            ++ring_size_buckets[size <= 256 ? 0 : size <= 1024 ? 1 : size <= 4096 ? 2 : 3];
+            if (const u64 flushes = flush_count.load(std::memory_order_relaxed);
+                ring_seen_flush != flushes) {
+                ring_seen.clear();
+                ring_seen_flush = flushes;
+            }
+            if (!ring_seen.insert((u64(address) << 16) ^ size).second) {
+                ++ring_repeat_count;
+                ring_repeat_bytes += size;
+            }
+        }
         const auto offset = constant_ring->Allocate(size, alignment);
         if (!offset) {
             return;
@@ -1091,7 +1130,13 @@ void Rasterizer::RetireSubmission() {
 }
 
 bool Rasterizer::RunInOrder(OrderedTask task, const void* data, u32 size, u64 toggle) {
-    if (!UseDrawPipe() || Gow3Toggle::Disabled(toggle)) {
+    // gow3 18 Oct 2026: the ring has one producer, the GPU command thread. On the draw recording
+    // thread (an EOP flip: SignalFlip -> SubmitFlipInternal queues the flip from there) every
+    // earlier packet has run already, so the task runs here, in stream order; pushed from both
+    // threads, two packets could take the same ring slot.
+    // (Handing tasks from other threads to the command thread instead was tried: the command
+    // thread may be waiting for the very flip it would queue. Not done.)
+    if (!UseDrawPipe() || Gow3Toggle::Disabled(toggle) || DrawPipe::OnStageB()) {
         DrainDrawPipe(DrawPipe::ReasonRasterizer);
         task(*this, static_cast<const u8*>(data));
         return false;
@@ -2125,6 +2170,7 @@ void Rasterizer::DispatchIndirectRecord(const ComputePipeline* pipeline, VAddr a
 
 u64 Rasterizer::Flush() {
     DrainDrawPipe();
+    flush_count.fetch_add(1, std::memory_order_relaxed);
     const u64 current_tick = scheduler.CurrentTick();
     SubmitInfo info{};
     scheduler.Flush(info);
@@ -5338,10 +5384,12 @@ bool Rasterizer::OnWriteFault(VAddr addr, bool assume_locks) {
         }
     }
     DrainDrawPipe();
+    WaitDrawPipeForCapture();
     if (!InvalidateMemory(addr, 8, assume_locks)) {
         return false;
     }
     buffer_cache.ExtendWriteFault(addr);
+    LandWatchedReadback(addr, assume_locks);
     return true;
 }
 
@@ -5350,8 +5398,54 @@ void Rasterizer::ReleaseStuckPage(VAddr page, bool is_write, bool assume_locks) 
     buffer_cache.ReleaseStuckPage(page, is_write, assume_locks);
 }
 
+// gow3 18 Oct 2026: a fault handled while a pending readback still read-protects the page would
+// fault again on the retried access (BufferCache::LandReadbacksWatching): land that readback.
+void Rasterizer::LandWatchedReadback(VAddr addr, bool assume_locks) {
+    if (!page_manager.IsReadWatched(addr)) {
+        return;
+    }
+    static std::atomic<u32> landed{0};
+    if (const u32 n = landed.fetch_add(1, std::memory_order_relaxed); n < 8 || (n & (n - 1)) == 0) {
+        std::printf("Readback watch: a fault at %#llx left its page read-protected: landing the "
+                    "readback (%u so far)\n",
+                    static_cast<unsigned long long>(addr), n + 1);
+        std::fflush(stdout);
+    }
+    const VAddr page = Common::AlignDown(addr, VAddr{4096});
+    if (assume_locks) {
+        buffer_cache.LandReadbacksWatching(page);
+    } else {
+        liverpool->SendCommand<true>([this, page] { buffer_cache.LandReadbacksWatching(page); });
+    }
+}
+
+// gow3 18 Oct 2026: a shader capture for the GPU command thread (which waits for it) handles its
+// faults inline and may land readbacks, which the draw recording thread owns while it runs: with
+// multithreaded rendering both landed the same readback (staging buffer freed twice, page watcher
+// count below zero, heap corruption). The command thread pushes nothing meanwhile, so the
+// recording thread runs dry: the capture waits for that first (logged after 2 s).
+void Rasterizer::WaitDrawPipeForCapture() {
+    if (!draw_pipe || !PipelineCache::capturing_for_gpu_thread || DrawPipe::OnStageB()) {
+        return;
+    }
+    const auto warn_at = std::chrono::steady_clock::now() + std::chrono::seconds{2};
+    bool warned = false;
+    while (!draw_pipe->Idle()) {
+        if (!warned && std::chrono::steady_clock::now() >= warn_at) {
+            warned = true;
+            static std::atomic<u32> logged{0};
+            if (logged.fetch_add(1, std::memory_order_relaxed) < 4) {
+                std::printf("Draw pipe: shader capture fault waiting for the recording thread "
+                            "for 2 s\n");
+            }
+        }
+        std::this_thread::yield();
+    }
+}
+
 bool Rasterizer::ReadMemory(VAddr addr, u64 size, bool assume_locks) {
     DrainDrawPipe();
+    WaitDrawPipeForCapture();
     if (!IsMapped(addr, size)) {
         // Not GPU mapped memory, can skip invalidation logic entirely.
         return false;
@@ -5361,6 +5455,7 @@ bool Rasterizer::ReadMemory(VAddr addr, u64 size, bool assume_locks) {
     if (!image_readback || buffer_cache.IsRegionGpuModified(addr, size)) {
         buffer_cache.ReadMemory(addr, size, false, assume_locks);
     }
+    LandWatchedReadback(addr, assume_locks);
     return true;
 }
 

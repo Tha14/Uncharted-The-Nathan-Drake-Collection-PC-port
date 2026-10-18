@@ -334,6 +334,54 @@ static void poll_exec_watch_file(void) {
     printf("Exec watch: %d watches from %s: %s\n",count,exec_watch_file,text);
     fflush(stdout);
 }
+/* GOW3_POKE=<entry>[,<entry>...]: bytes the runtime keeps set in guest memory, rewritten every
+ * 250 ms (launcher cheats: the games' own debug-menu switches, tools/probe_uncharted.py CHEATS).
+ * An entry is <offset>[=<value>] (hex guest image offset, value 1 by default) or
+ * *<offset>+<add>[=<value>] (the byte <add> past the pointer stored at <offset>). Reads and
+ * writes go through Read/WriteProcessMemory: an address not mapped (yet) is skipped. */
+typedef struct { int deref; uint64_t offset, add; unsigned char value; } Poke;
+static Poke pokes[16];
+static int poke_count;
+static DWORD WINAPI poke_thread(LPVOID unused) {
+    (void)unused;
+    const HANDLE self=GetCurrentProcess();
+    for (;;) {
+        for (int i=0;i<poke_count;++i) {
+            uintptr_t address=(uintptr_t)image+(uintptr_t)pokes[i].offset;
+            SIZE_T got=0;
+            if (pokes[i].deref) {
+                uint64_t pointer=0;
+                if (!ReadProcessMemory(self,(LPCVOID)address,&pointer,sizeof(pointer),&got) || got!=sizeof(pointer) || !pointer) continue;
+                address=(uintptr_t)pointer+(uintptr_t)pokes[i].add;
+            }
+            unsigned char current=0;
+            if (ReadProcessMemory(self,(LPCVOID)address,&current,1,&got) && got==1 && current!=pokes[i].value)
+                WriteProcessMemory(self,(LPVOID)address,&pokes[i].value,1,NULL);
+        }
+        Sleep(250);
+    }
+    return 0;
+}
+static void start_pokes(void) {
+    const char *env=getenv("GOW3_POKE");
+    if (!env || !*env || !image) return;
+    const char *p=env;
+    while (*p && poke_count<16) {
+        Poke k={0};
+        char *end;
+        if (*p=='*') { k.deref=1; ++p; }
+        k.offset=strtoull(p,&end,16);
+        p=end;
+        if (k.deref && *p=='+') { k.add=strtoull(p+1,&end,16); p=end; }
+        k.value=1;
+        if (*p=='=') { k.value=(unsigned char)strtoul(p+1,&end,16); p=end; }
+        pokes[poke_count++]=k;
+        while (*p && *p!=',') ++p;
+        if (*p==',') ++p;
+    }
+    printf("Runtime: %d memory switches kept set (GOW3_POKE: %s)\n",poke_count,env);
+    CloseHandle(CreateThread(NULL,0,poke_thread,NULL,0,NULL));
+}
 static void start_exec_watch(void) {
     const char *env=getenv("GOW3_EXEC_WATCH");
     exec_watch_file=getenv("GOW3_EXEC_WATCH_FILE");
@@ -401,7 +449,21 @@ static LONG CALLBACK vectored_fault(EXCEPTION_POINTERS *info) {
          * speculative read (draw preparation workers): resolving a GPU-modified page there waits
          * for the GPU thread, which may be waiting for a lock that worker holds (Uncharted 2
          * level load). Such a fault takes the recovery path; the GPU thread does that draw. */
-        if (gpu_enabled && !runtime_fault_recover && gow3gpu_handle_fault(info,(void *)record->ExceptionInformation[1])) return EXCEPTION_CONTINUE_EXECUTION;
+        if (gpu_enabled && !runtime_fault_recover) {
+            /* A fault inside the GPU fault handlers is legitimate a level or two deep (a handler
+             * touching another tracked page). A bug there recursed until the thread's stack ran
+             * out and the game froze for good (18 Oct 2026, Uncharted 3: the page table indexed
+             * with a garbage address, thousands of levels). Deeper than 8: a report, and stop. */
+            static _Thread_local int handler_depth;
+            if (handler_depth>=8) {
+                fprintf(stderr,"Fault handler: faulted inside itself %d levels deep\n",handler_depth);
+                return fatal_exception(info);
+            }
+            ++handler_depth;
+            const int handled=gow3gpu_handle_fault(info,(void *)record->ExceptionInformation[1]);
+            --handler_depth;
+            if (handled) return EXCEPTION_CONTINUE_EXECUTION;
+        }
         if (runtime_fault_recover) {
             /* A speculative guest memory read (GPU draw preparation) faulted: the thread resumes
              * in gow3_longjmp, outside the exception dispatcher, back at its recovery point. */
@@ -906,6 +968,7 @@ int main(int argc, char **argv) {
     int guest_argc=1;
     unsigned timeout_seconds = 10;
     const char *content_profile=NULL, *app0=NULL, *user_dir=NULL, *patch_file=NULL;
+    const char *app0_overlays[4]; int app0_overlay_count=0;
     for (int i = 2; i < argc; ++i) {
         if (!strcmp(argv[i], "--cpu-only")) cpu_only = 1;
         else if (!strcmp(argv[i], "--strict-imports")) strict_imports = 1;
@@ -914,6 +977,10 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--low-image")) low_image = 1;
         else if (!strcmp(argv[i], "--content-profile") && i+1<argc) content_profile=argv[++i];
         else if (!strcmp(argv[i], "--app0") && i+1<argc) app0=argv[++i];
+        else if (!strcmp(argv[i], "--app0-overlay") && i+1<argc) {
+            if (app0_overlay_count==4) { fprintf(stderr, "Too many --app0-overlay options\n"); return 1; }
+            app0_overlays[app0_overlay_count++]=argv[++i];
+        }
         else if (!strcmp(argv[i], "--user") && i+1<argc) user_dir=argv[++i];
         else if (!strcmp(argv[i], "--patches") && i+1<argc) patch_file=argv[++i];
         else if (!strcmp(argv[i], "--timeout") && i+1<argc) timeout_seconds=(unsigned)strtoul(argv[++i],NULL,10);
@@ -925,7 +992,7 @@ int main(int argc, char **argv) {
         else { fprintf(stderr, "Unknown option: %s\n", argv[i]); return 1; }
     }
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s boot.bin [--cpu-only] [--strict-imports] [--check-imports] [--no-game-hooks] [--content-profile file] [--app0 dir] [--user dir] [--patches file] [--timeout seconds] [--guest-path /app0/file] [--guest-arg value]... | --vulkan-only\n", argv[0]);
+        fprintf(stderr, "Usage: %s boot.bin [--cpu-only] [--strict-imports] [--check-imports] [--no-game-hooks] [--content-profile file] [--app0 dir] [--app0-overlay dir]... [--user dir] [--patches file] [--timeout seconds] [--guest-path /app0/file] [--guest-arg value]... | --vulkan-only\n", argv[0]);
         return 1;
     }
     /* The guest code needs the PS4's instruction sets (#33, #66); GOW3_CPU_CHECK=0 skips this. */
@@ -953,8 +1020,9 @@ int main(int argc, char **argv) {
     }
     if (app0) {
         runtime_file_configure(app0, user_dir ? user_dir : "user");
+        for (int i=0;i<app0_overlay_count;++i) runtime_file_add_overlay(app0_overlays[i]);
         char sfo[4096], id[16]="";
-        snprintf(sfo,sizeof(sfo),"%s/sce_sys/param.sfo",app0);
+        if (runtime_file_translate("/app0/sce_sys/param.sfo",sfo,sizeof(sfo))) snprintf(sfo,sizeof(sfo),"%s/sce_sys/param.sfo",app0);
         if (sfo_value(sfo,"INSTALL_DIR_SAVEDATA",id,sizeof(id),NULL) || sfo_value(sfo,"TITLE_ID",id,sizeof(id),NULL))
             runtime_savedata_configure(id);
     }
@@ -1089,7 +1157,7 @@ int main(int argc, char **argv) {
     if (!cpu_only) {
         char title[128]="Uncharted: The Nathan Drake Collection", serial[16]="UNKNOWN", sfo[4096];
         uint32_t attributes=0;
-        snprintf(sfo,sizeof(sfo),"%s/sce_sys/param.sfo",app0 ? app0 : ".");
+        if (!app0 || runtime_file_translate("/app0/sce_sys/param.sfo",sfo,sizeof(sfo))) snprintf(sfo,sizeof(sfo),"%s/sce_sys/param.sfo",app0 ? app0 : ".");
         sfo_value(sfo,"TITLE",title,sizeof(title),NULL);
         sfo_value(sfo,"TITLE_ID",serial,sizeof(serial),NULL);
         sfo_value(sfo,"ATTRIBUTE",NULL,0,&attributes);
@@ -1192,6 +1260,7 @@ int main(int argc, char **argv) {
     printf("Entering original x86-64 code at guest offset 0x%" PRIx64 "\n", entry);
 #ifdef _WIN32
     start_exec_watch();
+    start_pokes();
 #endif
     entered_game=1;
     struct { uint64_t argc; const char *argv[17]; } params = {(uint64_t)guest_argc, {NULL}};

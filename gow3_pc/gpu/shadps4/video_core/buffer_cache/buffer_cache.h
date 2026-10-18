@@ -322,7 +322,8 @@ private:
     void ForEachLazyUploadPiece(VAddr address, u64 size, Func&& func);
 
     /// gow3: writes downloaded GPU data to guest memory, except bytes of lazy pages that the
-    /// CPU overwrote after the GPU (the CPU value is newer). For an asynchronous readback,
+    /// CPU overwrote after the GPU (the CPU value is newer; whole 64-byte lines with the
+    /// readback guard, shared pages included). For an asynchronous readback,
     /// `rewritten` holds the bytes the GPU wrote again since: their lazy records are moved to
     /// the written value (still stale), the others are dropped.
     void WriteBackGpuData(VAddr address, const u8* data, u64 size,
@@ -441,7 +442,10 @@ private:
     bool arena_host_mapped = false;
     vk::UniqueCommandPool urgent_pool;
     vk::CommandBuffer urgent_cmd;
-    vk::UniqueFence urgent_fence;
+    /// gow3: timeline semaphore the side queue signals per fetch (no fence to reset: on AMD's
+    /// Windows driver vkResetFences is a kernel call, ~6% of the U3 command thread).
+    vk::UniqueSemaphore urgent_timeline;
+    u64 urgent_value = 0;
     void GpuRangesSubtract(VAddr address, u64 size) {
         std::unique_lock lock{gpu_ranges_mutex};
         gpu_modified_ranges.Subtract(address, size);
@@ -488,7 +492,9 @@ private:
         std::array<u8, LAZY_PAGE_SIZE> bytes{}; ///< guest bytes at the write fault
         std::bitset<LAZY_PAGE_SIZE> tracked;    ///< GPU-written bytes with a stale guest copy
         /// gow3: shared page (CPU writes next to GPU data still in flight): the tracked bytes
-        /// are the GPU's, without comparing guest bytes (uploads skip them, readbacks write them).
+        /// are the GPU's (uploads skip them, readbacks write them). Since 18 Oct 2026 `bytes`
+        /// holds their guest copy from that write too: a 64-byte line whose GPU bytes the CPU
+        /// overwrote later is the CPU's (readback guard; GOW3_READBACK_GUARD=0: the GPU wins).
         bool gpu_wins = false;
     };
     /// gow3: the GPU writes into each 4 KiB page (writes up to 1 MiB): byte range and tick.
@@ -555,9 +561,20 @@ private:
         std::vector<std::function<void()>> on_landed;
         /// gow3 tests (GOW3_TEST_READBACK_LAG): when it was queued.
         std::chrono::steady_clock::time_point queued = std::chrono::steady_clock::now();
+        /// gow3 18 Oct 2026 (readback guard): the guest bytes of each piece when it was queued
+        /// (same layout as `mapped`). A 64-byte line that differs at landing, and not by the
+        /// GPU's value, was written meanwhile (the guest reusing the memory once it saw the
+        /// fence) and keeps that value.
+        std::vector<u8> before;
     };
     PageManager* page_manager = nullptr;
     std::deque<PendingReadback> pending_readbacks;
+    /// gow3: writes one GPU-modified run [lo, hi) of piece `piece` of `readback` (the oldest
+    /// pending one) to guest memory, except lines the guest changed since it was queued.
+    void LandGuarded(PendingReadback& readback, size_t piece, VAddr lo, VAddr hi);
+    /// gow3: guest bytes [lo, hi) were `pre` before a landing: the snapshots of later pending
+    /// readbacks that still held those bytes move to the landed values.
+    void UpdateLaterSnapshots(VAddr lo, VAddr hi, const u8* pre);
     /// gow3 18 Oct: bytes on their way back in open (unprotected, fence-gated) readbacks: other
     /// readbacks of the same bytes (the per-submission small-write readback) do not protect them
     /// again.
@@ -571,6 +588,10 @@ private:
     void UnwatchPage(VAddr page);
 
 public:
+    /// gow3: lands the pending readbacks that read-protect `page`, waiting for the GPU if needed
+    /// (GPU thread: a CPU access faulted on that page and would fault again).
+    void LandReadbacksWatching(VAddr page);
+
     /// gow3: runs `fn` (GPU thread) when the newest pending readback has landed in guest memory;
     /// false when no readback is pending. Ray-cast batches' end-of-pipe fences: the guest reads
     /// the results once it sees the fence, so the fence is written after them (as on the console,
@@ -625,6 +646,9 @@ private:
     u32 block_shift{};
     u32 blocks_per_arena_page{};
     u32 blocks_per_arena_page_shift{};
+    /// gow3: arena memory in chunks allocated ahead on a background thread (buffer_cache.cpp).
+    struct ResidencyPool;
+    std::unique_ptr<ResidencyPool> residency_pool;
 };
 
 } // namespace VideoCore

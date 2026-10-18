@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <memory>
@@ -188,6 +189,9 @@ private:
     std::vector<EqueueEvent> m_events;
     std::condition_variable m_cond;
     int m_waiters = 0; ///< gow3: threads in m_cond.wait (guarded by m_mutex)
+    /// gow3: TriggerEvent calls that matched an event; a waiter spinning before it sleeps
+    /// (GOW3_EQUEUE_SPIN_US) watches it without the lock.
+    std::atomic<u64> m_matched{0};
     std::unordered_map<u64, SmallTimer> m_small_timers;
 };
 

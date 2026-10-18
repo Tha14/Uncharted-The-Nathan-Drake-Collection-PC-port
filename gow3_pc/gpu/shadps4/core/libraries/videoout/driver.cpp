@@ -44,6 +44,8 @@ extern std::unique_ptr<AmdGpu::Liverpool> liverpool;
 namespace Vulkan {
 extern std::atomic<u64> g_gow3_compile_ns;
 extern std::atomic<u32> g_gow3_compiles;
+extern std::atomic<u64> g_gow3_compile_kind_ns[6];
+extern std::atomic<u32> g_gow3_compile_kind_count[6];
 extern std::atomic<u64> g_gow3_capture_ns, g_gow3_async_ns, g_gow3_compile_wait_ns;
 extern std::atomic<u64> g_gow3_snapshot_ns, g_gow3_guest_wait_ns;
 extern std::atomic<u32> g_gow3_pending_draws;
@@ -390,6 +392,35 @@ void VideoOutDriver::Flip(const Request& req) {
                         (wait_now[4] - last_wait[4]) / 1e6, (wait_now[6] - last_wait[6]) / 1e6);
         }
         std::copy(std::begin(wait_now), std::end(wait_now), std::begin(last_wait));
+        // Its compiles by kind (where the time of a compile burst goes).
+        static u64 last_kind_ns[6];
+        static u32 last_kind_count[6];
+        u64 kind_ns[6];
+        u32 kind_count[6];
+        for (u32 k = 0; k < 6; ++k) {
+            kind_ns[k] = Vulkan::g_gow3_compile_kind_ns[k].load();
+            kind_count[k] = Vulkan::g_gow3_compile_kind_count[k].load();
+        }
+        if (stall && kind_count[0] + kind_count[1] + kind_count[2] + kind_count[3] + kind_count[4] +
+                             kind_count[5] !=
+                         last_kind_count[0] + last_kind_count[1] + last_kind_count[2] +
+                             last_kind_count[3] + last_kind_count[4] + last_kind_count[5]) {
+            const auto part = [&](u32 k) {
+                return std::make_pair(kind_count[k] - last_kind_count[k], (kind_ns[k] - last_kind_ns[k]) / 1e6);
+            };
+            const auto [cs, cs_ms] = part(0);
+            const auto [cv, cv_ms] = part(1);
+            const auto [gs, gs_ms] = part(2);
+            const auto [gv, gv_ms] = part(3);
+            const auto [cp, cp_ms] = part(4);
+            const auto [gp, gp_ms] = part(5);
+            std::printf("       compiles: compute shaders %u %.1f ms + variants %u %.1f ms, compute "
+                        "pipelines %u %.1f ms; graphics shaders %u %.1f ms + variants %u %.1f ms, "
+                        "graphics pipelines %u %.1f ms\n",
+                        cs, cs_ms, cv, cv_ms, cp, cp_ms, gs, gs_ms, gv, gv_ms, gp, gp_ms);
+        }
+        std::copy(std::begin(kind_ns), std::end(kind_ns), std::begin(last_kind_ns));
+        std::copy(std::begin(kind_count), std::end(kind_count), std::begin(last_kind_count));
         if (stall) {
             std::printf("       fault handlers: %llu read faults %.1f ms, write faults %.1f ms\n",
                         static_cast<unsigned long long>(rf - last_rf), (trf - last_trf) / 1e6,

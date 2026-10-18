@@ -4,6 +4,86 @@ Uncharted: The Nathan Drake Collection PC port, by **BilalReloaded**
 ([YouTube](https://www.youtube.com/@BilalReloaded/videos), [GitHub](https://github.com/bc160201983)).
 Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
+## 19 October 2026 (0.3.0)
+
+- **Random crashes after a while, "exit code 3"** (#30, #24, #27): GPU results reach the game's
+  memory a little late, up to a frame or two after the game was told the GPU had finished. When
+  the game reused that memory in between (an area unloading, a cutscene starting), the late copy
+  overwrote the game's new data: crashes in the game's memory allocator, a function pointer turned
+  to 0, and similar. Late GPU data now never overwrites a 64-byte block the game changed in the
+  meantime. In 51 minutes of Uncharted 3 it stepped in 38 times, once exactly where the game had
+  crashed before. Logged as "Readback guard: kept ..."; `GOW3_READBACK_GUARD=0` turns it off.
+- **Uncharted 3: blurry view when aiming** (#16): the aiming depth of field read its focus
+  distance from a one-pixel image the GPU renders, which was only copied back to the game in
+  Uncharted 2. It stayed at 0 m and everything behind Nate was blurred. Uncharted 3 now gets it
+  too; the focus follows what you aim at.
+- **Fewer shader hitches**: compute shaders found in the game's command buffers are compiled in
+  the background before the GPU needs them, instead of all at once on the frame that first uses
+  them (`GOW3_COMPUTE_PRECOMPILE=0` turns it off).
+- **Cheats** (#26): Launcher -> Advanced -> **Cheats**: Invincible, Infinite ammo, No reload
+  (Uncharted 2 and 3), Infinite grenades and One-hit kills (Uncharted 3). They switch on the games'
+  own developer options; they need update 1.02. In Uncharted 1 and 2 the infinite ammo option lives
+  in the games' settings system, which resets it every frame, so the places that read it are
+  changed instead.
+- **Ultrawide shows more at the sides** (#20): at 21:9 and 32:9 the three games kept the 16:9
+  picture's width of view and cut off the top and bottom instead. They now keep the 16:9 view top
+  to bottom and widen it to the sides, culling included (nothing missing at the screen edges);
+  checked in all three games at 3440x1440 and in Uncharted 2 at 5120x1440. 16:9 is unchanged.
+
+- **Start a game directly** (#25): Launcher -> Advanced -> **Game shortcuts** puts one desktop
+  shortcut per game; each starts its game with the launcher's settings, without the launcher
+  window. From a command prompt: `"Uncharted Launcher.exe" --play u1` (or `u2`, `u3`). A
+  double-click on a game's card in the launcher plays it too.
+- **Launcher: buttons on the Advanced page were hidden** (log folder, save folder, shortcuts,
+  shader cache, reset, check for updates): the page had grown taller than the window. Pages
+  that don't fit now scroll, and they are grouped as Shortcuts, Folders and Troubleshooting.
+- **Launcher: easier to use.** More room for the settings (a smaller header; the window opens
+  taller when the screen allows), plainer descriptions, recommended choices marked with a star,
+  and Quick Setup marks the preset that suits your graphics card ("Recommended").
+- **Warning without update 1.02** (#24): most of the port's game fixes, crash fixes among them,
+  are written for update 1.02 and are skipped on 1.00 (the log listed them as "NOT applied"
+  without saying why). The launcher now says so once when you press Play, and the log names the
+  game version and where the update goes.
+- **Patreon** link in the launcher header.
+- **Crash messages say what crashed.** "Exit code 3" is the port's general crash code; the launcher
+  now shows the crash's details from the log (what failed and where) and asks for boot.log, instead
+  of only the exit code (#24, #27).
+- **Freeze reports.** When a game shows no new frame for 30 seconds, the start script records where
+  every thread is stuck (hang-<time>.txt in the log folder, a few KB) and the launcher points to it.
+  Please attach it with boot.log to a GitHub issue: every freeze can now be traced to its cause.
+  A fault inside the port's own fault handling now stops with a report instead of freezing.
+- **Freeze in any game** (since 0.2.0, seen in Uncharted 3): when a shader's resource table held a
+  garbage pointer, the 0.2.0 fix for the rooftop freeze looked that address up in its page table
+  without a range check, which faulted inside the fault handler, endlessly. It now only looks up
+  game addresses; such loads are skipped as before 0.2.0.
+- **Crash after a long session** (seen in Uncharted 2 after 38 minutes, `Uncharted.exe+0x11474b`):
+  when the texture cache's image table grew while a depth buffer got its stencil part, the code
+  went on using the old location of the depth image. Fixed there and in one other place with the
+  same mistake.
+
+From the work on a ROG Zephyrus G14 laptop (Radeon 780M and RTX 5060 Laptop GPU), merged:
+
+- **Graphics cards with 6-8 GB: no more texture thrashing.** The texture cache started throwing
+  textures out at about 40% of the card's memory, so on 6-8 GB cards it evicted hundreds of
+  textures every few seconds and reloaded them (75-150 ms hitches about every 15 s on an 8 GB RTX
+  5060). It now goes by the driver's memory budget, as on integrated GPUs. The crashes in #24 (GTX
+  1660 SUPER, 6 GB) all came while it was evicting.
+- **Uncharted 3 could stop responding when a level started** (a guest write looping on a page a
+  GPU readback still protected): the readback is now landed at once. A second guard beside the
+  rooftop fix of 0.2.0.
+- **Update 1.02 from exFAT and FAT32 drives** (USB sticks): those drives hold no links, so the
+  update was skipped and the game ran as 1.00. The runtime now lays the update over the game itself.
+- **"Error 1450" at start on PCs with 16 GB of RAM**: the game's memory is now committed as it is
+  used instead of all at once.
+- **Memory corruption after partly freeing game memory** (flexible memory split): could zero live
+  game data on any PC, a candidate for random crashes.
+- **Multithreaded rendering**: readbacks could be landed twice (heap corruption) in Uncharted 3;
+  fixed. Uncharted 3 ran 24% faster with it on the 780M.
+- **Drake's Fortune compiles shaders in the background** again (it froze 1-2.4 s in each new area;
+  now about 120 ms at worst). UNCHARTED_U1_SYNC_SHADERS=1 restores the old way.
+- **RTX laptops: fewer hitches** (render targets no longer get a driver allocation each), **AMD
+  GPUs**: fewer allocation stalls at level start and a cheaper second-queue fetch.
+
 ## 18 October 2026 (0.2.3)
 
 - **Uncharted 1: guns flickering flat grey** (#23). With multithreaded rendering on, Nate's rifle

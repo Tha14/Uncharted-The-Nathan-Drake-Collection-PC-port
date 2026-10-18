@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstring>
 #include <mutex>
+#include <new>
 #include <ranges>
 #include <string>
 #include <unordered_set>
@@ -34,6 +35,8 @@
 #include "video_core/renderer_vulkan/vk_pipeline_serialization.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
+
+extern thread_local bool gow3_assert_throws; // shim/common/assert.cpp
 
 namespace Vulkan {
 
@@ -138,6 +141,21 @@ static u32 MapOutputs(std::span<Shader::OutputMap, 3> outputs, const AmdGpu::VsO
     }
 
     return num_outputs;
+}
+
+// The compute stage's runtime info from its registers (the GPU thread's and the precompile's).
+static void FillComputeRuntimeInfo(Shader::RuntimeInfo& info, const AmdGpu::ComputeProgram& cs_pgm) {
+    info.props.num_user_data = cs_pgm.settings.num_user_regs;
+    info.props.num_allocated_vgprs = cs_pgm.settings.num_vgprs * 4;
+    info.props.fp_denorm_mode32 = cs_pgm.settings.fp_denorm_mode32;
+    info.props.fp_denorm_mode16_64 = cs_pgm.settings.fp_denorm_mode64;
+    info.props.fp_round_mode32 = cs_pgm.settings.fp_round_mode32;
+    info.props.fp_round_mode16_64 = cs_pgm.settings.fp_round_mode64;
+    info.hw.cs.workgroup_size = {cs_pgm.num_thread_x.full, cs_pgm.num_thread_y.full,
+                                 cs_pgm.num_thread_z.full};
+    info.hw.cs.tgid_enable = {cs_pgm.IsTgidEnabled(0), cs_pgm.IsTgidEnabled(1),
+                              cs_pgm.IsTgidEnabled(2)};
+    info.hw.cs.shared_memory_size = cs_pgm.SharedMemSize();
 }
 
 const Shader::RuntimeInfo& PipelineCache::BuildRuntimeInfo(PipelineSelection& sel, HwStage stage,
@@ -275,18 +293,7 @@ const Shader::RuntimeInfo& PipelineCache::BuildRuntimeInfo(PipelineSelection& se
         break;
     }
     case HwStage::Compute: {
-        const auto& cs_pgm = liverpool->GetCsRegs();
-        info.props.num_user_data = cs_pgm.settings.num_user_regs;
-        info.props.num_allocated_vgprs = cs_pgm.settings.num_vgprs * 4;
-        info.props.fp_denorm_mode32 = cs_pgm.settings.fp_denorm_mode32;
-        info.props.fp_denorm_mode16_64 = cs_pgm.settings.fp_denorm_mode64;
-        info.props.fp_round_mode32 = cs_pgm.settings.fp_round_mode32;
-        info.props.fp_round_mode16_64 = cs_pgm.settings.fp_round_mode64;
-        info.hw.cs.workgroup_size = {cs_pgm.num_thread_x.full, cs_pgm.num_thread_y.full,
-                                     cs_pgm.num_thread_z.full};
-        info.hw.cs.tgid_enable = {cs_pgm.IsTgidEnabled(0), cs_pgm.IsTgidEnabled(1),
-                                  cs_pgm.IsTgidEnabled(2)};
-        info.hw.cs.shared_memory_size = cs_pgm.SharedMemSize();
+        FillComputeRuntimeInfo(info, liverpool->GetCsRegs());
         break;
     }
     default:
@@ -425,6 +432,10 @@ PipelineCache::~PipelineCache() {
 // gow3: shader/pipeline compile time on the GPU thread, reported by GOW3_FRAME_STATS.
 std::atomic<u64> g_gow3_compile_ns;
 std::atomic<u32> g_gow3_compiles;
+// gow3 18 Oct 2026: the same by kind (GOW3_FRAME_STATS stall lines): compute shader, compute
+// shader variant, graphics shader, graphics shader variant, compute pipeline, graphics pipeline.
+std::atomic<u64> g_gow3_compile_kind_ns[6];
+std::atomic<u32> g_gow3_compile_kind_count[6];
 std::atomic<u64> g_gow3_capture_ns, g_gow3_async_ns, g_gow3_compile_wait_ns;
 std::atomic<u64> g_gow3_snapshot_ns, g_gow3_guest_wait_ns;
 std::atomic<u32> g_gow3_pool_reuses;
@@ -445,12 +456,18 @@ struct PhaseTimer {
     ~PhaseTimer() { Stop(); }
 };
 struct CompileTimer {
+    enum Kind : u32 { ComputeShader, ComputeVariant, GraphicsShader, GraphicsVariant, ComputePipe, GraphicsPipe };
+    u32 kind;
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    explicit CompileTimer(u32 kind_) : kind{kind_} {}
     ~CompileTimer() {
-        g_gow3_compile_ns += u64(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                   std::chrono::steady_clock::now() - start)
-                                   .count());
+        const u64 ns = u64(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                               std::chrono::steady_clock::now() - start)
+                               .count());
+        g_gow3_compile_ns += ns;
         ++g_gow3_compiles;
+        g_gow3_compile_kind_ns[kind] += ns;
+        ++g_gow3_compile_kind_count[kind];
     }
 };
 } // namespace
@@ -678,7 +695,7 @@ void PipelineCache::SeedWorkerCaches() {
         const auto result = instance.GetDevice().mergePipelineCaches(*cache, *pipeline_cache);
         ASSERT_MSG(result == vk::Result::eSuccess, "Failed to seed compiler pipeline cache");
     }
-    worker_caches_seeded = true;
+    std::atomic_ref<bool>{worker_caches_seeded}.store(true, std::memory_order_release);
 }
 
 void PipelineCache::ReportCompilerStats() {
@@ -688,7 +705,270 @@ void PipelineCache::ReportCompilerStats() {
                     capture_compiler->Depth(), compiler->Depth(),
                     capture_compiler->QueueWaitNs() / 1e6, compiler->QueueWaitNs() / 1e6,
                     compiler_pools.Retained(), g_gow3_pool_reuses.exchange(0));
+        const u32 queued = precompile_stats[0].exchange(0), adopted = precompile_stats[1].exchange(0),
+                  waited = precompile_stats[2].exchange(0), taken = precompile_stats[3].exchange(0),
+                  failed = precompile_stats[4].exchange(0);
+        if (queued || adopted || waited || taken || failed) {
+            std::printf("Compute precompile (5 s): %u queued, %u ready when needed, %u waited for "
+                        "(%.1f ms), %u compiled by the GPU thread instead, %u failed\n",
+                        queued, adopted, waited, precompile_wait_ns.exchange(0) / 1e6, taken, failed);
+        }
     }
+}
+
+// gow3 18 Oct 2026: compute shader precompile (Liverpool's scanner -> here -> compiler workers).
+struct PipelineCache::PrecompiledCompute {
+    enum State : u32 { Queued, Running, Done, Cancelled };
+    std::atomic<u32> state{Queued};
+    u64 hash = 0;
+    AmdGpu::ComputeProgram cs{};
+    std::unique_ptr<Program> program;
+    std::unique_ptr<Shader::Pools> pools;
+    std::optional<Shader::IR::Program> ir;
+    std::optional<Shader::StageSpecialization> spec;
+    std::vector<u32> spirv;
+    ComputePipelineKey key{};
+    std::unique_ptr<ComputePipeline> pipeline;
+    ComputePipeline::SerializationSupport sdata{};
+    bool ok = false;
+    bool waited = false; ///< the GPU thread waited for it (statistics)
+};
+
+namespace {
+// SearchBinaryInfo without its assert: null when the address holds no shader binary.
+// (gow3_assert_throws: shim/common/assert.cpp.)
+const AmdGpu::BinaryInfo* FindBinaryInfo(const u32* code) {
+    constexpr u32 token_mov_vcchi = 0xBEEB03FF;
+    if (code[0] == token_mov_vcchi) {
+        const auto* info = std::bit_cast<const AmdGpu::BinaryInfo*>(code + (code[1] + 1) * 2);
+        if (info->Valid()) {
+            return info;
+        }
+    }
+    for (const u32* it = code; it < code + 0x4000; ++it) {
+        if (const auto* info = std::bit_cast<const AmdGpu::BinaryInfo*>(it); info->Valid()) {
+            return info;
+        }
+    }
+    return nullptr;
+}
+} // namespace
+
+void PipelineCache::PrecompileCompute(const AmdGpu::ComputeProgram& cs) {
+    // Not before the GPU thread has seeded the workers' pipeline caches (its first draw: a merge
+    // into a cache a worker uses would race), and at most half the compiler queue, which the
+    // background graphics compiles share (draws are skipped while theirs wait).
+    if (!compiler || !cs.Address<const u32*>() ||
+        !std::atomic_ref<bool>{worker_caches_seeded}.load(std::memory_order_acquire) ||
+        compiler->Depth() >= 32) {
+        return;
+    }
+    // The program's key from its binary info in guest memory; a fault or no binary: skipped.
+    u64 hash = 0;
+    {
+        sigjmp_buf recover;
+        if (sigsetjmp(recover, 0)) {
+            runtime_fault_recover = nullptr;
+            return;
+        }
+        runtime_fault_recover = &recover;
+        const auto* code = cs.Address<const u32*>();
+        if (const auto* bininfo = FindBinaryInfo(code); bininfo && bininfo->length >= 4) {
+            hash = Gow3Movie::ShaderKey(bininfo->shader_hash, code, bininfo->length / sizeof(u32));
+        }
+        runtime_fault_recover = nullptr;
+    }
+    if (hash == 0) {
+        return;
+    }
+    {
+        std::shared_lock lock{programs_mutex};
+        if (program_cache.contains(hash)) {
+            return;
+        }
+    }
+    auto job = std::make_shared<PrecompiledCompute>();
+    job->hash = hash;
+    job->cs = cs;
+    std::scoped_lock lock{precompile_mutex};
+    if (precompile_jobs.contains(hash) || precompile_jobs.size() >= 512) {
+        return;
+    }
+    if (!compiler->Submit([this, job] {
+            // A GPU library assertion on this guess (stale registers or tables) throws here
+            // instead of stopping the game; the GPU thread compiles the real dispatch itself.
+            gow3_assert_throws = true;
+            std::string error;
+            try {
+                RunPrecompile(*job);
+            } catch (const std::exception& exception) {
+                error = exception.what();
+            } catch (...) {
+                error = "unknown error";
+            }
+            gow3_assert_throws = false;
+            if (!error.empty()) {
+                runtime_fault_recover = nullptr;
+                static std::atomic<u32> logged{0};
+                if (logged.fetch_add(1, std::memory_order_relaxed) < 16) {
+                    std::printf("Compute precompile: shader %#llx left to the GPU thread (%s)\n",
+                                static_cast<unsigned long long>(job->hash), error.c_str());
+                }
+                ++precompile_stats[4];
+                job->ok = false;
+                std::scoped_lock lock{precompile_mutex};
+                job->state = PrecompiledCompute::Done;
+            }
+            precompile_ready.store(true, std::memory_order_release);
+            precompile_cv.notify_all();
+        })) {
+        return;
+    }
+    precompile_jobs.emplace(hash, std::move(job));
+    ++precompile_stats[0];
+}
+
+void PipelineCache::RunPrecompile(PrecompiledCompute& job) {
+    u32 expected = PrecompiledCompute::Queued;
+    if (!job.state.compare_exchange_strong(expected, PrecompiledCompute::Running)) {
+        return; // taken back by the GPU thread
+    }
+    const auto finish = [&](bool ok) {
+        job.ok = ok;
+        std::scoped_lock lock{precompile_mutex};
+        job.state = PrecompiledCompute::Done;
+    };
+    Shader::RuntimeInfo runtime_info{};
+    runtime_info.Initialize(HwStage::Compute, SwStage::Compute);
+    FillComputeRuntimeInfo(runtime_info, job.cs);
+    const Shader::Backend::Bindings start{};
+    // Translation and specialization read guest memory (code, resource tables) the game may have
+    // reused since the scan: a fault abandons the job. Its partial objects are leaked then.
+    {
+        sigjmp_buf recover;
+        if (sigsetjmp(recover, 0)) {
+            runtime_fault_recover = nullptr;
+            (void)job.program.release();
+            (void)job.pools.release();
+            if (job.ir) {
+                new (&job.ir) std::optional<Shader::IR::Program>{}; // leaked with its pools
+            }
+            ++precompile_stats[4];
+            finish(false);
+            return;
+        }
+        runtime_fault_recover = &recover;
+        const auto params = AmdGpu::GetParams(job.cs);
+        job.program = std::make_unique<Program>(HwStage::Compute, SwStage::Compute, params);
+        job.pools = compiler_pools.Acquire().first;
+        job.ir.emplace(Shader::TranslateProgram(params.code, *job.pools, job.program->info,
+                                                runtime_info, profile));
+        job.spec.emplace(job.program->info, runtime_info, profile, start);
+        runtime_fault_recover = nullptr;
+    }
+    auto binding = start;
+    auto spv = Shader::Backend::SPIRV::EmitSPIRV(profile, runtime_info, *job.ir, binding);
+    job.ir.reset();
+    compiler_pools.Recycle(std::move(job.pools));
+    const auto module = CompileSPV(spv, instance.GetDevice());
+    job.spirv = std::move(spv);
+    job.program->AddPermut(module, std::move(*job.spec));
+    job.spec.reset();
+    job.key.value = HashCombine(job.hash, 0);
+    job.pipeline = std::make_unique<ComputePipeline>(
+        instance, scheduler, desc_heap, profile, *worker_pipeline_caches[AsyncCompiler::WorkerIndex()],
+        job.key, job.program->info, module, job.sdata, false);
+    finish(true);
+}
+
+void PipelineCache::AdoptPrecompiled() {
+    if (!precompile_ready.exchange(false, std::memory_order_acq_rel)) {
+        return;
+    }
+    std::vector<std::shared_ptr<PrecompiledCompute>> done;
+    {
+        std::scoped_lock lock{precompile_mutex};
+        for (auto it = precompile_jobs.begin(); it != precompile_jobs.end();) {
+            if (it->second->state.load() == PrecompiledCompute::Done) {
+                done.push_back(it->second);
+                it = precompile_jobs.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+    for (auto& job : done) {
+        Adopt(*job);
+    }
+}
+
+void PipelineCache::Adopt(PrecompiledCompute& job) {
+    if (!job.ok || !job.program) {
+        return;
+    }
+    if (program_cache.contains(job.hash)) {
+        // The GPU thread compiled it meanwhile.
+        job.pipeline.reset();
+        for (auto& module : job.program->modules) {
+            instance.GetDevice().destroyShaderModule(module.module);
+        }
+        return;
+    }
+    auto& program = job.program;
+    const u64 perm_hash = HashCombine(job.hash, 0);
+    RegisterShaderBinary(std::move(job.spirv), job.hash, 0);
+    // user_data pointed into the job's registers: refreshed by the next lookup.
+    program->info.user_data = {};
+    RegisterShaderMeta(program->info, program->modules[0].spec.fetch_shader_data,
+                       program->modules[0].spec, perm_hash, 0);
+    program->info_template = std::make_unique<Shader::Info>(program->info);
+    {
+        std::unique_lock lock{programs_mutex};
+        program_cache.emplace(job.hash, std::move(program));
+    }
+    if (const auto [it, is_new] = compute_pipelines.try_emplace(job.key); is_new) {
+        it.value() = std::move(job.pipeline);
+        RegisterPipelineData(job.key, job.sdata);
+        ++num_new_pipelines;
+    }
+    if (!job.waited) {
+        ++precompile_stats[1];
+    }
+}
+
+bool PipelineCache::TakePrecompiled(u64 hash) {
+    std::shared_ptr<PrecompiledCompute> job;
+    {
+        std::unique_lock lock{precompile_mutex};
+        const auto it = precompile_jobs.find(hash);
+        if (it == precompile_jobs.end()) {
+            return false;
+        }
+        job = it->second;
+        u32 expected = PrecompiledCompute::Queued;
+        if (job->state.compare_exchange_strong(expected, PrecompiledCompute::Cancelled)) {
+            // Not started (the workers are busy): compiling it here is as fast as waiting.
+            precompile_jobs.erase(hash);
+            ++precompile_stats[3];
+            return false;
+        }
+        if (job->state.load() != PrecompiledCompute::Done) {
+            const auto start = std::chrono::steady_clock::now();
+            precompile_cv.wait_for(lock, std::chrono::seconds{2}, [&] {
+                return job->state.load() == PrecompiledCompute::Done;
+            });
+            precompile_wait_ns += u64(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                          std::chrono::steady_clock::now() - start).count());
+            ++precompile_stats[2];
+            job->waited = true;
+            if (job->state.load() != PrecompiledCompute::Done) {
+                return false; // compiled here; the job's result is dropped when adopted
+            }
+        }
+        precompile_jobs.erase(hash);
+    }
+    Adopt(*job);
+    return job->ok && program_cache.contains(hash);
 }
 
 bool PipelineCache::PrepareGraphicsPipeline(PipelineSelection& worker_sel) {
@@ -813,7 +1093,7 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
     if (is_new) {
         const auto pipeline_hash = std::hash<GraphicsPipelineKey>{}(sel.graphics_key);
         LOG_INFO(Render_Vulkan, "Compiling graphics pipeline {:#x}", pipeline_hash);
-        CompileTimer timer;
+        CompileTimer timer{CompileTimer::GraphicsPipe};
 
         GraphicsPipeline::SerializationSupport sdata{};
         it.value() = std::make_unique<GraphicsPipeline>(
@@ -840,6 +1120,7 @@ const ComputePipeline* PipelineCache::GetComputePipeline() {
     PublishShaders();
     PublishGraphics();
     PumpWarmUp();
+    AdoptPrecompiled();
     if (!RefreshComputeKey()) {
         return nullptr;
     }
@@ -847,7 +1128,7 @@ const ComputePipeline* PipelineCache::GetComputePipeline() {
     if (is_new) {
         const auto pipeline_hash = std::hash<ComputePipelineKey>{}(compute_key);
         LOG_INFO(Render_Vulkan, "Compiling compute pipeline {:#x}", pipeline_hash);
-        CompileTimer timer;
+        CompileTimer timer{CompileTimer::ComputePipe};
 
         ComputePipeline::SerializationSupport sdata{};
         it.value() = std::make_unique<ComputePipeline>(instance, scheduler, desc_heap, profile,
@@ -1191,7 +1472,9 @@ vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info, Shader::Runtim
     LOG_INFO(Render_Vulkan, "Compiling {} shader {:#x} {}", info.hw_stage, info.pgm_hash,
              perm_idx != 0 ? "(permutation)" : "");
     DumpShader(code, info.pgm_hash, info.hw_stage, perm_idx, "bin");
-    CompileTimer timer;
+    CompileTimer timer{info.hw_stage == Shader::HwStage::Compute
+                           ? (perm_idx ? CompileTimer::ComputeVariant : CompileTimer::ComputeShader)
+                           : (perm_idx ? CompileTimer::GraphicsVariant : CompileTimer::GraphicsShader)};
 
     const auto ir_program = Shader::TranslateProgram(code, pools, info, runtime_info, profile);
     auto spv = Shader::Backend::SPIRV::EmitSPIRV(profile, runtime_info, ir_program, binding);
@@ -1290,6 +1573,10 @@ PipelineCache::Result PipelineCache::GetProgram(PipelineSelection& sel, HwStage 
         std::unique_lock lock{programs_mutex};
         program_cache.erase(it_pgm);
         it_pgm = program_cache.end();
+    }
+    // gow3: a compute program the precompile scanner saw ahead: its worker's result.
+    if (it_pgm == program_cache.end() && hw_stage == HwStage::Compute && TakePrecompiled(params.hash)) {
+        it_pgm = program_cache.find(params.hash);
     }
     if (it_pgm == program_cache.end()) {
         auto new_program = std::make_unique<Program>(hw_stage, sw_stage, params);

@@ -91,8 +91,136 @@ Liverpool::Liverpool() : guest_markers_enabled{EmulatorSettings.IsVkGuestMarkers
 }
 
 Liverpool::~Liverpool() {
+    SetComputePrecompileHook({});
     process_thread.request_stop();
     process_thread.join();
+}
+
+void Liverpool::SetComputePrecompileHook(PrecompileHook hook) {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_COMPUTE_PRECOMPILE");
+        return !(env && env[0] == '0');
+    }();
+    if (hook && !enabled) {
+        return;
+    }
+    if (hook && !scan_thread.joinable()) {
+        scan_thread = std::jthread{std::bind_front(&Liverpool::PrecompileScanner, this)};
+    }
+    {
+        // Waits for a hook call in progress (the pipeline cache goes away after clearing it).
+        std::scoped_lock lock{precompile_hook_mutex};
+        precompile_hook = std::move(hook);
+        precompile_enabled.store(static_cast<bool>(precompile_hook), std::memory_order_release);
+    }
+    if (!precompile_enabled.load() && scan_thread.joinable()) {
+        scan_thread.request_stop();
+        scan_cv.notify_all();
+        scan_thread.join();
+        scan_thread = {};
+    }
+}
+
+void Liverpool::ScanForPrecompile(u32 queue, std::span<const u32> words) {
+    if (!precompile_enabled.load(std::memory_order_acquire) || words.empty() ||
+        words.size() > (1u << 22)) {
+        return;
+    }
+    {
+        std::scoped_lock lock{scan_mutex};
+        if (scan_queue.size() >= 1024) { // the scanner fell behind: this one is left out
+            return;
+        }
+        scan_queue.emplace_back(queue, std::vector<u32>(words.begin(), words.end()));
+    }
+    scan_cv.notify_one();
+}
+
+void Liverpool::PrecompileScanner(std::stop_token stop) {
+    Common::SetCurrentThreadName("gow3:ComputePrecompileScan");
+    while (!stop.stop_requested()) {
+        std::pair<u32, std::vector<u32>> item;
+        {
+            std::unique_lock lock{scan_mutex};
+            scan_cv.wait(lock, stop, [this] { return !scan_queue.empty(); });
+            if (stop.stop_requested()) {
+                return;
+            }
+            item = std::move(scan_queue.front());
+            scan_queue.pop_front();
+        }
+        ScanPackets(item.first, item.second, 0);
+    }
+}
+
+// The compute program registers of a command buffer as the GPU thread will see them (SET_SH_REG
+// into the compute range, per queue), and the dispatches. Nested buffers are read through the
+// backing view (never faults); a malformed stream just ends the scan of that buffer.
+void Liverpool::ScanPackets(u32 queue, std::span<const u32> words, int depth) {
+    auto& cs = scan_cs[queue];
+    for (size_t pos = 0; pos < words.size();) {
+        const auto* header = reinterpret_cast<const PM4Header*>(&words[pos]);
+        if (header->type == 2) {
+            pos += 1;
+            continue;
+        }
+        if (header->type != 3) {
+            return;
+        }
+        const size_t count = size_t(header->type3.NumWords()) + 1;
+        if (pos + count > words.size()) {
+            return;
+        }
+        switch (header->type3.opcode) {
+        case PM4ItOpcode::SetShReg: {
+            const auto* set_data = reinterpret_cast<const PM4CmdSetData*>(header);
+            const u32 offset = set_data->reg_offset;
+            const size_t values = count >= 2 ? count - 2 : 0;
+            if (offset >= 0x200 && (offset - 0x200) + values <= sizeof(ComputeProgram) / 4) {
+                std::memcpy(reinterpret_cast<u32*>(&cs) + (offset - 0x200), &words[pos + 2],
+                            values * sizeof(u32));
+            }
+            break;
+        }
+        case PM4ItOpcode::DispatchDirect:
+        case PM4ItOpcode::DispatchIndirect: {
+            const u64 address = cs.Address<u64>();
+            if (address == 0) {
+                break;
+            }
+            if (scan_seen.size() > 65536) {
+                scan_seen.clear();
+            }
+            if (!scan_seen.insert(address).second) {
+                break;
+            }
+            std::scoped_lock lock{precompile_hook_mutex};
+            if (precompile_hook) {
+                precompile_hook(cs);
+            }
+            break;
+        }
+        case PM4ItOpcode::IndirectBuffer: {
+            if (depth >= 2) {
+                break;
+            }
+            const auto* ib = reinterpret_cast<const PM4CmdIndirectBuffer*>(header);
+            const u32 size = ib->ib_size;
+            const VAddr address = reinterpret_cast<VAddr>(ib->Address<u32>());
+            if (size == 0 || size > (1u << 18) || address == 0) {
+                break;
+            }
+            std::vector<u32> nested(size);
+            if (Core::Memory::Instance()->TryReadBacking(address, nested.data(), size * sizeof(u32))) {
+                ScanPackets(queue, nested, depth + 1);
+            }
+            break;
+        }
+        default:
+            break;
+        }
+        pos += count;
+    }
 }
 
 void Liverpool::ProcessCommands() {
@@ -107,9 +235,6 @@ void Liverpool::ProcessCommands() {
             cache.PollReadbacksNow();
         }
     }
-    if (num_commands && rasterizer) {
-        rasterizer->DrainDrawPipe(Vulkan::DrawPipe::ReasonCommands); // gow3: commands touch the caches
-    }
     // Process incoming commands with high priority
     while (num_commands) {
         Common::UniqueFunction<void> callback{};
@@ -118,6 +243,14 @@ void Liverpool::ProcessCommands() {
             callback = std::move(command_queue.front());
             command_queue.pop();
             --num_commands;
+        }
+        // gow3: commands touch the caches and land readbacks, which the draw recording thread
+        // owns while it runs: drained before each one (18 Oct 2026). Once before the loop let a
+        // command queued after that check, or one behind a flip that woke the recording thread
+        // (SubmitFlipInternal -> RunInOrder), run while it landed readbacks. One atomic load when
+        // it is idle.
+        if (rasterizer) {
+            rasterizer->DrainDrawPipe(Vulkan::DrawPipe::ReasonCommands);
         }
         callback();
     }
@@ -132,6 +265,23 @@ void Liverpool::Process(std::stop_token stoken) {
 #else
     Gow3Stats::gpu_thread_id.store(GetCurrentThreadId());
     Gow3Profiler::Start(GetCurrentThreadId(), "GPU command thread");
+    // gow3 18 Oct 2026 (tests): GOW3_GPU_THREAD_PRIORITY=above|high and GOW3_GPU_THREAD_CORE=<n>
+    // (one logical processor) for this thread, which limits the frame rate in heavy scenes.
+    if (const char* env = std::getenv("GOW3_GPU_THREAD_PRIORITY"); env && *env) {
+        const std::string_view value{env};
+        const int priority = value == "high" ? THREAD_PRIORITY_HIGHEST
+                             : value == "above" ? THREAD_PRIORITY_ABOVE_NORMAL
+                                                : THREAD_PRIORITY_NORMAL;
+        SetThreadPriority(GetCurrentThread(), priority);
+        std::printf("GPU command thread: priority %s\n", env);
+    }
+    if (const char* env = std::getenv("GOW3_GPU_THREAD_CORE"); env && *env) {
+        const int core = std::atoi(env);
+        if (core >= 0 && core < 64) {
+            SetThreadAffinityMask(GetCurrentThread(), DWORD_PTR{1} << core);
+            std::printf("GPU command thread: logical processor %d\n", core);
+        }
+    }
 #endif
     gpu_id = std::this_thread::get_id();
 #if defined(__linux__) || defined(_WIN32)
@@ -239,6 +389,17 @@ void Liverpool::Process(std::stop_token stoken) {
 }
 
 namespace {
+/// gow3 18 Oct 2026: GOW3_FEWER_DRAINS=1 (multithreaded rendering): memory waits met by a fence
+/// still queued for the draw recording thread, nested compute buffers and compute memory waits
+/// do not drain the draw pipe. Off by default until it has run long enough without problems.
+bool FewerDrains() {
+    static const bool on = [] {
+        const char* env = std::getenv("GOW3_FEWER_DRAINS");
+        return env && env[0] == '1';
+    }();
+    return on;
+}
+
 /// gow3: packets the GPU command thread handles while the draw recording thread may still
 /// work on earlier draws (register state, draws it hands over, nested buffers). Every other
 /// packet first waits for that thread to run dry (Rasterizer::DrainDrawPipe).
@@ -1730,16 +1891,26 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                     vo_port->WaitVoLabel([&] { return wait_reg_mem->Test(regs.reg_array); });
                     break;
                 }
+                // gow3: a fence handed to the draw recording thread counts as written: that
+                // thread runs everything in stream order.
+                // 18 Oct 2026 (GOW3_FEWER_DRAINS=1): checked before LandDeferredFenceFor, which
+                // drains the pipe first (8.7% of the U3 command thread on a Ryzen laptop). Off by
+                // default: fewer drains made a readback race of multithreaded rendering frequent
+                // (see Rasterizer::WaitDrawPipeForCapture).
+                const auto pending_fence_met = [&] {
+                    u32 value;
+                    return wait_reg_mem->mem_space.Value() == PM4CmdWaitRegMem::MemSpace::Memory &&
+                           !Gow3Toggle::Disabled(Gow3Toggle::PendingFenceWaits) &&
+                           PendingFenceValue(wait_reg_mem->Address<VAddr>(), value) &&
+                           wait_reg_mem->TestValue(value);
+                };
+                if (FewerDrains() && pending_fence_met()) {
+                    break;
+                }
                 if (LandDeferredFenceFor(*wait_reg_mem, regs)) {
                     break;
                 }
-                // gow3: a fence handed to the draw recording thread counts as written: that
-                // thread runs everything in stream order.
-                if (u32 value; wait_reg_mem->mem_space.Value() ==
-                                   PM4CmdWaitRegMem::MemSpace::Memory &&
-                               !Gow3Toggle::Disabled(Gow3Toggle::PendingFenceWaits) &&
-                               PendingFenceValue(wait_reg_mem->Address<VAddr>(), value) &&
-                               wait_reg_mem->TestValue(value)) {
+                if (pending_fence_met()) {
                     break;
                 }
                 // Else the value may come from a fence that thread has yet to write: let it
@@ -1954,9 +2125,16 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
         // snapshot) nor for dispatches (handed to that thread in stream order, or drained by
         // DispatchDirect/Indirect themselves): Uncharted 2 drained ~900 times per frame here,
         // 20-25% of the command thread's time with multithreaded rendering.
+        // 18 Oct 2026 (GOW3_FEWER_DRAINS=1): nor for nested buffers (their packets pass this
+        // check one by one) and memory waits (they drain only while unmet, as on the graphics
+        // queue): compute drains were up to 35% of the command thread in Uncharted 3 on a Ryzen
+        // laptop. Off by default (see the graphics WaitRegMem).
+        const bool pipelined_wait = FewerDrains() && (opcode == PM4ItOpcode::IndirectBuffer ||
+                                                      opcode == PM4ItOpcode::WaitRegMem);
         if (rasterizer && opcode != PM4ItOpcode::Nop && opcode != PM4ItOpcode::SetShReg &&
             opcode != PM4ItOpcode::SetQueueReg && opcode != PM4ItOpcode::DispatchDirect &&
-            opcode != PM4ItOpcode::DispatchIndirect && opcode != PM4ItOpcode::ReleaseMem) {
+            opcode != PM4ItOpcode::DispatchIndirect && opcode != PM4ItOpcode::ReleaseMem &&
+            !pipelined_wait) {
             rasterizer->DrainDrawPipe(Vulkan::DrawPipe::ReasonCompute);
             // GOW3_FRAME_STATS: which compute packets drain, per 5 s.
             static const bool stats = std::getenv("GOW3_FRAME_STATS") != nullptr;
@@ -2163,6 +2341,27 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
         case PM4ItOpcode::WaitRegMem: {
             const auto* wait_reg_mem = reinterpret_cast<const PM4CmdWaitRegMem*>(header);
             ASSERT(wait_reg_mem->engine.Value() == PM4CmdWaitRegMem::Engine::Me);
+            if (FewerDrains()) {
+                // Not drained up front: as on the graphics queue, a fence handed to the draw
+                // recording thread counts as written, and an unmet wait lets it catch up first.
+                if (u32 value; wait_reg_mem->mem_space.Value() ==
+                                   PM4CmdWaitRegMem::MemSpace::Memory &&
+                               !Gow3Toggle::Disabled(Gow3Toggle::PendingFenceWaits) &&
+                               PendingFenceValue(wait_reg_mem->Address<VAddr>(), value) &&
+                               wait_reg_mem->TestValue(value)) {
+                    break;
+                }
+                if (!LandDeferredFenceFor(*wait_reg_mem, regs)) {
+                    while (!wait_reg_mem->Test(regs.reg_array)) {
+                        if (rasterizer && !rasterizer->DrawPipeIdle()) {
+                            rasterizer->DrainDrawPipe(static_cast<u32>(opcode));
+                            continue;
+                        }
+                        YIELD_ASC(vqid);
+                    }
+                }
+                break;
+            }
             if (!LandDeferredFenceFor(*wait_reg_mem, regs)) {
                 while (!wait_reg_mem->Test(regs.reg_array)) {
                     YIELD_ASC(vqid);
@@ -2250,6 +2449,7 @@ void Liverpool::SubmitGfx(std::span<const u32> dcb, std::span<const u32> ccb) {
         std::tie(dcb, ccb) = CopyCmdBuffers(dcb, ccb);
     }
 
+    ScanForPrecompile(GfxQueueId, dcb);
     // The copy for the draw preparation workers is made before taking the queue lock, which
     // the GPU thread needs to pick up work.
     auto* draw_prep = rasterizer ? &rasterizer->GetDrawPreparation() : nullptr;
@@ -2292,6 +2492,7 @@ void Liverpool::SubmitGfx(std::span<const u32> dcb, std::span<const u32> ccb) {
 void Liverpool::SubmitAsc(u32 gnm_vqid, std::span<const u32> acb) {
     ASSERT_MSG(gnm_vqid > 0 && gnm_vqid < NumTotalQueues, "Invalid virtual ASC queue index");
     auto& queue = mapped_queues[gnm_vqid];
+    ScanForPrecompile(gnm_vqid, acb);
 
     const auto vqid = gnm_vqid - 1;
     const auto& task = ProcessCompute(acb, vqid);

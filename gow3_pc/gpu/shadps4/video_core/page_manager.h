@@ -46,6 +46,10 @@ public:
     template <bool track, bool is_read = false>
     void UpdatePageWatchersForRegion(VAddr base_addr, RegionBits& mask) const;
 
+    /// gow3: true while a readback read-protects the page holding `addr` (no CPU access at all).
+    /// Read without the page locks: a hint for fault handlers, which re-check where it matters.
+    [[nodiscard]] bool IsReadWatched(VAddr addr) const;
+
     /// Returns page aligned address.
     static constexpr VAddr GetPageAddr(VAddr addr) {
         return Common::AlignDown(addr, PM_PAGE_SIZE);

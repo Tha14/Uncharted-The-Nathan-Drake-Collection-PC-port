@@ -4,6 +4,7 @@
 #include "gow3_toggles.h"
 #include <ranges>
 #include "common/assert.h"
+#include "common/thread.h"
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
@@ -12,13 +13,18 @@
 #include "video_core/texture_cache/image.h"
 
 #include <vk_mem_alloc.h>
+#include <array>
+#include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdlib>
 #include <thread>
 #include "common/thread.h"
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 namespace VideoCore {
@@ -268,6 +274,103 @@ void UniqueImage::Destroy() {
     }
 }
 
+namespace {
+/// gow3 18 Oct 2026: AMD's Windows driver takes ~170 ms to allocate a 256 MiB block of video
+/// memory (Radeon 780M), and VMA allocates a new block the moment an image no longer fits: the
+/// GPU thread stalled for 70-240 ms (Uncharted 2/3 hitches). This thread keeps room in reserve
+/// instead: when the memory types images use have no free range of 64 MiB left, it allocates a
+/// 64 MiB spare there (VMA makes a new block, with room for the next images) and frees the
+/// previous spare. GOW3_SPARE_IMAGE_BLOCK=0: off.
+class SpareBlockKeeper {
+public:
+    static void Note(VmaAllocator allocator, u32 memory_type) {
+        static SpareBlockKeeper* const keeper = [allocator]() -> SpareBlockKeeper* {
+            const char* env = std::getenv("GOW3_SPARE_IMAGE_BLOCK");
+            return env && env[0] == '0' ? nullptr : new SpareBlockKeeper(allocator); // process-long
+        }();
+        if (keeper) {
+            keeper->Wake(memory_type);
+        }
+    }
+
+private:
+    static constexpr VkDeviceSize Spare = VkDeviceSize{64} << 20;
+
+    explicit SpareBlockKeeper(VmaAllocator allocator_) : allocator{allocator_} {
+        std::thread{[this] { Run(); }}.detach();
+    }
+
+    void Wake(u32 memory_type) {
+        {
+            std::scoped_lock lock{mutex};
+            types |= 1u << memory_type;
+            pending = true;
+        }
+        cv.notify_one();
+    }
+
+    void Run() {
+        Common::SetCurrentThreadName("GPU:SpareImageBlock");
+        u32 made = 0;
+        for (;;) {
+            u32 wanted;
+            {
+                std::unique_lock lock{mutex};
+                cv.wait(lock, [this] { return pending; });
+                // Images come in bursts: act once one is over, so that the block is allocated
+                // while the GPU thread creates no images (VMA holds the memory type's lock while
+                // the driver allocates; an image created meanwhile waited for it).
+                do {
+                    pending = false;
+                    cv.wait_for(lock, std::chrono::milliseconds{150}, [this] { return pending; });
+                } while (pending);
+                wanted = types;
+            }
+            VmaTotalStatistics stats{};
+            vmaCalculateStatistics(allocator, &stats);
+            for (u32 type = 0; type < VK_MAX_MEMORY_TYPES; ++type) {
+                if (!(wanted >> type & 1) || stats.memoryType[type].unusedRangeSizeMax >= Spare) {
+                    continue;
+                }
+                const VkMemoryRequirements requirements = {
+                    .size = Spare, .alignment = 64 * 1024, .memoryTypeBits = 1u << type};
+                const VmaAllocationCreateInfo create = {
+                    .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
+                    .usage = VMA_MEMORY_USAGE_UNKNOWN,
+                    .memoryTypeBits = 1u << type,
+                };
+                // The spare stays allocated (a block that only held a freed spare would be
+                // deleted by VMA at the next free); the previous one is freed once the new one
+                // has its block, which opens room for images in an older block.
+                VmaAllocation spare{};
+                const auto started = std::chrono::steady_clock::now();
+                if (vmaAllocateMemory(allocator, &requirements, &create, &spare, nullptr) ==
+                    VK_SUCCESS) {
+                    if (held[type]) {
+                        vmaFreeMemory(allocator, held[type]);
+                    }
+                    held[type] = spare;
+                    if (++made <= 16) {
+                        std::printf("GPU: spare image memory block ready (type %u, %.0f ms)\n", type,
+                                    std::chrono::duration<double, std::milli>(
+                                        std::chrono::steady_clock::now() - started).count());
+                    }
+                }
+            }
+            // At most one check per 20 ms: image creation comes in bursts.
+            std::this_thread::sleep_for(std::chrono::milliseconds{20});
+        }
+    }
+
+    VmaAllocator allocator;
+    std::mutex mutex;
+    std::condition_variable cv;
+    u32 types = 0;
+    bool pending = false;
+    std::array<VmaAllocation, VK_MAX_MEMORY_TYPES> held{};
+};
+} // namespace
+
 void UniqueImage::Create(const vk::ImageCreateInfo& image_ci) {
     this->image_ci = image_ci;
     ASSERT(!image);
@@ -283,20 +386,100 @@ void UniqueImage::Create(const vk::ImageCreateInfo& image_ci) {
     const VkImageCreateInfo image_ci_unsafe = static_cast<VkImageCreateInfo>(image_ci);
     VkImage unsafe_image{};
     VmaAllocationInfo alloc_info{};
-    VkResult result = vmaCreateImage(allocator, &image_ci_unsafe, &alloc_ci, &unsafe_image,
-                                     &allocation, &alloc_info);
+    const auto started = std::chrono::steady_clock::now();
+    // gow3 18 Oct 2026: NVIDIA prefers (does not require) dedicated memory for render targets
+    // and VMA honours that with a driver allocation per image: 4-21 ms per 960x540 target on the
+    // RTX 5060 Laptop, and Uncharted 2 creates one every few seconds (hitches). Images that only
+    // prefer it go into VMA's device-local blocks like the rest (SpareBlockKeeper keeps room
+    // there). GOW3_DEDICATED_IMAGES=1: VMA decides, as before.
+    static const bool dedicated_images = [] {
+        const char* env = std::getenv("GOW3_DEDICATED_IMAGES");
+        return env && env[0] == '1';
+    }();
+    VkResult result = VK_ERROR_FEATURE_NOT_PRESENT;
+    if (!dedicated_images) {
+        const auto& dispatch = VULKAN_HPP_DEFAULT_DISPATCHER;
+        const VkDevice vk_device = static_cast<VkDevice>(device);
+        const VkResult created =
+            dispatch.vkCreateImage(vk_device, &image_ci_unsafe, nullptr, &unsafe_image);
+        ASSERT_MSG(created == VK_SUCCESS, "Failed creating image with error {}",
+                   vk::to_string(vk::Result{created}));
+        VkMemoryDedicatedRequirements dedicated{VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS};
+        VkMemoryRequirements2 requirements{VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2, &dedicated};
+        const VkImageMemoryRequirementsInfo2 requirements_info{
+            VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2, nullptr, unsafe_image};
+        dispatch.vkGetImageMemoryRequirements2(vk_device, &requirements_info, &requirements);
+        // Device-local memory types without host access (the ones VMA's AUTO_PREFER_DEVICE picks
+        // for optimally tiled images).
+        static const u32 device_only_types = [this] {
+            const VkPhysicalDeviceMemoryProperties* props{};
+            vmaGetMemoryProperties(allocator, &props);
+            u32 mask = 0;
+            for (u32 type = 0; type < props->memoryTypeCount; ++type) {
+                const auto flags = props->memoryTypes[type].propertyFlags;
+                if ((flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) &&
+                    !(flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
+                    mask |= 1u << type;
+                }
+            }
+            return mask;
+        }();
+        const u32 types = requirements.memoryRequirements.memoryTypeBits & device_only_types;
+        if (dedicated.prefersDedicatedAllocation && !dedicated.requiresDedicatedAllocation &&
+            types != 0) {
+            const VmaAllocationCreateInfo block_ci = {
+                .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT,
+                .usage = VMA_MEMORY_USAGE_UNKNOWN,
+                .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                .memoryTypeBits = types,
+            };
+            result = vmaAllocateMemory(allocator, &requirements.memoryRequirements, &block_ci,
+                                       &allocation, &alloc_info);
+            if (result == VK_SUCCESS) {
+                result = vmaBindImageMemory(allocator, allocation, unsafe_image);
+                if (result != VK_SUCCESS) {
+                    vmaFreeMemory(allocator, allocation);
+                    allocation = {};
+                }
+            }
+        }
+        if (result != VK_SUCCESS) {  // dedicated not just preferred, or no block within budget
+            dispatch.vkDestroyImage(vk_device, unsafe_image, nullptr);
+            unsafe_image = VK_NULL_HANDLE;
+        }
+    }
+    if (result != VK_SUCCESS) {
+        result = vmaCreateImage(allocator, &image_ci_unsafe, &alloc_ci, &unsafe_image,
+                                &allocation, &alloc_info);
+    }
+    const double ms =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started)
+            .count();
     ASSERT_MSG(result == VK_SUCCESS, "Failed allocating image with error {}",
                vk::to_string(vk::Result{result}));
     image = vk::Image{unsafe_image};
     size_bytes = alloc_info.size;
+    char what[96];
+    std::snprintf(what, sizeof(what), "image %ux%ux%u mips %u layers %u %s", image_ci.extent.width,
+                  image_ci.extent.height, image_ci.extent.depth, image_ci.mipLevels,
+                  image_ci.arrayLayers, vk::to_string(image_ci.format).c_str());
+    // gow3 18 Oct 2026: images whose memory took long to get (a new driver allocation; AMD's
+    // Windows driver needs up to ~70 ms per one), the first 64.
+    if (ms >= 4.0) {
+        static std::atomic<int> slow_logged{0};
+        if (slow_logged.fetch_add(1, std::memory_order_relaxed) < 64) {
+            VmaAllocationInfo2 info2{};
+            vmaGetAllocationInfo2(allocator, allocation, &info2);
+            std::printf("Slow image create: %.1f ms, %s, %.1f MiB in a %s of %.0f MiB\n", ms, what,
+                        alloc_info.size / 1048576.0,
+                        info2.dedicatedMemory ? "dedicated allocation" : "VMA block",
+                        info2.blockSize / 1048576.0);
+        }
+    }
     if (GpuAllocationRecords()) {
-        char what[96];
-        std::snprintf(what, sizeof(what), "image %ux%ux%u mips %u layers %u %s",
-                      image_ci.extent.width, image_ci.extent.height, image_ci.extent.depth,
-                      image_ci.mipLevels, image_ci.arrayLayers,
-                      vk::to_string(image_ci.format).c_str());
         RecordGpuAllocation(u64(unsafe_image), alloc_info, what);
     }
+    SpareBlockKeeper::Note(allocator, alloc_info.memoryType);
 }
 
 Image::Image(const Vulkan::Instance& instance, Vulkan::Runtime& runtime_,

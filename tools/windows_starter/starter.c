@@ -6,7 +6,7 @@
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR arguments, int show)
 {
-    (void)instance, (void)previous, (void)arguments, (void)show;
+    (void)instance, (void)previous, (void)show;
     static wchar_t dir[32768], python[32768], line[32768];
     DWORD length = GetModuleFileNameW(NULL, dir, 32768);
     if (length == 0 || length >= 32768)
@@ -15,7 +15,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR arguments, int
     if (slash)
         *slash = 0;
     swprintf(python, 32768, L"%ls\\python\\pythonw.exe", dir);
-    swprintf(line, 32768, L"\"%ls\" \"%ls\\launcher\\uncharted_launcher.pyw\"", python, dir);
+    /* Its own arguments go to the launcher: "Uncharted Launcher.exe" --play u2 starts that game. */
+    swprintf(line, 32768, L"\"%ls\" \"%ls\\launcher\\uncharted_launcher.pyw\" %ls", python, dir,
+             arguments ? arguments : L"");
 
     STARTUPINFOW startup = {.cb = sizeof(startup)};
     PROCESS_INFORMATION process;

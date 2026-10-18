@@ -1,8 +1,11 @@
 #include <atomic>
+#include <condition_variable>
 #include <mutex>
+#include <thread>
 #include <vector>
 #include <cstdio>
 #include <functional>
+#include "common/thread.h"
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -135,6 +138,109 @@ std::optional<u32> FindMemoryType(const vk::PhysicalDeviceMemoryProperties& prop
     return std::nullopt;
 }
 
+// gow3 18 Oct 2026: AMD's Windows driver needs ~0.6 ms per MiB to allocate video memory (it
+// clears it): one allocation per newly resident arena range stalled the GPU thread for 25-110 ms
+// per frame in the first seconds of a level (Radeon 780M). Resident ranges now come from 64 MiB
+// chunks, two of them allocated ahead on this thread; arena memory is never freed, so a chunk is
+// used front to back. Larger ranges, or none left in reserve: one allocation, as before.
+// GOW3_RESIDENCY_CHUNKS=0: always one allocation per range.
+struct BufferCache::ResidencyPool {
+    static constexpr u64 ChunkSize = u64{64} << 20;
+    static constexpr size_t Spares = 2;
+
+    ResidencyPool(vk::Device device_, u32 memory_type_, bool map_)
+        : device{device_}, memory_type{memory_type_}, map{map_} {
+        thread = std::thread{[this] { Run(); }};
+    }
+    ~ResidencyPool() {
+        {
+            std::scoped_lock lock{mutex};
+            stop = true;
+        }
+        cv.notify_all();
+        thread.join();
+    }
+
+    /// `bytes` (whole sparse blocks) from the current chunk; false when the caller allocates.
+    bool Take(u64 bytes, vk::DeviceMemory& memory, u8*& mapped, u64& offset) {
+        if (bytes > ChunkSize / 2) {
+            return false;
+        }
+        std::unique_lock lock{mutex};
+        if (current.used + bytes > current.size) {
+            if (spares.empty()) {
+                if (++misses <= 8) {
+                    std::printf("GPU: arena memory reserve empty (a range is allocated now)\n");
+                }
+                return false;
+            }
+            current = spares.front();
+            spares.pop_front();
+            cv.notify_one();
+        }
+        memory = current.memory;
+        mapped = current.mapped;
+        offset = current.used;
+        current.used += bytes;
+        return true;
+    }
+
+private:
+    struct Chunk {
+        vk::DeviceMemory memory{};
+        u8* mapped = nullptr;
+        u64 size = 0;
+        u64 used = 0;
+    };
+
+    void Run() {
+        Common::SetCurrentThreadName("GPU:ArenaMemory");
+        for (;;) {
+            {
+                std::unique_lock lock{mutex};
+                cv.wait(lock, [this] { return stop || (spares.size() < Spares && !failed); });
+                if (stop) {
+                    return;
+                }
+            }
+            const vk::MemoryAllocateInfo info = {
+                .allocationSize = ChunkSize,
+                .memoryTypeIndex = memory_type,
+            };
+            auto [result, memory] = device.allocateMemory(info);
+            if (result != vk::Result::eSuccess) {
+                std::printf("GPU: arena memory chunk not allocated (%s); ranges are allocated one "
+                            "by one\n",
+                            vk::to_string(result).c_str());
+                std::scoped_lock lock{mutex};
+                failed = true;
+                continue;
+            }
+            u8* mapped = nullptr;
+            if (map) {
+                auto [map_result, pointer] = device.mapMemory(memory, 0, VK_WHOLE_SIZE);
+                if (map_result == vk::Result::eSuccess) {
+                    mapped = static_cast<u8*>(pointer);
+                }
+            }
+            std::scoped_lock lock{mutex};
+            spares.push_back({memory, mapped, ChunkSize, 0});
+        }
+    }
+
+    vk::Device device;
+    u32 memory_type;
+    bool map;
+    std::mutex mutex;
+    std::condition_variable cv;
+    std::deque<Chunk> spares;
+    Chunk current{};
+    u32 misses = 0;
+    bool failed = false;
+    bool stop = false;
+    std::thread thread;
+};
+
 BufferCache::BufferCache(const Vulkan::Instance& instance_, Vulkan::Scheduler& scheduler_,
                          Vulkan::Runtime& runtime_, AmdGpu::Liverpool* liverpool_,
                          TextureCache& texture_cache_, PageManager& tracker)
@@ -210,6 +316,10 @@ BufferCache::BufferCache(const Vulkan::Instance& instance_, Vulkan::Scheduler& s
         if (arena_host_mapped) {
             scheduler.EnableHostReadBarrier();
         }
+    }
+    if (const char* env = std::getenv("GOW3_RESIDENCY_CHUNKS"); !(env && env[0] == '0')) {
+        residency_pool = std::make_unique<ResidencyPool>(instance.GetDevice(),
+                                                         arena_memory_type_index, arena_host_mapped);
     }
 
     const u64 bda_pagetable_size =
@@ -375,6 +485,37 @@ static std::mutex g_read_pieces_mutex;
 static std::unordered_map<u64, u32> g_read_pieces; ///< (piece address << 16 | size) -> reads
 static std::atomic<u32> g_readback_yields;
 
+// gow3 18 Oct 2026, readback guard: GPU data comes back to guest memory late, up to a frame or
+// two after the guest saw the fence of the work that wrote it (readbacks land when the GPU is
+// done; most fences do not wait for them). Where the CPU can write without a fault (pages shared
+// with GPU data in flight, lazy writes), the guest may reuse those bytes in between. Uncharted 3
+// freed the cloth buffers of an area it unloaded, its allocator wrote free-list links into them,
+// and the late cloth readback put float data over the links: a crash in the allocator after
+// ~40 minutes of play (18 Oct). Late GPU data now never overwrites a 64-byte line the guest
+// changed since: async readbacks compare with the guest bytes when they were queued
+// (PendingReadback::before), lazy and shared pages with their record (LazyPage::bytes).
+// GOW3_READBACK_GUARD=0 turns it off (the GPU's bytes win, as before).
+static constexpr u64 GuardLine = 64;
+static bool ReadbackGuardEnabled() {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_READBACK_GUARD");
+        const bool on = !(env && env[0] == '0');
+        if (!on) {
+            std::printf("Readback guard: off (GOW3_READBACK_GUARD=0)\n");
+            std::fflush(stdout);
+        }
+        return on;
+    }();
+    return enabled;
+}
+static std::atomic<u32> g_guard_lines, g_guard_lazy_lines, g_guard_logged;
+static std::atomic<u64> g_guard_bytes;
+// The first 16 kept lines, then the 32nd, 64th, ...: where and whether the page was CPU-writable.
+static bool GuardLogNow() {
+    const u32 seen = g_guard_logged.fetch_add(1, std::memory_order_relaxed);
+    return seen < 16 || (seen & (seen + 1)) == 0;
+}
+
 // GOW3_ASYNC_READBACK=1: pages with a readback in flight are read-protected, so the CPU (the game,
 // or the SRT walker) never reads their stale data: a read waits for that readback only. =2 is
 // the earlier unprotected mode (stale reads: Uncharted 3 "dcb full", garbage sharps).
@@ -448,6 +589,14 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
                             g_lazy_writes.exchange(0), g_lazy_cpu_wins.exchange(0),
                             static_cast<unsigned long long>(std::exchange(g_shared_writes_count, 0)),
                             g_direct_page_reads.exchange(0));
+                {
+                    const u32 lazy_lines = g_guard_lazy_lines.exchange(0);
+                    const u32 lines = g_guard_lines.exchange(0) + lazy_lines;
+                    std::printf("  readback guard: %u lines the game wrote after the GPU kept from late GPU "
+                                "data (%llu bytes), %u of them on shared/lazy pages\n",
+                                lines, static_cast<unsigned long long>(g_guard_bytes.exchange(0)),
+                                lazy_lines);
+                }
                 {
                     std::string reasons;
                     for (u32 bits = 0; bits < 64; ++bits) {
@@ -719,9 +868,18 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
                         slot = std::make_unique<LazyPage>();
                     }
                     slot->gpu_wins = true;
+                    // The guest copy of the GPU bytes before the CPU can write the page without a
+                    // fault: the readback guard tells the CPU's later writes into them by it.
+                    std::array<u8, LAZY_PAGE_SIZE> guest;
+                    if (!memory->TryReadBacking(page, guest.data(), LAZY_PAGE_SIZE)) {
+                        memory->CopySparseMemory(page, guest.data(), LAZY_PAGE_SIZE);
+                    }
                     gpu_modified_ranges.ForEachInRange(page, 4096, [&](VAddr lo, VAddr hi) {
                         for (VAddr byte = lo; byte < hi; ++byte) {
-                            slot->tracked.set(byte - page);
+                            if (!slot->tracked.test(byte - page)) {
+                                slot->tracked.set(byte - page);
+                                slot->bytes[byte - page] = guest[byte - page];
+                            }
                         }
                     });
                     shared_readbacks.emplace_back(page, 4096);
@@ -1070,18 +1228,31 @@ void BufferCache::ForEachLazyUploadPiece(VAddr address, u64 size, Func&& func) {
             }
         };
         // Records outside gpu_modified_ranges are stale (downloaded meanwhile): ignored.
+        // Readback guard: decided per 64-byte line, shared pages too.
+        const bool guard = ReadbackGuardEnabled();
+        const u64 granule = guard ? GuardLine : 1;
+        const bool compare = guard || !record.gpu_wins;
         gpu_modified_ranges.ForEachInRange(lo_limit, hi_limit - lo_limit, [&](VAddr lo, VAddr hi) {
-            for (VAddr byte = lo; byte < hi; ++byte) {
-                const size_t i = byte - page;
-                if (!record.tracked.test(i)) {
-                    continue;
+            for (VAddr line = lo; line < hi;) {
+                const VAddr line_end = std::min(Common::AlignDown(line, granule) + granule, hi);
+                bool cpu_line = false;
+                for (VAddr byte = line; compare && byte < line_end && !cpu_line; ++byte) {
+                    const size_t i = byte - page;
+                    cpu_line = record.tracked.test(i) && guest[i] != record.bytes[i];
                 }
-                if (record.gpu_wins || guest[i] == record.bytes[i]) {
-                    add_run(skips, byte);
-                } else {
-                    record.tracked.reset(i);
-                    add_run(cpu_wins, byte);
+                for (VAddr byte = line; byte < line_end; ++byte) {
+                    const size_t i = byte - page;
+                    if (!record.tracked.test(i)) {
+                        continue;
+                    }
+                    if (cpu_line) {
+                        record.tracked.reset(i);
+                        add_run(cpu_wins, byte);
+                    } else {
+                        add_run(skips, byte);
+                    }
                 }
+                line = line_end;
             }
         });
         // The CPU overwrote these after the GPU: they are uploaded and stop being GPU data.
@@ -1120,47 +1291,156 @@ void BufferCache::WriteBackGpuData(VAddr address, const u8* data, u64 size,
         }
         const VAddr lo = std::max(page, address);
         const VAddr hi = std::min(page + LAZY_PAGE_SIZE, end);
-        for (VAddr byte = lo; byte < hi; ++byte) {
-            const size_t i = byte - page;
-            if (!record.tracked.test(i)) {
-                continue;
+        // Readback guard: decided per 64-byte line, shared pages (gpu_wins) too. Without it,
+        // per byte, and shared pages take the GPU's bytes unseen.
+        const bool guard = ReadbackGuardEnabled();
+        const u64 granule = guard ? GuardLine : 1;
+        const bool compare = guard || !record.gpu_wins;
+        for (VAddr line = lo; line < hi;) {
+            const VAddr line_end = std::min(Common::AlignDown(line, granule) + granule, hi);
+            // The CPU wrote GPU bytes of this line after the GPU: they differ from the record
+            // (their guest copy when the page became CPU-writable) and from the GPU's value.
+            bool cpu_line = false;
+            for (VAddr byte = line; compare && byte < line_end && !cpu_line; ++byte) {
+                const size_t i = byte - page;
+                cpu_line = record.tracked.test(i) && guest[i] != record.bytes[i] &&
+                           guest[i] != data[byte - address];
             }
-            const bool still_gpu = rewritten && rewritten->Contains(byte, 1);
-            if (record.gpu_wins) {
-                // The GPU's bytes: written back; tracked while newer GPU data is still to come.
-                if (!still_gpu) {
-                    record.tracked.reset(i);
+            for (VAddr byte = line; byte < line_end; ++byte) {
+                const size_t i = byte - page;
+                if (!record.tracked.test(i)) {
+                    continue;
                 }
-                continue;
-            }
-            if (guest[i] == record.bytes[i]) {
-                if (rewritten) {
-                    // Written now; the GPU's newer value is stale in guest memory again.
+                const bool still_gpu = rewritten && rewritten->Contains(byte, 1);
+                if (cpu_line) {
+                    // The CPU value stays. The page is still CPU-modified, so the next upload
+                    // sends it to the GPU copy too; newer GPU data still to come is compared
+                    // with it.
+                    ++g_lazy_cpu_wins;
                     if (still_gpu) {
-                        record.bytes[i] = data[byte - address];
-                    } else {
+                        record.bytes[i] = guest[i];
+                    } else if (rewritten) {
                         record.tracked.reset(i);
                     }
+                } else if (still_gpu) {
+                    // Written now; the GPU's newer value is stale in guest memory again.
+                    record.bytes[i] = data[byte - address];
+                } else if (rewritten || record.gpu_wins) {
+                    record.tracked.reset(i);
                 }
-                continue;
             }
-            // The CPU wrote this byte after the GPU: keep the CPU value. The page is still
-            // CPU-modified, so the next upload sends it to the GPU copy too.
-            if (byte > cursor) {
-                memory->TryWriteBacking(std::bit_cast<u8*>(cursor), data + (cursor - address),
-                                        byte - cursor);
+            if (cpu_line) {
+                if (line > cursor) {
+                    memory->TryWriteBacking(std::bit_cast<u8*>(cursor), data + (cursor - address),
+                                            line - cursor);
+                }
+                cursor = line_end;
+                if (guard) {
+                    ++g_guard_lazy_lines;
+                    g_guard_bytes += line_end - line;
+                    if (GuardLogNow()) {
+                        std::printf("Readback guard: kept %llu bytes at %#llx that the game wrote after "
+                                    "the GPU (%s page, %s)\n",
+                                    static_cast<unsigned long long>(line_end - line),
+                                    static_cast<unsigned long long>(line),
+                                    record.gpu_wins ? "shared" : "lazy",
+                                    rewritten ? "readback" : "download");
+                        std::fflush(stdout);
+                    }
+                }
             }
-            cursor = byte + 1;
-            ++g_lazy_cpu_wins;
-            if (rewritten && !still_gpu) {
-                record.tracked.reset(i);
-            }
+            line = line_end;
         }
         it = record.tracked.none() ? lazy_pages.erase(it) : std::next(it);
     }
     if (cursor < end) {
         memory->TryWriteBacking(std::bit_cast<u8*>(cursor), data + (cursor - address),
                                 end - cursor);
+    }
+}
+
+void BufferCache::LandGuarded(PendingReadback& readback, size_t piece, VAddr lo, VAddr hi) {
+    const auto [address, size] = readback.pieces[piece];
+    const u8* data = readback.mapped + readback.offsets[piece] + (lo - address);
+    const u8* before = readback.before.data() + readback.offsets[piece] + (lo - address);
+    const u64 n = hi - lo;
+    // The guest bytes now, through the backing view (the page may still be read-protected for
+    // this readback). A local buffer: a fault in here may land readbacks again.
+    std::vector<u8> pre(n);
+    if (!memory->TryReadBacking(lo, pre.data(), n)) {
+        memory->CopySparseMemory(lo, pre.data(), n);
+    }
+    VAddr cursor = lo;
+    for (VAddr line = lo; line < hi;) {
+        const VAddr line_end = std::min(Common::AlignDown(line, GuardLine) + GuardLine, hi);
+        const u64 k = line - lo;
+        const u64 m = line_end - line;
+        // Changed since the readback was queued, and not to the GPU's value: the game wrote it
+        // after the GPU (its fence was out by then), so the game's value is the newer one.
+        if (std::memcmp(pre.data() + k, before + k, m) != 0 &&
+            std::memcmp(pre.data() + k, data + k, m) != 0) {
+            if (line > cursor) {
+                WriteBackGpuData(cursor, data + (cursor - lo), line - cursor, &readback.rewritten);
+            }
+            cursor = line_end;
+            ++g_guard_lines;
+            g_guard_bytes += m;
+            if (GuardLogNow()) {
+                std::printf("Readback guard: kept %llu bytes at %#llx that the game wrote after the GPU "
+                            "(readback of %#llx+%llu, tick %llu, page %s)\n",
+                            static_cast<unsigned long long>(m), static_cast<unsigned long long>(line),
+                            static_cast<unsigned long long>(address), static_cast<unsigned long long>(size),
+                            static_cast<unsigned long long>(readback.tick),
+                            memory_tracker->IsRegionCpuModified(line, m) ? "CPU-writable" : "protected");
+                std::fflush(stdout);
+            }
+        }
+        line = line_end;
+    }
+    if (hi > cursor) {
+        WriteBackGpuData(cursor, data + (cursor - lo), hi - cursor, &readback.rewritten);
+    }
+    UpdateLaterSnapshots(lo, hi, pre.data());
+}
+
+void BufferCache::UpdateLaterSnapshots(VAddr lo, VAddr hi, const u8* pre) {
+    std::vector<u8> post;
+    for (size_t r = 1; r < pending_readbacks.size(); ++r) {
+        PendingReadback& later = pending_readbacks[r];
+        if (later.before.empty()) {
+            continue;
+        }
+        for (size_t j = 0; j < later.pieces.size(); ++j) {
+            const auto [piece, piece_size] = later.pieces[j];
+            const VAddr a = std::max(piece, lo);
+            const VAddr b = std::min(piece + piece_size, hi);
+            if (a >= b) {
+                continue;
+            }
+            if (post.empty()) {
+                post.resize(hi - lo);
+                if (!memory->TryReadBacking(lo, post.data(), hi - lo)) {
+                    memory->CopySparseMemory(lo, post.data(), hi - lo);
+                }
+            }
+            // Bytes the later readback saw as they were before this landing take its values;
+            // bytes the CPU changed in between stay as the later readback saw them.
+            u8* snapshot = later.before.data() + later.offsets[j] + (a - piece);
+            for (VAddr x = a; x < b;) {
+                const VAddr x_end = std::min(Common::AlignDown(x, GuardLine) + GuardLine, b);
+                const u64 m = x_end - x;
+                if (std::memcmp(snapshot + (x - a), pre + (x - lo), m) == 0) {
+                    std::memcpy(snapshot + (x - a), post.data() + (x - lo), m);
+                } else {
+                    for (VAddr y = x; y < x_end; ++y) {
+                        if (snapshot[y - a] == pre[y - lo]) {
+                            snapshot[y - a] = post[y - lo];
+                        }
+                    }
+                }
+                x = x_end;
+            }
+        }
     }
 }
 
@@ -1193,6 +1473,17 @@ void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ran
     }
     if (total_size_bytes == 0) {
         return;
+    }
+    // Readback guard: the guest bytes now, to tell the game's later writes from older data.
+    if (ReadbackGuardEnabled()) {
+        readback.before.resize(total_size_bytes);
+        for (size_t i = 0; i < readback.pieces.size(); ++i) {
+            const auto [address, size] = readback.pieces[i];
+            u8* snapshot = readback.before.data() + readback.offsets[i];
+            if (!memory->TryReadBacking(address, snapshot, size)) {
+                memory->CopySparseMemory(address, snapshot, size);
+            }
+        }
     }
     // Held until the readback completes (a ring allocation could be reused before).
     const auto download = staging_pool.Request(total_size_bytes, VideoCore::MemoryType::HostCached,
@@ -1750,6 +2041,15 @@ void BufferCache::CompleteReadbacks(bool wait, u64 wait_until) {
         for (size_t i = 0; i < readback.pieces.size(); ++i) {
             const auto [address, size] = readback.pieces[i];
             const u8* data = readback.mapped + readback.offsets[i];
+            if (!readback.before.empty()) {
+                boost::container::small_vector<std::pair<VAddr, VAddr>, 8> runs;
+                gpu_modified_ranges.ForEachInRange(address, size,
+                                                   [&](VAddr lo, VAddr hi) { runs.emplace_back(lo, hi); });
+                for (const auto& [lo, hi] : runs) {
+                    LandGuarded(readback, i, lo, hi);
+                }
+                continue;
+            }
             gpu_modified_ranges.ForEachInRange(address, size, [&](VAddr lo, VAddr hi) {
                 WriteBackGpuData(lo, data + (lo - address), hi - lo, &readback.rewritten);
             });
@@ -1883,6 +2183,39 @@ void BufferCache::PollReadbacksNow() {
     scheduler.GetWorkSemaphore()->Refresh();
     readback_polls = 0;
     CompleteReadbacks(false);
+}
+
+// gow3 18 Oct 2026: a CPU write into a page a pending readback read-protects (the CPU's own data
+// beside the readback's GPU bytes, or GPU bytes it may overwrite) left the page protected: the
+// write fault marks it CPU-modified, but only landing the readback lifts the protection, so the
+// store faulted again until the GPU thread happened to land it. With the GPU thread idle (the
+// guest waits for the very job that writes) nothing did: Uncharted 3 on the Radeon 780M stopped
+// flipping at level loads, one job worker spending ~20 s in the kernel on a single store. Watches
+// start after submission, so the wait below is for work already sent to the GPU.
+void BufferCache::LandReadbacksWatching(VAddr page) {
+    u64 tick = 0;
+    for (const auto& readback : pending_readbacks) {
+        if (!readback.watching) {
+            continue;
+        }
+        for (const auto& [address, size] : readback.watched) {
+            if (page >= address && page < address + size) {
+                tick = std::max(tick, readback.tick);
+            }
+        }
+    }
+    if (tick) {
+        CompleteReadbacks(true, tick);
+        return;
+    }
+    // A read watch no pending readback owns would keep the page inaccessible for good.
+    static std::atomic<u32> logged{0};
+    if (page_manager->IsReadWatched(page) && logged.fetch_add(1, std::memory_order_relaxed) < 4) {
+        std::printf("Readback watch: page %#llx is read-protected, but no pending buffer "
+                    "readback watches it\n",
+                    static_cast<unsigned long long>(page));
+        std::fflush(stdout);
+    }
 }
 
 void BufferCache::UnwatchPage(VAddr page) {
@@ -2024,7 +2357,12 @@ bool BufferCache::SideQueueFetch(std::span<const std::pair<VAddr, u64>> pieces, 
             .level = vk::CommandBufferLevel::ePrimary,
             .commandBufferCount = 1,
         }))[0];
-        urgent_fence = Vulkan::Check<"urgent copy fence">(device.createFenceUnique({}));
+        const vk::SemaphoreTypeCreateInfo timeline_ci = {
+            .semaphoreType = vk::SemaphoreType::eTimeline,
+            .initialValue = 0,
+        };
+        urgent_timeline = Vulkan::Check<"urgent copy timeline">(
+            device.createSemaphoreUnique({.pNext = &timeline_ci}));
     }
     const auto staging = staging_pool.Request(total, MemoryType::HostCached);
     boost::container::small_vector<vk::BufferCopy, 8> copies;
@@ -2047,10 +2385,14 @@ bool BufferCache::SideQueueFetch(std::span<const std::pair<VAddr, u64>> pieces, 
                                vk::PipelineStageFlagBits::eHost, {}, to_host, {}, {});
     std::ignore = urgent_cmd.end();
     const vk::Semaphore timeline = scheduler.GetWorkSemaphore()->Handle();
+    const vk::Semaphore done = *urgent_timeline;
+    const u64 done_value = urgent_value + 1;
     const vk::PipelineStageFlags wait_stage = vk::PipelineStageFlagBits::eAllCommands;
     const vk::TimelineSemaphoreSubmitInfo timeline_si = {
         .waitSemaphoreValueCount = 1,
         .pWaitSemaphoreValues = &wait_tick,
+        .signalSemaphoreValueCount = 1,
+        .pSignalSemaphoreValues = &done_value,
     };
     const vk::SubmitInfo submit = {
         .pNext = &timeline_si,
@@ -2059,12 +2401,19 @@ bool BufferCache::SideQueueFetch(std::span<const std::pair<VAddr, u64>> pieces, 
         .pWaitDstStageMask = &wait_stage,
         .commandBufferCount = 1,
         .pCommandBuffers = &urgent_cmd,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = &done,
     };
-    if (queue.submit(submit, *urgent_fence) != vk::Result::eSuccess) {
+    if (queue.submit(submit) != vk::Result::eSuccess) {
         return false;
     }
-    std::ignore = device.waitForFences(*urgent_fence, true, std::numeric_limits<u64>::max());
-    std::ignore = device.resetFences(*urgent_fence);
+    urgent_value = done_value;
+    const vk::SemaphoreWaitInfo wait_info = {
+        .semaphoreCount = 1,
+        .pSemaphores = &done,
+        .pValues = &done_value,
+    };
+    std::ignore = device.waitSemaphores(wait_info, std::numeric_limits<u64>::max());
     staging.Invalidate();
     const u8* source = staging.mapped;
     for (const auto& [address, size] : pieces) {
@@ -2705,24 +3054,29 @@ void BufferCache::EnsureResident(const Buffer* arena, u64 first_block, u64 last_
     }
     Gow3Stats::Timer timer{Gow3Stats::t_resident};
 
-    const vk::MemoryAllocateInfo alloc_info = {
-        .allocationSize = resident_blocks << block_shift,
-        .memoryTypeIndex = arena_memory_type_index,
-    };
-    const auto device_memory = Vulkan::Check(instance.GetDevice().allocateMemory(alloc_info));
+    const u64 resident_bytes = u64{resident_blocks} << block_shift;
+    vk::DeviceMemory device_memory{};
     u8* mapped = nullptr;
-    if (arena_host_mapped) {
-        auto [map_result, pointer] = instance.GetDevice().mapMemory(device_memory, 0, VK_WHOLE_SIZE);
-        if (map_result == vk::Result::eSuccess) {
-            mapped = static_cast<u8*>(pointer);
+    u64 memory_offset{};
+    if (!residency_pool ||
+        !residency_pool->Take(resident_bytes, device_memory, mapped, memory_offset)) {
+        const vk::MemoryAllocateInfo alloc_info = {
+            .allocationSize = resident_bytes,
+            .memoryTypeIndex = arena_memory_type_index,
+        };
+        device_memory = Vulkan::Check(instance.GetDevice().allocateMemory(alloc_info));
+        if (arena_host_mapped) {
+            auto [map_result, pointer] =
+                instance.GetDevice().mapMemory(device_memory, 0, VK_WHOLE_SIZE);
+            if (map_result == vk::Result::eSuccess) {
+                mapped = static_cast<u8*>(pointer);
+            }
         }
     }
 
     boost::container::small_vector<vk::BufferCopy, 8> copies;
     const auto staging =
         staging_pool.Request(resident_blocks * sizeof(vk::DeviceAddress), MemoryType::HostUncached);
-
-    u64 memory_offset{};
     ArenaBinds* binds = BindsForArena(arena);
     auto* bda_addrs = reinterpret_cast<vk::DeviceAddress*>(staging.mapped);
     u64 offset = staging.offset;
