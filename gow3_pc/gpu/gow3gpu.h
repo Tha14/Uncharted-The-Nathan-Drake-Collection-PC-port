@@ -38,6 +38,48 @@ int gow3gpu_overlay_captures_input(void);
 /* Mouse movement since the last call (pixels) and held sources (bit 0 left, 1 middle, 2 right,
  * 3 X1, 4 X2, 5 wheel up, 6 wheel down); returns 1 while the mouse is captured (gow3_mouse.h). */
 int gow3gpu_mouse_take(float *dx, float *dy, unsigned *buttons);
+int gow3gpu_mouse_take_look(float *dx, float *dy);
+int gow3gpu_mouse_look_recent(void);
+void gow3gpu_mouse_inject(float dx, float dy);
+/* Button prompts (gow3_prompts.cpp): per PS4 button a label. Set 0, keyboard and mouse: its key
+ * ("SPACE", "F", UTF-8 arrows) or mouse source ("@LMB" "@RMB" "@MMB" "@X1" "@X2" "@WHEELUP"
+ * "@WHEELDOWN"; "@MOUSE" for GOW3_PROMPT_RS_UP: the mouse moves the camera). Set 1, controllers
+ * other than PlayStation ones: "#A" "#B" "#X" "#Y" "#LB" "#RB" "#LT" "#RT" "#LS" "#RS" "#MENU"
+ * "#VIEW". "" keeps the PlayStation icon. set_device: 0 the game's PlayStation icons, 1 keyboard
+ * and mouse (set 0), 2 another controller (set 1). */
+enum {
+    GOW3_PROMPT_CROSS, GOW3_PROMPT_CIRCLE, GOW3_PROMPT_SQUARE, GOW3_PROMPT_TRIANGLE,
+    GOW3_PROMPT_L1, GOW3_PROMPT_R1, GOW3_PROMPT_L2, GOW3_PROMPT_R2, GOW3_PROMPT_L3, GOW3_PROMPT_R3,
+    GOW3_PROMPT_OPTIONS, GOW3_PROMPT_TOUCHPAD,
+    GOW3_PROMPT_UP, GOW3_PROMPT_DOWN, GOW3_PROMPT_LEFT, GOW3_PROMPT_RIGHT,
+    GOW3_PROMPT_LS_UP, GOW3_PROMPT_LS_LEFT, GOW3_PROMPT_LS_DOWN, GOW3_PROMPT_LS_RIGHT,
+    GOW3_PROMPT_RS_UP, GOW3_PROMPT_RS_LEFT, GOW3_PROMPT_RS_DOWN, GOW3_PROMPT_RS_RIGHT,
+    GOW3_PROMPT_COUNT
+};
+void gow3gpu_prompts_set_labels(int set, const char *const *labels, int count);
+void gow3gpu_prompts_set_device(int device);
+/* Controls: the in-game menu's Controls tab and the launcher's, kept in the settings file
+ * (gow3_settings.h; GOW3_PAD_MAP, GOW3_KEY_MAP, GOW3_MOUSE_MAP, GOW3_MOUSE, GOW3_MOUSE_SENS,
+ * GOW3_MOUSE_INVERT, GOW3_PROMPTS and GOW3_STICK_SPEED override the file at start). The pad
+ * (src/runtime_pad.c) reapplies them when the generation changes. Maps in runtime_pad.c's syntax
+ * on top of its defaults ("" = the defaults). prompts: -1 auto, 0 PlayStation, 1 keyboard,
+ * 2 Xbox, 3 the connected controller's. stick_speed: controller camera and aim speed. */
+typedef struct {
+    char pad_map[1024], key_map[2048], mouse_map[512];
+    int mouse, mouse_invert, prompts;
+    float mouse_sens, stick_speed;
+} Gow3Controls;
+unsigned gow3gpu_controls_generation(void);
+void gow3gpu_controls_get(Gow3Controls *out);
+/* Live values for the camera hooks (src/runtime_mouselook.c). */
+float gow3gpu_controls_mouse_sens(void);
+int gow3gpu_controls_mouse_invert(void);
+float gow3gpu_controls_stick_speed(void);
+/* The games' draw and shadow distances (menu Image tab, percent of the game's own;
+ * src/runtime_gamesettings.c). */
+int gow3gpu_settings_fade_distance(void);
+int gow3gpu_settings_sun_shadow_distance(void);
+int gow3gpu_settings_light_shadow_distance(void);
 /* Number of symbols registered by the vendored libraries (diagnostics). */
 unsigned gow3gpu_symbol_count(void);
 #ifdef __cplusplus

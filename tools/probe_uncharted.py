@@ -72,6 +72,132 @@ TORCH_FORWARD_PATCHES = [
     ]),
 ]
 
+# Idle job workers sleep (all three games, 1.02). The engine's 6 NdJobWorkerThreads spin on their
+# job queues with `pause` unless the job manager's sleep flag (byte +0x59, set by its own
+# SetSleepMode, U3 0xd96440) is on; with it on, an idle worker waits on the manager's condition
+# variable after 1000 spins (10 ms timeout) and every job submission broadcasts to wake them. On
+# the PS4 each worker owns a core and the flag stays off; on a 4-core PC the six spinning workers
+# took 390% of 400% CPU (GPU command thread 5%, title screen 19-27 FPS on an RTX 5080). Treat the
+# flag as on in the worker loop, its re-check before waiting, and the submit path.
+# UNCHARTED_JOB_SLEEP=0 keeps the original.
+JOB_SLEEP_PATCHES = [
+    ("idle job workers sleep (worker loop)", [
+        ("4d8d7001 807f5900 74?? 4981f8e8030000 7c??", 8, bytes.fromhex("74"), bytes.fromhex("9090")),
+    ]),
+    ("idle job workers sleep (re-check before waiting)", [
+        ("498b07 80785900 74?? 4889c7 4883ef80", 7, bytes.fromhex("74"), bytes.fromhex("9090")),
+    ]),
+    ("idle job workers sleep (job submission wakes them)", [
+        ("80785900 0f84????0000 4883c060", 4, bytes.fromhex("0f84"), bytes.fromhex("660f1f440000")),
+    ]),
+]
+
+# The games' own Options > Controls > Aiming > Sensitivity (1.02): a 10-notch slider from 0 to 1.0
+# with 0.5 in the middle (setting 0x1abac2d6; Reset Defaults sets 0.32). The aim speed is mixed
+# linearly from two tuning values by it, and the aiming code asserts it is at most 1 ("sensitivity
+# <= 1.0f"). Mouse aiming goes through the stick there, so the game's aim speed caps it: lift the
+# check and raise the slider's top. The value is a float in the save file, read with or without
+# this. UNCHARTED_AIM_RANGE=0 keeps the original sliders.
+AIM_RANGE_PATCHES = {
+    # Uncharted 1: the check at 0x276308; the slider (0x1453e4) holds steps, min, mid and max at
+    # +0x20..+0x2c and gets mid 2.5, max 5.0: a notch is 0.5, the second one the old maximum.
+    "eboot.bin": [
+        ("Uncharted 1 aim sensitivity above 1 (aim speed range check)", [
+            ("c5f82e05 ???????? 763d c5fa1145f4", 8, bytes.fromhex("763d"), bytes.fromhex("eb3d")),
+        ]),
+        ("Uncharted 1 aim sensitivity slider up to 5", [
+            ("488d0dd5738000 48894818 48c740200a000000 48b9 0000003f0000803f 48894828", 21,
+             bytes.fromhex("0000003f0000803f"), bytes.fromhex("000020400000a040")),
+        ]),
+    ],
+    # Uncharted 2: the check in 0x719d80; the slider item (0x5d25b1) takes its max from a constant
+    # (mid = max / 2): point it at a 5.0, so a notch is 0.5 and the second one the old maximum.
+    "big2-ps4_Shipping.elf": [
+        ("Uncharted 2 aim sensitivity above 1 (aim speed range check)", [
+            ("c5f82e05 ???????? 7649 488b05", 8, bytes.fromhex("7649"), bytes.fromhex("eb49")),
+        ]),
+        ("Uncharted 2 aim sensitivity slider up to 5", [
+            ("81f9d6c2ba1a 0f85???????? 4989ff 4c8d35???????? c5fa1005 75fa8800", 26,
+             bytes.fromhex("75fa8800"), bytes.fromhex("21fa8800")),
+        ]),
+    ],
+    # Uncharted 3: the check in UpdateAiming3Settings (0x927fe5). The slider's value -> notch
+    # (0x62bf60) and notch -> value (0x62c090) functions keep min/mid/max in registers (0, 0.5,
+    # 1.0); the aim setting's branch in each is rewritten in place: the same per-profile address
+    # (array 0x17f97a0 + profile * 64 + 0x20, in fewer bytes: imul, then sign extension) and max =
+    # 1.0 doubled twice = 4.0. The left half keeps its 0.1 notches, the right half goes 0.5 to 4.0.
+    "big3-ps4_Shipping.elf": [
+        ("Uncharted 3 aim sensitivity above 1 (aim speed range check)", [
+            ("c5fa1015???????? c5f82ed0 7351 488b05", 12, bytes.fromhex("7351"), bytes.fromhex("eb51")),
+        ]),
+        ("Uncharted 3 aim sensitivity slider up to 4 (value -> notch)", [
+            ("81f9d6c2ba1a7547 488d05dd63190148630048c1e006488d0dcfd71c01488d440120eb2b", 8,
+             bytes.fromhex("488d05dd63190148630048c1e006488d0dcfd71c01488d440120eb2b"),
+             bytes.fromhex("6b05dd631901404898488d0df4d71c014801c80f58c90f58c9eb2c90")),
+        ]),
+        ("Uncharted 3 aim sensitivity slider up to 4 (notch -> value)", [
+            ("3dd6c2ba1a7520 488d0da662190148630948c1e106488d1598d61c01488d4c0a20c5f828daeb36", 7,
+             bytes.fromhex("488d0da662190148630948c1e106488d1598d61c01488d4c0a20c5f828daeb36"),
+             bytes.fromhex("6b0da6621901404863c9488d15bcd61c014801d1c5f828da0f58c90f58c9eb36")),
+        ]),
+    ],
+}
+
+# FrameBegin (ndlib fg-draw-mgr.cpp, all three games, 1.02) frees frame N-3's instances and
+# asserts that frame's end-of-pipe GPU timestamp is set (m_gfxEopTick of the render frame params,
+# 32 slots: +0xa28, Uncharted 1 +0xa08). Players' crash logs (GitHub #11/#12/#17, RTX 3050 and
+# 5060, and ours) show it after 40-55 ms stalls (shader compiles, waits for a GPU that fell behind):
+# the timestamp, written when the GPU gets there (or after a ray-cast readback lands), was not
+# there yet. On the PS4 the GPU never lags that far. The assert's path (59 bytes up to where the
+# check continues) becomes a wait for the timestamp: pause in a loop until it is set, at most
+# 50 million times (about 0.1-1.5 s by CPU), then carry on. rdx (frame N-3) is kept; the rest of
+# the path's registers were scratch there. UNCHARTED_FRAME_WAIT=0 keeps the assert.
+def frame_begin_wait(offset):
+    code = (bytes.fromhex("488dbc08") + offset.to_bytes(4, "little")  # lea rdi, [rax + rcx + offset]
+            + bytes.fromhex("be80f0fa02")  # mov esi, 50000000
+            + bytes.fromhex("48833f00")  # loop: cmp qword ptr [rdi], 0
+            + bytes.fromhex("7506")  # jne done
+            + bytes.fromhex("f390")  # pause
+            + bytes.fromhex("ffce")  # dec esi
+            + bytes.fromhex("75f4")  # jnz loop
+            + bytes.fromhex("eb20"))  # done: jmp to where the check continues
+    return code + b"\xcc" * (59 - len(code))
+
+
+FRAME_BEGIN_ASSERTS = {  # executable: (the check and its assert path, timestamp offset)
+    "eboot.bin": ("4883bc08080a000000753b488b057035be004885c0742d488d3dd2053400488d35710434004889d3"
+                  "488d15fd053400488d0dd01c350041b8ea0000004531c9ffd04889dacd41", 0xa08),
+    "big2-ps4_Shipping.elf": ("4883bc08280a000000753b488b05609b99004885c0742d488d3dad5f2e00488d354c5e2e00"
+                              "4889d3488d15d85f2e00488d0d38ff210041b8ea0000004531c9ffd04889dacd41", 0xa28),
+    "big3-ps4_Shipping.elf": ("4883bc08280a000000753b488b05f06edb004885c0742d488d3d7df56400488d351cf46400"
+                              "4889d3488d15a8f56400488d0d6409570041b8ea0000004531c9ffd04889dacd41", 0xa28),
+}
+FRAME_BEGIN_WAIT_PATCHES = {
+    executable: [(f"FrameBegin waits for frame N-3's GPU timestamp (no m_gfxEopTick assert)", [
+        (code, 11, bytes.fromhex(code)[11:], frame_begin_wait(offset)),
+    ])]
+    for executable, (code, offset) in FRAME_BEGIN_ASSERTS.items()
+}
+
+# Uncharted 3 (1.02) Player::UpdateFocus (player.cpp:1897, 0xbcee10) springs the point Nate looks
+# at ([player + 0xef0], velocity + 0xf00) towards the target the player gives (kept at rbp-0x80) and
+# asserts the result is not NaN (GitHub #13: crash climbing the fort in chapter 8). Once NaN it
+# stays NaN, and the function's own reset (0xbcf27a, taken when the point is over 6 m off) never
+# runs for it: NaN compares false. The assert's path (53 bytes) now takes that reset instead when
+# the target itself is a number (velocity register xmm5 zeroed first, as on the reset's usual
+# way in); a NaN target still asserts. UNCHARTED_FOCUS_RESET=0 keeps the original.
+FOCUS_NAN_PATCHES = {
+    "big3-ps4_Shipping.elf": [
+        ("Uncharted 3 player focus: reset instead of asserting on NaN", [
+            ("c4e37904cb00c5f0c2c900c5f850c183f80f743a488b05f73302014885c07427488d3d74ff8900"
+             "488d3546fd8900488d1583ff8900488d0d6ece7d0041b86a0700004531c9ffd0cd41", 20,
+             bytes.fromhex("488b05f73302014885c07427488d3d74ff8900488d3546fd8900488d1583ff8900"
+                           "488d0d6ece7d0041b86a0700004531c9ffd0cd41"),
+             bytes.fromhex("c5d057edc5f8284580c5f8c2c800c5f850c183f80f0f84a5feffffcd41") + b"\xcc" * 24),
+        ]),
+    ],
+}
+
 PATCHES = {
     "eboot.bin": EBOOT_PATCHES,
     "big2-ps4_Shipping.elf": [GPU_WAIT_PATCH],
@@ -81,6 +207,13 @@ EXECUTABLES = tuple(PATCHES)
 # Exit code of sceSystemServiceLoadExec (runtime_services.c): the game asked for another
 # executable of the Collection; GOW3_LOADEXEC_FILE holds its /app0 path and arguments.
 LOADEXEC_EXIT = 30
+
+
+def job_sleep_enabled():
+    """JOB_SLEEP_PATCHES: on unless UNCHARTED_JOB_SLEEP=0 (launcher: Idle game threads -> Spin).
+    Spinning job threads starve 4-6 core CPUs (GPU thread 5% of a core), heat laptops and, on a
+    16-core desktop, used about 4 more cores for 2% fewer FPS."""
+    return os.environ.get("UNCHARTED_JOB_SLEEP", "auto").strip().lower() not in ("0", "off", "no")
 
 
 def apply_patches(image, patches):
@@ -370,6 +503,20 @@ def run_game(args, game, executable, guest_args, loadexec):
     patches = list(PATCHES[executable])
     if executable == "big2-ps4_Shipping.elf" and os.environ.get("UNCHARTED_TORCH_FORWARD", "1") != "0":
         patches.extend(TORCH_FORWARD_PATCHES)
+    if os.environ.get("UNCHARTED_AIM_RANGE", "1") != "0":
+        patches.extend(AIM_RANGE_PATCHES.get(executable, []))
+    if os.environ.get("UNCHARTED_FRAME_WAIT", "1") != "0":
+        patches.extend(FRAME_BEGIN_WAIT_PATCHES.get(executable, []))
+    if os.environ.get("UNCHARTED_FOCUS_RESET", "1") != "0":
+        patches.extend(FOCUS_NAN_PATCHES.get(executable, []))
+    if job_sleep_enabled():
+        patches.extend(JOB_SLEEP_PATCHES)
+        # Diagnostics: UNCHARTED_JOB_SLEEP_SPINS=<n> idle spins before a worker sleeps (1000).
+        if spins := os.environ.get("UNCHARTED_JOB_SLEEP_SPINS", "").strip():
+            patches.append(("idle job workers: spins before sleeping", [
+                ("4d8d7001 807f5900 ???? 4981f8e8030000 7c??", 13, bytes.fromhex("e8030000"),
+                 int(spins).to_bytes(4, "little")),
+            ]))
     apply_patches(out / "boot-linked.bin", patches)
     # Settings per game (the launcher keeps them apart): the started game's own, also when the
     # Collection menu switches games.
@@ -387,6 +534,11 @@ def run_game(args, game, executable, guest_args, loadexec):
         # ~1620p it renders at the largest size that fits there, and the output is upscaled.
         move = executable != "eboot.bin"
         candidates = [(width, height)] + [size for size in U1_FALLBACK_SIZES if size[0] * size[1] < width * height]
+        if abs(width / height - 16 / 9) > 0.01:
+            # Ultrawide: smaller sizes of the same shape (width/8 and height/4 whole).
+            candidates = [(width, height)] + [
+                (int(width * scale) // 8 * 8, int(height * scale) // 4 * 4)
+                for scale in (0.9, 0.8, 0.75, 2 / 3, 0.6, 0.5)]
         extra_mib = 0
         for candidate in candidates:
             patched = bytearray(data)
@@ -426,7 +578,8 @@ def run_game(args, game, executable, guest_args, loadexec):
     # Keyboard and mouse (launcher Controls tab, per game; explicit GOW3_* values win).
     for launcher_key, runtime_key in (("KEY_MAP", "GOW3_KEY_MAP"), ("MOUSE_MAP", "GOW3_MOUSE_MAP"),
                                       ("MOUSE", "GOW3_MOUSE"), ("MOUSE_SENS", "GOW3_MOUSE_SENS"),
-                                      ("MOUSE_INVERT", "GOW3_MOUSE_INVERT")):
+                                      ("MOUSE_INVERT", "GOW3_MOUSE_INVERT"), ("PROMPTS", "GOW3_PROMPTS"),
+                                      ("PAD_MAP", "GOW3_PAD_MAP")):
         value = os.environ.get(f"UNCHARTED_{launcher_key}_{game_key.upper()}")
         if value is not None and runtime_key not in os.environ:
             env[runtime_key] = value
@@ -445,14 +598,42 @@ def run_game(args, game, executable, guest_args, loadexec):
     # back with the submission it arrived a frame late, and NPCs floated in the air while Nate's
     # feet sank into the floor (also in 0.1.1 and other ports). It now comes back at the frame's
     # end-of-pipe fence, which waits for it (16 Oct; precise readbacks fixed it too, at ~50 FPS).
-    if executable == "big2-ps4_Shipping.elf":
+    # 17 Oct: Uncharted 3 too (user: Nate's legs flicker a little, NPCs float a bit; the same
+    # engine and copy shader). Two 90 s U3 runs at 1440p: stable, 56-58 FPS.
+    if executable in ("big2-ps4_Shipping.elf", "big3-ps4_Shipping.elf"):
         env.setdefault("GOW3_COPY64_EOP_READBACK", "1")
+    if executable == "big2-ps4_Shipping.elf":
         # Its aim depth of field reads the focus distance from a 1x1 render target the GPU writes;
         # never copied back it stayed 0 and everything behind Nate was blurred while aiming. Tiny
         # GPU-written images now come back with the frame's end-of-pipe fence (16 Oct). Drake's
         # Fortune and Uncharted 3 aim sharp without it, so they skip the copy and the wait.
         env.setdefault("GOW3_TINY_IMAGE_READBACK", "1")
-    env["GOW3_UPSCALER"] = "none"
+    # Temporal anti-aliasing (in-game menu -> Image: TAA, FSR 3.1/FSR 4 Native AA, DLAA) at the
+    # render size, as in the reference Uncharted port (docs: analysis/STATUS.md): the camera comes
+    # from the motion blur's camera velocity pass (shader f4b18264; all three games share the post
+    # processing), and the anti-aliasing runs on the lit scene before the post processing starts
+    # (compute aec539f0). UNCHARTED_TEMPORAL_AA=0 switches it off (no camera tracking at all).
+    if os.environ.get("UNCHARTED_TEMPORAL_AA", "1") == "0":
+        env["GOW3_UPSCALER"] = "none"
+    else:
+        env.setdefault("GOW3_VELOCITY_PS", "f4b18264")
+        env.setdefault("GOW3_UPSCALE_BEFORE_CS", "aec539f0")
+        env["GOW3_SCENE_SIZE"] = f"{render_size[0]}x{render_size[1]}"
+        # FSR 4's model files (gow3_pc/tools/fetch_fsr4_assets.sh), when installed; DLAA needs
+        # gow3_dlss.dll and nvngx_dlss.dll beside Uncharted.exe.
+        fsr4 = ROOT / "gow3_pc/fsr4_shaders"
+        if fsr4.is_dir():
+            env.setdefault("GOW3_FSR4_DIR", str(fsr4))
+        # The renderer's own default is FSR 3; here it starts off until it is picked.
+        config = Path(env["GOW3_CONFIG"])
+        if ini_value(config, "upscaler", None) is None:
+            try:
+                text = config.read_text(encoding="utf-8", errors="replace") if config.exists() else ""
+                if text and not text.endswith("\n"):
+                    text += "\n"
+                config.write_text(text + "upscaler=off\n", encoding="utf-8")
+            except OSError:
+                env.setdefault("GOW3_UPSCALER", "off")
     if extra_mib:
         env["GOW3_DMEM_MB"] = str(5056 + extra_mib + 64)
     # The movie player reads its (1080p) movies with the render size: the decoder scales them to it

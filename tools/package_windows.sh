@@ -74,6 +74,22 @@ done
     "$pacman" -Qi "${packages[@]}" | awk '/^Name /{print ""} /^(Name|Version|Licenses|URL) /{print}'
 } > "$licenses/THIRD-PARTY.txt"
 
+# DLAA and FSR 4 Native AA (tools/fetch_aa_files.sh), when fetched: NVIDIA's DLSS DLL and the
+# bridge under their own licenses, and the FSR 4 native model. Without them the menus leave the
+# two out.
+if [[ -f gow3_pc/out/gow3_dlss.dll && -f gow3_pc/out/nvngx_dlss.dll ]]; then
+    cp gow3_pc/out/gow3_dlss.dll gow3_pc/out/nvngx_dlss.dll "$stage/gow3_pc/out/"
+    mkdir -p "$licenses/nvidia-dlss" "$licenses/gow3-dlss-bridge"
+    cp downloads/dlss-sdk-*/LICENSE.txt "$licenses/nvidia-dlss/LICENSE.txt"
+    cp gow3_pc/gpu/dlss_bridge/LICENSE.txt "$licenses/gow3-dlss-bridge/LICENSE.txt"
+fi
+if [[ -f gow3_pc/fsr4_shaders/fsr4_model_v07_i8_native_1080_pre.spv ]]; then
+    mkdir -p "$stage/gow3_pc/fsr4_shaders" "$licenses/fsr4"
+    cp gow3_pc/fsr4_shaders/LICENSE-FSR4-v07.txt gow3_pc/fsr4_shaders/*.spv gow3_pc/fsr4_shaders/*.bin \
+        gow3_pc/fsr4_shaders/*.json "$stage/gow3_pc/fsr4_shaders/"
+    cp gow3_pc/fsr4_shaders/LICENSE-FSR4-v07.txt "$licenses/fsr4/"
+fi
+
 "$python_home/python.exe" tools/copy_python.py "$python_home" "$stage/python"
 # Python's own license is python\LICENSE.txt; Pillow's goes with the others.
 for file in "$python_home"/Lib/site-packages/pillow-*.dist-info/licenses/* \

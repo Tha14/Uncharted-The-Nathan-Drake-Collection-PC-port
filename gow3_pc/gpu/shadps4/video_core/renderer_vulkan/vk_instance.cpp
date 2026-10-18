@@ -560,10 +560,16 @@ bool Instance::CreateDevice() {
         return false;
     }
 
-    static constexpr std::array queue_priorities = {1.0f};
+    // gow3 17 Oct 2026: a second queue of the same family for small urgent copies of finished GPU
+    // data (BufferCache::CopyFinishedGpuPage): they wait for the work that wrote the data only,
+    // not for the frame queued behind it on the main queue.
+    static constexpr std::array queue_priorities = {1.0f, 1.0f};
+    const u32 queue_count =
+        std::min<u32>(static_cast<u32>(queue_priorities.size()),
+                      family_properties[queue_family_index].queueCount);
     const vk::DeviceQueueCreateInfo queue_info = {
         .queueFamilyIndex = queue_family_index,
-        .queueCount = static_cast<u32>(queue_priorities.size()),
+        .queueCount = queue_count,
         .pQueuePriorities = queue_priorities.data(),
     };
 
@@ -827,6 +833,9 @@ bool Instance::CreateDevice() {
 
     graphics_queue = device->getQueue(queue_family_index, 0);
     present_queue = device->getQueue(queue_family_index, 0);
+    if (queue_count > 1) {
+        copy_queue = device->getQueue(queue_family_index, 1);
+    }
 
     if (calibrated_timestamps) {
         const auto [time_domains_result, time_domains] =

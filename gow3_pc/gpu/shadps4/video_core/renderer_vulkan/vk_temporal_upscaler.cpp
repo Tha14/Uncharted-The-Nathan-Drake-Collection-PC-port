@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <tuple>
 
 #include <vk_mem_alloc.h>
 
@@ -162,13 +163,14 @@ TemporalUpscaler::TemporalUpscaler(const Instance& instance_, Scheduler& schedul
     : instance{instance_}, scheduler{scheduler_}, texture_cache{texture_cache_},
       runtime{runtime_}, camera_motion{camera_motion_}, scene_targets{scene_targets_} {
     // Reject unsupported shaders before allocating resources or recording a frame.
-    Gow3Settings::ConfigureUpscalerSupport(instance.IsFsr4Int8Supported(),
-                                         instance.IsFsr411Supported());
+    Gow3Settings::ConfigureUpscalerSupport(
+        instance.IsFsr4Int8Supported() && Fsr4Upscaler::AssetsPresent(),
+        instance.IsFsr411Supported());
     fsr4 = std::make_unique<Fsr4Upscaler>(instance, scheduler);
     {
         const Dlss* dlss = Dlss::Get();
         static std::string problem;
-        problem = !dlss ? "gow3_dlss.dll and nvngx_dlss.dll are not installed"
+        problem = !dlss ? "not installed (DLSS files missing)"
                         : dlss->Problem();
         Gow3Settings::ConfigureDlssSupport(dlss && dlss->Available(), problem.c_str());
     }
@@ -210,6 +212,7 @@ TemporalUpscaler::TemporalUpscaler(const Instance& instance_, Scheduler& schedul
         std::printf("Upscaler: shaderStorageImageWriteWithoutFormat unsupported, FSR 3 off\n");
         enabled = false;
     }
+    Gow3Settings::Get().temporal_aa_available = enabled && trigger_hash != 0;
     if (enabled) {
         std::printf("Upscaler: FSR 3.1 available (%s) on scene color before compute shader "
                     "%016llx\n",
@@ -291,12 +294,17 @@ bool TemporalUpscaler::OnFrameStart() {
     const auto& settings = Gow3Settings::Get();
     // The guest's startup resolution patch remains in effect until restart. Keep the FSR
     // model at the applied preset while the menu saves the requested one for run.sh.
-    const int preset = Gow3Settings::RenderPreset();
+    // Velocity mode (Uncharted) runs at the game's own (patched) size: anti-aliasing (Native AA)
+    // only, as in the reference port.
+    const int preset = camera_motion.VelocityMode() ? 0 : Gow3Settings::RenderPreset();
     if (applied_preset != preset || settings.upscaler == Gow3Settings::UpscalerOff) failed = false;
     const bool active = Active();
     const bool jitter_on = active && settings.jitter && !Gow3Toggle::Disabled(1u << 25);
     const int upscaler = settings.upscaler.load();
-    const int output = settings.output_res.load();
+    // Velocity mode keeps the native output (Scaled() false); the game's patched render size
+    // (1440p, ultrawide) reaches the native path through the images' own sizes.
+    const int output =
+        camera_motion.VelocityMode() ? Gow3Settings::OutputDefault : settings.output_res.load();
     const bool output_changed = !scaled_session && applied_output != output;
     if (output_changed) {
         target_width = Gow3Settings::OutputWidths[output];
@@ -363,6 +371,14 @@ void TemporalUpscaler::OnDispatch(u64 cs_hash) {
     }
     done_this_frame = true;
     if (!scene_color || !camera_motion.Ready() || !Active()) {
+        // gow3: why the trigger passed without running (first few times; diagnosis).
+        static int reported = 0;
+        if (camera_motion.VelocityMode() && Active() && reported < 3) {
+            ++reported;
+            std::printf("Upscaler: not run (scene color %d, depth %d, camera %d)\n",
+                        int(bool(scene_color)), int(bool(camera_motion.Depth())),
+                        int(camera_motion.Ready()));
+        }
         reset = true;
         return;
     }
@@ -1068,7 +1084,11 @@ void TemporalUpscaler::Run() {
     own_barrier(vk::Image(output_image), vk::ImageLayout::eUndefined, all,
                 vk::AccessFlagBits2::eNone, vk::ImageLayout::eGeneral, all, rw);
 
-    camera_motion.RecordMotion(cmdbuf, input_depth_view, *motion_view, w, h);
+    if (camera_motion.VelocityMode()) {
+        camera_motion.RecordVelocity(cmdbuf, input_depth_view, *motion_view, w, h);
+    } else {
+        camera_motion.RecordMotion(cmdbuf, input_depth_view, *motion_view, w, h);
+    }
     own_barrier(vk::Image(motion_image), vk::ImageLayout::eGeneral,
                 vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderWrite,
                 vk::ImageLayout::eGeneral, all, vk::AccessFlagBits2::eShaderRead);
@@ -1134,7 +1154,7 @@ void TemporalUpscaler::Run() {
         info.frameTimeMilliseconds = frame_ms;
         info.preExposure = 1.0f;
         info.cameraNear = camera_motion.Near();
-        info.cameraFar = 3000.0f;
+        info.cameraFar = camera_motion.VelocityMode() ? 10000.0f : 3000.0f;
         info.cameraVerticalFovRadians = camera_motion.VerticalFov();
         info.viewSpaceToMeters = 1.0f;
         // RCAS strength 0..1 (menu, GOW3_FSR_SHARPNESS); jitter at 1:1 softens the image slightly.
@@ -1169,6 +1189,20 @@ void TemporalUpscaler::Run() {
         dispatched_last_frame = true;
         if (Gow3Settings::Get().upscaler != Gow3Settings::UpscalerTaa) {
             ExtraSharpen(cmdbuf, vk::Image(output_image), false, ow, oh);
+        }
+        // gow3: GOW3_DUMP_TRIGGER also dumps native anti-aliasing (Uncharted): its input, motion
+        // vectors, result and depth, before the result replaces the scene color.
+        if (const int dump = DumpFrame(); dump >= 0) {
+            DumpImages(instance, scheduler, cmdbuf, dump,
+                       {{input_color, w, h, 8, "input", "rgba16f"},
+                        {vk::Image(motion_image), w, h, 4, "motion", "rg16f"},
+                        {vk::Image(output_image), ow, oh, 8, "output", "rgba16f"}});
+            if (depth_format == vk::Format::eD32SfloatS8Uint ||
+                depth_format == vk::Format::eD32Sfloat) {
+                DumpImages(instance, scheduler, cmdbuf, dump,
+                           {{input_depth, w, h, 4, "depth", "f32",
+                             vk::ImageAspectFlagBits::eDepth}});
+            }
         }
         // The result replaces the scene color's RGB (its alpha carries data for the post).
         own_barrier(vk::Image(output_image), vk::ImageLayout::eGeneral, all, rw,
@@ -1602,7 +1636,11 @@ void TemporalUpscaler::RunScaled() {
     barrier(vk::Image(motion_image), vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined,
             all, vk::AccessFlagBits2::eNone, vk::ImageLayout::eGeneral,
             vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderWrite);
-    camera_motion.RecordMotion(cmdbuf, depth_view, *motion_view, w, h);
+    if (camera_motion.VelocityMode()) {
+        camera_motion.RecordVelocity(cmdbuf, depth_view, *motion_view, w, h);
+    } else {
+        camera_motion.RecordMotion(cmdbuf, depth_view, *motion_view, w, h);
+    }
     barrier(vk::Image(motion_image), vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eGeneral,
             vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderWrite,
             vk::ImageLayout::eGeneral, all, vk::AccessFlagBits2::eShaderRead);

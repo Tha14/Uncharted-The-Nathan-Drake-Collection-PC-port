@@ -26,6 +26,15 @@ std::string AssetDir() {
     return dir && dir[0] ? dir : "fsr4_shaders";
 }
 
+} // namespace
+
+bool Fsr4Upscaler::AssetsPresent() {
+    std::ifstream file(AssetDir() + "/fsr4_model_v07_i8_native_1080_pre.spv", std::ios::binary);
+    return bool(file);
+}
+
+namespace {
+
 bool ReadFile(const std::string& path, std::vector<u8>& data) {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file) {

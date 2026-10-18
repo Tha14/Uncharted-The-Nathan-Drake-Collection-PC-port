@@ -829,3 +829,285 @@ Plan and test list: analysis/PLAN.md.
 - GitHub: #1 (U3 crash) and #4 (U1 crash after the boat scene, v0.1.1; user-tested fixed) answered
   and closed.
 
+
+## 17 October 2026 (night): U3 Sully cloth flicker FIXED (my tests, not yet user-confirmed)
+
+- **Cause:** cloth solver cs 1c957b01 (1024-thread groups, 2 KiB LDS) does warp-synchronous LDS
+  reductions (no s_barrier between steps inside one 64-lane wave). shadPS4 only inserts LDS barriers
+  for groups of exactly 64 threads; on 32-lane subgroups (NVIDIA) the wave's halves race. The game
+  picks the cloth sub-step count from dt (cb#1 dword 160: 2 at 40-60 FPS, 3 at 30): with 2, every
+  dispatch with sane input exploded (alternating frames). Proof: AMD iGPU (GOW3_GPU_ID=1, wave64,
+  GOW3_TIME_SCALE=3 to get 2 sub-steps at 15 FPS) never exploded.
+- **Fix (shared_memory_barrier_pass.cpp):** MultiwaveLdsBarriers(hash) (default 1c957b01;
+  GOW3_LDS_BARRIERS_MULTIWAVE=0/1/hex list) runs the barrier insertion for multi-wave groups on
+  32-lane GPUs with a stricter uniformity test (IsGroupNonUniform), skips shaders with an early
+  Return, and only puts merge-block barriers after ifs/loops that access LDS. Without that last
+  rule NVIDIA hung (m_gfxEopTick) on a barrier in a loop without LDS ops that the dispatches never
+  entered (found by bisecting with GOW3_LDS_BARRIER_SITES). Cached SPIR-V of listed shaders is
+  named <hash>_<perm>_lds1, so old caches recompile only them.
+- **Result:** 0 of ~1200 dispatches exploded (was ~50%), 0 flicker frames in 40 shots, 60 FPS, with
+  the user's shader cache. GOW3_LDS_BARRIERS_MULTIWAVE=1 (all 12 U3 LDS shaders, 84 sites) also ran
+  clean, not adopted (U1/U2 untested). U2 60 s check unchanged (60 FPS, no errors).
+- Diagnostics added: GOW3_LOG_LDS, GOW3_LDS_BARRIER_SITES, GOW3_CLOTH_PEEK, GOW3_TIME_SCALE (all
+  guest clocks), GOW3_DUMP_CS_CONST.
+
+## 17 October 2026 (night, 02:30-04:40): low-end PCs
+
+- **Weak-PC simulation:** AMD iGPU (GOW3_GPU_ID=1, about a quarter of a PS4 GPU), 720p, game
+  process affinity 0x55 (4 cores). Per-thread CPU with names: runtime now sets Windows thread
+  descriptions for guest threads; scratchpad threadcpu.ps1 (OpenThread 0x40 + GetThreadDescription).
+- **Found:** the six NdJobWorkerThreads spin with `pause` when idle (U3 worker loop 0xda6470): the
+  job manager's sleep flag (byte +0x59, SetSleepMode 0xd96440, set on by the game once, off in four
+  places) is off. 4 cores: 390% of 400% CPU, GPU thread 5%; U3 title 19-27 FPS on the RTX 5080,
+  level 5-7 FPS on the iGPU.
+- **Fix:** tools/probe_uncharted.py JOB_SLEEP_PATCHES (3 pattern patches, same bytes in U1/U2/U3
+  1.02): the worker loop, its re-check before waiting and the submit path treat the flag as on, so
+  an idle worker waits on the manager's condvar after 1000 spins (10 ms timeout) and every submit
+  broadcasts. UNCHARTED_JOB_SLEEP=1/0, default auto = laptops (GetSystemPowerStatus battery) or
+  <= 12 logical CPUs; launcher Performance -> Idle game threads (Auto/Sleep/Spin).
+  UNCHARTED_JOB_SLEEP_SPINS=<n> (diagnostics) changes the 1000.
+- **Results:** 4 cores: U3/U1 title and level 60 FPS, 1-1.5 cores used; iGPU + 4 cores U3 level
+  27.5 FPS (5-7 before; now GPU-bound, the iGPU is ~4x slower than a PS4). 32 threads, Sleep: U2
+  heavy spot uncapped 76.5 -> 78.2 FPS. MT rendering on 4 fast cores: 72-75 off vs 69-72 on.
+- **Garbage resource tables:** 1 of 11 four-core Sleep runs stopped with "Thread ID buffer
+  addressing is not supported outside of compute" after SRT walker faults at -1 pointers; also
+  seen with GOW3_FINISH_AT_FLIP=1 (reproduces it about every second run: VS d5cdb3af walked a
+  table of -1 pointers, a draw of 38d69960 compiled from a garbage V#) and GOW3_SYNC_GPU_CONSTANTS=0.
+  The GPU thread's own walk reads it, so the table changed before that thread got there; the game's
+  frame recycling (FrameBegin N-3, PrepareNewRenderFrame N-32 m_gfxEopTick checks) is frame-based
+  and fine. Root cause open. Now tolerated: resource_patching_pass ignores add_tid outside compute
+  (logs the shader); the walker fault handler skips the faulting load (register 0) the first 16
+  times per instruction instead of patching it to 0 for good (logs "SRT walk fault: shader ...
+  user data ..."). With FINISH_AT_FLIP the game kept running at 57 FPS through them.
+- **GPU thread:** Rasterizer::IsMapped keeps 4 per-thread mapped intervals (generation bumped on
+  unmap): SyncSrtTables 12.1% -> 6.5% of the GPU thread, idle 14.8% -> 19.9% (U3 street, 60 FPS).
+- **iGPU limits left:** GPU thread waits ~1.8 s per 5 s in synchronous drains (DownloadMemory
+  scheduler.Finish, CompleteReadbacks), ray-cast fences 30 ms late, ~27k write faults/5 s in the
+  cloth window 0x1110100000, treasure cs 8f067540 dispatched 422x/frame (1x1x1 groups).
+- **Garbage tables, more data (04:15):** a fault report (Rasterizer::ReportSrtFault, runs after a
+  walk that faulted: every table of the walk, now and 3 ms later) with 4 cores + Sleep +
+  GOW3_FINISH_AT_FLIP=1: VS d701fef2 / e467c702 user data point at 0x1027008f40 / 0x1027008fc0,
+  which hold floats (constants), not the expected pointer table; unchanged 3 ms later. So the
+  draw's user-data pointer refers to per-frame memory the game had already reused when the lagging
+  GPU thread got to the draw (not a table being written during the walk). CE/DE counters are
+  stricter than hardware (the CE waits whenever it is ahead), so not a constant-RAM ring overrun.
+  Next: which fence lets the game recycle 0x1027xxxxxx early (compute-queue EOPs processed ahead
+  of graphics? deferred labels?).
+- **Job sleep default (04:30):** on for every PC (UNCHARTED_JOB_SLEEP=0 / launcher Spin turns it
+  off). 3 x 2 min U3 on all 32 threads with Sleep: no walker faults, 60 FPS, 2.2-2.6 cores in all
+  (6.4 with Spin, U1).
+- **GPU_WAIT_PATCH loop (U3 0xe5f610):** submits each entry's command buffers and, only when a
+  flag byte (+0x34 of a global at 0x18c6280-ish) is set, spins until the entry's label (+0x20)
+  equals the expected value with the 2 s timeout we NOP. Not the per-frame wait; FrameBegin's
+  m_gfxEopTick check relies on something else. Open lead for the early-recycling question.
+
+## 17 October 2026 (day): cloth fix for both solvers, 4K CPU work, MT compute fences
+
+- **U3 Sully shirt (third step):** the 128-thread solver cs 809864d3 has the same convergence loop
+  as 1c957b01 (exit condition read from lds[0], rewritten at the top of the next pass; 17 barriers
+  in the loop without the barrier-region rule, 47 in 1c957b01 with it). BarrierRegionShader default
+  now {1c957b01, 809864d3}, cache suffix _lds4 (vk_pipeline_serialization.cpp). The earlier
+  "809864d3 hangs with the rule" came from a GOW3_DUMP_SHADERS run that stalled before 809864d3 was
+  even compiled. With the rule: 29 sites, no hang standing or walking. Diagnostics:
+  GOW3_CLOTH_TRACE=1 (who reads the solvers' outputs, missed-barrier check; no GPU copies, unlike
+  GOW3_CLOTH_PEEK, whose copies add sync points), "Cloth outlier"/"Cloth jumps" lines (the cloth is
+  body-local, |x| ~2, so the old >1e4 test never fired). Chain: solver s6 + previous s29 -> skinning
+  cs 7d7e7206 -> draws; every solver -> 7d7e7206 read had a barrier.
+- **Static ranges (buffer_cache.cpp UseArenaForStatic):** U3's crowd skinning cs 8f067540 (~1,470
+  dispatches/frame) reads 5 static mesh arrays per character (1-8 KB); the stream path (<= 16 KB,
+  read-only) re-copied them on every bind: ~790k copies/s, 12 GB/5 s (GOW3_STREAM_STATS=1). A range
+  >= 1 KiB bound in 3 submissions now lives in the arena (CPU write tracking; demoted for good once
+  CPU-modified); clean ranges take a fast path (GetArena only); tracked in 64 KiB pieces in the
+  barrier tracker. Never where the runtime writes through the backing view (labels, readback
+  landings, image downloads: MemoryManager::BackingWritten bitmap), where GPU data may share the
+  pages (MayBeGpuWritten), or in kept-writable fiber stacks. GOW3_STATIC_BUFFERS=0 off.
+- **Compute RELEASE_MEM fences:** the plain store faulted on pages with GPU data and the fault
+  fetched old GPU bytes on the second queue, waiting for the GPU (~1.7 ms, ~40/s, 6% of U3's GPU
+  thread; found with GOW3_FAULT_STATS write RIPs). Now through TryWriteBacking + NoteLabelWrite when
+  MayBeGpuWritten(page) (PM4CmdReleaseMem::SignalFence(irq, gds, write_mem)); unconditional
+  bookkeeping cost U2 (~45k releases/s) 4%.
+- **Other GPU-thread cuts:** compute dispatches merge overlapping/adjacent bound ranges before the
+  barrier tracker (ResetBindings; draws keep the old path, the sort cost U1/U2 3-4%); lock-free
+  64 KiB GPU-window bitmap before the GPU-written range set's lock (SRT walk); equeue notify only
+  when an event becomes pending and a thread waits (m_waiters).
+- **Multithreaded rendering:** RunComputeReleaseMem on stage B defers the fence through
+  SignalAfterHostCopies like end-of-pipe fences (NoteLabelWrite on stage B; the callback writes the
+  value and raises the interrupt).
+- **Results, 4K, fps_limit 120 (RTX 5080 / 9950X3D):** U3 checkpoint 63.9 -> 79, crowd 68.9 -> 90;
+  U2 museum spot 84 -> 99; U1 94.5 -> 101. MT: U3 100.5, U2 118, U1 117. 4 cores, 1080p: U3 ST 90,
+  MT 120 (cap). 5-minute U3 soaks at 1440p/60 (Spin), ST and MT: no errors.
+- **Rejected:** same-submission stream copy reuse (12% hits, slower; GOW3_STREAM_REUSE=1),
+  splitting the copy batch at fences (GOW3_COPY_SPLIT_KB), GpuRangesAdd memo (no gain).
+- **Open:** U3 on the AMD iGPU (GOW3_GPU_ID=1) stops flipping 0-35 s into the level; also with the
+  04:13 build. Not: static ranges, equeue, host arenas, COPY64, job sleep, async shaders,
+  frames_queued 2. U1/U2 fine on the iGPU. lldb (scratchpad hangcatch.sh): GPU thread idle, no
+  deferred signals, main thread polling a job counter (guest 0xd975b0, from 0x566c89), workers
+  idle, frame submission thread idle (cond wait at guest 0xe5fb6b).
+
+## 17 October 2026 (evening): raw mouse look (U2/U3) and keyboard/mouse button icons (all games)
+
+- **Mouse look** (src/runtime_mouselook.c, installed by probe.c `install_mouse_look`): the entry
+  of each game's camera input function is patched with a jump to a stub that calls a handler with
+  (camera, look direction, stick). U3 0x4e42f0, U2 0x428f40 (image offsets, 1.02): yaw rotates the
+  look vector about +Y, pitch goes through the game's own step function (U3 0x100ef90 on
+  camera+0x7750, pitch at +0x7874; U2 0x4288d0, pitch at +0x9e60), scaled so a count turns the
+  same angle both ways. 0.0011 rad/count x GOW3_MOUSE_SENS. U1 not done: its camera reads the stick
+  through 0xb7430 (input at params+0x10, right X +8, Y +0xc); caller 0xb62a5 (vtable+0x98).
+- **Button icons** (gpu/shim/gow3_prompts.cpp): all three games draw the button icons in their
+  text from one symbol font, data/fonts/ps4/symbol3.fnt (BMFont text, 32 glyphs, 512x512 atlas;
+  text tags like |X| |T| |move| map to glyphs; 1-30 and 40-49 are two drawings of the buttons).
+  The atlas is a CPU-written R8G8B8A8 1D-tiled image (tile mode 13: 8x8 tiles in rows, Z order
+  inside, verified against a texture-cache dump). U1/U2: one RGBA texture; U3: colour (alpha 0)
+  and a separate alpha texture (grey in RGB). Recognised in TextureCache::RefreshImage by the XXH3
+  of the guest data (U1 ad5ada34fd34c76b, U2 97779d0906f16551, U3 8d03f2ff457f032d +
+  ae0c06306763d424); while keyboard/mouse icons are on, a redrawn linear atlas uploads instead
+  (key caps from stb_truetype SDFs of the embedded DejaVu Sans, mice as analytic SDFs; cells not
+  redrawn, e.g. Share, keep the original). runtime_pad.c publishes the labels from the live
+  bindings (L2/R2 prefer the mouse) and the device used last (pad buttons, sticks past half way,
+  triggers vs mapped keys, mouse buttons/movement); a switch calls TextureCache::InvalidateMemory
+  on the atlas, which re-uploads at its next use. GOW3_PROMPTS=auto|keyboard|controller (launcher
+  Controls -> Button icons), GOW3_PROMPTS_LOG=1 logs every 512x512 upload's hash.
+- Test aids: GOW3_PROMPTS_LABELS=1 (labels with keyboard/mouse off), pad-file tokens kbm / pad
+  (device use), GOW3_WINDOW_BACKGROUND=1 (window opens unfocused, behind other windows, never
+  raised), the presenter dump trigger's `size W H` line (every cached image of that size).
+- **In-world button pictures** (the Triangle beside a chest): separate BC1 pictures, 256x256 with
+  9 mips, 1D-tiled, stored upside down, colour textures masked by shared "trans" alpha textures
+  (hard circle, soft glow). Found with a texture-cache dump in the user's U3 session (presenter
+  trigger `size 256 256`), then all of them by scanning the paks for 1D-tiled BC1 images with a
+  uniform border (scratchpad pakscan.py): U3 hud.pak face buttons + L1/L2/R1/R2, U2 hud.pak and U1
+  pak19/particle.pak the same four face buttons (identical in U1 and U2). The game's data equals
+  the pak's for mip 0; the padded tiny mips differ (not deterministic), so they are recognised by
+  the XXH3 of mip 0. gow3_prompts.cpp decodes mip 0, flips it upright, keeps the button and glow,
+  paints over the symbol (face: inner disc; shoulder: the text box clipped to the button) and
+  draws the binding in the symbol's colour (a mouse for mouse buttons), re-encodes every mip to
+  BC1 (principal-axis endpoints, punch-through kept) and uploads linear mips. Offline check:
+  scratchpad prompts-test.exe (gow3_prompts.cpp built with GOW3_PROMPTS_TEST) + runpics.sh.
+- **Controller icons:** label set 1 for non-PlayStation controllers (SDL_GetGamepadType; letters
+  from SDL_GetGamepadButtonLabel, so Nintendo pads get theirs): A/B/X/Y in Xbox colours (pictures
+  recoloured), LB/RB, LT/RT, LS/RS, Menu, View; PlayStation pads keep the game's icons. Device 0/1/2
+  = PlayStation / keyboard / drawn controller; GOW3_PROMPTS adds playstation and xbox.
+- **U1 mouse look** (0xb7430 orbit camera, stick-equivalent injection) is behind
+  GOW3_MOUSE_LOOK_U1=1 until tested; GOW3_MOUSE_LOOK_DEBUG=1 logs its inputs once a second.
+- **Not yet verified in game (17 Oct 21:47):** the in-world pictures and the controller icons
+  (only the offline redraw); the text icons are verified in U1/U2/U3. Not done: U2's shoulder
+  pictures (not found by the scan), the stick and d-pad pictures.
+- **Corrected picture hashes + HOLD pictures (17 Oct 23:37):**
+  - The pak scan's 32-byte aligned start offsets were up to 24 bytes late, so the first U1/U2 face hashes were wrong. The scan now walks back to the first border block.
+  - Triangle, Circle and Square are the same in all three games (5db884aa…, 7af1abf6…, 9edd4f2f…). Cross differs: U1/U2 2bf5d90e…, U3 305c2c73….
+  - The flat "HOLD" buttons are 512x512 BC1 pictures with two press positions. They were found live in the user's U2 session with the new dump-trigger lines `max W H` and `range LO HI` (up to 256 images, any format), and they match U2 hud.pak 0x828c98.
+  - The HOLD Triangles are now swapped: U1/U2 25d954ce… and c96e34fb…, U3 4181f3ae… and 07ff3d0e….
+  - The redraw covers the symbol out to its farthest saturated texel, so the old symbol's tip no longer shows.
+  - Still the game's own: the U3 HOLD Circle/Square (decode garbled), the U1 shoulder HOLD pictures, and the U2 HINT d-pad picture.
+
+## 18 October 2026 (night): FrameBegin m_gfxEopTick crash, aim sliders, in-game controls
+
+- **m_gfxEopTick (FrameBegin, fg-draw-mgr.cpp:234):** most reported crash (GitHub #11 is another
+  port's log; #12 x2 U1 RTX 3050/5060, #17 U3 RTX 3050, the user's U2 17 Oct 21:52). Logs show
+  40-55 ms stalls just before (compiles, GPU waits). The timestamp is not an EOP label: the game's
+  GPU event thread (ProcessGpuEvent, U2 0xc1e080, store at 0xc1e4cc) sets it on the end-of-pipe
+  interrupt after checking the frame marker (Data64 EOP, m_frameWriteBack). Not reproduced on the
+  desktop: held/lagged readbacks (GOW3_TEST_READBACK_HOLD/LAG), command thread stalls
+  (GOW3_TEST_CP_STALL), late timestamps or interrupts (GOW3_TEST_LATE_TIMESTAMP/IRQ) only slowed
+  the game (it waits); delaying 64-bit EOP data alone asserted m_frameWriteBack instead (test
+  artifact). Overtaking signals while a fence waits for its readback: one WRITE_DATA and one
+  flip interrupt per frame (GOW3_TEST_OVERTAKE_LOG). Fix: FRAME_BEGIN_WAIT_PATCHES (probe_uncharted.py,
+  all three games): the assert's 59-byte path becomes a pause loop until the timestamp is set (up
+  to 50M iterations), then continues. U2 with it: 59.6 FPS, no change in normal play.
+- Aim sliders: AIM_RANGE_PATCHES U1/U2 5x, U3 4x (bench-tested by poking the value and stepping
+  the slider). In-game Controls tab and controls in the settings file (see memory
+  project-ingame-controls).
+
+- **Hitch analysis (18 Oct night):** GOW3_PROFILE=<big> GOW3_PROFILE_STALLS=1 (and
+  GOW3_PROFILE_GUEST=NdJobWorkerThread) writes the stacks every profiled thread had during each
+  frame over 40 ms (dumps/stall_<n>_<thread>_stacks.txt). "Slow submit" (vkQueueSubmit > 8 ms),
+  "Slow shader compile" / "Slow shader wait" (> 8 ms on the GPU thread) are logged. Findings: the
+  game's job workers idle in hitches, the GPU command thread is the bottleneck: (1) compute
+  shaders translated on the GPU thread at first use because NVIDIA (pipeline binaries) used the
+  on-demand start without warm-up - fixed, background warm-up is the default now; (2) one
+  vkQueueSubmit held 70 ms in the NVIDIA driver (kernel calls) in U2; (3) streaming frames upload
+  ~115 MB of new images in one frame (resident/protect/image create ~16 ms). The user's 12.7 min U2
+  session: 12 hitches over 40 ms, 1 with compiles.
+- **Menu shortcut (GitHub #15):** Gow3Settings menu_shortcut (lt_r3 / view_menu / keyboard), in the
+  Controls tab; the menu title shows the current one.
+
+- **Draw distances (U2/U3):** debug-menu variables (dmenuvar2.py: item +0x38 = var, often
+  `mov eax, OFF; add rax, [slot]`): render settings U2 0x1247b40 / U3 0x18c6280 (+0x150 temporal
+  fade scale, +0x168 cutscene fade scale, +0x180 "Fade Distance Scale", +0x844 cascade fadeout),
+  light settings U2 0x1162820 / U3 0x1b3c130 (+0xc0 max sun shadow dist, +0xc8 point/spot, cascade
+  override and 4 distances at +0x218.. U2 / +0x190.. U3). Defaults 0.58 / 0.5 / 0.58, 40 m, 40 m.
+  src/runtime_gamesettings.c recognises them by those defaults and writes the menu's percentages
+  twice a second (Image tab, fade_distance / sun_shadow_distance / light_shadow_distance). Visible
+  effect not confirmed: the bench saves (U2 shop interior, U3 chapter 2 rooftops) show no change in
+  draws or screenshots; the user is to try them where pop-in shows.
+
+- **Ultrawide:** the render resolution patch (resolution_patch, display settings sizes) at a 21:9 or
+  32:9 size is all it takes: the games compute the projection from it (wider view, Hor+), the HUD
+  and pause menus lay out fine, the aim focus fix maps the crosshair box (0.3750 -> 0.5000).
+  Tested U1/U2/U3 at 2560x1080 and U1/U2 at 3440x1440 (60 FPS, no asserts). Launcher: Aspect ratio
+  (ASPECTS, aspect_resolution); probe_uncharted.py steps ultrawide sizes down in the same shape.
+
+- **Temporal anti-aliasing (18 Oct morning):** ported from reference/uncharted_pc_supermedo (GPL v2):
+  GOW3_VELOCITY_PS=f4b18264 (the motion blur's camera velocity pass, 960x540, same in all three
+  games) gives the camera: CameraMotion::OnVelocityConstants reads its constant buffer at the draw
+  (z = c9 / (depth - c8), view = (z (c0 u + c2), z (c1 v + c3), z), rows c12..c23 to world, c40..c55
+  previous clip x/y/w), camera_motion.comp mode 2 writes the motion vectors (pixels, previous minus
+  current). Scene depth = the frame's first pass at GOW3_SCENE_SIZE (probe_uncharted.py passes the
+  patched render size) that is depth-only or draws RGBA16F (U2 #0: D32S8 + RGBA16F 0x11478e0000).
+  GOW3_UPSCALE_BEFORE_CS=aec539f0: AA runs on the lit scene before the post. Native AA only
+  (preset 0, the upscaler's output stays its "native" 1920x1080 so Scaled() is false; the images'
+  own sizes carry 1440p/ultrawide). taa.comp's depth test gets the velocity camera too
+  (TaaDepthParameters: proj = (2/c0, -2/c1, c8, c9), previous view z = previous clip w row; the
+  reference left it zero, which rejects all history). Near = |c9/c8| (U2 0.24), vertical FOV =
+  2 atan(|c1|/2). The native path now dumps too (GOW3_DUMP_TRIGGER: input/motion/output/depth).
+  Measured (8-frame dumps, scratchpad taatest.sh + taaeval.py): top-5% flicker pixels U2 0.043 ->
+  0.019 (TAA) / 0.018 (FSR 3.1), U3 0.137 -> 0.050, U1 0.071 -> 0.038, U3 3440x1440 0.103 -> 0.042;
+  turning: motion +51 px/frame for a right turn, near zero on Nate (orbit pivot), no trails. RTX
+  5080 U2 4K: 120 FPS cap with TAA/FSR 3.1/off. Menu: Image -> Anti-aliasing (temporal_aa_available
+  set by the renderer); launcher Display -> Anti-aliasing (ini "upscaler", default off; probe adds
+  upscaler=off to a settings file without it, the renderer's own default being FSR 3).
+  FSR 4 needs gow3_pc/fsr4_shaders (native model; listed only when present). DLAA needs
+  gow3_dlss.dll (gpu/dlss_bridge, MSVC + NVIDIA DLSS SDK) and nvngx_dlss.dll beside Uncharted.exe.
+- **DLAA and FSR 4 (18 Oct, 08:00, downloads approved by the user):** tools/fetch_aa_files.sh
+  fetches the DLSS SDK v310.9.16 files (headers, nvsdk_ngx_s.lib, nvngx_dlss.dll: Authenticode
+  valid, NVIDIA Corporation) into downloads/ and builds the bridge with MSVC (Build Tools 2022, CMake
+  "Visual Studio 17 2022"; Vulkan headers copied alone from CLANG64), and the FSR 4 v07 INT8 native
+  model (1080/2160 tiers) into gow3_pc/fsr4_shaders. package_windows.sh ships them with
+  licenses/nvidia-dlss, gow3-dlss-bridge and fsr4; the workflow runs the script (continue-on-error).
+  Measured: DLAA U2 top-5% flicker 0.038 -> 0.013, no trails turning; FSR 4 U3 0.119 -> 0.050,
+  colours unchanged. RTX 5080 U2 4K: DLAA 84 FPS vs 120 off (GPU thread busy 99%: the model's
+  GPU time, preset 0 = NGX default).
+
+- **Cutscenes fast/out of sync above 60 FPS (user, U3, 18 Oct 08:30):** the movie player shows a
+  frame per vblank; GOW3_VBLANK_HZ=0 (480 Hz) with limit 120 sped it up. Fix after the reference
+  port: shim/videodec2 stamps Libraries::Videodec2::last_movie_frame_ns on each sceVideodec2Decode;
+  PresentThread (videoout/driver.cpp) gives 60 Hz vblanks and flips while a frame was decoded in
+  the last 300 ms (log "VideoOut: movie playing, 60 Hz vblank" / "movie ended"). The user's U3
+  session showed 64-75 FPS at ~350 draws/frame with the 480 Hz vblank. Built 08:36, awaiting the
+  user's test (they were playing; not bench-tested).
+
+- **U3 rooftop freeze (18 Oct, FIXED):** hangprobe.py (thread RIP histogram + user/kernel time +
+  register target protection) caught a guest thread 2.2-2.6 s of 3 in the kernel on `andq $-4,
+  0x28(%rbx)` (e5dfbd, a fresh 0xf2a0 ray-cast batch at 0x1023900000, page NOACCESS): a write
+  into a page a pending buffer readback read-protects (PageState::Perms: read watchers block
+  writes) found no GPU bytes under it and returned; nobody landed the (finished) readback
+  because only the GPU thread polls and it was idle waiting for the game (SubmitDone) -> fault
+  loop; other workers spun on the ray-cast lock (ea5fc0). Fix: page_manager.cpp counts
+  same-page faults per thread; 4 in a row on a read-watched page -> Rasterizer::ReleaseStuckPage
+  -> BufferCache::ReleaseStuckPage (on the GPU thread via SendCommand): PollReadbacksNow, else
+  CompleteReadbacks(true, newest) (submitted), else UnwatchPage. Logs "Stuck fault N: ...".
+  Rooftops: no freeze in 10+8 min (froze in 0.5-5 min before); ~32 events/s, nearly all
+  "waited for the GPU". Presenter frames-ahead wait now polls readbacks every 0.25 ms
+  (Semaphore::WaitFor; GOW3_POLL_WHILE_WAITING=0 off). GOW3_OPEN_RAYCAST_READBACKS=1 (opt-in):
+  ray-cast EOP results without page protection (no pacing gain measured).
+- **Frame pacing (18 Oct):** GOW3_FRAME_LOG=<file> logs guest flip submits (S) and presents (P);
+  scratchpad pace.py gives FPS/median/p99/1%/0.1% lows. The "75.0 FPS" seen at every 120-limit
+  setting was the user's 75 Hz monitor with VSync (FIFO): frames queued behind VSync and the
+  guest was held back in bursts (2-3 frames of 6 ms, one of 25-35 ms). Frames queued 2 and
+  multithreaded rendering did not change it (the GPU thread was 22-25% idle with 2). Fix
+  (videoout/driver.cpp PresentThread): in the unlocked mode (480 Hz vblank) with VSync and a
+  limit >= the display refresh (30-120 Hz, Gow3DisplayRefreshRate exact), the vblank and the
+  present slots follow the display; switching live. U3 rooftops and U2 museum at 120+VSync on
+  75 Hz: 75 FPS, present p99 14.8 ms, 1% low 66 (was 32 / 22), 0% over 20 ms. Limits 75/90/100
+  added. Also measured: SubmitDone -> WaitGpuIdle serializes guest submission with the GPU
+  thread (kept: the reference found heap corruption without it).
+

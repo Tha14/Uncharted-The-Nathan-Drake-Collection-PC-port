@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstdio>
 #include <mutex>
 #include <unordered_map>
 #include <boost/container/flat_map.hpp>
@@ -20,6 +21,9 @@
 #include "shader_recompiler/ir/ir_emitter.h"
 #include "shader_recompiler/ir/opcodes.h"
 #include "shader_recompiler/ir/passes/srt.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "shader_recompiler/ir/program.h"
 #include "shader_recompiler/ir/reg.h"
 #include "shader_recompiler/ir/srt_gvn_table.h"
@@ -135,6 +139,47 @@ static bool SrtWalkerSignalHandler(void* context, void* fault_address) {
            operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER &&
            operands[1].type == ZYDIS_OPERAND_TYPE_MEMORY);
 
+    // gow3 diagnostics: which shader and which user data led there (first faults only).
+    const auto report = [&] {
+        static int reported = 0;
+        if (const Shader::Info* walking = Shader::g_srt_walking; walking && reported < 24) {
+            ++reported;
+            std::string regs;
+            for (size_t i = 0; i < walking->user_data.size() && i < 16; ++i) {
+                regs += fmt::format(" {:08x}", walking->user_data[i]);
+            }
+            std::printf("SRT walk fault: shader %016llx (stage %u) fault %p; user data%s\n",
+                        static_cast<unsigned long long>(walking->pgm_hash),
+                        static_cast<unsigned>(walking->sw_stage), fault_address, regs.c_str());
+            std::fflush(stdout);
+        }
+    };
+#ifdef _WIN32
+    // gow3 17 Oct 2026: the patch below makes that load read 0 for good, so one walk of a table
+    // the game was still filling (a garbage pointer, seen once in Uncharted 3) broke the shader's
+    // resources for the rest of the session. The first faults at an instruction only skip the
+    // load this time (register 0); it is patched once it keeps faulting (a real null pointer).
+    {
+        static std::unordered_map<const void*, u32> faults;
+        constexpr u32 PatchAfter = 16;
+        CONTEXT* regs = reinterpret_cast<EXCEPTION_POINTERS*>(context)->ContextRecord;
+        const auto reg = operands[0].reg.value;
+        if ((reg == ZYDIS_REGISTER_RDI || reg == ZYDIS_REGISTER_R10D) &&
+            ++faults[code] <= PatchAfter) {
+            (reg == ZYDIS_REGISTER_RDI ? regs->Rdi : regs->R10) = 0;
+            regs->Rip += instruction.length;
+            Shader::g_srt_walk_faulted = true;
+            report();
+            static u32 logged = 0;
+            if (logged++ < 32) {
+                LOG_WARNING(Render_Recompiler, "Skipped SRT walker load at {}, fault address {}",
+                            code, fault_address);
+            }
+            return true;
+        }
+    }
+#endif
+
     size_t len = instruction.length;
     const size_t patch_size = 3;
     u8* code_patch = const_cast<u8*>(reinterpret_cast<const u8*>(code));
@@ -173,7 +218,7 @@ static bool SrtWalkerSignalHandler(void* context, void* fault_address) {
 
     LOG_WARNING(Render_Recompiler, "Patched SRT walker at {}, fault address {}", code,
                 fault_address);
-
+    report();
     return true;
 }
 

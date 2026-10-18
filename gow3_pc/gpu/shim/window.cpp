@@ -4,6 +4,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <SDL3/SDL.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "sdl_window.h"
@@ -14,10 +17,36 @@
 
 namespace Frontend {
 
+namespace {
+// GOW3_WINDOW_BACKGROUND=1 (scripted tests while the player uses the PC): the window opens
+// without the focus, behind the other windows, and is never raised.
+bool Background() {
+    static const bool background = [] {
+        const char* env = std::getenv("GOW3_WINDOW_BACKGROUND");
+        return env && env[0] == '1';
+    }();
+    return background;
+}
+void SendToBack(SDL_Window* window) {
+#ifdef _WIN32
+    if (void* hwnd = SDL_GetPointerProperty(SDL_GetWindowProperties(window),
+                                            SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr)) {
+        SetWindowPos(static_cast<HWND>(hwnd), HWND_BOTTOM, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+#else
+    (void)window;
+#endif
+}
+} // namespace
+
 WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}, height{height_} {
     // Exclusive fullscreen stays up when another window takes the focus (SDL minimizes it by
     // default; started from the launcher, the game window often starts without the focus).
     SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
+    if (Background()) {
+        SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0");
+    }
     // Gamepads are sampled by runtime_pad.c; their events are pumped here with the window's.
     if (!SDL_InitSubSystem(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
         UNREACHABLE_MSG("Failed to initialize SDL video: {}", SDL_GetError());
@@ -111,7 +140,11 @@ void WindowSDL::ApplyDisplayMode(int mode) {
         SDL_SetWindowFullscreen(window, true);
     }
     SDL_SyncWindow(window);
-    SDL_RaiseWindow(window); // the focus: keyboard input, and no minimized exclusive fullscreen
+    if (Background()) {
+        SendToBack(window);
+    } else {
+        SDL_RaiseWindow(window); // the focus: keyboard input, and no minimized exclusive fullscreen
+    }
     int w = 0, h = 0;
     SDL_GetWindowSizeInPixels(window, &w, &h);
     std::printf("Window: %s, %dx%d\n", Gow3Graphics::DisplayModeNames[mode], w, h);

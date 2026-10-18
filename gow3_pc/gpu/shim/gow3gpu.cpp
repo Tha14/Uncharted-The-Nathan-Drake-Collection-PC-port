@@ -12,6 +12,7 @@
 #include "gow3_toggles.h"
 #include <algorithm>
 #include <atomic>
+#include <memory>
 #include <condition_variable>
 #include <boost/asio/io_context.hpp>
 #include "common/polyfill_thread.h"
@@ -234,7 +235,42 @@ void MemoryManager::CopySparseMemory(VAddr source, u8* dest, u64 size) {
 bool MemoryManager::TryReadBacking(VAddr address, void* data, u64 size) {
     return runtime_memory_read_backing(address, data, size) != 0;
 }
+// gow3 17 Oct 2026: 64 KiB windows of the 40-bit guest address space written through the backing
+// view (labels, readback landings, image downloads): page tracking does not see these writes, so
+// the buffer cache keeps no arena copy of small read-only ranges there (UseArenaForStatic).
+namespace {
+constexpr u64 BackingWindowBits = u64(1) << 24;
+std::unique_ptr<std::atomic<u64>[]> g_backing_windows{new std::atomic<u64>[BackingWindowBits / 64]{}};
+} // namespace
+
+bool MemoryManager::BackingWritten(VAddr address, u64 size) {
+    if (size == 0) {
+        return false;
+    }
+    const u64 last = (address + size - 1) >> 16;
+    if (last >= BackingWindowBits) {
+        return true;
+    }
+    for (u64 w = address >> 16; w <= last; ++w) {
+        if (g_backing_windows[w >> 6].load(std::memory_order_relaxed) & (u64(1) << (w & 63))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool MemoryManager::TryWriteBacking(void* address, const void* data, u64 size) {
+    if (size) {
+        const VAddr addr = reinterpret_cast<VAddr>(address);
+        const u64 last = std::min<u64>((addr + size - 1) >> 16, BackingWindowBits - 1);
+        for (u64 w = addr >> 16; w <= last; ++w) {
+            auto& word = g_backing_windows[w >> 6];
+            const u64 bit = u64(1) << (w & 63);
+            if (!(word.load(std::memory_order_relaxed) & bit)) {
+                word.fetch_or(bit, std::memory_order_relaxed);
+            }
+        }
+    }
     Gow3WriteLog::Note(reinterpret_cast<uintptr_t>(address), data, size, Gow3WriteLog::Backing);
     return runtime_memory_write_backing(reinterpret_cast<uintptr_t>(address), data, size) != 0;
 }
@@ -248,6 +284,23 @@ std::mutex g_keep_writable_mutex;
 std::map<VAddr, VAddr> g_keep_writable; // page-aligned start -> end
 std::atomic<bool> g_keep_writable_any{false};
 } // namespace
+
+bool MemoryManager::KeptWritable(VAddr address, u64 size) {
+    if (!g_keep_writable_any.load(std::memory_order_relaxed)) {
+        return false;
+    }
+    std::scoped_lock lock{g_keep_writable_mutex};
+    auto it = g_keep_writable.upper_bound(address);
+    if (it != g_keep_writable.begin()) {
+        --it;
+    }
+    for (; it != g_keep_writable.end() && it->first < address + size; ++it) {
+        if (it->second > address) {
+            return true;
+        }
+    }
+    return false;
+}
 
 void KeepWritable(const void* address, u64 size, bool keep) {
     const VAddr start = reinterpret_cast<VAddr>(address) & ~VAddr(4095);
@@ -348,6 +401,14 @@ std::mutex g_window_mutex;
 std::condition_variable g_window_cv;
 bool g_window_ready;
 } // namespace
+
+double Gow3DisplayRefreshRate() {
+    static const double hz = [] {
+        const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
+        return mode && mode->refresh_rate > 0 ? double(mode->refresh_rate) : 0.0;
+    }();
+    return hz;
+}
 
 u32 Gow3DisplayRefreshHz() {
     static const u32 hz = [] {

@@ -1,4 +1,5 @@
 #include "gow3_mouse.h"
+#include "gow3_settings.h"
 
 #include <atomic>
 #include <chrono>
@@ -11,6 +12,9 @@ namespace {
 
 std::mutex mutex;
 float acc_x = 0, acc_y = 0;
+float look_x = 0, look_y = 0;
+std::chrono::steady_clock::time_point look_taken{};
+bool injected = false;
 unsigned held = 0; // bits 0-4: SDL buttons 1-5
 std::chrono::steady_clock::time_point wheel_until[2];
 bool captured = false;
@@ -19,12 +23,9 @@ constexpr unsigned WheelUp = 1u << 5, WheelDown = 1u << 6;
 
 } // namespace
 
+// The settings' mouse switch (menu Controls tab, launcher; GOW3_MOUSE=0 overrides it at start).
 bool Enabled() {
-    static const bool enabled = [] {
-        const char* env = std::getenv("GOW3_MOUSE");
-        return !(env && env[0] == '0');
-    }();
-    return enabled;
+    return Gow3Settings::Get().mouse;
 }
 
 void Update(SDL_Window* window, bool may_capture) {
@@ -37,6 +38,7 @@ void Update(SDL_Window* window, bool may_capture) {
     SDL_SetWindowRelativeMouseMode(window, want);
     std::scoped_lock lock{mutex};
     acc_x = acc_y = 0;
+    look_x = look_y = 0;
     held = 0; // no button stays pressed across a release (Alt+Tab with the trigger held)
 }
 
@@ -49,6 +51,8 @@ bool OnEvent(const SDL_Event& event) {
     case SDL_EVENT_MOUSE_MOTION:
         acc_x += event.motion.xrel;
         acc_y += event.motion.yrel;
+        look_x += event.motion.xrel;
+        look_y += event.motion.yrel;
         return true;
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
     case SDL_EVENT_MOUSE_BUTTON_UP:
@@ -69,6 +73,32 @@ bool OnEvent(const SDL_Event& event) {
 }
 
 } // namespace Gow3Mouse
+
+extern "C" int gow3gpu_mouse_take_look(float* dx, float* dy) {
+    using namespace Gow3Mouse;
+    std::scoped_lock lock{mutex};
+    const auto now = std::chrono::steady_clock::now();
+    const bool fresh = now - look_taken < std::chrono::milliseconds{250};
+    look_taken = now;
+    *dx = fresh ? look_x : 0.0f;
+    *dy = fresh ? look_y : 0.0f;
+    look_x = look_y = 0;
+    return captured || injected ? 1 : 0;
+}
+
+extern "C" void gow3gpu_mouse_inject(float dx, float dy) {
+    using namespace Gow3Mouse;
+    std::scoped_lock lock{mutex};
+    look_x += dx;
+    look_y += dy;
+    injected = true;
+}
+
+extern "C" int gow3gpu_mouse_look_recent(void) {
+    using namespace Gow3Mouse;
+    std::scoped_lock lock{mutex};
+    return std::chrono::steady_clock::now() - look_taken < std::chrono::milliseconds{200} ? 1 : 0;
+}
 
 extern "C" int gow3gpu_mouse_take(float* dx, float* dy, unsigned* buttons) {
     using namespace Gow3Mouse;

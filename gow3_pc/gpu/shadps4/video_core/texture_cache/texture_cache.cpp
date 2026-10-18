@@ -21,6 +21,7 @@
 #include "video_core/texture_cache/aliasing.h"
 #include "video_core/texture_cache/host_compatibility.h"
 #include "video_core/texture_cache/texture_cache.h"
+#include "gow3_prompts.h"
 #include "video_core/texture_cache/tile_manager.h"
 
 // src/runtime_videodec.c: the last decoded video frame buffer (diagnostics).
@@ -1354,6 +1355,33 @@ void TextureCache::RefreshImage(Image& image) {
     }
 
     scheduler.EndRendering();
+
+    // gow3: keyboard, mouse and controller button prompts (gow3_prompts.cpp): the games' button
+    // icon atlas and button pictures upload redrawn (linear texels) while their icons show.
+    const bool bc1 = image.info.pixel_format == vk::Format::eBc1RgbaUnormBlock ||
+                     image.info.pixel_format == vk::Format::eBc1RgbaSrgbBlock;
+    const u32 w = image.info.size.width, h = image.info.size.height;
+    if (num_layers == 1 && !is_gpu_modified &&
+        ((w == 512 && h == 512 && image.info.num_bits == 32 && num_mips == 1) ||
+         (bc1 && w >= 64 && w <= 512 && h >= 64 && h <= 512))) {
+        if (const auto texels = Gow3Prompts::Replacement(
+                image.info.guest_address, image.info.guest_size, image.info.mips_layout[0].size, w, h,
+                num_mips, bc1, static_cast<u32>(image.info.tile_mode));
+            texels && texels->mips.size() >= num_mips) {
+            const auto staging =
+                runtime.GetStagingPool().Request(texels->data.size(), MemoryType::HostUncached, 16);
+            std::memcpy(staging.mapped, texels->data.data(), texels->data.size());
+            staging.Flush();
+            for (auto& copy : image_copies) {
+                const auto& mip = texels->mips[copy.imageSubresource.mipLevel];
+                copy.bufferOffset = staging.offset + mip.offset;
+                copy.bufferRowLength = mip.row;
+                copy.bufferImageHeight = mip.height;
+            }
+            runtime.UploadImage(&image, staging.buffer, image_copies);
+            return;
+        }
+    }
 
     const auto [in_buffer, in_offset] =
         buffer_cache.ObtainBufferForImage(image.info.guest_address, image.info.guest_size);

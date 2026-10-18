@@ -2,6 +2,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
+#include <span>
+#include <atomic>
+#include <string_view>
+#include <fmt/format.h>
+#include <cstdlib>
+#include <string>
+#include <cstdio>
+#include <chrono>
+#include <mutex>
+#include <map>
 
 #include <cstring>
 #include "common/assert.h"
@@ -337,11 +347,91 @@ enum class InterruptSelect : u32 {
     IrqUndocumented = 3,
 };
 
+/// gow3 diagnostics: flips submitted (VideoOutDriver::SubmitFlipInternal), for GOW3_GPU_CLOCK=frame.
+inline std::atomic<u64> g_gow3_flips{0};
+
 static u64 GetGpuClock64() {
+    // gow3 test (GOW3_GPU_CLOCK=100mhz): the PS4's GPU clock counts at 100 MHz (RefClk), not in
+    // nanoseconds; =tsc: the guest's TSC scaled to 100 MHz (the clock its CPU timers use).
+    static const int mode = [] {
+        const char* env = std::getenv("GOW3_GPU_CLOCK");
+        if (!env) return 0;
+        if (std::string_view{env} == "100mhz") return 1;
+        if (std::string_view{env} == "tsc") return 2;
+        if (std::string_view{env} == "frame") return 3;
+        return 0;
+    }();
+    // =frame: exactly 1/60 s per flip, plus 1 us per timestamp within the frame (strictly
+    // increasing), in nanoseconds like the default.
+    if (mode == 3) {
+        static std::atomic<u64> calls{0};
+        static u64 last_flip = 0;
+        const u64 flip = g_gow3_flips.load(std::memory_order_relaxed);
+        if (flip != last_flip) {
+            last_flip = flip;
+            calls.store(0, std::memory_order_relaxed);
+        }
+        return 1'000'000'000'000ull + flip * 16'666'667ull + calls.fetch_add(1, std::memory_order_relaxed) * 1000;
+    }
+    if (mode == 2) {
+        const auto cpu_freq = Libraries::Kernel::sceKernelGetTscFrequency();
+        return Common::MultiplyAndDivide64(Libraries::Kernel::sceKernelReadTsc(), 100'000'000, cpu_freq);
+    }
     auto now = std::chrono::high_resolution_clock::now();
     auto duration = now.time_since_epoch();
     auto ticks = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
-    return static_cast<u64>(ticks);
+    return mode == 1 ? static_cast<u64>(ticks) / 10 : static_cast<u64>(ticks);
+}
+
+// gow3 diagnostics (GOW3_TIMESTAMP_STATS=1): GPU timestamps the guest asks for (end-of-pipe and
+// release fences with GpuClock64/PerfCounter data): per 5 s, how many and, per address, how far
+// apart consecutive writes are in real time (Uncharted 3's cloth flicker above 30 FPS, 16 Oct).
+inline void Gow3NoteTimestamp(const char* kind, const void* address) {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_TIMESTAMP_STATS");
+        return env && env[0] == '1';
+    }();
+    if (!enabled) {
+        return;
+    }
+    struct Slot {
+        std::chrono::steady_clock::time_point last{};
+        u64 writes = 0, under_1ms = 0, under_8ms = 0, over_8ms = 0;
+        const char* kind = "";
+    };
+    static std::mutex mutex;
+    static std::map<const void*, Slot> slots;
+    static auto report = std::chrono::steady_clock::now();
+    std::scoped_lock lock{mutex};
+    const auto now = std::chrono::steady_clock::now();
+    auto& slot = slots[address];
+    if (slot.writes) {
+        const auto gap = now - slot.last;
+        if (gap < std::chrono::milliseconds(1)) {
+            ++slot.under_1ms;
+        } else if (gap < std::chrono::milliseconds(8)) {
+            ++slot.under_8ms;
+        } else {
+            ++slot.over_8ms;
+        }
+    }
+    ++slot.writes;
+    slot.last = now;
+    slot.kind = kind;
+    if (now - report >= std::chrono::seconds(5)) {
+        report = now;
+        std::string text;
+        int shown = 0;
+        for (auto& [addr, s] : slots) {
+            if (shown++ < 12) {
+                text += fmt::format("\n  {} {}: {} writes, gaps <1 ms {}, 1-8 ms {}, >8 ms {}", s.kind, fmt::ptr(addr),
+                                    s.writes, s.under_1ms, s.under_8ms, s.over_8ms);
+            }
+            s.writes = s.under_1ms = s.under_8ms = s.over_8ms = 0;
+        }
+        std::printf("GPU timestamps (5 s): %zu addresses%s\n", slots.size(), text.c_str());
+        std::fflush(stdout);
+    }
 }
 
 static u64 GetGpuPerfCounter() {
@@ -480,10 +570,12 @@ struct PM4CmdEventWriteEop {
             break;
         }
         case DataSelect::GpuClock64: {
+            Gow3NoteTimestamp("eop clock", address);
             write_mem(address, GetGpuClock64(), sizeof(u64));
             break;
         }
         case DataSelect::PerfCounter: {
+            Gow3NoteTimestamp("eop perf", address);
             write_mem(address, GetGpuPerfCounter(), sizeof(u64));
             break;
         }
@@ -953,21 +1045,31 @@ struct PM4CmdReleaseMem {
     }
 
     void SignalFence(auto&& signal_irq, auto&& gds_to_mem) const {
+        SignalFence(signal_irq, gds_to_mem, [](void* address, u64 value, u32 num_bytes) {
+            std::memcpy(address, &value, num_bytes);
+        });
+    }
+
+    /// gow3: `write_mem(address, value, bytes)` stores the fence value (the runtime writes it
+    /// through the backing view: a plain store faulted on pages with GPU data).
+    void SignalFence(auto&& signal_irq, auto&& gds_to_mem, auto&& write_mem) const {
         switch (data_sel.Value()) {
         case DataSelect::Data32Low: {
-            *Address<u32*>() = DataDWord();
+            write_mem(Address<void*>(), u64(DataDWord()), 4u);
             break;
         }
         case DataSelect::Data64: {
-            *Address<u64*>() = DataQWord();
+            write_mem(Address<void*>(), DataQWord(), 8u);
             break;
         }
         case DataSelect::GpuClock64: {
-            *Address<u64*>() = GetGpuClock64();
+            Gow3NoteTimestamp("release clock", Address<u64*>());
+            write_mem(Address<void*>(), u64(GetGpuClock64()), 8u);
             break;
         }
         case DataSelect::PerfCounter: {
-            *Address<u64*>() = GetGpuPerfCounter();
+            Gow3NoteTimestamp("release perf", Address<u64*>());
+            write_mem(Address<void*>(), u64(GetGpuPerfCounter()), 8u);
             break;
         }
         case DataSelect::GdsMemStore: {

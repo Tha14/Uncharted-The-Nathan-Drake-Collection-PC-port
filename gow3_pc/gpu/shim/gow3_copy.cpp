@@ -50,6 +50,10 @@ public:
         return !threads.empty();
     }
 
+    std::size_t Count() const {
+        return threads.size();
+    }
+
     void Async(std::function<void()> task) {
         {
             std::scoped_lock lk{mutex};
@@ -284,12 +288,54 @@ void AfterCopies(std::function<void()> callback) {
 
 void WaitAsync() {
     // The caller's own batch runs here: handing it over only to wait for it costs a wakeup.
+    // gow3 17 Oct: GOW3_COPY_SPLIT_KB=n splits batches of n KiB or more with the copy threads.
+    // Off by default: Uncharted 3 at 4K measured no gain (62.6 vs 63.9 FPS); the copies there
+    // were mesh data copied on every bind (BufferCache::UseArenaForStatic removed them).
+    static const unsigned long long split_bytes = [] {
+        const char* env = std::getenv("GOW3_COPY_SPLIT_KB");
+        return env ? std::strtoull(env, nullptr, 10) * 1024 : 0ull;
+    }();
     if (!batch.items.empty()) {
-        for (const auto& item : batch.items) {
-            item.run(item);
+        if (split_bytes && batch.bytes >= split_bytes && batch.items.size() >= 4 && Enabled()) {
+            auto items = std::make_shared<std::vector<Item>>(std::move(batch.items));
+            const unsigned long long total = batch.bytes;
+            batch.items = {};
+            batch.items.reserve(256);
+            batch.bytes = 0;
+            // Parts of about equal size: the copy threads take all but the first, which runs here.
+            const std::size_t parts = std::min<std::size_t>(GetPool().Count() + 1, items->size());
+            const unsigned long long share = total / parts + 1;
+            std::size_t begin = 0;
+            std::size_t first_end = 0;
+            unsigned long long bytes = 0;
+            for (std::size_t i = 0, part = 0; i < items->size(); ++i) {
+                bytes += (*items)[i].size;
+                const bool last = i + 1 == items->size();
+                if (bytes >= share || last) {
+                    if (part == 0) {
+                        first_end = i + 1;
+                    } else {
+                        GetPool().Async([items, begin, end = i + 1] {
+                            for (std::size_t k = begin; k < end; ++k) {
+                                (*items)[k].run((*items)[k]);
+                            }
+                        });
+                    }
+                    ++part;
+                    begin = i + 1;
+                    bytes = 0;
+                }
+            }
+            for (std::size_t k = 0; k < first_end; ++k) {
+                (*items)[k].run((*items)[k]);
+            }
+        } else {
+            for (const auto& item : batch.items) {
+                item.run(item);
+            }
+            batch.items.clear();
+            batch.bytes = 0;
         }
-        batch.items.clear();
-        batch.bytes = 0;
     }
     GetPool().WaitAll();
 }

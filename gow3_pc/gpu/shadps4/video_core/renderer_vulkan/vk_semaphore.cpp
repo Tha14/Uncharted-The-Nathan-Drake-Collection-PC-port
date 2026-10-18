@@ -47,6 +47,22 @@ void Semaphore::Refresh() {
                                              std::memory_order_relaxed));
 }
 
+bool Semaphore::WaitFor(u64 tick, u64 timeout_ns) {
+    if (IsFree(tick)) {
+        return true;
+    }
+    const vk::SemaphoreWaitInfo wait_info = {
+        .semaphoreCount = 1,
+        .pSemaphores = &semaphore.get(),
+        .pValues = &tick,
+    };
+    if (instance.GetDevice().waitSemaphores(&wait_info, timeout_ns) != vk::Result::eSuccess) {
+        return false; // timeout (a lost device shows in the next plain Wait)
+    }
+    Refresh();
+    return true;
+}
+
 void Semaphore::Wait(u64 tick) {
     // No need to wait if the GPU is ahead of the tick
     if (IsFree(tick)) {

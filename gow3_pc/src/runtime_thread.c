@@ -249,6 +249,12 @@ static void set_host_name(const char *name) {
     char host[16]={0};
     memcpy(host,name,strnlen(name,sizeof(host)-1));
     pthread_setname_np(pthread_self(),host);
+#ifdef _WIN32
+    /* gow3: the Windows thread description too (Task Manager, profilers, debuggers). */
+    wchar_t wide[64]={0};
+    MultiByteToWideChar(CP_UTF8,0,name,-1,wide,63);
+    SetThreadDescription(GetCurrentThread(),wide);
+#endif
 }
 #ifdef _WIN32
 #define exit_setjmp(t) gow3_setjmp((t)->exit_jump)
@@ -257,10 +263,60 @@ static void set_host_name(const char *name) {
 #define exit_setjmp(t) setjmp((t)->exit_jump)
 #define exit_longjmp(t) longjmp((t)->exit_jump,1)
 #endif
+/* gow3 diagnostics (16 Oct, Uncharted 3's cloth flicker above 30 FPS): GOW3_GUEST_AFFINITY=1
+ * pins guest threads to the PS4 cores they ask for (guest core i -> host logical CPU
+ * i*GOW3_GUEST_CORE_STRIDE, default 2: one thread per physical core with SMT);
+ * GOW3_GUEST_PRIORITY=1 maps PS4 priorities (256 high .. 767 low) to Windows ones. Both log the
+ * requests. Off by default: priorities/affinity are only recorded. */
+#ifdef _WIN32
+static int guest_affinity_enabled(void) {
+    static int value=-1;
+    if (value<0) { const char *e=getenv("GOW3_GUEST_AFFINITY"); value=e && e[0]=='1'; }
+    return value;
+}
+static int guest_priority_enabled(void) {
+    static int value=-1;
+    if (value<0) { const char *e=getenv("GOW3_GUEST_PRIORITY"); value=e && e[0]=='1'; }
+    return value;
+}
+static DWORD_PTR host_mask(uint64_t guest) {
+    static int stride=-1;
+    if (stride<0) { const char *e=getenv("GOW3_GUEST_CORE_STRIDE"); stride=e && atoi(e)>0 ? atoi(e) : 2; }
+    DWORD_PTR mask=0;
+    for (int i=0;i<8;++i) if (guest & (1ull<<i)) mask|=(DWORD_PTR)1<<(i*stride);
+    return mask;
+}
+static int host_priority(int prio) {
+    if (prio<=300) return THREAD_PRIORITY_HIGHEST;
+    if (prio<=500) return THREAD_PRIORITY_ABOVE_NORMAL;
+    if (prio<=700) return THREAD_PRIORITY_NORMAL;
+    return THREAD_PRIORITY_BELOW_NORMAL;
+}
+static void apply_guest_scheduling(GuestThread *t,HANDLE h,const char *why) {
+    static volatile LONG logged;
+    if (guest_affinity_enabled() && t->attr.affinity && (t->attr.affinity&0x7f)!=0x7f) {
+        SetThreadAffinityMask(h,host_mask(t->attr.affinity));
+    }
+    if (guest_priority_enabled()) SetThreadPriority(h,host_priority(t->attr.prio));
+    if ((guest_affinity_enabled() || guest_priority_enabled()) && InterlockedIncrement(&logged)<=200) {
+        printf("Runtime: guest thread '%s' %s: affinity %#llx, prio %d\n",t->name,why,
+               (unsigned long long)t->attr.affinity,t->attr.prio);
+        fflush(stdout);
+    }
+}
+#endif
 static void *host_start(void *p) {
     GuestThread *t=p;
     attach(t);
     set_host_name(t->name);
+#ifdef _WIN32
+    apply_guest_scheduling(t,GetCurrentThread(),"started");
+    { /* gow3 diagnostics: GOW3_PROFILE_GUEST=<name prefix> (with GOW3_PROFILE=<s>) */
+        extern void gow3_profile_current(const char *name);
+        const char *e=getenv("GOW3_PROFILE_GUEST");
+        if (e && *e && strncmp(t->name,e,strlen(e))==0) gow3_profile_current(t->name);
+    }
+#endif
     if (!exit_setjmp(t)) t->result=t->entry(t->argument);
     runtime_thread_keys_cleanup();
     pthread_mutex_lock(&lock); t->finished=1; ++exited; pthread_mutex_unlock(&lock);
@@ -337,11 +393,20 @@ static ABI int32_t thread_get_prio(GuestThread *t,int *prio) {
 }
 static ABI int32_t thread_set_prio(GuestThread *t,int prio) {
     if (!find_thread(t)) return ERR(3);
-    t->attr.prio=prio; return 0;
+    t->attr.prio=prio;
+#ifdef _WIN32
+    if (!t->host_owned && !t->finished) apply_guest_scheduling(t,pthread_gethandle(t->host),"set prio");
+#endif
+    return 0;
 }
 static ABI int32_t thread_set_affinity(GuestThread *t,uint64_t mask) {
     if (!find_thread(t)) return ERR(3);
-    t->attr.affinity=mask; return 0;
+    t->attr.affinity=mask;
+#ifdef _WIN32
+    if (!t->host_owned && !t->finished) apply_guest_scheduling(t,pthread_gethandle(t->host),"set affinity");
+    else if (t==current) apply_guest_scheduling(t,GetCurrentThread(),"set affinity");
+#endif
+    return 0;
 }
 static ABI int32_t thread_get_affinity(GuestThread *t,uint64_t *mask) {
     if (!find_thread(t)) return ERR(3);

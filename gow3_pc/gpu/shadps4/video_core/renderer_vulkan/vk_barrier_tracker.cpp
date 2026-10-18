@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: Copyright DXVK Project
 // SPDX-License-Identifier: Zlib
 
+#include <algorithm>
 #include <bit>
+#include <cstdlib>
 #include "video_core/renderer_vulkan/vk_barrier_tracker.h"
 
 namespace Vulkan {
@@ -24,8 +26,42 @@ bool BarrierTracker::FindRange(const AddressRange& range, Access access_type) co
 }
 
 void BarrierTracker::InsertRange(const AddressRange& range, Access access_type) {
-    // If we can just insert the node with no conflicts, we don't have to do anything.
     u32 root_index = ComputeRootIndex(range, access_type);
+    // gow3 17 Oct 2026: a range starting at most merge_gap bytes after an existing one extends it
+    // (the gap counts as accessed) instead of adding a node. All guest buffers share one arena
+    // buffer, so its tree held every range accessed since the last barrier: Uncharted's effect
+    // shader writes a record array per dispatch, 12 bytes after the previous one, ~1500 times a
+    // frame, and without barriers between them the lookups took up to half of the GPU thread.
+    // GOW3_TRACKER_MERGE_GAP=<bytes> (0: off).
+    static const u64 merge_gap = [] {
+        const char* env = std::getenv("GOW3_TRACKER_MERGE_GAP");
+        return env ? u64(std::strtoull(env, nullptr, 10)) : u64(64);
+    }();
+    if (merge_gap && range.range_start > 0 && (root_mask_valid & (1ULL << (root_index - 1)))) {
+        const AddressRange left = {
+            .resource = range.resource,
+            .range_start = range.range_start - std::min<u64>(merge_gap, range.range_start),
+            .range_end = range.range_start - 1,
+        };
+        if (const u32 neighbour = FindNode(left, root_index)) {
+            auto& node = nodes[neighbour];
+            if (node.address_range.range_end < range.range_start) {
+                if (node.address_range.range_end >= range.range_end) {
+                    return;
+                }
+                const AddressRange between = {
+                    .resource = range.resource,
+                    .range_start = node.address_range.range_end + 1,
+                    .range_end = range.range_end,
+                };
+                if (!FindNode(between, root_index)) {
+                    node.address_range.range_end = range.range_end;
+                    return;
+                }
+            }
+        }
+    }
+    // If we can just insert the node with no conflicts, we don't have to do anything.
     u32 node_index = InsertNode(range, root_index);
 
     if (!node_index) [[likely]] {

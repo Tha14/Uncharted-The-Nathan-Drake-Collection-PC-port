@@ -187,6 +187,7 @@ private:
     std::mutex m_mutex;
     std::vector<EqueueEvent> m_events;
     std::condition_variable m_cond;
+    int m_waiters = 0; ///< gow3: threads in m_cond.wait (guarded by m_mutex)
     std::unordered_map<u64, SmallTimer> m_small_timers;
 };
 

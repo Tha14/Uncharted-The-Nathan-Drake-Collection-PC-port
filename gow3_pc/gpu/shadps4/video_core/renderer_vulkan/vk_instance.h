@@ -92,6 +92,11 @@ public:
         return queue_family_index;
     }
 
+    /// gow3: a second queue of the graphics family (null if the family has one).
+    vk::Queue GetCopyQueue() const {
+        return copy_queue;
+    }
+
     vk::Queue GetGraphicsQueue() const {
         return graphics_queue;
     }
@@ -543,6 +548,7 @@ private:
     VmaAllocator allocator{};
     vk::Queue present_queue;
     vk::Queue graphics_queue;
+    vk::Queue copy_queue;
     std::vector<vk::PhysicalDevice> physical_devices;
     std::vector<std::string> available_extensions;
     std::unordered_map<vk::Format, vk::FormatProperties3> format_properties;

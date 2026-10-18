@@ -21,6 +21,11 @@ public:
     /// gow3 diagnostics (GOW3_UPLOAD_CHECK=1): compares sampled earlier copies with guest memory now.
     void CheckCopiedSources();
     bool TryWriteBacking(void* address, const void* data, u64 size);
+    /// gow3: a TryWriteBacking write (not seen by page tracking) ever reached a 64 KiB window of
+    /// the range. Lock-free.
+    static bool BackingWritten(VAddr address, u64 size);
+    /// gow3: the range overlaps memory kept writable (fiber stacks: CPU writes not tracked).
+    static bool KeptWritable(VAddr address, u64 size);
     /// gow3: reads guest memory through the backing view (page protection does not apply).
     bool TryReadBacking(VAddr address, void* data, u64 size);
     /// CPU wrote guest memory outside page tracking (e.g. decoded video frames).

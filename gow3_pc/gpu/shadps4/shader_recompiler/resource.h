@@ -83,6 +83,10 @@ struct BufferResource {
     bool is_formatted{};
     SharpFetchPostOp post_op{};
     u32 post_op_dw1_mask{};
+    /// gow3: bytes from a record's start that this shader's accesses can reach (constant offsets
+    /// plus access size); 0: none seen, ~0u: unknown (a VGPR offset, a format from the V#).
+    /// Lets the barrier tracker use the bytes a strided buffer really covers.
+    u32 access_extent{};
 
     bool IsSpecial() const noexcept {
         return buffer_type != BufferType::Guest;

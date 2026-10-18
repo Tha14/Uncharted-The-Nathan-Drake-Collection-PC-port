@@ -48,7 +48,7 @@ jobs:
         with:
           msystem: CLANG64
           update: true
-          install: git patch
+          install: git patch curl
           pacboy: >-
             toolchain:p cmake:p ninja:p pkgconf:p python:p
             vulkan-headers:p vulkan-loader:p vulkan-memory-allocator:p glslang:p
@@ -60,6 +60,14 @@ jobs:
           git config --global --add safe.directory '*'
           export MSYS2_ROOT=$(cygpath -u '${{ steps.msys2.outputs.msys2-location }}')
           gow3_pc/build.sh
+
+      # NVIDIA DLAA (DLSS SDK files, the bridge built with the runner's MSVC) and the FSR 4 native
+      # model; without them the package simply offers TAA and FSR 3.1.
+      - name: Anti-aliasing files (DLAA, FSR 4)
+        continue-on-error: true
+        run: |
+          export MSYS2_ROOT=$(cygpath -u '${{ steps.msys2.outputs.msys2-location }}')
+          tools/fetch_aa_files.sh
 
       - name: Package
         run: |

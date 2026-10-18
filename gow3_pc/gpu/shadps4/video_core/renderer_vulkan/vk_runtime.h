@@ -16,6 +16,12 @@ class BlitHelper;
 
 namespace Vulkan {
 
+/// gow3 diagnostics (GOW3_BARRIER_STATS=1): the shader of the draw/dispatch being recorded,
+/// so barriers and copies can be counted per shader.
+inline thread_local u64 g_barrier_stats_shader = 0;
+bool BarrierStatsEnabled();
+void NoteBarrierStat(int kind, u64 bytes = 0); // 0 barrier, 1 copy
+
 class GpuProfiler;
 class SceneTargets;
 
@@ -98,6 +104,14 @@ public:
                           bool check_read_access = false);
 
     void FlushBarriers();
+    /// gow3: ranges the barrier tracker holds since the last barrier.
+    size_t BarrierTrackerSize() const {
+        return barrier_tracker.Size();
+    }
+    /// gow3: advances at every barrier flush that recorded a barrier.
+    u32 AccessEpoch() const {
+        return access_epoch;
+    }
 
     /// gow3: runs before this thread changes image state (layouts, pending image
     /// barriers): the rasterizer joins its texture binding helper there (BindHelper).

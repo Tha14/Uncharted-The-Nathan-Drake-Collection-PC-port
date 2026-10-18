@@ -7,6 +7,7 @@
 #include "common/types.h"
 
 u32 Gow3DisplayRefreshHz(); // gow3gpu.cpp: primary display refresh rate, 60 when unknown
+double Gow3DisplayRefreshRate(); // gow3gpu.cpp: the same, exact (74.97 Hz), 0 when unknown
 
 enum GpuReadbacksMode : int { Disabled, Relaxed, Precise };
 

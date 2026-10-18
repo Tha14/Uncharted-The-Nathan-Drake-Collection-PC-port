@@ -36,6 +36,10 @@ RUN_SCRIPT = ROOT / "tools" / "probe_uncharted.py"
 CONFIG_FILE = Path(os.environ.get("APPDATA", Path.home())) / "Uncharted Launcher" / "launcher.json"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 APP_TITLE = "Uncharted: The Nathan Drake Collection"
+# Credits shown on the Advanced page: the anti-aliasing technologies.
+CREDITS = ("Credits: DLAA uses NVIDIA DLSS technology. NVIDIA, RTX and DLSS are trademarks of NVIDIA "
+           "Corporation. AMD FidelityFX Super Resolution (FSR 3.1, FSR 4) by AMD. Uncharted camera "
+           "motion for anti-aliasing after SuperMedo's Uncharted port.")
 # The author's links in the launcher header: label, address, color, hover color.
 LINKS = (("YouTube", "https://www.youtube.com/@BilalReloaded/videos", "#d6302a", "#ef4038"),
          ("GitHub", "https://github.com/bc160201983", "#24292f", "#3a4048"))
@@ -65,19 +69,20 @@ STOP_RED = "#b5533c"
 # At most 120: faster, the game's movement timing breaks (Drake's Fortune at 140-160 FPS: running
 # slows, Nate fell through the world). The runtime caps older, faster settings at 120 too.
 MAX_FPS = 120
-FPS_LIMITS = [(30, "30"), (40, "40"), (45, "45"), (50, "50"), (55, "55"), (60, "60"),
-              (MAX_FPS, str(MAX_FPS))]
+FPS_LIMITS = [(30, "30"), (40, "40"), (45, "45"), (50, "50"), (55, "55"), (60, "60"), (75, "75"),
+              (90, "90"), (100, "100"), (MAX_FPS, str(MAX_FPS))]
 
 # Runtime options in probe.ini (key -> default) and launcher-only ones.
 INI_DEFAULTS = {
     "display_mode": "windowed", "vsync": "1", "fps_limit": "60", "frames_queued": "1",
     "async_shaders": "1", "fsr1": "0", "rcas": "1", "rcas_strength": "75", "show_fps": "1",
+    "upscaler": "off",
 }
 LAUNCHER_DEFAULTS = {"game": "u1", "diagnostics": True, "game_dir": "", "check_updates": True}
 GAME_KEYS = ("u1", "u2", "u3")
-GAME_SETTING_DEFAULTS = {"preset": "medium", "resolution": "1920x1080", "multithreaded": False,
+GAME_SETTING_DEFAULTS = {"preset": "medium", "resolution": "1920x1080", "aspect": "16:9", "multithreaded": False,
                          "async_readback": False, "controls": None, "mouse": True, "mouse_sens": "1.0",
-                         "mouse_invert": False}
+                         "mouse_invert": False, "prompts": "auto"}
 
 # Keyboard and mouse controls (runtime_pad.c): action -> up to two bindings, "key:<SDL key name>"
 # or "mouse:<left|middle|right|x1|x2|wheel_up|wheel_down>". Stick directions take keys only.
@@ -85,15 +90,260 @@ CONTROL_GROUPS = (
     ("MOVEMENT", (("ls_up", "Move forward"), ("ls_down", "Move back"), ("ls_left", "Move left"),
                   ("ls_right", "Move right"), ("rs_up", "Look up"), ("rs_down", "Look down"),
                   ("rs_left", "Look left"), ("rs_right", "Look right"))),
-    ("WEAPONS (D-PAD)", (("left", "D-pad left"), ("right", "D-pad right"), ("up", "D-pad up"),
-                         ("down", "D-pad down"))),
-    ("ACTIONS", (("cross", "Jump, climb  (Cross)"), ("circle", "Cover, roll, drop  (Circle)"),
-                 ("square", "Melee  (Square)"), ("triangle", "Reload, pick up  (Triangle)"),
-                 ("l2", "Aim  (L2)"), ("r2", "Fire  (R2)"), ("l1", "Grenade aim  (L1)"),
-                 ("r1", "Grenade throw  (R1)"), ("l3", "L3"), ("r3", "R3"),
-                 ("options", "Pause menu  (Options)"), ("touchpad_left", "Touchpad left"),
-                 ("touchpad_right", "Touchpad right"))),
+    ("WEAPONS (D-PAD)", (("left", "Left"), ("right", "Right"), ("up", "Up"), ("down", "Down"))),
+    ("ACTIONS", (("cross", "Jump, climb"), ("circle", "Cover, roll, drop"),
+                 ("square", "Melee"), ("triangle", "Reload, pick up"),
+                 ("l2", "Aim"), ("r2", "Fire"), ("l1", "Grenade aim"),
+                 ("r1", "Grenade throw"), ("l3", "Left stick press"), ("r3", "Right stick press"),
+                 ("options", "Pause menu"), ("touchpad_left", "Touch left"),
+                 ("touchpad_right", "Touch right"))),
 )
+# Controllers. The controller button of each action, as SDL names it (runtime_pad.c's default
+# controller map; GOW3_PAD_MAP takes these names). Buttons can be rebound; the sticks, triggers
+# and the touchpad's left click (Back/View with LB held) cannot.
+PAD_DEFAULTS = {"cross": "a", "circle": "b", "square": "x", "triangle": "y", "l1": "leftshoulder",
+                "r1": "rightshoulder", "l3": "leftstick", "r3": "rightstick", "options": "start",
+                "touchpad_right": "back", "up": "dpup", "down": "dpdown", "left": "dpleft", "right": "dpright"}
+PAD_FIXED = {"l2": "lefttrigger", "r2": "righttrigger", "touchpad_left": "leftshoulder+back",
+             "ls_up": "lstick", "ls_down": "lstick", "ls_left": "lstick", "ls_right": "lstick",
+             "rs_up": "rstick", "rs_down": "rstick", "rs_left": "rstick", "rs_right": "rstick"}
+# SDL_GamepadButton order (SDL3).
+SDL_BUTTONS = ("a", "b", "x", "y", "back", "guide", "start", "leftstick", "rightstick", "leftshoulder",
+               "rightshoulder", "dpup", "dpdown", "dpleft", "dpright", "misc1", "paddle1", "paddle2",
+               "paddle3", "paddle4", "touchpad")
+PAD_NAMES = {  # (Xbox, PlayStation): the slot's text where there is no icon, and hints
+    "a": ("A", "Cross"), "b": ("B", "Circle"), "x": ("X", "Square"), "y": ("Y", "Triangle"),
+    "back": ("View", "Share"), "guide": ("Guide", "PS"), "start": ("Menu", "Options"),
+    "leftstick": ("LS", "L3"), "rightstick": ("RS", "R3"), "leftshoulder": ("LB", "L1"),
+    "rightshoulder": ("RB", "R1"), "lefttrigger": ("LT", "L2"), "righttrigger": ("RT", "R2"),
+    "dpup": ("D-pad up", "D-pad up"), "dpdown": ("D-pad down", "D-pad down"),
+    "dpleft": ("D-pad left", "D-pad left"), "dpright": ("D-pad right", "D-pad right"),
+    "misc1": ("Share", "Mute"), "paddle1": ("P1", "P1"), "paddle2": ("P2", "P2"), "paddle3": ("P3", "P3"),
+    "paddle4": ("P4", "P4"), "touchpad": ("Touchpad", "Touchpad"), "lstick": ("L stick", "L stick"),
+    "rstick": ("R stick", "R stick"),
+}
+
+
+def merged_pad_controls(pad_controls):
+    merged = dict(PAD_DEFAULTS)
+    for action, button in (pad_controls or {}).items():
+        if action in merged:
+            merged[action] = button or None
+    return merged
+
+
+def pad_map(pad_controls):
+    """GOW3_PAD_MAP for a game's controller bindings ("" when they are the defaults)."""
+    merged = merged_pad_controls(pad_controls)
+    if merged == PAD_DEFAULTS:
+        return ""
+    return ",".join(f"{action}={button or ''}" for action, button in merged.items())
+
+
+def _pad_font(size):
+    from PIL import ImageFont
+    for name in ("segoeuib.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf"):
+        try:
+            return ImageFont.truetype(name, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def pad_icon(button, style, height):
+    """A controller button's icon (PIL RGBA image, `height` pixels tall): Xbox or PlayStation."""
+    s = 4  # drawn 4x, then scaled down (smooth edges)
+    H = height * s
+    ps = style == "playstation"
+    body, rim, ink = (32, 32, 34, 255), (150, 150, 150, 255), (240, 240, 240, 255)
+    if "+" in button:  # a combination: the icons side by side with a plus
+        parts = [pad_icon(b, style, height) for b in button.split("+")]
+        plus_w = height // 2
+        img = Image.new("RGBA", (sum(i.width for i in parts) + plus_w * (len(parts) - 1), height))
+        x = 0
+        for i, part in enumerate(parts):
+            img.alpha_composite(part, (x, 0))
+            x += part.width
+            if i + 1 < len(parts):
+                d = ImageDraw.Draw(img)
+                cx, cy, r = x + plus_w // 2, height // 2, max(2, height // 6)
+                d.line((cx - r, cy, cx + r, cy), fill=ink, width=max(1, height // 12))
+                d.line((cx, cy - r, cx, cy + r), fill=ink, width=max(1, height // 12))
+                x += plus_w
+        return img
+
+    def canvas(width_factor):
+        W = int(H * width_factor)
+        return Image.new("RGBA", (W, H)), W
+
+    def finish(img):
+        return img.resize((max(1, img.width // s), height), Image.LANCZOS)
+
+    def text(d, W, label, color, size_factor=0.55, dy=0):
+        font = _pad_font(max(8, int(H * size_factor)))
+        box = d.textbbox((0, 0), label, font=font)
+        d.text(((W - (box[2] - box[0])) / 2 - box[0], (H - (box[3] - box[1])) / 2 - box[1] + dy), label,
+               font=font, fill=color)
+
+    line = max(2, H // 12)
+    if button in ("a", "b", "x", "y"):
+        img, W = canvas(1.0)
+        d = ImageDraw.Draw(img)
+        d.ellipse((line, line, W - line, H - line), fill=body, outline=rim, width=line)
+        if ps:
+            color = {"a": (124, 156, 255, 255), "b": (255, 102, 102, 255), "x": (240, 140, 210, 255),
+                     "y": (64, 214, 160, 255)}[button]
+            c, r, w = W / 2, H * 0.22, int(H * 0.08)
+            if button == "a":
+                d.line((c - r, c - r, c + r, c + r), fill=color, width=w)
+                d.line((c - r, c + r, c + r, c - r), fill=color, width=w)
+            elif button == "b":
+                d.ellipse((c - r, c - r, c + r, c + r), outline=color, width=w)
+            elif button == "x":
+                d.rectangle((c - r * 0.85, c - r * 0.85, c + r * 0.85, c + r * 0.85), outline=color, width=w)
+            else:
+                d.polygon([(c, c - r * 1.05), (c - r * 1.1, c + r * 0.75), (c + r * 1.1, c + r * 0.75)],
+                          outline=color, width=w)
+        else:
+            color = {"a": (108, 194, 74, 255), "b": (229, 71, 59, 255), "x": (63, 142, 230, 255),
+                     "y": (244, 196, 48, 255)}[button]
+            text(d, W, button.upper(), color, 0.6)
+        return finish(img)
+    if button in ("leftshoulder", "rightshoulder"):
+        img, W = canvas(1.55)
+        d = ImageDraw.Draw(img)
+        d.rounded_rectangle((line, H * 0.14, W - line, H * 0.86), radius=H * 0.3, fill=body, outline=rim, width=line)
+        text(d, W, PAD_NAMES[button][1 if ps else 0], ink, 0.46)
+        return finish(img)
+    if button in ("lefttrigger", "righttrigger"):
+        img, W = canvas(1.25)
+        d = ImageDraw.Draw(img)
+        d.rounded_rectangle((line, line, W - line, H - line), radius=H * 0.32, fill=body, outline=rim, width=line)
+        d.rectangle((line * 2, H * 0.55, W - line * 2, H - line * 2), fill=body)
+        text(d, W, PAD_NAMES[button][1 if ps else 0], ink, 0.44)
+        return finish(img)
+    if button in ("leftstick", "rightstick", "lstick", "rstick"):
+        img, W = canvas(1.0)
+        d = ImageDraw.Draw(img)
+        d.ellipse((line, line, W - line, H - line), fill=body, outline=rim, width=line)
+        if button in ("lstick", "rstick"):
+            d.ellipse((H * 0.24, H * 0.24, H * 0.76, H * 0.76), outline=rim, width=line)
+            text(d, W, "L" if button == "lstick" else "R", ink, 0.38)
+        else:
+            text(d, W, PAD_NAMES[button][1 if ps else 0], ink, 0.4)
+        return finish(img)
+    if button.startswith("dp"):
+        img, W = canvas(1.0)
+        d = ImageDraw.Draw(img)
+        a, b = H * 0.31, H * 0.69
+        arms = {"dpup": (a, line, b, a + line), "dpdown": (a, b - line, b, H - line), "dpleft": (line, a, a + line, b),
+                "dpright": (b - line, a, H - line, b)}
+        d.rectangle((a, line, b, H - line), fill=body, outline=rim, width=line)
+        d.rectangle((line, a, H - line, b), fill=body, outline=rim, width=line)
+        d.rectangle((a + line, a, b - line, b), fill=body)
+        d.rectangle((a, a + line, b, b - line), fill=body)
+        x0, y0, x1, y1 = arms[button]
+        d.rectangle((x0 + line, y0 + line, x1 - line, y1 - line), fill=(250, 200, 90, 255))
+        return finish(img)
+    if button in ("start", "back"):
+        img, W = canvas(1.0)
+        d = ImageDraw.Draw(img)
+        d.ellipse((H * 0.1, H * 0.1, H * 0.9, H * 0.9), fill=body, outline=rim, width=line)
+        c = H / 2
+        if button == "start":  # three lines: Xbox Menu, PlayStation Options
+            for k in (-1, 0, 1):
+                y = c + k * H * 0.13
+                d.line((c - H * 0.17, y, c + H * 0.17, y), fill=ink, width=line)
+        elif ps:  # Share/Create: a small arrow up
+            d.line((c, c - H * 0.18, c, c + H * 0.16), fill=ink, width=line)
+            d.line((c - H * 0.12, c - H * 0.06, c, c - H * 0.18, c + H * 0.12, c - H * 0.06), fill=ink, width=line)
+        else:  # View: two windows
+            d.rectangle((c - H * 0.17, c - H * 0.15, c + H * 0.05, c + H * 0.05), outline=ink, width=line)
+            d.rectangle((c - H * 0.05, c - H * 0.03, c + H * 0.17, c + H * 0.17), fill=ink)
+        return finish(img)
+    # Anything else (touchpad, paddles, misc): its name on a rounded key.
+    label = PAD_NAMES.get(button, (button, button))[1 if ps else 0]
+    img, W = canvas(max(1.0, 0.36 * len(label)))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((line, H * 0.14, W - line, H * 0.86), radius=H * 0.25, fill=body, outline=rim, width=line)
+    text(d, W, label, ink, 0.4)
+    return finish(img)
+
+
+class Gamepads:
+    """Controllers through SDL3, the game's own library (gow3_pc/out in a release, MSYS2 here):
+    which buttons are held, and whether the first one is a PlayStation controller."""
+    PLAYSTATION_TYPES = (4, 5, 6)  # SDL_GAMEPAD_TYPE_PS3, PS4, PS5
+
+    def __init__(self):
+        self.sdl = None
+        self.pads = {}
+        msys = Path(os.environ.get("MSYS2_ROOT", "C:/msys64"))
+        for path in (ROOT / "gow3_pc/out/SDL3.dll", msys / "clang64/bin/SDL3.dll", ROOT.parent / "msys64/clang64/bin/SDL3.dll"):
+            if not path.is_file():
+                continue
+            try:
+                sdl = ctypes.CDLL(str(path))
+            except OSError:
+                continue
+            sdl.SDL_SetHint.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+            sdl.SDL_SetHint.restype = ctypes.c_bool
+            sdl.SDL_Init.argtypes = [ctypes.c_uint32]
+            sdl.SDL_Init.restype = ctypes.c_bool
+            sdl.SDL_GetGamepads.argtypes = [ctypes.POINTER(ctypes.c_int)]
+            sdl.SDL_GetGamepads.restype = ctypes.POINTER(ctypes.c_uint32)
+            sdl.SDL_OpenGamepad.argtypes = [ctypes.c_uint32]
+            sdl.SDL_OpenGamepad.restype = ctypes.c_void_p
+            sdl.SDL_CloseGamepad.argtypes = [ctypes.c_void_p]
+            sdl.SDL_GetGamepadButton.argtypes = [ctypes.c_void_p, ctypes.c_int]
+            sdl.SDL_GetGamepadButton.restype = ctypes.c_bool
+            sdl.SDL_GetGamepadAxis.argtypes = [ctypes.c_void_p, ctypes.c_int]
+            sdl.SDL_GetGamepadAxis.restype = ctypes.c_int16
+            sdl.SDL_GetGamepadType.argtypes = [ctypes.c_void_p]
+            sdl.SDL_GetGamepadType.restype = ctypes.c_int
+            sdl.SDL_free.argtypes = [ctypes.c_void_p]
+            # The launcher has no SDL window: controller input arrives anyway.
+            sdl.SDL_SetHint(b"SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", b"1")
+            if sdl.SDL_Init(0x2000):  # SDL_INIT_GAMEPAD
+                self.sdl = sdl
+            break
+
+    def refresh(self):
+        if not self.sdl:
+            return []
+        self.sdl.SDL_PumpEvents()
+        count = ctypes.c_int(0)
+        ids = self.sdl.SDL_GetGamepads(ctypes.byref(count))
+        current = [ids[i] for i in range(count.value)] if ids else []
+        if ids:
+            self.sdl.SDL_free(ctypes.cast(ids, ctypes.c_void_p))
+        for jid in current:
+            if jid not in self.pads:
+                pad = self.sdl.SDL_OpenGamepad(jid)
+                if pad:
+                    self.pads[jid] = pad
+        for jid in [j for j in self.pads if j not in current]:
+            self.sdl.SDL_CloseGamepad(self.pads.pop(jid))
+        self.sdl.SDL_UpdateGamepads()
+        return list(self.pads.values())
+
+    def held(self):
+        down = set()
+        for pad in self.refresh():
+            for index, name in enumerate(SDL_BUTTONS):
+                if self.sdl.SDL_GetGamepadButton(pad, index):
+                    down.add(name)
+            for axis, name in ((4, "lefttrigger"), (5, "righttrigger")):
+                if self.sdl.SDL_GetGamepadAxis(pad, axis) > 16000:
+                    down.add(name)
+        return down
+
+    def style(self):
+        for pad in self.refresh():
+            return "playstation" if self.sdl.SDL_GetGamepadType(pad) in self.PLAYSTATION_TYPES else "xbox"
+        return None
+
+
 STICK_ACTIONS = {"ls_up", "ls_down", "ls_left", "ls_right", "rs_up", "rs_down", "rs_left", "rs_right"}
 DEFAULT_CONTROLS = {
     "ls_up": ["key:W"], "ls_down": ["key:S"], "ls_left": ["key:A"], "ls_right": ["key:D"],
@@ -105,6 +355,9 @@ DEFAULT_CONTROLS = {
     "l3": ["key:Left Shift"], "r3": ["key:V", "mouse:middle"], "options": ["key:Escape", "key:Return"],
     "touchpad_left": ["key:Tab"], "touchpad_right": ["key:Backspace"],
 }
+# Button icons in the games' text and menus (runtime GOW3_PROMPTS): the device used last, or fixed.
+PROMPT_MODES = [("auto", "Auto"), ("keyboard", "Keyboard and mouse"), ("playstation", "PlayStation"),
+                ("xbox", "Xbox")]
 MOUSE_SENSITIVITIES = [("0.5", "0.5x"), ("0.75", "0.75x"), ("1.0", "1x"), ("1.5", "1.5x"), ("2.0", "2x"),
                        ("3.0", "3x")]
 MOUSE_LABELS = {"left": "Left mouse", "middle": "Middle mouse", "right": "Right mouse", "x1": "Mouse back",
@@ -145,6 +398,80 @@ def control_maps(controls):
             buttons = [b[6:] for b in bindings if b.startswith("mouse:")]
             mouse += [f"{action}={name}" for name in buttons] or [f"{action}="]
     return ",".join(keys), ",".join(mouse)
+
+
+def parse_map(spec):
+    """runtime_pad.c's map syntax: (action, source name) per entry ("" = none)."""
+    entries = []
+    for entry in (spec or "").split(","):
+        action, eq, name = entry.partition("=")
+        if eq:
+            entries.append((action.strip(), name.strip()))
+    return entries
+
+
+def apply_map(bindings, spec, prefix):
+    """A map on top of an action -> ["key:..", "mouse:.."] dict, as the runtime applies it: an
+    action's first entry replaces its sources of this kind, further ones add, "action=" none."""
+    replaced = set()
+    for action, name in parse_map(spec):
+        if action not in bindings:
+            continue
+        if action not in replaced:
+            replaced.add(action)
+            bindings[action] = [b for b in bindings[action] if not b.startswith(prefix)]
+        if name:
+            bindings[action].append(prefix + name)
+
+
+def sensitivity_value(text):
+    """A mouse sensitivity as the Sensitivity choice names it (the in-game menu sets any)."""
+    try:
+        value = float(text)
+    except (TypeError, ValueError):
+        return "1.0"
+    for option, _ in MOUSE_SENSITIVITIES:
+        if abs(float(option) - value) < 0.005:
+            return option
+    return f"{value:g}"
+
+
+# The controls in each game's settings file: the game reads them there, and its in-game menu
+# (Insert / R3+L2, Controls tab) changes them too.
+def controls_to_ini(settings):
+    keys, mouse = control_maps(settings.get("controls"))
+    return {"key_map": keys, "mouse_map": mouse, "pad_map": pad_map(settings.get("pad_controls")),
+            "mouse": "1" if settings.get("mouse", True) else "0",
+            "mouse_sens": settings.get("mouse_sens", "1.0"),
+            "mouse_invert": "1" if settings.get("mouse_invert") else "0",
+            "prompts": settings.get("prompts", "auto")}
+
+
+def controls_from_ini(values, settings):
+    """A game's controls from its settings file into the launcher's settings; False when the file
+    has none yet."""
+    if not any(key in values for key in ("key_map", "mouse_map", "pad_map")):
+        return False
+    controls = {action: list(bindings) for action, bindings in DEFAULT_CONTROLS.items()}
+    apply_map(controls, values.get("key_map"), "key:")
+    apply_map(controls, values.get("mouse_map"), "mouse:")
+    settings["controls"] = {action: bindings[:2] for action, bindings in controls.items()}
+    pad = dict(PAD_DEFAULTS)
+    replaced = set()
+    for action, name in parse_map(values.get("pad_map")):
+        if action in pad and action not in replaced:
+            replaced.add(action)
+            pad[action] = name or None
+    settings["pad_controls"] = {action: button for action, button in pad.items() if button != PAD_DEFAULTS.get(action)}
+    if "mouse" in values:
+        settings["mouse"] = values["mouse"] != "0"
+    if "mouse_sens" in values:
+        settings["mouse_sens"] = sensitivity_value(values["mouse_sens"])
+    if "mouse_invert" in values:
+        settings["mouse_invert"] = values["mouse_invert"] == "1"
+    if "prompts" in values:
+        settings["prompts"] = values["prompts"] if values["prompts"] in dict(PROMPT_MODES) else "auto"
+    return True
 
 
 def binding_label(binding):
@@ -218,8 +545,24 @@ def fps_limit_value(value):
     return str(MAX_FPS) if number == 0 or number > MAX_FPS else "60"
 
 
-RESOLUTIONS = [("1280x720", "720p"), ("1600x900", "900p"), ("1920x1080", "1080p"), ("2560x1440", "1440p"),
+RESOLUTIONS = [("960x540", "540p"), ("1280x720", "720p"), ("1600x900", "900p"), ("1920x1080", "1080p"), ("2560x1440", "1440p"),
                ("2880x1620", "1620p"), ("3840x2160", "4K")]
+# Ultrawide: the render resolution's height at a wider aspect ratio. The games widen their view
+# (more to the sides, nothing stretched); menus and the HUD keep their layout.
+ASPECTS = [("16:9", "16:9"), ("21:9", "21:9"), ("32:9", "32:9")]
+ASPECT_WIDTHS = {"16:9": 16 / 9, "21:9": 64 / 27, "32:9": 32 / 9}
+
+
+def aspect_resolution(resolution, aspect):
+    """The render resolution at the aspect ratio: 1440p at 21:9 is 3440x1440 (widths in steps of 8)."""
+    width, height = (int(v) for v in resolution.split("x"))
+    if aspect not in ASPECT_WIDTHS or aspect == "16:9":
+        return resolution
+    if aspect == "21:9" and height in (1080, 1440, 1600):
+        width = {1080: 2560, 1440: 3440, 1600: 3840}[height]  # the common monitor sizes
+    else:
+        width = int(round(height * ASPECT_WIDTHS[aspect] / 8)) * 8
+    return f"{width}x{height}"
 
 # Quality presets: the game has one detail level (the PS4's); quality here is the resolution the
 # game draws at, how it reaches the screen (FSR 1, sharpening) and the frame rate. Above 1080p the
@@ -258,6 +601,18 @@ PRESETS = {
     },
 }
 PRESET_ORDER = ("low", "medium", "high", "ultra")
+
+
+def anti_aliasing_options():
+    """Temporal anti-aliasing at the render resolution (the runtime's "upscaler" setting): FSR 4
+    when its model files are installed, DLAA when the DLSS files are beside Uncharted.exe."""
+    options = [("off", "Off"), ("taa", "TAA"), ("fsr3", "FSR 3.1")]
+    if (ROOT / "gow3_pc/fsr4_shaders/fsr4_model_v07_i8_native_1080_pre.spv").is_file():
+        options.append(("fsr4", "FSR 4"))
+    out = ROOT / "gow3_pc/out"
+    if (out / "gow3_dlss.dll").is_file() and (out / "nvngx_dlss.dll").is_file():
+        options.append(("dlss", "DLAA"))
+    return options
 
 
 def screen_size():
@@ -450,6 +805,9 @@ class Launcher:
         self.config = read_config()
         if self.config.get("game") not in GAME_KEYS:
             self.config["game"] = "u1"
+        for key in GAME_KEYS:
+            if not controls_from_ini(read_ini(key), self.config["games"][key]):
+                write_ini(key, controls_to_ini(self.config["games"][key]))
         self.reload_ini()
         self.process = None
         self.output = queue.Queue()
@@ -460,13 +818,15 @@ class Launcher:
         self.fonts()
         root.title(f"{APP_TITLE} - Launcher by BilalReloaded")
         root.configure(bg=BG)
-        root.resizable(False, False)
+        root.resizable(True, True)
         self.width = self.px(1180)
         try:
             root.iconbitmap(default=str(ASSETS / "uncharted.ico"))
         except tk.TclError:
             pass
         self.build()
+        root.update_idletasks()
+        root.minsize(root.winfo_reqwidth(), root.winfo_reqheight())
         self.restore_window_position()
         write_config(self.config)  # keeps one-time updates (read_config) even without a change
         root.protocol("WM_DELETE_WINDOW", self.close)
@@ -642,6 +1002,13 @@ class Launcher:
         """The selected game's settings from its file (the in-game menu writes it too)."""
         self.ini = read_ini(self.config["game"])
         self.ini_seen = ini_mtime(self.config["game"])
+        if controls_from_ini(self.ini, self.game_settings()):
+            write_config(self.config)
+
+    def save_controls(self):
+        """The selected game's controls, also into its settings file (the game reads them there)."""
+        write_config(self.config)
+        self.save_ini(controls_to_ini(self.game_settings()))
 
     def follow_ini(self):
         """Shows changes the in-game menu saved (Insert, then closing the menu)."""
@@ -660,12 +1027,16 @@ class Launcher:
         settings = self.game_settings()
         if isinstance(self.widgets.get("resolution"), Segmented):
             self.widgets["resolution"].set(settings["resolution"])
+        if isinstance(self.widgets.get("aspect"), Segmented):
+            self.widgets["aspect"].set(settings.get("aspect", "16:9"))
         if isinstance(self.widgets.get("multithreaded"), Toggle):
             self.widgets["multithreaded"].set(settings["multithreaded"])
         if isinstance(self.widgets.get("mouse"), Toggle):
             self.widgets["mouse"].set(settings.get("mouse", True))
             self.widgets["mouse_sens"].set(settings.get("mouse_sens", "1.0"))
             self.widgets["mouse_invert"].set(settings.get("mouse_invert", False))
+            self.widgets["prompts"].set(settings.get("prompts", "auto"))
+            self.refresh_pad_slots()
         if hasattr(self, "binding_slots"):
             self.refresh_bindings()
         self.sync_sharpening()
@@ -852,8 +1223,21 @@ class Launcher:
                              self.change_resolution, self.f_small)
         self.widgets["resolution"] = self.row(
             page, "Render resolution",
-            "The resolution the game draws at (the PS4's is 1080p). Above 1080p is new: if a game crashes "
-            "there, use 1080p with FSR 1 below. Drake's Fortune draws at most 1620p and upscales.", resolution)
+            "The resolution the game draws at (the PS4's is 1080p). 540p with FSR 1 is for integrated "
+            "GPUs. Above 1080p is new: if a game crashes there, use 1080p with FSR 1 below. Drake's "
+            "Fortune draws at most 1620p and upscales.", resolution)
+
+        def aspect(parent):
+            return Segmented(parent, ASPECTS, self.game_settings().get("aspect", "16:9"),
+                             lambda v: self.change_game_setting("aspect", v), self.f_small)
+        self.widgets["aspect"] = self.row(
+            page, "Aspect ratio",
+            "For ultrawide monitors: 21:9 or 32:9 draws a wider picture (1440p at 21:9 is 3440x1440) and "
+            "shows more to the sides. Use Borderless or Fullscreen on the ultrawide monitor.", aspect)
+        self.ini_choice(page, "upscaler", "Anti-aliasing",
+                        "Smooths jagged and flickering edges using earlier frames, at the render resolution. "
+                        "TAA is the lightest; FSR and DLAA (NVIDIA RTX) keep more detail. Also in the in-game "
+                        "menu (Image), where it changes at once.", anti_aliasing_options())
         self.ini_choice(page, "display_mode", "Display mode", "Windowed, borderless window or exclusive fullscreen.",
                         [("windowed", "Windowed"), ("borderless", "Borderless"), ("fullscreen", "Fullscreen")])
         self.ini_toggle(page, "vsync", "VSync", "No tearing. With frame rates above the refresh rate the newest "
@@ -885,8 +1269,9 @@ class Launcher:
     def page_performance(self):
         page = self.page()
         self.ini_choice(page, "fps_limit", "Frame rate limit",
-                        "60 is the PS4's. 120 unlocks the frame rate (experimental): if the game runs too fast "
-                        "or Nate falls through the world, choose 60. Faster breaks the game's movement.",
+                        "60 is the PS4's. Above 60 unlocks the frame rate (experimental): if the game runs too "
+                        "fast or Nate falls through the world, choose 60. With VSync a limit at or above your "
+                        "monitor's refresh rate follows the monitor (75 on a 75 Hz screen): the steadiest.",
                         [(str(v), label) for v, label in FPS_LIMITS])
         self.ini_choice(page, "frames_queued", "Frames queued", "1 (recommended). 2 is faster in heavy scenes, but "
                                                                "GPU results reach the game a frame later: in "
@@ -903,6 +1288,15 @@ class Launcher:
             "Prepares draws on a second CPU thread: more FPS on CPUs with several cores. "
             "Turn it off if the game hangs while loading. Uncharted 2: use it with 1 frame queued "
             "(with 2 it can crash after a few minutes).", multithreaded)
+
+        def job_threads(parent):
+            value = "off" if self.config.get("job_sleep", "auto") == "off" else "on"
+            return Segmented(parent, (("on", "Sleep"), ("off", "Spin")), value,
+                             lambda v: self.change_config("job_sleep", v), self.f_small)
+        self.row(page, "Idle game threads",
+                 "Sleep (recommended): the game's 6 job threads rest while they wait for work. Spin: "
+                 "they keep their cores busy, as on the PS4 where each has one (on a 4-6 core CPU "
+                 "that starves the game; on any PC it costs power and heat).", job_threads)
 
         self.fps_note = tk.Label(page, text="", font=self.f_small, bg=BG, fg=GOLD, anchor="w")
         self.fps_note.pack(side="top", fill="x")
@@ -938,6 +1332,15 @@ class Launcher:
                                               lambda v: self.change_game_setting("mouse_invert", v))
         self.widgets["mouse_invert"].pack(side="left", padx=(self.px(8), 0))
         self.flat_button(top, "Reset controls", self.reset_controls).pack(side="right")
+        icons = tk.Frame(page, bg=BG)
+        icons.pack(side="top", fill="x", pady=(self.px(10), 0))
+        tk.Label(icons, text="Button icons", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
+        self.widgets["prompts"] = Segmented(icons, PROMPT_MODES, settings.get("prompts", "auto"),
+                                            self.change_prompts, self.f_small)
+        self.widgets["prompts"].pack(side="left", padx=(self.px(8), self.px(12)))
+        tk.Label(icons, text="Auto follows the device you play with (a controller's own buttons).",
+                 font=self.f_small, bg=BG,
+                 fg=MUTED).pack(side="left")
         self.controls_hint = tk.Label(
             page, text="Click a slot, then press a key or a mouse button (right-click a slot to clear it). "
                        "In game the mouse is captured; Alt+Tab or Insert (menu) frees it. A controller "
@@ -962,6 +1365,10 @@ class Launcher:
         canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
         self.capturing = None
         self.binding_slots = {}
+        self.pad_slots = {}
+        self.pad_capture = None
+        if not hasattr(self, "gamepads"):
+            self.gamepads = Gamepads()
         columns = [tk.Frame(inner, bg=BG), tk.Frame(inner, bg=BG)]
         columns[0].grid(row=0, column=0, sticky="n", padx=(0, self.px(36)))
         columns[1].grid(row=0, column=1, sticky="n")
@@ -973,7 +1380,7 @@ class Launcher:
                 row = tk.Frame(column, bg=BG)
                 row.pack(side="top", fill="x", pady=self.px(1))
                 tk.Label(row, text=label, font=self.f_small, bg=BG, fg=TEXT, anchor="w",
-                         width=26).pack(side="left")
+                         width=17).pack(side="left")
                 for slot in (0, 1):
                     cell = tk.Label(row, text="", font=self.f_small, bg=PANEL, fg=TEXT, width=14,
                                     pady=self.px(3), cursor="hand2", highlightthickness=1,
@@ -982,11 +1389,107 @@ class Launcher:
                     cell.bind("<Button-1>", lambda e, a=action, i=slot: self.start_capture(a, i))
                     cell.bind("<Button-3>", lambda e, a=action, i=slot: self.set_binding(a, i, None))
                     self.binding_slots[(action, slot)] = cell
+                # The controller button: its icon; a click, then a controller button rebinds it.
+                pad_cell = tk.Label(row, text="", font=self.f_small, bg=PANEL, fg=TEXT, width=14, height=1,
+                                    highlightthickness=1, highlightbackground=LINE, compound="center")
+                pad_cell.pack(side="left", padx=(self.px(6), 0))
+                if action in PAD_DEFAULTS:
+                    pad_cell.config(cursor="hand2")
+                    pad_cell.bind("<Button-1>", lambda e, a=action: self.start_pad_capture(a))
+                    pad_cell.bind("<Button-3>", lambda e, a=action: self.set_pad_binding(a, None))
+                self.pad_slots[action] = pad_cell
         self.refresh_bindings()
+        self.refresh_pad_slots()
         return page
 
     def game_controls(self):
         return merged_controls(self.game_settings().get("controls"))
+
+    def change_prompts(self, value):
+        self.change_game_setting("prompts", value)
+        self.refresh_pad_slots()
+
+    def pad_style(self):
+        style = self.game_settings().get("prompts", "auto")
+        if style in ("xbox", "playstation"):
+            return style
+        return self.gamepads.style() or "xbox"  # Auto: the connected controller's
+
+    def refresh_pad_slots(self):
+        style = self.pad_style()
+        controls = merged_pad_controls(self.game_settings().get("pad_controls"))
+        if not hasattr(self, "pad_images"):
+            self.pad_images = {}
+        height = self.px(22)
+        for action, cell in getattr(self, "pad_slots", {}).items():
+            if self.pad_capture == action:
+                cell.config(image="", text="Press a button…", fg=GOLD, bg=PANEL_HI, width=14, height=1)
+                continue
+            button = controls.get(action) if action in PAD_DEFAULTS else PAD_FIXED.get(action)
+            if not button:
+                cell.config(image="", text="—", fg=TEXT, bg=PANEL, width=14, height=1)
+                continue
+            key = (button, style, height)
+            if key not in self.pad_images:
+                self.pad_images[key] = ImageTk.PhotoImage(pad_icon(button, style, height))
+            cell.config(image=self.pad_images[key], text="", bg=PANEL, width=self.px(100), height=self.px(24))
+
+    def start_pad_capture(self, action):
+        self.stop_capture()
+        if not self.gamepads.sdl:
+            self.controls_hint.config(text="No controller support found (SDL3.dll).", fg=STOP_RED)
+            return
+        self.pad_capture = action
+        self.pad_capture_started = time.monotonic()
+        self.pad_capture_held = self.gamepads.held()  # buttons already down do not count
+        if not self.gamepads.pads:
+            self.controls_hint.config(text="Connect a controller, then click the slot again.", fg=STOP_RED)
+            self.pad_capture = None
+            return
+        self.controls_hint.config(text="Press a button on the controller (Escape cancels). Triggers and sticks "
+                                       "stay Aim, Fire, Move and Look.", fg=MUTED)
+        self.refresh_pad_slots()
+        self.root.bind_all("<Escape>", lambda e: self.stop_pad_capture())
+        self.root.after(30, self.poll_pad_capture)
+
+    def poll_pad_capture(self):
+        if self.pad_capture is None:
+            return
+        held = self.gamepads.held()
+        new = [b for b in SDL_BUTTONS if b in held and b not in self.pad_capture_held]
+        self.pad_capture_held &= held
+        if any(t in held and t not in self.pad_capture_held for t in ("lefttrigger", "righttrigger")):
+            self.controls_hint.config(text="The triggers stay Aim and Fire. Press a button.", fg=STOP_RED)
+        if new:
+            self.set_pad_binding(self.pad_capture, new[0])
+            return
+        if time.monotonic() - self.pad_capture_started > 8:
+            self.stop_pad_capture()
+            return
+        self.root.after(30, self.poll_pad_capture)
+
+    def stop_pad_capture(self):
+        self.pad_capture = None
+        self.root.unbind_all("<Escape>")
+        self.refresh_pad_slots()
+
+    def set_pad_binding(self, action, button):
+        settings = self.game_settings()
+        pad_controls = dict(settings.get("pad_controls") or {})
+        merged = merged_pad_controls(pad_controls)
+        if button:
+            # A button does one thing: the action that had it swaps to this one's old button.
+            for other, current in merged.items():
+                if current == button and other != action:
+                    pad_controls[other] = merged[action]
+        pad_controls[action] = button or ""
+        settings["pad_controls"] = {a: b for a, b in merged_pad_controls(pad_controls).items() if b != PAD_DEFAULTS.get(a)}
+        self.save_controls()
+        self.pad_capture = None
+        self.root.unbind_all("<Escape>")
+        self.refresh_pad_slots()
+        self.controls_hint.config(text="Saved for " + self.current_game()["name"] + ". Right-click a controller "
+                                       "slot to clear it; Reset controls restores the defaults.", fg=MUTED)
 
     def refresh_bindings(self):
         controls = self.game_controls()
@@ -1068,7 +1571,7 @@ class Launcher:
         bindings[slot] = binding
         controls[action] = [b for b in bindings if b][:2]
         self.game_settings()["controls"] = controls
-        write_config(self.config)
+        self.save_controls()
         self.controls_hint.config(
             text="Saved for " + self.current_game()["name"] + ". Click a slot, then press a key or a mouse button "
                  "(right-click a slot to clear it).", fg=MUTED)
@@ -1079,11 +1582,12 @@ class Launcher:
 
     def reset_controls(self):
         name = self.current_game()["name"]
-        if not messagebox.askyesno(APP_TITLE, f"Reset {name}'s keyboard and mouse controls?"):
+        if not messagebox.askyesno(APP_TITLE, f"Reset {name}'s keyboard, mouse and controller controls?"):
             return
         settings = self.game_settings()
-        settings.update({"controls": None, "mouse": True, "mouse_sens": "1.0", "mouse_invert": False})
-        write_config(self.config)
+        settings.update({"controls": None, "mouse": True, "mouse_sens": "1.0", "mouse_invert": False,
+                         "prompts": "auto", "pad_controls": None})
+        self.save_controls()
         self.refresh_controls()
 
     def page_advanced(self):
@@ -1133,6 +1637,9 @@ class Launcher:
         self.ini_label.pack(side="top", fill="x")
         tk.Label(page, text="In game: Insert or R3 + L2 opens the menu (display, frame rate, overlay).",
                  font=self.f_small, bg=BG, fg=DIM, anchor="w").pack(side="top", fill="x")
+        # Credits for the anti-aliasing technologies (NVIDIA's DLSS license asks for its attribution).
+        tk.Label(page, text=CREDITS, font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
+                 wraplength=self.width - 2 * self.px(40)).pack(side="top", fill="x", pady=(self.px(10), 0))
         return page
 
     def flat_button(self, parent, label, action):
@@ -1303,7 +1810,10 @@ class Launcher:
 
     def change_game_setting(self, key, value):
         self.game_settings()[key] = value
-        write_config(self.config)
+        if key in ("mouse", "mouse_sens", "mouse_invert", "prompts"):
+            self.save_controls()
+        else:
+            write_config(self.config)
 
     def change_config(self, key, value):
         self.config[key] = value
@@ -1333,20 +1843,17 @@ class Launcher:
         env = os.environ.copy()
         env["UNCHARTED_DIAGNOSTICS"] = "1" if self.config.get("diagnostics", True) else "0"
         env["UNCHARTED_TORCH_FORWARD"] = "1" if self.config.get("torch_forward", True) else "0"
+        env["UNCHARTED_JOB_SLEEP"] = "0" if self.config.get("job_sleep", "auto") == "off" else "1"
         # Every game's own options: the Collection menu starts the others itself, and
         # tools/probe_uncharted.py applies the started game's (its settings file decides the
         # vblank rate for frame rates above 60).
         env.pop("GOW3_VBLANK_HZ", None)
         for key in GAME_KEYS:
             settings = self.config["games"][key]
-            env[f"UNCHARTED_RESOLUTION_{key.upper()}"] = settings["resolution"]
+            env[f"UNCHARTED_RESOLUTION_{key.upper()}"] = aspect_resolution(settings["resolution"],
+                                                                         settings.get("aspect", "16:9"))
             env[f"UNCHARTED_MULTITHREADED_{key.upper()}"] = "1" if settings["multithreaded"] else "0"
-            keys, mouse = control_maps(settings.get("controls"))
-            env[f"UNCHARTED_KEY_MAP_{key.upper()}"] = keys
-            env[f"UNCHARTED_MOUSE_MAP_{key.upper()}"] = mouse
-            env[f"UNCHARTED_MOUSE_{key.upper()}"] = "1" if settings.get("mouse", True) else "0"
-            env[f"UNCHARTED_MOUSE_SENS_{key.upper()}"] = settings.get("mouse_sens", "1.0")
-            env[f"UNCHARTED_MOUSE_INVERT_{key.upper()}"] = "1" if settings.get("mouse_invert") else "0"
+            # Controls: in each game's settings file (save_controls), where its menu changes them.
         python = Path(sys.executable)
         if python.name.lower() == "pythonw.exe" and python.with_name("python.exe").exists():
             python = python.with_name("python.exe")

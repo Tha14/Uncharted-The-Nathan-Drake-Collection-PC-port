@@ -178,6 +178,39 @@ BufferCache::BufferCache(const Vulkan::Instance& instance_, Vulkan::Scheduler& s
         FindMemoryType(instance.GetMemoryProperties(), vk::MemoryPropertyFlagBits::eDeviceLocal,
                        reqs.memoryTypeBits)
             .value();
+    // gow3 17 Oct 2026: a CPU-mappable type of the same video memory heap when the GPU has one
+    // (Resizable BAR, integrated GPUs): GPU data whose writes have finished is then read straight
+    // from the arena (ReadFinishedGpuPage) instead of a copy that waits for all queued GPU work.
+    // GOW3_HOST_ARENAS=0: device-local only, as before.
+    {
+        static const bool wanted = [] {
+            const char* env = std::getenv("GOW3_HOST_ARENAS");
+            return !(env && env[0] == '0');
+        }();
+        const auto& props = instance.GetMemoryProperties();
+        const u32 heap = props.memoryTypes[arena_memory_type_index].heapIndex;
+        const auto need = vk::MemoryPropertyFlagBits::eDeviceLocal |
+                          vk::MemoryPropertyFlagBits::eHostVisible |
+                          vk::MemoryPropertyFlagBits::eHostCoherent;
+        const auto avoid = vk::MemoryPropertyFlagBits::eDeviceCoherentAMD |
+                           vk::MemoryPropertyFlagBits::eDeviceUncachedAMD;
+        for (u32 i = 0; wanted && i < props.memoryTypeCount; ++i) {
+            const auto flags = props.memoryTypes[i].propertyFlags;
+            if (((reqs.memoryTypeBits >> i) & 1) && (flags & need) == need && !(flags & avoid) &&
+                props.memoryTypes[i].heapIndex == heap) {
+                arena_memory_type_index = i;
+                arena_host_mapped = true;
+                break;
+            }
+        }
+        std::printf("GPU: buffer arenas in memory type %u (heap %u, %s)\n", arena_memory_type_index,
+                    heap, arena_host_mapped ? "CPU-mappable: finished GPU data is read directly"
+                                            : "device-local only");
+        std::fflush(stdout);
+        if (arena_host_mapped) {
+            scheduler.EnableHostReadBarrier();
+        }
+    }
 
     const u64 bda_pagetable_size =
         (blocks_per_arena_page * num_arena_pages) * sizeof(vk::DeviceAddress);
@@ -248,6 +281,68 @@ void BufferCache::SmallGuestCopy(const Gow3Copy::Item& item) {
     Gow3Copy::QueueCopy(item);
 }
 
+void BufferCache::ReleaseStuckPage(VAddr page, bool is_write, bool assume_locks) {
+    // gow3 18 Oct 2026: Uncharted 3 froze on the Cartagena rooftops (chapter 2). The game cleared
+    // a field of its next ray-cast batch (a read-modify-write) in a page a pending readback still
+    // read-protected. The write fault found no GPU bytes under the written ones and returned; the
+    // page stayed protected and the instruction faulted again and again, while the readback, long
+    // done on the GPU, was never landed: only the GPU thread polls readbacks, and it was idle,
+    // waiting for the game (one thread in the kernel, the game waiting on its ray-cast lock).
+    // Shorter versions of the same loop, until the next frame's poll landed the readback, were
+    // hitches. Now the readbacks holding the page land at once (polled, or waited for: they are
+    // submitted, the GPU finishes them); nothing is dropped.
+    const auto release = [this, page, is_write] {
+        const auto holders = [this, page](u64& newest) {
+            u32 count = 0;
+            newest = 0;
+            for (const auto& readback : pending_readbacks) {
+                for (const auto& [address, size] : readback.watched) {
+                    if (page >= address && page < address + size) {
+                        ++count;
+                        newest = std::max(newest, readback.tick);
+                    }
+                }
+            }
+            return count;
+        };
+        static std::atomic<u32> events{0}, landed{0}, waited{0}, unwatched{0}, other{0};
+        const u32 event = events.fetch_add(1, std::memory_order_relaxed) + 1;
+        u64 newest = 0;
+        const u32 held = holders(newest);
+        const char* outcome = "not a buffer readback";
+        if (held) {
+            PollReadbacksNow();
+            if (!holders(newest)) {
+                outcome = "landed (polled)";
+                landed.fetch_add(1, std::memory_order_relaxed);
+            } else if (newest < scheduler.CurrentTick()) {
+                CompleteReadbacks(true, newest);
+                outcome = "landed (waited for the GPU)";
+                waited.fetch_add(1, std::memory_order_relaxed);
+            } else {
+                // Not submitted yet (not read-protected normally): stop protecting the page.
+                UnwatchPage(page);
+                outcome = "unprotected (not submitted)";
+                unwatched.fetch_add(1, std::memory_order_relaxed);
+            }
+        } else {
+            other.fetch_add(1, std::memory_order_relaxed);
+        }
+        if (event <= 12 || event % 500 == 0) {
+            std::printf("Stuck fault %u: %s of page %#llx, %u readbacks held it: %s (so far: %u "
+                        "polled, %u waited, %u unprotected, %u other)\n",
+                        event, is_write ? "write" : "read", static_cast<unsigned long long>(page),
+                        held, outcome, landed.load(), waited.load(), unwatched.load(), other.load());
+            std::fflush(stdout);
+        }
+    };
+    if (assume_locks) {
+        release();
+    } else {
+        liverpool->SendCommand<true>(release);
+    }
+}
+
 void BufferCache::ExtendWriteFault(VAddr device_addr) {
     static const u64 window = [] {
         const char* env = std::getenv("GOW3_FAULT_WINDOW");
@@ -299,6 +394,11 @@ static bool SafeReadbacks() {
 // untouched one, so the merge put stale GPU bytes back into rewritten data (Uncharted 2's
 // skinning tables in the per-frame ring: half-float V#s, a GPU hang and game asserts at the
 // treasure screen).
+static std::atomic<u32> g_direct_page_reads{0};
+static std::array<std::atomic<u32>, 64> g_download_reasons{};
+static std::atomic<u32> g_old_byte_fetches{0};
+static std::array<std::atomic<u32>, 4> g_fetch_refused{}; // lazy, readback, no tick, open buffer
+
 static bool LazyWritesEnabled() {
     static const bool enabled = [] {
         const char* env = std::getenv("GOW3_LAZY_WRITES");
@@ -343,9 +443,29 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
                             overlap, same_page, window_only,
                             double(gpu_bytes) / std::max(1u, overlap + same_page + window_only));
                 std::printf("  lazy writes (no download): %u; GPU-written bytes the CPU overwrote later: %u; "
-                            "writes into pages shared with GPU data in flight: %llu\n",
+                            "writes into pages shared with GPU data: %llu; pages fetched without waiting "
+                            "for queued GPU work: %u\n",
                             g_lazy_writes.exchange(0), g_lazy_cpu_wins.exchange(0),
-                            static_cast<unsigned long long>(std::exchange(g_shared_writes_count, 0)));
+                            static_cast<unsigned long long>(std::exchange(g_shared_writes_count, 0)),
+                            g_direct_page_reads.exchange(0));
+                {
+                    std::string reasons;
+                    for (u32 bits = 0; bits < 64; ++bits) {
+                        if (const u32 n = g_download_reasons[bits].exchange(0)) {
+                            reasons += fmt::format(" [{}{}{}{}{}{}]={}", bits & 1 ? "write" : "read",
+                                                   bits & 2 ? ",onGPU" : "", bits & 4 ? ",lazy" : "",
+                                                   bits & 8 ? ",pending" : "", bits & 16 ? ",inflight" : "",
+                                                   bits & 32 ? ",open" : "", n);
+                        }
+                    }
+                    std::printf("  full downloads by case:%s\n", reasons.c_str());
+                }
+                std::printf("  pages with old GPU bytes fetched on the second queue: %u\n",
+                            g_old_byte_fetches.exchange(0));
+                std::printf("  page fetches refused: lazy page %u, pending readback %u, no GPU write "
+                            "tick %u, written in the open command buffer %u\n",
+                            g_fetch_refused[0].exchange(0), g_fetch_refused[1].exchange(0),
+                            g_fetch_refused[2].exchange(0), g_fetch_refused[3].exchange(0));
                 std::printf("  tracking: %zu lazy/shared pages, %zu pending readbacks, %zu pages with "
                             "GPU write records, %zu GPU-written ranges\n",
                             lazy_pages.size(), pending_readbacks.size(), page_writes.size(),
@@ -565,13 +685,34 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
                 memory_tracker->MarkRegionAsCpuModified(device_addr, size);
                 return;
             }
+            // gow3 17 Oct 2026: the page's GPU bytes are final (the last GPU write into its 1 MiB
+            // window has finished) and the arenas are in CPU-mappable video memory (Resizable BAR,
+            // integrated GPUs): copy them from there. The download below waited for all GPU work
+            // queued since, the current frame's included (Uncharted 3, crowded street: ~150 per
+            // 5 s, ~10 ms each at 1440p-4K, 60 -> 45 FPS).
+            if (ReadFinishedGpuPage(page) || CopyFinishedGpuPage(page)) {
+                memory_tracker->MarkRegionAsCpuModified(device_addr, size);
+                return;
+            }
             // gow3: the GPU bytes in this page come from work still in flight (recorded in this
             // submission or not finished): the guest, a frame ahead, writes next to them (false
             // sharing: ~90 per second in heavy U2 scenes, each a download waiting for all GPU
             // work). The write goes ahead; the page's GPU bytes stay the GPU's (uploads skip
             // them) until the next readback brings them. No guest bytes are compared (the
             // lazy-write merge did, and put stale GPU bytes back into rewritten data).
-            if (!gpu_modified_ranges.Intersects(device_addr, size)) {
+            // Diagnostics: GOW3_SHARED_WRITES=0 turns this path off (the write downloads first).
+            static const bool shared_writes = [] {
+                const char* env = std::getenv("GOW3_SHARED_WRITES");
+                return !(env && env[0] == '0');
+            }();
+            // gow3 17 Oct 2026: GPU bytes partly in flight, partly old (Uncharted 3 street: ~120
+            // per 5 s, each a full download): the old ones are fetched on the second queue (they
+            // are final), then the page takes the shared path.
+            if (shared_writes && !gpu_modified_ranges.Intersects(device_addr, size) &&
+                !GpuBytesInFlight(page)) {
+                FetchOldGpuBytes(page);
+            }
+            if (shared_writes && !gpu_modified_ranges.Intersects(device_addr, size)) {
                 if (GpuBytesInFlight(page)) {
                     auto& slot = lazy_pages[page];
                     if (!slot) {
@@ -598,6 +739,24 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
         const u32 last_block = (device_addr + size - 1) >> block_shift;
         const auto* arena = GetArena(first_block, last_block);
 
+        {
+            // gow3 diagnostics: why this fault ends in a full download (bits, 5 s statistics).
+            const VAddr page = Common::AlignDown(device_addr, 4096);
+            u32 bits = is_write ? 1 : 0;
+            bits |= gpu_modified_ranges.Intersects(device_addr, size) ? 2 : 0;
+            bits |= lazy_pages.contains(page) ? 4 : 0;
+            bits |= PendingReadbackTick(page, 4096, false) ? 8 : 0;
+            bits |= GpuBytesInFlight(page) ? 16 : 0;
+            {
+                std::shared_lock lock{gpu_ranges_mutex};
+                const auto it = gpu_write_window_tick.find(page >> 20);
+                const auto small = gpu_write_page_tick.find(page >> 12);
+                const u64 tick = std::max(it != gpu_write_window_tick.end() ? it->second : 0,
+                                          small != gpu_write_page_tick.end() ? small->second : 0);
+                bits |= tick >= scheduler.CurrentTick() ? 32 : 0;
+            }
+            ++g_download_reasons[bits];
+        }
         // GPU-modified ranges come as many small scattered islands,
         // so the download is widened to a window around the request
         constexpr u64 WindowSize = 512_KB;
@@ -1006,7 +1165,7 @@ void BufferCache::WriteBackGpuData(VAddr address, const u8* data, u64 size,
 }
 
 void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ranges, bool protect,
-                                      bool yield_to_cpu) {
+                                      bool yield_to_cpu, bool never_protect) {
     last_readback_tick = scheduler.CurrentTick();
     PendingReadback readback;
     struct Copy {
@@ -1050,10 +1209,19 @@ void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ran
         }
         runtime.CopyBuffer(arena, download.buffer, copies);
     }
-    if (SafeReadbacks() || protect) {
+    if (never_protect) {
+        readback.open = true;
+        for (const auto& [address, size] : readback.pieces) {
+            open_readback_ranges.Add(address, size);
+        }
+    }
+    if (!never_protect && (SafeReadbacks() || protect)) {
         std::vector<VAddr> pages;
         const auto now = std::chrono::steady_clock::now();
         for (const auto& [address, size] : readback.pieces) {
+            if (!protect && open_readback_ranges.Contains(address, size)) {
+                continue; // fence-gated results already on their way back, unprotected
+            }
             if (!protect) {
                 if (const auto it = landed_pieces.find(address);
                     it != landed_pieces.end() && it->second.first == size &&
@@ -1155,6 +1323,338 @@ void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ran
     SweepTracking();
 }
 
+void BufferCache::PeekGpuRange(VAddr address, u64 size, u64 tag, u32 slot, u64 dispatch, u32 phase) {
+    if (size == 0 || size > 1_MB || peeks.size() > 8192) {
+        return;
+    }
+    const u64 first_block = address >> block_shift;
+    const u64 last_block = (address + size - 1) >> block_shift;
+    const auto* arena = GetArena(first_block, last_block);
+    if (!arena) {
+        return;
+    }
+    static const auto t0 = std::chrono::steady_clock::now();
+    const auto staging = staging_pool.Request(size, VideoCore::MemoryType::HostCached, 0, true);
+    const vk::BufferCopy copy = {
+        .srcOffset = address - arena->cpu_addr,
+        .dstOffset = staging.offset,
+        .size = size,
+    };
+    runtime.CopyBuffer(arena, staging.buffer, std::span{&copy, 1});
+    peeks.push_back({scheduler.CurrentTick(), staging.buffer, staging.offset, staging.size, staging.mapped,
+                     address, size, tag, slot,
+                     std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
+                     dispatch, phase});
+}
+
+void BufferCache::PeekGpuBuffer(const Buffer* source, u64 offset, VAddr address, u64 size, u64 tag,
+                                u32 slot, u64 dispatch, u32 phase) {
+    if (!source || size == 0 || size > 1_MB || peeks.size() > 8192) {
+        return;
+    }
+    static const auto t0 = std::chrono::steady_clock::now();
+    const auto staging = staging_pool.Request(size, VideoCore::MemoryType::HostCached, 0, true);
+    const vk::BufferCopy copy = {
+        .srcOffset = offset,
+        .dstOffset = staging.offset,
+        .size = size,
+    };
+    runtime.CopyBuffer(source, staging.buffer, std::span{&copy, 1});
+    peeks.push_back({scheduler.CurrentTick(), staging.buffer, staging.offset, staging.size, staging.mapped,
+                     address, size, tag, slot,
+                     std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
+                     dispatch, phase});
+}
+
+void BufferCache::PollPeeks() {
+    static u64 scanned = 0, bad = 0;
+    static int printed = 0;
+    static auto last = std::chrono::steady_clock::now();
+    static std::map<std::pair<u64, u32>, float> max_abs; // (shader, slot) -> largest finite |x|
+    while (!peeks.empty() && scheduler.IsFree(peeks.front().tick)) {
+        Peek& peek = peeks.front();
+        peek.buffer->Invalidate(peek.offset, peek.staging_size);
+        const auto* values = reinterpret_cast<const float*>(peek.mapped);
+        const u64 count = peek.size / 4;
+        u64 nonfinite = 0, huge = 0;
+        float largest = 0.0f;
+        for (u64 i = 0; i < count; ++i) {
+            const u32 bits = std::bit_cast<u32>(values[i]);
+            if (((bits >> 23) & 0xff) == 0xff) {
+                ++nonfinite;
+            } else {
+                const float a = std::abs(values[i]);
+                // Plain integers (indices, counters) are tiny denormal-range floats: skip them.
+                if ((bits & 0x7f800000u) != 0) {
+                    largest = std::max(largest, a);
+                    huge += a > 1e4f;
+                }
+            }
+        }
+        // Frame-to-frame jumps of the solvers' outputs: values that moved more than 2 units since
+        // the last dispatch wrote the same range. A few of them (not most: that is a reset or a
+        // camera cut) are flung vertices, which the 1e4 test above misses.
+        u64 jumped = 0, compared = 0;
+        float max_jump = 0.0f;
+        if (peek.dispatch && peek.phase == 1) {
+            static std::map<std::tuple<u64, u32, VAddr, u64>, std::vector<float>> previous;
+            if (previous.size() > 4096) {
+                previous.clear();
+            }
+            auto& old = previous[{peek.tag, peek.slot, peek.address, peek.size}];
+            if (old.size() == count) {
+                for (u64 i = 0; i < count; ++i) {
+                    const u32 a = std::bit_cast<u32>(values[i]);
+                    const u32 b = std::bit_cast<u32>(old[i]);
+                    const auto normal = [](u32 bits) {
+                        const u32 exponent = (bits >> 23) & 0xff;
+                        return exponent != 0 && exponent != 0xff;
+                    };
+                    if (!normal(a) || !normal(b)) {
+                        continue;
+                    }
+                    ++compared;
+                    const float d = std::abs(values[i] - old[i]);
+                    if (d > 2.0f) {
+                        ++jumped;
+                        max_jump = std::max(max_jump, d);
+                    }
+                }
+            }
+            old.assign(values, values + count);
+        }
+        ++scanned;
+        // 1c957b01's constant block (slot 1, read before the dispatch): dwords 60-72 and 155-171
+        // (68: the step time factor, 160: the step count), 30 s in, 12 dispatches.
+        if (peek.tag == 0x1c957b01 && peek.slot == 1 && peek.phase == 0 && peek.ms > 30000 && peek.size >= 688) {
+            static int const_lines = 0;
+            if (const_lines < 12) {
+                ++const_lines;
+                const auto* words = reinterpret_cast<const u32*>(values);
+                std::string text = fmt::format("Cloth const #{} t={:.1f}:", peek.dispatch, peek.ms);
+                for (u32 i : {60u, 62u, 64u, 66u, 67u, 68u, 69u, 70u, 72u, 156u, 158u, 159u, 160u, 161u, 162u, 164u}) {
+                    text += fmt::format(" d{}={:#x}/{:.4g}", i, words[i], std::bit_cast<float>(words[i]));
+                }
+                std::printf("%s\n", text.c_str());
+                std::fflush(stdout);
+            }
+        }
+        if (peek.dispatch) {
+            struct SlotStat {
+                u32 slot, phase;
+                u64 size, nonfinite, huge, hash;
+                float largest;
+                VAddr address;
+                u64 jumped, compared;
+                float max_jump;
+            };
+            struct DispatchStat {
+                u64 id, shader;
+                double ms;
+                std::vector<SlotStat> rows;
+            };
+            static DispatchStat current{};
+            static std::deque<DispatchStat> history;
+            static int dumps = 0;
+            static u64 clean_streak = 0;
+            u64 hash = 1469598103934665603ull;
+            const auto* bytes = reinterpret_cast<const u8*>(values);
+            for (u64 i = 0; i < peek.size; ++i) {
+                hash = (hash ^ bytes[i]) * 1099511628211ull;
+            }
+            static u64 dispatches_1c = 0, cold_1c = 0, exploded_1c = 0;
+            static double last_1c_ms = 0;
+            static std::array<u64, 5> gaps{}; // <20, 20-40, 40-100, 100-500, >500 ms
+            static auto cold_report = std::chrono::steady_clock::now();
+            const auto finish = [&] {
+                bool exploded = false, jumpy = false;
+                for (const auto& row : current.rows) {
+                    exploded |= row.phase == 1 && (row.nonfinite || row.huge);
+                    jumpy |= row.phase == 1 && row.jumped && row.jumped * 4 < row.compared;
+                }
+                static u64 jumpy_1c = 0, jumpy_80 = 0;
+                static int jump_lines = 0;
+                static std::map<std::pair<u64, u32>, double> typical; // (shader, slot) -> average largest
+                static u64 outliers_1c = 0, outliers_80 = 0;
+                static int outlier_lines = 0;
+                bool outlier = false;
+                std::string outlier_text;
+                for (const auto& row : current.rows) {
+                    if (row.phase != 1 || row.size < 64 || row.nonfinite) {
+                        continue;
+                    }
+                    auto [it, fresh] = typical.try_emplace({current.shader, row.slot}, row.largest);
+                    const double avg = it->second;
+                    if (!fresh && avg > 0.05 && avg < 100.0 && row.largest > 2.0 * avg + 0.5) {
+                        outlier = true;
+                        outlier_text += fmt::format(" s{}@{:x}: {:.3g} (average {:.3g});", row.slot,
+                                                    row.address & 0xffffff, row.largest, avg);
+                    } else {
+                        it->second = avg * 0.95 + row.largest * 0.05;
+                    }
+                }
+                (current.shader == 0x1c957b01 ? outliers_1c : outliers_80) += outlier;
+                if (outlier && outlier_lines < 200) {
+                    ++outlier_lines;
+                    std::printf("Cloth outlier #%llu %08llx t=%.1f:%s\n", (unsigned long long)current.id,
+                                (unsigned long long)current.shader, current.ms, outlier_text.c_str());
+                }
+                (current.shader == 0x1c957b01 ? jumpy_1c : jumpy_80) += jumpy;
+                if (jumpy && jump_lines < 60) {
+                    ++jump_lines;
+                    std::string text = fmt::format("Cloth jump #{} {:08x} t={:.1f}:", current.id, current.shader,
+                                                   current.ms);
+                    for (const auto& row : current.rows) {
+                        if (row.phase == 1 && row.jumped) {
+                            text += fmt::format(" s{}@{:x}: {} of {} moved, max {:.3g};", row.slot,
+                                                row.address & 0xffffff, row.jumped, row.compared, row.max_jump);
+                        }
+                    }
+                    std::printf("%s\n", text.c_str());
+                }
+                // A run of consecutive dispatches, 30 s in: slot address (low 24 bits), max, hash.
+                static int seq_lines = 0;
+                if (current.shader == 0x1c957b01 && current.ms > 30000 && seq_lines < 40) {
+                    ++seq_lines;
+                    std::string text = fmt::format("Cloth seq #{} t={:.1f}{}:", current.id, current.ms,
+                                                   exploded ? " EXPLODED" : "");
+                    for (const auto& row : current.rows) {
+                        if (row.slot == 0 || row.slot == 1 || row.slot == 3 || row.slot == 6 || row.slot == 17 ||
+                            row.slot == 26 || row.slot == 29) {
+                            text += fmt::format(" s{}{}@{:x}:{:.3g}:{:04x}", row.slot, row.phase ? "o" : "i",
+                                                row.address & 0xffffff, row.largest, row.hash & 0xffff);
+                        }
+                    }
+                    std::printf("%s\n", text.c_str());
+                }
+                // The 128-thread solver: dispatches and those with exploded outputs (with the
+                // 1c957b01 report), and which output slots blew up.
+                static u64 dispatches_80 = 0, exploded_80 = 0;
+                static std::map<u32, u64> exploded_slots_80;
+                if (current.shader == 0x809864d3) {
+                    ++dispatches_80;
+                    exploded_80 += exploded;
+                    for (const auto& row : current.rows) {
+                        if (row.phase == 1 && (row.nonfinite || row.huge)) {
+                            ++exploded_slots_80[row.slot];
+                        }
+                    }
+                }
+                if (current.shader == 0x1c957b01) {
+                    ++dispatches_1c;
+                    exploded_1c += exploded;
+                    // Cold start: the state slots read as all zero.
+                    bool cold = true;
+                    for (const auto& row : current.rows) {
+                        if (row.phase == 0 && (row.slot == 0 || row.slot == 3 || row.slot == 17)) {
+                            cold &= row.largest == 0.0f;
+                        }
+                    }
+                    cold_1c += cold;
+                    if (last_1c_ms > 0) {
+                        const double gap = current.ms - last_1c_ms;
+                        ++gaps[gap < 20 ? 0 : gap < 40 ? 1 : gap < 100 ? 2 : gap < 500 ? 3 : 4];
+                    }
+                    last_1c_ms = current.ms;
+                    if (const auto now = std::chrono::steady_clock::now(); now - cold_report >= std::chrono::seconds{5}) {
+                        cold_report = now;
+                        std::printf("Cloth 1c957b01 (5 s): %llu dispatches, %llu cold starts, %llu exploded; gaps "
+                                    "<20 ms %llu, 20-40 %llu, 40-100 %llu, 100-500 %llu, >500 %llu\n",
+                                    (unsigned long long)dispatches_1c, (unsigned long long)cold_1c,
+                                    (unsigned long long)exploded_1c, (unsigned long long)gaps[0],
+                                    (unsigned long long)gaps[1], (unsigned long long)gaps[2],
+                                    (unsigned long long)gaps[3], (unsigned long long)gaps[4]);
+                        std::string slots;
+                        for (const auto& [slot, n] : exploded_slots_80) {
+                            slots += fmt::format(" s{}x{}", slot, n);
+                        }
+                        std::printf("Cloth 809864d3 (5 s): %llu dispatches, %llu exploded;%s\n",
+                                    (unsigned long long)dispatches_80, (unsigned long long)exploded_80,
+                                    slots.c_str());
+                        std::printf("Cloth jumps (5 s): 1c957b01 %llu, 809864d3 %llu dispatches; outliers "
+                                    "1c957b01 %llu, 809864d3 %llu\n",
+                                    (unsigned long long)jumpy_1c, (unsigned long long)jumpy_80,
+                                    (unsigned long long)outliers_1c, (unsigned long long)outliers_80);
+                        jumpy_1c = jumpy_80 = outliers_1c = outliers_80 = 0;
+                        std::fflush(stdout);
+                        dispatches_1c = cold_1c = exploded_1c = 0;
+                        dispatches_80 = exploded_80 = 0;
+                        exploded_slots_80.clear();
+                        gaps = {};
+                    }
+                }
+                if (exploded && current.shader == 0x1c957b01 && clean_streak >= 20 && dumps < 6) {
+                    ++dumps;
+                    std::string text = fmt::format("Cloth history before exploded dispatch {}:", current.id);
+                    history.push_back(current);
+                    for (const auto& d : history) {
+                        text += fmt::format("\n  #{} {:08x} t={:.1f}:", d.id, d.shader, d.ms);
+                        for (const auto& row : d.rows) {
+                            text += fmt::format(" [s{}{} {:x}+{} {:.3g} h{:04x}]", row.slot, row.phase ? "o" : "i",
+                                                row.address & 0xffffff, row.size, row.largest, row.hash & 0xffff);
+                        }
+                    }
+                    history.pop_back();
+                    std::printf("%s\n", text.c_str());
+                    std::fflush(stdout);
+                }
+                clean_streak = exploded ? 0 : clean_streak + 1;
+                history.push_back(std::move(current));
+                while (history.size() > 8) {
+                    history.pop_front();
+                }
+                current = {};
+            };
+            if (peek.dispatch != current.id) {
+                if (current.id) {
+                    finish();
+                }
+                current.id = peek.dispatch;
+                current.shader = peek.tag;
+                current.ms = peek.ms;
+            }
+            current.rows.push_back({peek.slot, peek.phase, peek.size, nonfinite, huge, hash, largest, peek.address,
+                                    jumped, compared, max_jump});
+        }
+        auto& m = max_abs[{peek.tag, peek.slot}];
+        m = std::max(m, largest);
+        if (nonfinite || huge) {
+            ++bad;
+            if (printed < 300) {
+                ++printed;
+                std::printf("Cloth peek: t=%.1f ms shader %08llx slot %u at %#llx size %llu: %llu non-finite, "
+                            "%llu over 1e4, largest %g\n",
+                            peek.ms, static_cast<unsigned long long>(peek.tag), peek.slot,
+                            static_cast<unsigned long long>(peek.address),
+                            static_cast<unsigned long long>(peek.size),
+                            static_cast<unsigned long long>(nonfinite), static_cast<unsigned long long>(huge),
+                            largest);
+            }
+        }
+        staging_pool.FreeDeferred(Vulkan::StagingBufferRef{
+            .buffer = peek.buffer,
+            .offset = peek.offset,
+            .size = peek.staging_size,
+            .mapped = peek.mapped,
+            .type = VideoCore::MemoryType::HostCached,
+        });
+        peeks.pop_front();
+    }
+    if (const auto now = std::chrono::steady_clock::now(); scanned && now - last >= std::chrono::seconds{5}) {
+        last = now;
+        std::string text;
+        for (const auto& [key, m] : max_abs) {
+            text += fmt::format(" {:08x}/{}:{:.3g}", key.first, key.second, m);
+        }
+        std::printf("Cloth peek (5 s): %llu buffers scanned, %llu with exploded values; largest |x| per slot:%s\n",
+                    static_cast<unsigned long long>(scanned), static_cast<unsigned long long>(bad),
+                    text.c_str());
+        std::fflush(stdout);
+        scanned = bad = 0;
+        max_abs.clear();
+    }
+}
+
 void BufferCache::SweepTracking() {
     const auto now = std::chrono::steady_clock::now();
     if (now - last_tracking_sweep < std::chrono::seconds{2}) {
@@ -1165,6 +1665,13 @@ void BufferCache::SweepTracking() {
     // ignores such entries, so the page's record only cost memory and hash-table size.
     auto* semaphore = scheduler.GetWorkSemaphore();
     semaphore->Refresh();
+    {
+        std::unique_lock lock{gpu_ranges_mutex};
+        std::erase_if(gpu_write_page_tick, [&](const auto& entry) {
+            return semaphore->IsFree(entry.second) &&
+                   !gpu_modified_ranges.Intersects(entry.first << 12, 4096);
+        });
+    }
     g_swept_pages += static_cast<u32>(std::erase_if(page_writes, [&](const auto& entry) {
         return std::ranges::all_of(entry.second, [&](const PageWrite& w) {
             return w.tick < last_readback_tick && semaphore->IsFree(w.tick);
@@ -1189,9 +1696,41 @@ void BufferCache::CompleteReadbacks(bool wait, u64 wait_until) {
         }
         readback.watching = true;
     }
+    // GOW3_TEST_READBACK_HOLD=<ms>:<seconds> (tests): every <seconds>, polled readbacks do not
+    // land for <ms>, as on a GPU that fell behind (the FrameBegin m_gfxEopTick crash reports
+    // followed 45-55 ms stalls). Waiting callers still land them.
+    static const auto hold = [] {
+        const char* env = std::getenv("GOW3_TEST_READBACK_HOLD");
+        unsigned ms = 0, seconds = 0;
+        if (env && std::sscanf(env, "%u:%u", &ms, &seconds) == 2 && ms && seconds) {
+            std::printf("Test: readbacks held %u ms every %u s\n", ms, seconds);
+        }
+        return std::pair<unsigned, unsigned>{ms, seconds};
+    }();
+    if (hold.first && !wait && !pending_readbacks.empty()) {
+        static const auto start = std::chrono::steady_clock::now();
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start)
+                            .count();
+        if (ms > 30000 && ms % (hold.second * 1000ull) < hold.first) {
+            return;
+        }
+    }
+    // GOW3_TEST_READBACK_LAG=<ms> (tests): polled readbacks land no sooner than <ms> after they
+    // were queued, as on a GPU that runs that far behind.
+    static const auto lag = [] {
+        const char* env = std::getenv("GOW3_TEST_READBACK_LAG");
+        const int ms = env ? std::atoi(env) : 0;
+        if (ms > 0) {
+            std::printf("Test: readbacks land %d ms after they are queued\n", ms);
+        }
+        return std::chrono::milliseconds(ms > 0 ? ms : 0);
+    }();
     auto* semaphore = scheduler.GetWorkSemaphore();
     while (!pending_readbacks.empty()) {
         PendingReadback& readback = pending_readbacks.front();
+        if (!wait && lag.count() && std::chrono::steady_clock::now() - readback.queued < lag) {
+            return;
+        }
         if (!semaphore->IsFree(readback.tick)) {
             if (wait && readback.tick <= wait_until) {
                 scheduler.Wait(readback.tick);
@@ -1249,6 +1788,11 @@ void BufferCache::CompleteReadbacks(bool wait, u64 wait_until) {
         if (readback.watching) {
             for (const auto& [address, size] : readback.watched) {
                 page_manager->UpdatePageWatchers<false, true>(address, size);
+            }
+        }
+        if (readback.open) {
+            for (const auto& [address, size] : readback.pieces) {
+                open_readback_ranges.Subtract(address, size);
             }
         }
         staging_pool.FreeDeferred(Vulkan::StagingBufferRef{
@@ -1389,6 +1933,277 @@ u64 BufferCache::PendingReadbackTick(VAddr address, u64 size, bool newest_only) 
     return tick;
 }
 
+void BufferCache::NoteGpuWriteWindows(VAddr address, u64 size) {
+    const u64 tick = scheduler.CurrentTick();
+    if (size > 64_KB) {
+        for (u64 window = address >> 20; window <= (address + size - 1) >> 20; ++window) {
+            gpu_write_window_tick[window] = tick;
+        }
+        return;
+    }
+    for (u64 page = address >> 12; page <= (address + size - 1) >> 12; ++page) {
+        gpu_write_page_tick[page] = tick;
+    }
+}
+
+
+u64 BufferCache::FetchableWindowTick(VAddr page) {
+    if (lazy_pages.contains(page)) {
+        ++g_fetch_refused[0];
+        return 0;
+    }
+    if (PendingReadbackTick(page, 4096, false)) {
+        ++g_fetch_refused[1];
+        return 0;
+    }
+    u64 tick = 0;
+    {
+        std::shared_lock lock{gpu_ranges_mutex};
+        const auto window = gpu_write_window_tick.find(page >> 20);
+        const auto small = gpu_write_page_tick.find(page >> 12);
+        if (window != gpu_write_window_tick.end()) {
+            tick = window->second;
+        }
+        if (small != gpu_write_page_tick.end()) {
+            tick = std::max(tick, small->second);
+        }
+        if (!tick) {
+            ++g_fetch_refused[2];
+            return 0;
+        }
+    }
+    // Recorded in the open command buffer: only the full download gets it.
+    if (!tick || tick >= scheduler.CurrentTick()) {
+        ++g_fetch_refused[3];
+        return 0;
+    }
+    return tick;
+}
+
+void BufferCache::FinishPageFetch(VAddr page) {
+    GpuRangesSubtract(page, 4096);
+    memory_tracker->UnmarkRegionAsGpuModified(page, 4096);
+    page_writes.erase(page >> 12);
+    ++g_direct_page_reads;
+}
+
+static bool UrgentCopiesEnabled() {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_URGENT_COPIES");
+        return !(env && env[0] == '0');
+    }();
+    return enabled;
+}
+
+bool BufferCache::SideQueueFetch(std::span<const std::pair<VAddr, u64>> pieces, u64 wait_tick) {
+    const vk::Queue queue = instance.GetCopyQueue();
+    if (!UrgentCopiesEnabled() || !queue || pieces.empty() || !wait_tick) {
+        return false;
+    }
+    const VAddr lo = pieces.front().first;
+    const VAddr hi = pieces.back().first + pieces.back().second;
+    const u32 first_block = lo >> block_shift;
+    const u32 last_block = (hi - 1) >> block_shift;
+    const auto* arena = GetArena(first_block, last_block);
+    if (!arena || !resident_ranges.Contains(first_block, last_block + 1)) {
+        return false;
+    }
+    u64 total = 0;
+    for (const auto& [address, size] : pieces) {
+        total += size;
+    }
+    const auto device = instance.GetDevice();
+    if (!urgent_pool) {
+        urgent_pool = Vulkan::Check<"urgent copy pool">(device.createCommandPoolUnique({
+            .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer |
+                     vk::CommandPoolCreateFlagBits::eTransient,
+            .queueFamilyIndex = instance.GetGraphicsQueueFamilyIndex(),
+        }));
+        urgent_cmd = Vulkan::Check<"urgent copy buffer">(device.allocateCommandBuffers({
+            .commandPool = *urgent_pool,
+            .level = vk::CommandBufferLevel::ePrimary,
+            .commandBufferCount = 1,
+        }))[0];
+        urgent_fence = Vulkan::Check<"urgent copy fence">(device.createFenceUnique({}));
+    }
+    const auto staging = staging_pool.Request(total, MemoryType::HostCached);
+    boost::container::small_vector<vk::BufferCopy, 8> copies;
+    u64 offset = staging.offset;
+    for (const auto& [address, size] : pieces) {
+        copies.push_back({address - arena->cpu_addr, offset, size});
+        offset += size;
+    }
+    std::ignore = urgent_cmd.reset();
+    std::ignore = urgent_cmd.begin({.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+    urgent_cmd.copyBuffer(arena->Handle(), staging.buffer->Handle(), copies);
+#pragma push_macro("MemoryBarrier")
+#undef MemoryBarrier
+    const vk::MemoryBarrier to_host = {
+        .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
+        .dstAccessMask = vk::AccessFlagBits::eHostRead,
+    };
+#pragma pop_macro("MemoryBarrier")
+    urgent_cmd.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+                               vk::PipelineStageFlagBits::eHost, {}, to_host, {}, {});
+    std::ignore = urgent_cmd.end();
+    const vk::Semaphore timeline = scheduler.GetWorkSemaphore()->Handle();
+    const vk::PipelineStageFlags wait_stage = vk::PipelineStageFlagBits::eAllCommands;
+    const vk::TimelineSemaphoreSubmitInfo timeline_si = {
+        .waitSemaphoreValueCount = 1,
+        .pWaitSemaphoreValues = &wait_tick,
+    };
+    const vk::SubmitInfo submit = {
+        .pNext = &timeline_si,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &timeline,
+        .pWaitDstStageMask = &wait_stage,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &urgent_cmd,
+    };
+    if (queue.submit(submit, *urgent_fence) != vk::Result::eSuccess) {
+        return false;
+    }
+    std::ignore = device.waitForFences(*urgent_fence, true, std::numeric_limits<u64>::max());
+    std::ignore = device.resetFences(*urgent_fence);
+    staging.Invalidate();
+    const u8* source = staging.mapped;
+    for (const auto& [address, size] : pieces) {
+        if (!memory->TryWriteBacking(std::bit_cast<u8*>(address), source, size)) {
+            std::memcpy(std::bit_cast<void*>(address), source, size);
+        }
+        source += size;
+    }
+    return true;
+}
+
+bool BufferCache::CopyFinishedGpuPage(VAddr page) {
+    if (!UrgentCopiesEnabled() || !instance.GetCopyQueue()) {
+        return false;
+    }
+    const u64 tick = FetchableWindowTick(page);
+    if (!tick) {
+        return false;
+    }
+    boost::container::small_vector<std::pair<VAddr, u64>, 8> pieces;
+    gpu_modified_ranges.ForEachInRange(page, 4096, [&](VAddr lo, VAddr hi) {
+        pieces.emplace_back(lo, hi - lo);
+    });
+    if (!SideQueueFetch(pieces, tick)) {
+        return false;
+    }
+    FinishPageFetch(page);
+    return true;
+}
+
+bool BufferCache::FetchOldGpuBytes(VAddr page) {
+    if (!UrgentCopiesEnabled() || !instance.GetCopyQueue() || lazy_pages.contains(page)) {
+        return false;
+    }
+    auto* semaphore = scheduler.GetWorkSemaphore();
+    semaphore->Refresh();
+    {
+        // A large GPU write into the window still running could cover any byte.
+        std::shared_lock lock{gpu_ranges_mutex};
+        const auto window = gpu_write_window_tick.find(page >> 20);
+        if (window != gpu_write_window_tick.end() && !semaphore->IsFree(window->second)) {
+            return false;
+        }
+    }
+    // The bytes still in flight (as GpuBytesInFlight counts them); the others are final.
+    std::bitset<4096> covered;
+    if (const auto it = page_writes.find(page >> 12); it != page_writes.end()) {
+        for (const auto& write : it->second) {
+            if (write.tick >= last_readback_tick || !semaphore->IsFree(write.tick)) {
+                for (u32 byte = write.lo; byte < write.hi; ++byte) {
+                    covered.set(byte);
+                }
+            }
+        }
+    }
+    for (const auto& readback : pending_readbacks) {
+        for (const auto& [address, size] : readback.pieces) {
+            const VAddr lo = std::max(address, page);
+            const VAddr hi = std::min(address + size, page + 4096);
+            for (VAddr byte = lo; byte < hi; ++byte) {
+                covered.set(byte - page);
+            }
+        }
+    }
+    boost::container::small_vector<std::pair<VAddr, u64>, 8> pieces;
+    gpu_modified_ranges.ForEachInRange(page, 4096, [&](VAddr lo, VAddr hi) {
+        for (VAddr byte = lo; byte < hi; ++byte) {
+            if (covered.test(byte - page)) {
+                continue;
+            }
+            if (!pieces.empty() && pieces.back().first + pieces.back().second == byte) {
+                ++pieces.back().second;
+            } else {
+                pieces.emplace_back(byte, 1);
+            }
+        }
+    });
+    const u64 done = semaphore->KnownGpuTick();
+    if (pieces.empty() || !SideQueueFetch(pieces, done)) {
+        return false;
+    }
+    for (const auto& [address, size] : pieces) {
+        GpuRangesSubtract(address, size);
+    }
+    ++g_old_byte_fetches;
+    return true;
+}
+
+bool BufferCache::ReadFinishedGpuPage(VAddr page) {
+    if (!arena_host_mapped) {
+        return false;
+    }
+    const u64 tick = FetchableWindowTick(page);
+    if (!tick) {
+        return false;
+    }
+    auto* semaphore = scheduler.GetWorkSemaphore();
+    if (!semaphore->IsFree(tick)) {
+        semaphore->Refresh();
+        if (!semaphore->IsFree(tick)) {
+            return false;
+        }
+    }
+    // The page's GPU bytes and where the arena keeps them; all mapped, or the old path.
+    struct Piece {
+        VAddr address;
+        u64 size;
+        const u8* source;
+    };
+    boost::container::small_vector<Piece, 8> pieces;
+    bool mapped = true;
+    gpu_modified_ranges.ForEachInRange(page, 4096, [&](VAddr lo, VAddr hi) {
+        for (VAddr address = lo; address < hi && mapped;) {
+            const auto it = resident_ranges.Find(address >> block_shift);
+            if (it == resident_ranges.end() || !it->mapped) {
+                mapped = false;
+                break;
+            }
+            const VAddr backing_start = it->start << block_shift;
+            const u64 size = std::min<VAddr>(hi, it->end << block_shift) - address;
+            pieces.push_back({address, size, it->mapped + it->offset + (address - backing_start)});
+            address += size;
+        }
+    });
+    if (!mapped || pieces.empty()) {
+        return false;
+    }
+    std::array<u8, 4096> bytes;
+    for (const auto& piece : pieces) {
+        // One sequential read of the (write-combined) mapping, then the guest copy.
+        std::memcpy(bytes.data(), piece.source, piece.size);
+        if (!memory->TryWriteBacking(std::bit_cast<u8*>(piece.address), bytes.data(), piece.size)) {
+            std::memcpy(std::bit_cast<void*>(piece.address), bytes.data(), piece.size);
+        }
+    }
+    FinishPageFetch(page);
+    return true;
+}
+
 void BufferCache::EraseLazyPages(VAddr address, u64 size) {
     if (lazy_pages.empty()) {
         return;
@@ -1480,26 +2295,191 @@ void PrintBufferStats() {
 }
 } // namespace
 
+// gow3 17 Oct 2026: Uncharted 3's crowd skinning shader (cs 8f067540, ~1,500 dispatches a frame)
+// reads each character's mesh arrays (5 of 1-8 KB, never written after loading) as small read-only
+// buffers: the stream path copied them from guest memory on every bind, ~43 MB a frame at 4K and
+// the GPU command thread's main cost there. A range bound in 3 submissions moves to the arena,
+// uploaded once and kept by CPU write tracking; once the CPU rewrites it (per-frame constants
+// at a reused address) it goes back to the stream path for good. GOW3_STATIC_BUFFERS=0: off;
+// GOW3_STATIC_MIN_BYTES (default 1024): smaller ranges always stream.
+int BufferCache::UseArenaForStatic(VAddr device_addr, u32 size) {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_STATIC_BUFFERS");
+        return !(env && env[0] == '0');
+    }();
+    static const u64 min_bytes = [] {
+        const char* env = std::getenv("GOW3_STATIC_MIN_BYTES");
+        return env ? std::strtoull(env, nullptr, 10) : 1024ull;
+    }();
+    if (!enabled || size < min_bytes) {
+        return 0;
+    }
+    // Direct-mapped: a promoted range used in the last 256 submissions keeps its slot (others
+    // stream); otherwise the newcomer takes it and starts over.
+    const u64 key = device_addr ^ (u64(size) << 44);
+    auto& range = static_ranges[(key * 0x9E3779B97F4A7C15ull) >> (64 - StaticRangeBits)];
+    const u64 tick = scheduler.CurrentTick();
+    if (range.key != key) {
+        if (range.uploaded && !range.demoted && tick - range.last_tick < 256) {
+            return 0;
+        }
+        range = {.key = key};
+    }
+    if (range.demoted) {
+        return 0;
+    }
+    if (range.ticks >= 3) {
+        range.last_tick = tick;
+    } else {
+        if (range.last_tick != tick) {
+            range.last_tick = tick;
+            ++range.ticks;
+        }
+        if (range.ticks < 3) {
+            return 0;
+        }
+        if (Core::MemoryManager::KeptWritable(device_addr, size)) {
+            range.demoted = true;
+            return 0;
+        }
+        ++static_promoted;
+    }
+    // Only where guest memory changes are always seen by page tracking: no runtime write through
+    // the backing view (fence labels, readback landings, image downloads) and no GPU write (lazy
+    // and shared pages let the CPU write next to GPU bytes untracked) ever reached its 64 KiB
+    // windows. Otherwise the arena copy could go stale where the stream path copied afresh
+    // (17 Oct: the integrated GPU run stopped submitting frames with it).
+    const VAddr page_lo = Common::AlignDown(device_addr, 4096);
+    const VAddr page_hi = Common::AlignUp(device_addr + size, 4096);
+    if (Core::MemoryManager::BackingWritten(device_addr, size) ||
+        MayBeGpuWritten(page_lo, page_hi - page_lo)) {
+        range.demoted = true;
+        ++static_demoted;
+        return 0;
+    }
+    const bool clean = range.uploaded;
+    if (range.uploaded && memory_tracker->IsRegionCpuModified(device_addr, size)) {
+        range.demoted = true;
+        ++static_demoted;
+        return 0;
+    }
+    range.uploaded = true;
+    g_obtained_static = true;
+    ++static_binds;
+    static_bytes += size;
+    return clean ? 2 : 1;
+}
+
 std::pair<const Buffer*, u64> BufferCache::ObtainBuffer(VAddr device_addr, u32 size,
                                                         bool is_written, bool is_texel_buffer) {
     texture_cache.ResolveReadbacks(device_addr, size, true, ReadbackSource::BufferObtain);
+    g_obtained_static = false;
     const bool stats = BufferStatsEnabled();
     if (stats) {
         PrintBufferStats();
         NoteHotUse(device_addr, size);
     }
     // For read-only buffers use device local stream buffer to reduce renderpass breaks.
-    if (!is_written && size <= STREAM_THRESHOLD && !IsRegionGpuModified(device_addr, size)) {
+    const int static_range = !is_written && size <= STREAM_THRESHOLD && !IsRegionGpuModified(device_addr, size)
+                                 ? UseArenaForStatic(device_addr, size)
+                                 : -1;
+    if (static_range == 2) {
+        // Uploaded before and clean since (no CPU write): resident, nothing to synchronize.
+        const u64 first_block = device_addr >> block_shift;
+        const auto* arena = GetArena(first_block, (device_addr + size - 1) >> block_shift);
+        return {arena, arena->Offset(device_addr)};
+    }
+    if (static_range == 0) {
         if (stats) {
             auto& region = Stats().regions[RegionKey(device_addr)];
             ++region.stream_count;
             region.stream_bytes += size;
+        }
+        // gow3 17 Oct 2026: the same range bound again in the same submission, before the guest
+        // has seen any GPU write (after which it may rewrite the memory), can reuse the copy: the
+        // guest wrote it before submitting. Uncharted 3 at 4K: only 12% of the copies, and the
+        // lookups cost more than they saved (GOW3_STREAM_REUSE=1: on).
+        static const bool reuse = [] {
+            const char* env = std::getenv("GOW3_STREAM_REUSE");
+            return env && env[0] == '1';
+        }();
+        const u64 key = device_addr ^ (u64(size) << 44);
+        const u64 tick = scheduler.CurrentTick();
+        const u64 epoch = scheduler.GuestWriteEpoch();
+        if (reuse) {
+            if (const auto it = stream_copies.find(key);
+                it != stream_copies.end() && it->second.tick == tick && it->second.epoch == epoch &&
+                it->second.wraps == stream_buffer.Wraps()) {
+                ++stream_reused;
+                stream_reused_bytes += size;
+                return {&stream_buffer, it->second.offset};
+            }
+            if (stream_copies.size() >= 16384) {
+                stream_copies.clear();
+            }
+        }
+        ++stream_copied;
+        stream_copied_bytes += size;
+        static const bool stream_stats = [] {
+            const char* env = std::getenv("GOW3_STREAM_STATS");
+            return env && env[0] == '1';
+        }();
+        if (stream_stats) {
+            struct Entry {
+                u64 count = 0, bytes = 0, used = 0;
+            };
+            static std::unordered_map<u64, Entry> entries;
+            static auto last = std::chrono::steady_clock::now();
+            auto& entry = entries[g_stream_stats_key];
+            ++entry.count;
+            entry.bytes += size;
+            entry.used += g_stream_stats_used ? std::min<u64>(g_stream_stats_used, size) : size;
+            if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds{5}) {
+                last = now;
+                std::vector<std::pair<u64, u64>> order;
+                for (const auto& [key, e] : entries) {
+                    order.emplace_back(e.bytes, key);
+                }
+                std::ranges::sort(order, std::greater{});
+                std::string text;
+                for (size_t i = 0; i < std::min<size_t>(order.size(), 20); ++i) {
+                    const auto& e = entries[order[i].second];
+                    text += fmt::format(" {:08x}/s{}: {} x {:.0f} B = {:.1f} MB (used {:.1f});",
+                                        order[i].second >> 8, order[i].second & 0xff, e.count,
+                                        double(e.bytes) / e.count, e.bytes / 1e6, e.used / 1e6);
+                }
+                std::printf("Stream copies by binding (5 s):%s\n", text.c_str());
+                std::fflush(stdout);
+                entries.clear();
+            }
+        }
+        if (Gow3Stats::enabled) {
+            static auto last = std::chrono::steady_clock::now();
+            if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds{5}) {
+                last = now;
+                std::printf("Stream copies (5 s): %llu copied (%.1f MB), %llu reused (%.1f MB); static "
+                            "ranges: %llu binds from the arena (%.1f MB), %llu promoted, %llu demoted, "
+                            "%zu known\n",
+                            (unsigned long long)stream_copied, stream_copied_bytes / 1e6,
+                            (unsigned long long)stream_reused, stream_reused_bytes / 1e6,
+                            (unsigned long long)static_binds, static_bytes / 1e6,
+                            (unsigned long long)static_promoted, (unsigned long long)static_demoted,
+                            std::size_t(std::ranges::count_if(static_ranges, [](const StaticRange& r) {
+                                return r.uploaded && !r.demoted;
+                            })));
+                std::fflush(stdout);
+                stream_copied = stream_copied_bytes = stream_reused = stream_reused_bytes = 0;
+                static_binds = static_bytes = static_promoted = static_demoted = 0;
+            }
         }
         // gow3: the guest data is copied on a copy thread, started now; submission and
         // guest-visible fences wait for it (Scheduler::WaitHostCopies).
         if (!stream_buffer.mapped_data.empty() &&
             !Gow3Toggle::Disabled(Gow3Toggle::DeferredStreamCopies)) {
             if (const auto offset = stream_buffer.Reserve(size, instance.UniformMinAlignment())) {
+                if (reuse) {
+                    stream_copies[key] = {tick, epoch, stream_buffer.Wraps(), *offset};
+                }
                 SmallGuestCopy({
                     .run = &RunGuestCopy,
                     .context = this,
@@ -1514,6 +2494,9 @@ std::pair<const Buffer*, u64> BufferCache::ObtainBuffer(VAddr device_addr, u32 s
         const auto [data, offset] = stream_buffer.Map(size, instance.UniformMinAlignment());
         memory->CopySparseMemory(device_addr, data, size);
         stream_buffer.Commit();
+        if (reuse) {
+            stream_copies[key] = {tick, epoch, stream_buffer.Wraps(), offset};
+        }
         return {&stream_buffer, offset};
     }
     const u64 first_block = device_addr >> block_shift;
@@ -1727,6 +2710,13 @@ void BufferCache::EnsureResident(const Buffer* arena, u64 first_block, u64 last_
         .memoryTypeIndex = arena_memory_type_index,
     };
     const auto device_memory = Vulkan::Check(instance.GetDevice().allocateMemory(alloc_info));
+    u8* mapped = nullptr;
+    if (arena_host_mapped) {
+        auto [map_result, pointer] = instance.GetDevice().mapMemory(device_memory, 0, VK_WHOLE_SIZE);
+        if (map_result == vk::Result::eSuccess) {
+            mapped = static_cast<u8*>(pointer);
+        }
+    }
 
     boost::container::small_vector<vk::BufferCopy, 8> copies;
     const auto staging =
@@ -1742,6 +2732,7 @@ void BufferCache::EnsureResident(const Buffer* arena, u64 first_block, u64 last_
         backing.end = range.end;
         backing.memory = device_memory;
         backing.offset = memory_offset;
+        backing.mapped = mapped;
         resident_ranges.Add(backing);
 
         LOG_INFO(Render, "Making range start={}, end={} resident", backing.start, backing.end);

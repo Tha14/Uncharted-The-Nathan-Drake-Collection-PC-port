@@ -8,7 +8,14 @@
 // profile_<n>_stacks.txt holds the call stacks (up to 16 frames, innermost first, counted per
 // distinct stack), so a wait shows who waits: host frames are unwound with their unwind tables,
 // guest code (no module, "?+address") by its saved frame pointers.
+// GOW3_PROFILE_STALLS=1: no periodic reports; each sampler keeps its last half second of stacks,
+// and a frame over 40 ms (NoteStall, from the flip statistics) writes the stacks sampled during
+// that frame to GOW3_DUMP_DIR/stall_<n>_<thread>_stacks.txt.
 #include "gow3_profiler.h"
+
+#include <atomic>
+#include <deque>
+#include <mutex>
 
 #include <algorithm>
 #include <chrono>
@@ -26,6 +33,30 @@
 #endif
 
 namespace Gow3Profiler {
+
+namespace {
+std::atomic<unsigned> stall_seq{0};
+std::atomic<long long> stall_end_ns{0}, stall_window_ns{0};
+std::chrono::steady_clock::time_point stall_epoch = std::chrono::steady_clock::now();
+
+bool StallMode() {
+    static const bool on = [] {
+        const char* env = std::getenv("GOW3_PROFILE_STALLS");
+        return env && env[0] == '1';
+    }();
+    return on;
+}
+} // namespace
+
+void NoteStall(double frame_ms) {
+    if (!StallMode()) {
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    stall_end_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now - stall_epoch).count();
+    stall_window_ns = static_cast<long long>(frame_ms * 1e6);
+    ++stall_seq;
+}
 
 #ifdef _WIN32
 namespace {
@@ -296,6 +327,9 @@ void Start(unsigned long thread_id, const char* name) {
         stacks.reserve(samples.capacity());
         std::vector<Module> modules = LoadModules();
         auto last = std::chrono::steady_clock::now();
+        // Stall mode: the recent samples (time since stall_epoch, stack).
+        std::deque<std::pair<long long, Stack>> recent;
+        unsigned seen_stall = stall_seq.load();
         for (int report = 0;;) {
             Sleep(1);
             if (SuspendThread(thread) == DWORD(-1)) {
@@ -304,12 +338,76 @@ void Start(unsigned long thread_id, const char* name) {
             CONTEXT context{};
             context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
             const BOOL ok = GetThreadContext(thread, &context);
-            if (ok && samples.size() < samples.capacity()) {
+            if (ok && StallMode()) {
+                Stack stack{};
+                Walk(modules, context, stack);
+                recent.emplace_back(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                        std::chrono::steady_clock::now() - stall_epoch)
+                                        .count(),
+                                    stack);
+                while (recent.size() > 600) {
+                    recent.pop_front();
+                }
+            } else if (ok && samples.size() < samples.capacity()) {
                 samples.push_back(context.Rip);
                 stacks.emplace_back();
                 Walk(modules, context, stacks.back());
             }
             ResumeThread(thread);
+            if (StallMode()) {
+                const unsigned seq = stall_seq.load();
+                if (seq == seen_stall) {
+                    continue;
+                }
+                seen_stall = seq;
+                const long long end = stall_end_ns.load(), begin = end - stall_window_ns.load();
+                std::unordered_map<std::string, unsigned> counts;
+                unsigned total = 0;
+                for (const auto& [when, stack] : recent) {
+                    if (when < begin || when > end) {
+                        continue;
+                    }
+                    std::string key;
+                    for (int i = 0; i < stack.depth; ++i) {
+                        char text[64];
+                        HMODULE module = nullptr;
+                        unsigned long long offset = stack.pc[i];
+                        const char* module_name = "?";
+                        char path[MAX_PATH];
+                        if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                                   GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                               reinterpret_cast<LPCSTR>(stack.pc[i]), &module) &&
+                            module && GetModuleFileNameA(module, path, sizeof(path))) {
+                            offset = stack.pc[i] - reinterpret_cast<unsigned long long>(module);
+                            const char* base = std::strrchr(path, '\\');
+                            module_name = base ? base + 1 : path;
+                        }
+                        std::snprintf(text, sizeof(text), "%s%s+%#llx", i ? ";" : "", module_name, offset);
+                        key += text;
+                    }
+                    ++counts[key];
+                    ++total;
+                }
+                std::string tag = label;
+                for (char& c : tag) {
+                    c = c == ' ' ? '-' : c;
+                }
+                const std::string path = dir + "/stall_" + std::to_string(seq) + "_" + tag + "_stacks.txt";
+                if (FILE* f = std::fopen(path.c_str(), "w")) {
+                    std::vector<std::pair<unsigned, std::string>> sorted;
+                    for (auto& [key, n] : counts) {
+                        sorted.emplace_back(n, key);
+                    }
+                    std::sort(sorted.rbegin(), sorted.rend());
+                    std::fprintf(f, "# %s, %u samples in the %.1f ms frame, stacks innermost first\n",
+                                 label.c_str(), total, stall_window_ns.load() / 1e6);
+                    for (const auto& [n, key] : sorted) {
+                        std::fprintf(f, "%u %s\n", n, key.c_str());
+                    }
+                    std::fclose(f);
+                }
+                continue;
+            }
             const auto now = std::chrono::steady_clock::now();
             if (now - last < std::chrono::seconds(period)) {
                 continue;
@@ -402,3 +500,8 @@ void StartCurrent(const char* name) {
 }
 
 } // namespace Gow3Profiler
+
+/// For the C runtime: GOW3_PROFILE_GUEST=<name prefix> samples guest threads with that name.
+extern "C" void gow3_profile_current(const char* name) {
+    Gow3Profiler::StartCurrent(name);
+}

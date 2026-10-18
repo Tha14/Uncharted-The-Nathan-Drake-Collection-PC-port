@@ -237,6 +237,9 @@ private:
     void ProcessCommands();
     void Process(std::stop_token stoken);
 
+    /// gow3 diagnostics (GOW3_SYNC_SUBMIT): graphics submissions queued and finished.
+    std::atomic<u64> gfx_submits_queued{0};
+    std::atomic<u64> gfx_submits_done{0};
     struct GpuQueue {
         std::mutex m_access{};
         std::atomic<u32> dcb_buffer_offset;

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstdio>
+#include <cstdlib>
 #include <limits>
 #include "shader_recompiler/info.h"
 #include "shader_recompiler/ir/basic_block.h"
@@ -580,9 +582,13 @@ IR::U32 CalculateBufferAddress(IR::IREmitter& ir, const IR::Inst& inst, const In
         const IR::U32 vgpr_index = IR::GetBufferIndexArg(&inst);
         index = ir.IAdd(index, vgpr_index);
     }
-    if (buffer.add_tid_enable) {
-        ASSERT_MSG(info.sw_stage == SwStage::Compute,
-                   "Thread ID buffer addressing is not supported outside of compute.");
+    if (buffer.add_tid_enable && info.sw_stage != SwStage::Compute) {
+        // gow3 17 Oct 2026: games do not use this outside compute; such a V# is garbage read from
+        // a table the game was still filling (Uncharted 3, once in a 4-core run). Upstream asserted
+        // and stopped the game here; drop the thread id instead (one wrong draw at most).
+        LOG_WARNING(Render_Recompiler, "Thread ID buffer addressing outside of compute ignored (shader {:#x})",
+                    info.pgm_hash);
+    } else if (buffer.add_tid_enable) {
         const IR::U32 thread_id{ir.LaneId()};
         index = ir.IAdd(index, thread_id);
     }
@@ -625,6 +631,51 @@ IR::U32 CalculateBufferAddress(IR::IREmitter& ir, const IR::Inst& inst, const In
     return buffer_offset;
 }
 
+static u32 BufferAccessBytes(IR::Opcode opcode) {
+    switch (opcode) {
+    case IR::Opcode::LoadBufferU8:
+    case IR::Opcode::StoreBufferU8:
+        return 1;
+    case IR::Opcode::LoadBufferU16:
+    case IR::Opcode::StoreBufferU16:
+        return 2;
+    case IR::Opcode::LoadBufferU32:
+    case IR::Opcode::LoadBufferF32:
+    case IR::Opcode::StoreBufferU32:
+    case IR::Opcode::StoreBufferF32:
+        return 4;
+    case IR::Opcode::LoadBufferU32x2:
+    case IR::Opcode::LoadBufferF32x2:
+    case IR::Opcode::LoadBufferU64:
+    case IR::Opcode::StoreBufferU32x2:
+    case IR::Opcode::StoreBufferF32x2:
+    case IR::Opcode::StoreBufferU64:
+    case IR::Opcode::BufferAtomicIAdd64:
+    case IR::Opcode::BufferAtomicSMin64:
+    case IR::Opcode::BufferAtomicUMin64:
+    case IR::Opcode::BufferAtomicSMax64:
+    case IR::Opcode::BufferAtomicUMax64:
+        return 8;
+    case IR::Opcode::LoadBufferU32x3:
+    case IR::Opcode::LoadBufferF32x3:
+    case IR::Opcode::StoreBufferU32x3:
+    case IR::Opcode::StoreBufferF32x3:
+        return 12;
+    case IR::Opcode::LoadBufferU32x4:
+    case IR::Opcode::LoadBufferF32x4:
+    case IR::Opcode::StoreBufferU32x4:
+    case IR::Opcode::StoreBufferF32x4:
+        return 16;
+    case IR::Opcode::LoadBufferFormatF32:
+    case IR::Opcode::StoreBufferFormatF32:
+        return 0; // the V#'s format decides: unknown here
+    default:
+        return opcode >= IR::Opcode::BufferAtomicIAdd32 && opcode <= IR::Opcode::BufferAtomicFCmpSwap32
+                   ? 4
+                   : 0;
+    }
+}
+
 void PatchBufferArgs(IR::Inst& inst, Info& info) {
     const auto handle = inst.Arg(0);
     const auto buffer_res = info.buffers[handle.U32()];
@@ -633,6 +684,50 @@ void PatchBufferArgs(IR::Inst& inst, Info& info) {
     // Address of constant buffer reads can be calculated at IR emission time.
     if (inst.GetOpcode() == IR::Opcode::ReadConstBuffer) {
         return;
+    }
+    // gow3: the bytes past a record's start this access reaches (see BufferResource).
+    {
+        auto& extent = info.buffers[handle.U32()].access_extent;
+        const auto flags = inst.Flags<IR::BufferInstInfo>();
+        const IR::U32 soffset = IR::GetBufferSOffsetArg(&inst);
+        u32 bytes = BufferAccessBytes(inst.GetOpcode());
+        if (inst.GetOpcode() == IR::Opcode::LoadBufferFormatF32 ||
+            inst.GetOpcode() == IR::Opcode::StoreBufferFormatF32) {
+            // The element size of the format (the V#'s, part of the shader's specialization).
+            // MTBUF instructions carry a format; with none (0) the V#'s applies.
+            const auto format = flags.typed && flags.inst_data_fmt.Value() != AmdGpu::DataFormat::FormatInvalid
+                                    ? flags.inst_data_fmt.Value()
+                                    : buffer.GetDataFmt();
+            bytes = AmdGpu::NumBitsPerElement(format) / 8;
+        }
+        // A VGPR offset that folded to a constant counts as one.
+        u32 voffset = 0;
+        bool known = soffset.IsImmediate() && bytes != 0;
+        if (known && flags.voffset_enable) {
+            const IR::U32 voffset_arg = IR::GetBufferVOffsetArg(&inst);
+            known = voffset_arg.IsImmediate();
+            voffset = known ? voffset_arg.U32() : 0;
+        }
+        if (info.pgm_hash == 0x8f067540 && std::getenv("GOW3_EXTENT_DEBUG")) {
+            std::printf("Extent debug: binding %u opcode %u bytes %u voffset_en %u soffset_imm %u "
+                        "known %u inst_offset %u extent before %#x; typed %u inst fmt %u, V# raw "
+                        "dfmt %u nfmt %u fmt %u stride %u base %#llx\n",
+                        handle.U32(), u32(inst.GetOpcode()), bytes,
+                        u32(flags.voffset_enable.Value()), u32(soffset.IsImmediate()), u32(known),
+                        u32(flags.inst_offset.Value()), extent, u32(flags.typed.Value()),
+                        u32(flags.inst_data_fmt.Value()), u32(buffer.data_format),
+                        u32(buffer.num_format), u32(buffer.GetDataFmt()), u32(buffer.stride),
+                        static_cast<unsigned long long>(buffer.base_address));
+            std::fflush(stdout);
+        }
+        if (extent != ~0u) {
+            if (!known) {
+                extent = ~0u;
+            } else {
+                extent = std::max<u32>(extent, u32(flags.inst_offset.Value()) + soffset.U32() +
+                                                   voffset + bytes);
+            }
+        }
     }
 
     IR::IREmitter ir{*inst.GetParent(), IR::Block::InstructionList::s_iterator_to(inst)};

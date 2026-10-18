@@ -64,9 +64,37 @@ __attribute__((constructor)) static void remember_start(void) {
         native_process_start=__rdtsc();
         clock_gettime(CLOCK_MONOTONIC,&process_start);
         printf("Runtime: native TSC frequency %llu Hz (inline guest RDTSC)\n",(unsigned long long)native_tsc_hz);
+        /* gow3 diagnostics (GOW3_TIME_SCALE=<factor> > 1): the TSC frequency reported to the game
+         * is scaled, so its TSC clock runs that much slower. A slow diagnostic run (validation
+         * layers, captures) then looks like 60 FPS to the game: Uncharted 3's cloth flicker shows
+         * only above 30 FPS (16 Oct). Other clocks stay real time. */
+        const char *scale=getenv("GOW3_TIME_SCALE");
+        if (scale && atof(scale)>1.0) {
+            native_tsc_hz=(uint64_t)((long double)native_tsc_hz*atof(scale));
+            printf("Runtime: guest TSC clock slowed %.2fx (GOW3_TIME_SCALE, diagnostics)\n",atof(scale));
+        }
     }
 #endif
 }
+/* gow3 diagnostics (GOW3_TIME_SCALE=<factor> > 1): every guest clock (TSC frequency, process
+ * time, clock_gettime, gettimeofday) runs that much slower than real time, counted from the
+ * process start. */
+static double time_scale(void) {
+    static double value=-1;
+    if (value<0) { const char *e=getenv("GOW3_TIME_SCALE"); value=e && atof(e)>1.0 ? atof(e) : 1.0; }
+    return value;
+}
+static void scale_timespec(struct timespec *t,const struct timespec *start) {
+    const double s=time_scale();
+    if (s<=1.0) return;
+    long double elapsed=(long double)(t->tv_sec-start->tv_sec)*1e9L+(long double)(t->tv_nsec-start->tv_nsec);
+    elapsed/=s;
+    long double total=(long double)start->tv_sec*1e9L+(long double)start->tv_nsec+elapsed;
+    t->tv_sec=(time_t)(total/1e9L);
+    t->tv_nsec=(long)(total-(long double)t->tv_sec*1e9L);
+}
+static struct timespec realtime_start;
+__attribute__((constructor)) static void remember_realtime(void) { clock_gettime(CLOCK_REALTIME,&realtime_start); }
 static int host_clock(uint32_t id,clockid_t *out) {
     switch (id) {
     case 0: case 9: case 10: *out=CLOCK_REALTIME; return 1;            /* REALTIME(_PRECISE/_FAST) */
@@ -90,6 +118,7 @@ static int clock_read(uint32_t id,GuestTimespec *ts) {
     if (!ts || !host_clock(id,&host)) return EINVAL;
     struct timespec t;
     if (clock_gettime(host,&t)) return errno;
+    scale_timespec(&t,host==CLOCK_REALTIME ? &realtime_start : &process_start);
     if (id==15) {
         t.tv_sec-=process_start.tv_sec;
         t.tv_nsec-=process_start.tv_nsec;
@@ -113,6 +142,7 @@ static ABI int32_t posix_clock_getres(uint32_t id,GuestTimespec *ts) {
 }
 static ABI uint64_t process_time(void) {
     struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t);
+    scale_timespec(&t,&process_start);
     return (uint64_t)(t.tv_sec-process_start.tv_sec)*1000000+(uint64_t)((t.tv_nsec-process_start.tv_nsec)/1000);
 }
 static ABI uint64_t process_time_counter(void) {
@@ -120,6 +150,7 @@ static ABI uint64_t process_time_counter(void) {
     if (native_tsc_hz) return __rdtsc()-native_process_start;
 #endif
     struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t);
+    scale_timespec(&t,&process_start);
     return (uint64_t)(t.tv_sec-process_start.tv_sec)*1000000000+(uint64_t)(t.tv_nsec-process_start.tv_nsec);
 }
 static ABI uint64_t process_time_frequency(void) { return native_tsc_hz ? native_tsc_hz : 1000000000; }
@@ -173,6 +204,11 @@ static ABI int32_t kernel_gettimezone(GuestTimezone *tz) {
 static ABI int32_t posix_gettimeofday(GuestTimeval *tv,GuestTimezone *tz) {
     struct timeval t;
     gettimeofday(&t,NULL);
+    if (time_scale()>1.0) {
+        struct timespec ts={.tv_sec=t.tv_sec,.tv_nsec=t.tv_usec*1000};
+        scale_timespec(&ts,&realtime_start);
+        t.tv_sec=ts.tv_sec; t.tv_usec=ts.tv_nsec/1000;
+    }
     if (tv) { tv->sec=t.tv_sec; tv->usec=t.tv_usec; }
     if (tz) kernel_gettimezone(tz);
     return 0;

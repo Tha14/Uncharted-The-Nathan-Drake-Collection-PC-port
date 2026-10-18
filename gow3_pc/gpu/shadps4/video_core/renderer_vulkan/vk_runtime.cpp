@@ -1,4 +1,7 @@
 #include <atomic>
+#include <algorithm>
+#include <unordered_map>
+#include <chrono>
 // SPDX-FileCopyrightText: Copyright 2025 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -141,6 +144,13 @@ void Runtime::CopyBuffer(const VideoCore::Buffer* src, const VideoCore::Buffer* 
     }
     if (needs_flush) {
         FlushBarriers();
+    }
+    if (BarrierStatsEnabled()) {
+        u64 bytes = 0;
+        for (const auto& copy : copies) {
+            bytes += copy.size;
+        }
+        NoteBarrierStat(1, bytes);
     }
 
     scheduler.Record([src_handle = src->Handle(), dst_handle = dst->Handle(),
@@ -873,6 +883,42 @@ void Runtime::AccessBuffer(const VideoCore::Buffer* handle, u64 offset, u64 size
     memory_barrier.srcAccessMask |= src_access & WRITE_MASK;
 }
 
+bool BarrierStatsEnabled() {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_BARRIER_STATS");
+        return env && env[0] == '1';
+    }();
+    return enabled;
+}
+
+void NoteBarrierStat(int kind, u64 bytes) {
+    struct Entry {
+        u64 barriers = 0, copies = 0, bytes = 0;
+    };
+    static std::unordered_map<u64, Entry> per_shader;
+    static auto last = std::chrono::steady_clock::now();
+    auto& entry = per_shader[g_barrier_stats_shader];
+    (kind == 0 ? entry.barriers : entry.copies) += 1;
+    entry.bytes += bytes;
+    if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds{5}) {
+        last = now;
+        std::vector<std::pair<u64, u64>> order;
+        for (const auto& [shader, e] : per_shader) {
+            order.emplace_back(e.barriers + e.copies, shader);
+        }
+        std::ranges::sort(order, std::greater{});
+        std::string text;
+        for (size_t i = 0; i < std::min<size_t>(order.size(), 10); ++i) {
+            const auto& e = per_shader[order[i].second];
+            text += fmt::format(" {:08x}: {} barriers, {} copies ({} KB);", order[i].second,
+                                e.barriers, e.copies, e.bytes >> 10);
+        }
+        std::printf("Barrier stats (5 s, by shader being recorded, 0 = none):%s\n", text.c_str());
+        std::fflush(stdout);
+        per_shader.clear();
+    }
+}
+
 void Runtime::FlushBarriers() {
     BeforeImageAccess();
     vk::DependencyInfo dep_info{};
@@ -886,6 +932,9 @@ void Runtime::FlushBarriers() {
         dep_info.imageMemoryBarrierCount = static_cast<u32>(image_barriers.size());
     }
 
+    if ((dep_info.memoryBarrierCount || dep_info.imageMemoryBarrierCount) && BarrierStatsEnabled()) {
+        NoteBarrierStat(0);
+    }
     if (!dep_info.memoryBarrierCount && !dep_info.imageMemoryBarrierCount) {
         return;
     }

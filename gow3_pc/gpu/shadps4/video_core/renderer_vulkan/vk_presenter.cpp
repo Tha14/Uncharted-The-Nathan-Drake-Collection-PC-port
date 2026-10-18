@@ -159,7 +159,13 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
                               EmulatorSettings.IsPipelineCacheEnabled();
     const bool capture_only = EmulatorSettingsImpl::Flag("GOW3_PIPELINE_BINARY_ISOLATED", false) &&
                               EmulatorSettingsImpl::Flag("GOW3_PIPELINE_CAPTURE_ONLY", false);
-    if (UseOnDemandPipelines(binary_cache, instance.GetPipelineBinaryGlobalKey().keySize != 0,
+    // gow3 18 Oct 2026: the background warm-up also with pipeline binaries. On demand, each compute
+    // shader was translated on the GPU thread the first time a level used it: Uncharted 3 hitched
+    // 90-170 ms right after loading (35 compiles of 10-15 ms in 5 s); with the warm-up (2,440
+    // pipelines in 16 s on background threads during the title screen) none were left in play.
+    // GOW3_ON_DEMAND_PIPELINES=1 keeps the on-demand start.
+    if (EmulatorSettingsImpl::Flag("GOW3_ON_DEMAND_PIPELINES", false) &&
+        UseOnDemandPipelines(binary_cache, instance.GetPipelineBinaryGlobalKey().keySize != 0,
                             capture_only)) {
         rasterizer->GetPipelineCache().StartOnDemand();
         return;
@@ -425,14 +431,36 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
 
     draw_scheduler.EndRendering();
     const auto cmdbuf = draw_scheduler.CommandBuffer();
-    // Optional one-shot request: guest address and exact guest size per line.
+    // Optional one-shot request: guest address and exact guest size per line, or
+    // "size <width> <height>" for every cached image of that size, "max <width> <height>" for every
+    // one up to that size, "range <lo> <hi>" (hex) for every one in those guest addresses (up to 256
+    // in all).
     // Dump intermediate targets to locate where geometry/lighting disappears.
     if (frame_dump) {
         const char* dir = std::getenv("GOW3_DUMP_DIR");
         const auto request = std::filesystem::path(dir ? dir : "out/dump") / "guest-images.trigger";
         if (FILE* f = std::fopen(request.string().c_str(), "r")) {
-            unsigned long long address, size;
-            for (int n = 0; n < 16 && std::fscanf(f, "%llx %llx", &address, &size) == 2; ++n) {
+            std::vector<std::pair<unsigned long long, unsigned long long>> requests;
+            char line[256];
+            constexpr size_t MaxRequests = 256;
+            while (requests.size() < MaxRequests && std::fgets(line, sizeof(line), f)) {
+                unsigned long long a, b;
+                unsigned w, h;
+                std::vector<std::pair<VAddr, u32>> images;
+                if (std::sscanf(line, "size %u %u", &w, &h) == 2) {
+                    images = texture_cache.DebugImagesOfSize(w, h);
+                } else if (std::sscanf(line, "max %u %u", &w, &h) == 2) {
+                    images = texture_cache.DebugImagesWhere(16, w, 16, h, 0, ~VAddr{0});
+                } else if (std::sscanf(line, "range %llx %llx", &a, &b) == 2) {
+                    images = texture_cache.DebugImagesWhere(1, ~0u, 1, ~0u, a, b);
+                } else if (std::sscanf(line, "%llx %llx", &a, &b) == 2) {
+                    requests.emplace_back(a, b);
+                }
+                for (const auto& [image_address, image_size] : images) {
+                    if (requests.size() < MaxRequests) requests.emplace_back(image_address, image_size);
+                }
+            }
+            for (const auto& [address, size] : requests) {
                 const auto id = texture_cache.FindImageFromRange(address, size, false);
                 if (!id) continue;
                 auto& image = texture_cache.GetImage(id);
@@ -444,12 +472,23 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
                                  format == vk::Format::eBc1RgbaSrgbBlock;
                 const bool bc5 = format == vk::Format::eBc5UnormBlock ||
                                  format == vk::Format::eBc5SnormBlock;
-                const bool compressed = bc1 || bc5;
-                const u32 bytes = format == vk::Format::eR8Unorm ? 1
-                                  : format == vk::Format::eR8G8Unorm || depth16 ? 2
-                                  : bc5 ? 16 : (bc1 || format == vk::Format::eR16G16B16A16Sfloat ? 8 : 4);
-                if (image.info.num_samples != 1 ||
-                    (!depth && !compressed && image.info.num_bits != bytes * 8)) continue;
+                const bool bc16 = bc5 || format == vk::Format::eBc3UnormBlock ||
+                                  format == vk::Format::eBc3SrgbBlock ||
+                                  format == vk::Format::eBc2UnormBlock ||
+                                  format == vk::Format::eBc2SrgbBlock ||
+                                  format == vk::Format::eBc7UnormBlock ||
+                                  format == vk::Format::eBc7SrgbBlock;
+                bool compressed = bc1 || bc16;
+                u32 bytes = format == vk::Format::eR8Unorm ? 1
+                            : format == vk::Format::eR8G8Unorm || depth16 ? 2
+                            : bc16 ? 16 : (bc1 || format == vk::Format::eR16G16B16A16Sfloat ? 8 : 4);
+                if (image.info.num_samples != 1) continue;
+                if (!depth && !compressed && image.info.num_bits != bytes * 8) {
+                    // Any other format: its texel (or 4x4 block) size.
+                    compressed = image.info.props.is_block;
+                    bytes = image.info.num_bits / 8;
+                    if (bytes == 0) continue;
+                }
                 runtime.Transit(&image, vk::ImageLayout::eTransferSrcOptimal,
                                 vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead);
                 runtime.FlushBarriers();
@@ -606,6 +645,28 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
             const u64 tick = recent_frame_ticks.front();
             recent_frame_ticks.pop_front();
             if (recent_frame_ticks.size() == frames_ahead) {
+                // gow3 18 Oct 2026: while the command thread waits here for the GPU (up to a
+                // frame), readbacks whose GPU work is done land meanwhile, and with them the
+                // fences the guest waits for (ray-cast results). A plain wait held them until the
+                // whole frame was done: Uncharted 3 on the rooftops made two or three 5-7 ms
+                // frames, then one of 25-35 ms waiting for its ray casts (75 FPS, 1% lows 22 FPS
+                // at the 120 limit). GOW3_POLL_WHILE_WAITING=0 waits plainly (A/B).
+                static const bool poll_while_waiting = [] {
+                    const char* env = std::getenv("GOW3_POLL_WHILE_WAITING");
+                    return !(env && env[0] == '0');
+                }();
+                if (poll_while_waiting && rasterizer) {
+                    auto* semaphore = draw_scheduler.GetWorkSemaphore();
+                    auto& buffer_cache = rasterizer->GetBufferCache();
+                    Gow3Stats::WaitTimer timer{Gow3Stats::tick_wait_ns};
+                    while (!semaphore->IsFree(tick)) {
+                        buffer_cache.PollReadbacksNow();
+                        if (semaphore->WaitFor(tick, 250'000)) {
+                            break;
+                        }
+                    }
+                    buffer_cache.PollReadbacksNow();
+                }
                 draw_scheduler.Wait(tick);
             }
         }

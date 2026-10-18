@@ -111,6 +111,11 @@ public:
         return !root_mask_valid;
     }
 
+    /// gow3: ranges held (nodes in use).
+    size_t Size() const {
+        return nodes.size() - free.size();
+    }
+
 private:
     u32 AllocateNode();
     void FreeNode(u32 node);

@@ -46,6 +46,13 @@ class StagingBufferPool;
 
 namespace VideoCore {
 
+/// gow3 diagnostics (GOW3_STREAM_STATS=1): the binding ObtainBuffer serves (shader << 8 | slot)
+/// and the bytes the shader reaches in it (0 = unknown), set by the rasterizer before the call.
+inline thread_local u64 g_stream_stats_key = 0;
+/// gow3: the last ObtainBuffer served a static range from the arena (UseArenaForStatic).
+inline thread_local bool g_obtained_static = false;
+inline thread_local u64 g_stream_stats_used = 0;
+
 /// gow3 diagnostics (GOW3_FAULT_STATS=1 GOW3_READ_SOURCES=1): records which shader wrote GPU data into each 1 MiB
 /// window, listed with the windows the CPU reads GPU data from.
 void NoteGpuWriter(VAddr address, u64 size, u64 shader_hash);
@@ -118,6 +125,9 @@ public:
 
     /// gow3: a guest write fault at `device_addr` was handled; unprotect its neighbourhood.
     void ExtendWriteFault(VAddr device_addr);
+    /// gow3: a guest instruction keeps faulting on `page` (PageManager counts the repeats): the
+    /// pending readbacks that read-protect it land now (polled, or waited for).
+    void ReleaseStuckPage(VAddr page, bool is_write, bool assume_locks);
 
     /// Flushes any GPU modified buffer in the logical page range back to CPU memory.
     void ReadMemory(VAddr device_addr, u64 size, bool is_write = false, bool assume_locks = false);
@@ -165,8 +175,31 @@ public:
     /// change the set (multithreaded rendering: SRT sync before a walk). The set is not thread
     /// safe: a lookup during an update followed a freed node (Uncharted 3 crashed within minutes).
     [[nodiscard]] bool IsRangeGpuWrittenShared(VAddr address, u64 size) const {
+        if (!MayBeGpuWritten(address, size)) {
+            return false;
+        }
         std::shared_lock lock{gpu_ranges_mutex};
         return gpu_modified_ranges.Intersects(address, size);
+    }
+
+    /// gow3 17 Oct 2026: false when no GPU write ever reached a 64 KiB window of the range (one
+    /// bit per window, set by GpuRangesAdd and never cleared): lock-free. The SRT walk checked
+    /// every table of every draw under the set's lock (~5% of Uncharted 3's GPU command thread).
+    [[nodiscard]] bool MayBeGpuWritten(VAddr address, u64 size) const {
+        if (size == 0) {
+            return false;
+        }
+        const u64 first = address >> 16;
+        const u64 last = (address + size - 1) >> 16;
+        if (last >= GpuWindowBits) {
+            return true;
+        }
+        for (u64 w = first; w <= last; ++w) {
+            if (gpu_window_bits[w >> 6].load(std::memory_order_relaxed) & (1ull << (w & 63))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// gow3: the GPU thread is about to write [address, address + size) in guest memory itself
@@ -208,8 +241,19 @@ public:
     /// for every readback with GOW3_ASYNC_READBACK=1.
     /// `yield_to_cpu`: a CPU write into a piece drops its GPU values instead of waiting for
     /// them (the guest refills the buffer; see Rasterizer::ReadBackEopResults).
+    /// gow3: `never_protect`: the pages stay accessible whatever the readback mode (results
+    /// the guest reads only after a fence written when they land).
     void DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ranges, bool protect = false,
-                             bool yield_to_cpu = false);
+                             bool yield_to_cpu = false, bool never_protect = false);
+
+    /// gow3 diagnostics (GOW3_CLOTH_PEEK=1): copies the GPU's data of [address, size) into a
+    /// staging buffer (guest memory untouched); PollPeeks scans finished copies for exploded
+    /// floats (Uncharted 3's cloth flicker, 16 Oct).
+    void PeekGpuRange(VAddr address, u64 size, u64 tag, u32 slot, u64 dispatch = 0, u32 phase = 1);
+    /// The same for the exact buffer a shader binds (an arena or the stream buffer).
+    void PeekGpuBuffer(const Buffer* source, u64 offset, VAddr address, u64 size, u64 tag, u32 slot,
+                       u64 dispatch, u32 phase);
+    void PollPeeks();
 
     /// gow3: writes the readbacks the GPU has finished to guest memory (GPU-side, per draw).
     void PollReadbacks() {
@@ -325,14 +369,79 @@ private:
     std::unique_ptr<MemoryTracker> memory_tracker;
 
     StreamBuffer stream_buffer;
+    /// gow3: read-only stream copies of a guest range, reused for the same range in the same
+    /// submission until the guest sees a GPU write (ObtainBuffer).
+    struct StreamCopy {
+        u64 tick;
+        u64 epoch;
+        u64 wraps;
+        u64 offset;
+    };
+    std::unordered_map<u64, StreamCopy> stream_copies;
+    u64 stream_copied = 0, stream_copied_bytes = 0, stream_reused = 0, stream_reused_bytes = 0;
+    /// gow3: small read-only ranges bound in several submissions (static mesh data) go to the
+    /// arena, where CPU write tracking keeps them, instead of a copy per bind (UseArenaForStatic).
+    struct StaticRange {
+        u64 key = 0;
+        u64 last_tick = 0;
+        u32 ticks = 0;
+        bool uploaded = false;
+        bool demoted = false;
+    };
+    static constexpr u32 StaticRangeBits = 18;
+    std::vector<StaticRange> static_ranges = std::vector<StaticRange>(1u << StaticRangeBits);
+    u64 static_binds = 0, static_bytes = 0, static_promoted = 0, static_demoted = 0;
+    /// 0: stream it; 1: arena, synchronize (first use); 2: arena, already uploaded and clean.
+    int UseArenaForStatic(VAddr device_addr, u32 size);
     Buffer gds_buffer;
     RangeSet gpu_modified_ranges;
+    /// gow3: 64 KiB windows of the 40-bit guest address space a GPU write ever reached.
+    static constexpr u64 GpuWindowBits = u64(1) << 24;
+    std::unique_ptr<std::atomic<u64>[]> gpu_window_bits{new std::atomic<u64>[GpuWindowBits / 64]{}};
     /// gow3: held exclusively while gpu_modified_ranges changes, shared by IsRangeGpuWrittenShared.
     mutable std::shared_mutex gpu_ranges_mutex;
     void GpuRangesAdd(VAddr address, u64 size) {
+        if (size) {
+            const u64 first = address >> 16;
+            const u64 last = std::min<u64>((address + size - 1) >> 16, GpuWindowBits - 1);
+            for (u64 w = first; w <= last; ++w) {
+                auto& word = gpu_window_bits[w >> 6];
+                const u64 bit = 1ull << (w & 63);
+                if (!(word.load(std::memory_order_relaxed) & bit)) {
+                    word.fetch_or(bit, std::memory_order_relaxed);
+                }
+            }
+        }
         std::unique_lock lock{gpu_ranges_mutex};
         gpu_modified_ranges.Add(address, size);
+        if (size) {
+            NoteGpuWriteWindows(address, size);
+        }
     }
+    void NoteGpuWriteWindows(VAddr address, u64 size);
+    /// gow3: scheduler tick of the newest large GPU write (over 64 KiB) into each 1 MiB window,
+    /// and of the newest smaller one into each 4 KiB page: when the GPU data of a page is final.
+    std::unordered_map<u64, u64> gpu_write_window_tick;
+    std::unordered_map<u64, u64> gpu_write_page_tick;
+    /// gow3: the page's GPU bytes are final and in mapped memory: copied to guest memory, page
+    /// no longer GPU-written. False: not possible (in flight, unmapped, readbacks pending).
+    bool ReadFinishedGpuPage(VAddr page);
+    /// gow3: the same through a copy on the second queue that waits for the newest GPU write
+    /// into the page's window only (already submitted). False: not possible.
+    bool CopyFinishedGpuPage(VAddr page);
+    /// gow3: copies GPU data of `pieces` to guest memory with a copy on the second queue that
+    /// waits for main-queue tick `wait_tick` only. False: not possible.
+    bool SideQueueFetch(std::span<const std::pair<VAddr, u64>> pieces, u64 wait_tick);
+    /// gow3: a page whose GPU bytes are partly in flight: the finished ones are fetched (second
+    /// queue) and stop being GPU data, so the rest can take the shared path.
+    bool FetchOldGpuBytes(VAddr page);
+    /// The window tick of `page` when its GPU data can be fetched early (submitted), else 0.
+    u64 FetchableWindowTick(VAddr page);
+    void FinishPageFetch(VAddr page);
+    bool arena_host_mapped = false;
+    vk::UniqueCommandPool urgent_pool;
+    vk::CommandBuffer urgent_cmd;
+    vk::UniqueFence urgent_fence;
     void GpuRangesSubtract(VAddr address, u64 size) {
         std::unique_lock lock{gpu_ranges_mutex};
         gpu_modified_ranges.Subtract(address, size);
@@ -352,11 +461,12 @@ private:
     struct Backing : public Interval {
         vk::DeviceMemory memory;
         u64 offset;
+        u8* mapped = nullptr; ///< gow3: the allocation's CPU mapping (CPU-mappable arenas)
         constexpr bool CanMergeWith(const Backing& other) const noexcept {
             return memory == other.memory && offset + (end - start) == other.offset;
         }
         constexpr Backing SubRange(u64 a, u64 b) const noexcept {
-            return {{a, b}, memory, offset + (a - start)};
+            return {{a, b}, memory, offset + (a - start), mapped};
         }
     };
     IntervalList<Backing> resident_ranges;
@@ -411,6 +521,21 @@ private:
     // thread in the temple). Its copies now land in `download` and reach guest memory a
     // little later. The pieces stay in gpu_modified_ranges until then; `rewritten` holds GPU
     // writes recorded after the readback, which stay GPU-modified when it completes.
+    struct Peek {
+        u64 tick;
+        Buffer* buffer; ///< staging allocation (as PendingReadback keeps it)
+        u64 offset;
+        u64 staging_size;
+        u8* mapped;
+        VAddr address;
+        u64 size;
+        u64 tag;
+        u32 slot;
+        double ms;
+        u64 dispatch; ///< the dispatch's number (0: none)
+        u32 phase;    ///< 0: before the dispatch, 1: after
+    };
+    std::deque<Peek> peeks;
     struct PendingReadback {
         u64 tick = 0;
         Buffer* buffer = nullptr;
@@ -425,11 +550,18 @@ private:
         std::vector<std::pair<VAddr, u64>> watched;
         bool watching = false; ///< `watched` is read-protected (from the first poll after submission)
         bool yield_to_cpu = false; ///< see DownloadRangesAsync
+        bool open = false; ///< gow3: never protected (fence-gated results), in open_readback_ranges
         /// gow3: run once the data is in guest memory (fence labels of ray-cast batches).
         std::vector<std::function<void()>> on_landed;
+        /// gow3 tests (GOW3_TEST_READBACK_LAG): when it was queued.
+        std::chrono::steady_clock::time_point queued = std::chrono::steady_clock::now();
     };
     PageManager* page_manager = nullptr;
     std::deque<PendingReadback> pending_readbacks;
+    /// gow3 18 Oct: bytes on their way back in open (unprotected, fence-gated) readbacks: other
+    /// readbacks of the same bytes (the per-submission small-write readback) do not protect them
+    /// again.
+    RangeSet open_readback_ranges;
     /// gow3: pages where a CPU read faulted on other data than a pending readback's GPU bytes
     /// (false sharing: the CPU's own data next to small GPU results in the same 4 KiB) -> until
     /// when async readbacks leave them unprotected. Uncharted 2: 89% of the read faults, each one

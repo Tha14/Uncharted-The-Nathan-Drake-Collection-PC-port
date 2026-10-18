@@ -34,6 +34,20 @@ class MemoryManager;
 
 namespace Vulkan {
 
+/// gow3 diagnostics (GOW3_FAULT_STATS): which GPU command thread write into guest memory takes
+/// a write fault (1 WriteData, 2 graphics WriteData inline, 3 compute WriteData, 4 DMA, 5 fence
+/// fallback). Set around those writes.
+inline thread_local int g_gpu_write_site = 0;
+struct GpuWriteSite {
+    int previous;
+    explicit GpuWriteSite(int site) : previous{g_gpu_write_site} {
+        g_gpu_write_site = site;
+    }
+    ~GpuWriteSite() {
+        g_gpu_write_site = previous;
+    }
+};
+
 class GraphicsPipeline;
 class Runtime;
 
@@ -153,6 +167,8 @@ public:
     bool IsGpuSideThreadId(u32 tid) const;
     /// A guest write hit a protected page.
     bool OnWriteFault(VAddr addr, bool assume_locks);
+    /// gow3: a guest instruction keeps faulting on one page (see BufferCache::ReleaseStuckPage).
+    void ReleaseStuckPage(VAddr page, bool is_write, bool assume_locks);
     bool ReadMemory(VAddr addr, u64 size, bool assume_locks = false);
     void ProcessDownloadImages();
     bool IsMapped(VAddr addr, u64 size);
@@ -344,6 +360,8 @@ private:
     Core::MemoryManager* memory;
     boost::icl::interval_set<VAddr> mapped_ranges;
     Common::SharedFirstMutex mapped_ranges_mutex;
+    /// gow3: bumped on every unmap; IsMapped's per-thread cache of mapped intervals checks it.
+    std::atomic<u64> mapped_generation{1};
     PipelineCache pipeline_cache;
     std::unique_ptr<DrawPreparation> draw_prep;
     std::unique_ptr<CameraMotion> camera_motion; // gow3: motion vectors (docs/upscaler.md)
@@ -495,7 +513,25 @@ private:
     /// blood and other decals): the event's interrupt marks the batch done and the game reads
     /// the hits at once; fences are written when recorded, so it read stale results (no hits).
     std::vector<std::pair<VAddr, u64>> eop_readbacks;
+    /// gow3 18 Oct: ray-cast results (all EOP readback shaders but the 6a6422a9 copies) are read
+    /// back without protecting their pages: the guest reads them after the fence, which is
+    /// written once they land (GOW3_DEFER_RAYCAST_FENCES). Protected, every guest write into
+    /// those pages (the next batch) faulted and waited for the GPU thread and the readback:
+    /// Uncharted 3's ray-cast thread stalled with the ray-cast lock held (rooftops: 2-3 fast
+    /// frames, then one of 25-35 ms). Opt-in, GOW3_OPEN_RAYCAST_READBACKS=1: measured on the
+    /// rooftops it removed the faults on ray-cast pages but not the uneven frames (18 Oct).
+    std::vector<std::pair<VAddr, u64>> eop_open_readbacks;
     std::vector<std::pair<VAddr, u64>> eop_soft_readbacks; ///< gow3: tiny images, unprotected
+    struct ClothPeek {
+        VAddr address;
+        u64 size;
+        u64 shader;
+        u32 slot;
+        bool written;
+        const VideoCore::Buffer* buffer; ///< the buffer bound (arena or stream buffer)
+        u64 buffer_offset;
+    };
+    std::vector<ClothPeek> cloth_peeks; ///< gow3 diagnostics (GOW3_CLOTH_PEEK)
     bool sync_gpu_constants = [] {
         const char* env = std::getenv("GOW3_SYNC_GPU_CONSTANTS");
         return env && env[0] == '1';
@@ -534,6 +570,8 @@ public:
 private:
     /// Diagnostics for a garbage V#: where the walker took flattened dword `flat_dw` from.
     void DescribeSharpSource(const Shader::Info& info, u32 flat_dw, const char* problem);
+    /// gow3 diagnostics: a resource-table walk faulted: the tables it read, now and 3 ms later.
+    void ReportSrtFault(const Shader::Info& info);
     u64 srt_syncs = 0, srt_sync_reports = 0;
     void SyncDmaMemory(const Shader::Info* stage);
     /// VS of the draw whose dynamic state is being set (diagnostic overrides).

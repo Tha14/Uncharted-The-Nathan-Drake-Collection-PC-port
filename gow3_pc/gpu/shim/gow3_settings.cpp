@@ -2,6 +2,7 @@
 #include "gow3_settings.h"
 #include "gow3_orbs.h"
 #include "gow3_graphics.h"
+#include "../gow3gpu.h"
 
 #include <algorithm>
 #include <cstdarg>
@@ -56,6 +57,46 @@ void Set(Values& v, const std::string& key, const std::string& value) {
     }
     if (key == "menu_tab") {
         v.menu_tab = i >= 0 && i <= 3 ? i : 0;
+        return;
+    }
+    if (key == "pad_map" || key == "key_map" || key == "mouse_map") {
+        std::scoped_lock lock{ControlsMutex()};
+        (key == "pad_map" ? v.pad_map : key == "key_map" ? v.key_map : v.mouse_map) = value;
+        return;
+    }
+    if (key == "menu_pad" || key == "menu_key") {
+        if (!value.empty()) {
+            std::scoped_lock lock{ControlsMutex()};
+            (key == "menu_pad" ? v.menu_pad : v.menu_key) = value;
+        }
+        return;
+    }
+    if (key == "mouse" || key == "mouse_invert") {
+        (key == "mouse" ? v.mouse : v.mouse_invert) = i != 0;
+        return;
+    }
+    if (key == "mouse_sens") {
+        v.mouse_sens = f > 0.0f ? Clamp(f, 0.1f, 10.0f) : 1.0f;
+        return;
+    }
+    if (key == "stick_speed") {
+        v.stick_speed = f > 0.0f ? Clamp(f, 0.25f, 4.0f) : 1.0f;
+        return;
+    }
+    if (key == "prompts") {
+        v.prompts = ParsePrompts(value);
+        return;
+    }
+    if (key == "fade_distance") {
+        v.fade_distance = std::clamp(i, 100, 400);
+        return;
+    }
+    if (key == "sun_shadow_distance" || key == "light_shadow_distance") {
+        (key == "sun_shadow_distance" ? v.sun_shadow_distance : v.light_shadow_distance) = std::clamp(i, 100, 300);
+        return;
+    }
+    if (key == "menu_shortcut") {
+        v.menu_shortcut = value == "view_menu" ? 1 : value == "keyboard" ? 2 : value == "custom" ? 3 : 0;
         return;
     }
     const char* cheat_keys[] = {"cheat_health", "cheat_magic", "cheat_item", "cheat_rage", "cheat_orbs",
@@ -161,10 +202,38 @@ namespace {
 KeyValues synced;
 } // namespace
 
+std::mutex& ControlsMutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+void ControlsChanged() {
+    ++Get().controls_generation;
+}
+
+const char* PromptsName(int prompts) {
+    switch (prompts) {
+    case 0: return "playstation";
+    case 1: return "keyboard";
+    case 2: return "xbox";
+    case 3: return "controller";
+    default: return "auto";
+    }
+}
+
+int ParsePrompts(const std::string& value) {
+    // "1" and "0" are GOW3_PROMPTS's older values: keyboard, and the controller's own.
+    if (value == "keyboard" || value == "1") return 1;
+    if (value == "playstation") return 0;
+    if (value == "xbox") return 2;
+    if (value == "controller" || value == "gamepad" || value == "0") return 3;
+    return -1;
+}
+
 void Load() {
     auto& v = Get();
     if (FILE* file = std::fopen(Path(), "r")) {
-        char line[256];
+        char line[4096]; // the control maps are long lines
         while (std::fgets(line, sizeof(line), file)) {
             std::string text{line};
             text.erase(text.find_last_not_of(" \t\r\n") + 1);
@@ -192,6 +261,10 @@ void Load() {
         {"GOW3_ASYNC_SHADERS", "async_shaders"},      {"GOW3_DEFERRED_READBACK", "deferred_readback"},
         {"GOW3_STALE_READBACK", "stale_readback"},     {"GOW3_FSR1", "fsr1"},
         {"GOW3_RCAS", "rcas"},                        {"GOW3_FRAMES_AHEAD", "frames_queued"},
+        {"GOW3_PAD_MAP", "pad_map"},                  {"GOW3_KEY_MAP", "key_map"},
+        {"GOW3_MOUSE_MAP", "mouse_map"},              {"GOW3_MOUSE", "mouse"},
+        {"GOW3_MOUSE_SENS", "mouse_sens"},            {"GOW3_MOUSE_INVERT", "mouse_invert"},
+        {"GOW3_PROMPTS", "prompts"},                  {"GOW3_STICK_SPEED", "stick_speed"},
     };
     for (const auto& [env, key] : env_keys) {
         if (const char* value = std::getenv(env); value && value[0]) {
@@ -211,6 +284,7 @@ void Load() {
     v.startup_deferred_readback = v.deferred_readback;
     v.startup_stale_readback = v.stale_readback;
     synced = Current();
+    ControlsChanged();
 }
 
 bool GraphicsNeedRestart() {
@@ -289,7 +363,7 @@ const std::string* Find(const KeyValues& values, const std::string& key) {
 KeyValues ReadFile() {
     KeyValues values;
     if (FILE* file = std::fopen(Path(), "r")) {
-        char line[256];
+        char line[4096];
         while (std::fgets(line, sizeof(line), file)) {
             std::string text{line};
             text.erase(text.find_last_not_of(" \t\r\n") + 1);
@@ -340,6 +414,18 @@ KeyValues Current() {
     // Read by run.sh at start.
     Append(text, "live_resolution=%s\n", v.live_resolution < 0 ? "auto"
                                                   : v.live_resolution ? "1" : "0");
+    static const char* const shortcuts[] = {"lt_r3", "view_menu", "keyboard", "custom"};
+    Append(text, "menu_shortcut=%s\n", shortcuts[std::clamp(v.menu_shortcut.load(), 0, 3)]);
+    Append(text, "fade_distance=%d\nsun_shadow_distance=%d\nlight_shadow_distance=%d\n", v.fade_distance.load(),
+           v.sun_shadow_distance.load(), v.light_shadow_distance.load());
+    Append(text, "mouse=%d\nmouse_sens=%.2f\nmouse_invert=%d\nprompts=%s\nstick_speed=%.2f\n",
+           int(v.mouse.load()), v.mouse_sens.load(), int(v.mouse_invert.load()), PromptsName(v.prompts),
+           v.stick_speed.load());
+    {
+        std::scoped_lock lock{ControlsMutex()};
+        text += "pad_map=" + v.pad_map + "\nkey_map=" + v.key_map + "\nmouse_map=" + v.mouse_map + "\n";
+        text += "menu_pad=" + v.menu_pad + "\nmenu_key=" + v.menu_key + "\n";
+    }
     KeyValues values;
     for (size_t at = 0; at < text.size();) {
         const size_t line_end = text.find('\n', at);
@@ -395,3 +481,46 @@ const char* UpscalerName(int upscaler) {
 }
 
 } // namespace Gow3Settings
+
+extern "C" unsigned gow3gpu_controls_generation(void) {
+    return Gow3Settings::Get().controls_generation;
+}
+
+extern "C" void gow3gpu_controls_get(Gow3Controls* out) {
+    const auto& v = Gow3Settings::Get();
+    {
+        std::scoped_lock lock{Gow3Settings::ControlsMutex()};
+        std::snprintf(out->pad_map, sizeof(out->pad_map), "%s", v.pad_map.c_str());
+        std::snprintf(out->key_map, sizeof(out->key_map), "%s", v.key_map.c_str());
+        std::snprintf(out->mouse_map, sizeof(out->mouse_map), "%s", v.mouse_map.c_str());
+    }
+    out->mouse = v.mouse ? 1 : 0;
+    out->mouse_invert = v.mouse_invert ? 1 : 0;
+    out->prompts = v.prompts;
+    out->mouse_sens = v.mouse_sens;
+    out->stick_speed = v.stick_speed;
+}
+
+extern "C" float gow3gpu_controls_mouse_sens(void) {
+    return Gow3Settings::Get().mouse_sens;
+}
+
+extern "C" int gow3gpu_controls_mouse_invert(void) {
+    return Gow3Settings::Get().mouse_invert ? 1 : 0;
+}
+
+extern "C" float gow3gpu_controls_stick_speed(void) {
+    return Gow3Settings::Get().stick_speed;
+}
+
+extern "C" int gow3gpu_settings_fade_distance(void) {
+    return Gow3Settings::Get().fade_distance;
+}
+
+extern "C" int gow3gpu_settings_sun_shadow_distance(void) {
+    return Gow3Settings::Get().sun_shadow_distance;
+}
+
+extern "C" int gow3gpu_settings_light_shadow_distance(void) {
+    return Gow3Settings::Get().light_shadow_distance;
+}

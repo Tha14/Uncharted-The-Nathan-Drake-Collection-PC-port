@@ -59,8 +59,12 @@ struct PageManager::Impl {
     static constexpr size_t NUM_ADDRESS_PAGES = 1ULL << (40 - PM_PAGE_BITS);
     static constexpr size_t NUM_ADDRESS_LOCKS = NUM_ADDRESS_PAGES / PAGES_PER_LOCK;
     inline static Vulkan::Rasterizer* rasterizer;
+    /// gow3: the instance, for the fault handler's look at a page's read watchers.
+    inline static Impl* self = nullptr;
 
-    Impl() = default;
+    Impl() {
+        self = this;
+    }
     virtual ~Impl() = default;
 
     virtual void OnMap(VAddr address, size_t size) {
@@ -88,6 +92,12 @@ struct PageManager::Impl {
         u64 rip = 0;
 #ifdef _WIN32
         rip = static_cast<EXCEPTION_POINTERS*>(context)->ContextRecord->Rip;
+        // Runtime code: as an offset in the executable (symbolize with llvm-symbolizer at
+        // 0x140000000 + offset); guest code stays absolute.
+        static const u64 exe_base = reinterpret_cast<u64>(GetModuleHandleW(nullptr));
+        if (rip >= exe_base && rip < exe_base + 0x20000000) {
+            rip = rip - exe_base + 0x140000000;
+        }
 #endif
         static std::mutex mutex;
         static std::unordered_map<u64, u32> by_rip, by_window;
@@ -144,13 +154,31 @@ struct PageManager::Impl {
         if (is_gpu_thread) {
             Gow3Stats::gpu_signal_faults.fetch_add(1, std::memory_order_relaxed);
         }
+        // gow3 18 Oct 2026: an instruction that keeps faulting on one page never gets past it
+        // (Uncharted 3 rooftops: a read-modify-write into a page a readback still protected, the
+        // game frozen; shorter loops were hitches). After 4 faults in a row on the same page the
+        // readbacks holding it land (Rasterizer::ReleaseStuckPage).
+        thread_local VAddr last_fault_page = 0;
+        thread_local u32 fault_repeats = 0;
+        const VAddr fault_page = addr & ~VAddr(4095);
+        if (fault_page != last_fault_page) {
+            last_fault_page = fault_page;
+            fault_repeats = 0;
+        } else if (++fault_repeats >= 4 && self &&
+                   self->cached_pages[addr >> PM_PAGE_BITS].num_read_watchers != 0) {
+            // Only a read-protected page (a readback holds it) can keep an instruction faulting;
+            // write faults repeat on hot pages the GPU keeps writing (not stuck).
+            fault_repeats = 0;
+            rasterizer->ReleaseStuckPage(fault_page, Common::IsWriteError(context), is_gpu_thread);
+        }
         if (Common::IsWriteError(context)) {
             Gow3Stats::Timer timer{Gow3Stats::t_write_faults};
             const u64 downloads = gow3_downloads;
             const auto start = std::chrono::steady_clock::now();
             const bool handled = rasterizer->OnWriteFault(addr, is_gpu_thread);
-            if (gow3_downloads != downloads) {
-                // A CPU write into GPU-written memory: the window was downloaded first.
+            if (gow3_downloads != downloads || is_gpu_thread) {
+                // A CPU write into GPU-written memory: the window was downloaded first (and every
+                // GPU-side thread write fault: the runtime writing guest memory itself).
                 NoteReadFault(context, addr, is_gpu_thread, std::chrono::steady_clock::now() - start,
                               true);
             }

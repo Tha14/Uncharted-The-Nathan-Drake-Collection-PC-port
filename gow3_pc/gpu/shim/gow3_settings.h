@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -102,6 +103,27 @@ struct Values {
     /// DLSS (gow3_dlss.dll, NVIDIA RTX) is ready, or why not (null before the device exists).
     std::atomic<bool> dlss_supported{false};
     std::atomic<const char*> dlss_problem{nullptr};
+    /// Set by the renderer: temporal anti-aliasing can run in this game (Uncharted: the camera
+    /// from the motion blur's velocity pass; off with UNCHARTED_TEMPORAL_AA=0).
+    std::atomic<bool> temporal_aa_available{false};
+
+    /// Controls (gow3gpu.h Gow3Controls; the menu's Controls tab). The maps are guarded by
+    /// ControlsMutex(); a change calls ControlsChanged() so the pad reapplies them.
+    std::string pad_map, key_map, mouse_map;
+    std::atomic<bool> mouse{true}, mouse_invert{false};
+    std::atomic<float> mouse_sens{1.0f}, stick_speed{1.0f};
+    std::atomic<int> prompts{-1};
+    std::atomic<unsigned> controls_generation{0};
+    /// The controller shortcut for the in-game menu (GitHub #15: LT + R3 is also the sniper
+    /// zoom): 0 LT + right stick click, 1 View + Menu together, 2 none (Insert on the keyboard).
+    std::atomic<int> menu_shortcut{0};
+    /// gow3 18 Oct (GitHub #15, #19): menu_shortcut 3 = this custom controller shortcut, one or
+    /// two SDL gamepad button names ("lefttrigger"/"righttrigger" for the triggers) joined by
+    /// '+'; and the keyboard key that opens the menu (SDL key name). Guarded by ControlsMutex().
+    std::string menu_pad = "lefttrigger+rightstick", menu_key = "Insert";
+    /// The games' own draw distances in percent (Uncharted 2 and 3, src/runtime_gamesettings.c):
+    /// object fade distance, sun and point/spot light shadow distances.
+    std::atomic<int> fade_distance{100}, sun_shadow_distance{100}, light_shadow_distance{100};
 
     /// Startup settings for the explicit GOW3_RENDER_RES compatibility patch only.
     int startup_preset = NativeAA;
@@ -112,6 +134,14 @@ struct Values {
 };
 
 Values& Get();
+
+/// Guards the control maps (pad_map, key_map, mouse_map).
+std::mutex& ControlsMutex();
+/// After a change to the controls: the pad reapplies them on its next read.
+void ControlsChanged();
+/// The prompts setting as the file holds it ("auto", "keyboard", ...) and parsed (-1 auto).
+const char* PromptsName(int prompts);
+int ParsePrompts(const std::string& value);
 
 /// Reads the file, then the environment overrides. Called once at start.
 void Load();

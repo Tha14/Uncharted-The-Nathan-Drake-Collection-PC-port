@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <atomic>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include "common/shared_handle_table.h"
 #include <thread>
 #include <magic_enum/magic_enum.hpp>
@@ -194,11 +197,15 @@ int EqueueInternal::WaitForEvents(OrbisKernelEvent* ev, int num, const OrbisKern
     if (micros == 0) {
         // Wait indefinitely for events
         std::unique_lock lock{m_mutex};
+        ++m_waiters;
         m_cond.wait(lock, predicate);
+        --m_waiters;
     } else {
         // Wait up until the timeout value
         std::unique_lock lock{m_mutex};
+        ++m_waiters;
         m_cond.wait_for(lock, std::chrono::microseconds(micros), predicate);
+        --m_waiters;
     }
 
     return count;
@@ -206,10 +213,14 @@ int EqueueInternal::WaitForEvents(OrbisKernelEvent* ev, int num, const OrbisKern
 
 bool EqueueInternal::TriggerEvent(u64 ident, s16 filter, void* trigger_data) {
     bool has_found = false;
+    bool waiting = false;
+    bool newly = false; // an event went from idle to pending (a waiter has not been woken for it)
     {
         std::scoped_lock lock{m_mutex};
+        waiting = m_waiters > 0;
         for (auto& event : m_events) {
             if (event.event.ident == ident && event.event.filter == filter) {
+                newly |= !event.IsTriggered();
                 if (filter == OrbisKernelEvent::Filter::VideoOut) {
                     event.TriggerDisplay(trigger_data);
                 } else if (filter == OrbisKernelEvent::Filter::User) {
@@ -225,8 +236,40 @@ bool EqueueInternal::TriggerEvent(u64 ident, s16 filter, void* trigger_data) {
         }
     }
     // gow3: every waiter re-checks; with several threads waiting on one queue, a single
-    // wakeup could go to one that does not take the event.
-    m_cond.notify_all();
+    // wakeup could go to one that does not take the event. 17 Oct 2026: only when an event
+    // became pending and a thread waits (counted under the lock, which a waiter holds from its
+    // last check until it sleeps): Uncharted 3's compute interrupts cost the GPU command thread
+    // ~8% in wakeup calls at 4K. GOW3_EQUEUE_STATS=1: triggers and wakeups per 5 s.
+    static const bool stats = [] {
+        const char* env = std::getenv("GOW3_EQUEUE_STATS");
+        return env && env[0] == '1';
+    }();
+    if (stats) {
+        static std::atomic<u64> triggers{0}, found{0}, woken{0};
+        static std::atomic<s64> last{0};
+        ++triggers;
+        found += has_found;
+        woken += newly && waiting;
+        const s64 now = std::chrono::duration_cast<std::chrono::seconds>(
+                            std::chrono::steady_clock::now().time_since_epoch())
+                            .count();
+        s64 expected = last.load();
+        if (now - expected >= 5 && last.compare_exchange_strong(expected, now)) {
+            std::printf("Equeue triggers (5 s): %llu, %llu matched an event, %llu woke a waiter\n",
+                        (unsigned long long)triggers.exchange(0), (unsigned long long)found.exchange(0),
+                        (unsigned long long)woken.exchange(0));
+            std::fflush(stdout);
+        }
+    }
+    // A pending event already woke the waiters (or one finds it before sleeping): coalesced, as
+    // the kernel does. Uncharted 3: ~2,200 compute interrupts a frame in crowds.
+    static const bool always = [] {
+        const char* env = std::getenv("GOW3_EQUEUE_ALWAYS_NOTIFY");
+        return env && env[0] == '1';
+    }();
+    if (always || (newly && waiting)) {
+        m_cond.notify_all();
+    }
     return has_found;
 }
 

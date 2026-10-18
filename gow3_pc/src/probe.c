@@ -11,6 +11,8 @@
 #include "cheat_hook.h"
 #include "actor_hook.h"
 #include "damage_hook.h"
+#include "runtime_mouselook.h"
+#include "runtime_gamesettings.h"
 #include "gpu/gow3gpu.h"
 #if !defined(__x86_64__) || !defined(__GNUC__)
 #error This prototype requires x86-64 GCC or Clang (including MinGW).
@@ -195,14 +197,16 @@ static void watch_string(char *out, size_t size, uint64_t address) {
     while (n<got && n+1<size && buf[n]>=0x20 && buf[n]<0x7f) { out[n]=(char)buf[n]; ++n; }
     out[n]=0;
 }
+static volatile LONG watch_hits;
 static LONG watch_hit(EXCEPTION_POINTERS *info) {
-    static volatile LONG hits;
+#define hits watch_hits
     CONTEXT *c=info->ContextRecord;
     DWORD64 dr6=c->Dr6;
     c->Dr6=0;
     /* Instruction breakpoints (GOW3_EXEC_WATCH) fault before the instruction: resume past them. */
     c->EFlags|=0x10000;
-    if (InterlockedIncrement(&hits)<=400 && image) {
+    /* Only guest code is logged: runtime copies of the watched memory would fill the 400 lines. */
+    if (image && c->Rip-(uintptr_t)image<0x2000000 && InterlockedIncrement(&hits)<=400) {
         char line[1024], s1[64], s2[64];
         watch_string(s1,sizeof(s1),c->Rsi); watch_string(s2,sizeof(s2),c->Rdx);
         int n=snprintf(line,sizeof(line),"Watch: dr6 %#llx rip guest %#llx rax %#llx rcx %#llx rdx %#llx rsi %#llx rdi %#llx r8 %#llx r9 %#llx [rsi '%s'] [rdx '%s'] callers",
@@ -212,11 +216,12 @@ static LONG watch_hit(EXCEPTION_POINTERS *info) {
         const uint64_t *stack=(const uint64_t *)(uintptr_t)c->Rsp;
         for (int i=0,found=0;i<64 && found<6 && n<(int)sizeof(line)-24;++i) {
             uint64_t v=stack[i];
-            if (v-(uintptr_t)image<0x95d060) { n+=snprintf(line+n,sizeof(line)-n," %#llx",(unsigned long long)(v-(uintptr_t)image)); ++found; }
+            if (v-(uintptr_t)image<0x2000000) { n+=snprintf(line+n,sizeof(line)-n," %#llx",(unsigned long long)(v-(uintptr_t)image)); ++found; }
         }
         puts(line); fflush(stdout);
     }
     return EXCEPTION_CONTINUE_EXECUTION;
+#undef hits
 }
 /* GOW3_EXEC_WATCH=<off>[,<off>...] (hex guest image offsets, up to 4): instruction breakpoints
  * on every thread of the process (GOW3_EXEC_WATCH_SECONDS, default 600 s); a helper arms threads as they
@@ -235,6 +240,8 @@ void runtime_exec_watch_retarget(uint64_t address) {
     printf("Exec watch: data watch moved to %#llx\n",(unsigned long long)address);
     fflush(stdout);
 }
+static const char *exec_watch_file;
+static void poll_exec_watch_file(void);
 static DWORD WINAPI exec_watch_thread(LPVOID unused) {
     (void)unused;
     DWORD *armed=exec_watch_armed;
@@ -242,7 +249,8 @@ static DWORD WINAPI exec_watch_thread(LPVOID unused) {
     ULONGLONG start=GetTickCount64();
     const char *secs=getenv("GOW3_EXEC_WATCH_SECONDS");
     const ULONGLONG limit=(secs && atoi(secs)>0 ? (ULONGLONG)atoi(secs) : 600)*1000;
-    for (int round=0; GetTickCount64()-start<limit; ++round) {
+    for (int round=0; exec_watch_file || GetTickCount64()-start<limit; ++round) {
+        if (round%50==0) poll_exec_watch_file();
         HANDLE snap=CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD,0);
         if (snap!=INVALID_HANDLE_VALUE) {
             THREADENTRY32 te={.dwSize=sizeof(te)};
@@ -261,7 +269,10 @@ static DWORD WINAPI exec_watch_thread(LPVOID unused) {
                         ctx.Dr7=0;
                         for (int i=0;i<exec_watch_count;++i) {
                             /* Bit 63 marks a data watch (w:<absolute address>): 8-byte writes. */
-                            if (exec_watch[i]>>63) {
+                            if ((exec_watch[i]>>62)==1) {
+                                *dr[i]=(DWORD64)(exec_watch[i]&~(3ull<<62)&~3ull);
+                                ctx.Dr7|=(1ull<<(2*i))|(3ull<<(16+4*i))|(3ull<<(18+4*i));
+                            } else if (exec_watch[i]>>63) {
                                 *dr[i]=(DWORD64)(exec_watch[i]&~(1ull<<63)&~7ull);
                                 ctx.Dr7|=(1ull<<(2*i))|(1ull<<(16+4*i))|(2ull<<(18+4*i));
                             } else {
@@ -283,22 +294,55 @@ static DWORD WINAPI exec_watch_thread(LPVOID unused) {
     printf("Exec watch: done (%ld threads armed)\n",(long)exec_watch_armed_count);
     return 0;
 }
-static void start_exec_watch(void) {
-    const char *env=getenv("GOW3_EXEC_WATCH");
-    if (!env || !*env) return;
-    for (const char *p=env; *p && exec_watch_count<4;) {
-        int data=0;
+/* Bit 62 marks a 4-byte read/write data watch (r:<absolute address>). */
+static int parse_exec_watch(const char *text, uint64_t out[4]) {
+    int count=0;
+    for (const char *p=text; *p && count<4;) {
+        while (*p==' ' || *p=='\n' || *p=='\r') ++p;
+        int data=0, read=0;
         if ((p[0]=='w' || p[0]=='W') && p[1]==':') { data=1; p+=2; }
+        else if ((p[0]=='r' || p[0]=='R') && p[1]==':') { read=1; p+=2; }
         char *end=NULL;
         uint64_t v=strtoull(p,&end,16);
         if (end==p) break;
-        exec_watch[exec_watch_count++]=data ? v|(1ull<<63) : v;
+        out[count++]=data ? v|(1ull<<63) : read ? v|(1ull<<62) : v;
         p=*end==',' ? end+1 : end;
     }
+    return count;
+}
+/* GOW3_EXEC_WATCH_FILE=<path>: the watch list (same syntax, plus r:<address>) is read from the
+ * file every second while the game runs; a changed list re-arms every thread (diagnostics: data
+ * watches on heap addresses found at runtime). */
+static const char *exec_watch_file;
+static char exec_watch_file_text[256];
+static void poll_exec_watch_file(void) {
+    if (!exec_watch_file) return;
+    FILE *f=fopen(exec_watch_file,"rb");
+    if (!f) return;
+    char text[256]={0};
+    size_t n=fread(text,1,sizeof(text)-1,f);
+    fclose(f);
+    text[n]=0;
+    if (!strcmp(text,exec_watch_file_text)) return;
+    strcpy(exec_watch_file_text,text);
+    uint64_t list[4]={0};
+    const int count=parse_exec_watch(text,list);
+    for (int i=0;i<4;++i) exec_watch[i]=list[i];
+    exec_watch_count=count;
+    InterlockedExchange(&watch_hits,0);
+    InterlockedExchange(&exec_watch_armed_count,0);
+    printf("Exec watch: %d watches from %s: %s\n",count,exec_watch_file,text);
+    fflush(stdout);
+}
+static void start_exec_watch(void) {
+    const char *env=getenv("GOW3_EXEC_WATCH");
+    exec_watch_file=getenv("GOW3_EXEC_WATCH_FILE");
+    if ((!env || !*env) && !exec_watch_file) return;
+    if (env) exec_watch_count=parse_exec_watch(env,exec_watch);
     exec_watch_ready=CreateEventA(NULL,TRUE,FALSE,NULL);
     CloseHandle(CreateThread(NULL,0,exec_watch_thread,NULL,0,NULL));
     WaitForSingleObject(exec_watch_ready,5000);
-    printf("Exec watch: %d breakpoints armed from %s\n",exec_watch_count,env);
+    printf("Exec watch: %d breakpoints armed from %s\n",exec_watch_count,env ? env : "(file)");
 }
 static LONG CALLBACK vectored_fault(EXCEPTION_POINTERS *info) {
     const EXCEPTION_RECORD *record=info->ExceptionRecord;
@@ -623,6 +667,96 @@ static int install_jump(uint64_t at, unsigned length, unsigned char *stub) {
     return 1;
 }
 
+/* A page for hook stubs within relative-jump range of the image (the image sits below 2 GiB with
+ * --low-image; a page anywhere may be out of range). */
+static unsigned char *allocate_near_image(uint64_t size) {
+#ifdef _WIN32
+    /* Free regions within +-1.5 GiB of the image (below it too: the linked modules and runtime
+     * reservations can fill the space right above it). */
+    const uintptr_t lo = (uintptr_t)image > UINT64_C(0x60000000) ? (uintptr_t)image - UINT64_C(0x60000000) : 0x10000;
+    const uintptr_t hi = (uintptr_t)image + (uintptr_t)size + UINT64_C(0x60000000);
+    MEMORY_BASIC_INFORMATION info;
+    for (uintptr_t address = lo; address < hi && VirtualQuery((void *)address, &info, sizeof(info));
+         address = (uintptr_t)info.BaseAddress + info.RegionSize) {
+        if (info.State != MEM_FREE) continue;
+        const uintptr_t start = ((uintptr_t)info.BaseAddress + 0xffff) & ~(uintptr_t)0xffff;
+        if (start + page_size > (uintptr_t)info.BaseAddress + info.RegionSize) continue;
+        void *p = VirtualAlloc((void *)start, page_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+        if (p) return p;
+    }
+    return NULL;
+#else
+    (void)size;
+    return allocate(page_size);
+#endif
+}
+/* Mouse look stub (src/runtime_mouselook.h): saves rax, rcx, rdx, rsi, rdi, r8-r11 and xmm0-7
+ * (the entry's argument and scratch registers; rsp stays 16-byte aligned at the call), calls the
+ * handler with rdi/rsi/rdx unchanged, stores a non-NULL result over the saved rdx, restores them,
+ * replays the replaced bytes and jumps back. */
+static unsigned build_mouse_look_stub(unsigned char *p, const MouseLookSite *site, uintptr_t resume) {
+    static const unsigned char save[] = {
+        0x50, 0x51, 0x52, 0x56, 0x57, 0x41, 0x50, 0x41, 0x51, 0x41, 0x52, 0x41, 0x53,
+        0x48, 0x81, 0xec, 0x80, 0x00, 0x00, 0x00,
+        0xf3, 0x0f, 0x7f, 0x04, 0x24,       0xf3, 0x0f, 0x7f, 0x4c, 0x24, 0x10,
+        0xf3, 0x0f, 0x7f, 0x54, 0x24, 0x20, 0xf3, 0x0f, 0x7f, 0x5c, 0x24, 0x30,
+        0xf3, 0x0f, 0x7f, 0x64, 0x24, 0x40, 0xf3, 0x0f, 0x7f, 0x6c, 0x24, 0x50,
+        0xf3, 0x0f, 0x7f, 0x74, 0x24, 0x60, 0xf3, 0x0f, 0x7f, 0x7c, 0x24, 0x70,
+    };
+    static const unsigned char restore[] = {
+        0xf3, 0x0f, 0x6f, 0x04, 0x24,       0xf3, 0x0f, 0x6f, 0x4c, 0x24, 0x10,
+        0xf3, 0x0f, 0x6f, 0x54, 0x24, 0x20, 0xf3, 0x0f, 0x6f, 0x5c, 0x24, 0x30,
+        0xf3, 0x0f, 0x6f, 0x64, 0x24, 0x40, 0xf3, 0x0f, 0x6f, 0x6c, 0x24, 0x50,
+        0xf3, 0x0f, 0x6f, 0x74, 0x24, 0x60, 0xf3, 0x0f, 0x6f, 0x7c, 0x24, 0x70,
+        0x48, 0x81, 0xc4, 0x80, 0x00, 0x00, 0x00,
+        0x41, 0x5b, 0x41, 0x5a, 0x41, 0x59, 0x41, 0x58, 0x5f, 0x5e, 0x5a, 0x59, 0x58,
+    };
+    unsigned n = 0;
+    memcpy(p + n, save, sizeof(save)); n += sizeof(save);
+    p[n++] = 0x48; p[n++] = 0xb8; /* mov rax, handler */
+    const uint64_t handler = (uint64_t)(uintptr_t)site->handler;
+    memcpy(p + n, &handler, 8); n += 8;
+    p[n++] = 0xff; p[n++] = 0xd0; /* call rax */
+    /* test rax, rax; jz +8; mov [rsp + 0xb0], rax (the saved rdx: 0x80 of xmm, then r11 r10 r9
+     * r8 rdi rsi above it) */
+    static const unsigned char replace_rdx[] = {0x48, 0x85, 0xc0, 0x74, 0x08,
+                                                0x48, 0x89, 0x84, 0x24, 0xb0, 0x00, 0x00, 0x00};
+    memcpy(p + n, replace_rdx, sizeof(replace_rdx)); n += sizeof(replace_rdx);
+    memcpy(p + n, restore, sizeof(restore)); n += sizeof(restore);
+    memcpy(p + n, site->expected, site->length); n += site->length;
+    static const unsigned char jump[] = {0xff, 0x25, 0x00, 0x00, 0x00, 0x00}; /* jmp [rip+0] */
+    memcpy(p + n, jump, sizeof(jump)); n += sizeof(jump);
+    const uint64_t target = (uint64_t)resume;
+    memcpy(p + n, &target, 8); n += 8;
+    return n;
+}
+static void install_mouse_look(Segment *segments, uint64_t count, uint64_t size) {
+    if (!runtime_mouselook_enabled()) return;
+    unsigned n = 0, used = 0, installed = 0;
+    const MouseLookSite *sites = runtime_mouselook_sites(&n);
+    unsigned char *stubs = NULL;
+    for (unsigned i = 0; i < n; ++i) {
+        const MouseLookSite *site = &sites[i];
+        if (site->offset + site->expected_length > size || !mapped(segments, count, site->offset, site->expected_length) ||
+            memcmp(image + site->offset, site->expected, site->expected_length)) continue;
+        if (!stubs && !(stubs = allocate_near_image(size))) {
+            puts("Mouse look: unavailable (no stub page in range)");
+            return;
+        }
+        if (used + 256 > page_size) break;
+        build_mouse_look_stub(stubs + used, site, (uintptr_t)(image + site->offset + site->length));
+        if (!install_jump(site->offset, site->length, stubs + used)) {
+            printf("Mouse look: %s unavailable (stub out of range)\n", site->game);
+            continue;
+        }
+        runtime_mouselook_set_image(image);
+        printf("Mouse look: %s camera at image offset %#llx\n", site->game, (unsigned long long)site->offset);
+        used += 256;
+        ++installed;
+    }
+    if (stubs) protect(stubs, page_size, 5);
+    if (!installed) puts("Mouse look: no known camera code in this executable (mouse acts as the right stick)");
+}
 /* Damage dealt/taken and green/blue/gold orb multipliers (src/damage_hook.h, src/orb_hook.h):
  * the stubs read the menu's floats directly, so changes apply on the next hit or pickup. */
 static void install_stat_multipliers(Segment *segments, uint64_t count, uint64_t size) {
@@ -985,6 +1119,8 @@ int main(int argc, char **argv) {
         _exit(missing ? 1 : 0); /* no destructors: GPU threads are running */
     }
     if (patch_file) apply_patches(patch_file, segments, ns, relocs, nr);
+    if (gpu_enabled) install_mouse_look(segments, ns, size);
+    runtime_gamesettings_set_image(image, size);
     if (gpu_enabled && game_hooks) {
         install_orb_multiplier(segments, ns, size);
         install_cheats(segments, ns, size);

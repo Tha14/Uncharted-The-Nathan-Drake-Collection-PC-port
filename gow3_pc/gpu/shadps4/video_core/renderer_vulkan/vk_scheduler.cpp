@@ -185,6 +185,7 @@ std::unique_ptr<RecordChunk> Scheduler::AcquireChunk() {
 }
 
 void Scheduler::SignalAfterHostCopies(std::function<void()> signal) {
+    guest_write_epoch.fetch_add(1, std::memory_order_relaxed);
     if (!IsRecordingDeferred()) {
         WaitHostCopies();
         signal();
@@ -202,6 +203,7 @@ void Scheduler::SignalAfterHostCopies(std::function<void()> signal) {
 }
 
 void Scheduler::WaitDeferredSignals() {
+    guest_write_epoch.fetch_add(1, std::memory_order_relaxed);
     const u64 issued = deferred_signals_issued.load(std::memory_order_relaxed);
     if (deferred_signals_done->load(std::memory_order_acquire) >= issued ||
         Gow3Toggle::Disabled(Gow3Toggle::OrderedGuestWrites)) {
@@ -217,6 +219,7 @@ void Scheduler::WaitDeferredSignals() {
 }
 
 void Scheduler::WaitHostCopies() {
+    guest_write_epoch.fetch_add(1, std::memory_order_relaxed);
     if (host_copies_done.load(std::memory_order_acquire) < host_copies_issued) {
         Gow3Stats::WaitTimer timer{Gow3Stats::host_copies_wait_ns};
         Gow3Stats::host_copy_waits.fetch_add(1, std::memory_order_relaxed);
@@ -518,6 +521,17 @@ void Scheduler::SubmitExecution(SubmitInfo& info) {
     SyncRecording();
     // Guest memory copies into staging read by this submission (copy threads).
     WaitHostCopies();
+    if (host_read_barrier) {
+#pragma push_macro("MemoryBarrier")
+#undef MemoryBarrier
+        const vk::MemoryBarrier to_host = {
+            .srcAccessMask = vk::AccessFlagBits::eMemoryWrite,
+            .dstAccessMask = vk::AccessFlagBits::eHostRead,
+        };
+        current_cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands,
+                                       vk::PipelineStageFlagBits::eHost, {}, to_host, {}, {});
+#pragma pop_macro("MemoryBarrier")
+    }
     Check(current_cmdbuf.end());
 
     const vk::Semaphore timeline = work_semaphore.Handle();
@@ -547,7 +561,22 @@ void Scheduler::SubmitExecution(SubmitInfo& info) {
     };
 
     ImGui::Core::TextureManager::Submit();
+    // gow3 diagnostics: a submit the driver held for more than 8 ms (hitch reports: 70 ms in the
+    // NVIDIA driver, kernel calls), with the images registered since the previous slow one.
+    const auto submit_start = std::chrono::steady_clock::now();
     auto submit_result = instance.GetGraphicsQueue().submit(submit_info, info.fence);
+    if (const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() -
+                                                                   submit_start)
+                              .count();
+        ms > 8.0) {
+        static u64 last_images = 0;
+        const u64 images = Gow3Stats::images_registered.load(std::memory_order_relaxed);
+        std::printf("Slow submit: %.1f ms in the driver (%u wait semaphores, %u signal); %llu images "
+                    "registered since the last slow one\n",
+                    ms, info.num_wait_semas, info.num_signal_semas,
+                    static_cast<unsigned long long>(images - last_images));
+        last_images = images;
+    }
     if (submit_result==vk::Result::eErrorDeviceLost) { ReportCheckpoints(); DumpDeviceFault(instance); }
     ASSERT_MSG(submit_result != vk::Result::eErrorDeviceLost, "Device lost during submit");
 

@@ -4,6 +4,152 @@ Uncharted: The Nathan Drake Collection PC port, by **BilalReloaded**
 ([YouTube](https://www.youtube.com/@BilalReloaded/videos), [GitHub](https://github.com/bc160201983)).
 Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
+## 18 October 2026 (0.2.0)
+
+- **Smooth frame pacing above 60 FPS with VSync (all three games).** With a frame rate limit at or
+  above the monitor's refresh rate and VSync on, the game made frames faster than the monitor
+  shows them; they queued up behind VSync and the game was held back in bursts: two or three
+  quick frames, then a long one. Now the game follows the monitor (its refresh rate, up to
+  120 Hz), as it follows a 60 Hz screen: on a 75 Hz monitor at the 120 setting, Uncharted 3's
+  rooftops and Uncharted 2 run at an even 75 FPS, 1% lows 32 -> 66 FPS (Uncharted 2: 22 -> 67),
+  no frame over 20 ms (28% before). It switches live with the in-game VSync and limit; monitors
+  above 120 Hz, VSync off and lower limits keep the earlier pacing. New frame rate limits 75, 90
+  and 100 (launcher and in-game menu) for those monitors and variable refresh rate screens.
+- **Uncharted 3: no freeze on the Cartagena rooftops (chapter 2).** The game froze about 30
+  seconds into the rooftop chase at 120 FPS: it cleared a field of its next ray-cast batch in
+  memory still guarded for a GPU result on its way back; the port's fault handler let the write
+  fault again and again, and the result it waited for was never collected because the GPU
+  thread was idle waiting for the game. Such a write now collects the result at once (or waits
+  for the GPU when it is still running). Shorter versions of the same loop, about 30 a second
+  in that area, were small hitches in all three games. While the GPU thread waits for the GPU
+  at the end of a frame it now also collects finished results (fewer long frames at high
+  frame rates).
+- **Cutscenes play at normal speed with the frame rate above 60.** The Collection's cutscenes are
+  prerecorded movies that show one picture per screen refresh; with the frame rate unlocked
+  (120) they ran fast and out of sync with their sound (reported in Uncharted 3). While a movie
+  plays the game now gets 60 Hz refreshes; gameplay keeps the chosen frame rate. (The same fix
+  as in SuperMedo's Uncharted port.)
+- **Anti-aliasing: TAA, AMD FSR 3.1 and FSR 4 Native AA, NVIDIA DLAA (all three games).** In-game
+  menu -> Image -> Anti-aliasing, or launcher -> Display -> Anti-aliasing: Off (the game's own, as
+  before), TAA, FSR 3.1, FSR 4 (listed when the GPU can run its 8-bit model; tested on an RTX 5080)
+  or DLAA (NVIDIA RTX), with sharpening for FSR and DLAA. It works at any render resolution, ultrawide
+  included, and switches at once from the menu. Jagged and shimmering edges (roof tiles, railings,
+  foliage) are much calmer: edge flicker about halved in Uncharted 2, a third of what it was in
+  Uncharted 3 (frame-to-frame measurements). The camera's motion comes from the games' own
+  motion-blur velocity pass, an idea from SuperMedo's Uncharted port. Turning the camera leaves no
+  trails; TAA softens the picture slightly. DLAA calms edges the most (Uncharted 2: a third of the
+  flicker). Cost on an RTX 5080 at 4K in Uncharted 2: TAA and FSR 3.1 kept the 120 FPS cap, DLAA
+  ran at about 84 FPS (NVIDIA's model, about 3.6 ms a frame at 4K) and kept 120 FPS at 1440p.
+  The package carries NVIDIA's `nvngx_dlss.dll` (DLSS SDK 310.9.16) and the FSR 4 native model
+  (tools/fetch_aa_files.sh fetches them for builds). UNCHARTED_TEMPORAL_AA=0 turns it all off.
+- **Ultrawide monitors (GitHub #7).** Launcher -> Display -> Aspect ratio: 16:9, 21:9 or 32:9. The
+  render resolution's height is kept and the picture widened (1080p at 21:9 is 2560x1080, 1440p
+  is 3440x1440); all three games show more to the sides with nothing stretched, the HUD and menus
+  keep their layout, aiming stays centred. Use Borderless or Fullscreen on the ultrawide monitor.
+  Drake's Fortune, which runs out of GPU memory above about 1620p, steps down in the same shape.
+- **Draw distance options (Uncharted 2 and 3, experimental).** In-game menu -> Image -> Draw
+  distance: object fade distance (up to 4x the game's own, which fades objects and details in at
+  0.58 of their authored distance), sun shadow distance and lamp/torch shadow distance (up to 3x
+  the game's 40 m). Applied live; higher values cost some FPS.
+- **Fewer hitches after loading (shader compiles).** On NVIDIA GPUs the cached shaders were only
+  prepared when a level first needed them, and compute shaders were translated in the middle of
+  the frame: Uncharted 3 hitched for 90-170 ms several times right after a load. The shader cache
+  now loads in the background while the title screen shows (2,400+ pipelines in 7-16 s), so none
+  are compiled in play. GOW3_ON_DEMAND_PIPELINES=1 keeps the old start.
+- **In-game menu: your own shortcut (GitHub #15, #19).** Controls -> Menu shortcut: LT + right
+  stick click (default), View + Menu together (no clash with the sniper zoom), none, or Custom:
+  select "Custom menu shortcut" and hold any two controller buttons (or one the game does not
+  use, such as Guide or a paddle). "Menu key (keyboard)" changes Insert to any key. The menu's
+  title shows the current shortcuts.
+- **Uncharted 3: no crash climbing the fort in chapter 8 (GitHub #13).** When the point Nate looks
+  at became invalid (NaN), the game stopped (`m_lookAt.X() == m_lookAt.X()` in UpdateFocus); now
+  it resets that point the way the game already does when it is far off.
+- **Fewer crashes in all three games (GitHub #11, #12, #17).** The most reported crash, the game's
+  check that the GPU finished frame N-3 (`m_gfxEopTick` in FrameBegin), came after short stalls on
+  slower or busier PCs: the game's GPU event thread had not marked that frame done yet. The game
+  now waits for it (a brief hitch at most) instead of stopping. UNCHARTED_FRAME_WAIT=0 keeps the
+  original check.
+- **The aim sensitivity sliders go higher in all three games.** Options -> Controls -> Aiming ->
+  Sensitivity now reaches five times its old maximum in Uncharted 1 and 2 (a notch is half the old
+  maximum, the second notch the old right end) and four times in Uncharted 3 (the left half keeps
+  its fine steps, the right half goes up to 4x), for fast aiming with the mouse or a controller.
+  (The games' own range checks are lifted; UNCHARTED_AIM_RANGE=0 keeps the original sliders.)
+- **Controls in the in-game menu.** Insert (or LT + right stick click) -> Controls: rebind every
+  action for keyboard, mouse and controller (select a slot, press the new key or button), mouse on
+  and off, mouse sensitivity, invert, button icons, a controller camera speed (Uncharted 2 and 3,
+  not yet in every camera) and Reset. Changes apply at once and are kept in the game's settings
+  file, which the launcher's Controls tab now reads and writes too.
+- **Keyboard and mouse button icons in all three games.** While you play with the keyboard and
+  mouse, every button icon the games draw in their text shows your keys and mouse buttons instead
+  of the PlayStation buttons: tutorial hints ("Press SPACE to jump"), menu legends (SPACE Select,
+  CTRL Back, ESC Resume), the sticks (WASD, the mouse) and the d-pad (1-4). The icons are drawn
+  from your own bindings, so remapped keys show up too. The prompts the games draw in the world
+  (the Triangle beside a chest, the round Square/Circle/Cross buttons, Uncharted 3's L1/R1/L2/R2)
+  change too: the same button picture with your key in place of the PlayStation symbol, or a mouse
+  for the mouse buttons. Touch a controller and its icons come back at once; use the keyboard
+  again and they switch back. Xbox and other controllers get their own buttons (A B X Y in their
+  colours, LB RB LT RT, Menu, View); PlayStation controllers keep the game's own icons. Launcher:
+  Controls -> Button icons: Auto (the device you use) / Keyboard and mouse / PlayStation / Xbox.
+- **Launcher: controller bindings with button icons.** The Controls tab shows each action's
+  controller button as an Xbox or PlayStation icon (Auto: the controller you have connected).
+  Click a controller slot, then press a button on the controller to rebind it; right-click clears
+  it; a button already in use swaps with the old one. The triggers and sticks stay Aim, Fire, Move
+  and Look. The in-game icons follow your bindings. The launcher window can now be resized.
+- **Uncharted 2 and 3: raw mouse look.** The mouse turns the camera directly (1:1, no stick
+  emulation, no acceleration or dead zone), at the same speed horizontally and vertically;
+  Sensitivity and Invert Y in the launcher apply. Uncharted 1 still uses the mouse as a stick.
+- **Low-end PCs: the games no longer take every core of a 4-6 core CPU.** The engine's six job
+  threads spin while waiting for work (on the PS4 each has its own core). On 4 cores they used 390%
+  of 400% CPU and starved the GPU thread: Uncharted 3's title screen ran at 19-27 FPS on an RTX
+  5080, its first level at 5-7 FPS on an integrated GPU. The engine has its own sleep mode for idle
+  job threads (a job wakes them); it is now always on (launcher: Performance -> Idle game threads:
+  Sleep / Spin). 4 cores: 60 FPS at the title and in Uncharted 1 and 3, about 1.5 cores used;
+  integrated GPU: 27 FPS at 720p (was 5-7). 16-core desktop: Uncharted 3 uses about 2.3 cores
+  instead of 6.4, and Uncharted 2's heaviest view runs 76.5 -> 78 FPS (uncapped).
+- **540p render resolution** (launcher, Display) for integrated GPUs, with FSR 1 to the screen:
+  tested in all three games; Uncharted 3 on an AMD integrated GPU 27.5 -> 33 FPS against 720p.
+- **Less GPU command thread work per draw:** the resource-table checks before every draw asked
+  the memory map for every table (6% of that thread); confirmed mapped areas are now remembered
+  until memory is unmapped (the checks went from 12% to 6.5% of the thread in Uncharted 3).
+- **Fewer crashes from half-written resource tables:** a draw whose tables held garbage while the
+  game was still filling them made the shader compiler stop the game ("Thread ID buffer addressing
+  is not supported outside of compute"), and one bad pointer turned that table read into zero for
+  the rest of the session. Such a draw is now drawn once with the bad entries empty.
+- **Uncharted 3: Sully's shirt flashing as big flat-coloured triangles fixed** (at 40-60 FPS; it
+  never happened at 30). The cloth simulation shaders sum values in shared GPU memory the way the
+  PS4's 64-lane waves allow: without waiting between steps inside one wave. NVIDIA runs each wave
+  as two 32-lane halves, which raced, so the shirt exploded on every other frame whenever the game
+  used 2 cloth sub-steps (40-60 FPS; at 30 FPS it uses 3). Both cloth solvers (the shirt uses two)
+  now get the waits, including inside the loop that repeats until the cloth settles (a value read
+  at the end of one pass was overwritten at the start of the next). On an AMD GPU it never happened.
+  Only those two shaders recompile, the rest of the shader cache stays.
+- **Uncharted 3: Nate's legs flickering and NPCs floating a little fixed.** Like Uncharted 2 in
+  0.1.2: the results of the game's small GPU copies now come back with the frame's "done" fence.
+- **Much faster at 4K and in crowds (all three games), measured on a Ryzen 9 9950X3D + RTX 5080,
+  frame limit 120.** The heavy scenes are limited by the CPU thread that feeds the GPU, not by the
+  GPU, so this helps every PC (render resolution makes no difference there):
+  - Uncharted 3 re-copied every crowd character's mesh data (about 43 MB per frame) from game memory
+    on every use, because each piece is small enough to be treated like per-frame constants. Data
+    that stays the same is now kept on the GPU and only copied again if the game changes it.
+  - Fence values the GPU writes for compute work landed on memory pages that also hold GPU data, and
+    each such write waited for the GPU (about 1.7 ms, ~40 times a second): now written directly.
+  - Fewer barrier checks (overlapping views of one buffer counted once), lock-free checks before
+    each draw, fewer thread wakeups for GPU interrupts, faster page fetches on a second GPU queue.
+  - Results at 4K: Uncharted 3's Cartagena market 64 -> 79 FPS at the checkpoint and 69 -> 90 in
+    the crowd (the items above; the second-queue fetches before them took a crowded street 46 -> 58),
+    Uncharted 2's heaviest view 38 -> 99 FPS, Drake's Fortune 95 -> 101 FPS.
+- **Multithreaded rendering is now much faster** (launcher, per game):
+  compute fences no longer stop the recording thread. 4K: Uncharted 3 100 FPS, Uncharted 2 118,
+  Drake's Fortune 117 (the 120 limit). On 4 CPU cores Uncharted 3 at 1080p runs at the 120 limit
+  (90 without). 5 minutes of Uncharted 3 with it: no errors.
+
+### Known issues (0.2.0)
+
+- **Drake's Fortune:** the grenade launcher can kill the player (GitHub #6). Being looked at.
+- Uncharted 3 on an AMD integrated GPU stopped shortly after a level started in earlier builds (the
+  game waited for an internal job): not seen any more in a 6-minute test with the rooftop freeze
+  fix (probably the same cause). Please report it if it still happens.
+
 ## 16 October 2026 (0.1.2)
 
 - **Uncharted 2: blurry background while aiming fixed.** The aiming depth of field reads its focus

@@ -8,14 +8,21 @@
  *   R Triangle (reload, pick up), Q / mouse X1 L1, E / mouse X2 R1, Left Shift L3,
  *   V / middle mouse R3, Escape or Enter Options, Tab left touchpad, Backspace right touchpad,
  *   1 2 3 4 d-pad left right up down, mouse wheel d-pad right (up) and left (down).
- * GOW3_KEYBOARD=0 / GOW3_MOUSE=0 turn the keyboard / mouse off. Mouse look: GOW3_MOUSE_SENS
- * (sensitivity, default 1), GOW3_MOUSE_INVERT=1 (invert Y). */
+ * GOW3_KEYBOARD=0 turns the keyboard off. The controls (maps, mouse on, its sensitivity and
+ * vertical invert, button icons) come from the settings (gow3gpu.h Gow3Controls: the in-game
+ * menu's Controls tab and the launcher's; GOW3_MOUSE=0, GOW3_MOUSE_SENS, GOW3_MOUSE_INVERT=1,
+ * GOW3_PROMPTS and the maps override them at start) and apply live. Button icons in the games'
+ * text follow the device used last (keys and mouse buttons as bound, or the controller's
+ * buttons: the game's own for PlayStation controllers, Xbox-style for others;
+ * gpu/shim/gow3_prompts.cpp), or the fixed choice. */
 #define _GNU_SOURCE
 #include "runtime.h"
 #include "gpu/gow3gpu.h"
+#include "runtime_gamesettings.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <math.h>
 #include <pthread.h>
 #include <time.h>
@@ -143,7 +150,7 @@ static const struct { const char *name; uint32_t ps; } ps_names[]={
 };
 typedef struct { int source; uint32_t ps; } ButtonSource;
 typedef struct { ButtonSource entries[48]; size_t count; } ButtonMap;
-static ButtonMap pad_map={{
+static const ButtonMap default_pad_map={{
     {SDL_GAMEPAD_BUTTON_SOUTH,BTN_CROSS}, {SDL_GAMEPAD_BUTTON_EAST,BTN_CIRCLE},
     {SDL_GAMEPAD_BUTTON_WEST,BTN_SQUARE}, {SDL_GAMEPAD_BUTTON_NORTH,BTN_TRIANGLE},
     {SDL_GAMEPAD_BUTTON_LEFT_SHOULDER,BTN_L1}, {SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER,BTN_R1},
@@ -153,7 +160,7 @@ static ButtonMap pad_map={{
     {SDL_GAMEPAD_BUTTON_DPAD_UP,BTN_UP}, {SDL_GAMEPAD_BUTTON_DPAD_DOWN,BTN_DOWN},
     {SDL_GAMEPAD_BUTTON_DPAD_LEFT,BTN_LEFT}, {SDL_GAMEPAD_BUTTON_DPAD_RIGHT,BTN_RIGHT},
 },15};
-static ButtonMap key_map={{
+static const ButtonMap default_key_map={{
     {SDL_SCANCODE_SPACE,BTN_CROSS}, {SDL_SCANCODE_LCTRL,BTN_CIRCLE}, {SDL_SCANCODE_F,BTN_SQUARE},
     {SDL_SCANCODE_R,BTN_TRIANGLE}, {SDL_SCANCODE_Q,BTN_L1}, {SDL_SCANCODE_E,BTN_R1},
     {SDL_SCANCODE_LSHIFT,BTN_L3}, {SDL_SCANCODE_V,BTN_R3},
@@ -164,7 +171,7 @@ static ButtonMap key_map={{
 /* Mouse sources (bits of gow3gpu_mouse_take): left, middle, right, X1, X2, wheel up, wheel down. */
 enum { MOUSE_LEFT=1, MOUSE_MIDDLE, MOUSE_RIGHT, MOUSE_X1, MOUSE_X2, MOUSE_WHEEL_UP, MOUSE_WHEEL_DOWN };
 static const char *const mouse_names[]={"left","middle","right","x1","x2","wheel_up","wheel_down"};
-static ButtonMap mouse_map={{
+static const ButtonMap default_mouse_map={{
     {MOUSE_RIGHT,BTN_L2}, {MOUSE_LEFT,BTN_R2}, {MOUSE_MIDDLE,BTN_R3}, {MOUSE_X1,BTN_L1}, {MOUSE_X2,BTN_R1},
     {MOUSE_WHEEL_UP,BTN_RIGHT}, {MOUSE_WHEEL_DOWN,BTN_LEFT},
 },7};
@@ -172,10 +179,13 @@ static ButtonMap mouse_map={{
 enum { LS_UP, LS_DOWN, LS_LEFT, LS_RIGHT, RS_UP, RS_DOWN, RS_LEFT, RS_RIGHT, STICK_KEYS };
 static const char *const stick_key_names[STICK_KEYS]={"ls_up","ls_down","ls_left","ls_right","rs_up","rs_down","rs_left","rs_right"};
 typedef struct { struct { int source, direction; } entries[32]; size_t count; } StickKeyMap;
-static StickKeyMap stick_keys={{
+static const StickKeyMap default_stick_keys={{
     {SDL_SCANCODE_W,LS_UP}, {SDL_SCANCODE_S,LS_DOWN}, {SDL_SCANCODE_A,LS_LEFT}, {SDL_SCANCODE_D,LS_RIGHT},
     {SDL_SCANCODE_UP,RS_UP}, {SDL_SCANCODE_DOWN,RS_DOWN}, {SDL_SCANCODE_LEFT,RS_LEFT}, {SDL_SCANCODE_RIGHT,RS_RIGHT},
 },8};
+/* The maps in use: the defaults with the settings' maps applied (sync_controls). */
+static ButtonMap pad_map, key_map, mouse_map;
+static StickKeyMap stick_keys;
 
 static char *trim(char *text) {
     while (*text==' ' || *text=='\t') ++text;
@@ -198,7 +208,7 @@ static int map_source(int kind, const char *name) {
     int button=(int)SDL_GetGamepadButtonFromString(name);
     return button>(int)SDL_GAMEPAD_BUTTON_INVALID ? button : -1;
 }
-static int apply_button_map(ButtonMap *map, const char *spec, int kind) {
+static int apply_button_map(ButtonMap *map, StickKeyMap *sticks, const char *spec, int kind) {
     if (!spec || !*spec) return 0;
     char copy[2048];
     snprintf(copy,sizeof(copy),"%s",spec);
@@ -231,13 +241,13 @@ static int apply_button_map(ButtonMap *map, const char *spec, int kind) {
             if (!(sticks_replaced & (1u<<direction))) {
                 sticks_replaced|=1u<<direction;
                 size_t kept=0;
-                for (size_t i=0;i<stick_keys.count;++i)
-                    if (stick_keys.entries[i].direction!=direction) stick_keys.entries[kept++]=stick_keys.entries[i];
-                stick_keys.count=kept;
+                for (size_t i=0;i<sticks->count;++i)
+                    if (sticks->entries[i].direction!=direction) sticks->entries[kept++]=sticks->entries[i];
+                sticks->count=kept;
             }
-            if (source>=0 && stick_keys.count<sizeof(stick_keys.entries)/sizeof(*stick_keys.entries)) {
-                stick_keys.entries[stick_keys.count].source=source;
-                stick_keys.entries[stick_keys.count++].direction=direction;
+            if (source>=0 && sticks->count<sizeof(sticks->entries)/sizeof(*sticks->entries)) {
+                sticks->entries[sticks->count].source=source;
+                sticks->entries[sticks->count++].direction=direction;
             }
             ++used;
             continue;
@@ -254,15 +264,210 @@ static int apply_button_map(ButtonMap *map, const char *spec, int kind) {
     return used;
 }
 
-static void load_button_maps(void) {
-    static bool loaded;
-    if (loaded) return;
-    loaded=true;
-    const int pad=apply_button_map(&pad_map,getenv("GOW3_PAD_MAP"),MAP_PAD);
-    const int keys=apply_button_map(&key_map,getenv("GOW3_KEY_MAP"),MAP_KEYBOARD);
-    const int mouse=apply_button_map(&mouse_map,getenv("GOW3_MOUSE_MAP"),MAP_MOUSE);
+/* A source's name as the maps take it (SDL key and gamepad button names, mouse_names). */
+static const char *source_name(int kind, int source) {
+    if (kind==MAP_KEYBOARD) return SDL_GetScancodeName((SDL_Scancode)source);
+    if (kind==MAP_MOUSE) return source>=1 && source<=(int)(sizeof(mouse_names)/sizeof(*mouse_names)) ? mouse_names[source-1] : "";
+    const char *name=SDL_GetGamepadStringForButton((SDL_GamepadButton)source);
+    return name ? name : "";
+}
+/* A complete map: every PS4 button (and for the keyboard every stick direction) with its
+ * sources, "button=" for none, so applied to the defaults it gives exactly this map. */
+static void describe_map(const ButtonMap *map, const StickKeyMap *sticks, int kind, char *out, size_t size) {
+    static const struct { const char *name; uint32_t ps; } buttons[]={
+        {"cross",BTN_CROSS}, {"circle",BTN_CIRCLE}, {"square",BTN_SQUARE}, {"triangle",BTN_TRIANGLE},
+        {"l1",BTN_L1}, {"r1",BTN_R1}, {"l2",BTN_L2}, {"r2",BTN_R2}, {"l3",BTN_L3}, {"r3",BTN_R3},
+        {"options",BTN_OPTIONS}, {"touchpad_left",CLICK_LEFT}, {"touchpad_right",CLICK_RIGHT},
+        {"up",BTN_UP}, {"down",BTN_DOWN}, {"left",BTN_LEFT}, {"right",BTN_RIGHT},
+    };
+    size_t used=0;
+    out[0]=0;
+#define DESCRIBE(name_, source_name_) do { \
+        const int n_=snprintf(out+used,size-used,"%s%s=%s",used ? "," : "",(name_),(source_name_)); \
+        if (n_>0 && (size_t)n_<size-used) used+=(size_t)n_; \
+    } while (0)
+    if (kind==MAP_KEYBOARD)
+        for (int d=0;d<STICK_KEYS;++d) {
+            int listed=0;
+            for (size_t i=0;i<sticks->count;++i)
+                if (sticks->entries[i].direction==d) { DESCRIBE(stick_key_names[d],source_name(kind,sticks->entries[i].source)); listed=1; }
+            if (!listed) DESCRIBE(stick_key_names[d],"");
+        }
+    for (size_t b=0;b<sizeof(buttons)/sizeof(*buttons);++b) {
+        int listed=0;
+        for (size_t i=0;i<map->count;++i)
+            if (map->entries[i].ps==buttons[b].ps) { DESCRIBE(buttons[b].name,source_name(kind,map->entries[i].source)); listed=1; }
+        if (!listed) DESCRIBE(buttons[b].name,"");
+    }
+#undef DESCRIBE
+}
+/* For the in-game menu (any thread): the complete maps the given ones give on the defaults. */
+void runtime_pad_effective_maps(const char *pad_spec, const char *key_spec, const char *mouse_spec,
+                                char *pad_out, char *key_out, char *mouse_out, size_t size) {
+    ButtonMap pad=default_pad_map, keys=default_key_map, mouse=default_mouse_map;
+    StickKeyMap sticks=default_stick_keys;
+    apply_button_map(&pad,&sticks,pad_spec,MAP_PAD);
+    apply_button_map(&keys,&sticks,key_spec,MAP_KEYBOARD);
+    apply_button_map(&mouse,&sticks,mouse_spec,MAP_MOUSE);
+    describe_map(&pad,&sticks,MAP_PAD,pad_out,size);
+    describe_map(&keys,&sticks,MAP_KEYBOARD,key_out,size);
+    describe_map(&mouse,&sticks,MAP_MOUSE,mouse_out,size);
+}
+
+/* The settings' controls as the pad last applied them (sync_controls). */
+static Gow3Controls controls={.mouse=1,.prompts=-1,.mouse_sens=1.0f,.stick_speed=1.0f};
+
+static int keyboard_enabled(void) {
+    static int enabled=-1;
+    if (enabled<0) { const char *env=getenv("GOW3_KEYBOARD"); enabled=!(env && env[0]=='0'); }
+    return enabled;
+}
+static int mouse_enabled(void) { return controls.mouse; }
+
+/* Button prompts (gpu/shim/gow3_prompts.cpp): per PS4 button the label of the key or the mouse
+ * source bound to it (L2/R2 show the mouse first, the rest the keyboard), and which device the
+ * player used last: the games then show key caps and mice instead of the controller's buttons. */
+static void key_label(int scancode, char *out, size_t size) {
+    static const struct { const char *sdl, *label; } names[]={
+        {"Space","SPACE"}, {"Left Ctrl","CTRL"}, {"Right Ctrl","CTRL"}, {"Left Shift","SHIFT"},
+        {"Right Shift","SHIFT"}, {"Left Alt","ALT"}, {"Right Alt","ALT"}, {"Return","ENTER"},
+        {"Keypad Enter","ENTER"}, {"Escape","ESC"}, {"Backspace","BKSP"}, {"Tab","TAB"},
+        {"CapsLock","CAPS"}, {"Delete","DEL"}, {"Insert","INS"}, {"Home","HOME"}, {"End","END"},
+        {"PageUp","PGUP"}, {"PageDown","PGDN"}, {"Up","\xe2\x86\x91"}, {"Down","\xe2\x86\x93"},
+        {"Left","\xe2\x86\x90"}, {"Right","\xe2\x86\x92"},
+    };
+    const char *name=SDL_GetScancodeName((SDL_Scancode)scancode);
+    if (!name) name="";
+    for (size_t i=0;i<sizeof(names)/sizeof(*names);++i)
+        if (!strcmp(name,names[i].sdl)) { snprintf(out,size,"%s",names[i].label); return; }
+    if (!strncmp(name,"Keypad ",7)) snprintf(out,size,"NUM%s",name+7);
+    else snprintf(out,size,"%s",name);
+    for (char *c=out;*c;++c) *c=(char)toupper((unsigned char)*c);
+    if (strlen(out)>5) out[5]=0;
+}
+/* Key and mouse icons for the devices that are on (GOW3_PROMPTS_LABELS=1: also for those off,
+ * for scripted tests that keep the real keyboard and mouse off). */
+static int prompt_labels_forced(void) {
+    const char *env=getenv("GOW3_PROMPTS_LABELS");
+    return env && env[0]=='1';
+}
+static int prompt_keyboard(void) { return keyboard_enabled() || prompt_labels_forced(); }
+static int prompt_mouse(void) { return mouse_enabled() || prompt_labels_forced(); }
+static void button_prompt(uint32_t ps, int prefer_mouse, char *out, size_t size) {
+    static const char *const mouse_prompts[]={"@LMB","@MMB","@RMB","@X1","@X2","@WHEELUP","@WHEELDOWN"};
+    int key=-1; const char *mouse=NULL;
+    if (prompt_keyboard())
+        for (size_t i=0;i<key_map.count && key<0;++i) if (key_map.entries[i].ps==ps) key=key_map.entries[i].source;
+    if (prompt_mouse())
+        for (size_t i=0;i<mouse_map.count && !mouse;++i) if (mouse_map.entries[i].ps==ps) mouse=mouse_prompts[mouse_map.entries[i].source-1];
+    out[0]=0;
+    if (mouse && (prefer_mouse || key<0)) snprintf(out,size,"%s",mouse);
+    else if (key>=0) key_label(key,out,size);
+}
+static void stick_prompts(const int directions[4], char (*out)[16]) {
+    for (int d=0;d<4;++d) {
+        out[d][0]=0;
+        if (!prompt_keyboard()) continue;
+        for (size_t i=0;i<stick_keys.count;++i)
+            if (stick_keys.entries[i].direction==directions[d]) { key_label(stick_keys.entries[i].source,out[d],16); break; }
+    }
+}
+static void publish_prompts(void) {
+    static const uint32_t buttons[GOW3_PROMPT_RIGHT+1]={BTN_CROSS,BTN_CIRCLE,BTN_SQUARE,BTN_TRIANGLE,
+        BTN_L1,BTN_R1,BTN_L2,BTN_R2,BTN_L3,BTN_R3,BTN_OPTIONS,CLICK_LEFT,BTN_UP,BTN_DOWN,BTN_LEFT,BTN_RIGHT};
+    static const int ls[4]={LS_UP,LS_LEFT,LS_DOWN,LS_RIGHT}, rs[4]={RS_UP,RS_LEFT,RS_DOWN,RS_RIGHT};
+    char text[GOW3_PROMPT_COUNT][16];
+    const char *labels[GOW3_PROMPT_COUNT];
+    for (int i=0;i<=GOW3_PROMPT_RIGHT;++i)
+        button_prompt(buttons[i],buttons[i]==BTN_L2 || buttons[i]==BTN_R2,text[i],sizeof(text[i]));
+    stick_prompts(ls,&text[GOW3_PROMPT_LS_UP]);
+    stick_prompts(rs,&text[GOW3_PROMPT_RS_UP]);
+    if (prompt_mouse()) snprintf(text[GOW3_PROMPT_RS_UP],sizeof(text[0]),"@MOUSE"); /* the mouse moves the camera */
+    for (int i=0;i<GOW3_PROMPT_COUNT;++i) labels[i]=text[i];
+    gow3gpu_prompts_set_labels(0,labels,GOW3_PROMPT_COUNT);
+}
+/* The button icons setting: -1 auto (the device used last), 1 keyboard, 0 PlayStation, 2 Xbox,
+ * 3 the connected controller's. */
+static int prompts_fixed(void) { return controls.prompts; }
+/* The controller's icons: 0 the game's (PlayStation controllers, or none), 2 drawn from the
+ * labels below (Xbox-style; Nintendo controllers get their own letters). */
+static int pad_prompt_style;
+static const char *pad_prompt(SDL_Gamepad *g, int xbox_letters, int button) {
+    switch (button) {
+    case SDL_GAMEPAD_BUTTON_SOUTH: case SDL_GAMEPAD_BUTTON_EAST:
+    case SDL_GAMEPAD_BUTTON_WEST: case SDL_GAMEPAD_BUTTON_NORTH:
+        switch (g && !xbox_letters ? SDL_GetGamepadButtonLabel(g,(SDL_GamepadButton)button)
+                                   : SDL_GetGamepadButtonLabelForType(SDL_GAMEPAD_TYPE_XBOXONE,(SDL_GamepadButton)button)) {
+        case SDL_GAMEPAD_BUTTON_LABEL_A: return "#A";
+        case SDL_GAMEPAD_BUTTON_LABEL_B: return "#B";
+        case SDL_GAMEPAD_BUTTON_LABEL_X: return "#X";
+        case SDL_GAMEPAD_BUTTON_LABEL_Y: return "#Y";
+        default: return "";
+        }
+    case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER: return "#LB";
+    case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER: return "#RB";
+    case SDL_GAMEPAD_BUTTON_LEFT_STICK: return "#LS";
+    case SDL_GAMEPAD_BUTTON_RIGHT_STICK: return "#RS";
+    case SDL_GAMEPAD_BUTTON_START: return "#MENU";
+    case SDL_GAMEPAD_BUTTON_BACK: return "#VIEW";
+    default: return ""; /* the d-pad, touchpad and sticks keep the game's pictures */
+    }
+}
+/* When the controller or the controls change: its style and its labels (from the pad map). */
+static int pad_prompts_stale=1;
+static void publish_pad_prompts(SDL_Gamepad *g) {
+    static int published; static SDL_Gamepad *last; static int last_count;
+    if (published && !pad_prompts_stale && g==last && connected_count==last_count) return;
+    pad_prompts_stale=0;
+    published=1; last=g; last_count=connected_count;
+    const SDL_GamepadType type=g ? SDL_GetGamepadType(g) : SDL_GAMEPAD_TYPE_UNKNOWN;
+    const int playstation=type==SDL_GAMEPAD_TYPE_PS3 || type==SDL_GAMEPAD_TYPE_PS4 || type==SDL_GAMEPAD_TYPE_PS5;
+    pad_prompt_style=g && !playstation ? 2 : 0;
+    const int xbox_letters=prompts_fixed()==2 || playstation || !g;
+    static const uint32_t buttons[GOW3_PROMPT_RIGHT+1]={BTN_CROSS,BTN_CIRCLE,BTN_SQUARE,BTN_TRIANGLE,
+        BTN_L1,BTN_R1,BTN_L2,BTN_R2,BTN_L3,BTN_R3,BTN_OPTIONS,CLICK_LEFT,BTN_UP,BTN_DOWN,BTN_LEFT,BTN_RIGHT};
+    const char *labels[GOW3_PROMPT_COUNT];
+    for (int i=0;i<GOW3_PROMPT_COUNT;++i) labels[i]="";
+    for (int i=0;i<=GOW3_PROMPT_RIGHT;++i)
+        for (size_t j=0;j<pad_map.count;++j)
+            if (pad_map.entries[j].ps==buttons[i]) { labels[i]=pad_prompt(g,xbox_letters,pad_map.entries[j].source); break; }
+    if (!*labels[GOW3_PROMPT_L2]) labels[GOW3_PROMPT_L2]="#LT"; /* the triggers (not remapped) */
+    if (!*labels[GOW3_PROMPT_R2]) labels[GOW3_PROMPT_R2]="#RT";
+    gow3gpu_prompts_set_labels(1,labels,GOW3_PROMPT_COUNT);
+}
+/* Devices used in the current sample (sample_host), for update_prompt_device. */
+static struct { int keyboard, gamepad, connected; } prompt_activity;
+/* keyboard_used / gamepad_used: input from that device in this sample. Device: 0 the game's
+ * PlayStation icons, 1 keyboard and mouse, 2 the drawn controller icons. */
+static void update_prompt_device(int keyboard_used, int gamepad_used, int gamepad_connected) {
+    static int current=-1, keyboard=-1;
+    const int fixed=prompts_fixed();
+    if (gamepad_used) keyboard=0;
+    else if (keyboard_used) keyboard=1;
+    else if (keyboard<0) keyboard=!gamepad_connected;
+    const int next=fixed==1 ? 1 : fixed==0 ? 0 : fixed==2 ? 2 : fixed==3 ? pad_prompt_style
+                  : keyboard ? 1 : pad_prompt_style;
+    if (next!=current) { current=next; gow3gpu_prompts_set_device(next); }
+}
+
+/* The settings' controls, again whenever they change (the in-game menu applies them live). */
+static void sync_controls(void) {
+    static unsigned applied=~0u;
+    const unsigned generation=gow3gpu_controls_generation();
+    if (generation==applied) return;
+    applied=generation;
+    gow3gpu_controls_get(&controls);
+    pad_map=default_pad_map; key_map=default_key_map; mouse_map=default_mouse_map; stick_keys=default_stick_keys;
+    const int pad=apply_button_map(&pad_map,&stick_keys,controls.pad_map,MAP_PAD);
+    const int keys=apply_button_map(&key_map,&stick_keys,controls.key_map,MAP_KEYBOARD);
+    const int mouse=apply_button_map(&mouse_map,&stick_keys,controls.mouse_map,MAP_MOUSE);
     if (pad || keys || mouse)
         printf("Runtime: pad map: %d gamepad, %d keyboard and %d mouse entries\n",pad,keys,mouse);
+    printf("Runtime: controls: mouse %s (sensitivity %.2f%s), controller camera speed %.2f, button icons %d\n",
+           controls.mouse ? "on" : "off",controls.mouse_sens,controls.mouse_invert ? ", inverted" : "",
+           controls.stick_speed,controls.prompts);
+    publish_prompts();
+    pad_prompts_stale=1;
 }
 
 static void key_axis(uint8_t *axis, bool negative, bool positive) {
@@ -271,16 +476,14 @@ static void key_axis(uint8_t *axis, bool negative, bool positive) {
 /* The mouse: its buttons through mouse_map, its movement as the right stick. The stick follows
  * the mouse's speed (pixels per ms, smoothed over ~25 ms), starts past the games' stick dead
  * zone so slow movements turn the camera too, and lets go when the mouse rests. */
-static void sample_mouse(PadData *d) {
-    static int enabled=-1; static float sensitivity=1.0f, invert=1.0f;
-    if (enabled<0) {
-        const char *env=getenv("GOW3_MOUSE"); enabled=!(env && env[0]=='0');
-        const char *sens=getenv("GOW3_MOUSE_SENS"); if (sens && atof(sens)>0) sensitivity=(float)atof(sens);
-        const char *inv=getenv("GOW3_MOUSE_INVERT"); if (inv && inv[0]=='1') invert=-1.0f;
-    }
-    if (!enabled) return;
+/* Returns 1 when the mouse was used (moved or a button held while captured). */
+static int sample_mouse(PadData *d) {
+    if (!mouse_enabled()) return 0;
+    const float sensitivity=controls.mouse_sens>0.0f ? controls.mouse_sens : 1.0f;
+    const float invert=controls.mouse_invert ? -1.0f : 1.0f;
     float dx=0, dy=0; unsigned held=0;
     const int captured=gow3gpu_mouse_take(&dx,&dy,&held);
+    const int used=captured && (held || fabsf(dx)+fabsf(dy)>2.0f);
     for (size_t i=0;i<mouse_map.count;++i)
         if (held & (1u<<(mouse_map.entries[i].source-1))) d->buttons|=mouse_map.entries[i].ps;
     static float vx, vy; static uint64_t last, last_motion;
@@ -293,14 +496,17 @@ static void sample_mouse(PadData *d) {
     const float blend=dt/(dt+25.0f);
     vx+=(dx/dt-vx)*blend;
     vy+=(dy/dt-vy)*blend;
-    if (!captured || now-last_motion>60000) { vx=vy=0; return; }
+    if (!captured || now-last_motion>60000) { vx=vy=0; return used; }
+    /* Mouse look drives the game's camera directly (src/runtime_mouselook.c): no stick. */
+    if (gow3gpu_mouse_look_recent()) { vx=vy=0; return used; }
     float sx=vx*sensitivity*0.12f, sy=vy*sensitivity*0.12f*invert;
     const float magnitude=sqrtf(sx*sx+sy*sy);
-    if (magnitude<0.002f) return;
+    if (magnitude<0.002f) return used;
     const float out=magnitude+0.15f>1.0f ? 1.0f : magnitude+0.15f;
     sx*=out/magnitude; sy*=out/magnitude;
     d->right_x=(uint8_t)(sx<-1.0f ? 0 : sx>1.0f ? 255 : (int)(128.0f+sx*127.0f));
     d->right_y=(uint8_t)(sy<-1.0f ? 0 : sy>1.0f ? 255 : (int)(128.0f+sy*127.0f));
+    return used;
 }
 static void sample_host(PadData *d) {
     memset(d,0,sizeof(*d));
@@ -309,9 +515,13 @@ static void sample_host(PadData *d) {
     d->connected=1; d->connected_count=connected_count ? connected_count : 1;
     d->timestamp=now_us();
     SDL_Gamepad *g=current_gamepad();
+    prompt_activity.keyboard=prompt_activity.gamepad=0;
     if (gow3gpu_overlay_captures_input()) return; /* settings menu open: neutral input */
     const bool *k=SDL_WasInit(SDL_INIT_VIDEO) ? SDL_GetKeyboardState(NULL) : NULL;
-    load_button_maps();
+    sync_controls();
+    runtime_gamesettings_tick();
+    publish_pad_prompts(g);
+    int keyboard_used=0, gamepad_used=0;
     if (g) {
         for (size_t i=0;i<pad_map.count;++i)
             if (SDL_GetGamepadButton(g,(SDL_GamepadButton)pad_map.entries[i].source)) d->buttons|=pad_map.entries[i].ps;
@@ -323,6 +533,9 @@ static void sample_host(PadData *d) {
         if (d->r2>30) d->buttons|=BTN_R2;
         if (mapped & BTN_L2) d->l2=255;
         if (mapped & BTN_R2) d->r2=255;
+        /* Past half way: resting sticks that drift do not count as use. */
+        gamepad_used=mapped || abs(d->left_x-128)>64 || abs(d->left_y-128)>64 || abs(d->right_x-128)>64 ||
+                     abs(d->right_y-128)>64 || d->l2>64 || d->r2>64;
         if (SDL_GetNumGamepadTouchpads(g)>0) {
             const int fingers=SDL_GetNumGamepadTouchpadFingers(g,0);
             for (int finger=0;finger<fingers && d->touch_count<2;++finger) {
@@ -338,28 +551,30 @@ static void sample_host(PadData *d) {
     /* The keyboard works with or without a gamepad: its buttons add to the pad's, and a stick
      * follows the keys only while one of them is held. GOW3_KEYBOARD=0 turns it off (typing in
      * another window that lost the focus to the game would otherwise press buttons). */
-    static int keyboard=-1;
-    if (keyboard<0) { const char *env=getenv("GOW3_KEYBOARD"); keyboard=!(env && env[0]=='0'); }
-    if (k && keyboard) {
-        for (size_t i=0;i<key_map.count;++i) if (k[key_map.entries[i].source]) d->buttons|=key_map.entries[i].ps;
+    if (k && keyboard_enabled()) {
+        for (size_t i=0;i<key_map.count;++i) if (k[key_map.entries[i].source]) { d->buttons|=key_map.entries[i].ps; keyboard_used=1; }
         bool held[STICK_KEYS]={0};
-        for (size_t i=0;i<stick_keys.count;++i) if (k[stick_keys.entries[i].source]) held[stick_keys.entries[i].direction]=true;
+        for (size_t i=0;i<stick_keys.count;++i) if (k[stick_keys.entries[i].source]) { held[stick_keys.entries[i].direction]=true; keyboard_used=1; }
         key_axis(&d->left_x,held[LS_LEFT],held[LS_RIGHT]);
         key_axis(&d->left_y,held[LS_UP],held[LS_DOWN]);
         key_axis(&d->right_x,held[RS_LEFT],held[RS_RIGHT]);
         key_axis(&d->right_y,held[RS_UP],held[RS_DOWN]);
     }
-    sample_mouse(d);
+    if (sample_mouse(d)) keyboard_used=1;
     if (d->buttons & BTN_L2) d->l2=255;
     if (d->buttons & BTN_R2) d->r2=255;
+    prompt_activity.keyboard=keyboard_used;
+    prompt_activity.gamepad=gamepad_used;
+    prompt_activity.connected=g!=NULL;
 }
 
 /* GOW3_PAD_FILE=<file>: scripted input for automated runs. The file holds whitespace-separated
  * tokens, re-read when it changes: button names (cross circle square triangle l1 r1 l2 r2 l3 r3
  * options touchpad touchpad_left touchpad_right up down left right) are held while listed;
- * touchpad is the left side; lx= ly= rx= ry= (0..255) override the sticks. An empty file
- * releases everything. */
-static struct { uint32_t buttons; int stick[4]; } injected={0,{-1,-1,-1,-1}};
+ * touchpad is the left side; lx= ly= rx= ry= (0..255) override the sticks; mx= my= move the
+ * mouse (counts per 10 ms, for mouse look tests); kbm / pad count as keyboard / gamepad use (the
+ * button icons follow, see update_prompt_device). An empty file releases everything. */
+static struct { uint32_t buttons; int stick[4]; float mouse[2]; int kbm, pad; } injected={0,{-1,-1,-1,-1},{0,0},0,0};
 static int replay_armed;      /* 1 while a GOW3_PAD_REPLAY recording plays, 2 once it ended */
 static uint64_t replay_start; /* 0: (re)start at the next sample */
 static void read_inject(void) {
@@ -384,11 +599,17 @@ static void read_inject(void) {
     static const char *sticks[]={"lx=","ly=","rx=","ry="};
     injected.buttons=0;
     for (int i=0;i<4;++i) injected.stick[i]=-1;
+    injected.mouse[0]=injected.mouse[1]=0;
+    injected.kbm=injected.pad=0;
     char token[64];
     while (fscanf(f,"%63s",token)==1) {
         if (!strcmp(token,"replay") && replay_armed!=1) { replay_armed=1; replay_start=0; } /* GOW3_PAD_REPLAY */
         for (size_t i=0;i<sizeof(ps_names)/sizeof(*ps_names);++i) if (!strcmp(token,ps_names[i].name)) injected.buttons|=ps_names[i].ps;
         for (int i=0;i<4;++i) if (!strncmp(token,sticks[i],3)) { int v=atoi(token+3); injected.stick[i]=v<0 ? 0 : v>255 ? 255 : v; }
+        if (!strncmp(token,"mx=",3)) injected.mouse[0]=(float)atof(token+3);
+        if (!strncmp(token,"my=",3)) injected.mouse[1]=(float)atof(token+3);
+        if (!strcmp(token,"kbm")) injected.kbm=1;
+        if (!strcmp(token,"pad")) injected.pad=1;
     }
     fclose(f);
     printf("Runtime: pad file: buttons 0x%x sticks %d %d %d %d\n",injected.buttons,
@@ -470,12 +691,23 @@ static void sample(PadData *d) {
     if (gow3gpu_overlay_captures_input()) { hold_after_capture=1; click.side=-1; return; }
     record_sample(d); /* the click sources as they are: a replay plays them again */
     read_inject();
+    update_prompt_device(prompt_activity.keyboard || injected.kbm,prompt_activity.gamepad || injected.pad,
+                         prompt_activity.connected);
     replay_sample(d);
     d->buttons|=injected.buttons;
     if (injected.buttons & BTN_L2) d->l2=255;
     if (injected.buttons & BTN_R2) d->r2=255;
     uint8_t *axes[4]={&d->left_x,&d->left_y,&d->right_x,&d->right_y};
     for (int i=0;i<4;++i) if (injected.stick[i]>=0) *axes[i]=(uint8_t)injected.stick[i];
+    {
+        static uint64_t last_mouse;
+        const uint64_t now=d->timestamp;
+        if ((injected.mouse[0]!=0 || injected.mouse[1]!=0) && last_mouse) {
+            const float ms=(float)(now-last_mouse)/1000.0f;
+            if (ms>0 && ms<100) gow3gpu_mouse_inject(injected.mouse[0]*ms/10.0f,injected.mouse[1]*ms/10.0f);
+        }
+        last_mouse=now;
+    }
     play_click(d);
     if (hold_after_capture) {
         if (d->buttons) d->buttons=0;

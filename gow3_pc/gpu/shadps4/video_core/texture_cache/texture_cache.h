@@ -175,6 +175,31 @@ public:
                image.lru_touched_tick == gc_tick;
     }
 
+    /// gow3 debugging: guest address and size of every registered image of this size.
+    std::vector<std::pair<VAddr, u32>> DebugImagesOfSize(u32 width, u32 height) {
+        return DebugImagesWhere(width, width, height, height, 0, ~VAddr{0});
+    }
+    /// gow3 debugging: every registered image within these sizes and guest addresses.
+    std::vector<std::pair<VAddr, u32>> DebugImagesWhere(u32 min_w, u32 max_w, u32 min_h, u32 max_h, VAddr lo,
+                                                        VAddr hi) {
+        std::scoped_lock lock{mutex};
+        std::vector<std::pair<VAddr, u32>> found;
+        for (u32 index = 0; index < slot_images.capacity(); ++index) {
+            ImageId id{};
+            id.index = index;
+            if (!slot_images.is_allocated(id)) {
+                continue;
+            }
+            const Image& image = slot_images[id];
+            const u32 w = image.info.size.width, h = image.info.size.height;
+            if (True(image.flags & ImageFlagBits::Registered) && w >= min_w && w <= max_w && h >= min_h &&
+                h <= max_h && image.info.guest_address >= lo && image.info.guest_address < hi) {
+                found.emplace_back(image.info.guest_address, image.info.guest_size);
+            }
+        }
+        return found;
+    }
+
     /// gow3 statistics: sizes of the cache's containers (growth over time).
     std::string DebugSizes() {
         std::scoped_lock lock{mutex};

@@ -23,6 +23,9 @@ class Fsr4Upscaler {
 public:
     Fsr4Upscaler(const Instance& instance, Scheduler& scheduler);
     ~Fsr4Upscaler();
+    /// gow3: the FSR 4 v07 native model (tools/fetch_fsr4_assets.sh) is installed; the menu
+    /// offers FSR 4 only then.
+    static bool AssetsPresent();
 
     /// An image in layout General, written/read by compute shaders.
     struct Image {

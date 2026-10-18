@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "common/alignment.h"
+#include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -14,6 +16,11 @@
 #include "videodec_error.h"
 
 namespace Libraries::Videodec2 {
+
+// gow3: when a movie frame was last decoded (steady clock, ns). The Collection's cutscenes are
+// prerecorded movies; with the frame rate unlocked the present thread gives the game 60 Hz
+// vblanks while one plays (videoout/driver.cpp, after the reference Uncharted port).
+std::atomic<s64> last_movie_frame_ns{0};
 
 static constexpr u64 kMinimumMemorySize = 16_MB; ///> Fake minimum memory size for querying
 
@@ -208,6 +215,8 @@ s32 PS4_SYSV_ABI sceVideodec2Decode(OrbisVideodec2Decoder decoder,
         return ORBIS_VIDEODEC2_ERROR_STRUCT_SIZE;
     }
 
+    last_movie_frame_ns.store(std::chrono::steady_clock::now().time_since_epoch().count(),
+                              std::memory_order_relaxed);
     return decoder->Decode(*input_data, *frame_buffer, *output_info);
 }
 

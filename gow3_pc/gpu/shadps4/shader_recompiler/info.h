@@ -31,6 +31,11 @@ struct Info;
 inline void (*g_srt_pre_walk)(const Info& info) = nullptr;
 /// gow3 diagnostics: called after each resource-table walk (GOW3_SRT_CHECK).
 inline void (*g_srt_post_walk)(const Info& info) = nullptr;
+/// gow3: the shader whose resource tables this thread is walking (fault reports).
+inline thread_local const Info* g_srt_walking = nullptr;
+/// gow3 diagnostics: set by the walker fault handler; after such a walk g_srt_fault_report runs.
+inline thread_local bool g_srt_walk_faulted = false;
+inline void (*g_srt_fault_report)(const Info& info) = nullptr;
 
 enum class Qualifier : u8 {
     None,
@@ -252,7 +257,13 @@ struct Info : InfoPersistent {
             if (g_srt_pre_walk) {
                 g_srt_pre_walk(*this);
             }
+            g_srt_walking = this;
+            g_srt_walk_faulted = false;
             srt_info.walker_func(user_data.data(), flattened_ud_buf.data());
+            g_srt_walking = nullptr;
+            if (g_srt_walk_faulted && g_srt_fault_report) {
+                g_srt_fault_report(*this);
+            }
             if (g_srt_post_walk) {
                 g_srt_post_walk(*this);
             }

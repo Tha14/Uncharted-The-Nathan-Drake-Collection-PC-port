@@ -707,6 +707,13 @@ public:
     void EndRendering();
 
     /// Sets a function to be called on every scheduler submission.
+    /// gow3: every submission ends with a barrier making GPU writes visible to the host
+    /// (BufferCache reads finished GPU data from mapped video memory).
+    void EnableHostReadBarrier() {
+        host_read_barrier = true;
+    }
+    bool host_read_barrier = false;
+
     void SetSubmitCallback(SubmitFunc&& on_submit) {
         this->on_submit = std::move(on_submit);
     }
@@ -811,6 +818,12 @@ public:
     /// (it may then rewrite the memory, e.g. UI vertices: flickering) and before the
     /// submission that reads them. Waits for all.
     void WaitHostCopies();
+
+    /// gow3: advances before every guest-visible GPU write (WaitHostCopies, deferred signals):
+    /// guest memory may change once the guest has seen one.
+    u64 GuestWriteEpoch() const {
+        return guest_write_epoch.load(std::memory_order_relaxed);
+    }
 
     /// Runs `copy` on the recording thread in order with the commands (the thread spins for
     /// work anyway, so small copies cost no wakeup); WaitHostCopies() covers it.
@@ -941,6 +954,7 @@ private:
     bool checkpoint_callers = false; ///< GOW3_GPU_CHECKPOINTS=2: marks CommandBuffer() callers
     u64 host_copies_issued = 0;
     std::atomic<u64> host_copies_done{0};
+    std::atomic<u64> guest_write_epoch{0};
     std::atomic<u64> deferred_signals_issued{0}; ///< by the thread recording (A or B)
     std::shared_ptr<std::atomic<u64>> deferred_signals_done =
         std::make_shared<std::atomic<u64>>(0);

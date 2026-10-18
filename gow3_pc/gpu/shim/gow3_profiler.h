@@ -11,4 +11,7 @@ void Start(unsigned long thread_id, const char* name);
 /// Samples the calling thread (guest threads: the game's flip thread).
 void StartCurrent(const char* name);
 
+/// A frame took `frame_ms` (GOW3_PROFILE_STALLS=1): the samplers write what they sampled in it.
+void NoteStall(double frame_ms);
+
 } // namespace Gow3Profiler

@@ -195,6 +195,9 @@ void Liverpool::Process(std::stop_token stoken) {
 
             if (task.done()) {
                 task.destroy();
+                if (curr_qid == GfxQueueId) {
+                    gfx_submits_done.fetch_add(1, std::memory_order_release);
+                }
 
                 std::scoped_lock lock{queue.m_access};
                 queue.submits.pop();
@@ -288,6 +291,40 @@ namespace {
 // gow3 diagnostics (GOW3_EOP_RANGE_TRACE=<lo>:<hi>[:<counter>] hex guest addresses): fence
 // writes into [lo, hi) with the time, the writing thread and the 8-byte value at <counter> (e.g. the
 // game's frame counter), 4000 lines at most.
+// GOW3_TEST_OVERTAKE_LOG=1 (diagnostics): guest-visible writes and interrupts made while an
+// earlier fence waits for its readback (BufferCache::DeferUntilLastReadback), so they reach the
+// guest before it. Each kind and address once (up to 48), then counts every 5 s.
+static void NoteOvertake(Vulkan::Rasterizer& rasterizer, const char* kind, u64 address) {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_TEST_OVERTAKE_LOG");
+        return env && env[0] == '1';
+    }();
+    if (!enabled || !rasterizer.GetBufferCache().HasDeferredSignals()) {
+        return;
+    }
+    static std::mutex mutex;
+    static std::map<std::pair<std::string, u64>, u64> seen;
+    static std::map<std::string, u64> counts;
+    static auto last = std::chrono::steady_clock::now();
+    std::scoped_lock lock{mutex};
+    ++counts[kind];
+    if (seen.size() < 48 && seen[{kind, address}]++ == 0) {
+        std::printf("Overtake: %s at %#llx while a fence waits for its readback\n", kind,
+                    static_cast<unsigned long long>(address));
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (now - last > std::chrono::seconds(5)) {
+        last = now;
+        std::string line = "Overtakes (5 s):";
+        for (auto& [name, count] : counts) {
+            line += fmt::format(" {} {}", name, count);
+            count = 0;
+        }
+        std::printf("%s\n", line.c_str());
+        std::fflush(stdout);
+    }
+}
+
 static void TraceEopWrite(u64 address, u64 data) {
     static const std::array<u64, 3> range = [] {
         std::array<u64, 3> out{};
@@ -317,6 +354,45 @@ static void TraceEopWrite(u64 address, u64 data) {
                 static_cast<unsigned long long>(counter), static_cast<unsigned long>(GetCurrentThreadId()));
 }
 
+// GOW3_TEST_LATE_IRQ=<ms>:<seconds> (tests): every <seconds>, the end-of-pipe interrupts of the
+// next <ms> reach the guest only at its end (in order), while the labels are written at once:
+// the game's GPU event thread (ProcessGpuEvent, which sets each frame's m_gfxEopTick) woken late,
+// as on a busy CPU.
+static void SignalEopInterrupt() {
+    static const auto late = [] {
+        const char* env = std::getenv("GOW3_TEST_LATE_IRQ");
+        unsigned ms = 0, seconds = 0;
+        if (env && std::sscanf(env, "%u:%u", &ms, &seconds) == 2 && ms && seconds) {
+            std::printf("Test: end-of-pipe interrupts held %u ms every %u s\n", ms, seconds);
+        }
+        return std::pair<unsigned, unsigned>{ms, seconds};
+    }();
+    if (late.first) {
+        static std::mutex mutex;
+        static u32 held = 0;
+        static bool holding = false;
+        static auto next = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+        std::scoped_lock lock{mutex};
+        if (!holding && std::chrono::steady_clock::now() >= next) {
+            holding = true;
+            next = std::chrono::steady_clock::now() + std::chrono::seconds(late.second);
+            std::thread([ms = late.first] {
+                std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+                std::scoped_lock lock{mutex};
+                for (; held; --held) {
+                    Platform::IrqC::Instance()->Signal(Platform::InterruptId::GfxEop);
+                }
+                holding = false;
+            }).detach();
+        }
+        if (holding) {
+            ++held;
+            return;
+        }
+    }
+    Platform::IrqC::Instance()->Signal(Platform::InterruptId::GfxEop);
+}
+
 void SignalEop(const PM4CmdEventWriteEop& eop) {
     eop.SignalFence(
         [](void* address, u64 data, u32 num_bytes) {
@@ -324,15 +400,34 @@ void SignalEop(const PM4CmdEventWriteEop& eop) {
             TraceEopWrite(reinterpret_cast<u64>(address), data);
             Gow3WriteLog::Note(reinterpret_cast<u64>(address), &data, num_bytes, Gow3WriteLog::Fence);
             if (!memory->TryWriteBacking(address, &data, num_bytes)) {
+                const Vulkan::GpuWriteSite site{5};
                 memcpy(address, &data, num_bytes);
             }
         },
-        [] { Platform::IrqC::Instance()->Signal(Platform::InterruptId::GfxEop); });
+        [] { SignalEopInterrupt(); });
 }
 
 // gow3: end-of-pipe/-shader events run in order with the draws (Rasterizer::RunInOrder: on
 // the draw recording thread when the draw pipeline is in use).
 void RunEventWriteEop(Vulkan::Rasterizer& rasterizer, const u8* data) {
+    // GOW3_TEST_CP_STALL=<ms>:<seconds> (tests): every <seconds> one end-of-pipe event waits <ms>
+    // first, like a shader compile on this thread (the FrameBegin m_gfxEopTick crash reports
+    // follow 40-55 ms stalls, often compiles).
+    static const auto stall = [] {
+        const char* env = std::getenv("GOW3_TEST_CP_STALL");
+        unsigned ms = 0, seconds = 0;
+        if (env && std::sscanf(env, "%u:%u", &ms, &seconds) == 2 && ms && seconds) {
+            std::printf("Test: command processor stalls %u ms every %u s\n", ms, seconds);
+        }
+        return std::pair<unsigned, unsigned>{ms, seconds};
+    }();
+    if (stall.first) {
+        static auto next = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+        if (std::chrono::steady_clock::now() >= next) {
+            next = std::chrono::steady_clock::now() + std::chrono::seconds(stall.second);
+            std::this_thread::sleep_for(std::chrono::milliseconds(stall.first));
+        }
+    }
     const auto eop = *reinterpret_cast<const PM4CmdEventWriteEop*>(data);
     rasterizer.ProcessDownloadImages();
     const bool results_pending = rasterizer.ReadBackEopResults();
@@ -389,12 +484,40 @@ void RunEventWriteEop(Vulkan::Rasterizer& rasterizer, const u8* data) {
             value = eop.DataQWord();
             bytes = 8;
         }
+        // GOW3_TEST_LATE_TIMESTAMP=<ms>:<seconds> (tests): every <seconds> one end-of-pipe GPU
+        // clock timestamp is written <ms> late on another thread while later work goes
+        // on (the FrameBegin m_gfxEopTick check of frame N-3).
+        static const auto late = [] {
+            const char* env = std::getenv("GOW3_TEST_LATE_TIMESTAMP");
+            unsigned ms = 0, seconds = 0;
+            if (env && std::sscanf(env, "%u:%u", &ms, &seconds) == 2 && ms && seconds) {
+                std::printf("Test: a 64-bit end-of-pipe value %u ms late every %u s\n", ms, seconds);
+            }
+            return std::pair<unsigned, unsigned>{ms, seconds};
+        }();
+        bool make_late = false;
+        if (late.first && eop.data_sel.Value() == DataSelect::GpuClock64) {
+            static auto next = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+            if (std::chrono::steady_clock::now() >= next) {
+                next = std::chrono::steady_clock::now() + std::chrono::seconds(late.second);
+                make_late = true;
+            }
+        }
+        const auto signal = [eop, make_late, ms = late.first] {
+            if (!make_late) {
+                SignalEop(eop);
+                return;
+            }
+            std::thread([eop, ms] {
+                std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+                SignalEop(eop);
+            }).detach();
+        };
         // While any fence waits for its readback, later ones queue behind it: end-of-pipe fences
         // complete in order (the guest frees command buffers of frame N once it sees frame N+1
         // done; a later fence written first let Uncharted 2 overwrite a command buffer the GPU
         // thread was still reading).
-        if (wait_readbacks &&
-            cache.DeferUntilLastReadback([eop] { SignalEop(eop); }, label, value, bytes)) {
+        if (wait_readbacks && cache.DeferUntilLastReadback(signal, label, value, bytes)) {
             // The GPU starts on the ray casts now rather than when the frame's command buffer is
             // submitted at its end: the fence (and the guest waiting for it) follows sooner.
             if (results_pending) {
@@ -402,7 +525,7 @@ void RunEventWriteEop(Vulkan::Rasterizer& rasterizer, const u8* data) {
             }
             return;
         }
-        SignalEop(eop);
+        signal();
     }
 }
 
@@ -420,21 +543,69 @@ void RunComputeReleaseMem(Vulkan::Rasterizer& rasterizer, const u8* data) {
     std::memcpy(storage, data, sizeof(storage));
     const auto& release = *reinterpret_cast<const ComputeRelease*>(storage);
     const u32 pipe_id = release.pipe_id;
+    // gow3 17 Oct 2026: multithreaded rendering: like end-of-pipe fences (RunEventWriteEop), the
+    // Vulkan recording thread signals the fence after the copies queued before it instead of
+    // this thread waiting for them (Uncharted 3: ~1,800 compute releases a frame, 16% of the
+    // draw recording thread blocked on host copies at 4K).
+    const auto sel = release.packet.data_sel.Value();
+    if (Vulkan::DrawPipe::OnStageB() && !Gow3Toggle::Disabled(Gow3Toggle::RecorderFences) &&
+        sel != DataSelect::GdsMemStore) {
+        rasterizer.ProcessDownloadImages();
+        const VAddr label = release.packet.Address<VAddr>();
+        NoteOvertake(rasterizer, "compute release (recorder)", label);
+        const bool backing = rasterizer.GetBufferCache().MayBeGpuWritten(label & ~VAddr{4095}, 4096);
+        if (backing) {
+            rasterizer.NoteLabelWrite(label, sel == DataSelect::Data32Low ? 4 : 8);
+        }
+        rasterizer.SignalAfterHostCopies([packet = release.packet, pipe_id, backing] {
+            packet.SignalFence(
+                [pipe_id] {
+                    Platform::IrqC::Instance()->Signal(static_cast<Platform::InterruptId>(pipe_id));
+                },
+                [](VAddr, u16, u16) {},
+                [backing](void* address, u64 value, u32 num_bytes) {
+                    if (!backing || !Core::Memory::Instance()->TryWriteBacking(address, &value, num_bytes)) {
+                        std::memcpy(address, &value, num_bytes);
+                    }
+                });
+        });
+        return;
+    }
     // Copies deferred to the recording thread precede writes the guest sees, and so do
     // graphics fences deferred to it.
     rasterizer.WaitHostCopies();
     rasterizer.WaitDeferredSignals();
     rasterizer.ProcessDownloadImages();
+    NoteOvertake(rasterizer, "compute release", release.packet.Address<VAddr>());
+    // gow3 17 Oct 2026: the fence value goes through the backing view like end-of-pipe labels
+    // (RunEventWriteEop). A plain store faulted when the label shared a page with GPU-written
+    // data, and the fault fetched that page's GPU bytes on the second queue, waiting for the GPU:
+    // Uncharted 3 at 4K, ~40 a second at ~1.7 ms each on the GPU command thread.
     release.packet.SignalFence(
         [pipe_id] {
             Platform::IrqC::Instance()->Signal(static_cast<Platform::InterruptId>(pipe_id));
         },
         [&rasterizer](VAddr dst, u16 gds_index, u16 num_dwords) {
             rasterizer.CopyBuffer(dst, gds_index, num_dwords * sizeof(u32), false, true);
+        },
+        [&rasterizer](void* address, u64 value, u32 num_bytes) {
+            const VAddr label = reinterpret_cast<VAddr>(address);
+            // Only where GPU data may share the page (elsewhere the store does not fault on it;
+            // Uncharted 2 releases ~45k times a second, and the bookkeeping cost it 4%).
+            if (rasterizer.GetBufferCache().MayBeGpuWritten(label & ~VAddr{4095}, 4096)) {
+                rasterizer.NoteLabelWrite(label, num_bytes);
+                Gow3WriteLog::Note(label, &value, num_bytes, Gow3WriteLog::Fence);
+                if (Core::Memory::Instance()->TryWriteBacking(address, &value, num_bytes)) {
+                    return;
+                }
+            }
+            const Vulkan::GpuWriteSite site{5};
+            std::memcpy(address, &value, num_bytes);
         });
 }
 
 void RunDmaData(Vulkan::Rasterizer& rasterizer, const u8* data) {
+    const Vulkan::GpuWriteSite site{4};
     const auto* dma_data = reinterpret_cast<const PM4DmaData*>(data);
     ASSERT(dma_data->command.das == 0);
     // A copy or fill into guest memory can be made there at once (CopyBuffer/FillBuffer's CPU
@@ -444,6 +615,7 @@ void RunDmaData(Vulkan::Rasterizer& rasterizer, const u8* data) {
     if (dma_data->dst_sel == DmaDataDst::Memory || dma_data->dst_sel == DmaDataDst::MemoryUsingL2) {
         rasterizer.WaitHostCopies();
         rasterizer.WaitDeferredSignals();
+        NoteOvertake(rasterizer, "dma", dma_data->DstAddress<VAddr>());
     }
     if (dma_data->src_sel == DmaDataSrc::Data && dma_data->dst_sel == DmaDataDst::Gds) {
         rasterizer.FillBuffer(dma_data->dst_addr_lo, dma_data->NumBytes(),
@@ -478,6 +650,7 @@ void RunDmaData(Vulkan::Rasterizer& rasterizer, const u8* data) {
 
 void SignalFlip(Vulkan::Rasterizer& rasterizer, const u8*) {
     rasterizer.WaitDeferredSignals();
+    NoteOvertake(rasterizer, "flip interrupt", 0);
     Platform::IrqC::Instance()->Signal(Platform::InterruptId::GfxFlip);
 }
 
@@ -488,10 +661,12 @@ void RunWriteData(Vulkan::Rasterizer& rasterizer, const u8* data) {
     // precede writes the guest sees.
     rasterizer.WaitHostCopies();
     rasterizer.WaitDeferredSignals();
+    NoteOvertake(rasterizer, "write data", write_data->Address<u64>());
     Gow3WriteLog::Note(write_data->Address<u64>(), write_data->data,
                      (header->type3.count.Value() - 2) * sizeof(u32), Gow3WriteLog::WriteData);
     Gow3WatchRange::Note("write data", 0, 0, write_data->Address<u64>(),
                          (header->type3.count.Value() - 2) * sizeof(u32));
+    const Vulkan::GpuWriteSite site{1};
     std::memcpy(write_data->Address<u64*>(), write_data->data,
                 (header->type3.count.Value() - 2) * sizeof(u32));
 }
@@ -503,10 +678,12 @@ void RunEventWriteEos(Vulkan::Rasterizer& rasterizer, const u8* data) {
     rasterizer.WaitDeferredSignals();
     rasterizer.ProcessDownloadImages();
     rasterizer.NoteLabelWrite(event_eos.Address<VAddr>(), 4);
+    NoteOvertake(rasterizer, "end-of-shader label", event_eos.Address<VAddr>());
     event_eos.SignalFence([](void* address, u64 value, u32 num_bytes) {
         auto* memory = Core::Memory::Instance();
         Gow3WriteLog::Note(reinterpret_cast<u64>(address), &value, num_bytes, Gow3WriteLog::Fence);
         if (!memory->TryWriteBacking(address, &value, num_bytes)) {
+            const Vulkan::GpuWriteSite site{5};
             memcpy(address, &value, num_bytes);
         }
     });
@@ -1463,6 +1640,7 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                                                         (count - 2) * sizeof(u32));
                     }
                 } else {
+                    const Vulkan::GpuWriteSite site{2};
                     std::memcpy(write_data->Address<u64*>(), write_data->data, (count - 2) * 4);
                 }
                 break;
@@ -1566,12 +1744,56 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                 }
                 // Else the value may come from a fence that thread has yet to write: let it
                 // catch up before yielding to other queues.
+                // gow3 diagnostics (GOW3_WAIT_TRACE=1): how long unmet waits take and which values
+                // the label held meanwhile (a short pulse to the awaited value missed between two
+                // checks would show as a wait of a whole frame).
+                static const bool wait_durations = std::getenv("GOW3_WAIT_TRACE") != nullptr;
+                const auto wait_start = std::chrono::steady_clock::now();
+                u32 seen[4]{};
+                u32 num_seen = 0, polls = 0;
+                const bool memory_wait =
+                    wait_reg_mem->mem_space.Value() == PM4CmdWaitRegMem::MemSpace::Memory;
                 while (!wait_reg_mem->Test(regs.reg_array)) {
+                    if (wait_durations && memory_wait) {
+                        ++polls;
+                        const u32 now_value = *wait_reg_mem->Address<u32*>();
+                        if (num_seen == 0 || (seen[num_seen - 1] != now_value && num_seen < 4)) {
+                            seen[num_seen++] = now_value;
+                        }
+                    }
                     if (rasterizer && !rasterizer->DrawPipeIdle()) {
                         rasterizer->DrainDrawPipe(static_cast<u32>(opcode));
                         continue;
                     }
                     YIELD_GFX();
+                }
+                if (wait_durations && memory_wait && polls) {
+                    static std::mutex mutex;
+                    static std::array<u64, 5> buckets{};
+                    static int long_lines = 0;
+                    static auto last = std::chrono::steady_clock::now();
+                    const double ms = std::chrono::duration<double, std::milli>(
+                                          std::chrono::steady_clock::now() - wait_start).count();
+                    std::scoped_lock lock{mutex};
+                    ++buckets[ms < 1 ? 0 : ms < 5 ? 1 : ms < 12 ? 2 : ms < 20 ? 3 : 4];
+                    if (ms >= 5 && long_lines < 60) {
+                        ++long_lines;
+                        std::printf("Wait trace: long gfx wait %.1f ms at %#llx ref %#x func %u, %u polls, "
+                                    "values seen %#x %#x %#x %#x (%u)\n",
+                                    ms, static_cast<unsigned long long>(wait_reg_mem->Address<VAddr>()),
+                                    wait_reg_mem->ref, unsigned(wait_reg_mem->function.Value()), polls,
+                                    seen[0], seen[1], seen[2], seen[3], num_seen);
+                    }
+                    if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds{5}) {
+                        last = now;
+                        std::printf("Wait trace (5 s): unmet gfx waits by duration: <1 ms %llu, 1-5 ms %llu, "
+                                    "5-12 ms %llu, 12-20 ms %llu, >20 ms %llu\n",
+                                    (unsigned long long)buckets[0], (unsigned long long)buckets[1],
+                                    (unsigned long long)buckets[2], (unsigned long long)buckets[3],
+                                    (unsigned long long)buckets[4]);
+                        std::fflush(stdout);
+                        buckets = {};
+                    }
                 }
                 break;
             }
@@ -1919,6 +2141,7 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
             ASSERT(write_data->dst_sel.Value() == 2 || write_data->dst_sel.Value() == 5);
             const u32 data_size = (header->type3.count.Value() - 2) * 4;
             if (!write_data->wr_one_addr.Value()) {
+                const Vulkan::GpuWriteSite site{3};
                 std::memcpy(write_data->Address<void*>(), write_data->data, data_size);
             } else {
                 UNREACHABLE();
@@ -2043,10 +2266,27 @@ void Liverpool::SubmitGfx(std::span<const u32> dcb, std::span<const u32> ccb) {
         queue.submits.emplace(task.handle);
     }
 
-    std::scoped_lock lk{submit_mutex};
-    ++num_submits;
-    work_retired = false;
-    submit_cv.notify_one();
+    const u64 my_submit = gfx_submits_queued.fetch_add(1, std::memory_order_relaxed) + 1;
+    {
+        std::scoped_lock lk{submit_mutex};
+        ++num_submits;
+        work_retired = false;
+        submit_cv.notify_one();
+    }
+    // gow3 diagnostics (GOW3_SYNC_SUBMIT=1): the guest returns from the submission only once the
+    // GPU command thread has processed it (at most 50 ms: the submission may wait for the guest),
+    // so the game never runs ahead of the port's processing (Uncharted 3's cloth flicker, 16 Oct).
+    static const bool sync_submit = [] {
+        const char* env = std::getenv("GOW3_SYNC_SUBMIT");
+        return env && env[0] == '1';
+    }();
+    if (sync_submit) {
+        const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds{50};
+        while (gfx_submits_done.load(std::memory_order_acquire) < my_submit &&
+               std::chrono::steady_clock::now() < until) {
+            std::this_thread::yield();
+        }
+    }
 }
 
 void Liverpool::SubmitAsc(u32 gnm_vqid, std::span<const u32> acb) {

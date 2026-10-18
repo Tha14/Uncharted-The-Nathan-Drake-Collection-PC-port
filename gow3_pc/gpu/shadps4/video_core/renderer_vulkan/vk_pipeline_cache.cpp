@@ -1271,7 +1271,17 @@ PipelineCache::Result PipelineCache::GetProgram(PipelineSelection& sel, HwStage 
     if (!compile_async && it_pgm != program_cache.end() && it_pgm->second->pending) {
         {
             PhaseTimer waiting{g_gow3_compile_wait_ns};
+            const auto wait_start = std::chrono::steady_clock::now();
             it_pgm->second->pending->job.Wait();
+            // gow3 diagnostics: the GPU thread waited for a shader a worker compiles.
+            if (const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() -
+                                                                           wait_start)
+                                      .count();
+                ms > 8.0) {
+                std::printf("Slow shader wait: %.1f ms for %s shader %#llx (compiled by a worker)\n", ms,
+                            hw_stage == HwStage::Compute ? "a compute" : "a graphics",
+                            static_cast<unsigned long long>(params.hash));
+            }
         }
         PublishShaders();
     }
@@ -1290,8 +1300,18 @@ PipelineCache::Result PipelineCache::GetProgram(PipelineSelection& sel, HwStage 
             return {};
         }
         auto start = binding;
+        const auto compile_start = std::chrono::steady_clock::now();
         const auto module =
             CompileModule(new_program->info, runtime_info, params.code, 0, binding);
+        // gow3 diagnostics: a shader compiled on the GPU thread (compute shaders always are).
+        if (const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() -
+                                                                       compile_start)
+                                  .count();
+            ms > 8.0) {
+            std::printf("Slow shader compile: %.1f ms for %s shader %#llx on the GPU thread\n", ms,
+                        hw_stage == HwStage::Compute ? "a compute" : "a graphics",
+                        static_cast<unsigned long long>(params.hash));
+        }
         auto spec = Shader::StageSpecialization(new_program->info, runtime_info, profile, start);
         const auto perm_hash = HashCombine(params.hash, 0);
 
