@@ -4,6 +4,12 @@ Uncharted: The Nathan Drake Collection PC port, by **BilalReloaded**
 ([YouTube](https://www.youtube.com/@BilalReloaded/videos), [GitHub](https://github.com/bc160201983)).
 Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
+## 18 October 2026 (0.2.1)
+
+- **NVIDIA DLAA and AMD FSR 4 Native AA are in the package.** The 0.2.0 build could not fetch
+  their files (tools/fetch_aa_files.sh copied the Vulkan headers from `//clang64` on the build
+  runner, where the MSYS2 root is `/`), so the menus offered only TAA and FSR 3.1.
+
 ## 18 October 2026 (0.2.0)
 
 - **Smooth frame pacing above 60 FPS with VSync (all three games).** With a frame rate limit at or

@@ -38,6 +38,7 @@ if [[ $want == *dlss* ]]; then
     # The bridge: MSVC through CMake's Visual Studio generator. Vulkan headers from the MSYS2
     # CLANG64 tree, copied alone (its C library headers must not reach MSVC).
     msys=${MSYS2_ROOT:-/c/msys64}
+    msys=${msys%/}  # on GitHub's runner the MSYS2 root is "/": not "//clang64" (a network path)
     vulkan=downloads/vulkan-include
     mkdir -p "$vulkan"
     cp -r "$msys/clang64/include/vulkan" "$msys/clang64/include/vk_video" "$vulkan/"
