@@ -28,6 +28,46 @@ std::atomic<u64> g_gow3_pipeline_total_ns, g_gow3_pipeline_driver_ns;
 std::atomic<u32> g_gow3_pipelines_built;
 namespace {
 using Clock = std::chrono::steady_clock;
+// gow3 19 Oct 2026 (#40, AMD Radeon RX 9070 XT): a graphics pipeline the driver refused
+// (ErrorInitializationFailed) stopped every game at start. It is now created again without the
+// pipeline cache and pipeline binaries; refused again, its draws are skipped and it is logged.
+// GOW3_TEST_PIPELINE_FAIL=<n> (tests): the n-th graphics pipeline's first attempt fails as if
+// refused; -<n>: both attempts.
+bool TestPipelineRefusal(bool retry) {
+    static const long test = [] {
+        const char* env = std::getenv("GOW3_TEST_PIPELINE_FAIL");
+        return env ? std::atol(env) : 0L;
+    }();
+    static std::atomic<long> created{0};
+    static thread_local long current = 0;
+    if (!test) {
+        return false;
+    }
+    if (!retry) {
+        current = ++created;
+    }
+    return current == (test > 0 ? test : -test) && (!retry || test < 0);
+}
+
+vk::UniquePipeline CreateRefusedAgain(vk::Device device, const vk::GraphicsPipelineCreateInfo& info,
+                                      vk::Result first, u64 key_hash, const char* what) {
+    auto result = device.createGraphicsPipelineUnique(nullptr, info);
+    if (TestPipelineRefusal(true)) {
+        result.result = vk::Result::eErrorInitializationFailed;
+        result.value.reset();
+    }
+    static std::atomic<u32> logged{0};
+    if (logged.fetch_add(1, std::memory_order_relaxed) < 16) {
+        std::printf("GPU: the driver refused %s %#llx (%s); %s\n", what,
+                    static_cast<unsigned long long>(key_hash), vk::to_string(first).c_str(),
+                    result.result == vk::Result::eSuccess
+                        ? "created without the pipeline cache"
+                        : "refused again: its draws are skipped");
+        std::fflush(stdout);
+    }
+    return result.result == vk::Result::eSuccess ? std::move(result.value) : vk::UniquePipeline{};
+}
+
 u64 NsSince(Clock::time_point start) {
     return u64(std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - start).count());
 }
@@ -433,9 +473,19 @@ GraphicsPipeline::GraphicsPipeline(
     auto [pipeline_result, pipe] =
         CreateCachedGraphicsPipeline(device, pipeline_cache, pipeline_info, key,
                                      instance.GetPipelineBinaryGlobalKey(), binary_directory);
-    ASSERT_MSG(pipeline_result == vk::Result::eSuccess, "Failed to create graphics pipeline: {}",
-               vk::to_string(pipeline_result));
+    if (TestPipelineRefusal(false)) {
+        pipeline_result = vk::Result::eErrorInitializationFailed;
+        pipe.reset();
+    }
+    const u64 key_hash = std::hash<GraphicsPipelineKey>{}(key);
+    if (pipeline_result != vk::Result::eSuccess) {
+        pipe = CreateRefusedAgain(device, pipeline_info, pipeline_result, key_hash, "graphics pipeline");
+    }
     pipeline = std::move(pipe);
+    if (!pipeline) {
+        g_gow3_pipeline_total_ns += NsSince(started);
+        return; // Failed(): its draws are skipped
+    }
     SetObjectName(device, *pipeline, "Graphics Pipeline {}", debug_str);
 
     if (needs_square_pass) {
@@ -447,8 +497,15 @@ GraphicsPipeline::GraphicsPipeline(
         auto [square_result, square] =
             CreateCachedGraphicsPipeline(device, pipeline_cache, square_info, key,
                                          instance.GetPipelineBinaryGlobalKey(), binary_directory);
-        ASSERT_MSG(square_result == vk::Result::eSuccess,
-                   "Failed to create the squaring pipeline: {}", vk::to_string(square_result));
+        if (square_result != vk::Result::eSuccess) {
+            square = CreateRefusedAgain(device, square_info, square_result, key_hash,
+                                        "squaring pipeline");
+        }
+        if (!square) {
+            pipeline.reset(); // Failed(): the draws need both
+            g_gow3_pipeline_total_ns += NsSince(started);
+            return;
+        }
         square_pipeline = std::move(square);
         SetObjectName(device, *square_pipeline, "Graphics Pipeline {} squaring pass", debug_str);
     }

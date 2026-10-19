@@ -1475,8 +1475,16 @@ void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ran
         return;
     }
     // Readback guard: the guest bytes now, to tell the game's later writes from older data.
+    // A snapshot memory can't be had for (#47: a laptop out of memory) is skipped: that readback
+    // lands unguarded, as before 0.3.0, instead of the game stopping.
     if (ReadbackGuardEnabled()) {
-        readback.before.resize(total_size_bytes);
+        try {
+            readback.before.resize(total_size_bytes);
+        } catch (const std::bad_alloc&) {
+            readback.before = {};
+        }
+    }
+    if (!readback.before.empty()) {
         for (size_t i = 0; i < readback.pieces.size(); ++i) {
             const auto [address, size] = readback.pieces[i];
             u8* snapshot = readback.before.data() + readback.offsets[i];
@@ -3311,7 +3319,7 @@ void BufferCache::SubmitPendingArenaBinds(Vulkan::SubmitInfo& info) {
     };
 
     info.AddWait(signal_sema, signal_tick);
-    auto submit_result = instance.GetGraphicsQueue().bindSparse(sparse_info);
+    auto submit_result = instance.GetSparseQueue().bindSparse(sparse_info);
     if (submit_result == vk::Result::eErrorDeviceLost) {
         Vulkan::DumpGpuCheckpoints(instance);
         Vulkan::DumpDeviceFault(instance);

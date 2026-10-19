@@ -32,7 +32,10 @@ ldd gow3_pc/out/gow3-probe.exe | awk '/clang64/ {print $3}' | sort -u | while re
 done
 
 cp gow3_pc/scripts/*.py "$stage/gow3_pc/scripts/"
-cp tools/probe_uncharted.py tools/hang_report.py tools/apply_update.py "$stage/tools/"
+cp tools/probe_uncharted.py tools/hang_report.py tools/apply_update.py tools/install_update.py "$stage/tools/"
+# PkgTool (LibOrbisPkg, LGPL-3.0): Advanced -> Install game update unpacks the player's own update PKG.
+mkdir -p "$stage/tools/pkgtool"
+cp tools/pkgtool/PkgTool.exe tools/pkgtool/LibOrbisPkg.dll "$stage/tools/pkgtool/"
 cp launcher/uncharted_launcher.pyw launcher/updater.py "$stage/launcher/"
 # The package's version (tools/VERSION; the launcher's updates compare it with the releases).
 cp tools/VERSION "$stage/VERSION"
@@ -56,6 +59,10 @@ for dir in gow3_pc/gpu/third_party/* gow3_pc/third_party/*; do
     done
 done
 head -n 24 gow3_pc/gpu/third_party/gcn/include/gcn/si_ci_vi_merged_offset.h > "$licenses/gcn-headers.txt"
+mkdir -p "$licenses/liborbispkg"
+cp tools/pkgtool/LICENSE.txt "$licenses/liborbispkg/LICENSE.txt"
+echo "PkgTool and LibOrbisPkg 0.2.231 by Maxton, unchanged; source: https://github.com/maxton/LibOrbisPkg" \
+    > "$licenses/liborbispkg/SOURCE.txt"
 pacman=$(command -v pacman || echo "$msys/usr/bin/pacman")
 # Three pacman calls in all (one per DLL took minutes on the CI runner).
 dlls=()

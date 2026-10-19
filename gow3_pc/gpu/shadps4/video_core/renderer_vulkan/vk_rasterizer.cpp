@@ -1442,6 +1442,31 @@ bool SkippedShader(u64 first, u64 second = 0) {
 }
 } // namespace
 
+// gow3 19 Oct 2026, from Supermedo/uncharted_pc #261 (kj2223): GOW3_JITTER_PS=<pixel shader
+// hash>,... (tools/probe_uncharted.py: f614041e): full-screen passes that rebuild positions from
+// the scene depth through an interpolated texture coordinate get the same jitter as the scene
+// geometry. Unjittered, they rebuilt each pixel from depth rendered half a pixel away: the sun
+// shadow pass (f614041e, shared by the three games) moved against the geometry with every jitter
+// step and its shadows flickered under TAA, FSR and DLAA.
+static bool JitterFullScreenPass(u64 hash) {
+    static const std::vector<u64> listed = [] {
+        std::vector<u64> list;
+        if (const char* env = std::getenv("GOW3_JITTER_PS")) {
+            for (const char* p = env; *p;) {
+                char* end;
+                const u64 value = std::strtoull(p, &end, 16);
+                if (end == p) {
+                    break;
+                }
+                list.push_back(u64(u32(value)));
+                p = *end == ',' ? end + 1 : end;
+            }
+        }
+        return list;
+    }();
+    return std::find(listed.begin(), listed.end(), u64(u32(hash))) != listed.end();
+}
+
 void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw* used_prepared,
                             bool is_indexed, u32 index_offset) {
     const auto* fragment=pipeline->GetStages()[u32(Shader::SwStage::Fragment)];
@@ -1457,9 +1482,16 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     }
     const auto& regs = Regs();
     // gow3: the pass copying a finished frame to a display buffer; the previous draw's
-    // target is that frame.
+    // target is that frame. 19 Oct 2026, from Supermedo/uncharted_pc #261 (kj2223): Uncharted
+    // draws twice into the same display buffer per frame (484cdbf5, then 749bbec9; measured 2
+    // frame starts per shown frame): only the first starts a frame. The second reset the
+    // upscaler's history every frame (shimmer on every edge under TAA, FSR and DLAA) and
+    // skipped every other jitter phase. Toggle 1 << 59 brings the old behaviour back.
     if (camera_motion->Enabled() && regs.color_buffers[0] &&
-        FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address())) {
+        FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address()) &&
+        (scene_started || regs.color_buffers[0].Address() != frame_display_address ||
+         Gow3Toggle::Disabled(Gow3Toggle::OneFrameStart))) {
+        frame_display_address = regs.color_buffers[0].Address();
         scene_started = false;
         camera_motion->OnDisplayPass(cb_descs[0].first);
         if (upscaler->OnFrameStart()) {
@@ -1476,7 +1508,7 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     // gow3: without camera motion (Uncharted) the GPU profiler marks frames at the display pass
     // too. Its results are read with a wait four frames later, so everything recorded so far is
     // submitted first (a wait on unsubmitted timestamps hung the menu).
-    else if (GpuProfiler::Get() && regs.color_buffers[0] &&
+    else if (!camera_motion->Enabled() && GpuProfiler::Get() && regs.color_buffers[0] &&
              FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address())) {
         Flush();
         NoteFrameStart();
@@ -1631,6 +1663,16 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     if (upscaler->Enabled() && db_desc.first && db_desc.first == camera_motion->Depth() &&
         (regs.num_indices > 6 || regs.num_instances.NumInstances() > 1)) {
         draw_jitter = upscaler->Jitter();
+    } else if (const auto* ps = pipeline->GetStages()[u32(Shader::SwStage::Fragment)];
+               ps && upscaler->Enabled() && JitterFullScreenPass(ps->pgm_hash) &&
+               !Gow3Toggle::Disabled(Gow3Toggle::FullScreenPassJitter)) {
+        draw_jitter = upscaler->Jitter();
+        static bool noted = false;
+        if (!noted) {
+            noted = true;
+            std::printf("Upscaler: full-screen pass %08x gets the scene jitter\n",
+                        u32(ps->pgm_hash));
+        }
     }
     UpdateDynamicState(pipeline, is_indexed);
     MarkPass(pipeline, state);

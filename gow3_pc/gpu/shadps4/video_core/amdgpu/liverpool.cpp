@@ -256,7 +256,26 @@ void Liverpool::ProcessCommands() {
     }
 }
 
+// gow3 19 Oct 2026 (#47): a C++ exception nothing caught on this thread (memory refused by
+// Windows or the driver, for example) ended the game as "exception 0x20474343", without saying
+// what failed. It is reported with its message now, in the form the launcher shows.
 void Liverpool::Process(std::stop_token stoken) {
+    try {
+        ProcessLoop(stoken);
+    } catch (const std::bad_alloc&) {
+        std::fprintf(stderr, "Fault: out of memory on the GPU command thread (Windows refused an "
+                             "allocation; close other programs or enlarge the page file)\n");
+        std::fflush(nullptr);
+        std::_Exit(3);
+    } catch (const std::exception& error) {
+        std::fprintf(stderr, "Fault: C++ exception on the GPU command thread: %s (%s)\n", error.what(),
+                     typeid(error).name());
+        std::fflush(nullptr);
+        std::_Exit(3);
+    }
+}
+
+void Liverpool::ProcessLoop(std::stop_token stoken) {
     Common::SetCurrentThreadName("shadPS4:GpuCommandProcessor");
 #ifndef _WIN32
     if (clockid_t clock; pthread_getcpuclockid(pthread_self(), &clock) == 0) {
@@ -361,6 +380,15 @@ void Liverpool::Process(std::stop_token stoken) {
         if (submit_done) {
             VideoCore::EndCapture();
             if (rasterizer) {
+                // GOW3_TEST_GPU_THROW=<n> (tests): a C++ exception on this thread after n
+                // submissions, to check how Process reports it.
+                static const long test_throw = [] {
+                    const char* env = std::getenv("GOW3_TEST_GPU_THROW");
+                    return env ? std::atol(env) : 0L;
+                }();
+                if (static long submits = 0; test_throw > 0 && ++submits == test_throw) {
+                    throw std::runtime_error("test exception (GOW3_TEST_GPU_THROW)");
+                }
                 rasterizer->OnSubmit();
                 rasterizer->Flush();
             }
@@ -984,6 +1012,9 @@ Liverpool::Task Liverpool::ProcessCeUpdate(std::span<const u32> ccb) {
                 rasterizer->DrainDrawPipe(Vulkan::DrawPipe::ReasonConstRam);
             }
             const auto* dump_const = reinterpret_cast<const PM4DumpConstRam*>(header);
+            Gow3WriteLog::Note(reinterpret_cast<u64>(dump_const->Address<void*>()),
+                               cblock.constants_heap.data() + dump_const->Offset(), dump_const->Size(),
+                               Gow3WriteLog::ConstRam);
             memcpy(dump_const->Address<void*>(),
                    cblock.constants_heap.data() + dump_const->Offset(), dump_const->Size());
             break;

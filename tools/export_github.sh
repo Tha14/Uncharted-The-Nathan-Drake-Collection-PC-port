@@ -39,7 +39,7 @@ git -C gow3_pc ls-files -co --exclude-standard | while read -r path; do
     grep -qxF -- "$path" <<< "$submodules" && continue
     [[ -f gow3_pc/$path ]] && copy "gow3_pc/$path"
 done
-find tools launcher -type f ! -path '*/__pycache__/*' ! -path 'tools/pkgtool/*' ! -name 'PkgTool-*.zip' \
+find tools launcher -type f ! -path '*/__pycache__/*' ! -name 'PkgTool-*.zip' \
     ! -name '*.pyc' | while read -r path; do copy "$path"; done
 copy Start-Uncharted.cmd
 copy analysis/STATUS.md

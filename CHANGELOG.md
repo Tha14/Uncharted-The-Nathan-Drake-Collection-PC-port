@@ -4,6 +4,60 @@ Uncharted: The Nathan Drake Collection PC port, by **BilalReloaded**
 ([YouTube](https://www.youtube.com/@BilalReloaded/videos), [GitHub](https://github.com/bc160201983)).
 Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
+## 19 October 2026 (0.3.1)
+
+- **Choose the game update in the launcher** (#32): Launcher -> Advanced -> GAME UPDATE.
+  **Choose update folder**: your extracted update 1.02, wherever it is and whatever it is called
+  (nothing is copied; the launcher remembers it). **Install from .pkg**: the update's `.pkg` file,
+  unpacked next to the game folder under the right name. Both check that it is an update for your
+  copy of the game (same region) and that nothing the port needs is missing (the update's
+  `data.psarc` files, for example).
+- **A damaged update is named instead of crashing:** with an update whose game archives are
+  incomplete or damaged, all three games stop at start with "files.json -> not found" and
+  `ASSERTION: root` (ingame-shaders.cpp). Before a game starts, the launcher now checks the update's
+  archives (complete, readable, shader list inside) and says which file is damaged. The port still
+  ships no game files: you need your own update PKG. Uses PkgTool from LibOrbisPkg (LGPL-3.0).
+  Not fixed yet: the same stop with the US version CUSA02320 (#29, #43, #48), whose update files
+  are intact. Until then, renaming its `-patch` folder starts the games as 1.00.
+- **Shortcuts on a moved Desktop** (#39): Desktop shortcut and Game shortcuts failed with
+  "DirectoryNotFound" when Windows keeps the Desktop elsewhere (OneDrive, a renamed or redirected
+  folder). The launcher now asks Windows where it is.
+
+- **"exception 0x20474343" says what failed** (#47): an error nothing caught on the GPU command
+  thread ended the game with only that code. The log (and the launcher's crash message) now names
+  it, for example "out of memory on the GPU command thread". The crash guard of 0.3.0 no longer
+  needs memory to be available: when Windows refuses its snapshot, that readback lands as before.
+- **A graphics pipeline the driver refuses no longer stops the game** (#40, AMD Radeon RX 9070 XT):
+  "Failed to create graphics pipeline: ErrorInitializationFailed" ended every game at start. The
+  pipeline is now created again without the pipeline cache; refused again, only the draws that need
+  it are skipped and the log names it ("GPU: the driver refused graphics pipeline ...").
+
+From SuperMedo/uncharted_pc (thanks to kj2223 and hugouchoasborges), ported:
+
+- **Sun shadows no longer flicker with TAA, FSR or DLSS/DLAA** (#261, kj2223). The sun shadow pass
+  (the same shader in all three games) rebuilt each pixel's position from the scene depth without
+  the anti-aliasing's sub-pixel offset, so its shadows moved against the geometry every frame. It
+  now gets the same offset as the scene.
+- **Steadier anti-aliasing** (#261, kj2223): Uncharted draws twice into the picture it shows, and
+  the port started a new frame on both. The second start threw away the anti-aliasing's history
+  every frame and skipped every other sub-pixel position. It is now one frame start per frame
+  (measured: 600 starts per 10 s at 60 FPS, was per 5 s).
+- **Steam Deck and other Linux AMD/Intel GPUs** (#94, hugouchoasborges): memory binding goes to a
+  GPU queue that supports it (on Steam Deck the graphics queue does not), and large texture
+  conversions are split to stay within the GPU's limit (65,535 work groups on some GPUs). On
+  NVIDIA and AMD on Windows nothing changes.
+
+From kuraeow (Steam Deck), merged:
+
+- **16:10 aspect ratio** (#35): 720p becomes 1280x800 (the Steam Deck's screen); the games show
+  more at the top and bottom. Resolution buttons are labelled for the chosen ratio, with the exact
+  render size below.
+- **Cutscene movies keep their shape** at sizes that aren't 16:9 (#36): black bars instead of a
+  stretched picture, at 16:10 and ultrawide.
+- **Update 1.02 merged into the game folder** (#37) is recognised even when its param.sfo still
+  says 1.00 (no more "install update 1.02" warning, cheats work).
+- **Steam Deck / Proton**: one set of launcher options for every Steam shortcut (#38).
+
 ## 19 October 2026 (0.3.0)
 
 - **Random crashes after a while, "exit code 3"** (#30, #24, #27): GPU results reach the game's

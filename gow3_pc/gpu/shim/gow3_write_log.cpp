@@ -106,12 +106,13 @@ extern "C" void gow3gpu_dump_guest_writes(void* ucontext) {
         std::fprintf(stderr, "Write log: %s=%#llx\n", names[i], (unsigned long long)regs[i]);
     }
     const char* sources[] = {"backing",      "WriteData",           "fence",
-                             "EOP (decoded)", "WriteData (decoded)", "EOS (decoded)"};
+                             "EOP (decoded)", "WriteData (decoded)", "EOS (decoded)",
+                             "DumpConstRam"};
     const std::uint64_t now = __rdtsc();
     const auto print = [&](const Entry& e, const char* what) {
         std::fprintf(stderr,
                      "Write log: %s %s %#llx +%llu first %#llx tid %u, %.3f s before the fault\n",
-                     what, e.source < 6 ? sources[e.source] : "?", (unsigned long long)e.address,
+                     what, e.source < 7 ? sources[e.source] : "?", (unsigned long long)e.address,
                      (unsigned long long)e.size, (unsigned long long)e.first, e.tid,
                      double(now - e.tsc) / 3.0e9);
     };

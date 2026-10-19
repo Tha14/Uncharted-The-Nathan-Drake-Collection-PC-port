@@ -121,6 +121,13 @@ public:
                          VertexInputs<AmdGpu::Buffer>& guest_buffers, u32 step_rate_0,
                          u32 step_rate_1) const;
 
+public:
+    /// gow3 (#40): the driver refused this pipeline, even without the pipeline cache: draws that
+    /// need it are skipped (PipelineCache hands out nullptr for it).
+    bool Failed() const {
+        return !pipeline;
+    }
+
 private:
     void BuildDescSetLayout(bool preloading);
 

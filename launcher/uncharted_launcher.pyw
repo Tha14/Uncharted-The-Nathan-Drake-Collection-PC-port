@@ -639,6 +639,35 @@ def has_update_102_code(folder):
     return _update_102_cache[key]
 
 
+def desktop_folder():
+    """The user's Desktop folder. Windows can move it (OneDrive backup, a redirected or renamed
+    Desktop), so it is asked for (SHGetKnownFolderPath) instead of assumed at %USERPROFILE%\\Desktop:
+    shortcuts failed there with "DirectoryNotFound" (#39)."""
+    try:
+        from ctypes import wintypes
+
+        class GUID(ctypes.Structure):
+            _fields_ = [("Data1", wintypes.DWORD), ("Data2", wintypes.WORD), ("Data3", wintypes.WORD),
+                        ("Data4", ctypes.c_ubyte * 8)]
+
+        desktop_id = GUID(0xB4BFCC3A, 0xDB2C, 0x424C,  # FOLDERID_Desktop
+                          (ctypes.c_ubyte * 8)(0xB0, 0x29, 0x7F, 0xE9, 0x9A, 0x87, 0xC6, 0x41))
+        found = ctypes.c_void_p()
+        shell32 = ctypes.windll.shell32
+        shell32.SHGetKnownFolderPath.argtypes = [ctypes.POINTER(GUID), wintypes.DWORD, wintypes.HANDLE,
+                                                 ctypes.POINTER(ctypes.c_void_p)]
+        if shell32.SHGetKnownFolderPath(ctypes.byref(desktop_id), 0, None, ctypes.byref(found)) == 0:
+            try:
+                folder = Path(ctypes.wstring_at(found.value))
+            finally:
+                ctypes.windll.ole32.CoTaskMemFree(found)
+            if folder.is_dir():
+                return folder
+    except (AttributeError, OSError, ValueError):
+        pass
+    return Path(os.environ.get("USERPROFILE", Path.home())) / "Desktop"
+
+
 def monitor_refresh_hz():
     try:
         user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
@@ -990,9 +1019,19 @@ def write_config(config):
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
     # Through a temporary file: a launcher and a game started from a shortcut may write at once, and
     # a write cut short must not leave half a file.
+    text = json.dumps(config, indent=2)
     temporary = CONFIG_FILE.with_name(f"{CONFIG_FILE.name}.{os.getpid()}.tmp")
-    temporary.write_text(json.dumps(config, indent=2), encoding="utf-8")
-    os.replace(temporary, CONFIG_FILE)
+    try:
+        temporary.write_text(text, encoding="utf-8")
+        os.replace(temporary, CONFIG_FILE)
+    except OSError:
+        # Windows refuses the swap while another process has the file open (a virus scanner, a
+        # second launcher): written in place, as before.
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+        CONFIG_FILE.write_text(text, encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1469,8 +1508,21 @@ class Launcher:
             self.update_label.config(text=self.update_text())
         return True
 
+    def chosen_update(self):
+        """The update folder chosen in Advanced (Choose update folder), if it is still there."""
+        folder = self.config.get("update_dir") or ""
+        if folder:
+            for candidate in (Path(folder), Path(folder) / "uroot"):
+                if is_game_dir(candidate):
+                    return candidate
+        return None
+
+    def update_dir(self):
+        """The update the games use: the chosen folder, else one next to the game folder."""
+        return self.chosen_update() or game_update_dir(self.game_dir())
+
     def update_text(self):
-        update = game_update_dir(self.game_dir())
+        update = self.update_dir()
         if update:
             return f"Game update {app_version(update) or '?'} is used: {update}"
         folder = self.game_dir()
@@ -1478,8 +1530,8 @@ class Launcher:
         if version and version >= "01.02":
             return f"Game version {version} (the update is in the game folder)."
         title = folder.parent if folder.name.lower() == "uroot" else folder
-        return (f"Game version {version or '?'}, no update found. For the 1.02 fixes, "
-                f"extract the update next to the game folder as {title.name}-patch.")
+        return (f"Game version {version or '?'}, no update found. For the 1.02 fixes, choose your update 1.02 "
+                f"folder (or its .pkg) under GAME UPDATE.")
 
     def current_game(self):
         return next(g for g in GAMES if g["key"] == self.config.get("game"))
@@ -2134,6 +2186,9 @@ class Launcher:
         self.ini_label = tk.Label(page, text=f"Settings: {ini_file(self.config['game'])}", font=self.f_small,
                                   bg=BG, fg=DIM, anchor="w")
         self.ini_label.pack(side="top", fill="x")
+        section("GAME UPDATE", (("Choose update folder", self.choose_update_folder),
+                                ("Install from .pkg", self.install_game_update)),
+                "Your extracted update 1.02 folder, wherever it is, or the update's .pkg file.")
         section("TROUBLESHOOTING", (("Check for updates", lambda: self.check_updates(manual=True)),
                                     ("Clear shader cache", self.clear_cache), ("Reset all settings", self.reset)))
         # Credits for the anti-aliasing technologies (NVIDIA's DLSS license asks for its attribution).
@@ -2357,7 +2412,7 @@ class Launcher:
                                            "(CUSA02344, the folder with eboot.bin and sce_sys).")
             if not self.choose_game_dir():
                 return
-        if not self.confirm_without_update():
+        if not self.confirm_without_update() or not self.confirm_update_files():
             return
         self.follow_ini()  # the in-game menu's last changes, not older values kept here
         self.save_ini({k: self.ini.get(k, v) for k, v in INI_DEFAULTS.items()})
@@ -2369,6 +2424,8 @@ class Launcher:
         env["UNCHARTED_JOB_SLEEP"] = "0" if self.config.get("job_sleep", "auto") == "off" else "1"
         env["UNCHARTED_LANGUAGE"] = str(self.config.get("language", "1"))
         env["UNCHARTED_UNLOCK"] = "1" if self.config.get("unlock", False) else "0"
+        if self.chosen_update():
+            env["UNCHARTED_UPDATE"] = str(self.chosen_update())  # tools/probe_uncharted.py find_update
         env["UNCHARTED_CHEATS"] = ",".join(name for name, *_ in CHEATS if self.config.get("cheat_" + name, False))
         # Every game's own options: the Collection menu starts the others itself, and
         # tools/probe_uncharted.py applies the started game's (its settings file decides the
@@ -2485,12 +2542,29 @@ class Launcher:
                 return "\n".join(context)[-600:]
         return None
 
+    def confirm_update_files(self):
+        """An update folder with missing or damaged files (#43: a bin.psarc the games couldn't read
+        stopped all three at start with "ASSERTION: root") is named before the game starts."""
+        update = self.update_dir()
+        if not update:
+            return True
+        try:
+            problems = self.update_installer().check_update(update)
+        except Exception:  # the check itself must never keep a game from starting
+            return True
+        if not problems:
+            return True
+        return messagebox.askokcancel(
+            APP_TITLE, "Your game update folder has missing or damaged files:\n\n" + "\n".join(problems[:6]) +
+            f"\n\n{update}\n\nThe games will probably stop at start. Extract the update again (or use Install "
+            "from .pkg under Advanced -> GAME UPDATE). Play anyway?")
+
     def confirm_without_update(self):
         """Without update 1.02 most of the port's game fixes (crash fixes among them) are skipped:
         asks once per game folder (a 1.02 copy with the update merged in reports 1.02 itself)."""
         folder = self.game_dir()
         version = app_version(folder)
-        if game_update_dir(folder) or not version or version >= "01.02" or \
+        if self.update_dir() or not version or version >= "01.02" or \
                 self.config.get("warned_no_update") == str(folder):
             return True
         title = folder.parent if folder.name.lower() == "uroot" else folder
@@ -2565,8 +2639,7 @@ class Launcher:
 
     def make_shortcut(self, name, description, play=None):
         """A desktop shortcut to the launcher, or with `play` (u1/u2/u3) to that game directly."""
-        desktop = Path(os.environ.get("USERPROFILE", Path.home())) / "Desktop"
-        link = desktop / f"{name}.lnk"
+        link = desktop_folder() / f"{name}.lnk"
         pythonw = Path(sys.executable).with_name("pythonw.exe")
         target = pythonw if pythonw.exists() else Path(sys.executable)
         arguments = f"\"{Path(__file__).resolve()}\""
@@ -2576,13 +2649,97 @@ class Launcher:
             arguments = f"{arguments} --play {play}".strip()
         def ps(value):  # a PowerShell single-quoted string ("Drake's" doubles the quote)
             return "'" + str(value).replace("'", "''") + "'"
-        script = (f"$s=(New-Object -ComObject WScript.Shell).CreateShortcut({ps(link)});"
+        # Messages in UTF-8 (a German or Portuguese Windows answers in its own language).
+        script = ("[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;"
+                  f"$s=(New-Object -ComObject WScript.Shell).CreateShortcut({ps(link)});"
                   f"$s.TargetPath={ps(target)};$s.Arguments={ps(arguments)};"
                   f"$s.WorkingDirectory={ps(ROOT)};$s.IconLocation={ps(ASSETS / 'uncharted.ico')};"
                   f"$s.Description={ps(description)};$s.Save()")
         result = subprocess.run(["powershell", "-NoProfile", "-Command", script], creationflags=NO_WINDOW,
-                                capture_output=True, text=True)
+                                capture_output=True, text=True, encoding="utf-8", errors="replace")
         return link, result
+
+    def update_installer(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("install_update", ROOT / "tools" / "install_update.py")
+        installer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(installer)
+        return installer
+
+    def choose_update_folder(self):
+        """An update the player already extracted, anywhere: checked and remembered (nothing is
+        copied); the games get it as UNCHARTED_UPDATE."""
+        if self.process:
+            messagebox.showwarning(APP_TITLE, "Close the game first.")
+            return
+        game = self.game_dir()
+        if not is_game_dir(game):
+            messagebox.showwarning(APP_TITLE, "Choose the game folder first (Change game folder).")
+            return
+        from tkinter import filedialog
+        folder = filedialog.askdirectory(title="Choose the extracted update 1.02 folder", parent=self.root,
+                                         mustexist=True)
+        if not folder:
+            return
+        installer = self.update_installer()
+        try:
+            update = installer.check_folder(folder, game)
+        except installer.UpdateError as error:
+            messagebox.showerror(APP_TITLE, f"This folder can't be used:\n{error}")
+            return
+        self.config["update_dir"] = str(update)
+        write_config(self.config)
+        self.update_label.config(text=self.update_text())
+        messagebox.showinfo(APP_TITLE, f"Game update {app_version(update) or '?'} is used from now on:\n{update}")
+
+    def install_game_update(self):
+        """The player's own update PKG unpacked next to the game folder (tools/install_update.py;
+        the port ships no game files)."""
+        if self.process:
+            messagebox.showwarning(APP_TITLE, "Close the game first.")
+            return
+        game = self.game_dir()
+        if not is_game_dir(game):
+            messagebox.showwarning(APP_TITLE, "Choose the game folder first (Change game folder).")
+            return
+        from tkinter import filedialog
+        pkg = filedialog.askopenfilename(title="Choose the game update (.pkg)", parent=self.root,
+                                         filetypes=[("PS4 package", "*.pkg"), ("All files", "*.*")])
+        if not pkg:
+            return
+        installer = self.update_installer()
+        existing = installer.existing_update(game)
+        if existing and not messagebox.askyesno(
+                APP_TITLE, f"There is an update folder already:\n{existing}\n\nReplace it with this update?"):
+            return
+        state = {"step": "Checking the update..."}
+
+        def work():
+            try:
+                state["path"] = installer.install(pkg, game, log=lambda text: state.__setitem__("step", text))
+            except installer.UpdateError as error:
+                state["error"] = str(error)
+            except Exception as error:  # a disk or permission problem: shown as it is
+                state["error"] = f"{type(error).__name__}: {error}"
+
+        worker = threading.Thread(target=work, daemon=True)
+        worker.start()
+
+        def poll():
+            if worker.is_alive():
+                self.update_label.config(text=state["step"])
+                self.root.after(200, poll)
+                return
+            if "path" in state:  # the installed one is used, also over a folder chosen before
+                self.config["update_dir"] = str(state["path"])
+                write_config(self.config)
+            self.update_label.config(text=self.update_text())
+            if "error" in state:
+                messagebox.showerror(APP_TITLE, f"The update was not installed:\n{state['error']}")
+            else:
+                messagebox.showinfo(APP_TITLE, f"Update installed:\n{state['path']}\n\nThe games use it from "
+                                               "their next start.")
+        poll()
 
     def desktop_shortcut(self):
         link, result = self.make_shortcut("Uncharted", APP_TITLE)

@@ -179,6 +179,7 @@ vk::Pipeline TileManager::GetTilingPipeline(const ImageInfo& info, bool is_tiler
         .pSpecializationInfo = &specialization,
     };
     const vk::ComputePipelineCreateInfo compute_pipeline_ci = {
+        .flags = vk::PipelineCreateFlagBits::eDispatchBase, // RecordTilingDispatch
         .stage = shader_ci,
         .layout = *pl_layout,
     };
@@ -196,8 +197,30 @@ vk::Pipeline TileManager::GetTilingPipeline(const ImageInfo& info, bool is_tiler
 void TileManager::RecordTilingDispatch(vk::Pipeline pipeline, const vk::DescriptorBufferInfo& tiled,
                                        const vk::DescriptorBufferInfo& linear,
                                        const vk::DescriptorBufferInfo& params, u32 dim_x) {
-    scheduler.Record([pipeline, layout = *pl_layout, tiled, linear, params,
-                      dim_x](vk::CommandBuffer cmdbuf) {
+    // gow3 19 Oct 2026, from Supermedo/uncharted_pc #94: large textures need more work groups
+    // than a dispatch may have on some GPUs (Vulkan guarantees 65535; RADV, Intel); they are
+    // dispatched in pieces, each starting at its first group (the shader sees the same
+    // gl_GlobalInvocationID as in one dispatch). Within the limit: one dispatch, as before.
+    // GOW3_TEST_MAX_GROUPS_X=<n> (tests): a lower limit, to check the pieces on GPUs whose limit
+    // no texture reaches (NVIDIA: 2^31 - 1).
+    static const u32 test_max = [] {
+        const char* env = std::getenv("GOW3_TEST_MAX_GROUPS_X");
+        return env ? static_cast<u32>(std::strtoul(env, nullptr, 10)) : 0u;
+    }();
+    u32 max_x = instance.GetMaxComputeWorkGroupCountX();
+    if (test_max) {
+        max_x = std::min(max_x, test_max);
+    }
+    max_x = std::max(max_x, 1u);
+    if (dim_x > max_x) {
+        static bool noted = false;
+        if (!noted) {
+            noted = true;
+            std::printf("GPU: texture tiling in pieces (%u work groups, limit %u)\n", dim_x, max_x);
+        }
+    }
+    scheduler.Record([pipeline, layout = *pl_layout, tiled, linear, params, dim_x,
+                      max_x](vk::CommandBuffer cmdbuf) {
         cmdbuf.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline);
         const std::array<vk::WriteDescriptorSet, 3> set_writes = {{
             {
@@ -220,7 +243,13 @@ void TileManager::RecordTilingDispatch(vk::Pipeline pipeline, const vk::Descript
             },
         }};
         cmdbuf.pushDescriptorSetKHR(vk::PipelineBindPoint::eCompute, layout, 0, set_writes);
-        cmdbuf.dispatch(dim_x, 1, 1);
+        if (dim_x <= max_x) {
+            cmdbuf.dispatch(dim_x, 1, 1);
+        } else {
+            for (u32 first = 0; first < dim_x; first += max_x) {
+                cmdbuf.dispatchBase(first, 0, 0, std::min(max_x, dim_x - first), 1, 1);
+            }
+        }
     });
 }
 

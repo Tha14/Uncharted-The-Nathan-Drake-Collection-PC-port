@@ -571,11 +571,32 @@ bool Instance::CreateDevice() {
     const u32 queue_count =
         std::min<u32>(static_cast<u32>(queue_priorities.size()),
                       family_properties[queue_family_index].queueCount);
-    const vk::DeviceQueueCreateInfo queue_info = {
+    std::vector<vk::DeviceQueueCreateInfo> queue_infos = {vk::DeviceQueueCreateInfo{
         .queueFamilyIndex = queue_family_index,
         .queueCount = queue_count,
         .pQueuePriorities = queue_priorities.data(),
-    };
+    }};
+    // gow3 19 Oct 2026, from Supermedo/uncharted_pc #94: sparse binds (buffer arenas) need a
+    // queue whose family supports them. On Steam Deck (RADV) the graphics family does not, and
+    // vkQueueBindSparse there was invalid (device lost). A family that does gets a queue of its
+    // own; without one, the graphics queue is used as before.
+    sparse_queue_family_index = queue_family_index;
+    if (!(family_properties[queue_family_index].queueFlags & vk::QueueFlagBits::eSparseBinding)) {
+        for (u32 i = 0; i < family_properties.size(); ++i) {
+            if (family_properties[i].queueCount &&
+                (family_properties[i].queueFlags & vk::QueueFlagBits::eSparseBinding)) {
+                sparse_queue_family_index = i;
+                queue_infos.push_back(vk::DeviceQueueCreateInfo{
+                    .queueFamilyIndex = i,
+                    .queueCount = 1,
+                    .pQueuePriorities = queue_priorities.data(),
+                });
+                break;
+            }
+        }
+        std::printf("GPU: sparse binds on queue family %u (the graphics family %u has none)\n",
+                    sparse_queue_family_index, queue_family_index);
+    }
 
     const auto vk11_features = feature_chain.get<vk::PhysicalDeviceVulkan11Features>();
     vk12_features = feature_chain.get<vk::PhysicalDeviceVulkan12Features>();
@@ -594,8 +615,8 @@ bool Instance::CreateDevice() {
     }
     vk::StructureChain device_chain = {
         vk::DeviceCreateInfo{
-            .queueCreateInfoCount = 1u,
-            .pQueueCreateInfos = &queue_info,
+            .queueCreateInfoCount = static_cast<u32>(queue_infos.size()),
+            .pQueueCreateInfos = queue_infos.data(),
             .enabledExtensionCount = static_cast<u32>(enabled_extensions.size()),
             .ppEnabledExtensionNames = enabled_extensions.data(),
         },
@@ -840,6 +861,9 @@ bool Instance::CreateDevice() {
     if (queue_count > 1) {
         copy_queue = device->getQueue(queue_family_index, 1);
     }
+    sparse_queue = sparse_queue_family_index == queue_family_index
+                       ? graphics_queue
+                       : device->getQueue(sparse_queue_family_index, 0);
 
     if (calibrated_timestamps) {
         const auto [time_domains_result, time_domains] =

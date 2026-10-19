@@ -959,6 +959,10 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
     else:
         env.setdefault("GOW3_VELOCITY_PS", "f4b18264")
         env.setdefault("GOW3_UPSCALE_BEFORE_CS", "aec539f0")
+        # Full-screen passes that rebuild positions from the jittered scene depth get the jitter
+        # too: the sun shadow pass, shared by the three games (its shadows flickered under TAA,
+        # FSR and DLAA; Supermedo/uncharted_pc #261).
+        env.setdefault("GOW3_JITTER_PS", "f614041e")
         env["GOW3_SCENE_SIZE"] = f"{render_size[0]}x{render_size[1]}"
         # FSR 4's model files (gow3_pc/tools/fetch_fsr4_assets.sh), when installed; DLAA needs
         # gow3_dlss.dll and nvngx_dlss.dll beside Uncharted.exe.
