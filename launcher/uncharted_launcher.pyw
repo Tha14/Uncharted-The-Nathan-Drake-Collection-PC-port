@@ -544,7 +544,8 @@ def game_update_dir(folder):
 
 
 def app_version(folder):
-    """APP_VER of a game folder (sce_sys/param.sfo)."""
+    """APP_VER of a game folder (sce_sys/param.sfo); 01.02 when the executables are 1.02 although
+    param.sfo says otherwise (dumps with the update merged in that kept the 1.00 param.sfo)."""
     try:
         data = (Path(folder) / "sce_sys" / "param.sfo").read_bytes()
         _, _, keys, values, count = struct.unpack_from("<IIIII", data)
@@ -552,10 +553,31 @@ def app_version(folder):
             key_at, _, length, _, value_at = struct.unpack_from("<HHIII", data, 20 + i * 16)
             key = data[keys + key_at:data.index(bytes(1), keys + key_at)].decode()
             if key == "APP_VER":
-                return data[values + value_at:values + value_at + length].rstrip(bytes(1)).decode()
+                version = data[values + value_at:values + value_at + length].rstrip(bytes(1)).decode()
+                return "01.02" if version < "01.02" and has_update_102_code(folder) else version
     except (OSError, ValueError, struct.error):
         pass
     return None
+
+
+# Uncharted 2's torch code as update 1.02 compiled it (tools/probe_uncharted.py
+# TORCH_FORWARD_PATCHES; 1.00 lays this code out differently).
+UPDATE_102_CODE = bytes.fromhex("488d05cc9fd500 8b4850 84c9 7440 8a50".replace(" ", ""))
+_update_102_cache = {}
+
+
+def has_update_102_code(folder):
+    path = Path(folder) / "big2-ps4_Shipping.elf"
+    try:
+        key = (str(path), path.stat().st_mtime_ns)
+    except OSError:
+        return False
+    if key not in _update_102_cache:
+        try:
+            _update_102_cache[key] = UPDATE_102_CODE in path.read_bytes()
+        except OSError:
+            _update_102_cache[key] = False
+    return _update_102_cache[key]
 
 
 def monitor_refresh_hz():
@@ -1343,8 +1365,11 @@ class Launcher:
         if update:
             return f"Game update {app_version(update) or '?'} is used: {update}"
         folder = self.game_dir()
+        version = app_version(folder)
+        if version and version >= "01.02":
+            return f"Game version {version} (the update is in the game folder)."
         title = folder.parent if folder.name.lower() == "uroot" else folder
-        return (f"Game version {app_version(folder) or '?'}, no update found. For the 1.02 fixes, "
+        return (f"Game version {version or '?'}, no update found. For the 1.02 fixes, "
                 f"extract the update next to the game folder as {title.name}-patch.")
 
     def current_game(self):
