@@ -260,7 +260,13 @@ private:
     std::unordered_map<VAddr, DisplayImage> displays;
     /// The host buffer for a display buffer at ui_width x ui_height (display_mutex held).
     DisplayImage& HostDisplay(VAddr address, vk::Format format);
+    /// Upscales source (the finished frame at the render size) into ui_image; draws into source
+    /// go to ui_image after it.
+    void UpscaleToUi(VideoCore::ImageId source);
     u64 composite_ps = 0;
+    u64 tonemap_ps = 0;               ///< the draw finishing the frame (GOW3_UI_TONEMAP_PS)
+    VideoCore::ImageId tonemap_target{};
+    bool tonemap_pending = false;     ///< the next draw upscales tonemap_target
     bool composite_frames = false;  ///< OnComposite replaces the frame's display copy
     bool composite_done = false;    ///< this frame's OnComposite ran: its UI draws follow
     HostPasses::FsrPass fsr1_pass;  ///< FSR 1 (EASU) at OnComposite without a temporal upscale

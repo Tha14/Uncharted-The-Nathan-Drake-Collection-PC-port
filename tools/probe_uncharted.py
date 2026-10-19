@@ -1006,6 +1006,9 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
             env["GOW3_RENDER_RES"] = f"{render_size[0]}x{render_size[1]}"
             env["GOW3_OUTPUT_RES"] = f"{out_w}x{out_h}"
             env.setdefault("GOW3_UI_COMPOSITE_PS", "749bbec9")
+            # The tonemap draw finishing the frame: Uncharted 3 draws world-anchored prompts
+            # into its target after it, so the upscale runs at the draw after it.
+            env.setdefault("GOW3_UI_TONEMAP_PS", "484cdbf5")
             print(f"Upscaling: {render_size[0]}x{render_size[1]} -> {out_w}x{out_h}")
     pad_file=user / "probe-pad.txt"
     pad_file.write_text("",encoding="ascii")

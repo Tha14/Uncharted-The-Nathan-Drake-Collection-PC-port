@@ -217,6 +217,9 @@ TemporalUpscaler::TemporalUpscaler(const Instance& instance_, Scheduler& schedul
     if (const char* ps = std::getenv("GOW3_UI_COMPOSITE_PS")) {
         composite_ps = u32(std::strtoull(ps, nullptr, 16));
     }
+    if (const char* ps = std::getenv("GOW3_UI_TONEMAP_PS")) {
+        tonemap_ps = u32(std::strtoull(ps, nullptr, 16));
+    }
     composite_frames = enabled && scaled_session && composite_ps && camera_motion.VelocityMode() &&
                        (render_width < target_width || render_height < target_height);
     if (composite_frames) {
@@ -262,6 +265,19 @@ void TemporalUpscaler::OnSceneColor(VideoCore::ImageId color) {
 }
 
 namespace {
+/// The upscalers read 8-bit frames as the stored (sRGB-encoded) values: UNORM views of sRGB
+/// images, as the game's own RGBA8 copy holds them.
+vk::Format LdrFormat(vk::Format format) {
+    switch (format) {
+    case vk::Format::eR8G8B8A8Srgb:
+        return vk::Format::eR8G8B8A8Unorm;
+    case vk::Format::eB8G8R8A8Srgb:
+        return vk::Format::eB8G8R8A8Unorm;
+    default:
+        return format;
+    }
+}
+
 float Halton(u32 index, u32 base) {
     float f = 1.0f, result = 0.0f;
     for (u32 i = index; i > 0; i /= base) {
@@ -362,6 +378,7 @@ bool TemporalUpscaler::OnFrameStart() {
     // HUD and menu draws of the frame just upscaled still go to its host display buffer.
     display_redirect = ui_phase || composite_done;
     composite_done = false;
+    tonemap_pending = false;
     ui_phase = false;
     ui_read_barrier = false;
     done_this_frame = false;
@@ -1616,7 +1633,7 @@ void TemporalUpscaler::RunScaled() {
         failed = true;
         return;
     }
-    EnsureUiResources(ow, oh, color.info.pixel_format, depth.info.pixel_format);
+    EnsureUiResources(ow, oh, LdrFormat(color.info.pixel_format), depth.info.pixel_format);
     PrepareUiDepth(camera_motion.Depth());
     const auto depth_format = depth.info.pixel_format;
     // Views kept across frames: FSR 4 registers images by view in a registry of eight.
@@ -1637,7 +1654,7 @@ void TemporalUpscaler::RunScaled() {
         source_height = h;
     } else {
         depth_view = CachedView(depth, depth_format, vk::ImageAspectFlagBits::eDepth);
-        color_view = CachedView(color, color.info.pixel_format, vk::ImageAspectFlagBits::eColor);
+        color_view = CachedView(color, LdrFormat(color.info.pixel_format), vk::ImageAspectFlagBits::eColor);
         runtime.Transit(&depth, vk::ImageLayout::eGeneral, vk::PipelineStageFlagBits2::eComputeShader,
                         vk::AccessFlagBits2::eShaderRead);
         runtime.Transit(&color, vk::ImageLayout::eGeneral, vk::PipelineStageFlagBits2::eComputeShader,
@@ -1699,7 +1716,7 @@ void TemporalUpscaler::RunScaled() {
             RecordTaa(cmdbuf, color_view, depth_view);
         } else if (UseDlss()) {
             ok4 = RecordDlss(cmdbuf,
-                             {color_image, color_view, color.info.pixel_format,
+                             {color_image, color_view, LdrFormat(color.info.pixel_format),
                               vk::ImageAspectFlagBits::eColor, source_width, source_height},
                              {depth_image, depth_view, depth_format, vk::ImageAspectFlagBits::eDepth,
                               source_width, source_height},
@@ -1795,7 +1812,7 @@ void TemporalUpscaler::RunScaled() {
     FfxVkPortableUpscaleDispatchInfo info{};
     info.structSize = sizeof(info);
     info.commandBuffer = cmdbuf;
-    info.color = Describe(color_image, color.info.pixel_format, source_width, source_height,
+    info.color = Describe(color_image, LdrFormat(color.info.pixel_format), source_width, source_height,
                           color.usage_flags, vk::ImageAspectFlagBits::eColor,
                           FFX_VK_PORTABLE_RESOURCE_STATE_GENERIC_READ);
     info.depth = Describe(depth_image, depth_format, source_width, source_height, depth.usage_flags,
@@ -1958,28 +1975,25 @@ TemporalUpscaler::DisplayImage& TemporalUpscaler::HostDisplay(VAddr address, vk:
     return display;
 }
 
-bool TemporalUpscaler::OnComposite(u64 ps_hash, VideoCore::ImageId color) {
-    if (!composite_frames || ps_hash != composite_ps || !color || !ldr_target) {
-        return false;
-    }
-    const auto& target = texture_cache.GetImage(color);
-    const VAddr address = target.info.guest_address;
-    if (!FrameCapture::IsDisplayBuffer(address)) {
-        return false;
-    }
+void TemporalUpscaler::UpscaleToUi(VideoCore::ImageId source) {
     // The upscale writes ui_image (output size): FSR 3.1 / FSR 4 / DLSS / TAA with the scene's
     // depth and the velocity pass's camera. Without them (anti-aliasing off, menus without a 3D
     // scene, the upscaler failed) FSR 1 (EASU) upscales the frame when it is on, else a bilinear
-    // stretch; the sharpening (RCAS) follows at the presenter, on the output-size frame.
+    // stretch; the sharpening (RCAS) follows at the presenter, on the output-size frame. After
+    // it, draws into the source go to ui_image at the output size (RedirectColor).
+    ldr_target = source;
     if (Active() && !failed && camera_motion.Ready()) {
         RunScaled();
     }
     auto& ldr = texture_cache.GetImage(ldr_target);
     if (!ui_phase) {
-        EnsureUiResources(target_width, target_height, ldr.info.pixel_format,
+        EnsureUiResources(target_width, target_height, LdrFormat(ldr.info.pixel_format),
                           vk::Format::eD32SfloatS8Uint);
         const auto [w, h] = SceneSize(ldr.info.size.width, ldr.info.size.height);
-        const bool fsr1 = Gow3Settings::Get().fsr1 && w < ui_width && h < ui_height;
+        // An sRGB source (the tonemapped frame) would be decoded by a blit into the UNORM
+        // ui_image: FSR 1 reads it through a UNORM view instead.
+        const bool srgb = LdrFormat(ldr.info.pixel_format) != ldr.info.pixel_format;
+        const bool fsr1 = (Gow3Settings::Get().fsr1 || srgb) && w < ui_width && h < ui_height;
         if (fsr1) {
             runtime.Transit(&ldr, vk::ImageLayout::eShaderReadOnlyOptimal,
                             vk::PipelineStageFlagBits2::eComputeShader,
@@ -1990,7 +2004,7 @@ bool TemporalUpscaler::OnComposite(u64 ps_hash, VideoCore::ImageId color) {
         }
         runtime.FlushBarriers();
         const vk::ImageView ldr_view =
-            fsr1 ? CachedView(ldr, ldr.info.pixel_format, vk::ImageAspectFlagBits::eColor)
+            fsr1 ? CachedView(ldr, LdrFormat(ldr.info.pixel_format), vk::ImageAspectFlagBits::eColor)
                  : vk::ImageView{};
         scheduler.EndRendering();
         const auto cmd = scheduler.CommandBuffer();
@@ -2052,6 +2066,43 @@ bool TemporalUpscaler::OnComposite(u64 ps_hash, VideoCore::ImageId color) {
                           vk::ImageLayout::eGeneral, stretch, vk::Filter::eLinear);
         }
         reset = true; // the history doesn't continue across stretched frames
+        done_this_frame = true;
+        ui_phase = true;
+        ui_color = ldr_target;
+        ui_depth = {};
+    }
+}
+
+bool TemporalUpscaler::OnComposite(u64 ps_hash, VideoCore::ImageId color) {
+    if (!composite_frames || !color) {
+        return false;
+    }
+    // The tonemap draw finishes the frame in its target; Uncharted 3 then draws world-anchored
+    // prompts (the journal, the d-pad) into it before the copies. The draw after the tonemap
+    // upscales the clean frame, so those prompts are drawn over it at the output size.
+    if (tonemap_pending) {
+        tonemap_pending = false;
+        UpscaleToUi(tonemap_target);
+    }
+    if (tonemap_ps && ps_hash == tonemap_ps && !ui_phase) {
+        tonemap_target = color;
+        tonemap_pending = true;
+        return false;
+    }
+    if (ps_hash != composite_ps) {
+        return false;
+    }
+    const auto& target = texture_cache.GetImage(color);
+    const VAddr address = target.info.guest_address;
+    if (!FrameCapture::IsDisplayBuffer(address)) {
+        return false;
+    }
+    if (!ui_phase) {
+        // No tonemap this frame: the copy's source, as it is.
+        if (!ldr_target) {
+            return false;
+        }
+        UpscaleToUi(ldr_target);
     }
     // ui_image -> the host display buffer, byte for byte: the game's copy already holds the
     // sRGB-encoded values its composite writes through an sRGB buffer unchanged (a blit would
