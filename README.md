@@ -17,7 +17,7 @@ By **BilalReloaded** ([YouTube](https://www.youtube.com/@BilalReloaded/videos),
 
 | Game | Plays | Notes |
 |---|---|---|
-| Uncharted: Drake's Fortune | Yes | 60 FPS in the tested areas. Native rendering up to 2880x1620 (4K output through FSR 1). |
+| Uncharted: Drake's Fortune | Yes | 60 FPS in the tested areas. Native rendering up to 2880x1620 (4K output upscaled from it, the HUD at 4K). |
 | Uncharted 2: Among Thieves | Yes | Played at 1440p and 4K. 60 FPS and more; the heaviest view 99 FPS at 4K on an RTX 5080 (frame limit 120). |
 | Uncharted 3: Drake's Deception | Yes | Played at 1080p and 1440p, 4K tested: the Cartagena crowd 90 FPS at 4K on an RTX 5080 (frame limit 120). |
 
@@ -34,8 +34,8 @@ plan and test list: [analysis/PLAN.md](analysis/PLAN.md).
 - **Weakest GPU tested: the integrated AMD Radeon graphics of a Ryzen 7000/9000 desktop CPU**
   (2 compute units, about a quarter of a PS4's GPU). At **720p**: Uncharted 3 27-39 FPS,
   Uncharted 2 27 FPS, Drake's Fortune 24 FPS; at **540p** Uncharted 3 33 FPS. Playable, not
-  smooth. Settings: preset **Low**, render resolution **540p or 720p** with FSR 1, anti-aliasing
-  off.
+  smooth. Settings: preset **Low**, or resolution **1080p** with upscaling **FSR 1** at
+  **Performance** (the game draws 960x540) or **Ultra Performance**, anti-aliasing off.
 - **4 CPU cores:** 60 FPS in Drake's Fortune and Uncharted 3 (title screen and in play; a 4-core
   test with a fast GPU), with **Idle game threads: Sleep** (the default). On a 4-6 core CPU also
   try **Multithreaded rendering** (per game) and keep **Frames queued at 1**.
@@ -47,12 +47,12 @@ plan and test list: [analysis/PLAN.md](analysis/PLAN.md).
 - A card per game; settings are kept **per game**.
 - Quality presets:
 
-  | Preset | Render resolution | Frame rate | For |
+  | Preset | Resolution | Frame rate | For |
   |---|---|---|---|
-  | Low | 720p + FSR 1 to the screen | 60 | weak GPUs (about twice as fast as 1080p) |
+  | Low | 1080p, FSR 1 Performance (draws 960x540) | 60 | weak GPUs |
   | Medium | 1080p (as on PS4) | 60 | most PCs |
   | High | 1440p | 60 | fast GPUs |
-  | Ultra | 4K (Drake's Fortune: 1620p + FSR 1) | up to 120 (experimental) | very fast GPUs |
+  | Ultra | 4K (Drake's Fortune draws 1620p, upscaled) | up to 120 (experimental) | very fast GPUs |
 
   Every preset queues 1 frame. 2 frames queued is faster in heavy scenes, but GPU results
   reach the game a frame later: keep it at 1.
@@ -64,12 +64,16 @@ plan and test list: [analysis/PLAN.md](analysis/PLAN.md).
   GPU commands are otherwise processed on one CPU core, which limits slower CPUs; with this option
   the Vulkan command recording runs on a second core. On fast desktop CPUs it makes no difference.
   If a game hangs while loading, turn that option off again. With a weak GPU also pick the **Low**
-  preset (720p + FSR 1); integrated GPUs: render resolution **540p** with FSR 1.
+  preset (FSR 1 Performance at 1080p); integrated GPUs: FSR 1 **Ultra Performance**.
 
-- **Display:** windowed, borderless or exclusive fullscreen; render resolution 540p, 720p, 900p, 1080p,
-  1440p, 1620p or 4K; aspect ratio 16:9, 21:9, 32:9; anti-aliasing (TAA, FSR 3.1/FSR 4 Native AA,
-  NVIDIA DLAA);
-  FSR 1 upscaling; RCAS sharpening; FPS counter.
+- **Display:** windowed, borderless or exclusive fullscreen; resolution 540p, 720p, 900p, 1080p,
+  1440p, 1620p or 4K; aspect ratio 16:10, 16:9, 21:9, 32:9; **upscaling** FSR 1, FSR 3.1, FSR 4
+  or NVIDIA DLSS: the game draws below the resolution (Quality 1/1.5, Balanced 1/1.7, Performance
+  1/2, Ultra Performance 1/3 of its width and height) and each frame is upscaled to it before the
+  HUD and menus, which stay sharp; FSR 3.1, FSR 4 and DLSS also at the resolution (Native AA,
+  DLAA); anti-aliasing TAA (with upscaling off or FSR 1); RCAS sharpening; FPS counter. Upscaling
+  saves GPU time only: where the CPU limits the frame rate (most PCs at 1080p and 1440p, Steam
+  Deck) it changes little.
 - **Performance:** frame rate limit 30 / 40 / 45 / 50 / 55 / 60 / 75 / 90 / 100 / 120 (60 is the
   PS4's; above 60 is experimental, and faster than 120 breaks the games' movement, so it is not
   offered; with VSync a limit at or above the monitor's refresh rate follows the monitor); frames
@@ -116,7 +120,8 @@ controller buttons).
   **Vulkan/OpenGL present method: Prefer native**, or use OBS **Window Capture**.
 - **Frames queued 2** is faster in heavy scenes, but GPU results reach the game a frame later
   (Uncharted 2's NPCs float, Nate's feet sink into the floor): keep it at 1 (every preset does).
-- Drake's Fortune renders at most 2880x1620 (its memory layout) and upscales to 4K; turn on FSR 1.
+- Drake's Fortune renders at most 2880x1620 (its memory layout); above it that size is upscaled
+  to the resolution before the HUD (FSR 1, or the temporal upscaler chosen).
 - Frame rates above 120 are not offered: the games' movement breaks (Drake's Fortune at 160 FPS
   dropped Nate through the world).
 - Uncharted 3 has had less play testing than the other two: please report crashes with the log

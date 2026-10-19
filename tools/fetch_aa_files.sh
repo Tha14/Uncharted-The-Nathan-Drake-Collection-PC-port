@@ -72,12 +72,17 @@ if [[ $want == *fsr4* ]]; then
     base="https://raw.githubusercontent.com/FireBurn/Q2RTX/$commit/baseq2/fsr4_shaders"
     dest=gow3_pc/fsr4_shaders
     model=fsr4_model_v07_i8_native
-    files=(LICENSE-FSR4-v07.txt rcas.spv fsr4_rcas.spv spd_auto_exposure.spv "${model}_initializers.bin"
-           "${model}_pre_weights.bin" "${model}_shader_manifest.json" "${model}_pre.spv" "${model}_post.spv")
-    for tier in 1080 2160; do
-        files+=("${model}_${tier}_pre.spv" "${model}_${tier}_post.spv")
-        for pass in $(seq 1 12); do
-            files+=("${model}_${tier}_pass${pass}.spv")
+    files=(LICENSE-FSR4-v07.txt rcas.spv fsr4_rcas.spv spd_auto_exposure.spv "${model}_pre.spv" "${model}_post.spv")
+    # Native AA, and the upscaling models a render resolution below the output picks by its
+    # scale (1.5 Quality, 1.7 Balanced, 2 Performance, more Ultra Performance): ~5 MB each.
+    for preset in native quality balanced performance ultraperf; do
+        model=fsr4_model_v07_i8_$preset
+        files+=("${model}_initializers.bin" "${model}_pre_weights.bin" "${model}_shader_manifest.json")
+        for tier in 1080 2160; do
+            files+=("${model}_${tier}_pre.spv" "${model}_${tier}_post.spv")
+            for pass in $(seq 1 12); do
+                files+=("${model}_${tier}_pass${pass}.spv")
+            done
         done
     done
     for file in "${files[@]}"; do

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "common/types.h"
+#include "video_core/renderer_vulkan/host_passes/fsr_pass.h"
 #include "video_core/renderer_vulkan/vk_common.h"
 #include "video_core/renderer_vulkan/vk_dlss.h"
 #include "video_core/renderer_vulkan/vk_fsr4.h"
@@ -122,6 +123,17 @@ public:
         u32 width, height;
     };
     bool DisplayOverride(VAddr address, Display& display);
+
+    /// gow3: Uncharted drawn below the output size (velocity mode, GOW3_RENDER_RES smaller than
+    /// GOW3_OUTPUT_RES, GOW3_UI_COMPOSITE_PS). The game copies its finished frame back into the
+    /// display buffer with that pixel shader and draws the HUD and menus over it. That copy is
+    /// replaced by the upscale into a host display buffer of the output size; the HUD and menu
+    /// draws after it go there at the output resolution. True: skip the guest's draw, and the
+    /// next frame starts here (the rasterizer calls OnFrameStart).
+    bool OnComposite(u64 ps_hash, VideoCore::ImageId color);
+    [[nodiscard]] bool CompositeFrames() const noexcept {
+        return composite_frames;
+    }
 
 private:
     /// gow3: views of guest images the upscaler reads, kept across frames: FSR 4 registers
@@ -246,6 +258,13 @@ private:
     };
     std::mutex display_mutex;
     std::unordered_map<VAddr, DisplayImage> displays;
+    /// The host buffer for a display buffer at ui_width x ui_height (display_mutex held).
+    DisplayImage& HostDisplay(VAddr address, vk::Format format);
+    u64 composite_ps = 0;
+    bool composite_frames = false;  ///< OnComposite replaces the frame's display copy
+    bool composite_done = false;    ///< this frame's OnComposite ran: its UI draws follow
+    HostPasses::FsrPass fsr1_pass;  ///< FSR 1 (EASU) at OnComposite without a temporal upscale
+    bool fsr1_created = false;
     FfxVkPortableUpscaleContext* context = nullptr;
     bool resources_ready = false; ///< images below match width/height/out size
     bool resources_fsr4 = false;  ///< made for FSR 4 (no FSR 3 context)

@@ -852,9 +852,10 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
         move = executable != "eboot.bin"
         candidates = [(width, height)] + [size for size in U1_FALLBACK_SIZES if size[0] * size[1] < width * height]
         if abs(width / height - 16 / 9) > 0.01:
-            # Ultrawide: smaller sizes of the same shape (width/8 and height/4 whole).
+            # Ultrawide: smaller sizes of the same shape (width/16 and height/4 whole: Uncharted 3
+            # asserts widths in steps of 16 in its post processing).
             candidates = [(width, height)] + [
-                (int(width * scale) // 8 * 8, int(height * scale) // 4 * 4)
+                (int(width * scale) // 16 * 16, int(height * scale) // 4 * 4)
                 for scale in (0.9, 0.8, 0.75, 2 / 3, 0.6, 0.5)]
         extra_mib = 0
         for candidate in candidates:
@@ -985,6 +986,27 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
     # (gpu/shim/videodec2; else movies come out green and tiled above 1080p).
     if render_size != (1920, 1080):
         env["GOW3_MOVIE_SIZE"] = f"{render_size[0]}x{render_size[1]}"
+    # Output resolution above the render resolution (UNCHARTED_OUTPUT_RES[_U1/_U2/_U3]=WxH): the
+    # game draws at the render size and its finished frame is upscaled to the output size where
+    # it copies the frame back into the display buffer (pixel shader 749bbec9, the same post
+    # processing in all three games): by FSR 3.1, FSR 4 or DLSS, else TAA (at the render size) or
+    # nothing, then FSR 1 when its setting is on or a bilinear stretch. The HUD and menus are
+    # drawn after that at the output size (TemporalUpscaler::OnComposite). Needs the temporal
+    # anti-aliasing's camera tracking.
+    output = (os.environ.get(f"UNCHARTED_OUTPUT_RES_{game_key.upper()}")
+              or os.environ.get("UNCHARTED_OUTPUT_RES", "")).lower()
+    if "x" not in output and render_size != (width, height):
+        # Drake's Fortune above the size it can render at: that size is upscaled to the one chosen,
+        # with FSR 1 unless a temporal upscaler is chosen (the presets' FSR 1 to the screen before).
+        output = f"{width}x{height}"
+        env.setdefault("GOW3_FSR1", "1")
+    if "x" in output and os.environ.get("UNCHARTED_TEMPORAL_AA", "1") != "0":
+        out_w, out_h = (int(value) for value in output.split("x"))
+        if out_w > render_size[0] or out_h > render_size[1]:
+            env["GOW3_RENDER_RES"] = f"{render_size[0]}x{render_size[1]}"
+            env["GOW3_OUTPUT_RES"] = f"{out_w}x{out_h}"
+            env.setdefault("GOW3_UI_COMPOSITE_PS", "749bbec9")
+            print(f"Upscaling: {render_size[0]}x{render_size[1]} -> {out_w}x{out_h}")
     pad_file=user / "probe-pad.txt"
     pad_file.write_text("",encoding="ascii")
     env["GOW3_PAD_FILE"] = str(pad_file)
