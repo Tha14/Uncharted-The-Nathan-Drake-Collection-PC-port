@@ -424,7 +424,8 @@ void ImageTab() {
     ImGui::SeparatorText("Scaling and sharpening");
     if (BeginRows("##scaling")) {
         CheckRow("Upscale with FSR 1", s.fsr1,
-                 "Enlarges a smaller game image to the window. For more FPS: Render resolution 720p + FSR 1.");
+                 "Upscales the game's image: before the HUD with the launcher's Upscaling (FSR 1), else a "
+                 "smaller image to the window.");
         ImGui::BeginDisabled(rcas_blocked);
         CheckRow("Sharpening (RCAS)", s.rcas,
                  rcas_blocked && downscaling ? "No effect: the game's image is larger than the window."
@@ -458,7 +459,13 @@ void ImageTab() {
         InfoRow("Game image", text);
         std::snprintf(text, sizeof(text), "%d x %d", ww, wh);
         InfoRow("Window", text);
-        InfoRow("FSR 1", !s.fsr1 ? "off" : upscaling ? "active" : "no effect (image not smaller than window)");
+        // The launcher's Upscaling draws the game below the output size (GOW3_RENDER_RES): FSR 1
+        // upscales it before the HUD (TemporalUpscaler::OnComposite) unless an upscaler runs.
+        const char* scaled = std::getenv("GOW3_RENDER_RES");
+        InfoRow("FSR 1", !s.fsr1 ? "off"
+                         : scaled && *scaled ? "upscales the game before the HUD"
+                         : upscaling ? "active"
+                                     : "no effect (image not smaller than window)");
         InfoRow("Sharpening", s.rcas_applied ? "applied" : "not applied");
         ImGui::EndTable();
     }

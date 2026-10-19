@@ -1481,17 +1481,7 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
         scheduler.PopPendingOperations();
     }
     const auto& regs = Regs();
-    // gow3: the pass copying a finished frame to a display buffer; the previous draw's
-    // target is that frame. 19 Oct 2026, from Supermedo/uncharted_pc #261 (kj2223): Uncharted
-    // draws twice into the same display buffer per frame (484cdbf5, then 749bbec9; measured 2
-    // frame starts per shown frame): only the first starts a frame. The second reset the
-    // upscaler's history every frame (shimmer on every edge under TAA, FSR and DLAA) and
-    // skipped every other jitter phase. Toggle 1 << 59 brings the old behaviour back.
-    if (camera_motion->Enabled() && regs.color_buffers[0] &&
-        FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address()) &&
-        (scene_started || regs.color_buffers[0].Address() != frame_display_address ||
-         Gow3Toggle::Disabled(Gow3Toggle::OneFrameStart))) {
-        frame_display_address = regs.color_buffers[0].Address();
+    const auto frame_start = [&] {
         scene_started = false;
         camera_motion->OnDisplayPass(cb_descs[0].first);
         if (upscaler->OnFrameStart()) {
@@ -1504,6 +1494,22 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
         static const char* scene_debug = std::getenv("GOW3_SCENE_DEBUG");
         scene_debug_frame = scene_debug && std::remove(scene_debug) == 0;
         scene_targets->debug = scene_debug_frame;
+    };
+    // gow3: the pass copying a finished frame to a display buffer; the previous draw's
+    // target is that frame. 19 Oct 2026, from Supermedo/uncharted_pc #261 (kj2223): Uncharted
+    // draws twice into the same display buffer per frame (484cdbf5, then 749bbec9; measured 2
+    // frame starts per shown frame): only the first starts a frame. The second reset the
+    // upscaler's history every frame (shimmer on every edge under TAA, FSR and DLAA) and
+    // skipped every other jitter phase. Toggle 1 << 59 brings the old behaviour back.
+    // Below the output size Uncharted's frames start at the upscale instead
+    // (TemporalUpscaler::OnComposite): its finished frame, the copy back and the HUD are
+    // several draws into the display buffer.
+    if (camera_motion->Enabled() && !upscaler->CompositeFrames() && regs.color_buffers[0] &&
+        FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address()) &&
+        (scene_started || regs.color_buffers[0].Address() != frame_display_address ||
+         Gow3Toggle::Disabled(Gow3Toggle::OneFrameStart))) {
+        frame_display_address = regs.color_buffers[0].Address();
+        frame_start();
     }
     // gow3: without camera motion (Uncharted) the GPU profiler marks frames at the display pass
     // too. Its results are read with a wait four frames later, so everything recorded so far is
@@ -1518,6 +1524,12 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     motion_geometry = 0;
 
     PrepareRenderState(pipeline);
+    if (upscaler->CompositeFrames() && fragment &&
+        upscaler->OnComposite(fragment->pgm_hash, cb_descs[0].first)) {
+        bind_prepared = nullptr; // as after a draw: later dispatches bind without its sharps
+        frame_start();           // the guest's copy is replaced by the upscale
+        return;
+    }
     if (upscaler->Enabled() && std::popcount(pipeline->GetGraphicsKey().mrt_mask) == 1) {
         const auto& viewport = Regs().viewports[0];
         upscaler->OnDraw(pipeline->GetStage(Shader::SwStage::Vertex).pgm_hash,

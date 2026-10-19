@@ -97,8 +97,8 @@ CONFIG_FILE = (WINE and shared_config_file()) or PREFIX_CONFIG_FILE
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 APP_TITLE = "Uncharted: The Nathan Drake Collection"
 # Credits shown on the Advanced page: the anti-aliasing technologies.
-CREDITS = ("Credits: DLAA uses NVIDIA DLSS technology. NVIDIA, RTX and DLSS are trademarks of NVIDIA "
-           "Corporation. AMD FidelityFX Super Resolution (FSR 3.1, FSR 4) by AMD. Uncharted camera "
+CREDITS = ("Credits: DLSS and DLAA use NVIDIA DLSS technology. NVIDIA, RTX and DLSS are trademarks of "
+           "NVIDIA Corporation. AMD FidelityFX Super Resolution (FSR 3.1, FSR 4) by AMD. Uncharted camera "
            "motion for anti-aliasing after SuperMedo's Uncharted port.")
 # The author's links in the launcher header: label, address, color, hover color.
 LINKS = (("Patreon", "https://www.patreon.com/c/bilalreloaded", "#f96854", "#ff7f6e"),
@@ -699,10 +699,49 @@ RESOLUTIONS = [("960x540", "540p"), ("1280x720", "720p"), ("1600x900", "900p"), 
 # show more at the top and bottom.
 ASPECTS = [("16:10", "16:10"), ("16:9", "16:9"), ("21:9", "21:9"), ("32:9", "32:9")]
 ASPECT_WIDTHS = {"16:10": 16 / 10, "16:9": 16 / 9, "21:9": 64 / 27, "32:9": 32 / 9}
+# Upscaling: the resolution chosen is the output; the game draws at it divided by the quality's
+# scale and the upscaler brings each frame up to it before the HUD is drawn. FSR 1 is spatial (the
+# frame alone; the "fsr1" setting); FSR 3.1, FSR 4 and DLSS are temporal (the runtime's "upscaler"
+# setting, also the in-game menu's): they smooth edges themselves, at the resolution too (Native
+# AA, DLAA). TAA, the other "upscaler" value, is the anti-aliasing with Off and FSR 1.
+UPSCALE_PRESETS = [("off", "Native AA"), ("quality", "Quality"), ("balanced", "Balanced"),
+                   ("performance", "Performance"), ("ultra", "Ultra Performance")]
+UPSCALE_SCALES = {"quality": 1.5, "balanced": 1.7, "performance": 2.0, "ultra": 3.0}
+TEMPORAL_UPSCALERS = ("fsr3", "fsr4", "fsr411", "dlss")
+
+
+def upscaling_choice(ini):
+    """The upscaler a game's settings file holds: a temporal one, else FSR 1, else "off"."""
+    upscaler = ini.get("upscaler", INI_DEFAULTS["upscaler"])
+    if upscaler in TEMPORAL_UPSCALERS:
+        return upscaler
+    return "fsr1" if ini.get("fsr1", "0") == "1" else "off"
+
+
+def anti_aliasing_choice(ini, settings):
+    """TAA or off: the runtime's setting with Off and FSR 1; kept in the game's launcher settings
+    while a temporal upscaler (which smooths edges itself) takes the runtime's setting."""
+    upscaler = ini.get("upscaler", INI_DEFAULTS["upscaler"])
+    if upscaler in ("off", "taa"):
+        return upscaler
+    return "taa" if settings.get("aa") == "taa" else "off"
+
+
+def game_sizes(settings, upscaling):
+    """The size a game draws at and, with upscaling, the size it is upscaled to (else None).
+    The engines need widths in steps of 16 (Uncharted 3 asserts it in its post processing) and
+    heights in steps of 4 (the tile grid)."""
+    output = aspect_resolution(settings["resolution"], settings.get("aspect", "16:9"))
+    scale = UPSCALE_SCALES.get(settings.get("upscale", "off"))
+    if not scale or (upscaling not in TEMPORAL_UPSCALERS and upscaling != "fsr1"):
+        return output, None
+    width, height = (int(v) for v in output.split("x"))
+    render = f"{max(16, round(width / scale / 16) * 16)}x{max(4, round(height / scale / 4) * 4)}"
+    return render, output
 
 
 def aspect_resolution(resolution, aspect):
-    """The render resolution at the aspect ratio: 1440p at 21:9 is 3440x1440 (widths in steps of 8),
+    """The render resolution at the aspect ratio: 1440p at 21:9 is 3440x1440 (widths in steps of 16),
     720p at 16:10 is 1280x800 (heights in steps of 4)."""
     width, height = (int(v) for v in resolution.split("x"))
     if aspect not in ASPECT_WIDTHS or aspect == "16:9":
@@ -712,7 +751,7 @@ def aspect_resolution(resolution, aspect):
     elif aspect == "21:9" and height in (1080, 1440, 1600):
         width = {1080: 2560, 1440: 3440, 1600: 3840}[height]  # the common monitor sizes
     else:
-        width = int(round(height * ASPECT_WIDTHS[aspect] / 8)) * 8
+        width = int(round(height * ASPECT_WIDTHS[aspect] / 16)) * 16
     return f"{width}x{height}"
 
 
@@ -726,76 +765,58 @@ def resolution_options(aspect):
     return options
 
 # Quality presets: the game has one detail level (the PS4's); quality here is the resolution the
-# game draws at, how it reaches the screen (FSR 1, sharpening) and the frame rate. Above 1080p the
+# game draws at, the upscaling, the sharpening and the frame rate. Above 1080p the
 # render resolution is new (October 2026): confirm in play. All three games draw at 4K
 # natively except Drake's Fortune, which stops at 1620p (its memory layout) and upscales.
 PRESETS = {
     "low": {
-        "title": "LOW", "summary": "60 FPS  •  720p + FSR 1",
-        "detail": "For integrated and older graphics cards: the game draws at 720p and FSR 1 scales "
-                  "it up to your screen.",
-        "resolution": "1280x720",
+        "title": "LOW", "summary": "60 FPS  •  1080p, FSR 1",
+        "detail": "For integrated and older graphics cards: the game draws at half of 1080p and FSR 1 "
+                  "upscales it; the HUD stays sharp.",
+        "resolution": "1920x1080", "upscale": "performance",
         "values": {"fps_limit": "60", "frames_queued": "1", "vsync": "1", "async_shaders": "1",
                    "fsr1": "1", "rcas": "1", "rcas_strength": "75"},
     },
     "medium": {
         "title": "MEDIUM", "summary": "60 FPS  •  as on PS4",
         "detail": "Like the PS4: 1080p at 60 FPS. Right for most PCs.",
-        "resolution": "1920x1080",
+        "resolution": "1920x1080", "upscale": "off",
         "values": {"fps_limit": "60", "frames_queued": "1", "vsync": "1", "async_shaders": "1",
                    "fsr1": "0", "rcas": "1", "rcas_strength": "75"},
     },
     "high": {
         "title": "HIGH", "summary": "60 FPS  •  1440p",
-        "detail": "Sharper: the game draws at 1440p. On a 4K screen FSR 1 scales it up.",
-        "resolution": "2560x1440",
+        "detail": "Sharper: the game draws at 1440p.",
+        "resolution": "2560x1440", "upscale": "off",
         "values": {"fps_limit": "60", "frames_queued": "1", "vsync": "1", "async_shaders": "1",
-                   "fsr1": None, "rcas": "1", "rcas_strength": "50"},
+                   "fsr1": "0", "rcas": "1", "rcas_strength": "50"},
     },
     "ultra": {
         "title": "ULTRA", "summary": "4K  •  up to 120 FPS",
         "detail": "For fast graphics cards: native 4K and up to 120 FPS (experimental). Drake's "
                   "Fortune draws at 1620p and scales up.",
-        "resolution": "3840x2160",
+        "resolution": "3840x2160", "upscale": "off",
         "values": {"fps_limit": str(MAX_FPS), "frames_queued": "1", "vsync": "1", "async_shaders": "1",
-                   "fsr1": None, "rcas": "1", "rcas_strength": "50"},
+                   "fsr1": "0", "rcas": "1", "rcas_strength": "50"},
     },
 }
 PRESET_ORDER = ("low", "medium", "high", "ultra")
 
 
-def anti_aliasing_options():
-    """Temporal anti-aliasing at the render resolution (the runtime's "upscaler" setting): FSR 4
-    when its model files are installed, DLAA when the DLSS files are beside Uncharted.exe."""
-    options = [("off", "Off"), ("taa", "TAA"), ("fsr3", "FSR 3.1")]
+def upscaling_options():
+    """FSR 1 and FSR 3.1 always; FSR 4 when its model files are installed, DLSS when its files are
+    beside Uncharted.exe."""
+    options = [("off", "Off"), ("fsr1", "FSR 1"), ("fsr3", "FSR 3.1")]
     if (ROOT / "gow3_pc/fsr4_shaders/fsr4_model_v07_i8_native_1080_pre.spv").is_file():
         options.append(("fsr4", "FSR 4"))
     out = ROOT / "gow3_pc/out"
     if (out / "gow3_dlss.dll").is_file() and (out / "nvngx_dlss.dll").is_file():
-        options.append(("dlss", "DLAA"))
+        options.append(("dlss", "DLSS"))
     return options
 
 
-def screen_size():
-    try:
-        user32 = ctypes.windll.user32
-        return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
-    except Exception:
-        return 1920, 1080
-
-
-def fsr1_for(resolution):
-    """FSR 1 when the game's image is smaller than the screen (it upscales; else no effect)."""
-    width, height = (int(v) for v in resolution.split("x"))
-    screen_w, screen_h = screen_size()
-    return "1" if width < screen_w and height < screen_h else "0"
-
-
 def preset_values(name):
-    values = dict(PRESETS[name]["values"])
-    if values["fsr1"] is None:
-        values["fsr1"] = fsr1_for(PRESETS[name]["resolution"])
-    return values
+    return dict(PRESETS[name]["values"])
 
 
 def gpu_names():
@@ -1004,9 +1025,20 @@ def read_config():
         for game, entry in games.items():
             if entry["preset"] in PRESETS:
                 write_ini(game, {"frames_queued": "1"})
+    # Version 7: FSR 1 is an upscaler like FSR 3.1 (the game draws below the resolution); before,
+    # it scaled the finished frame up to a larger screen. Low draws at half of 1080p with it; other
+    # settings that had it on keep their resolution without it.
+    if config.get("version", 1) < 7:
+        for game, entry in games.items():
+            if entry["preset"] == "low":
+                entry["resolution"] = PRESETS["low"]["resolution"]
+                entry["upscale"] = PRESETS["low"]["upscale"]
+                write_ini(game, {"fsr1": "1"})
+            elif read_ini(game).get("fsr1") == "1" and entry.get("upscale", "off") == "off":
+                write_ini(game, {"fsr1": "0"})
     for name in GAME_SETTING_DEFAULTS:
         config.pop(name, None)
-    config["version"] = 6
+    config["version"] = 7
     # Under Wine the game folder is also kept as a Linux path: another prefix can show the same
     # folder under another drive letter (Launcher.game_dir).
     folder = config.get("game_dir")
@@ -1074,13 +1106,28 @@ class Segmented(tk.Frame):
     def __init__(self, parent, options, value, command, font, recommended=None):
         super().__init__(parent, bg=LINE, padx=1, pady=1)
         self.command, self.labels, self.value, self.recommended = command, {}, value, recommended
-        for i, (option, label) in enumerate(options):
+        self.enabled = True
+        for option, label in options:
             item = tk.Label(self, text=self.text(option, label), font=font, padx=12, pady=5, cursor="hand2", bd=0)
-            item.grid(row=0, column=i, padx=(0 if i == 0 else 1, 0))
-            item.bind("<Button-1>", lambda e, v=option: self.set(v, notify=True))
-            item.bind("<Enter>", lambda e, w=item, v=option: v != self.value and w.config(bg=PANEL_HI))
+            item.bind("<Button-1>", lambda e, v=option: self.enabled and self.set(v, notify=True))
+            item.bind("<Enter>", lambda e, w=item, v=option: self.enabled and v != self.value and w.config(bg=PANEL_HI))
             item.bind("<Leave>", lambda e: self.restyle())
             self.labels[option] = item
+        self.show(list(self.labels))
+        self.restyle()
+
+    def show(self, options):
+        """Only these choices, in their order (FSR 1 has no Native AA)."""
+        for item in self.labels.values():
+            item.grid_forget()
+        for i, option in enumerate(options):
+            self.labels[option].grid(row=0, column=i, padx=(0 if i == 0 else 1, 0))
+
+    def set_enabled(self, enabled):
+        """A disabled row shows its choice greyed and takes no clicks."""
+        self.enabled = enabled
+        for item in self.labels.values():
+            item.config(cursor="hand2" if enabled else "arrow")
         self.restyle()
 
     def text(self, option, label):
@@ -1102,7 +1149,10 @@ class Segmented(tk.Frame):
     def restyle(self):
         for option, item in self.labels.items():
             selected = option == self.value
-            item.config(bg=GOLD if selected else PANEL, fg=INK if selected else TEXT)
+            if self.enabled:
+                item.config(bg=GOLD if selected else PANEL, fg=INK if selected else TEXT)
+            else:
+                item.config(bg=PANEL_HI if selected else PANEL, fg=MUTED)
 
 
 class Dropdown(tk.Label):
@@ -1460,6 +1510,9 @@ class Launcher:
         self.refresh_render_size()
         if isinstance(self.widgets.get("aspect"), Segmented):
             self.widgets["aspect"].set(settings.get("aspect", "16:9"))
+        if isinstance(self.widgets.get("upscale"), Segmented):
+            self.widgets["upscale"].set(settings.get("upscale", "off"))
+        self.refresh_render_size()
         if isinstance(self.widgets.get("multithreaded"), Toggle):
             self.widgets["multithreaded"].set(settings["multithreaded"])
         if isinstance(self.widgets.get("mouse"), Toggle):
@@ -1717,9 +1770,9 @@ class Launcher:
     def apply_preset(self, name):
         settings = self.game_settings()
         settings["resolution"] = PRESETS[name]["resolution"]
+        settings["upscale"] = PRESETS[name]["upscale"]
         if "resolution" in self.widgets:
             self.widgets["resolution"].set(settings["resolution"])
-        self.refresh_render_size()
         for key, value in preset_values(name).items():
             self.ini[key] = value
             widget = self.widgets.get(key)
@@ -1731,21 +1784,14 @@ class Launcher:
         settings["preset"] = name
         write_config(self.config)
         self.save_ini({k: self.ini[k] for k in INI_DEFAULTS})
+        self.refresh_render_size()
         self.redraw_presets()
         self.update_fps_note()
 
     def page_display(self):
         page = self.page()
 
-        def resolution(parent):
-            return Segmented(parent, resolution_options(self.game_settings().get("aspect", "16:9")),
-                             self.game_settings()["resolution"], self.change_resolution, self.f_small)
-        self.widgets["resolution"] = self.row(
-            page, "Render resolution",
-            "How sharp the picture is; higher needs a faster graphics card (the PS4 drew 1080p). If a "
-            "game crashes above 1080p, go back to 1080p. Drake's Fortune draws at most 1620p and "
-            "scales up.", resolution)
-
+        # The screen's shape first, then the resolution at that shape.
         def aspect(parent):
             return Segmented(parent, ASPECTS, self.game_settings().get("aspect", "16:9"),
                              self.change_aspect, self.f_small)
@@ -1754,20 +1800,58 @@ class Launcher:
             "For ultrawide monitors (21:9, 32:9), with Borderless or Fullscreen: the games show more at "
             "the sides and the same view top to bottom as on a 16:9 screen. 16:10 (Steam Deck: 800p is "
             "1280x800) fills the screen and shows more at the top and bottom.", aspect)
+
+        def resolution(parent):
+            return Segmented(parent, resolution_options(self.game_settings().get("aspect", "16:9")),
+                             self.game_settings()["resolution"], self.change_resolution, self.f_small)
+        self.widgets["resolution"] = self.row(
+            page, "Resolution",
+            "How sharp the picture is; higher needs a faster graphics card (the PS4 drew 1080p). With "
+            "upscaling below, the game draws less and is upscaled to it. If a game crashes above 1080p, "
+            "go back to 1080p. Drake's Fortune draws at most 1620p and scales up.", resolution)
         self.render_size_note = tk.Label(page, text="", font=self.f_small, bg=BG, fg=GOLD, anchor="w")
         self.render_size_note.pack(side="top", fill="x", pady=(0, self.px(10)))
         self.refresh_render_size()
-        self.ini_choice(page, "upscaler", "Anti-aliasing",
-                        "Smooths jagged, shimmering edges. TAA is the lightest; FSR and DLAA (NVIDIA RTX "
-                        "cards) keep the most detail. Also in the in-game menu, where it changes at once.",
-                        anti_aliasing_options())
+        def upscaling(parent):
+            return Segmented(parent, upscaling_options(), upscaling_choice(self.ini), self.change_upscaling,
+                             self.f_small)
+        self.widgets["upscaling"] = self.row(
+            page, "Upscaling",
+            "More FPS: the game draws below the resolution and each frame is upscaled to it; the HUD and "
+            "menus stay sharp at the resolution. FSR 1 is the lightest and works on any card; FSR 3.1, "
+            "FSR 4 and DLSS (NVIDIA RTX cards) also use the previous frames: more detail, and they smooth "
+            "edges themselves. Also in the in-game menu.", upscaling)
+
+        # Shown with an upscaler only (refresh_upscale), right under it.
+        def upscale(parent):
+            box = tk.Frame(parent, bg=BG)
+            self.widgets["upscale"] = Segmented(
+                box, UPSCALE_PRESETS, self.game_settings().get("upscale", "off"),
+                lambda v: (self.change_game_setting("upscale", v), self.refresh_render_size()), self.f_small)
+            self.widgets["upscale"].pack(side="top", anchor="e")
+            self.upscale_note = tk.Label(box, text="", font=self.f_small, bg=BG, fg=GOLD, anchor="e")
+            self.upscale_note.pack(side="top", anchor="e", pady=(self.px(4), 0))
+            return box
+        self.upscale_row = self.row(
+            page, "Upscaling quality",
+            "How much below the resolution the game draws: Quality 1/1.5, Balanced 1/1.7, Performance 1/2, "
+            "Ultra Performance 1/3 of its width and height. Native AA (DLAA with DLSS) draws at the "
+            "resolution and only smooths edges.", upscale).master
+
+        def anti_aliasing(parent):
+            return Segmented(parent, [("off", "Off"), ("taa", "TAA")],
+                             anti_aliasing_choice(self.ini, self.game_settings()), self.change_anti_aliasing,
+                             self.f_small)
+        self.widgets["aa"] = self.row(
+            page, "Anti-aliasing",
+            "Smooths jagged, shimmering edges, with upscaling Off or FSR 1. FSR 3.1, FSR 4 and DLSS do "
+            "it themselves.", anti_aliasing)
+        self.refresh_render_size()
         self.ini_choice(page, "display_mode", "Display mode",
                         "A normal window, a borderless window (quick Alt+Tab) or fullscreen.",
                         [("windowed", "Windowed"), ("borderless", "Borderless"), ("fullscreen", "Fullscreen")])
         self.ini_toggle(page, "vsync", "VSync", "Stops tearing (a line across the picture when the camera turns). "
                                                "Recommended on.")
-        self.ini_toggle(page, "fsr1", "Upscale with FSR 1",
-                        "When the game draws below your screen's resolution, makes the scaled-up picture sharper.")
 
         def sharpening(parent):
             value = self.ini.get("rcas_strength", "75") if self.ini.get("rcas", "1") == "1" else "off"
@@ -2356,6 +2440,25 @@ class Launcher:
             self.redraw_presets()
         if key == "fps_limit":
             self.update_fps_note()
+        if key in ("upscaler", "fsr1"):
+            self.refresh_render_size()
+
+    def change_upscaling(self, value):
+        """An upscaler: a temporal one takes the runtime's anti-aliasing setting (TAA is kept for
+        Off and FSR 1); FSR 1 has no Native AA (it would do nothing)."""
+        settings = self.game_settings()
+        aa = anti_aliasing_choice(self.ini, settings)
+        settings["aa"] = aa
+        if value == "fsr1" and settings.get("upscale", "off") == "off":
+            settings["upscale"] = "quality"
+        write_config(self.config)
+        self.ini["fsr1"] = "1" if value == "fsr1" else "0"
+        self.save_ini({"fsr1": self.ini["fsr1"]})
+        self.change("upscaler", value if value in TEMPORAL_UPSCALERS else aa)
+
+    def change_anti_aliasing(self, value):
+        self.change_game_setting("aa", value)
+        self.change("upscaler", value)
 
     def change_resolution(self, value):
         self.game_settings()["resolution"] = value
@@ -2375,8 +2478,43 @@ class Launcher:
         if isinstance(self.widgets.get("resolution"), Segmented):
             self.widgets["resolution"].relabel(resolution_options(aspect))
         if hasattr(self, "render_size_note"):
-            width, height = aspect_resolution(settings["resolution"], aspect).split("x")
-            self.render_size_note.config(text=f"Render size: {width} × {height}")
+            # With upscaling on, the line under its presets shows the sizes instead.
+            render, output = game_sizes(settings, upscaling_choice(self.ini))
+            self.render_size_note.config(
+                text="" if output else f"Render size: {render.replace('x', ' × ')}")
+            if output and self.render_size_note.winfo_manager():
+                self.render_size_note.pack_forget()
+            elif not output and not self.render_size_note.winfo_manager() and "aspect" in self.widgets:
+                self.render_size_note.pack(side="top", fill="x", pady=(0, self.px(10)),
+                                           after=self.widgets["resolution"].master)
+        self.refresh_upscale()
+
+    def refresh_upscale(self):
+        """The upscaler, its quality row (with an upscaler only, right under it) with the size the
+        selected game draws at, and the anti-aliasing (greyed with a temporal upscaler)."""
+        if not hasattr(self, "upscale_row"):
+            return
+        settings = self.game_settings()
+        upscaling = upscaling_choice(self.ini)
+        self.widgets["upscaling"].set(upscaling)
+        if upscaling != "off":
+            if not self.upscale_row.winfo_manager():
+                self.upscale_row.pack(side="top", fill="x", pady=(0, self.px(10)),
+                                      after=self.widgets["upscaling"].master)
+        elif self.upscale_row.winfo_manager():
+            self.upscale_row.pack_forget()
+        quality = self.widgets["upscale"]
+        presets = [option for option, _ in UPSCALE_PRESETS]
+        quality.show(presets[1:] if upscaling == "fsr1" else presets)
+        quality.relabel([("off", "DLAA" if upscaling == "dlss" else "Native AA")])
+        quality.set(settings.get("upscale", "off"))
+        aa = self.widgets["aa"]
+        aa.set(anti_aliasing_choice(self.ini, settings))
+        aa.set_enabled(upscaling not in TEMPORAL_UPSCALERS)
+        render, output = game_sizes(settings, upscaling)
+        self.upscale_note.config(
+            text=f"Draws {render.replace('x', ' × ')}, upscaled to {output.replace('x', ' × ')}"
+            if output else "")
 
     def change_game_setting(self, key, value):
         self.game_settings()[key] = value
@@ -2433,8 +2571,14 @@ class Launcher:
         env.pop("GOW3_VBLANK_HZ", None)
         for key in GAME_KEYS:
             settings = self.config["games"][key]
-            env[f"UNCHARTED_RESOLUTION_{key.upper()}"] = aspect_resolution(settings["resolution"],
-                                                                         settings.get("aspect", "16:9"))
+            # With upscaling the game draws below the resolution chosen, upscaled to it
+            # (tools/probe_uncharted.py).
+            render, output = game_sizes(settings, upscaling_choice(read_ini(key)))
+            env[f"UNCHARTED_RESOLUTION_{key.upper()}"] = render
+            if output:
+                env[f"UNCHARTED_OUTPUT_RES_{key.upper()}"] = output
+            else:
+                env.pop(f"UNCHARTED_OUTPUT_RES_{key.upper()}", None)
             env[f"UNCHARTED_MULTITHREADED_{key.upper()}"] = "1" if settings["multithreaded"] else "0"
             # Controls: in each game's settings file (save_controls), where its menu changes them.
         python = Path(sys.executable)
