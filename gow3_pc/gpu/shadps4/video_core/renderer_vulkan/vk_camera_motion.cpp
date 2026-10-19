@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include <algorithm>
 #include "video_core/renderer_vulkan/vk_camera_motion.h"
+#include "shader_recompiler/runtime_info.h"
 
 #include <atomic>
 #include <chrono>
@@ -80,6 +81,12 @@ CameraMotion::CameraMotion(const Instance& instance_, Scheduler& scheduler_,
     if (velocity_mode) {
         std::printf("Camera motion: from the game's velocity pass (%zu shaders), scene %ux%u\n",
                     velocity_shaders.size(), scene_width, scene_height);
+        // Characters' own motion (skinning, animation) from their vertices: GOW3_CHARACTER_MOTION=0
+        // leaves them the camera's motion.
+        const char* characters = std::getenv("GOW3_CHARACTER_MOTION");
+        Shader::MotionVectors::stencil_gate = !(characters && characters[0] == '0');
+        std::printf("Camera motion: character motion vectors %s\n",
+                    Shader::MotionVectors::stencil_gate ? "on" : "off (GOW3_CHARACTER_MOTION=0)");
     }
     const auto device = instance.GetDevice();
     if (for_upscaler) {
@@ -343,8 +350,20 @@ void CameraMotion::OnVelocityConstants(const float* c, u32 dwords) {
 }
 
 void CameraMotion::RecordVelocity(vk::CommandBuffer cmdbuf, vk::ImageView depth_view,
-                                  vk::ImageView motion_view, u32 width, u32 height) {
+                                  vk::ImageView motion_view, u32 width, u32 height,
+                                  bool with_objects) {
     const auto& camera = velocity_camera;
+    // Mode 4: the characters' own motion (ObjectMotion, Shader::MotionVectors::stencil_gate)
+    // where it was written this frame; the camera's elsewhere.
+    bool objects = false;
+    vk::ImageView object_view = depth_view;
+    if (with_objects && camera.valid && Shader::MotionVectors::stencil_gate && object_motion &&
+        object_motion->Enabled()) {
+        object_view = object_motion->PrepareRead(cmdbuf, width, height, objects);
+        if (!objects) {
+            object_view = depth_view;
+        }
+    }
     const PushConstants push{
         .reproject = camera.to_previous_clip,
         .proj = camera.uv_to_view,
@@ -352,14 +371,14 @@ void CameraMotion::RecordVelocity(vk::CommandBuffer cmdbuf, vk::ImageView depth_
         .size = {float(width), float(height)},
         .jitter = jitter,
         .previous_jitter = previous_jitter,
-        .mode = camera.valid ? 2u : 3u,
+        .mode = objects ? 4u : camera.valid ? 2u : 3u,
     };
     const vk::DescriptorImageInfo depth_info{.imageView = depth_view,
                                              .imageLayout = vk::ImageLayout::eGeneral};
     const vk::DescriptorImageInfo motion_info{.imageView = motion_view,
                                               .imageLayout = vk::ImageLayout::eGeneral};
-    // Binding 2 (object motion) is not read in these modes.
-    const vk::DescriptorImageInfo velocity_info{.imageView = depth_view,
+    // Binding 2: the object motion in mode 4 (not read in the others).
+    const vk::DescriptorImageInfo velocity_info{.imageView = object_view,
                                                 .imageLayout = vk::ImageLayout::eGeneral};
     const std::array<vk::WriteDescriptorSet, 3> writes = {{
         {.dstBinding = 0,

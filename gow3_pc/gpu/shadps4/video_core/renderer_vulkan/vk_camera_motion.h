@@ -72,7 +72,7 @@ public:
     /// Records the motion vector pass from the velocity pass's camera into `motion_view`
     /// (RG16F storage, General), pixels, previous minus current; zero without that camera.
     void RecordVelocity(vk::CommandBuffer cmdbuf, vk::ImageView depth_view,
-                        vk::ImageView motion_view, u32 width, u32 height);
+                        vk::ImageView motion_view, u32 width, u32 height, bool objects = true);
     [[nodiscard]] VideoCore::ImageId Depth() const noexcept {
         return depth_id;
     }

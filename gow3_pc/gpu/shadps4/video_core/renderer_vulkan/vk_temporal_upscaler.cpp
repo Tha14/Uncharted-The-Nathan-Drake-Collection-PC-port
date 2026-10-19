@@ -1868,6 +1868,26 @@ void TemporalUpscaler::RunScaled() {
         reset = false;
         dispatched_last_frame = true;
         ExtraSharpen(cmdbuf, vk::Image(ui_image), true, ow, oh);
+        // GOW3_DUMP_TRIGGER: the inputs, the motion with and without the characters' own and
+        // the scene stencil (motion vector checks).
+        if (const int dump = DumpFrame(); dump >= 0 && camera_motion.VelocityMode()) {
+            DumpImages(instance, scheduler, cmdbuf, dump,
+                       {{color_image, source_width, source_height, 4, "input", "rgba"},
+                        {vk::Image(motion_image), w, h, 4, "motion", "rg16f"}});
+            DumpImages(instance, scheduler, cmdbuf, dump,
+                       {{depth_image, source_width, source_height, 4, "depth", "f32",
+                         vk::ImageAspectFlagBits::eDepth}});
+            DumpImages(instance, scheduler, cmdbuf, dump,
+                       {{depth_image, source_width, source_height, 1, "stencil", "u8",
+                         vk::ImageAspectFlagBits::eStencil}});
+            barrier(vk::Image(motion_image), vk::ImageAspectFlagBits::eColor,
+                    vk::ImageLayout::eGeneral, all, vk::AccessFlagBits2::eMemoryRead,
+                    vk::ImageLayout::eGeneral, vk::PipelineStageFlagBits2::eComputeShader,
+                    vk::AccessFlagBits2::eShaderWrite);
+            camera_motion.RecordVelocity(cmdbuf, depth_view, *motion_view, w, h, false);
+            DumpImages(instance, scheduler, cmdbuf, dump,
+                       {{vk::Image(motion_image), w, h, 4, "camera", "rg16f"}});
+        }
     }
     barrier(vk::Image(ui_image), vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eGeneral, all,
             rw, vk::ImageLayout::eGeneral, vk::PipelineStageFlagBits2::eColorAttachmentOutput,

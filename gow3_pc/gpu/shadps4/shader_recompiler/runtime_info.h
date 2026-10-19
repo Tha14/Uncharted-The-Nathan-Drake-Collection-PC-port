@@ -91,6 +91,11 @@ struct MotionVectors {
     static inline u64 positions_address = 0;
     static constexpr u32 FlagStore = 1;
     static constexpr u32 FlagLoad = 2;
+    /// gow3: Uncharted (the velocity pass camera): object motion for its G-buffer passes (one
+    /// target, the scene depth, stencil writes), for the draws whose vertices the GPU wrote
+    /// (skinned characters), instead of the 5-target G-buffer and bone palettes of the first
+    /// games.
+    static inline bool stencil_gate = false;
 };
 
 struct HwLocalRuntimeInfo {
