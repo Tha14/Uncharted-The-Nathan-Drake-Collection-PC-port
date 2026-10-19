@@ -584,21 +584,36 @@ def fps_limit_value(value):
 RESOLUTIONS = [("960x540", "540p"), ("1280x720", "720p"), ("1600x900", "900p"), ("1920x1080", "1080p"), ("2560x1440", "1440p"),
                ("2880x1620", "1620p"), ("3840x2160", "4K")]
 # Ultrawide: the render resolution's height at a wider aspect ratio. The games widen their view
-# (more to the sides, nothing stretched); menus and the HUD keep their layout.
-ASPECTS = [("16:9", "16:9"), ("21:9", "21:9"), ("32:9", "32:9")]
-ASPECT_WIDTHS = {"16:9": 16 / 9, "21:9": 64 / 27, "32:9": 32 / 9}
+# (more to the sides, nothing stretched); menus and the HUD keep their layout. 16:10 (Steam Deck,
+# 1280x800): the render resolution's width, taller; the games keep the 16:9 width of view and
+# show more at the top and bottom.
+ASPECTS = [("16:10", "16:10"), ("16:9", "16:9"), ("21:9", "21:9"), ("32:9", "32:9")]
+ASPECT_WIDTHS = {"16:10": 16 / 10, "16:9": 16 / 9, "21:9": 64 / 27, "32:9": 32 / 9}
 
 
 def aspect_resolution(resolution, aspect):
-    """The render resolution at the aspect ratio: 1440p at 21:9 is 3440x1440 (widths in steps of 8)."""
+    """The render resolution at the aspect ratio: 1440p at 21:9 is 3440x1440 (widths in steps of 8),
+    720p at 16:10 is 1280x800 (heights in steps of 4)."""
     width, height = (int(v) for v in resolution.split("x"))
     if aspect not in ASPECT_WIDTHS or aspect == "16:9":
         return resolution
-    if aspect == "21:9" and height in (1080, 1440, 1600):
+    if ASPECT_WIDTHS[aspect] < 16 / 9:
+        height = int(round(width / ASPECT_WIDTHS[aspect] / 4)) * 4
+    elif aspect == "21:9" and height in (1080, 1440, 1600):
         width = {1080: 2560, 1440: 3440, 1600: 3840}[height]  # the common monitor sizes
     else:
         width = int(round(height * ASPECT_WIDTHS[aspect] / 8)) * 8
     return f"{width}x{height}"
+
+
+def resolution_options(aspect):
+    """RESOLUTIONS labelled by the height the game draws at this aspect ratio (720p is 800p at
+    16:10; wider ones keep the height); 2160 lines are 4K, ultrawide included."""
+    options = []
+    for value, _ in RESOLUTIONS:
+        height = int(aspect_resolution(value, aspect).split("x")[1])
+        options.append((value, "4K" if height == 2160 else f"{height}p"))
+    return options
 
 # Quality presets: the game has one detail level (the PS4's); quality here is the resolution the
 # game draws at, how it reaches the screen (FSR 1, sharpening) and the frame rate. Above 1080p the
@@ -897,17 +912,25 @@ class Segmented(tk.Frame):
 
     def __init__(self, parent, options, value, command, font, recommended=None):
         super().__init__(parent, bg=LINE, padx=1, pady=1)
-        self.command, self.labels, self.value = command, {}, value
+        self.command, self.labels, self.value, self.recommended = command, {}, value, recommended
         for i, (option, label) in enumerate(options):
-            # The recommended choice carries a star.
-            text = f"{label}  ★" if option == recommended else label
-            item = tk.Label(self, text=text, font=font, padx=12, pady=5, cursor="hand2", bd=0)
+            item = tk.Label(self, text=self.text(option, label), font=font, padx=12, pady=5, cursor="hand2", bd=0)
             item.grid(row=0, column=i, padx=(0 if i == 0 else 1, 0))
             item.bind("<Button-1>", lambda e, v=option: self.set(v, notify=True))
             item.bind("<Enter>", lambda e, w=item, v=option: v != self.value and w.config(bg=PANEL_HI))
             item.bind("<Leave>", lambda e: self.restyle())
             self.labels[option] = item
         self.restyle()
+
+    def text(self, option, label):
+        # The recommended choice carries a star.
+        return f"{label}  ★" if option == self.recommended else label
+
+    def relabel(self, options):
+        """New labels for the same choices (the resolutions at another aspect ratio)."""
+        for option, label in options:
+            if option in self.labels:
+                self.labels[option].config(text=self.text(option, label))
 
     def set(self, value, notify=False):
         self.value = value
@@ -1273,6 +1296,7 @@ class Launcher:
         settings = self.game_settings()
         if isinstance(self.widgets.get("resolution"), Segmented):
             self.widgets["resolution"].set(settings["resolution"])
+        self.refresh_render_size()
         if isinstance(self.widgets.get("aspect"), Segmented):
             self.widgets["aspect"].set(settings.get("aspect", "16:9"))
         if isinstance(self.widgets.get("multithreaded"), Toggle):
@@ -1509,6 +1533,7 @@ class Launcher:
         settings["resolution"] = PRESETS[name]["resolution"]
         if "resolution" in self.widgets:
             self.widgets["resolution"].set(settings["resolution"])
+        self.refresh_render_size()
         for key, value in preset_values(name).items():
             self.ini[key] = value
             widget = self.widgets.get(key)
@@ -1527,8 +1552,8 @@ class Launcher:
         page = self.page()
 
         def resolution(parent):
-            return Segmented(parent, RESOLUTIONS, self.game_settings()["resolution"],
-                             self.change_resolution, self.f_small)
+            return Segmented(parent, resolution_options(self.game_settings().get("aspect", "16:9")),
+                             self.game_settings()["resolution"], self.change_resolution, self.f_small)
         self.widgets["resolution"] = self.row(
             page, "Render resolution",
             "How sharp the picture is; higher needs a faster graphics card (the PS4 drew 1080p). If a "
@@ -1537,11 +1562,15 @@ class Launcher:
 
         def aspect(parent):
             return Segmented(parent, ASPECTS, self.game_settings().get("aspect", "16:9"),
-                             lambda v: self.change_game_setting("aspect", v), self.f_small)
+                             self.change_aspect, self.f_small)
         self.widgets["aspect"] = self.row(
             page, "Aspect ratio",
             "For ultrawide monitors (21:9, 32:9), with Borderless or Fullscreen: the games show more at "
-            "the sides and the same view top to bottom as on a 16:9 screen.", aspect)
+            "the sides and the same view top to bottom as on a 16:9 screen. 16:10 (Steam Deck: 800p is "
+            "1280x800) fills the screen and shows more at the top and bottom.", aspect)
+        self.render_size_note = tk.Label(page, text="", font=self.f_small, bg=BG, fg=GOLD, anchor="w")
+        self.render_size_note.pack(side="top", fill="x", pady=(0, self.px(10)))
+        self.refresh_render_size()
         self.ini_choice(page, "upscaler", "Anti-aliasing",
                         "Smooths jagged, shimmering edges. TAA is the lightest; FSR and DLAA (NVIDIA RTX "
                         "cards) keep the most detail. Also in the in-game menu, where it changes at once.",
@@ -2144,6 +2173,21 @@ class Launcher:
         self.game_settings()["preset"] = "custom"
         write_config(self.config)
         self.redraw_presets()
+        self.refresh_render_size()
+
+    def change_aspect(self, value):
+        self.change_game_setting("aspect", value)
+        self.refresh_render_size()
+
+    def refresh_render_size(self):
+        """The resolution labels and the exact render size for the selected game's aspect ratio."""
+        settings = self.game_settings()
+        aspect = settings.get("aspect", "16:9")
+        if isinstance(self.widgets.get("resolution"), Segmented):
+            self.widgets["resolution"].relabel(resolution_options(aspect))
+        if hasattr(self, "render_size_note"):
+            width, height = aspect_resolution(settings["resolution"], aspect).split("x")
+            self.render_size_note.config(text=f"Render size: {width} × {height}")
 
     def change_game_setting(self, key, value):
         self.game_settings()[key] = value
