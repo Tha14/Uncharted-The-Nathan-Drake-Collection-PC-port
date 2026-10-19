@@ -252,7 +252,15 @@ CHEAT_PATCHES = {
         for n, (pattern, at) in enumerate((("488d15caca8200 b101 803a00 75", 12),
                                            ("488d0d79673800 803900 75", 10),
                                            ("488d0d3a5b3800 803900 75", 10),
-                                           ("488d0d0a023800 803900 75", 10)), 1)]},
+                                           ("488d0d0a023800 803900 75", 10)), 1)] + [
+        # 19 Oct (user: "Infinite ammo was not working"): Drake's Fortune's own Infinite Ammo only
+        # spares the reserve when reloading (0x345e40/0x345ec0); each shot still takes a round from
+        # the magazine (0x346440: `dec [inventory + slot*0x30 + 0x440]`, skipped for weapons whose
+        # definition says so). With the cheat on that decrement is gone: the magazine stays full.
+        ("Uncharted 1 infinite ammo (magazine)",
+         [("89f3 4989fe e8???????? 4885c0 741b 83b82801000000 7512 89d8 488d0440 48c1e004 "
+           "41ff8c0640040000 5b415e5dc3", 34, bytes.fromhex("41ff8c0640040000"),
+           bytes.fromhex("0f1f840000000000"))])]},
     "big2-ps4_Shipping.elf": {"ammo": [
         (f"Uncharted 2 infinite ammo (reader {n})", [_ammo_reader(pattern, at)])
         for n, (pattern, at) in enumerate((("488d0dbc8d6f00 80793a00 75", 11),
@@ -907,6 +915,14 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
             os.environ.get("UNCHARTED_U1_MULTITHREADED_TEST") != "1":
         print("Multithreaded rendering: off for Drake's Fortune (its weapons flicker with it)")
         multithreaded = "0"
+    # Drake's Deception froze for good with multithreaded rendering (GitHub #51, Steam Deck, 19 Oct
+    # 2026: a fence write on the Vulkan recording thread faulted while the GPU command thread
+    # waited for that thread). Fixed in the runtime the same day; off until players confirm it.
+    # UNCHARTED_U3_MULTITHREADED_TEST=1 keeps the launcher's choice (tests).
+    if executable == "big3-ps4_Shipping.elf" and multithreaded == "1" and \
+            os.environ.get("UNCHARTED_U3_MULTITHREADED_TEST") != "1":
+        print("Multithreaded rendering: off for Drake's Deception (it could freeze with it, GitHub #51)")
+        multithreaded = "0"
     if multithreaded is not None:
         env["GOW3_DRAW_PIPE"] = multithreaded
         env["GOW3_VK_RECORD_THREAD"] = multithreaded
@@ -935,7 +951,11 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
     # end-of-pipe fence, which waits for it (16 Oct; precise readbacks fixed it too, at ~50 FPS).
     # 17 Oct: Uncharted 3 too (user: Nate's legs flicker a little, NPCs float a bit; the same
     # engine and copy shader). Two 90 s U3 runs at 1440p: stable, 56-58 FPS.
-    if executable in ("big2-ps4_Shipping.elf", "big3-ps4_Shipping.elf"):
+    # 19 Oct: Drake's Fortune too (GitHub #6: from the second shot on, enemy grenade launchers'
+    # grenades exploded right in front of Drake; the shot started from a frame-old copy of what
+    # this shader writes). The user, at the first grenade launcher of chapter 4-5: with it every
+    # shot flies to its target, 60 FPS as without it. (Protected readbacks alone did not help.)
+    if executable in ("eboot.bin", "big2-ps4_Shipping.elf", "big3-ps4_Shipping.elf"):
         env.setdefault("GOW3_COPY64_EOP_READBACK", "1")
     if executable in ("big2-ps4_Shipping.elf", "big3-ps4_Shipping.elf"):
         # Its aim depth of field reads the focus distance from a 1x1 render target the GPU writes;

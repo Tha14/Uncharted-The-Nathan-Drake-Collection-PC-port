@@ -398,6 +398,7 @@ static void start_exec_watch(void) {
  * process (FAST_FAIL_INVALID_SET_OF_CONTEXT: the context's rsp outside the TEB stack). The TEB now
  * names the stack the thread is on before an exception is handled: the guest allocation holding
  * rsp, or the thread's own stack again once it is back there. */
+int runtime_memory_region(uintptr_t address, uintptr_t *start, uintptr_t *end, int *mapped);
 static void cover_current_stack(const CONTEXT *context) {
     NT_TIB *tib=(NT_TIB *)NtCurrentTeb();
     const uintptr_t sp=(uintptr_t)context->Rsp;
@@ -406,6 +407,18 @@ static void cover_current_stack(const CONTEXT *context) {
     if (!own_base) { own_limit=(uintptr_t)tib->StackLimit; own_base=(uintptr_t)tib->StackBase; }
     if (sp>=own_limit && sp<own_base) {
         tib->StackLimit=(PVOID)own_limit; tib->StackBase=(PVOID)own_base;
+        return;
+    }
+    /* gow3 19 Oct 2026: a stack in guest memory is bounded by its guest mapping. runtime_memory.c
+     * maps large ranges as several views of at most 2 MiB, so a Windows allocation no longer spans
+     * a mapping: limits taken from it cut fiber stacks that cross a view, and Uncharted 3 stopped
+     * at start ("fiber stack overflow"). Other stacks: their Windows allocation, as before. */
+    uintptr_t guest_start, guest_end;
+    int guest_mapped;
+    if (sp>=UINT64_C(0x1000000000) && sp<UINT64_C(0xfc00000000) &&
+        runtime_memory_region(sp,&guest_start,&guest_end,&guest_mapped) && guest_mapped &&
+        guest_start<=sp && sp<guest_end) {
+        tib->StackLimit=(PVOID)guest_start; tib->StackBase=(PVOID)guest_end;
         return;
     }
     MEMORY_BASIC_INFORMATION region;

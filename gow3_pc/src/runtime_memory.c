@@ -67,8 +67,53 @@ static pthread_rwlock_t lock=PTHREAD_RWLOCK_INITIALIZER;
 static __thread unsigned exclusive_depth;
 /* Odd while a writer holds the lock; readers' region caches are valid for one even value. */
 static uint64_t table_generation;
+/* gow3 19 Oct 2026: time spent in guest memory maps, unmaps and releases, and waiting for the
+ * region lock exclusively (U1: a second without frames before a cutscene while the game mapped
+ * ~100 1 MiB blocks). map_time_report prints when they took 20 ms or more since the last line. */
+static uint64_t mono_ns(void) {
+#ifdef _WIN32
+    static LARGE_INTEGER frequency;
+    if (!frequency.QuadPart) QueryPerformanceFrequency(&frequency);
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    return (uint64_t)((double)now.QuadPart*1e9/(double)frequency.QuadPart);
+#else
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC,&now);
+    return (uint64_t)now.tv_sec*UINT64_C(1000000000)+(uint64_t)now.tv_nsec;
+#endif
+}
+static uint64_t mt_lock_wait_ns, mt_lock_waits, mt_maps, mt_map_ns, mt_map_host_ns, mt_map_hooks_ns,
+    mt_unmaps, mt_unmap_ns, mt_releases, mt_release_ns, mt_last_report_ns,
+    mt_carves, mt_carve_ns, mt_carve_span, mt_carve_runs;
+static void map_time_report(void) {
+    const uint64_t now=mono_ns(), last=__atomic_load_n(&mt_last_report_ns,__ATOMIC_RELAXED);
+    if (now-last<UINT64_C(250000000)) return;
+    const uint64_t total=__atomic_load_n(&mt_map_ns,__ATOMIC_RELAXED)+__atomic_load_n(&mt_unmap_ns,__ATOMIC_RELAXED)+
+                         __atomic_load_n(&mt_release_ns,__ATOMIC_RELAXED);
+    if (total<UINT64_C(20000000)) return;
+    if (!__atomic_compare_exchange_n(&mt_last_report_ns,(uint64_t *)&last,now,0,__ATOMIC_RELAXED,__ATOMIC_RELAXED)) return;
+    printf("Runtime: memory map time: %" PRIu64 " maps %.1f ms (Windows mapping %.1f ms, GPU hooks %.1f ms), "
+           "%" PRIu64 " unmaps %.1f ms, %" PRIu64 " releases %.1f ms; region lock waits %" PRIu64 " (%.1f ms); "
+           "Windows carves %" PRIu64 " (%.1f ms, largest span %.1f MiB, %" PRIu64 " protection runs restored)\n",
+           __atomic_exchange_n(&mt_maps,0,__ATOMIC_RELAXED),__atomic_exchange_n(&mt_map_ns,0,__ATOMIC_RELAXED)/1e6,
+           __atomic_exchange_n(&mt_map_host_ns,0,__ATOMIC_RELAXED)/1e6,__atomic_exchange_n(&mt_map_hooks_ns,0,__ATOMIC_RELAXED)/1e6,
+           __atomic_exchange_n(&mt_unmaps,0,__ATOMIC_RELAXED),__atomic_exchange_n(&mt_unmap_ns,0,__ATOMIC_RELAXED)/1e6,
+           __atomic_exchange_n(&mt_releases,0,__ATOMIC_RELAXED),__atomic_exchange_n(&mt_release_ns,0,__ATOMIC_RELAXED)/1e6,
+           __atomic_exchange_n(&mt_lock_waits,0,__ATOMIC_RELAXED),__atomic_exchange_n(&mt_lock_wait_ns,0,__ATOMIC_RELAXED)/1e6,
+           __atomic_exchange_n(&mt_carves,0,__ATOMIC_RELAXED),__atomic_exchange_n(&mt_carve_ns,0,__ATOMIC_RELAXED)/1e6,
+           __atomic_exchange_n(&mt_carve_span,0,__ATOMIC_RELAXED)/1048576.0,__atomic_exchange_n(&mt_carve_runs,0,__ATOMIC_RELAXED));
+}
 static void write_lock(void) {
-    if (!exclusive_depth++) { pthread_rwlock_wrlock(&lock); __atomic_add_fetch(&table_generation,1,__ATOMIC_ACQ_REL); }
+    if (!exclusive_depth++) {
+        if (pthread_rwlock_trywrlock(&lock)) {
+            const uint64_t start=mono_ns();
+            pthread_rwlock_wrlock(&lock);
+            __atomic_add_fetch(&mt_lock_wait_ns,mono_ns()-start,__ATOMIC_RELAXED);
+            __atomic_add_fetch(&mt_lock_waits,1,__ATOMIC_RELAXED);
+        }
+        __atomic_add_fetch(&table_generation,1,__ATOMIC_ACQ_REL);
+    }
 }
 static void write_unlock(void) {
     if (!--exclusive_depth) { __atomic_add_fetch(&table_generation,1,__ATOMIC_RELEASE); pthread_rwlock_unlock(&lock); }
@@ -161,13 +206,24 @@ static size_t save_protections(uintptr_t start, uintptr_t end, ProtRun **runs, s
     }
     return count;
 }
+static uint64_t mono_ns(void);
+
+static size_t carve_host_timed(uintptr_t a, uintptr_t b);
 /* Leaves [a,b) as exactly one unmapped placeholder; returns its region index. */
 static size_t carve_host(uintptr_t a, uintptr_t b) {
+    const uint64_t start=mono_ns();
+    const size_t at=carve_host_timed(a,b);
+    __atomic_add_fetch(&mt_carves,1,__ATOMIC_RELAXED);
+    __atomic_add_fetch(&mt_carve_ns,mono_ns()-start,__ATOMIC_RELAXED);
+    return at;
+}
+static size_t carve_host_timed(uintptr_t a, uintptr_t b) {
     size_t first=region_index(a), last=first;
     if (first==region_count || regions[first].start>a) win_fail("guest range outside the reservation",a,b-a);
     while (last<region_count && regions[last].start<b) ++last;
     if (regions[last-1].end<b) win_fail("guest range outside the reservation",a,b-a);
     uintptr_t lo=regions[first].start, hi=regions[last-1].end;
+    if (hi-lo>__atomic_load_n(&mt_carve_span,__ATOMIC_RELAXED)) __atomic_store_n(&mt_carve_span,hi-lo,__ATOMIC_RELAXED);
     HostRegion left=regions[first], right=regions[last-1];
     int keep_left=left.mapped && lo<a, keep_right=right.mapped && b<hi;
     if (first==last-1 && !left.mapped && lo==a && hi==b) return first;
@@ -208,14 +264,42 @@ static size_t carve_host(uintptr_t a, uintptr_t b) {
             win_fail("restoring page protection",runs[i].start,runs[i].end-runs[i].start);
     }
     (void)left_runs;
+    __atomic_add_fetch(&mt_carve_runs,nruns,__ATOMIC_RELAXED);
     free(runs);
     return at;
+}
+/* gow3 19 Oct 2026: a guest mapping is made of views of at most VIEW_CHUNK bytes, cut at
+ * VIEW_CHUNK-aligned guest addresses. Windows only unmaps whole views: unmapping 1 MiB of a large
+ * mapping (carve_host) unmapped all of it, mapped the rest again and restored every page's
+ * protection, about 23 ms each time. Drake's Fortune unmaps ~100 1 MiB pieces before some
+ * cutscenes: a 1-1.8 s freeze. Now it touches at most the two chunks at the ends of the range.
+ * Mappings whose address or offset is not 64 KiB aligned stay one view (view offsets must keep
+ * the alignment Windows asks for). GOW3_VIEW_CHUNK_MB=0 maps every range as one view, as before. */
+#define VIEW_CHUNK (UINT64_C(2)<<20)
+static int view_chunks(void) {
+    static int on=-1;
+    if (on<0) { const char *env=getenv("GOW3_VIEW_CHUNK_MB"); on=!(env && env[0]=='0'); }
+    return on;
 }
 static int host_map(uintptr_t address, uint64_t size, int prot, int reserved, uint64_t phys) {
     size_t i=carve_host(address,address+size);
     if (reserved) return 0;
-    regions[i].phys=phys; regions[i].mapped=1;
-    view_map(&regions[i],win_prot(prot));
+    const DWORD protect=win_prot(prot);
+    const uintptr_t end=address+size;
+    const int chunked=view_chunks() && !(address&0xffff) && !(phys&0xffff);
+    for (uintptr_t at=address; at<end; ++i) {
+        uintptr_t next=chunked ? (at/VIEW_CHUNK+1)*VIEW_CHUNK : end;
+        if (next>end) next=end;
+        if (next<end) { /* split the rest off: [at,next) stays at regions[i] */
+            if (!VirtualFree((void *)at,next-at,MEM_RELEASE|MEM_PRESERVE_PLACEHOLDER))
+                win_fail("splitting a placeholder",at,next-at);
+            regions[i].end=next;
+            region_insert(i+1,(HostRegion){next,end,0,0});
+        }
+        regions[i].phys=phys+(at-address); regions[i].mapped=1;
+        view_map(&regions[i],protect);
+        at=next;
+    }
     return 0;
 }
 static int host_unmap(uintptr_t address, uint64_t size) { carve_host(address,address+size); return 0; }
@@ -497,11 +581,20 @@ static int32_t map_direct_locked(void **out, uint64_t size, int prot, int flags,
     return result;
 }
 static ABI int32_t direct_map(void **out, uint64_t size, int prot, int flags, int64_t physical, uint64_t alignment) {
+    const uint64_t start=mono_ns();
     write_lock();
+    const uint64_t locked=mono_ns();
     int32_t result=map_direct_locked(out,size,prot,flags,physical,alignment);
+    const uint64_t mapped=mono_ns();
     write_unlock();
     flush_hooks();
+    const uint64_t done=mono_ns();
+    __atomic_add_fetch(&mt_maps,1,__ATOMIC_RELAXED);
+    __atomic_add_fetch(&mt_map_ns,done-start,__ATOMIC_RELAXED);
+    __atomic_add_fetch(&mt_map_host_ns,mapped-locked,__ATOMIC_RELAXED);
+    __atomic_add_fetch(&mt_map_hooks_ns,done-mapped,__ATOMIC_RELAXED);
     if (!result) printf("Runtime: mapped direct memory %p, size=%" PRIu64 ", prot=0x%x\n", *out, size, prot);
+    map_time_report();
     return result;
 }
 static ABI int32_t direct_map_named(void **out, uint64_t size, int prot, int flags, int64_t physical,
@@ -524,6 +617,7 @@ static int32_t unmap_locked(uintptr_t start, uint64_t size) {
     return 0;
 }
 static ABI int32_t direct_unmap(void *address, uint64_t size) {
+    const uint64_t start=mono_ns();
     /* The GPU forgets the range before it disappears (as shadPS4's early GPU unmap). */
     if (hook_unmap && !((uintptr_t)address%PAGE) && size) hook_unmap((uintptr_t)address,align_up(size,PAGE));
     write_lock();
@@ -531,11 +625,15 @@ static ABI int32_t direct_unmap(void *address, uint64_t size) {
     int32_t result=unmap_locked((uintptr_t)address,size);
     pending_count=before; /* already notified above */
     write_unlock();
+    __atomic_add_fetch(&mt_unmaps,1,__ATOMIC_RELAXED);
+    __atomic_add_fetch(&mt_unmap_ns,mono_ns()-start,__ATOMIC_RELAXED);
+    map_time_report();
     return result;
 }
 static ABI int32_t direct_release(uint64_t start, uint64_t size) {
     if (start % PAGE || size % PAGE) return INVALID;
     if (!size) return 0;
+    const uint64_t release_start=mono_ns();
     write_lock();
     if (!direct_range_allocated(start,size)) { write_unlock(); return INVALID; }
     /* Mappings of released physical pages disappear with them. */
@@ -564,6 +662,9 @@ static ABI int32_t direct_release(uint64_t start, uint64_t size) {
     host_discard(start,size); /* zero on reuse */
     write_unlock();
     flush_hooks();
+    __atomic_add_fetch(&mt_releases,1,__ATOMIC_RELAXED);
+    __atomic_add_fetch(&mt_release_ns,mono_ns()-release_start,__ATOMIC_RELAXED);
+    map_time_report();
     return 0;
 }
 static int32_t map_flexible_locked(void **inout, uint64_t size, int prot, int flags) {

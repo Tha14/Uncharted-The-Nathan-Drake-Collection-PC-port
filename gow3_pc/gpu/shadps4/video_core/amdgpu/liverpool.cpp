@@ -746,14 +746,21 @@ void RunComputeReleaseMem(Vulkan::Rasterizer& rasterizer, const u8* data) {
         if (backing) {
             rasterizer.NoteLabelWrite(label, sel == DataSelect::Data32Low ? 4 : 8);
         }
-        rasterizer.SignalAfterHostCopies([packet = release.packet, pipe_id, backing] {
+        rasterizer.SignalAfterHostCopies([packet = release.packet, pipe_id] {
             packet.SignalFence(
                 [pipe_id] {
                     Platform::IrqC::Instance()->SignalAsync(static_cast<Platform::InterruptId>(pipe_id));
                 },
                 [](VAddr, u16, u16) {},
-                [backing](void* address, u64 value, u32 num_bytes) {
-                    if (!backing || !Core::Memory::Instance()->TryWriteBacking(address, &value, num_bytes)) {
+                [](void* address, u64 value, u32 num_bytes) {
+                    // gow3 19 Oct 2026 (GitHub #51): always through the backing view. A plain
+                    // store here faulted when the label's page was write-protected after this
+                    // release was recorded (GPU tracking); the fault handler then waited for the
+                    // buffer cache, which the GPU command thread held while it waited for this
+                    // thread: Uncharted 3 froze for good with multithreaded rendering. The
+                    // record-time NoteLabelWrite above still covers labels on GPU-written pages;
+                    // a page that only became so since misses it once per 64 KiB window.
+                    if (!Core::Memory::Instance()->TryWriteBacking(address, &value, num_bytes)) {
                         std::memcpy(address, &value, num_bytes);
                     }
                 });

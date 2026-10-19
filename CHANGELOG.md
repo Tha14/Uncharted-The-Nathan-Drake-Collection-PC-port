@@ -4,6 +4,36 @@ Uncharted: The Nathan Drake Collection PC port, by **BilalReloaded**
 ([YouTube](https://www.youtube.com/@BilalReloaded/videos), [GitHub](https://github.com/bc160201983)).
 Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
+## 19 October 2026 (0.4.0)
+
+- **No more freeze before some cutscenes** (#52): before a cutscene the games remove ~100 small
+  blocks of memory, and for each one the port rebuilt the whole surrounding mapping (about 23 ms
+  each on Windows, far more under Proton): Drake's Fortune froze 1.6 s, the Steam Deck up to 33 s
+  in Uncharted 3's museum. Memory is now mapped in 2 MB pieces, so a removal only touches the
+  pieces around it: the same cutscene went from a 1650 ms frame to ~200 ms.
+- **Uncharted 3 no longer freezes for good with multithreaded rendering** (#51): a fence write on
+  the Vulkan recording thread could fault while the GPU command thread waited for that thread.
+  It now never faults. Multithreaded rendering stays off for Uncharted 3 until players confirm
+  it (`UNCHARTED_U3_MULTITHREADED_TEST=1` keeps the launcher's choice).
+- **Drake's Fortune: enemy grenade launchers no longer blow up on Drake** (#6): from the second
+  shot on, the grenade exploded right in front of him. The shot started from a frame-old copy of
+  data the GPU writes for the game (a copy shader whose results it reads, the cause of
+  Uncharted 2's floating NPCs too); that data now reaches the game before it is used, as in
+  Uncharted 2 and 3. No frame-rate cost measured.
+- **Drake's Fortune: Infinite ammo keeps the magazine full** (Cheats tab): the game's own switch
+  only spared the reserve when reloading; each shot still emptied the magazine.
+
+From kuraeow (Steam Deck), merged:
+
+- **Real upscaling** (#50, asked for in #45): Display -> **Upscaling**: FSR 1, FSR 3.1, FSR 4 or
+  DLSS, with **Quality**, Balanced, Performance or Ultra Performance. The game draws below your
+  resolution and each frame is upscaled to it before the HUD and menus are drawn, which stay
+  sharp. **Native AA / DLAA** (no upscaling) stays as before. Upscaling saves GPU time: it helps
+  at 4K or on weaker graphics cards, much less where the processor limits the frame rate.
+  Moving characters can smear below Quality (the motion vectors come from the camera only).
+  The **Low** preset is now 1080p with FSR 1 Performance (HUD at 1080p). Drake's Fortune above
+  1620p draws at 1620p and is upscaled with the HUD at full size.
+
 ## 19 October 2026 (0.3.1)
 
 - **Choose the game update in the launcher** (#32): Launcher -> Advanced -> GAME UPDATE.

@@ -361,9 +361,19 @@ BufferCache::BufferCache(const Vulkan::Instance& instance_, Vulkan::Scheduler& s
 
 BufferCache::~BufferCache() = default;
 
+// gow3 19 Oct 2026: downloads made before a range is invalidated (count, time), read by
+// Rasterizer::UnmapMemory's timing line (U1 cutscene hitch).
+std::atomic<u64> g_invalidate_downloads{0}, g_invalidate_download_ns{0};
+
 void BufferCache::InvalidateMemory(VAddr device_addr, u64 size, bool assume_locks) {
     memory_tracker->InvalidateRegion(device_addr, size, [this, device_addr, size, assume_locks] {
+        const auto start = std::chrono::steady_clock::now();
         ReadMemory(device_addr, size, true, assume_locks);
+        g_invalidate_downloads.fetch_add(1, std::memory_order_relaxed);
+        g_invalidate_download_ns.fetch_add(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start)
+                .count(),
+            std::memory_order_relaxed);
     });
 }
 

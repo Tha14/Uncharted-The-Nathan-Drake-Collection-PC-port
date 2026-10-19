@@ -5567,10 +5567,47 @@ void Rasterizer::RegisterMemory(VAddr addr, u64 size) {
     page_manager.OnGpuMap(addr, size);
 }
 
+} // namespace Vulkan
+namespace VideoCore {
+extern std::atomic<u64> g_invalidate_downloads, g_invalidate_download_ns;
+}
+namespace Vulkan {
+
 void Rasterizer::UnmapMemory(VAddr addr, u64 size) {
+    // gow3 19 Oct 2026: time of each part (U1: ~23 ms per 1 MiB unmap, a 1.8 s hitch before a
+    // cutscene); a line when they took 20 ms or more since the last one (at most every 0.25 s).
+    using Clock = std::chrono::steady_clock;
+    static std::atomic<u64> unmaps{0}, drain_ns{0}, buffer_ns{0}, texture_ns{0};
+    static std::atomic<s64> last_report{0};
+    const auto ns = [](Clock::duration d) {
+        return u64(std::chrono::duration_cast<std::chrono::nanoseconds>(d).count());
+    };
+    const auto t0 = Clock::now();
     DrainDrawPipe();
+    const auto t1 = Clock::now();
     buffer_cache.InvalidateMemory(addr, size);
+    const auto t2 = Clock::now();
     texture_cache.UnmapMemory(addr, size);
+    const auto t3 = Clock::now();
+    unmaps.fetch_add(1, std::memory_order_relaxed);
+    drain_ns.fetch_add(ns(t1 - t0), std::memory_order_relaxed);
+    buffer_ns.fetch_add(ns(t2 - t1), std::memory_order_relaxed);
+    texture_ns.fetch_add(ns(t3 - t2), std::memory_order_relaxed);
+    const s64 now = s64(ns(t3.time_since_epoch()));
+    s64 last = last_report.load(std::memory_order_relaxed);
+    if (now - last >= 250'000'000 &&
+        drain_ns.load(std::memory_order_relaxed) + buffer_ns.load(std::memory_order_relaxed) +
+                texture_ns.load(std::memory_order_relaxed) >= 20'000'000 &&
+        last_report.compare_exchange_strong(last, now, std::memory_order_relaxed)) {
+        std::printf("GPU: unmap time: %llu unmaps; draw pipe %.1f ms, buffer cache %.1f ms (%llu "
+                    "downloads of GPU data, %.1f ms), texture cache %.1f ms\n",
+                    (unsigned long long)unmaps.exchange(0), drain_ns.exchange(0) / 1e6,
+                    buffer_ns.exchange(0) / 1e6,
+                    (unsigned long long)VideoCore::g_invalidate_downloads.exchange(0),
+                    VideoCore::g_invalidate_download_ns.exchange(0) / 1e6,
+                    texture_ns.exchange(0) / 1e6);
+        std::fflush(stdout);
+    }
     {
         std::scoped_lock lock{mapped_ranges_mutex};
         mapped_ranges -= decltype(mapped_ranges)::interval_type::right_open(addr, addr + size);
