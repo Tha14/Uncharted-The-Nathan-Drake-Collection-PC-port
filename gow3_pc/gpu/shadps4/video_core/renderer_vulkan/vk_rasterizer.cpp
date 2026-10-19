@@ -471,12 +471,45 @@ bool PlausibleTSharp(const AmdGpu::Image& tsharp) {
     return true;
 }
 
+/// gow3 20 Oct 2026 (GitHub #63): the host image a description would create, roughly (all
+/// layers and slices of the first level, a third more with mips), and its layer count against
+/// the device's limit. Garbage descriptions make images of gigabytes: one of 960x540 RGBA8 with
+/// 6772 layers (16 GB) took all video memory and the next allocation stopped Drake's Fortune.
+bool PlausibleHostImage(const VideoCore::ImageInfo& info, u32 max_layers) {
+    if (info.resources.layers == 0 || info.resources.layers > max_layers) {
+        return false;
+    }
+    // Compressed formats: num_bits is per 4x4 block.
+    const u64 width = info.props.is_block ? (info.size.width + 3) / 4 : info.size.width;
+    const u64 height = info.props.is_block ? (info.size.height + 3) / 4 : info.size.height;
+    const u64 bytes = width * height * std::max(info.size.depth, 1u) * info.resources.layers *
+                      std::max(info.num_bits / 8u, 1u);
+    return bytes + (info.resources.levels > 1 ? bytes / 3 : 0) < 1_GB;
+}
+
 bool PlausibleImage(const VideoCore::ImageInfo& info, const AmdGpu::Image& tsharp,
-                    Core::MemoryManager* memory) {
-    if (info.guest_size == 0 || info.guest_size >= 1_GB) {
+                    Core::MemoryManager* memory, u32 max_layers) {
+    if (info.guest_size == 0 || info.guest_size >= 1_GB || !PlausibleHostImage(info, max_layers)) {
         return false;
     }
     return memory->ClampRangeSize(info.guest_address, info.guest_size) == info.guest_size;
+}
+
+/// A render target or depth buffer whose registers describe an impossible image: skipped
+/// (the draw goes on without that attachment), as garbage T#s are.
+bool PlausibleTarget(const VideoCore::ImageInfo& info, u32 max_layers, const char* what) {
+    if (info.guest_size < 1_GB && PlausibleHostImage(info, max_layers)) {
+        return true;
+    }
+    static std::atomic<u32> logged{0};
+    if (logged.fetch_add(1, std::memory_order_relaxed) < 8) {
+        std::printf("GPU: skipping a garbage %s at %#llx: %ux%ux%u, %u layers, %u mips, %u bits\n",
+                    what, static_cast<unsigned long long>(info.guest_address), info.size.width,
+                    info.size.height, info.size.depth, info.resources.layers, info.resources.levels,
+                    info.num_bits);
+        std::fflush(stdout);
+    }
+    return false;
 }
 } // namespace
 
@@ -590,6 +623,11 @@ VideoCore::ImageId Rasterizer::FindTargetMemoized(VideoCore::TextureCache::Image
         return memo.image_id;
     }
     make_desc();
+    if (!PlausibleTarget(desc.info, instance.GetMaxImageArrayLayers(),
+                         desc.info.props.is_depth ? "depth buffer" : "render target")) {
+        last.generation = ~0ULL;
+        return {};
+    }
     const VideoCore::ImageId image_id = texture_cache.FindImage(desc);
     if (generation == texture_cache.RegistryGeneration()) {
         memo.key = key;
@@ -624,9 +662,14 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
         }
         const auto& hint = CbExtent(cb);
         const u32 tag = 1;
-        image_id = bound_images.emplace_back(FindTargetMemoized(
+        const auto found = FindTargetMemoized(
             desc, last_targets[cb], [&] { std::construct_at(&desc, col_buf, hint); }, tag,
-            col_buf, hint));
+            col_buf, hint);
+        if (!found) {
+            image_id = {}; // garbage registers (FindTargetMemoized): no attachment
+            continue;
+        }
+        image_id = bound_images.emplace_back(found);
         auto& image = texture_cache.GetImage(image_id);
         image.binding.is_target = 1u;
     }
@@ -636,15 +679,18 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
         const auto& hint = DbExtent();
         auto& [image_id, desc] = db_desc;
         const u32 tag = 2;
-        image_id = bound_images.emplace_back(FindTargetMemoized(
+        const auto found = FindTargetMemoized(
             desc, last_targets[AmdGpu::NUM_COLOR_BUFFERS],
             [&] {
                 std::construct_at(&desc, regs.depth_buffer, regs.depth_view, regs.depth_control,
                                   htile_address, hint);
             },
-            tag, regs.depth_buffer, regs.depth_view, regs.depth_control, htile_address, hint));
-        auto& image = texture_cache.GetImage(image_id);
-        image.binding.is_target = 1u;
+            tag, regs.depth_buffer, regs.depth_view, regs.depth_control, htile_address, hint);
+        image_id = found ? bound_images.emplace_back(found) : VideoCore::ImageId{};
+        if (image_id) {
+            auto& image = texture_cache.GetImage(image_id);
+            image.binding.is_target = 1u;
+        }
     } else {
         db_desc.first = {};
     }
@@ -720,6 +766,9 @@ void Rasterizer::EliminateFastClear() {
         return;
     }
     VideoCore::TextureCache::ImageDesc desc(col_buf, CbExtent(0));
+    if (!PlausibleTarget(desc.info, instance.GetMaxImageArrayLayers(), "fast-clear target")) {
+        return; // gow3 (#63): garbage registers, see PlausibleTarget
+    }
     const auto image_id = texture_cache.FindImage(desc);
     const auto& image_view = texture_cache.FindRenderTarget(image_id, desc);
     if (!texture_cache.IsMetaCleared(col_buf.CmaskAddress(), col_buf.view.slice_start)) {
@@ -2967,7 +3016,7 @@ bool Rasterizer::TexturesBindableOnHelper(const Shader::Info& stage,
             prepared ? CachedImageDescEntry(tsharp, image_desc, prepared->image_hashes[image_index])
                      : CachedImageDescEntry(tsharp, image_desc);
         if (entry.found_generation != generation ||
-            !PlausibleImage(entry.desc.info, tsharp, memory)) {
+            !PlausibleImage(entry.desc.info, tsharp, memory, instance.GetMaxImageArrayLayers())) {
             return false;
         }
         VideoCore::ImageId image_id = entry.found_id;
@@ -4403,7 +4452,7 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
         auto& desc_entry =
             prepared ? CachedImageDescEntry(tsharp, image_desc, prepared->image_hashes[image_index])
                      : CachedImageDescEntry(tsharp, image_desc);
-        if (!PlausibleImage(desc_entry.desc.info, tsharp, memory)) {
+        if (!PlausibleImage(desc_entry.desc.info, tsharp, memory, instance.GetMaxImageArrayLayers())) {
             static u32 reports = 0;
             if (reports < 32) {
                 ++reports;
@@ -5259,6 +5308,11 @@ void Rasterizer::Resolve() {
     const auto& mrt1_hint = CbExtent(1);
     VideoCore::TextureCache::ImageDesc mrt0_desc{Regs().color_buffers[0], mrt0_hint};
     VideoCore::TextureCache::ImageDesc mrt1_desc{Regs().color_buffers[1], mrt1_hint};
+    if (const u32 max_layers = instance.GetMaxImageArrayLayers();
+        !PlausibleTarget(mrt0_desc.info, max_layers, "resolve source") ||
+        !PlausibleTarget(mrt1_desc.info, max_layers, "resolve target")) {
+        return; // gow3 (#63): garbage registers, see PlausibleTarget
+    }
     auto& mrt0_image = texture_cache.GetImage(texture_cache.FindImage(mrt0_desc, true));
     auto& mrt1_image = texture_cache.GetImage(texture_cache.FindImage(mrt1_desc, true));
 
@@ -5279,6 +5333,11 @@ void Rasterizer::DepthStencilCopy(bool is_depth, bool is_stencil) {
     auto write_desc = VideoCore::TextureCache::ImageDesc(
         regs.depth_buffer, regs.depth_view, regs.depth_control,
         regs.depth_htile_data_base.GetAddress(), DbExtent(), true);
+    if (const u32 max_layers = instance.GetMaxImageArrayLayers();
+        !PlausibleTarget(read_desc.info, max_layers, "depth copy source") ||
+        !PlausibleTarget(write_desc.info, max_layers, "depth copy target")) {
+        return; // gow3 (#63): garbage registers, see PlausibleTarget
+    }
 
     auto& read_image = texture_cache.GetImage(texture_cache.FindImage(read_desc));
     auto& write_image = texture_cache.GetImage(texture_cache.FindImage(write_desc));

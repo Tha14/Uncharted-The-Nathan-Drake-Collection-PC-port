@@ -107,6 +107,11 @@ public:
         return sparse_queue;
     }
 
+    /// Array layers one image may have (Vulkan guarantees 256; 2048 on most GPUs).
+    u32 GetMaxImageArrayLayers() const {
+        return properties.limits.maxImageArrayLayers;
+    }
+
     /// Work groups one dispatch may have along X (Vulkan guarantees 65535).
     u32 GetMaxComputeWorkGroupCountX() const {
         return properties.limits.maxComputeWorkGroupCount[0];

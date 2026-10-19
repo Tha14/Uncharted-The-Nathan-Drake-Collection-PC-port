@@ -4,6 +4,17 @@ Uncharted: The Nathan Drake Collection PC port, by **BilalReloaded**
 ([YouTube](https://www.youtube.com/@BilalReloaded/videos), [GitHub](https://github.com/bc160201983)).
 Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
+## 20 October 2026 (0.4.1)
+
+- **Drake's Fortune: crash after about an hour, "out of device memory"** (#63): the game handed
+  the port a render target described by garbage registers, a 960x540 image with 6,772 layers
+  (16 GB). Creating it took all video memory and the next allocation stopped the game. Render
+  targets, depth buffers and textures that would make impossible images (more layers than the
+  graphics card allows, or over 1 GB) are now skipped, as garbage textures already were.
+- **Uncharted 2: crash in the port's own code** (#56, Radeon 780M): a texture sampler asked for a
+  custom border color while the game's border color table was not set (address 0), and the port
+  read from there. The color is now read safely; without a table the border is transparent black.
+
 ## 19 October 2026 (0.4.0)
 
 - **No more freeze before some cutscenes** (#52): before a cutscene the games remove ~100 small

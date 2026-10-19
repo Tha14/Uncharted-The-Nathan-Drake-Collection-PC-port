@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <mutex>
 #include <vector>
+#include "core/memory.h"
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/texture_cache/sampler.h"
@@ -27,12 +28,28 @@ Sampler::Sampler(const Vulkan::Instance& instance, const AmdGpu::Sampler& sample
         border_color = vk::BorderColor::eFloatOpaqueBlack;
     }
 
+    // gow3 20 Oct 2026 (GitHub #56, Uncharted 2 on a Radeon 780M): a sampler asked for a custom
+    // border color while the border color table's address was 0: the colour was read at
+    // 0 + index * 16 and the port stopped (read access to 0xe4a0). It is now read through the
+    // backing view (no fault); no table, or none mapped there: transparent black.
+    std::array<float, 4> custom_border_color_array{};
+    if (border_color == vk::BorderColor::eFloatCustomEXT) {
+        const VAddr table = reinterpret_cast<VAddr>(border_color_base.Address<std::array<float, 4>*>());
+        const VAddr entry = table + u64(sampler.border_color_ptr.Value()) * sizeof(custom_border_color_array);
+        if (!table || !Core::Memory::Instance()->TryReadBacking(entry, custom_border_color_array.data(),
+                                                                 sizeof(custom_border_color_array))) {
+            static std::atomic<u32> logged{0};
+            if (logged.fetch_add(1, std::memory_order_relaxed) < 4) {
+                std::printf("GPU: custom border color %u without a readable table (base %#llx): "
+                            "transparent black\n",
+                            u32(sampler.border_color_ptr.Value()), static_cast<unsigned long long>(table));
+                std::fflush(stdout);
+            }
+            border_color = vk::BorderColor::eFloatTransparentBlack;
+        }
+    }
     const auto custom_color = [&]() -> std::optional<vk::SamplerCustomBorderColorCreateInfoEXT> {
         if (border_color == vk::BorderColor::eFloatCustomEXT) {
-            const auto border_color_index = sampler.border_color_ptr.Value();
-            const auto border_color_buffer = border_color_base.Address<std::array<float, 4>*>();
-            const auto custom_border_color_array = border_color_buffer[border_color_index];
-
             const vk::SamplerCustomBorderColorCreateInfoEXT ret{
                 .customBorderColor =
                     vk::ClearColorValue{
