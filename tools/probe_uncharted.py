@@ -80,16 +80,21 @@ TORCH_FORWARD_PATCHES = [
 # the PS4 each worker owns a core and the flag stays off; on a 4-core PC the six spinning workers
 # took 390% of 400% CPU (GPU command thread 5%, title screen 19-27 FPS on an RTX 5080). Treat the
 # flag as on in the worker loop, its re-check before waiting, and the submit path.
-# UNCHARTED_JOB_SLEEP=0 keeps the original.
+# Another retail 1.02 build (EP9000-CUSA02344, found by currantsforeyes, Supermedo/uncharted_pc
+# #346) has the same three sites with other registers: the re-check loads the manager through r13
+# instead of r15, and the submit path tests rdi and jumps with a short je; its worker loop is the
+# same. Each site takes whichever form matches. UNCHARTED_JOB_SLEEP=0 keeps the original.
 JOB_SLEEP_PATCHES = [
     ("idle job workers sleep (worker loop)", [
         ("4d8d7001 807f5900 74?? 4981f8e8030000 7c??", 8, bytes.fromhex("74"), bytes.fromhex("9090")),
     ]),
     ("idle job workers sleep (re-check before waiting)", [
         ("498b07 80785900 74?? 4889c7 4883ef80", 7, bytes.fromhex("74"), bytes.fromhex("9090")),
+        ("498b4500 80785900 74?? 4889c7 4883ef80", 8, bytes.fromhex("74"), bytes.fromhex("9090")),
     ]),
     ("idle job workers sleep (job submission wakes them)", [
         ("80785900 0f84????0000 4883c060", 4, bytes.fromhex("0f84"), bytes.fromhex("660f1f440000")),
+        ("807f5900 74?? 4883c760 beffffffff", 4, bytes.fromhex("74"), bytes.fromhex("9090")),
     ]),
 ]
 
