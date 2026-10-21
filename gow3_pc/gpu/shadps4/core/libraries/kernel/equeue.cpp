@@ -208,7 +208,7 @@ int EqueueInternal::WaitForEvents(OrbisKernelEvent* ev, int num, const OrbisKern
     }();
     // gow3 20 Oct 2026 (GOW3_IRQ_WAIT_SPIN=<us>, opt-in, off by default): the same watch, only
     // for a queue that handed out a GPU interrupt event (GraphicsCore) in the last 2 ms. Measured
-    // on a Ryzen 7840HS laptop (RTX 4060 47 FPS, Radeon 780M 41 FPS, Uncharted 3, the GPU command
+    // on a Ryzen 7840HS laptop (NVIDIA GPU 47 FPS, Radeon 780M 41 FPS, Uncharted 3, the GPU command
     // thread CPU-bound with 0.4% idle): waking the sleeping interrupt thread was 6.9% (6.7%) of
     // the GPU command thread, one kernel call per compute interrupt (TriggerEvent ->
     // notify_all). A waiter that watches finds the next interrupt without a wakeup; the guest

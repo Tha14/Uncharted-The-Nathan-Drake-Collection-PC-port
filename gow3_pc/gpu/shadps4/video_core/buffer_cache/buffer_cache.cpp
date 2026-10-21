@@ -727,7 +727,7 @@ static bool ReadbackGuardEnabled() {
 // gow3 20 Oct 2026 (laptop CPUs): every submission queues a readback of the small GPU writes
 // (SyncSmallGpuWrites; Uncharted 3: ~135 submissions a frame) with a snapshot of the guest bytes,
 // and its landing copies the guest bytes once more (LandGuarded). The snapshot vector was zeroed,
-// then copied over, then freed at landing; on a Ryzen 7840HS (RTX 4060 laptop, 47 FPS with the
+// then copied over, then freed at landing; on a Ryzen 7840HS (laptop, 47 FPS with the
 // GPU command thread CPU-bound) the zeroing and fresh pages were 1.5% of that thread (1.8% with
 // the Radeon 780M), freeing them 0.4-0.6% and the landing buffers 0.2-0.3%. Snapshots of landed
 // readbacks are now reused and never zeroed (every byte is copied in: TryReadBacking, or
@@ -1120,7 +1120,7 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
             // integrated GPUs): copy them from there. The download below waited for all GPU work
             // queued since, the current frame's included (Uncharted 3, crowded street: ~150 per
             // 5 s, ~10 ms each at 1440p-4K, 60 -> 45 FPS).
-            // gow3 21 Oct 2026 (GOW3_FETCH_BATCH_MAPPED=1, RTX 4060 laptop): with CPU-mappable
+            // gow3 21 Oct 2026 (GOW3_FETCH_BATCH_MAPPED=1, laptop): with CPU-mappable
             // arenas (Resizable BAR) the direct read below fetched one page per fault, so the
             // window batch of CopyFinishedGpuPage (GOW3_FETCH_BATCH_KB) never ran there. Uncharted
             // 3 streaming a level part into memory the GPU wrote long ago (Cartagena rooftops):
@@ -3804,7 +3804,7 @@ u64 BufferCache::ReleaseArenaBlocks(u64 first_block, u64 end_block) {
 
 void BufferCache::ReclaimArenaMemory() {
     // gow3 20 Oct 2026 (GitHub #95): the arenas only grew. Every range the GPU ever used stayed
-    // bound to video memory: Uncharted 2 on an RTX 4060 laptop, 16 min, one level change: 320 ->
+    // bound to video memory: Uncharted 2 on a laptop, 16 min, one level change: 320 ->
     // 1,920 MiB, never less, while images were collected (1,401 -> 502 MiB). Through a long
     // session that fills cards with 4-8 GB, and the driver then moves memory to system RAM
     // (frame rate falling) or runs out. Now, once the arenas hold more than their limit, 1 MiB

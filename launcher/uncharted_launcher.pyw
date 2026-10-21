@@ -52,7 +52,7 @@ WINE = wine_kernel32()
 
 
 def slow_drive_reason(path):
-    """Why the drive holding `path` makes the games freeze, or None (20 Oct 2026). On an RTX 4060
+    """Why the drive holding `path` makes the games freeze, or None (20 Oct 2026). On a
     laptop the port and game on an external USB drive (an NVMe SSD in a USB case, exFAT) froze
     for 0.2-0.8 s dozens of times a minute while the port wrote its shader cache, logs and saves
     (Windows writes to such drives without a cache); on the internal NVMe drive: no freeze over
@@ -912,7 +912,7 @@ def gpu_names():
 def gpu_tier(name):
     """The Quick Setup preset for a graphics card, from its model name; None when not known.
     Rough classes: Low = integrated and older entry cards, Medium = 1080p cards (GTX 1060-1660,
-    RTX 2060/3060/4060, RX 580-7600), High = 1440p cards, Ultra = 4K cards (RTX x080/x090,
+    RTX x060, RX 580-7600), High = 1440p cards, Ultra = 4K cards (RTX x080/x090,
     RTX 4070 Ti and up, RX 6800 XT/7900/9070). High and Ultra laptop chips count one class lower."""
     n = (name or "").lower().replace("(tm)", "").replace("(r)", "")
     nvidia = re.search(r"\b(rtx|gtx|gt|mx)\s*(\d{3,4})\s*(ti)?\s*(super)?", n)
@@ -1106,7 +1106,7 @@ def read_config():
             elif read_ini(game).get("fsr1") == "1" and entry.get("upscale", "off") == "off":
                 write_ini(game, {"fsr1": "0"})
     # Version 8: Drake's Deception with multithreaded rendering (the port no longer turns it off
-    # there): on a 4060 laptop's heavy spots 60 FPS instead of 53.7 with 11 stalls (21 Oct). Once;
+    # there): on a laptop's heavy spots 60 FPS instead of 53.7 with 11 stalls (21 Oct). Once;
     # a player who turns it off again keeps it off.
     if config.get("version", 1) < 8:
         games["u3"]["multithreaded"] = True

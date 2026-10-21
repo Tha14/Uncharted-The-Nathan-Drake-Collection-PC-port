@@ -19,7 +19,7 @@ Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
   level part loads into memory the GPU had used, the game rewrites it, and on graphics cards whose
   memory the CPU can read directly (Resizable BAR, most current laptops; integrated GPUs) the port
   fetched the GPU's bytes one 4 KiB page per write fault: thousands of faults in a few seconds,
-  50-180 ms frames (an RTX 4060 laptop in Uncharted 3's Cartagena: 31-46 frames over 40 ms in two
+  50-180 ms frames (a laptop in Uncharted 3's Cartagena: 31-46 frames over 40 ms in two
   minutes). Each fault now fetches the finished GPU pages of its 256 KiB window in one copy, and
   the rest of the window is written without faults: 0-4 such frames in the same spot, none from
   this. Drake's Fortune had the same stalls.
@@ -30,13 +30,13 @@ Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
   read its destination before it was written. Those draws now wait for that copy (a few dozen
   times a second at most). Measured: 0 flickering frames in all three games, no FPS cost.
 - **Drake's Deception: multithreaded rendering on by default**: the port had kept it off in
-  Uncharted 3 since the freeze of #51 (fixed in 0.4.0). In a heavy Cartagena spot on an RTX 4060
+  Uncharted 3 since the freeze of #51 (fixed in 0.4.0). In a heavy Cartagena spot on a
   laptop, where one CPU thread prepares every draw, it is the difference between 53.7 FPS with 11
   stalls over 100 ms (off) and 60 FPS with 1 (on); no freeze in 15-20 minute tests. The launcher
   turns it on once for Uncharted 3 (Advanced -> Multithreaded rendering turns it off again).
 - **Shader cache kept per graphics card**: a laptop that runs the game on its integrated GPU one
   time and on its graphics card the next lost the whole shader cache at every switch (4,478 files
-  on an RTX 4060 laptop, then half-second compile freezes for minutes). The other card's cache now
+  on a laptop, then half-second compile freezes for minutes). The other card's cache now
   waits beside the current one and comes back when you switch back (at most two are kept; if an
   older version ran in between and left two caches of one card, the newer one comes back).
 - **Keyboard prompt for Uncharted 3's d-pad picture**: the d-pad prompt with its up arm lit
@@ -48,7 +48,7 @@ Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
   the focus kept jumping between your target and the wall beside Nate (blur while aiming). The
   correction now always reaches the GPU (checked at 4K: every frame corrected).
 - **Warning for USB, SD and exFAT drives**: with the port and the game on an external USB drive
-  (an NVMe SSD in a USB case, exFAT), an RTX 4060 laptop froze for 0.2-0.8 s dozens of times a
+  (an NVMe SSD in a USB case, exFAT), a laptop froze for 0.2-0.8 s dozens of times a
   minute, because Windows writes to such drives without a cache and the port writes its shader
   cache, logs and saves while you play. On the laptop's internal drive the same test had no
   freeze over 100 ms. The launcher now says so before you play from such a drive (once per
@@ -82,12 +82,12 @@ Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
   Failed"): the game sometimes points a draw at data that isn't a texture. One such description,
   a compressed format with a tiling layout compressed textures never use, made the port stop
   while working out its size, before the check that skips garbage textures. It now has no size
-  and is skipped like the others. Found in a 16-minute session on an RTX 4060 laptop. A test
+  and is skipped like the others. Found in a 16-minute session on a laptop. A test
   that turned 3,000 textures into that one reproduced the crash on the previous build; this
   version kept running at 60 FPS. The same test found a second such stop (a garbage texture read
   as a depth texture), fixed the same way.
 - **Video memory no longer only grows** (#95): the port kept every buffer range the game ever
-  used in video memory. On an RTX 4060 laptop, 16 minutes of Uncharted 2 with one level change
+  used in video memory. On a laptop, 16 minutes of Uncharted 2 with one level change
   took that from 320 MiB to 1.9 GB, never less, and through a long session cards with 4-8 GB
   fill up (then the driver moves memory to system RAM and the frame rate falls). Now, above a
   quarter of the card's memory, ranges the game has not used for a minute are given back and

@@ -1067,8 +1067,8 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
     # Drake's Deception froze for good with multithreaded rendering (GitHub #51, Steam Deck, 19 Oct
     # 2026: a fence write on the Vulkan recording thread faulted while the GPU command thread
     # waited for that thread), fixed in the runtime the same day. 21 Oct 2026: the launcher's
-    # choice counts again: no freeze in 15-20 min soaks (RTX 4060 laptop, desktop walking), and in
-    # a heavy Cartagena spot on the 4060 it is the difference between 53.7 FPS with 11 stalls
+    # choice counts again: no freeze in 15-20 min soaks (laptop, desktop walking), and in
+    # a heavy Cartagena spot on the NVIDIA GPU it is the difference between 53.7 FPS with 11 stalls
     # over 100 ms (off) and 60 FPS with 1 (on), the single GPU command thread being the limit.
     if multithreaded is not None:
         env["GOW3_DRAW_PIPE"] = multithreaded

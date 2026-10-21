@@ -1511,7 +1511,7 @@ No game run (the user was playing). CHANGELOG "Next version" entry added.
 analysis/test-tools/issues/i<issue>/boot.log; summary script analysis/test-tools/issue_summary.py.
 - **4 of 10 = U1 0x64011f** ("execute access to 0 at 0", host #1 guest offset 0x64011f, same
   guest stack 0x641532 <- 0x501ea9 <- 0x56d027 ...): #78 (RTX 3050 Laptop 4 GB), #82 (RX 9060 XT),
-  #85 (RTX 4060), #90 (RTX 5060 Laptop 8 GB). That is the CUE red-zone crash fixed by
+  #85, #90 (RTX 5060 Laptop 8 GB). That is the CUE red-zone crash fixed by
   CUE_PRETOUCH_PATCHES (unreleased; 0.4.1 does not have it). The "crash after 10-30 min on 4-8 GB
   laptops" pattern is this crash, not video memory: no VRAM pressure in #90, #78 steady ~2.9 GB.
 - U1 0x5f64f3 read of 0 (#59), U2 0xd09665 read of 0 (#61), U1 0x63f61e read of -1 (#34),
@@ -1573,7 +1573,7 @@ folder, the layout of #43/#29/#58/#73).
 
 ## 20 October 2026 (evening): hybrid-laptop freezes = present under the submit lock (fix built)
 
-- 4060 laptop (DESKTOP-7VMONV3: 7840HS, RTX 4060 Laptop + 780M; the 780M drives the 2560x1600
+- Laptop (7840HS, NVIDIA laptop GPU + 780M; the 780M drives the 2560x1600
   165 Hz panel, frames copied across): 17:30 build, 1080p windowed: U3 median 38 FPS (min 24),
   freezes to 0.82 s; U1 Continue median 47 (min 32), freezes to 0.61 s; menus 46-184 ms freezes.
   In the freezes the GPU command thread was not idle, in no counted wait, ~31 ms on the CPU.
@@ -1593,9 +1593,9 @@ folder, the layout of #43/#29/#58/#73).
 - 5060 laptop: no results today; its session was offline at 19:40.
 - Still open: U3 ~48 FPS ceiling on laptop CPUs (GPU command thread CPU-bound, ~54K draws/s).
 
-## 20 October 2026 (night): 4060 laptop freezes = port on a USB exFAT drive
+## 20 October 2026 (night): laptop freezes = port on a USB exFAT drive
 
-- Laptop DESKTOP-7VMONV3: D: = NVMe SSD in a USB enclosure (ASMT 2462, exFAT); C: = internal NVMe.
+- Laptop: D: = NVMe SSD in a USB enclosure (ASMT 2462, exFAT); C: = internal NVMe.
   The port tree (D:\uncharted) and first the game (D:\game, /app0 overlay) were on D:.
 - Present-queue theory disproven on the laptop (Presentation waits ~0% with and without it).
 - Game on C:, port on D:: U3 steady 53-55 FPS but freezes to 0.67 s after the level load;
@@ -1607,7 +1607,7 @@ folder, the layout of #43/#29/#58/#73).
   IOCTL_STORAGE_QUERY_PROPERTY, removable, FAT/exFAT): warns once per port+game folder pair.
   Checked here: D: (WD My Passport USB HDD, exFAT) flagged, NVMe drives not. CHANGELOG entry.
 - Open: make the port immune (async log writes, no trigger polls on slow drives): pinpoint run
-  dport-guest-u3 requested; CPU-bound U3 ~47-54 FPS (4060) / 41 (780M 720p): optimization worker.
+  dport-guest-u3 requested; CPU-bound U3 ~47-54 FPS (NVIDIA GPU) / 41 (780M 720p): optimization worker.
 
 ## 20 October 2026 (night): GitHub #95 memory, proper fix (built, laptop test pending)
 
@@ -1631,9 +1631,9 @@ folder, the layout of #43/#29/#58/#73).
 - Backups: analysis/backups/main/arena-reclaim/. Laptop runs: forced-u2/u3/u1 (limit 600, age 20,
   screenshots), default-u2 900 s, 780M u2.
 
-## 20 October 2026 (night): CPU savings confirmed on the 4060; 780M memory placement
+## 20 October 2026 (night): CPU savings confirmed on the NVIDIA GPU; 780M memory placement
 
-- fix-20oct-5 A/B on the 4060 (U3, C: port), two pairs: GOW3_READBACK_POOL + GOW3_SKIP_COMPUTE_REBIND
+- fix-20oct-5 A/B on the NVIDIA GPU (U3, C: port), two pairs: GOW3_READBACK_POOL + GOW3_SKIP_COMPUTE_REBIND
   on vs off: ~1,030 draws 54.5 vs 50.9 FPS (+7%); ~1,250 draws 65.3K vs 62.0K draws/s (+5%).
 - 780M (pq-on-1 log): sparse arenas allowed in type 0 (heap 0, 256 MiB, DeviceLocal), 1 (heap 1,
   19.8 GB system, HostVisible|Coherent), 2 (heap 2, 256 MiB, DeviceLocal|HostVisible), 3 (heap 1,
@@ -1651,7 +1651,7 @@ folder, the layout of #43/#29/#58/#73).
   both GPUs requested before changing the U3 multithreading default (#51 freeze risk).
 - 780M U2 subtitle / pause menu flicker (user, watching): bis-1 system arenas yes, bis-2 local
   arenas yes, bis-3 READBACK_POOL/SKIP_COMPUTE_REBIND off yes, bis-4 laptop's pre-20-Oct exe
-  (cc6f758b) yes = pre-existing, not today's work. bis-5 (4060 at 720p) / bis-6 (780M at 1080p)
+  (cc6f758b) yes = pre-existing, not today's work. bis-5 (NVIDIA GPU at 720p) / bis-6 (780M at 1080p)
   split GPU vs render size. System arenas made the iGPU default again (23:04 build).
 - Desktop (user, 5080, usual build f0ec3cbf, U2, DLSS 4K render): aim blur back. Log: "Aim focus:
   crosshair box centre 0.25 -> 0.5 (render 3840x2160)" applied, "Tiny image readbacks: ~300/5 s"
@@ -1662,7 +1662,7 @@ folder, the layout of #43/#29/#58/#73).
   (not tracked): when another draw had uploaded the block earlier in the frame the GPU kept the
   old centre. Now BufferCache::WriteThrough (guest + GPU copy in stream order), backing fallback.
   Build 23:10 deployed to out/gow3-probe.exe for the user's U2 check (U3 uses the same path).
-- 780M flicker: bis-5 (RTX 4060 at 720p) no flicker -> 780M-specific, pre-existing.
+- 780M flicker: bis-5 (NVIDIA GPU at 720p) no flicker -> 780M-specific, pre-existing.
 - U2 aim blur FIXED (user-confirmed 23:24, 4K DLAA): FixAimFocusCentre now writes through
   (BufferCache::WriteThrough). New per-5 s line "Aim focus (5 s): N binds; skipped ...; N corrected
   (N through to the GPU copy)": user session 300/300/300. Build 6a3bb583 (23:20) deployed.
@@ -1673,13 +1673,13 @@ folder, the layout of #43/#29/#58/#73).
   keyboard set only (controllers keep the picture). prompts-test harness takes "dpad"; rendered OK.
   Build 00718657 (23:39) deployed; user check pending.
   User-confirmed fixed (23:50).
-- Laptop mt-soak-4060 (fix-7, U3 MT, 15 min): FPS 60 most of the time (MT: GPU thread idle 23-27%)
+- Laptop mt-soak-nv (fix-7, U3 MT, 15 min): FPS 60 most of the time (MT: GPU thread idle 23-27%)
   but dips: compute variant storms (cs 8f067540 / 7d7e7206 / 0c936dd6 each 100+ variants, compute
   pipelines 40 -> 733, a 918 ms frame with 136 compiles). 0c936dd6 had unmapped 1-3 GB V#s (bound
   null, but specialised). Fix (fix-20oct-8, 23:53, sha1 34d1b37b): IsGarbageEffectBuffer for EVERY
   shader (odd-looking V#s that BindBuffers would null read as null in GetSharp); effect family
   (now incl. 0c936dd6, IsEffectShader) keeps the strict rule; "variant N buffers" diagnostics at
-  101-106 variants. f8 MT soaks (4060, 780M) queued. Deployed on the desktop too.
+  101-106 variants. f8 MT soaks (NVIDIA GPU, 780M) queued. Deployed on the desktop too.
 - U3 museum red carpet (user): pre-existing (the pre-20-Oct build shows it too). Frame capture
   analysis/uncharted-user/captures/frame_20261020-235100_2.txt (scene pass #22: 98 draws, 125
   textures); cause not found yet.
@@ -1727,7 +1727,7 @@ folder, the layout of #43/#29/#58/#73).
   in U2 (0xd667ff, fill 0xd645f0 + 0x220f as in U1); #105/#74/#29 = 8f067540 storms; #103 =
   AnkerGames repack without files.json; #104 exit 23 = guest debug exception (log needed); #77 movie
   upscale costs 3.3 ms/frame at 4K here (not the cause; open).
-- 21 Oct ~13:45: laptop Q2 (U2, 4060, fix-21oct-6, the user playing) stopped at ~16 min on
+- 21 Oct ~13:45: laptop Q2 (U2, NVIDIA GPU, fix-21oct-6, the user playing) stopped at ~16 min on
   image_info.cpp:191 ASSERT(!props.is_block) after "SurfaceFormat: Unknown data_format=36 and
   num_format=13": a garbage T# (BC2 + Ubscaled) with a macro-tiled mode; ImageInfo's constructor
   asserts before PlausibleImage runs. UpdateSize now returns with guest_size 0 for block +
@@ -1747,8 +1747,8 @@ folder, the layout of #43/#29/#58/#73).
   out/gow3-probe.before-depthgarbage.exe = 5cff3a16), pkg fix-21oct-9. Test exes:
   analysis/test-tools/bench/exe-garbage-old.exe, exe-garbage-fix2.exe.
 - 21 Oct ~16:25, cache swap (laptop T1): no cache went to the wrong GPU (folder profiles: active +
-  gpu-2 NVIDIA, gpu-3 AMD). Build 7 (no SwapCache, clears) ran at 13:23 on the 4060 and deleted the
-  780M cache, leaving two 4060 caches; t1c restored the first by folder order. SwapCache now
+  gpu-2 NVIDIA, gpu-3 AMD). Build 7 (no SwapCache, clears) ran at 13:23 on the NVIDIA GPU and deleted the
+  780M cache, leaving two NVIDIA GPU caches; t1c restored the first by folder order. SwapCache now
   restores the newest matching cache (folder stamp) and removes older ones of the same GPU. Desktop
   test (5080 + AMD iGPU, fake older NVIDIA duplicate named gpu-0): iGPU start restored its cache,
   NVIDIA start restored the real one and removed the fake. Build f36c6f02 deployed (backup

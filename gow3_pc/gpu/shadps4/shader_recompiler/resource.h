@@ -88,7 +88,7 @@ inline u64 (*gpu_mapped_extent)(u64 address, u64 size) = nullptr;
 /// made a new shader variant and compute pipeline each, built on the GPU thread: cs 8f067540 had
 /// 1,177 variants in our cache, and a frame building 465 of them took 9 s on a laptop (GitHub
 /// #71). GOW3_EFFECT_SHARP_FILTER=0: the old specialization (binding unchanged either way).
-/// 20 Oct 2026 night: cs 0c936dd6 of the same family too (an RTX 4060 laptop, 15 min of Uncharted
+/// 20 Oct 2026 night: cs 0c936dd6 of the same family too (a laptop, 15 min of Uncharted
 /// 3: its unmapped 1-3 GB V#s, already bound as null, made 100+ variants, frames up to 0.9 s).
 inline bool IsEffectShader(u64 pgm_hash) {
     return pgm_hash == 0x8f067540 || pgm_hash == 0x7d7e7206 || pgm_hash == 0x0c936dd6;

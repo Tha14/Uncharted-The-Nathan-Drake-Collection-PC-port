@@ -168,7 +168,7 @@ bool ImageInfo::IsCompatible(const ImageInfo& info) const {
 
 void ImageInfo::UpdateSize() {
     guest_size = 0;
-    // gow3 21 Oct 2026 (Uncharted 2 on an RTX 4060 laptop, while playing): a garbage T# (BC2 with
+    // gow3 21 Oct 2026 (Uncharted 2 on a laptop, while playing): a garbage T# (BC2 with
     // number format 13, which no texture has) with a macro-tiled mode stopped the game at the
     // assert below; block-compressed textures are never macro-tiled. Such a description keeps no
     // size, and PlausibleImage drops it like other garbage T#s.

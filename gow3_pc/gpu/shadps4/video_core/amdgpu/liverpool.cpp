@@ -540,7 +540,7 @@ bool FewerDrains() {
 /// gow3 21 Oct 2026: GOW3_SKIP_IB_DRAIN=1 (multithreaded rendering): a nested command buffer on a
 /// compute queue (INDIRECT_BUFFER) does not drain the draw pipe. The packet itself only reads the
 /// nested buffer's words; every packet in it passes the drain check on its own, as nested buffers
-/// on the graphics queue do (PipelinedOpcode). Uncharted 3 on the RTX 4060 laptop: ~2,300 such
+/// on the graphics queue do (PipelinedOpcode). Uncharted 3 on the laptop: ~2,300 such
 /// drains a second, the command thread waiting 10-28% of its time in them. Unlike
 /// GOW3_FEWER_DRAINS, memory waits keep their drains. Off by default until measured.
 bool SkipIbDrain() {

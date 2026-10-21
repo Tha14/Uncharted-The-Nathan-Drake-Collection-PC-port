@@ -2876,7 +2876,7 @@ void Rasterizer::DispatchRecord(const ComputePipeline* pipeline) {
     // scheduler's record serial: every Record() and CommandBuffer() call, and every new command
     // buffer, advance it; any other compute bind goes through one of them). Only while Vulkan
     // commands are recorded on this thread (no recording thread, no draw pipeline). Uncharted 3
-    // dispatches ~1,275 times a frame, mostly the same few shaders back to back; on the RTX 4060
+    // dispatches ~1,275 times a frame, mostly the same few shaders back to back; on the
     // laptop (Ryzen 7840HS, 47 FPS, the GPU command thread CPU-bound) the driver's
     // vkCmdBindPipeline was 2.4% of that thread and vkCmdDispatch 4.3% (together 0.6% on the
     // Radeon 780M).
@@ -3408,7 +3408,7 @@ void Rasterizer::SyncSmallGpuWrites() {
 const Rasterizer::SrtPlan& Rasterizer::SrtPlanFor(const Shader::Info& info) {
     const auto& srt = info.srt_info;
     // gow3 20 Oct 2026 (laptop CPUs): the map lookup on every walk was ~1% of the GPU command
-    // thread on a Ryzen 7840HS (RTX 4060 and 780M, Uncharted 3). Plans are never erased and the
+    // thread on a Ryzen 7840HS (NVIDIA GPU and 780M, Uncharted 3). Plans are never erased and the
     // map's nodes do not move, so a small cache of plan addresses by walker is safe.
     const void* walker = reinterpret_cast<const void*>(srt.walker_func);
     auto& memo = srt_plan_memo[(reinterpret_cast<uintptr_t>(walker) >> 4) & (SrtPlanMemoSize - 1)];

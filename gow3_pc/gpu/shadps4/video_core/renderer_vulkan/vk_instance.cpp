@@ -592,7 +592,7 @@ bool Instance::CreateDevice() {
     // data (BufferCache::CopyFinishedGpuPage): they wait for the work that wrote the data only,
     // not for the frame queued behind it on the main queue.
     // gow3 20 Oct 2026: and a third one for presents (Swapchain::Present). Presenting on the
-    // graphics queue had to hold the submit lock, and on a hybrid laptop (RTX 4060 renders, the
+    // graphics queue had to hold the submit lock, and on a hybrid laptop (NVIDIA GPU renders, the
     // Radeon 780M drives the screen, the frame is copied across) a present that blocked held up
     // every submission of the GPU command thread: 0.3-0.8 s freezes in Uncharted 1 and 3, the
     // thread neither idle nor in any counted wait. GOW3_PRESENT_QUEUE=0: presents on the

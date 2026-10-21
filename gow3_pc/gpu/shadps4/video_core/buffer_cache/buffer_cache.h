@@ -418,7 +418,7 @@ private:
         bool demoted = false;
     };
     // gow3 20 Oct 2026 (laptop CPUs): 2^18 slots (6 MiB) for ~1,900 ranges in use made each
-    // lookup a cache and TLB miss (~1.6% of the GPU command thread with the RTX 4060, ~2.2% with
+    // lookup a cache and TLB miss (~1.6% of the GPU command thread with the NVIDIA GPU, ~2.2% with
     // the 780M, Ryzen 7840HS); 2^16 (1.5 MiB) touches a quarter of the pages, at ~3% occupancy
     // (a newcomer whose slot holds an active range streams instead).
     static constexpr u32 StaticRangeBits = 16;
@@ -448,7 +448,7 @@ private:
         std::unique_lock lock{gpu_ranges_mutex};
         // gow3 20 Oct 2026 (laptop CPUs): Uncharted 3 dispatches ~1,300 compute jobs a frame,
         // most writing the ranges they wrote before; adding a range the set already holds cost
-        // the GPU command thread ~2.3% on a Ryzen 7840HS (RTX 4060 laptop, 47 FPS CPU-bound),
+        // the GPU command thread ~2.3% on a Ryzen 7840HS (laptop, 47 FPS CPU-bound),
         // and the window ticks of a range already noted in this submission ~1.4%. A small cache
         // of recent adds skips both while nothing was subtracted from the range since
         // (GpuRangesSubtract clears overlapping entries). GOW3_GPU_RANGE_CACHE=0: off.

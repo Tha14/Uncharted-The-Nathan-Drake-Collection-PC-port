@@ -357,7 +357,7 @@ void DataBase::Clear() {
 
 // gow3 21 Oct 2026: the cache holds one GPU's shaders. A laptop that runs the game on its
 // integrated GPU one time and on its graphics card the next lost the whole cache at every switch
-// (4478 files on the RTX 4060 laptop, then 0.5 s compile freezes for minutes). The other GPU's
+// (4478 files on the laptop, then 0.5 s compile freezes for minutes). The other GPU's
 // cache now waits beside this one (<serial>.gpu-<n>, at most MaxKept) and comes back on a switch.
 bool DataBase::SwapCache(const std::function<bool(const std::vector<u8>&)>& matches) {
     if (!opened || EmulatorSettings.IsPipelineCacheArchived()) {
@@ -397,7 +397,7 @@ bool DataBase::SwapCache(const std::function<bool(const std::vector<u8>&)>& matc
         return false;
     }
     // This GPU's most recently used cache comes back. A build without this swap (it clears the
-    // cache instead) run in between can leave two of one GPU (21 Oct, 4060 laptop): the older
+    // cache instead) run in between can leave two of one GPU (21 Oct, laptop): the older
     // one goes, so it neither comes back stale later nor holds a place.
     const auto stamp = [](const fs::path& dir) {
         std::error_code time_ec;
