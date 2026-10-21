@@ -511,6 +511,17 @@ def resolution_patch(data, width, height, move=True):
     changed += region.count(packed_old)
     region[:] = region.replace(packed_old, packed_new)
     data[start:end] = region
+    # The screen wipe of Uncharted 2 and 3 (menus, loading: black bands sweeping left to right)
+    # is drawn in the 1280x720 UI space, but from the render size: its bands end at the render
+    # height (a quarter short at 540p) and it crosses the render width plus 600. Its code
+    # (lea rax,[display]; mov ecx,[rax+8]; mov eax,[rax+0xc]; vcvtsi2ss xmm0,xmm0,rax) takes the
+    # PlayStation 4's 1920x1080 instead: mov ecx,1920; mov eax,1080.
+    wipe = [match.start() for match in pattern_regex("48 8d 05 ???????? 8b 48 08 8b 40 0c c4 e1 fa 2a c0").finditer(data)]
+    if len(wipe) == 1:
+        data[wipe[0]:wipe[0] + 13] = bytes.fromhex("b9 80070000 b8 38040000 0f1f00")
+        print(f"Patched: screen wipe in the PS4's 1920x1080 (image offset {wipe[0]:#x})")
+    elif wipe:  # (Drake's Fortune has no such code)
+        print(f"Screen wipe patch NOT applied: {len(wipe)} matches in this game version")
     # The render targets come from a fixed "Render Target Heap" (497 MiB at 1080p) inside the
     # 2988 MiB GPU (garlic) block of the engine's memory table; both grow with the pixel count
     # (+10%), and the direct memory reported to the game by the same amount (GOW3_DMEM_MB).

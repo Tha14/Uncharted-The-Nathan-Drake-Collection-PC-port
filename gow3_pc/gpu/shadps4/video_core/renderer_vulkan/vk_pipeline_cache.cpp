@@ -1184,7 +1184,13 @@ bool PipelineCache::RefreshGraphicsKey(PipelineSelection& sel) {
         for (s32 cb = 0; cb < AmdGpu::NUM_COLOR_BUFFERS && !skip_cb_binding; ++cb) {
             bound += (regs.color_buffers[cb] && regs.color_target_mask.GetMask(cb)) ? 1 : 0;
         }
-        motion_possible = Shader::MotionVectors::positions_address != 0 && bound >= 5 &&
+        // Uncharted: its G-buffer passes draw one target with the scene depth and write the
+        // stencil (characters set bit 1); the rasterizer picks the character draws.
+        const bool uncharted_gbuffer = Shader::MotionVectors::stencil_gate && bound >= 1 &&
+                                       regs.depth_control.stencil_enable &&
+                                       regs.depth_control.depth_write_enable;
+        motion_possible = Shader::MotionVectors::positions_address != 0 &&
+                          (bound >= 5 || uncharted_gbuffer) &&
                           !regs.color_buffers[Shader::MotionVectors::Output] &&
                           regs.depth_buffer.DepthValid() &&
                           regs.depth_buffer.NumSamples() == 1 && !regs.IsClipDisabled() &&
@@ -1216,7 +1222,9 @@ bool PipelineCache::RefreshGraphicsKey(PipelineSelection& sel) {
     }
     if (motion_possible) {
         const auto* vs = sel.infos[static_cast<u32>(Shader::SwStage::Vertex)];
-        if (vs) {
+        if (vs && Shader::MotionVectors::stencil_gate) {
+            sel.motion = true; // Uncharted: per draw (the stencil value it writes)
+        } else if (vs) {
             // Shaders with a bone palette (motion_history.h). Small skeletons (weapons,
             // props) also include static world pieces: the rasterizer gives those
             // history only while their constants change.
