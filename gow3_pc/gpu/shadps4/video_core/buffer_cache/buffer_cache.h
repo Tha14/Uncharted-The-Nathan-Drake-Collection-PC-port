@@ -53,6 +53,29 @@ inline thread_local u64 g_stream_stats_key = 0;
 inline thread_local bool g_obtained_static = false;
 inline thread_local u64 g_stream_stats_used = 0;
 
+/// gow3: an allocator whose new elements are default-initialized: resize() leaves bytes as they
+/// are instead of zeroing them (buffers that are filled completely right after, see
+/// GOW3_READBACK_POOL in buffer_cache.cpp). resize(n, value) still fills.
+template <typename T>
+struct UninitAllocator : std::allocator<T> {
+    template <typename U>
+    struct rebind {
+        using other = UninitAllocator<U>;
+    };
+    UninitAllocator() = default;
+    template <typename U>
+    UninitAllocator(const UninitAllocator<U>&) noexcept {}
+    template <typename U>
+    void construct(U* p) noexcept(std::is_nothrow_default_constructible_v<U>) {
+        ::new (static_cast<void*>(p)) U;
+    }
+    template <typename U, typename... Args>
+    void construct(U* p, Args&&... args) {
+        ::new (static_cast<void*>(p)) U(std::forward<Args>(args)...);
+    }
+};
+using SnapshotBytes = std::vector<u8, UninitAllocator<u8>>;
+
 /// gow3 diagnostics (GOW3_FAULT_STATS=1 GOW3_READ_SOURCES=1): records which shader wrote GPU data into each 1 MiB
 /// window, listed with the windows the CPU reads GPU data from.
 void NoteGpuWriter(VAddr address, u64 size, u64 shader_hash);
@@ -288,6 +311,11 @@ public:
     /// Commits pending sparse buffer memory binds. Must be called before every scheduler submit.
     void SubmitPendingArenaBinds(Vulkan::SubmitInfo& info);
 
+    /// gow3 20 Oct 2026 (GitHub #95): gives back the arena memory of 1 MiB windows the game has
+    /// not used for a while, once the arenas hold more than their limit; called per submission
+    /// (does its work every 2 s).
+    void ReclaimArenaMemory();
+
 private:
     struct ArenaBinds {
         const Buffer* arena;
@@ -389,7 +417,11 @@ private:
         bool uploaded = false;
         bool demoted = false;
     };
-    static constexpr u32 StaticRangeBits = 18;
+    // gow3 20 Oct 2026 (laptop CPUs): 2^18 slots (6 MiB) for ~1,900 ranges in use made each
+    // lookup a cache and TLB miss (~1.6% of the GPU command thread with the RTX 4060, ~2.2% with
+    // the 780M, Ryzen 7840HS); 2^16 (1.5 MiB) touches a quarter of the pages, at ~3% occupancy
+    // (a newcomer whose slot holds an active range streams instead).
+    static constexpr u32 StaticRangeBits = 16;
     std::vector<StaticRange> static_ranges = std::vector<StaticRange>(1u << StaticRangeBits);
     u64 static_binds = 0, static_bytes = 0, static_promoted = 0, static_demoted = 0;
     /// 0: stream it; 1: arena, synchronize (first use); 2: arena, already uploaded and clean.
@@ -414,12 +446,46 @@ private:
             }
         }
         std::unique_lock lock{gpu_ranges_mutex};
+        // gow3 20 Oct 2026 (laptop CPUs): Uncharted 3 dispatches ~1,300 compute jobs a frame,
+        // most writing the ranges they wrote before; adding a range the set already holds cost
+        // the GPU command thread ~2.3% on a Ryzen 7840HS (RTX 4060 laptop, 47 FPS CPU-bound),
+        // and the window ticks of a range already noted in this submission ~1.4%. A small cache
+        // of recent adds skips both while nothing was subtracted from the range since
+        // (GpuRangesSubtract clears overlapping entries). GOW3_GPU_RANGE_CACHE=0: off.
+        static const bool range_cache = [] {
+            const char* env = std::getenv("GOW3_GPU_RANGE_CACHE");
+            return !(env && env[0] == '0');
+        }();
+        const u64 tick = size && range_cache ? RangeTick() : 0;
+        if (range_cache && size) {
+            auto& entry = gpu_add_cache[((address >> 6) ^ (address >> 18) ^ size) & (GpuAddCacheSize - 1)];
+            if (entry.address == address && entry.size == size) {
+                if (entry.tick != tick) {
+                    entry.tick = tick;
+                    NoteGpuWriteWindows(address, size);
+                }
+                return;
+            }
+            entry = {address, size, tick};
+        }
         gpu_modified_ranges.Add(address, size);
         if (size) {
             NoteGpuWriteWindows(address, size);
         }
     }
+    /// gow3: recent GpuRangesAdd ranges (all inside gpu_modified_ranges) and the tick their
+    /// windows were noted at; guarded by gpu_ranges_mutex.
+    struct GpuAddCacheEntry {
+        VAddr address = 0;
+        u64 size = 0;
+        u64 tick = 0;
+    };
+    static constexpr u32 GpuAddCacheSize = 512;
+    std::array<GpuAddCacheEntry, GpuAddCacheSize> gpu_add_cache{};
     void NoteGpuWriteWindows(VAddr address, u64 size);
+    /// gow3: the scheduler tick NoteGpuWriteWindows records (out of line: Scheduler is
+    /// incomplete here).
+    u64 RangeTick() const;
     /// gow3: scheduler tick of the newest large GPU write (over 64 KiB) into each 1 MiB window,
     /// and of the newest smaller one into each 4 KiB page: when the GPU data of a page is final.
     std::unordered_map<u64, u64> gpu_write_window_tick;
@@ -429,7 +495,10 @@ private:
     bool ReadFinishedGpuPage(VAddr page);
     /// gow3: the same through a copy on the second queue that waits for the newest GPU write
     /// into the page's window only (already submitted). False: not possible.
-    bool CopyFinishedGpuPage(VAddr page);
+    /// gow3 21 Oct 2026 (GOW3_FETCH_NO_BLOCK=1): `finished_only` takes only pages whose GPU
+    /// writes have finished (false when the page's own have not), so the copy waits for no GPU
+    /// work.
+    bool CopyFinishedGpuPage(VAddr page, bool finished_only = false);
     /// gow3: copies GPU data of `pieces` to guest memory with a copy on the second queue that
     /// waits for main-queue tick `wait_tick` only. False: not possible.
     bool SideQueueFetch(std::span<const std::pair<VAddr, u64>> pieces, u64 wait_tick);
@@ -437,7 +506,8 @@ private:
     /// queue) and stop being GPU data, so the rest can take the shared path.
     bool FetchOldGpuBytes(VAddr page);
     /// The window tick of `page` when its GPU data can be fetched early (submitted), else 0.
-    u64 FetchableWindowTick(VAddr page);
+    /// `count_refusals`: false for the neighbour pages a batched fetch looks at (statistics).
+    u64 FetchableWindowTick(VAddr page, bool count_refusals = true);
     void FinishPageFetch(VAddr page);
     bool arena_host_mapped = false;
     vk::UniqueCommandPool urgent_pool;
@@ -449,6 +519,13 @@ private:
     void GpuRangesSubtract(VAddr address, u64 size) {
         std::unique_lock lock{gpu_ranges_mutex};
         gpu_modified_ranges.Subtract(address, size);
+        // gow3 20 Oct 2026: cached adds overlapping the range are no longer whole in the set.
+        const VAddr end = address + size;
+        for (auto& entry : gpu_add_cache) {
+            if (entry.size && entry.address < end && address < entry.address + entry.size) {
+                entry = {};
+            }
+        }
     }
 
     std::unique_ptr<FaultManager> fault_manager;
@@ -551,6 +628,19 @@ private:
         std::vector<std::pair<VAddr, u64>> pieces; ///< address, size
         std::vector<u64> offsets;                  ///< of each piece in `mapped`
         RangeSet rewritten;
+        /// gow3 20 Oct 2026: the address span of `pieces` (set when queued; pieces never change
+        /// after). `rewritten` is only ever looked at inside the pieces, so writes outside the
+        /// span are not recorded (every written binding of every draw and dispatch was added to
+        /// every pending readback's set, growing it until landing).
+        VAddr span_lo = ~VAddr{0};
+        VAddr span_hi = 0;
+        void NoteRewrite(VAddr address, u64 size) {
+            const VAddr lo = std::max(address, span_lo);
+            const VAddr hi = std::min(address + size, span_hi);
+            if (lo < hi) {
+                rewritten.Add(lo, hi - lo);
+            }
+        }
         /// Pages to read-protect (merged ranges) until the data is back: a CPU read of them waits
         /// for this readback only (GOW3_ASYNC_READBACK=1; =2 leaves them readable, stale).
         std::vector<std::pair<VAddr, u64>> watched;
@@ -565,10 +655,14 @@ private:
         /// (same layout as `mapped`). A 64-byte line that differs at landing, and not by the
         /// GPU's value, was written meanwhile (the guest reusing the memory once it saw the
         /// fence) and keeps that value.
-        std::vector<u8> before;
+        SnapshotBytes before;
     };
     PageManager* page_manager = nullptr;
     std::deque<PendingReadback> pending_readbacks;
+    /// gow3 20 Oct 2026 (GOW3_READBACK_POOL): snapshot buffers of landed readbacks, reused by
+    /// the next ones (DownloadRangesAsync); guarded like pending_readbacks.
+    std::vector<SnapshotBytes> snapshot_pool;
+    void RecycleSnapshot(SnapshotBytes& bytes);
     /// gow3: writes one GPU-modified run [lo, hi) of piece `piece` of `readback` (the oldest
     /// pending one) to guest memory, except lines the guest changed since it was queued.
     void LandGuarded(PendingReadback& readback, size_t piece, VAddr lo, VAddr hi);
@@ -591,6 +685,11 @@ public:
     /// gow3: lands the pending readbacks that read-protect `page`, waiting for the GPU if needed
     /// (GPU thread: a CPU access faulted on that page and would fault again).
     void LandReadbacksWatching(VAddr page);
+    /// gow3 21 Oct 2026 (GPU worker): the newest tick of the pending readbacks that
+    /// read-protect `page` (0: none), GPU thread. A faulting guest thread waits for it itself
+    /// before LandReadbacksWatching (which then has nothing to wait for), so the command thread
+    /// keeps feeding the GPU meanwhile (GOW3_LAND_ON_GUEST).
+    [[nodiscard]] u64 WatchingTick(VAddr page) const;
 
     /// gow3: runs `fn` (GPU thread) when the newest pending readback has landed in guest memory;
     /// false when no readback is pending. Ray-cast batches' end-of-pipe fences: the guest reads
@@ -605,6 +704,20 @@ public:
     /// gow3 diagnosis: GPU data or a readback in flight in [address, address + size).
     [[nodiscard]] u64 PendingReadbackTickFor(VAddr address, u64 size) const {
         return PendingReadbackTick(address, size, false);
+    }
+    /// gow3: the newest pending readback's tick (0: none pending), with or without data pieces:
+    /// the presenter's frames-ahead wait sleeps until the GPU passes it, then lands it.
+    /// gow3 21 Oct 2026 (GPU worker): the oldest pending readback's tick (0: none); readbacks
+    /// land oldest first (GOW3_READBACK_WAKE: the command thread wakes when the GPU passes it).
+    [[nodiscard]] u64 OldestPendingReadbackTick() const {
+        return pending_readbacks.empty() ? 0 : pending_readbacks.front().tick;
+    }
+    [[nodiscard]] u64 NewestPendingReadbackTick() const {
+        u64 tick = 0;
+        for (const auto& readback : pending_readbacks) {
+            tick = std::max(tick, readback.tick);
+        }
+        return tick;
     }
     /// Waits for the readbacks up to `tick` and lands them (their deferred fences are written).
     void LandReadbacks(u64 tick);
@@ -646,6 +759,40 @@ private:
     u32 block_shift{};
     u32 blocks_per_arena_page{};
     u32 blocks_per_arena_page_shift{};
+    /// gow3 20 Oct 2026 (GitHub #95, ReclaimArenaMemory): the 2 s epoch in which each 1 MiB
+    /// window of guest GPU memory was last used through an arena (0: never), the scheduler tick
+    /// at the start of each recent epoch, and arena memory given back (its runs are bound again
+    /// before new memory is allocated; quarantined until the unbinds are submitted).
+    static constexpr u32 ReclaimWindowBits = 20;
+    static constexpr u32 ReclaimEpochRing = 64;
+    std::unique_ptr<std::atomic<u16>[]> window_epoch{
+        new std::atomic<u16>[u64(1) << (ADDRESS_SPACE_BITS - ReclaimWindowBits)]{}};
+    u16 reclaim_epoch = 1;
+    std::chrono::steady_clock::time_point next_reclaim_epoch{};
+    std::array<u64, ReclaimEpochRing> epoch_start_tick{};
+    struct FreeRun {
+        vk::DeviceMemory memory;
+        u64 offset; ///< bytes into `memory`
+        u8* mapped; ///< the allocation's CPU mapping (CPU-mappable arenas) or null
+        u64 blocks;
+    };
+    std::vector<FreeRun> free_runs, quarantined_runs;
+    u64 resident_in_use_blocks = 0;
+    bool has_pending_unbinds = false;
+    void TouchArenaWindows(u64 first_block, u64 last_block) {
+        const u16 epoch = reclaim_epoch;
+        const u64 last = std::min<u64>(((last_block << block_shift) >> ReclaimWindowBits),
+                                       (u64(1) << (ADDRESS_SPACE_BITS - ReclaimWindowBits)) - 1);
+        for (u64 w = (first_block << block_shift) >> ReclaimWindowBits; w <= last; ++w) {
+            if (window_epoch[w].load(std::memory_order_relaxed) != epoch) {
+                window_epoch[w].store(epoch, std::memory_order_relaxed);
+            }
+        }
+    }
+    /// Releases the resident blocks in [first_block, end_block); returns how many.
+    u64 ReleaseArenaBlocks(u64 first_block, u64 end_block);
+    /// Drops pending unbinds of `arena` inside [first_block, end_block) (bound again).
+    void TrimPendingUnbinds(const Buffer* arena, u64 first_block, u64 end_block);
     /// gow3: arena memory in chunks allocated ahead on a background thread (buffer_cache.cpp).
     struct ResidencyPool;
     std::unique_ptr<ResidencyPool> residency_pool;

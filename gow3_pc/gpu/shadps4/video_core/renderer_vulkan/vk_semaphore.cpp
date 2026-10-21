@@ -37,6 +37,12 @@ void Semaphore::Refresh() {
     do {
         this_tick = gpu_tick.load(std::memory_order_acquire);
         auto [counter_result, cntr] = instance.GetDevice().getSemaphoreCounterValue(*semaphore);
+        // gow3 20 Oct 2026: a device loss is often first seen here (GitHub #67); report what
+        // the GPU was doing, as the waits and the submit do, before stopping.
+        if (counter_result == vk::Result::eErrorDeviceLost) {
+            DumpGpuCheckpoints(instance);
+            DumpDeviceFault(instance);
+        }
         ASSERT_MSG(counter_result == vk::Result::eSuccess,
                    "Failed to get master semaphore value: {}", vk::to_string(counter_result));
         counter = cntr;

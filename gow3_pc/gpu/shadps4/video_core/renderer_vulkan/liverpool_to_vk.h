@@ -109,6 +109,12 @@ static inline bool IsFormatStencilCompatible(vk::Format fmt) {
     }
 }
 
+/// gow3: whether PromoteFormatToDepth accepts `fmt` (a garbage T# in a depth slot may not).
+static inline bool IsPromotableToDepth(vk::Format fmt) {
+    return fmt == vk::Format::eR32Sfloat || fmt == vk::Format::eR32Uint ||
+           fmt == vk::Format::eR16Unorm;
+}
+
 static inline vk::Format PromoteFormatToDepth(vk::Format fmt) {
     if (fmt == vk::Format::eR32Sfloat || fmt == vk::Format::eR32Uint) {
         return vk::Format::eD32Sfloat;

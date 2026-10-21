@@ -53,4 +53,8 @@ void BeginChoice(const std::string& title, const std::vector<std::string>& items
                  std::vector<Gow3Png::Image> pictures, int focus);
 int PollChoice();
 
+/// A trophy popup (gow3_trophies.cpp): at the top right for a few seconds, one after another.
+/// `text` may hold a second line after a newline.
+void ShowTrophy(Gow3Png::Image picture, const std::string& title, const std::string& text);
+
 } // namespace Gow3Overlay

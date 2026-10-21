@@ -171,10 +171,13 @@ public:
     /// specialization, module and pipeline. Any thread; never waits for the GPU thread.
     void PrecompileCompute(const AmdGpu::ComputeProgram& cs);
 
-    using Result = std::tuple<const Shader::Info*, vk::ShaderModule,
-                              std::optional<Shader::Gcn::FetchShaderData>, u64>;
+    /// gow3: the stage's fetch shader data, when it has one, is assigned to `fetch` in place
+    /// (its attribute vector keeps its allocation from draw to draw; a copy per draw cost up to
+    /// three heap allocations) and the bool is true; otherwise `fetch` is left as it is.
+    using Result = std::tuple<const Shader::Info*, vk::ShaderModule, bool, u64>;
     Result GetProgram(PipelineSelection& sel, Shader::HwStage stage, Shader::SwStage l_stage,
-                      const Shader::ShaderParams& params, Shader::Backend::Bindings& binding);
+                      const Shader::ShaderParams& params, Shader::Backend::Bindings& binding,
+                      std::optional<Shader::Gcn::FetchShaderData>& fetch);
 
     std::optional<vk::ShaderModule> ReplaceShader(vk::ShaderModule module,
                                                   std::span<const u32> spv_code);
@@ -263,6 +266,8 @@ private:
     /// gow3: StartBackgroundWarmUp state; owned here, deleted by StopWarmUp.
     BackgroundWarmup* background = nullptr;
     tsl::robin_map<GraphicsPipelineKey, std::shared_ptr<AsyncGraphicsCompilation>> pending_graphics;
+    /// gow3: background builds that failed (moved out of pending_graphics; never queued again).
+    tsl::robin_map<GraphicsPipelineKey, std::shared_ptr<AsyncGraphicsCompilation>> failed_graphics;
     tsl::robin_map<size_t, std::unique_ptr<Program>> program_cache;
     std::vector<Program*> pending_programs;
     /// gow3: exclusive for program/permutation insertions, shared for worker lookups.

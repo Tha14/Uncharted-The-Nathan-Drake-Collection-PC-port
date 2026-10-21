@@ -376,7 +376,8 @@ bool Instance::CreateDevice() {
         vk::PhysicalDeviceComputeShaderDerivativesFeaturesKHR,
         vk::PhysicalDeviceShaderMixedFloatDotProductFeaturesVALVE,
         vk::PhysicalDevicePipelineBinaryFeaturesKHR,
-        vk::PhysicalDeviceMaintenance5FeaturesKHR>();
+        vk::PhysicalDeviceMaintenance5FeaturesKHR, vk::PhysicalDeviceMemoryPriorityFeaturesEXT,
+        vk::PhysicalDevicePageableDeviceLocalMemoryFeaturesEXT>();
     features = feature_chain.get().features;
 
     const vk::StructureChain properties_chain = physical_device.getProperties2<
@@ -464,6 +465,29 @@ bool Instance::CreateDevice() {
                  dynamic_state_3_features.extendedDynamicState3ColorWriteMask);
     }
     custom_border_color = add_extension(VK_EXT_CUSTOM_BORDER_COLOR_EXTENSION_NAME);
+    // gow3 20 Oct 2026 (GitHub #81, a 2 GB card): without this, NVIDIA refuses device-local memory
+    // once the card's own memory is used up (ErrorOutOfDeviceMemory at 15,360 MiB on a 16 GB RTX
+    // 5080), and the buffer arenas, which only take device-local memory, stopped the game. With
+    // it the driver moves memory to system RAM instead (24 GiB allocated on the same card): slower
+    // when the card is full, but the game goes on. GOW3_PAGEABLE_MEMORY=0: off.
+    {
+        static const bool wanted = [] {
+            const char* env = std::getenv("GOW3_PAGEABLE_MEMORY");
+            return !(env && env[0] == '0');
+        }();
+        if (wanted &&
+            feature_chain.get<vk::PhysicalDeviceMemoryPriorityFeaturesEXT>().memoryPriority &&
+            feature_chain.get<vk::PhysicalDevicePageableDeviceLocalMemoryFeaturesEXT>()
+                .pageableDeviceLocalMemory) {
+            memory_priority = add_extension(VK_EXT_MEMORY_PRIORITY_EXTENSION_NAME);
+            pageable_device_memory =
+                memory_priority && add_extension(VK_EXT_PAGEABLE_DEVICE_LOCAL_MEMORY_EXTENSION_NAME);
+        }
+        std::printf("GPU: pageable video memory %s\n",
+                    pageable_device_memory
+                        ? "on (when the card is full, the driver moves memory to system RAM)"
+                        : wanted ? "not supported by this driver" : "off (GOW3_PAGEABLE_MEMORY=0)");
+    }
     depth_clip_control = add_extension(VK_EXT_DEPTH_CLIP_CONTROL_EXTENSION_NAME);
     depth_clip_enable = add_extension(VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME);
     vertex_input_dynamic_state = add_extension(VK_EXT_VERTEX_INPUT_DYNAMIC_STATE_EXTENSION_NAME);
@@ -567,9 +591,19 @@ bool Instance::CreateDevice() {
     // gow3 17 Oct 2026: a second queue of the same family for small urgent copies of finished GPU
     // data (BufferCache::CopyFinishedGpuPage): they wait for the work that wrote the data only,
     // not for the frame queued behind it on the main queue.
-    static constexpr std::array queue_priorities = {1.0f, 1.0f};
+    // gow3 20 Oct 2026: and a third one for presents (Swapchain::Present). Presenting on the
+    // graphics queue had to hold the submit lock, and on a hybrid laptop (RTX 4060 renders, the
+    // Radeon 780M drives the screen, the frame is copied across) a present that blocked held up
+    // every submission of the GPU command thread: 0.3-0.8 s freezes in Uncharted 1 and 3, the
+    // thread neither idle nor in any counted wait. GOW3_PRESENT_QUEUE=0: presents on the
+    // graphics queue, as before.
+    static const bool present_queue_wanted = [] {
+        const char* env = std::getenv("GOW3_PRESENT_QUEUE");
+        return !(env && env[0] == '0');
+    }();
+    static constexpr std::array queue_priorities = {1.0f, 1.0f, 1.0f};
     const u32 queue_count =
-        std::min<u32>(static_cast<u32>(queue_priorities.size()),
+        std::min<u32>(present_queue_wanted ? 3u : 2u,
                       family_properties[queue_family_index].queueCount);
     std::vector<vk::DeviceQueueCreateInfo> queue_infos = {vk::DeviceQueueCreateInfo{
         .queueFamilyIndex = queue_family_index,
@@ -775,6 +809,12 @@ bool Instance::CreateDevice() {
         vk::PhysicalDeviceAddressBindingReportFeaturesEXT{
             .reportAddressBinding = true,
         },
+        vk::PhysicalDeviceMemoryPriorityFeaturesEXT{
+            .memoryPriority = true,
+        },
+        vk::PhysicalDevicePageableDeviceLocalMemoryFeaturesEXT{
+            .pageableDeviceLocalMemory = true,
+        },
     };
 
     if (!custom_border_color) {
@@ -841,6 +881,12 @@ bool Instance::CreateDevice() {
     if (!address_binding_report) {
         device_chain.unlink<vk::PhysicalDeviceAddressBindingReportFeaturesEXT>();
     }
+    if (!memory_priority) {
+        device_chain.unlink<vk::PhysicalDeviceMemoryPriorityFeaturesEXT>();
+    }
+    if (!pageable_device_memory) {
+        device_chain.unlink<vk::PhysicalDevicePageableDeviceLocalMemoryFeaturesEXT>();
+    }
 
     auto [device_result, dev] = physical_device.createDeviceUnique(device_chain.get());
     if (device_result != vk::Result::eSuccess) {
@@ -857,10 +903,14 @@ bool Instance::CreateDevice() {
     }
 
     graphics_queue = device->getQueue(queue_family_index, 0);
-    present_queue = device->getQueue(queue_family_index, 0);
+    present_queue = device->getQueue(queue_family_index, queue_count > 2 ? 2 : 0);
     if (queue_count > 1) {
         copy_queue = device->getQueue(queue_family_index, 1);
     }
+    std::printf("GPU: presents on %s\n",
+                queue_count > 2 ? "their own queue (GOW3_PRESENT_QUEUE=0: the graphics queue)"
+                : present_queue_wanted ? "the graphics queue (the family has no third queue)"
+                                       : "the graphics queue (GOW3_PRESENT_QUEUE=0)");
     sparse_queue = sparse_queue_family_index == queue_family_index
                        ? graphics_queue
                        : device->getQueue(sparse_queue_family_index, 0);
@@ -896,8 +946,47 @@ bool Instance::CreateDevice() {
         }
     }
 
+    HogVideoMemoryForTests();
     CreateAllocator();
     return true;
+}
+
+// gow3 20 Oct 2026 test knob: GOW3_TEST_VRAM_HOG_MB=N takes N MiB of device-local memory at
+// start and never uses it (memory priority 0 where supported, so with pageable memory the driver
+// moves it out first): a 16 GB card then runs out like a small one (GitHub #81 tests).
+void Instance::HogVideoMemoryForTests() {
+    const char* env = std::getenv("GOW3_TEST_VRAM_HOG_MB");
+    const u64 total = env ? std::strtoull(env, nullptr, 10) << 20 : 0;
+    if (total == 0) {
+        return;
+    }
+    const auto props = physical_device.getMemoryProperties();
+    u32 type = ~0u;
+    for (u32 i = 0; i < props.memoryTypeCount; ++i) {
+        if (props.memoryTypes[i].propertyFlags == vk::MemoryPropertyFlagBits::eDeviceLocal) {
+            type = i;
+            break;
+        }
+    }
+    if (type == ~0u) {
+        return;
+    }
+    const vk::MemoryPriorityAllocateInfoEXT priority{.priority = 0.0f};
+    u64 held = 0;
+    while (held < total) {
+        const vk::MemoryAllocateInfo info{
+            .pNext = memory_priority ? &priority : nullptr,
+            .allocationSize = std::min<u64>(u64{256} << 20, total - held),
+            .memoryTypeIndex = type,
+        };
+        auto [result, memory] = device->allocateMemory(info);
+        if (result != vk::Result::eSuccess) {
+            break;
+        }
+        held += info.allocationSize;
+    }
+    std::printf("GPU: test: %llu MiB of video memory held (GOW3_TEST_VRAM_HOG_MB)\n",
+                static_cast<unsigned long long>(held >> 20));
 }
 
 void Instance::CreateAllocator() {

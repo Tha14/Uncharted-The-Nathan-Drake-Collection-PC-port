@@ -121,6 +121,12 @@ public:
         return present_queue;
     }
 
+    /// gow3 20 Oct 2026: presents go to a third queue of the graphics family (when it has one),
+    /// so a blocking present does not hold the graphics queue's submit lock.
+    bool SeparatePresentQueue() const {
+        return present_queue != graphics_queue;
+    }
+
     TracyVkCtx GetProfilerContext() const {
         return profiler_context;
     }
@@ -527,6 +533,7 @@ private:
 
     /// Creates the VMA allocator handle
     void CreateAllocator();
+    void HogVideoMemoryForTests();
 
     /// Collects various information from the device.
     void CollectDeviceParameters();
@@ -594,6 +601,8 @@ private:
     bool maintenance_5{};
     bool gpu_checkpoints{};
     bool device_fault{};
+    bool memory_priority{};
+    bool pageable_device_memory{};
     bool address_binding_report{};
     bool pipeline_binaries{};
     vk::PipelineBinaryKeyKHR pipeline_binary_global_key{};

@@ -14,6 +14,8 @@ std::mutex mutex;
 float acc_x = 0, acc_y = 0;
 float look_x = 0, look_y = 0;
 std::chrono::steady_clock::time_point look_taken{};
+unsigned look_calls = 0; ///< camera hook calls (gow3gpu_mouse_look_calls)
+bool look_paused = false; ///< the pad gives the mouse to the stick: hooks get no movement
 bool injected = false;
 unsigned held = 0; // bits 0-4: SDL buttons 1-5
 std::chrono::steady_clock::time_point wheel_until[2];
@@ -80,6 +82,12 @@ extern "C" int gow3gpu_mouse_take_look(float* dx, float* dy) {
     const auto now = std::chrono::steady_clock::now();
     const bool fresh = now - look_taken < std::chrono::milliseconds{250};
     look_taken = now;
+    ++look_calls;
+    if (look_paused) {  // the mouse is the stick now: drop what the hook would turn
+        look_x = look_y = 0;
+        *dx = *dy = 0.0f;
+        return 0;
+    }
     *dx = fresh ? look_x : 0.0f;
     *dy = fresh ? look_y : 0.0f;
     look_x = look_y = 0;
@@ -91,7 +99,21 @@ extern "C" void gow3gpu_mouse_inject(float dx, float dy) {
     std::scoped_lock lock{mutex};
     look_x += dx;
     look_y += dy;
+    acc_x += dx;
+    acc_y += dy;
     injected = true;
+}
+
+extern "C" unsigned gow3gpu_mouse_look_calls(void) {
+    using namespace Gow3Mouse;
+    std::scoped_lock lock{mutex};
+    return look_calls;
+}
+
+extern "C" void gow3gpu_mouse_look_pause(int paused) {
+    using namespace Gow3Mouse;
+    std::scoped_lock lock{mutex};
+    look_paused = paused != 0;
 }
 
 extern "C" int gow3gpu_mouse_look_recent(void) {
@@ -106,6 +128,10 @@ extern "C" int gow3gpu_mouse_take(float* dx, float* dy, unsigned* buttons) {
     *dx = acc_x;
     *dy = acc_y;
     acc_x = acc_y = 0;
+    if (injected) {  // tests (pad file mx= my=): the stick path too
+        *buttons = held;
+        return 1;
+    }
     const auto now = std::chrono::steady_clock::now();
     *buttons = held | (now < wheel_until[0] ? WheelUp : 0) | (now < wheel_until[1] ? WheelDown : 0);
     return captured ? 1 : 0;

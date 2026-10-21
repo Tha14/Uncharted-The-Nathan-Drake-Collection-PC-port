@@ -3,6 +3,7 @@
 
 #include "gow3_toggles.h"
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <bit>
@@ -37,6 +38,27 @@ u64 RoundAllocationSize(u64 size) {
     const u64 step = std::max(std::bit_floor(size) / 4, LARGE_MIN_GRANULARITY);
     return Common::AlignUp(size, step);
 }
+
+/// gow3 21 Oct 2026 (GPU worker): time of a staging allocation (Gow3Stats::t_staging, the Stall
+/// lines' "staging"); allocations over 2 ms are logged (the first 64).
+struct NewAllocationTimer {
+    const char* what;
+    MemoryType type;
+    u64 bytes;
+    Gow3Stats::Timer stats{Gow3Stats::t_staging};
+    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    ~NewAllocationTimer() {
+        const double ms =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+        static std::atomic<int> logged{0};
+        if (ms >= 2.0 && logged.fetch_add(1, std::memory_order_relaxed) < 64) {
+            static constexpr const char* names[] = {"DeviceLocal", "HostUncached", "HostCached"};
+            std::printf("Staging: new %s (%s, %llu MiB) took %.1f ms\n", what,
+                        u32(type) < 3 ? names[u32(type)] : "other",
+                        static_cast<unsigned long long>(bytes >> 20), ms);
+        }
+    }
+};
 
 } // Anonymous namespace
 
@@ -84,6 +106,9 @@ StagingBufferRef StagingBufferPool::RequestFromRing(Ring& ring, u64 size, u64 al
     }
 
     if (!best) {
+        // gow3 21 Oct 2026 (GPU worker): driver allocations made while recording (texture
+        // streaming bursts) show as "staging" in the Stall lines, and slow ones are logged.
+        const NewAllocationTimer timer{"ring block", type, BLOCK_SIZE};
         best = &ring.blocks.emplace_back(Block{
             .buffer =
                 std::make_unique<VideoCore::StreamBuffer>(instance, scheduler, type, BLOCK_SIZE),
@@ -125,6 +150,7 @@ StagingBufferRef StagingBufferPool::RequestLarge(u64 size, MemoryType type, bool
     }
 
     if (!best) {
+        const NewAllocationTimer timer{"large buffer", type, RoundAllocationSize(size)};
         best = &cache.emplace_back(LargeBuffer{
             .buffer = std::make_unique<VideoCore::Buffer>(instance, 0, RoundAllocationSize(size),
                                                           type, "StagingBufferPool:Dedicated"),

@@ -31,7 +31,23 @@ int runtime_mouselook_enabled(void) {
  * 0.0011 rad is about 0.063 degrees: a 2,000-count swipe turns about 126 degrees). */
 static float look_scale(void) {
     const float s = gow3gpu_controls_mouse_sens();
-    return 0.0011f * (s > 0.0f ? s : 1.0f);
+    /* While aiming: the mouse aim sensitivity on top (20 Oct 2026). */
+    const float aim = runtime_pad_aim_held() ? gow3gpu_controls_mouse_aim_sens() : 1.0f;
+    return 0.0011f * (s > 0.0f ? s : 1.0f) * (aim > 0.0f ? aim : 1.0f);
+}
+/* The mouse movement with the left/right invert and the up/down speed applied (20 Oct 2026). */
+static int take_look(float *dx, float *dy) {
+    if (!gow3gpu_mouse_take_look(dx, dy)) return 0;
+    /* While aiming the aim cameras read the right stick, which runtime_pad.c makes of the mouse;
+     * the follow camera keeps still (a turn of it would only show after aiming). */
+    if (runtime_pad_aim_held()) {
+        *dx = *dy = 0.0f;
+        return 0;
+    }
+    const float vertical = gow3gpu_controls_mouse_vertical();
+    if (gow3gpu_controls_mouse_invert_x()) *dx = -*dx;
+    *dy *= vertical > 0.0f ? vertical : 1.0f;
+    return 1;
 }
 static float look_invert(void) {
     return gow3gpu_controls_mouse_invert() ? -1.0f : 1.0f;
@@ -65,7 +81,7 @@ typedef ABI float (*U3PitchStep)(void *limits, float pitch, float delta);
 static ABI void *u3_camera_input(unsigned char *camera, float *look, void *stick) {
     if (look_debug()) stick_debug("U3", look, stick);
     float dx = 0, dy = 0;
-    if (!gow3gpu_mouse_take_look(&dx, &dy) || (dx == 0.0f && dy == 0.0f) || !camera || !look) {
+    if (!take_look(&dx, &dy) || (dx == 0.0f && dy == 0.0f) || !camera || !look) {
         return scale_stick(stick);
     }
     const float per_count = look_scale();
@@ -111,7 +127,7 @@ typedef ABI float (*U2PitchStep)(void *camera, float delta);
 static ABI void *u2_camera_input(unsigned char *camera, float *look, void *stick) {
     if (look_debug()) stick_debug("U2", look, stick);
     float dx = 0, dy = 0;
-    if (!gow3gpu_mouse_take_look(&dx, &dy) || (dx == 0.0f && dy == 0.0f) || !camera || !look) {
+    if (!take_look(&dx, &dy) || (dx == 0.0f && dy == 0.0f) || !camera || !look) {
         return scale_stick(stick);
     }
     const float per_count = look_scale();
@@ -206,7 +222,7 @@ static ABI void *u1_orbit_camera_input(unsigned char *self, unsigned char *camer
     (void)camera;
     if (!u1_enabled() && !look_debug()) return NULL;
     float dx = 0, dy = 0;
-    const int took = u1_enabled() ? gow3gpu_mouse_take_look(&dx, &dy) : 0;
+    const int took = u1_enabled() ? take_look(&dx, &dy) : 0;
     if (look_debug()) u1_debug("orbit", params, dx, dy);
     if (!took || (dx == 0.0f && dy == 0.0f) || !params) return NULL;
     float *input = *(float **)(params + 0x10);
@@ -221,9 +237,21 @@ static ABI void *u1_orbit_camera_input(unsigned char *self, unsigned char *camer
     return NULL;
 }
 static ABI void *u1_follow_camera_input(unsigned char *self, unsigned char *camera, unsigned char *params) {
-    (void)self;
     (void)camera;
-    if (look_debug()) u1_debug("follow", params, 0, 0);
+    if (look_debug()) {
+        u1_debug("follow", params, 0, 0);
+        static uint64_t last;
+        struct timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        const uint64_t now = (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
+        if (self && now - last >= 500) {
+            last = now;
+            const float *d = (const float *)(self + 0x1310);
+            printf("U1 follow debug: dir %.3f %.3f %.3f heading %.1f, arc %.3f\n", d[0], d[1], d[2],
+                   atan2f(d[0], d[2]) * 57.29578f, *(const float *)(self + 0x12bc));
+            fflush(stdout);
+        }
+    }
     return NULL;
 }
 

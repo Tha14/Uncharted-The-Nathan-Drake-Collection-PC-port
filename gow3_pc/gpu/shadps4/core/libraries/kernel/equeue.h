@@ -192,6 +192,9 @@ private:
     /// gow3: TriggerEvent calls that matched an event; a waiter spinning before it sleeps
     /// (GOW3_EQUEUE_SPIN_US) watches it without the lock.
     std::atomic<u64> m_matched{0};
+    /// gow3 (GOW3_IRQ_WAIT_SPIN): steady clock (ns) when a wait last handed out a GPU interrupt
+    /// event (GraphicsCore); 0 = never.
+    std::atomic<s64> m_irq_event_ns{0};
     std::unordered_map<u64, SmallTimer> m_small_timers;
 };
 

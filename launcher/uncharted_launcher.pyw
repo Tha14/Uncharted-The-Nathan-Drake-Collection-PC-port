@@ -51,6 +51,48 @@ def wine_kernel32():
 WINE = wine_kernel32()
 
 
+def slow_drive_reason(path):
+    """Why the drive holding `path` makes the games freeze, or None (20 Oct 2026). On an RTX 4060
+    laptop the port and game on an external USB drive (an NVMe SSD in a USB case, exFAT) froze
+    for 0.2-0.8 s dozens of times a minute while the port wrote its shader cache, logs and saves
+    (Windows writes to such drives without a cache); on the internal NVMe drive: no freeze over
+    100 ms. Reports USB, SD/MMC and removable drives and FAT/exFAT volumes; None elsewhere, under
+    Wine and for network paths."""
+    if os.name != "nt" or WINE:
+        return None
+    drive = os.path.splitdrive(str(Path(path).resolve()))[0]
+    if len(drive) != 2 or drive[1] != ":":
+        return None
+    kernel32 = ctypes.windll.kernel32
+    reasons = []
+    fs_name = ctypes.create_unicode_buffer(32)
+    if kernel32.GetVolumeInformationW(drive + "\\", None, 0, None, None, None, fs_name, len(fs_name)):
+        if fs_name.value.upper() in ("EXFAT", "FAT32", "FAT"):
+            reasons.append(f"{fs_name.value}-formatted")
+    if kernel32.GetDriveTypeW(drive + "\\") == 2:  # DRIVE_REMOVABLE
+        reasons.append("removable")
+    # The bus of the disk (IOCTL_STORAGE_QUERY_PROPERTY, StorageDeviceProperty): USB enclosures
+    # report themselves as fixed drives.
+    kernel32.CreateFileW.restype = ctypes.c_void_p
+    handle = kernel32.CreateFileW("\\\\.\\" + drive, 0, 3, None, 3, 0, None)  # share read|write, OPEN_EXISTING
+    if handle and handle != ctypes.c_void_p(-1).value:
+        try:
+            query = struct.pack("<II4x", 0, 0)  # StorageDeviceProperty, PropertyStandardQuery
+            out = ctypes.create_string_buffer(1024)
+            returned = ctypes.c_ulong(0)
+            if kernel32.DeviceIoControl(ctypes.c_void_p(handle), 0x2D1400, query, len(query), out,
+                                        len(out), ctypes.byref(returned), None) and returned.value >= 32:
+                bus = struct.unpack_from("<I", out.raw, 28)[0]
+                names = {7: "USB", 12: "SD card", 13: "MMC card", 4: "FireWire"}
+                if bus in names:
+                    reasons.insert(0, names[bus])
+        finally:
+            kernel32.CloseHandle(ctypes.c_void_p(handle))
+    if not reasons:
+        return None
+    return f"{drive} is a {', '.join(dict.fromkeys(reasons))} drive"
+
+
 def _wine_string(pointer, wide):
     """A string Wine returned in memory of the process heap, which is freed."""
     if not pointer:
@@ -177,7 +219,8 @@ def voice_languages(game_dir):
 GAME_KEYS = ("u1", "u2", "u3")
 GAME_SETTING_DEFAULTS = {"preset": "medium", "resolution": "1920x1080", "aspect": "16:9", "multithreaded": False,
                          "async_readback": False, "controls": None, "mouse": True, "mouse_sens": "1.0",
-                         "mouse_invert": False, "prompts": "auto"}
+                         "mouse_invert": False, "prompts": "auto", "mouse_aim_sens": "1.0",
+                         "mouse_vertical": "1.0", "mouse_invert_x": False}
 
 # Keyboard and mouse controls (runtime_pad.c): action -> up to two bindings, "key:<SDL key name>"
 # or "mouse:<left|middle|right|x1|x2|wheel_up|wheel_down>". Stick directions take keys only.
@@ -455,6 +498,12 @@ PROMPT_MODES = [("auto", "Auto"), ("keyboard", "Keyboard and mouse"), ("playstat
                 ("xbox", "Xbox")]
 MOUSE_SENSITIVITIES = [("0.5", "0.5x"), ("0.75", "0.75x"), ("1.0", "1x"), ("1.5", "1.5x"), ("2.0", "2x"),
                        ("3.0", "3x")]
+# While aiming (times the sensitivity) and up/down compared with left/right (the in-game menu's
+# Controls tab has the same as sliders).
+MOUSE_FACTORS = [("0.5", "0.5x"), ("0.75", "0.75x"), ("1.0", "1x"), ("1.25", "1.25x"), ("1.5", "1.5x"),
+                 ("2.0", "2x")]
+MOUSE_AIM_FACTORS = [("0.5", "0.5x"), ("1.0", "1x"), ("2.0", "2x"), ("3.0", "3x"), ("5.0", "5x"),
+                     ("10.0", "10x")]
 MOUSE_LABELS = {"left": "Left mouse", "middle": "Middle mouse", "right": "Right mouse", "x1": "Mouse back",
                 "x2": "Mouse forward", "wheel_up": "Wheel up", "wheel_down": "Wheel down"}
 # Tk key names -> SDL key names (letters and digits map to themselves, upper case).
@@ -531,6 +580,18 @@ def sensitivity_value(text):
     return f"{value:g}"
 
 
+def factor_value(text, options):
+    """A mouse factor from a settings file as one of the options when it is one."""
+    try:
+        value = float(text)
+    except ValueError:
+        return "1.0"
+    for option, _ in options:
+        if abs(float(option) - value) < 0.005:
+            return option
+    return f"{value:g}"
+
+
 # The controls in each game's settings file: the game reads them there, and its in-game menu
 # (Insert / R3+L2, Controls tab) changes them too.
 def controls_to_ini(settings):
@@ -539,7 +600,10 @@ def controls_to_ini(settings):
             "mouse": "1" if settings.get("mouse", True) else "0",
             "mouse_sens": settings.get("mouse_sens", "1.0"),
             "mouse_invert": "1" if settings.get("mouse_invert") else "0",
-            "prompts": settings.get("prompts", "auto")}
+            "prompts": settings.get("prompts", "auto"),
+            "mouse_aim_sens": settings.get("mouse_aim_sens", "1.0"),
+            "mouse_vertical": settings.get("mouse_vertical", "1.0"),
+            "mouse_invert_x": "1" if settings.get("mouse_invert_x") else "0"}
 
 
 def controls_from_ini(values, settings):
@@ -564,6 +628,11 @@ def controls_from_ini(values, settings):
         settings["mouse_sens"] = sensitivity_value(values["mouse_sens"])
     if "mouse_invert" in values:
         settings["mouse_invert"] = values["mouse_invert"] == "1"
+    for key, options in (("mouse_aim_sens", MOUSE_AIM_FACTORS), ("mouse_vertical", MOUSE_FACTORS)):
+        if key in values:
+            settings[key] = factor_value(values[key], options)
+    if "mouse_invert_x" in values:
+        settings["mouse_invert_x"] = values["mouse_invert_x"] == "1"
     if "prompts" in values:
         settings["prompts"] = values["prompts"] if values["prompts"] in dict(PROMPT_MODES) else "auto"
     return True
@@ -1036,9 +1105,14 @@ def read_config():
                 write_ini(game, {"fsr1": "1"})
             elif read_ini(game).get("fsr1") == "1" and entry.get("upscale", "off") == "off":
                 write_ini(game, {"fsr1": "0"})
+    # Version 8: Drake's Deception with multithreaded rendering (the port no longer turns it off
+    # there): on a 4060 laptop's heavy spots 60 FPS instead of 53.7 with 11 stalls (21 Oct). Once;
+    # a player who turns it off again keeps it off.
+    if config.get("version", 1) < 8:
+        games["u3"]["multithreaded"] = True
     for name in GAME_SETTING_DEFAULTS:
         config.pop(name, None)
-    config["version"] = 7
+    config["version"] = 8
     # Under Wine the game folder is also kept as a Linux path: another prefix can show the same
     # folder under another drive letter (Launcher.game_dir).
     folder = config.get("game_dir")
@@ -1519,6 +1593,9 @@ class Launcher:
             self.widgets["mouse"].set(settings.get("mouse", True))
             self.widgets["mouse_sens"].set(settings.get("mouse_sens", "1.0"))
             self.widgets["mouse_invert"].set(settings.get("mouse_invert", False))
+            self.widgets["mouse_aim_sens"].set(settings.get("mouse_aim_sens", "1.0"))
+            self.widgets["mouse_vertical"].set(settings.get("mouse_vertical", "1.0"))
+            self.widgets["mouse_invert_x"].set(settings.get("mouse_invert_x", False))
             self.widgets["prompts"].set(settings.get("prompts", "auto"))
             self.refresh_pad_slots()
         if hasattr(self, "binding_slots"):
@@ -1896,9 +1973,10 @@ class Launcher:
                           lambda v: self.change_game_setting("multithreaded", v))
         self.widgets["multithreaded"] = self.row(
             page, "Multithreaded rendering (experimental)",
-            "Prepares the picture on a second CPU core: more FPS on some PCs, mostly in Uncharted 2 "
-            "(keep Frames queued at 1 with it). Turn it off if a game hangs while loading. Drake's "
-            "Fortune always runs without it.", multithreaded)
+            "Prepares the picture on a second CPU core: more FPS where the CPU is the limit, mostly "
+            "in Uncharted 2 and 3 (on by default in Uncharted 3; keep Frames queued at 1 with it). "
+            "Turn it off if a game hangs while loading. Drake's Fortune always runs without it.",
+            multithreaded)
 
         def job_threads(parent):
             value = "off" if self.config.get("job_sleep", "auto") == "off" else "on"
@@ -1942,6 +2020,22 @@ class Launcher:
                                               lambda v: self.change_game_setting("mouse_invert", v))
         self.widgets["mouse_invert"].pack(side="left", padx=(self.px(8), 0))
         self.flat_button(top, "Reset controls", self.reset_controls).pack(side="right")
+        aim = tk.Frame(page, bg=BG)
+        aim.pack(side="top", fill="x", pady=(self.px(10), 0))
+        tk.Label(aim, text="Aiming", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
+        self.widgets["mouse_aim_sens"] = Segmented(aim, MOUSE_AIM_FACTORS, settings.get("mouse_aim_sens", "1.0"),
+                                                   lambda v: self.change_game_setting("mouse_aim_sens", v),
+                                                   self.f_small)
+        self.widgets["mouse_aim_sens"].pack(side="left", padx=(self.px(8), self.px(22)))
+        tk.Label(aim, text="Up/down", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
+        self.widgets["mouse_vertical"] = Segmented(aim, MOUSE_FACTORS, settings.get("mouse_vertical", "1.0"),
+                                                   lambda v: self.change_game_setting("mouse_vertical", v),
+                                                   self.f_small)
+        self.widgets["mouse_vertical"].pack(side="left", padx=(self.px(8), self.px(22)))
+        tk.Label(aim, text="Invert X", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
+        self.widgets["mouse_invert_x"] = Toggle(aim, self.s, settings.get("mouse_invert_x", False),
+                                                lambda v: self.change_game_setting("mouse_invert_x", v))
+        self.widgets["mouse_invert_x"].pack(side="left", padx=(self.px(8), 0))
         icons = tk.Frame(page, bg=BG)
         icons.pack(side="top", fill="x", pady=(self.px(10), 0))
         tk.Label(icons, text="Button icons", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
@@ -2192,7 +2286,8 @@ class Launcher:
             return
         settings = self.game_settings()
         settings.update({"controls": None, "mouse": True, "mouse_sens": "1.0", "mouse_invert": False,
-                         "prompts": "auto", "pad_controls": None})
+                         "prompts": "auto", "pad_controls": None, "mouse_aim_sens": "1.0",
+                         "mouse_vertical": "1.0", "mouse_invert_x": False})
         self.save_controls()
         self.refresh_controls()
 
@@ -2219,12 +2314,29 @@ class Launcher:
             "Menus and subtitles in another language: pick it here, then press Square in a game's main "
             "menu to switch. Languages marked + voices are also spoken in your copy of the game.", language)
 
+        def speakers(parent):
+            return Segmented(parent, (("auto", "Auto"), ("2", "Stereo"), ("6", "5.1"), ("8", "7.1")),
+                             str(self.config.get("speakers", "auto")),
+                             lambda v: self.change_config("speakers", v), self.f_small, recommended="auto")
+        self.row(page, "Speakers",
+                 "The games have their own stereo, 5.1 and 7.1 sound mixes. Auto picks the one that matches "
+                 "your Windows sound output (Sound settings -> speaker setup); headphones get stereo.",
+                 speakers)
+
         def unlock(parent):
             return Toggle(parent, self.s, self.config.get("unlock", False),
                           lambda v: self.change_config("unlock", v))
         self.row(page, "Unlock all chapters",
                  "Every chapter in Chapter Select and the Brutal difficulty from the start, in all three "
                  "games. Your saves and progress stay as they are. Needs update 1.02.", unlock)
+
+        def unlock_rewards(parent):
+            return Toggle(parent, self.s, self.config.get("unlock_rewards", False),
+                          lambda v: self.change_config("unlock_rewards", v))
+        self.row(page, "Unlock all rewards",
+                 "Every reward in Bonuses (skins, weapons, render modes, art galleries, gameplay tweaks) "
+                 "and every story cutscene, while this is on. Nothing is saved: turned off, the menus show "
+                 "your own progress again. Needs update 1.02.", unlock_rewards)
 
         def diagnostics(parent):
             return Toggle(parent, self.s, self.config.get("diagnostics", True),
@@ -2260,7 +2372,8 @@ class Launcher:
         section("SHORTCUTS", (("Desktop shortcut", self.desktop_shortcut), ("Game shortcuts", self.game_shortcuts)),
                 "Game shortcuts: one per game on the desktop, each starts its game directly.")
         section("FOLDERS", (("Open log folder", self.open_logs), ("Open save folder", self.open_saves),
-                            ("Change game folder", self.choose_game_dir)))
+                            ("Change game folder", self.choose_game_dir),
+                            ("Install game from .pkg", self.install_game_pkg)))
         self.game_dir_label = tk.Label(page, text=f"Game files: {self.game_dir()}", font=self.f_small,
                                        bg=BG, fg=DIM, anchor="w")
         self.game_dir_label.pack(side="top", fill="x", pady=(self.px(6), 0))
@@ -2518,7 +2631,8 @@ class Launcher:
 
     def change_game_setting(self, key, value):
         self.game_settings()[key] = value
-        if key in ("mouse", "mouse_sens", "mouse_invert", "prompts"):
+        if key in ("mouse", "mouse_sens", "mouse_invert", "prompts", "mouse_aim_sens", "mouse_vertical",
+                   "mouse_invert_x"):
             self.save_controls()
         else:
             write_config(self.config)
@@ -2550,7 +2664,8 @@ class Launcher:
                                            "(CUSA02344, the folder with eboot.bin and sce_sys).")
             if not self.choose_game_dir():
                 return
-        if not self.confirm_without_update() or not self.confirm_update_files():
+        if not self.confirm_without_update() or not self.confirm_update_files() or \
+                not self.confirm_slow_drive():
             return
         self.follow_ini()  # the in-game menu's last changes, not older values kept here
         self.save_ini({k: self.ini.get(k, v) for k, v in INI_DEFAULTS.items()})
@@ -2561,7 +2676,9 @@ class Launcher:
         env["UNCHARTED_TORCH_FORWARD"] = "1" if self.config.get("torch_forward", True) else "0"
         env["UNCHARTED_JOB_SLEEP"] = "0" if self.config.get("job_sleep", "auto") == "off" else "1"
         env["UNCHARTED_LANGUAGE"] = str(self.config.get("language", "1"))
+        env["UNCHARTED_SPEAKERS"] = str(self.config.get("speakers", "auto"))
         env["UNCHARTED_UNLOCK"] = "1" if self.config.get("unlock", False) else "0"
+        env["UNCHARTED_UNLOCK_REWARDS"] = "1" if self.config.get("unlock_rewards", False) else "0"
         if self.chosen_update():
             env["UNCHARTED_UPDATE"] = str(self.chosen_update())  # tools/probe_uncharted.py find_update
         env["UNCHARTED_CHEATS"] = ",".join(name for name, *_ in CHEATS if self.config.get("cheat_" + name, False))
@@ -2720,6 +2837,31 @@ class Launcher:
                 "Play anyway?"):
             return False
         self.config["warned_no_update"] = str(folder)
+        write_config(self.config)
+        return True
+
+    def confirm_slow_drive(self):
+        """The port or the game on a USB, SD or FAT/exFAT drive (slow_drive_reason): asks once per
+        pair of folders."""
+        places = []
+        for label, folder in (("This port", ROOT), ("The game", self.game_dir())):
+            try:
+                reason = slow_drive_reason(folder)
+            except (OSError, ValueError, ctypes.ArgumentError):
+                reason = None
+            if reason:
+                places.append(f"{label} ({folder}): {reason}.")
+        key = f"{ROOT}|{self.game_dir()}"
+        if not places or self.config.get("warned_slow_drive") == key:
+            return True
+        if not messagebox.askokcancel(
+                APP_TITLE, "\n".join(places) + "\n\nOn such drives the games freeze for up to a second, "
+                "again and again, while the port writes its shader cache, logs and saves (Windows writes "
+                "to them without a cache).\n\nFor smooth play, copy this port folder and the game folder "
+                "to an internal drive (an SSD such as C:) and start the launcher from there.\n\n"
+                "Play anyway?"):
+            return False
+        self.config["warned_slow_drive"] = key
         write_config(self.config)
         return True
 
@@ -2883,6 +3025,56 @@ class Launcher:
             else:
                 messagebox.showinfo(APP_TITLE, f"Update installed:\n{state['path']}\n\nThe games use it from "
                                                "their next start.")
+        poll()
+
+    def install_game_pkg(self):
+        """The player's own game PKG (for example the US copy, CUSA02320) unpacked into a folder
+        they choose, with the metadata the launcher needs (tools/install_update.py install_game;
+        the port ships no game files). That folder becomes the game folder."""
+        if self.process:
+            messagebox.showwarning(APP_TITLE, "Close the game first.")
+            return
+        from tkinter import filedialog
+        pkg = filedialog.askopenfilename(title="Choose the game (.pkg), not the update", parent=self.root,
+                                         filetypes=[("PS4 package", "*.pkg"), ("All files", "*.*")])
+        if not pkg:
+            return
+        parent = filedialog.askdirectory(title="Choose where to put the game (about 60 GB)", parent=self.root,
+                                         initialdir=str(Path(pkg).parent))
+        if not parent:
+            return
+        installer = self.update_installer()
+        state = {"step": "Checking the game package..."}
+
+        def work():
+            try:
+                state["path"] = installer.install_game(pkg, parent,
+                                                       log=lambda text: state.__setitem__("step", text))
+            except installer.UpdateError as error:
+                state["error"] = str(error)
+            except Exception as error:  # a disk or permission problem: shown as it is
+                state["error"] = f"{type(error).__name__}: {error}"
+
+        worker = threading.Thread(target=work, daemon=True)
+        worker.start()
+
+        def poll():
+            if worker.is_alive():
+                self.game_dir_label.config(text=state["step"])
+                self.root.after(200, poll)
+                return
+            if "path" in state:
+                self.config["game_dir"] = str(state["path"])
+                if WINE:
+                    self.config["game_dir_unix"] = unix_path(str(state["path"]))
+                write_config(self.config)
+            self.game_dir_label.config(text=f"Game files: {self.game_dir()}")
+            self.update_label.config(text=self.update_text())
+            if "error" in state:
+                messagebox.showerror(APP_TITLE, f"The game was not installed:\n{state['error']}")
+            else:
+                messagebox.showinfo(APP_TITLE, f"Game installed:\n{state['path']}\n\nIt is the game folder now. "
+                                               "Next, install update 1.02: GAME UPDATE -> Install from .pkg.")
         poll()
 
     def desktop_shortcut(self):

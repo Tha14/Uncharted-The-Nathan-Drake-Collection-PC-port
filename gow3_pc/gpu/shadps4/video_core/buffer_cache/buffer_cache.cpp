@@ -27,6 +27,7 @@
 #include "video_core/buffer_cache/buffer.h"
 #include "video_core/buffer_cache/buffer_cache.h"
 #include "video_core/buffer_cache/memory_tracker.h"
+#include "video_core/renderer_vulkan/vk_gpu_profiler.h"
 #include "video_core/renderer_vulkan/vk_graphics_pipeline.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
@@ -41,7 +42,141 @@ void DumpGpuCheckpoints(const Instance& instance);
 void DumpDeviceFault(const Instance& instance);
 }
 
+#ifdef _WIN32
+extern "C" char __ImageBase;
+extern "C" __declspec(dllimport) unsigned short __stdcall RtlCaptureStackBackTrace(
+    unsigned long frames_to_skip, unsigned long frames_to_capture, void** back_trace,
+    unsigned long* back_trace_hash);
+#endif
+
 namespace VideoCore {
+
+// gow3 21 Oct 2026 (GPU worker): GOW3_GPU_PROFILE segments for the cache's own GPU copies
+// (uploads of CPU-written guest memory, readbacks); the interrupted segment continues after
+// them. Nothing is recorded without the profiler.
+namespace {
+class ProfileCopy {
+public:
+    ProfileCopy(Vulkan::Scheduler& scheduler, u64 key, const char* what) {
+        profiler = Vulkan::GpuProfiler::Get();
+        if (!profiler || !profiler->Records(&scheduler)) {
+            profiler = nullptr;
+            return;
+        }
+        resume = profiler->Current();
+        profiler->Mark(key, [what] { return std::string{what}; });
+    }
+    ~ProfileCopy() {
+        if (profiler && resume) {
+            profiler->Resume(resume);
+        }
+    }
+    ProfileCopy(const ProfileCopy&) = delete;
+    ProfileCopy& operator=(const ProfileCopy&) = delete;
+
+private:
+    Vulkan::GpuProfiler* profiler = nullptr;
+    u64 resume = 0;
+};
+
+// gow3 21 Oct 2026 (GPU worker): GOW3_READBACK_LATENCY=1 (diagnostics) - how long after the GPU
+// finished a readback's submission the command thread landed it (the deferred ray-cast fences
+// the guest waits for are written then). A waiter thread (the scheduler's priority operations)
+// notes when each readback tick completes; landings compare against that.
+bool ReadbackLatencyEnabled() {
+    static const bool on = [] {
+        const char* env = std::getenv("GOW3_READBACK_LATENCY");
+        return env && env[0] == '1';
+    }();
+    return on;
+}
+std::array<std::atomic<u64>, 256> g_done_tick{};
+std::array<std::atomic<s64>, 256> g_done_ns{};
+s64 NowNs() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+void NoteReadbackQueued(Vulkan::Scheduler& scheduler, u64 tick) {
+    static u64 last = 0;
+    if (!ReadbackLatencyEnabled() || tick == last) {
+        return;
+    }
+    last = tick;
+    scheduler.DeferPriorityOperation([tick] {
+        g_done_ns[tick & 255].store(NowNs(), std::memory_order_relaxed);
+        g_done_tick[tick & 255].store(tick, std::memory_order_release);
+    });
+}
+void NoteReadbackLanded(u64 tick) {
+    if (!ReadbackLatencyEnabled()) {
+        return;
+    }
+    static u64 landed = 0, before_waiter = 0, sum_us = 0, max_us = 0;
+    static std::array<u64, 5> buckets{}; // < 0.25, < 0.5, < 1, < 2, >= 2 ms
+    static std::map<std::array<u64, 6>, std::pair<u64, u64>> late_sites; // stack -> count, us
+    static u64 last_tick = 0;
+    static s64 last_print = NowNs();
+    if (tick == last_tick) {
+        return; // one per submission
+    }
+    last_tick = tick;
+    const s64 now = NowNs();
+    ++landed;
+    if (g_done_tick[tick & 255].load(std::memory_order_acquire) != tick) {
+        ++before_waiter;
+    } else {
+        const u64 us = u64(std::max<s64>(0, now - g_done_ns[tick & 255].load(std::memory_order_relaxed))) / 1000;
+        sum_us += us;
+        max_us = std::max(max_us, us);
+        ++buckets[us < 250 ? 0 : us < 500 ? 1 : us < 1000 ? 2 : us < 2000 ? 3 : 4];
+#ifdef _WIN32
+        // Late landings (2 ms or more): who landed them (image offsets of the callers of
+        // CompleteReadbacks; llvm-symbolizer --obj=gow3-probe.exe 0x140000000+offset).
+        if (us >= 2000) {
+            void* frames[6]{};
+            const unsigned n = RtlCaptureStackBackTrace(2, 6, frames, nullptr);
+            std::array<u64, 6> key{};
+            for (unsigned i = 0; i < n && i < 6; ++i) {
+                key[i] = reinterpret_cast<u64>(frames[i]) - reinterpret_cast<u64>(&__ImageBase);
+            }
+            auto& entry = late_sites[key];
+            ++entry.first;
+            entry.second += us;
+        }
+#endif
+    }
+    if (now - last_print >= 5'000'000'000) {
+        last_print = now;
+        const u64 timed = landed - before_waiter;
+        std::printf("Readback landing latency (5 s): %llu submissions landed, %llu before the waiter "
+                    "woke; after the GPU finished: %.2f ms on average, %.2f ms at most; <0.25 ms %llu, "
+                    "<0.5 %llu, <1 %llu, <2 %llu, >=2 %llu\n",
+                    (unsigned long long)landed, (unsigned long long)before_waiter,
+                    timed ? sum_us / 1e3 / timed : 0.0, max_us / 1e3, (unsigned long long)buckets[0],
+                    (unsigned long long)buckets[1], (unsigned long long)buckets[2],
+                    (unsigned long long)buckets[3], (unsigned long long)buckets[4]);
+        std::vector<std::pair<u64, std::array<u64, 6>>> order;
+        for (const auto& [key, entry] : late_sites) {
+            order.emplace_back(entry.first, key);
+        }
+        std::ranges::sort(order, std::greater{});
+        for (size_t i = 0; i < std::min<size_t>(order.size(), 5); ++i) {
+            const auto& entry = late_sites[order[i].second];
+            std::printf("  late landings: %llu x, %.1f ms on average, by",
+                        (unsigned long long)entry.first, entry.second / 1e3 / entry.first);
+            for (const u64 offset : order[i].second) {
+                std::printf(" %#llx", (unsigned long long)offset);
+            }
+            std::printf("\n");
+        }
+        std::fflush(stdout);
+        late_sites.clear();
+        landed = before_waiter = sum_us = max_us = 0;
+        buckets = {};
+    }
+}
+} // namespace
 
 // GOW3_READ_SOURCES=1 (with GOW3_FAULT_STATS=1): CPU reads of GPU-written bytes and the shaders
 // that wrote their windows. Off with the default diagnostics: a lock and map update per GPU write.
@@ -216,6 +351,7 @@ private:
                 failed = true;
                 continue;
             }
+            Gow3Stats::arena_memory_bytes += ChunkSize;
             u8* mapped = nullptr;
             if (map) {
                 auto [map_result, pointer] = device.mapMemory(memory, 0, VK_WHOLE_SIZE);
@@ -309,9 +445,79 @@ BufferCache::BufferCache(const Vulkan::Instance& instance_, Vulkan::Scheduler& s
                 break;
             }
         }
+        // gow3 20 Oct 2026 (Radeon 780M): an integrated GPU's "video memory" heap is a small
+        // slice of system memory set aside for it (256 MiB on a Ryzen 7840HS laptop); the arenas
+        // (1-2 GB in Uncharted 2 and 3) went there and the driver kept moving them. Its memory
+        // is the system's anyway: the arenas go to the largest CPU-mappable system memory heap
+        // (CPU-cached if offered), so they need no moving and finished GPU data is read in place.
+        // Measured on the 780M (Uncharted 3, 720p, twice each): 43.9/45.1 -> 47.2 FPS in the
+        // same view, 46-47K -> 48.5-53.5K draws/s, the GPU command thread waiting for the GPU
+        // 3-3.7% -> 0.1-0.5%, CPU writes into GPU data read in place instead of a full download.
+        // Integrated GPUs only; GOW3_IGPU_ARENAS=local: the video memory heap, as before. (The
+        // subtitle / pause menu flicker the user saw in Uncharted 2 on the 780M is not this: it
+        // shows with local arenas and with the build from before 20 Oct as well.)
+        if (const char* env = std::getenv("GOW3_IGPU_ARENAS");
+            instance.IsIntegrated() && !(env && std::string_view{env} == "local")) {
+            const auto host = vk::MemoryPropertyFlagBits::eHostVisible |
+                              vk::MemoryPropertyFlagBits::eHostCoherent;
+            const auto avoid = vk::MemoryPropertyFlagBits::eDeviceCoherentAMD |
+                               vk::MemoryPropertyFlagBits::eDeviceUncachedAMD;
+            // gow3 21 Oct 2026 (GPU worker): GOW3_IGPU_ARENAS=uncached prefers the system memory
+            // type without HostCached. GPU accesses to CPU-cached memory are snooped (kept
+            // coherent with the CPU caches), which on AMD APUs costs GPU bandwidth; every buffer
+            // the game's shaders read and write (vertices, indices, storage) lives in the arenas.
+            // The CPU reads arena memory only for finished GPU data (ReadFinishedGpuPage).
+            // =system / =uncached also apply when the video memory heap is the larger one (this
+            // desktop's Radeon iGPU shows a 15.6 GiB one; the 780M laptops 256 MiB), for tests.
+            const bool prefer_uncached = env && std::string_view{env} == "uncached";
+            const bool forced = env && (prefer_uncached || std::string_view{env} == "system");
+            s32 best = -1;
+            u64 best_size = 0;
+            bool best_cached = false;
+            for (u32 i = 0; i < props.memoryTypeCount; ++i) {
+                const auto flags = props.memoryTypes[i].propertyFlags;
+                if (!((reqs.memoryTypeBits >> i) & 1) || (flags & host) != host || (flags & avoid)) {
+                    continue;
+                }
+                if (forced && (props.memoryHeaps[props.memoryTypes[i].heapIndex].flags &
+                               vk::MemoryHeapFlagBits::eDeviceLocal)) {
+                    continue;
+                }
+                const u64 size = props.memoryHeaps[props.memoryTypes[i].heapIndex].size;
+                const bool cached = bool(flags & vk::MemoryPropertyFlagBits::eHostCached);
+                if (size > best_size ||
+                    (size == best_size && (prefer_uncached ? !cached && best_cached
+                                                           : cached && !best_cached))) {
+                    best = static_cast<s32>(i);
+                    best_size = size;
+                    best_cached = cached;
+                }
+            }
+            if (best >= 0 && (forced || best_size > props.memoryHeaps[heap].size)) {
+                arena_memory_type_index = static_cast<u32>(best);
+                arena_host_mapped = true;
+                std::printf("GPU: integrated GPU: buffer arenas in system memory (type %d, %llu MiB "
+                            "heap%s; GOW3_IGPU_ARENAS=local: the video memory heap)\n",
+                            best, static_cast<unsigned long long>(best_size >> 20),
+                            best_cached ? ", CPU-cached" : "");
+            }
+        }
         std::printf("GPU: buffer arenas in memory type %u (heap %u, %s)\n", arena_memory_type_index,
-                    heap, arena_host_mapped ? "CPU-mappable: finished GPU data is read directly"
-                                            : "device-local only");
+                    props.memoryTypes[arena_memory_type_index].heapIndex,
+                    arena_host_mapped ? "CPU-mappable: finished GPU data is read directly"
+                                      : "device-local only");
+        // TEMP diagnostics: the memory types the driver allows for sparse arenas.
+        for (u32 i = 0; i < props.memoryTypeCount; ++i) {
+            if ((reqs.memoryTypeBits >> i) & 1) {
+                const auto t = props.memoryTypes[i];
+                std::printf("GPU: arena memory type %u allowed: heap %u (%llu MiB, %s), flags %s\n", i,
+                            t.heapIndex,
+                            (unsigned long long)(props.memoryHeaps[t.heapIndex].size >> 20),
+                            (props.memoryHeaps[t.heapIndex].flags & vk::MemoryHeapFlagBits::eDeviceLocal)
+                                ? "video memory" : "system memory",
+                            vk::to_string(t.propertyFlags).c_str());
+            }
+        }
         std::fflush(stdout);
         if (arena_host_mapped) {
             scheduler.EnableHostReadBarrier();
@@ -518,6 +724,37 @@ static bool ReadbackGuardEnabled() {
     }();
     return enabled;
 }
+// gow3 20 Oct 2026 (laptop CPUs): every submission queues a readback of the small GPU writes
+// (SyncSmallGpuWrites; Uncharted 3: ~135 submissions a frame) with a snapshot of the guest bytes,
+// and its landing copies the guest bytes once more (LandGuarded). The snapshot vector was zeroed,
+// then copied over, then freed at landing; on a Ryzen 7840HS (RTX 4060 laptop, 47 FPS with the
+// GPU command thread CPU-bound) the zeroing and fresh pages were 1.5% of that thread (1.8% with
+// the Radeon 780M), freeing them 0.4-0.6% and the landing buffers 0.2-0.3%. Snapshots of landed
+// readbacks are now reused and never zeroed (every byte is copied in: TryReadBacking, or
+// CopySparseMemory, which zero-fills unmapped parts), as are the landing buffers.
+// GOW3_READBACK_POOL=0: zeroed, allocated and freed each time, as before.
+static bool ReadbackPoolEnabled() {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_READBACK_POOL");
+        return !(env && env[0] == '0');
+    }();
+    return enabled;
+}
+/// Sizes the pool keeps: at most 8 buffers, 4 MiB each, 16 MiB in all.
+static constexpr size_t SnapshotPoolCount = 8;
+static constexpr u64 SnapshotPoolMaxBytes = 4_MB;
+static constexpr u64 SnapshotPoolTotalBytes = 16_MB;
+
+/// gow3 (GOW3_READBACK_POOL): a buffer of `n` bytes, uninitialized when the pool is on (the caller
+/// fills all of it) and zeroed otherwise.
+static void SizeScratch(SnapshotBytes& bytes, u64 n) {
+    if (ReadbackPoolEnabled()) {
+        bytes.resize(n);
+    } else {
+        bytes.resize(n, 0);
+    }
+}
+
 static std::atomic<u32> g_guard_lines, g_guard_lazy_lines, g_guard_logged;
 static std::atomic<u64> g_guard_bytes;
 // The first 16 kept lines, then the 32nd, 64th, ...: where and whether the page was CPU-writable.
@@ -546,9 +783,13 @@ static bool SafeReadbacks() {
 // skinning tables in the per-frame ring: half-float V#s, a GPU hang and game asserts at the
 // treasure screen).
 static std::atomic<u32> g_direct_page_reads{0};
+static std::atomic<u32> g_waited_page_reads{0}; // gow3: integrated GPUs (GOW3_WAIT_PAGE_READ)
 static std::array<std::atomic<u32>, 64> g_download_reasons{};
 static std::atomic<u32> g_old_byte_fetches{0};
 static std::array<std::atomic<u32>, 4> g_fetch_refused{}; // lazy, readback, no tick, open buffer
+// gow3 21 Oct 2026 (GOW3_FETCH_NO_BLOCK=1): fetches a guest thread waited for itself.
+static std::atomic<u32> g_fetch_deferrals{0};
+static bool UrgentCopiesEnabled(); // GOW3_URGENT_COPIES, defined with SideQueueFetch
 
 static bool LazyWritesEnabled() {
     static const bool enabled = [] {
@@ -561,13 +802,13 @@ static bool LazyWritesEnabled() {
 }
 
 void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool assume_locks) {
+    // gow3: GOW3_FAULT_STATS=1 — every GPU-to-guest download request (CPU read of GPU data,
+    // or CPU write into GPU-written memory), by 1 MiB window, every 5 s.
+    static const bool stats = [] {
+        const char* env = std::getenv("GOW3_FAULT_STATS");
+        return env && env[0] == '1';
+    }();
     {
-        // gow3: GOW3_FAULT_STATS=1 — every GPU-to-guest download request (CPU read of GPU data,
-        // or CPU write into GPU-written memory), by 1 MiB window, every 5 s.
-        static const bool stats = [] {
-            const char* env = std::getenv("GOW3_FAULT_STATS");
-            return env && env[0] == '1';
-        }();
         if (stats) {
             static std::mutex mutex;
             static std::unordered_map<u64, u32> windows;
@@ -595,10 +836,10 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
                             double(gpu_bytes) / std::max(1u, overlap + same_page + window_only));
                 std::printf("  lazy writes (no download): %u; GPU-written bytes the CPU overwrote later: %u; "
                             "writes into pages shared with GPU data: %llu; pages fetched without waiting "
-                            "for queued GPU work: %u\n",
+                            "for queued GPU work: %u (%u after waiting for their own write only)\n",
                             g_lazy_writes.exchange(0), g_lazy_cpu_wins.exchange(0),
                             static_cast<unsigned long long>(std::exchange(g_shared_writes_count, 0)),
-                            g_direct_page_reads.exchange(0));
+                            g_direct_page_reads.exchange(0), g_waited_page_reads.exchange(0));
                 {
                     const u32 lazy_lines = g_guard_lazy_lines.exchange(0);
                     const u32 lines = g_guard_lines.exchange(0) + lazy_lines;
@@ -625,6 +866,11 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
                             "tick %u, written in the open command buffer %u\n",
                             g_fetch_refused[0].exchange(0), g_fetch_refused[1].exchange(0),
                             g_fetch_refused[2].exchange(0), g_fetch_refused[3].exchange(0));
+                if (const u32 deferrals = g_fetch_deferrals.exchange(0)) {
+                    std::printf("  write fetches waited for on the faulting thread: %u "
+                                "(GOW3_FETCH_NO_BLOCK)\n",
+                                deferrals);
+                }
                 std::printf("  tracking: %zu lazy/shared pages, %zu pending readbacks, %zu pages with "
                             "GPU write records, %zu GPU-written ranges\n",
                             lazy_pages.size(), pending_readbacks.size(), page_writes.size(),
@@ -701,7 +947,28 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
             }
         }
     }
-    const auto flush_request = [this, device_addr, size, is_write] {
+    // gow3 21 Oct 2026 (GOW3_FETCH_NO_BLOCK=1, multithreaded rendering): a guest thread's write
+    // into GPU data whose newest GPU write is submitted but not finished made the GPU command
+    // thread wait for the GPU in the second-queue copy (SideQueueFetch -> waitSemaphores): 24-38
+    // ms per such fault with multithreaded rendering (the GPU runs further behind), with no draw
+    // processed meanwhile (Uncharted 3: 44-77 ms frames). The request now returns that tick
+    // instead (deferred_tick); the guest thread waits for it on the work semaphore and sends the
+    // request again, which finds the page's GPU writes finished (re-checked from the start). The
+    // command thread never waits for a guest thread, and a tick FetchableWindowTick returns is
+    // submitted, so the wait ends. GPU-side faults and the fourth attempt keep the old path.
+    static const bool no_block = [] {
+        const char* env = std::getenv("GOW3_FETCH_NO_BLOCK");
+        const bool on = env && env[0] == '1';
+        if (on) {
+            std::printf("GPU: write faults wait for unfinished GPU writes on the faulting thread, "
+                        "not the GPU command thread (GOW3_FETCH_NO_BLOCK=1)\n");
+            std::fflush(stdout);
+        }
+        return on;
+    }();
+    u64 deferred_tick = 0;
+    bool allow_defer = no_block && is_write && !assume_locks;
+    const auto flush_request = [this, device_addr, size, is_write, &deferred_tick, &allow_defer] {
         if (!is_write && FaultStatsEnabled() && gpu_modified_ranges.Intersects(device_addr, size)) {
             std::scoped_lock lock{g_writers_mutex};
             auto& [reads, addresses] = g_gpu_byte_reads[device_addr >> 20];
@@ -758,17 +1025,21 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
         if (is_write) {
             cpu_write_hot[device_addr >> 20] = std::chrono::steady_clock::now(); // GPU-side (command or inline)
             // gow3 statistics: does the CPU write hit GPU-written bytes, or only their page?
+            // (Printed only with the download stats above; not looked up without them.)
             const VAddr page = Common::AlignDown(device_addr, 4096);
-            u64 gpu_bytes_in_page = 0;
-            gpu_modified_ranges.ForEachInRange(page, 4096, [&](VAddr lo, VAddr hi) { gpu_bytes_in_page += hi - lo; });
-            if (gpu_modified_ranges.Intersects(device_addr, size)) {
-                ++g_write_fault_overlap;
-            } else if (gpu_bytes_in_page) {
-                ++g_write_fault_same_page;
-            } else {
-                ++g_write_fault_window;
+            if (stats) {
+                u64 gpu_bytes_in_page = 0;
+                gpu_modified_ranges.ForEachInRange(page, 4096,
+                                                   [&](VAddr lo, VAddr hi) { gpu_bytes_in_page += hi - lo; });
+                if (gpu_modified_ranges.Intersects(device_addr, size)) {
+                    ++g_write_fault_overlap;
+                } else if (gpu_bytes_in_page) {
+                    ++g_write_fault_same_page;
+                } else {
+                    ++g_write_fault_window;
+                }
+                g_write_fault_gpu_bytes += gpu_bytes_in_page;
             }
-            g_write_fault_gpu_bytes += gpu_bytes_in_page;
             // gow3: ray-cast result readbacks (yield_to_cpu): a CPU write into one is the guest
             // refilling the buffer for its next batch, so the pending GPU values of that piece
             // are dropped, not waited for. With multithreaded rendering the recording thread
@@ -849,7 +1120,82 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
             // integrated GPUs): copy them from there. The download below waited for all GPU work
             // queued since, the current frame's included (Uncharted 3, crowded street: ~150 per
             // 5 s, ~10 ms each at 1440p-4K, 60 -> 45 FPS).
-            if (ReadFinishedGpuPage(page) || CopyFinishedGpuPage(page)) {
+            // gow3 21 Oct 2026 (GOW3_FETCH_BATCH_MAPPED=1, RTX 4060 laptop): with CPU-mappable
+            // arenas (Resizable BAR) the direct read below fetched one page per fault, so the
+            // window batch of CopyFinishedGpuPage (GOW3_FETCH_BATCH_KB) never ran there. Uncharted
+            // 3 streaming a level part into memory the GPU wrote long ago (Cartagena rooftops):
+            // ~7,700 write faults in 5 s on whole GPU-written pages, each an uncached 4 KiB read
+            // of video memory plus a round trip to the GPU command thread: 50-180 ms frames. When
+            // another page of the fault's window is finished GPU data too, the batched copy on the
+            // second queue goes first (CopyFinishedGpuPage's own rules: finished windows only, no
+            // lazy page, no pending readback, write-protected pages only), and ExtendWriteFault
+            // then lets the rest of the window be written without faults. A lone page keeps the
+            // direct read; without the second queue nothing changes.
+            // On by default since 21 Oct 2026 (laptop A/B, two builds, two pairs each: the same
+            // streaming bursts cost 31-46 frames over 40 ms off, 0-4 on, none of them from
+            // write faults); GOW3_FETCH_BATCH_MAPPED=0 turns it off.
+            static const bool batch_mapped = [] {
+                const char* env = std::getenv("GOW3_FETCH_BATCH_MAPPED");
+                const bool on = !(env && env[0] == '0');
+                std::printf("GPU: write faults into GPU data in CPU-mappable arenas fetch "
+                            "their window's finished pages in one copy%s\n",
+                            on ? " (GOW3_FETCH_BATCH_MAPPED=0: one page)" : ": off");
+                std::fflush(stdout);
+                return on;
+            }();
+            static const u64 batch_window = [] {
+                // As CopyFinishedGpuPage reads GOW3_FETCH_BATCH_KB (0 or < 8: no batch).
+                const char* env = std::getenv("GOW3_FETCH_BATCH_KB");
+                const u64 kib = env ? std::strtoull(env, nullptr, 10) : 256;
+                return kib < 8 ? u64{0} : std::bit_ceil(std::min<u64>(kib, 1024)) * 1024;
+            }();
+            // The pages CopyFinishedGpuPage would take along: only when there are some and the
+            // GPU has finished all of them (the batch waits for the newest tick it takes; the
+            // direct read of a finished page never waits).
+            const auto other_finished_page = [&] {
+                u64 newest = FetchableWindowTick(page, false);
+                bool others = false;
+                const VAddr window = Common::AlignDown(page, batch_window);
+                for (VAddr other = window; newest && other < window + batch_window; other += 4096) {
+                    if (other != page && gpu_modified_ranges.Intersects(other, 4096) &&
+                        memory_tracker->IsRegionGpuModified(other, 4096) &&
+                        !memory_tracker->IsRegionCpuModified(other, 4096)) {
+                        if (const u64 tick = FetchableWindowTick(other, false)) {
+                            newest = std::max(newest, tick);
+                            others = true;
+                        }
+                    }
+                }
+                if (!others || !newest) {
+                    return false;
+                }
+                auto* semaphore = scheduler.GetWorkSemaphore();
+                if (!semaphore->IsFree(newest)) {
+                    semaphore->Refresh();
+                }
+                return semaphore->IsFree(newest);
+            };
+            if (batch_mapped && batch_window && arena_host_mapped && instance.GetCopyQueue() &&
+                other_finished_page() && CopyFinishedGpuPage(page)) {
+                memory_tracker->MarkRegionAsCpuModified(device_addr, size);
+                return;
+            }
+            // gow3 21 Oct 2026 (GOW3_FETCH_NO_BLOCK=1): the second-queue copy below would wait for
+            // this page's newest GPU write (submitted, not finished): the guest thread waits for
+            // it instead (see ReadMemory's end) and asks again.
+            if (allow_defer && instance.GetCopyQueue() && UrgentCopiesEnabled()) {
+                if (const u64 tick = FetchableWindowTick(page, false)) {
+                    auto* semaphore = scheduler.GetWorkSemaphore();
+                    if (!semaphore->IsFree(tick)) {
+                        semaphore->Refresh();
+                    }
+                    if (!semaphore->IsFree(tick)) {
+                        deferred_tick = tick;
+                        return;
+                    }
+                }
+            }
+            if (ReadFinishedGpuPage(page) || CopyFinishedGpuPage(page, allow_defer)) {
                 memory_tracker->MarkRegionAsCpuModified(device_addr, size);
                 return;
             }
@@ -902,6 +1248,28 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
             if (TryLazyWrite(device_addr, size)) {
                 return;
             }
+            // gow3 20 Oct 2026 (integrated GPUs): without a second queue of the graphics family
+            // (the Radeon 780M has one) CopyFinishedGpuPage cannot fetch, and the download below
+            // waits for all GPU work queued so far, the frame in flight included: 3.2% of the GPU
+            // command thread on a 780M (Uncharted 3, 720p, Ryzen 7840HS). With CPU-mappable
+            // arenas (an integrated GPU's memory is the system's) waiting only for the submission
+            // that last wrote the page's window, then reading the page in place, does the same.
+            // GOW3_WAIT_PAGE_READ=0: the download, as before.
+            static const bool wait_page_read = [] {
+                const char* env = std::getenv("GOW3_WAIT_PAGE_READ");
+                return !(env && env[0] == '0');
+            }();
+            if (wait_page_read && arena_host_mapped && !instance.GetCopyQueue() &&
+                device_addr + size <= page + 4096) {
+                if (const u64 tick = FetchableWindowTick(page, false)) {
+                    scheduler.GetWorkSemaphore()->Wait(tick);
+                    if (ReadFinishedGpuPage(page)) {
+                        ++g_waited_page_reads;
+                        memory_tracker->MarkRegionAsCpuModified(device_addr, size);
+                        return;
+                    }
+                }
+            }
         }
         const u32 first_block = device_addr >> block_shift;
         const u32 last_block = (device_addr + size - 1) >> block_shift;
@@ -942,7 +1310,19 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
         flush_request();
     } else {
         const auto queued = std::chrono::steady_clock::now();
-        liverpool->SendCommand<true>(std::move(flush_request));
+        // gow3 21 Oct 2026: a fault request (GOW3_WAIT_SERVICES_FAULTS=1: the command thread's
+        // frames-ahead wait serves it too; otherwise SendCommand<true> as before).
+        liverpool->SendFaultCommand(flush_request);
+        // gow3 21 Oct 2026 (GOW3_FETCH_NO_BLOCK=1): the GPU write the fetch needs finished is
+        // waited for here; the request starts over (the page may have changed meanwhile). After
+        // three such waits the old path (the command thread waits) ends it.
+        for (u32 attempt = 1; deferred_tick; ++attempt) {
+            const u64 tick = std::exchange(deferred_tick, 0);
+            scheduler.GetWorkSemaphore()->Wait(tick);
+            allow_defer = attempt < 3;
+            g_fetch_deferrals.fetch_add(1, std::memory_order_relaxed);
+            liverpool->SendFaultCommand(flush_request);
+        }
         if (!is_write) {
             g_read_queue_us += std::chrono::duration_cast<std::chrono::microseconds>(
                                    std::chrono::steady_clock::now() - queued)
@@ -1125,7 +1505,7 @@ u32 BufferCache::TakeLabelsInReadbacks() {
 void BufferCache::NoteCpuWrite(VAddr address, u64 size) {
     bool inside = false;
     for (auto& readback : pending_readbacks) {
-        readback.rewritten.Add(address, size);
+        readback.NoteRewrite(address, size);
         for (const auto& [lo, n] : readback.pieces) {
             inside |= address < lo + n && lo < address + size;
         }
@@ -1177,7 +1557,7 @@ bool BufferCache::WriteThrough(VAddr address, const void* data, u64 size) {
         }
     }
     for (auto& readback : pending_readbacks) {
-        readback.rewritten.Add(address, size);
+        readback.NoteRewrite(address, size);
     }
     return true;
 }
@@ -1375,8 +1755,23 @@ void BufferCache::LandGuarded(PendingReadback& readback, size_t piece, VAddr lo,
     const u8* before = readback.before.data() + readback.offsets[piece] + (lo - address);
     const u64 n = hi - lo;
     // The guest bytes now, through the backing view (the page may still be read-protected for
-    // this readback). A local buffer: a fault in here may land readbacks again.
-    std::vector<u8> pre(n);
+    // this readback). A local buffer: a fault in here may land readbacks again. With
+    // GOW3_READBACK_POOL a buffer kept by this thread (the outermost landing only; nested ones,
+    // from a fault in here, take their own) that is not zeroed: it is filled completely below.
+    static thread_local SnapshotBytes kept;
+    static thread_local u32 depth = 0;
+    SnapshotBytes own;
+    SnapshotBytes& pre = ReadbackPoolEnabled() && depth == 0 ? kept : own;
+    struct Depth {
+        u32& value;
+        ~Depth() {
+            --value;
+            if (value == 0 && kept.capacity() > SnapshotPoolMaxBytes) {
+                SnapshotBytes{}.swap(kept);
+            }
+        }
+    } depth_guard{++depth};
+    SizeScratch(pre, n);
     if (!memory->TryReadBacking(lo, pre.data(), n)) {
         memory->CopySparseMemory(lo, pre.data(), n);
     }
@@ -1414,7 +1809,7 @@ void BufferCache::LandGuarded(PendingReadback& readback, size_t piece, VAddr lo,
 }
 
 void BufferCache::UpdateLaterSnapshots(VAddr lo, VAddr hi, const u8* pre) {
-    std::vector<u8> post;
+    SnapshotBytes post;
     for (size_t r = 1; r < pending_readbacks.size(); ++r) {
         PendingReadback& later = pending_readbacks[r];
         if (later.before.empty()) {
@@ -1428,7 +1823,7 @@ void BufferCache::UpdateLaterSnapshots(VAddr lo, VAddr hi, const u8* pre) {
                 continue;
             }
             if (post.empty()) {
-                post.resize(hi - lo);
+                SizeScratch(post, hi - lo); // filled completely below
                 if (!memory->TryReadBacking(lo, post.data(), hi - lo)) {
                     memory->CopySparseMemory(lo, post.data(), hi - lo);
                 }
@@ -1452,6 +1847,32 @@ void BufferCache::UpdateLaterSnapshots(VAddr lo, VAddr hi, const u8* pre) {
             }
         }
     }
+}
+
+void BufferCache::RecycleSnapshot(SnapshotBytes& bytes) {
+    if (!ReadbackPoolEnabled() || bytes.capacity() == 0 || bytes.capacity() > SnapshotPoolMaxBytes) {
+        return;
+    }
+    u64 kept = bytes.capacity();
+    size_t smallest = 0;
+    for (size_t i = 0; i < snapshot_pool.size(); ++i) {
+        kept += snapshot_pool[i].capacity();
+        if (snapshot_pool[i].capacity() < snapshot_pool[smallest].capacity()) {
+            smallest = i;
+        }
+    }
+    // Full: it replaces the smallest kept buffer if it is larger (sizes vary little).
+    if (snapshot_pool.size() >= SnapshotPoolCount || kept > SnapshotPoolTotalBytes) {
+        if (snapshot_pool.empty() || snapshot_pool[smallest].capacity() >= bytes.capacity() ||
+            kept - snapshot_pool[smallest].capacity() > SnapshotPoolTotalBytes) {
+            return;
+        }
+        snapshot_pool[smallest] = std::move(bytes);
+        snapshot_pool[smallest].clear();
+        return;
+    }
+    bytes.clear();
+    snapshot_pool.push_back(std::move(bytes));
 }
 
 void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ranges, bool protect,
@@ -1484,12 +1905,35 @@ void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ran
     if (total_size_bytes == 0) {
         return;
     }
+    for (const auto& [address, size] : readback.pieces) {
+        readback.span_lo = std::min(readback.span_lo, address);
+        readback.span_hi = std::max(readback.span_hi, address + size);
+    }
     // Readback guard: the guest bytes now, to tell the game's later writes from older data.
     // A snapshot memory can't be had for (#47: a laptop out of memory) is skipped: that readback
     // lands unguarded, as before 0.3.0, instead of the game stopping.
     if (ReadbackGuardEnabled()) {
         try {
-            readback.before.resize(total_size_bytes);
+            // GOW3_READBACK_POOL: the smallest kept buffer that is large enough (else the
+            // largest, which grows); every byte is copied in below, so it is not zeroed.
+            if (ReadbackPoolEnabled() && !snapshot_pool.empty()) {
+                size_t best = 0;
+                for (size_t i = 1; i < snapshot_pool.size(); ++i) {
+                    const u64 have = snapshot_pool[i].capacity();
+                    const u64 chosen = snapshot_pool[best].capacity();
+                    if (chosen < total_size_bytes ? have > chosen
+                                                  : have >= total_size_bytes && have < chosen) {
+                        best = i;
+                    }
+                }
+                readback.before = std::move(snapshot_pool[best]);
+                if (best + 1 != snapshot_pool.size()) {
+                    snapshot_pool[best] = std::move(snapshot_pool.back());
+                }
+                snapshot_pool.pop_back();
+                readback.before.clear();
+            }
+            SizeScratch(readback.before, total_size_bytes);
         } catch (const std::bad_alloc&) {
             readback.before = {};
         }
@@ -1506,6 +1950,7 @@ void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ran
     // Held until the readback completes (a ring allocation could be reused before).
     const auto download = staging_pool.Request(total_size_bytes, VideoCore::MemoryType::HostCached,
                                                0, true);
+    const ProfileCopy mark{scheduler, 0xB0F7'0002ull, "buffer readback (async)"};
     for (size_t i = 0; i < pending.size();) {
         boost::container::small_vector<vk::BufferCopy, 16> copies;
         const Buffer* arena = pending[i].arena;
@@ -1565,6 +2010,7 @@ void BufferCache::DownloadRangesAsync(std::span<const std::pair<VAddr, u64>> ran
         }
     }
     readback.tick = scheduler.CurrentTick();
+    NoteReadbackQueued(scheduler, readback.tick);
     readback.yield_to_cpu = yield_to_cpu;
     readback.buffer = download.buffer;
     readback.offset = download.offset;
@@ -2054,6 +2500,7 @@ void BufferCache::CompleteReadbacks(bool wait, u64 wait_until) {
                 }
             }
         }
+        NoteReadbackLanded(readback.tick);
         readback.buffer->Invalidate(readback.offset, readback.size);
         // Bytes downloaded meanwhile, or uploaded after a CPU write, are no longer GPU data.
         for (size_t i = 0; i < readback.pieces.size(); ++i) {
@@ -2121,6 +2568,7 @@ void BufferCache::CompleteReadbacks(bool wait, u64 wait_until) {
             .type = VideoCore::MemoryType::HostCached,
         });
         auto landed = std::move(readback.on_landed);
+        RecycleSnapshot(readback.before);
         pending_readbacks.pop_front();
         for (auto& fn : landed) {
             --deferred_signals;
@@ -2210,7 +2658,7 @@ void BufferCache::PollReadbacksNow() {
 // guest waits for the very job that writes) nothing did: Uncharted 3 on the Radeon 780M stopped
 // flipping at level loads, one job worker spending ~20 s in the kernel on a single store. Watches
 // start after submission, so the wait below is for work already sent to the GPU.
-void BufferCache::LandReadbacksWatching(VAddr page) {
+u64 BufferCache::WatchingTick(VAddr page) const {
     u64 tick = 0;
     for (const auto& readback : pending_readbacks) {
         if (!readback.watching) {
@@ -2222,6 +2670,11 @@ void BufferCache::LandReadbacksWatching(VAddr page) {
             }
         }
     }
+    return tick;
+}
+
+void BufferCache::LandReadbacksWatching(VAddr page) {
+    const u64 tick = WatchingTick(page);
     if (tick) {
         CompleteReadbacks(true, tick);
         return;
@@ -2284,6 +2737,10 @@ u64 BufferCache::PendingReadbackTick(VAddr address, u64 size, bool newest_only) 
     return tick;
 }
 
+u64 BufferCache::RangeTick() const {
+    return scheduler.CurrentTick();
+}
+
 void BufferCache::NoteGpuWriteWindows(VAddr address, u64 size) {
     const u64 tick = scheduler.CurrentTick();
     if (size > 64_KB) {
@@ -2298,13 +2755,14 @@ void BufferCache::NoteGpuWriteWindows(VAddr address, u64 size) {
 }
 
 
-u64 BufferCache::FetchableWindowTick(VAddr page) {
+u64 BufferCache::FetchableWindowTick(VAddr page, bool count_refusals) {
+    const u32 counted = count_refusals ? 1 : 0;
     if (lazy_pages.contains(page)) {
-        ++g_fetch_refused[0];
+        g_fetch_refused[0] += counted;
         return 0;
     }
     if (PendingReadbackTick(page, 4096, false)) {
-        ++g_fetch_refused[1];
+        g_fetch_refused[1] += counted;
         return 0;
     }
     u64 tick = 0;
@@ -2319,13 +2777,13 @@ u64 BufferCache::FetchableWindowTick(VAddr page) {
             tick = std::max(tick, small->second);
         }
         if (!tick) {
-            ++g_fetch_refused[2];
+            g_fetch_refused[2] += counted;
             return 0;
         }
     }
     // Recorded in the open command buffer: only the full download gets it.
     if (!tick || tick >= scheduler.CurrentTick()) {
-        ++g_fetch_refused[3];
+        g_fetch_refused[3] += counted;
         return 0;
     }
     return tick;
@@ -2356,8 +2814,16 @@ bool BufferCache::SideQueueFetch(std::span<const std::pair<VAddr, u64>> pieces, 
     const u32 first_block = lo >> block_shift;
     const u32 last_block = (hi - 1) >> block_shift;
     const auto* arena = GetArena(first_block, last_block);
-    if (!arena || !resident_ranges.Contains(first_block, last_block + 1)) {
+    if (!arena) {
         return false;
+    }
+    // gow3: each piece resident (a batched window fetch can span blocks never made resident
+    // between its pieces; those are not copied).
+    for (const auto& [address, size] : pieces) {
+        if (!resident_ranges.Contains(address >> block_shift,
+                                      ((address + size - 1) >> block_shift) + 1)) {
+            return false;
+        }
     }
     u64 total = 0;
     for (const auto& [address, size] : pieces) {
@@ -2443,7 +2909,7 @@ bool BufferCache::SideQueueFetch(std::span<const std::pair<VAddr, u64>> pieces, 
     return true;
 }
 
-bool BufferCache::CopyFinishedGpuPage(VAddr page) {
+bool BufferCache::CopyFinishedGpuPage(VAddr page, bool finished_only) {
     if (!UrgentCopiesEnabled() || !instance.GetCopyQueue()) {
         return false;
     }
@@ -2451,15 +2917,83 @@ bool BufferCache::CopyFinishedGpuPage(VAddr page) {
     if (!tick) {
         return false;
     }
-    boost::container::small_vector<std::pair<VAddr, u64>, 8> pieces;
-    gpu_modified_ranges.ForEachInRange(page, 4096, [&](VAddr lo, VAddr hi) {
-        pieces.emplace_back(lo, hi - lo);
-    });
-    if (!SideQueueFetch(pieces, tick)) {
-        return false;
+    // gow3 21 Oct 2026 (GOW3_FETCH_NO_BLOCK=1): only GPU writes that have finished (the copy then
+    // waits for no GPU work on this thread).
+    auto* semaphore = scheduler.GetWorkSemaphore();
+    if (finished_only) {
+        if (!semaphore->IsFree(tick)) {
+            semaphore->Refresh();
+        }
+        if (!semaphore->IsFree(tick)) {
+            return false;
+        }
     }
-    FinishPageFetch(page);
-    return true;
+    // gow3 20 Oct 2026: the other pages of the fault window (GOW3_FAULT_WINDOW, 256 KiB) whose
+    // GPU bytes are final come along in the same copy. When the game rewrites memory the GPU
+    // wrote earlier (level streaming into reused memory: Uncharted 1 chapter 3 and Uncharted 2,
+    // ~9,000-14,000 such faults per 5 s, every page of whole 1 MiB windows), each 4 KiB page
+    // was a copy on the second queue plus a wait (~0.25 ms): 35-70 ms frames. The fetched pages
+    // stop being GPU data, so ExtendWriteFault right after lets the rest of the window be
+    // written without faults. Safe for the same reason as the single page: a GPU-written page
+    // that is not lazy and has no readback pending is write-protected, so the guest has not
+    // written it since the GPU did; its GPU bytes are the newest. GOW3_FETCH_BATCH_KB=0: one
+    // page per fault, as before.
+    static const u64 batch_window = [] {
+        const char* env = std::getenv("GOW3_FETCH_BATCH_KB");
+        const u64 kib = env ? std::strtoull(env, nullptr, 10) : 256;
+        const u64 bytes = kib < 8 ? 0 : std::bit_ceil(std::min<u64>(kib, 1024)) * 1024;
+        std::printf("GPU: write faults fetch %s\n",
+                    bytes ? fmt::format("the finished GPU pages of their {} KiB window in one copy "
+                                        "(GOW3_FETCH_BATCH_KB=0: one page)",
+                                        bytes >> 10).c_str()
+                          : "one page per fault (GOW3_FETCH_BATCH_KB=0)");
+        return bytes;
+    }();
+    boost::container::small_vector<VAddr, 64> pages;
+    pages.push_back(page);
+    u64 wait_tick = tick;
+    if (batch_window) {
+        const VAddr window = Common::AlignDown(page, batch_window);
+        for (VAddr other = window; other < window + batch_window; other += 4096) {
+            if (other == page || !gpu_modified_ranges.Intersects(other, 4096)) {
+                continue;
+            }
+            // Only pages the tracker holds as GPU data and not CPU-modified: write-protected
+            // (a page is writable only with its CPU bit), so the guest cannot have newer bytes.
+            if (!memory_tracker->IsRegionGpuModified(other, 4096) ||
+                memory_tracker->IsRegionCpuModified(other, 4096)) {
+                continue;
+            }
+            if (const u64 other_tick = FetchableWindowTick(other, false)) {
+                if (finished_only && !semaphore->IsFree(other_tick)) {
+                    continue; // (GOW3_FETCH_NO_BLOCK) its GPU write is still running
+                }
+                wait_tick = std::max(wait_tick, other_tick);
+                pages.push_back(other);
+            }
+        }
+        std::ranges::sort(pages);
+    }
+    const auto fetch = [&](std::span<const VAddr> list, u64 wait) {
+        boost::container::small_vector<std::pair<VAddr, u64>, 64> pieces;
+        for (const VAddr fetched : list) {
+            gpu_modified_ranges.ForEachInRange(fetched, 4096, [&](VAddr lo, VAddr hi) {
+                pieces.emplace_back(lo, hi - lo);
+            });
+        }
+        if (!SideQueueFetch(pieces, wait)) {
+            return false;
+        }
+        for (const VAddr fetched : list) {
+            FinishPageFetch(fetched);
+        }
+        return true;
+    };
+    if (pages.size() > 1 && fetch(pages, wait_tick)) {
+        return true;
+    }
+    const VAddr single[] = {page};
+    return fetch(single, tick);
 }
 
 bool BufferCache::FetchOldGpuBytes(VAddr page) {
@@ -2820,7 +3354,11 @@ std::pair<const Buffer*, u64> BufferCache::ObtainBuffer(VAddr device_addr, u32 s
                 entries.clear();
             }
         }
-        if (Gow3Stats::enabled) {
+        // gow3: the clock is read once per submission (or every 4096 copies), not per copy: up to
+        // ~250k copies/s in heavy scenes, and these statistics are on for every player.
+        static u64 stream_stats_tick = ~0ull;
+        if (Gow3Stats::enabled && (tick != stream_stats_tick || (stream_copied & 4095) == 0)) {
+            stream_stats_tick = tick;
             static auto last = std::chrono::steady_clock::now();
             if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds{5}) {
                 last = now;
@@ -2922,7 +3460,7 @@ std::pair<const Buffer*, u64> BufferCache::ObtainBuffer(VAddr device_addr, u32 s
         }
         GpuRangesAdd(device_addr, size);
         for (auto& readback : pending_readbacks) {
-            readback.rewritten.Add(device_addr, size);
+            readback.NoteRewrite(device_addr, size);
         }
     }
     return {arena, arena->Offset(device_addr)};
@@ -2985,6 +3523,9 @@ void BufferCache::SynchronizeDmaBuffers() {
 void BufferCache::SynchronizeDmaRange(VAddr address, u64 size) {
     const u64 first = address >> block_shift;
     const u64 last = (address + size + (1ULL << block_shift) - 1) >> block_shift;
+    if (last > first) {
+        TouchArenaWindows(first, last - 1); // in use (ReclaimArenaMemory)
+    }
     resident_ranges.ForEachInRange(first, last, [&](const Backing& backing) {
         const u64 start = std::max(first, backing.start);
         const u64 end = std::min(last, backing.end);
@@ -3006,6 +3547,7 @@ void BufferCache::SynchronizeDmaRange(VAddr address, u64 size) {
 }
 
 const Buffer* BufferCache::GetArena(u64 first_block, u64 last_block) {
+    TouchArenaWindows(first_block, last_block);
     const u64 first_page = first_block >> blocks_per_arena_page_shift;
     const u64 last_page = last_block >> blocks_per_arena_page_shift;
     ASSERT_MSG(last_page - first_page <= 1,
@@ -3072,25 +3614,67 @@ void BufferCache::EnsureResident(const Buffer* arena, u64 first_block, u64 last_
     }
     Gow3Stats::Timer timer{Gow3Stats::t_resident};
 
-    const u64 resident_bytes = u64{resident_blocks} << block_shift;
-    vk::DeviceMemory device_memory{};
-    u8* mapped = nullptr;
-    u64 memory_offset{};
-    if (!residency_pool ||
-        !residency_pool->Take(resident_bytes, device_memory, mapped, memory_offset)) {
-        const vk::MemoryAllocateInfo alloc_info = {
-            .allocationSize = resident_bytes,
-            .memoryTypeIndex = arena_memory_type_index,
-        };
-        device_memory = Vulkan::Check(instance.GetDevice().allocateMemory(alloc_info));
-        if (arena_host_mapped) {
-            auto [map_result, pointer] =
-                instance.GetDevice().mapMemory(device_memory, 0, VK_WHOLE_SIZE);
-            if (map_result == vk::Result::eSuccess) {
-                mapped = static_cast<u8*>(pointer);
+    // gow3 20 Oct 2026 (GitHub #95): memory given back by ReclaimArenaMemory is bound again
+    // first; new memory only for what it does not cover. Unbinds of these ranges still pending
+    // (released and used again before they were submitted) are dropped.
+    struct Piece {
+        u64 start, end;
+        vk::DeviceMemory memory;
+        u64 offset;
+        u8* mapped;
+    };
+    boost::container::small_vector<Piece, 8> pieces;
+    boost::container::small_vector<std::pair<u64, u64>, 8> fresh;
+    u64 fresh_blocks = 0;
+    for (const auto& range : bind_ranges) {
+        if (has_pending_unbinds) {
+            TrimPendingUnbinds(arena, range.start, range.end);
+        }
+        u64 start = range.start;
+        while (start < range.end && !free_runs.empty()) {
+            auto& run = free_runs.back();
+            const u64 count = std::min(run.blocks, range.end - start);
+            pieces.push_back({start, start + count, run.memory, run.offset, run.mapped});
+            run.offset += count << block_shift;
+            run.blocks -= count;
+            if (!run.blocks) {
+                free_runs.pop_back();
             }
+            start += count;
+        }
+        if (start < range.end) {
+            fresh.emplace_back(start, range.end);
+            fresh_blocks += range.end - start;
         }
     }
+    if (fresh_blocks) {
+        const u64 fresh_bytes = fresh_blocks << block_shift;
+        vk::DeviceMemory device_memory{};
+        u8* mapped = nullptr;
+        u64 memory_offset{};
+        if (!residency_pool ||
+            !residency_pool->Take(fresh_bytes, device_memory, mapped, memory_offset)) {
+            const vk::MemoryAllocateInfo alloc_info = {
+                .allocationSize = fresh_bytes,
+                .memoryTypeIndex = arena_memory_type_index,
+            };
+            device_memory = Vulkan::Check(instance.GetDevice().allocateMemory(alloc_info));
+            Gow3Stats::arena_memory_bytes += fresh_bytes;
+            if (arena_host_mapped) {
+                auto [map_result, pointer] =
+                    instance.GetDevice().mapMemory(device_memory, 0, VK_WHOLE_SIZE);
+                if (map_result == vk::Result::eSuccess) {
+                    mapped = static_cast<u8*>(pointer);
+                }
+            }
+        }
+        for (const auto& [start, end] : fresh) {
+            pieces.push_back({start, end, device_memory, memory_offset, mapped});
+            memory_offset += (end - start) << block_shift;
+        }
+    }
+    resident_in_use_blocks += resident_blocks;
+    Gow3Stats::arena_in_use_bytes = resident_in_use_blocks << block_shift;
 
     boost::container::small_vector<vk::BufferCopy, 8> copies;
     const auto staging =
@@ -3098,24 +3682,23 @@ void BufferCache::EnsureResident(const Buffer* arena, u64 first_block, u64 last_
     ArenaBinds* binds = BindsForArena(arena);
     auto* bda_addrs = reinterpret_cast<vk::DeviceAddress*>(staging.mapped);
     u64 offset = staging.offset;
-    for (const auto& range : bind_ranges) {
+    for (const auto& piece : pieces) {
         Backing backing;
-        backing.start = range.start;
-        backing.end = range.end;
-        backing.memory = device_memory;
-        backing.offset = memory_offset;
-        backing.mapped = mapped;
+        backing.start = piece.start;
+        backing.end = piece.end;
+        backing.memory = piece.memory;
+        backing.offset = piece.offset;
+        backing.mapped = piece.mapped;
         resident_ranges.Add(backing);
 
         LOG_INFO(Render, "Making range start={}, end={} resident", backing.start, backing.end);
 
         const auto& bind = binds->binds.emplace_back(vk::SparseMemoryBind{
-            .resourceOffset = (range.start << block_shift) - arena->cpu_addr,
-            .size = (range.end - range.start) << block_shift,
-            .memory = device_memory,
-            .memoryOffset = memory_offset,
+            .resourceOffset = (piece.start << block_shift) - arena->cpu_addr,
+            .size = (piece.end - piece.start) << block_shift,
+            .memory = piece.memory,
+            .memoryOffset = piece.offset,
         });
-        memory_offset += bind.size;
 
         for (u32 block = 0; block < bind.size; block += block_size) {
             *(bda_addrs++) = arena->BufferDeviceAddress() + bind.resourceOffset + block;
@@ -3127,6 +3710,224 @@ void BufferCache::EnsureResident(const Buffer* arena, u64 first_block, u64 last_
 
     staging.Flush();
     runtime.CopyBuffer(staging.buffer, bda_pagetable_buffer.get(), copies);
+}
+
+void BufferCache::TrimPendingUnbinds(const Buffer* arena, u64 first_block, u64 end_block) {
+    const u64 lo = (first_block << block_shift) - arena->cpu_addr;
+    const u64 hi = (end_block << block_shift) - arena->cpu_addr;
+    for (auto& pending : pending_binds) {
+        if (pending.arena != arena) {
+            continue;
+        }
+        decltype(pending.binds) kept;
+        bool changed = false;
+        for (const auto& bind : pending.binds) {
+            if (bind.memory || bind.resourceOffset >= hi || bind.resourceOffset + bind.size <= lo) {
+                kept.push_back(bind);
+                continue;
+            }
+            changed = true;
+            if (bind.resourceOffset < lo) {
+                kept.push_back({.resourceOffset = bind.resourceOffset, .size = lo - bind.resourceOffset});
+            }
+            if (bind.resourceOffset + bind.size > hi) {
+                kept.push_back({.resourceOffset = hi, .size = bind.resourceOffset + bind.size - hi});
+            }
+        }
+        if (changed) {
+            pending.binds = std::move(kept);
+        }
+    }
+}
+
+u64 BufferCache::ReleaseArenaBlocks(u64 first_block, u64 end_block) {
+    boost::container::small_vector<Backing, 8> pieces;
+    resident_ranges.ForEachInRange(first_block, end_block, [&](const Backing& backing) {
+        const u64 start = std::max(first_block, backing.start);
+        const u64 end = std::min(end_block, backing.end);
+        if (start < end) {
+            Backing piece = backing;
+            piece.start = start;
+            piece.end = end;
+            piece.offset = backing.offset + ((start - backing.start) << block_shift);
+            pieces.push_back(piece);
+        }
+    });
+    if (pieces.empty()) {
+        return 0;
+    }
+    resident_ranges.Remove(first_block, end_block, [this](const Backing& backing, u64 a, u64 b) {
+        Backing part = backing;
+        part.start = a;
+        part.end = b;
+        part.offset = backing.offset + ((a - backing.start) << block_shift);
+        return part;
+    });
+    u64 blocks = 0;
+    for (const auto& piece : pieces) {
+        blocks += piece.end - piece.start;
+    }
+    // The page table entries of the blocks become 0, as for memory never made resident (shaders
+    // reading guest memory directly then see no data instead of another range's).
+    boost::container::small_vector<vk::BufferCopy, 8> copies;
+    const auto staging =
+        staging_pool.Request(blocks * sizeof(vk::DeviceAddress), MemoryType::HostUncached);
+    std::memset(staging.mapped, 0, blocks * sizeof(vk::DeviceAddress));
+    u64 offset = staging.offset;
+    for (const auto& piece : pieces) {
+        const VAddr address = piece.start << block_shift;
+        const u64 size = (piece.end - piece.start) << block_shift;
+        const Buffer* arena = address_space[address >> arena_page_bits];
+        ASSERT_MSG(arena && address >= arena->cpu_addr &&
+                       address + size <= arena->cpu_addr + arena->size_bytes,
+                   "Released arena range outside its arena");
+        BindsForArena(arena)->binds.push_back({
+            .resourceOffset = address - arena->cpu_addr,
+            .size = size,
+        });
+        quarantined_runs.push_back({piece.memory, piece.offset, piece.mapped, piece.end - piece.start});
+        // The guest copy is the only one now: the next use uploads it (and a static range whose
+        // fast path skipped uploads takes the stream path, see UseArenaForStatic).
+        memory_tracker->MarkRegionAsCpuModified(address, size);
+        const u64 copy_size = (piece.end - piece.start) * sizeof(vk::DeviceAddress);
+        copies.emplace_back(offset, piece.start * sizeof(vk::DeviceAddress), copy_size);
+        offset += copy_size;
+    }
+    staging.Flush();
+    runtime.CopyBuffer(staging.buffer, bda_pagetable_buffer.get(), copies);
+    has_pending_unbinds = true;
+    resident_in_use_blocks -= blocks;
+    Gow3Stats::arena_in_use_bytes = resident_in_use_blocks << block_shift;
+    Gow3Stats::arena_released_bytes += blocks << block_shift;
+    return blocks;
+}
+
+void BufferCache::ReclaimArenaMemory() {
+    // gow3 20 Oct 2026 (GitHub #95): the arenas only grew. Every range the GPU ever used stayed
+    // bound to video memory: Uncharted 2 on an RTX 4060 laptop, 16 min, one level change: 320 ->
+    // 1,920 MiB, never less, while images were collected (1,401 -> 502 MiB). Through a long
+    // session that fills cards with 4-8 GB, and the driver then moves memory to system RAM
+    // (frame rate falling) or runs out. Now, once the arenas hold more than their limit, 1 MiB
+    // windows of guest memory no arena use touched for GOW3_ARENA_RECLAIM_AGE_S (default 60) are
+    // given back, oldest first, until the arenas hold 3/4 of it: only windows without GPU-written
+    // data, pending readbacks or lazy pages (the guest copy is complete there), whose last use the
+    // GPU has finished. Their memory is bound again before new memory is allocated, so the arenas
+    // stay near the limit. GOW3_ARENA_LIMIT_MB (default a quarter of video memory, at least
+    // 768); GOW3_ARENA_RECLAIM=0: off.
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_ARENA_RECLAIM");
+        return !(env && env[0] == '0');
+    }();
+    if (!enabled) {
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (now < next_reclaim_epoch) {
+        return;
+    }
+    next_reclaim_epoch = now + std::chrono::seconds(2);
+    reclaim_epoch = static_cast<u16>(reclaim_epoch + 1);
+    if (!reclaim_epoch) {
+        reclaim_epoch = 1;
+    }
+    epoch_start_tick[reclaim_epoch % ReclaimEpochRing] = scheduler.CurrentTick();
+
+    static const u64 limit = [this] {
+        u64 mib = 0;
+        if (const char* env = std::getenv("GOW3_ARENA_LIMIT_MB"); env && env[0]) {
+            mib = std::strtoull(env, nullptr, 10);
+        } else {
+            const auto& props = instance.GetMemoryProperties();
+            const u32 heap = props.memoryTypes[arena_memory_type_index].heapIndex;
+            mib = std::max<u64>(768, (props.memoryHeaps[heap].size >> 20) / 4);
+            // Arenas in system memory (integrated GPUs) share it with the game: at most
+            // 2 GiB, an eighth of the heap on smaller systems.
+            if (!(props.memoryHeaps[heap].flags & vk::MemoryHeapFlagBits::eDeviceLocal)) {
+                mib = std::max<u64>(768, std::min<u64>(2048, (props.memoryHeaps[heap].size >> 20) / 8));
+            }
+        }
+        std::printf("GPU: buffer arenas give back memory unused for a while above %llu MiB "
+                    "(GOW3_ARENA_LIMIT_MB; GOW3_ARENA_RECLAIM=0: off)\n",
+                    static_cast<unsigned long long>(mib));
+        std::fflush(stdout);
+        return std::max<u64>(mib, 64) << 20;
+    }();
+    static const u16 age_epochs = [] {
+        const char* env = std::getenv("GOW3_ARENA_RECLAIM_AGE_S");
+        const int seconds = env && env[0] ? std::atoi(env) : 60;
+        return static_cast<u16>(std::clamp(seconds, 6, 2 * (int(ReclaimEpochRing) - 4)) / 2);
+    }();
+    if ((resident_in_use_blocks << block_shift) <= limit) {
+        return;
+    }
+    const u64 target = limit / 4 * 3;
+
+    // Windows with resident memory, the longest unused first.
+    std::vector<std::pair<u16, u64>> candidates;
+    u64 previous = ~u64{0};
+    for (const auto& backing : resident_ranges) {
+        const u64 first = (backing.start << block_shift) >> ReclaimWindowBits;
+        const u64 last = ((backing.end << block_shift) - 1) >> ReclaimWindowBits;
+        for (u64 w = first; w <= last; ++w) {
+            if (w == previous) {
+                continue;
+            }
+            previous = w;
+            const u16 epoch = window_epoch[w].load(std::memory_order_relaxed);
+            const u16 age = static_cast<u16>(reclaim_epoch - epoch);
+            if (epoch && age < age_epochs) {
+                continue;
+            }
+            candidates.emplace_back(epoch ? age : u16(0xFFFF), w);
+        }
+    }
+    std::ranges::sort(candidates, std::greater{});
+
+    auto* semaphore = scheduler.GetWorkSemaphore();
+    semaphore->Refresh();
+    u64 released = 0;
+    u32 windows = 0, busy = 0;
+    for (const auto& [age, w] : candidates) {
+        if ((resident_in_use_blocks << block_shift) <= target) {
+            break;
+        }
+        const VAddr lo = w << ReclaimWindowBits;
+        const u64 size = u64(1) << ReclaimWindowBits;
+        // The GPU has finished everything submitted up to the end of the window's last epoch.
+        if (const u16 epoch = window_epoch[w].load(std::memory_order_relaxed);
+            epoch && age < ReclaimEpochRing - 2 &&
+            !semaphore->IsFree(epoch_start_tick[static_cast<u16>(epoch + 1) % ReclaimEpochRing])) {
+            ++busy;
+            continue;
+        }
+        bool gpu_data;
+        {
+            std::shared_lock lock{gpu_ranges_mutex};
+            gpu_data = gpu_modified_ranges.Intersects(lo, size);
+        }
+        if (gpu_data || memory_tracker->IsRegionGpuModified(lo, size) ||
+            PendingReadbackTick(lo, size, false)) {
+            ++busy;
+            continue;
+        }
+        if (const auto lazy = lazy_pages.lower_bound(lo); lazy != lazy_pages.end() && lazy->first < lo + size) {
+            ++busy;
+            continue;
+        }
+        if (const u64 blocks = ReleaseArenaBlocks(lo >> block_shift, (lo + size) >> block_shift)) {
+            released += blocks;
+            ++windows;
+        }
+    }
+    if (windows || busy) {
+        std::printf("GPU: buffer arenas gave back %llu MiB (%u windows unused for %u s or more; %u "
+                    "kept: GPU data or in use); %llu MiB in use, limit %llu MiB\n",
+                    static_cast<unsigned long long>((released << block_shift) >> 20), windows,
+                    u32(age_epochs) * 2, busy,
+                    static_cast<unsigned long long>((resident_in_use_blocks << block_shift) >> 20),
+                    static_cast<unsigned long long>(limit >> 20));
+        std::fflush(stdout);
+    }
 }
 
 bool BufferCache::SynchronizeMemory(const Buffer* arena, VAddr device_addr, u32 size,
@@ -3145,6 +3946,7 @@ bool BufferCache::SynchronizeMemory(const Buffer* arena, VAddr device_addr, u32 
         [&] { src_buffer = UploadCopies(arena, copies, total_size_bytes); });
 
     if (src_buffer) {
+        const ProfileCopy mark{scheduler, 0xB0F7'0001ull, "buffer upload (CPU-written guest memory)"};
         runtime.CopyBuffer(src_buffer, arena, copies);
     }
     if (is_texel_buffer && !is_written) {
@@ -3337,6 +4139,12 @@ void BufferCache::SubmitPendingArenaBinds(Vulkan::SubmitInfo& info) {
     ASSERT_MSG(submit_result != vk::Result::eErrorDeviceLost, "Device lost during submit");
 
     pending_binds.clear();
+    // gow3 20 Oct 2026: memory whose unbinds are now submitted may be bound elsewhere.
+    if (has_pending_unbinds) {
+        has_pending_unbinds = false;
+        free_runs.insert(free_runs.end(), quarantined_runs.begin(), quarantined_runs.end());
+        quarantined_runs.clear();
+    }
 }
 
 } // namespace VideoCore

@@ -120,8 +120,15 @@ ImageInfo::ImageInfo(const AmdGpu::Image& image, const Shader::ImageResource& de
     tile_mode = image.GetTileMode();
     array_mode = AmdGpu::GetArrayMode(tile_mode);
     pixel_format = LiverpoolToVK::SurfaceFormat(image.GetDataFmt(), image.GetNumberFmt());
+    // gow3 21 Oct 2026: a garbage T# in a depth slot can have a colour format, which has no
+    // depth form (PromoteFormatToDepth stopped the game in a forced-garbage test). It keeps no
+    // size below, and PlausibleImage drops it like other garbage T#s.
+    const bool no_depth_form =
+        desc.is_depth && !LiverpoolToVK::IsPromotableToDepth(pixel_format);
     if (desc.is_depth) {
-        pixel_format = LiverpoolToVK::PromoteFormatToDepth(pixel_format);
+        if (!no_depth_form) {
+            pixel_format = LiverpoolToVK::PromoteFormatToDepth(pixel_format);
+        }
         props.is_depth = true;
     }
     type = image.GetBaseType();
@@ -148,6 +155,9 @@ ImageInfo::ImageInfo(const AmdGpu::Image& image, const Shader::ImageResource& de
 
     alt_tile = Libraries::Kernel::sceKernelIsNeoMode() && image.alt_tile_mode;
     UpdateSize();
+    if (no_depth_form) {
+        guest_size = 0;
+    }
 }
 
 bool ImageInfo::IsCompatible(const ImageInfo& info) const {
@@ -158,6 +168,13 @@ bool ImageInfo::IsCompatible(const ImageInfo& info) const {
 
 void ImageInfo::UpdateSize() {
     guest_size = 0;
+    // gow3 21 Oct 2026 (Uncharted 2 on an RTX 4060 laptop, while playing): a garbage T# (BC2 with
+    // number format 13, which no texture has) with a macro-tiled mode stopped the game at the
+    // assert below; block-compressed textures are never macro-tiled. Such a description keeps no
+    // size, and PlausibleImage drops it like other garbage T#s.
+    if (props.is_block && AmdGpu::IsMacroTiled(array_mode)) {
+        return;
+    }
     for (s32 mip = 0; mip < resources.levels; ++mip) {
         u32 mip_w = pitch >> mip;
         u32 mip_h = size.height >> mip;

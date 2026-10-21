@@ -81,6 +81,9 @@ struct PreparedDraw {
     std::atomic<u32> state{Pending};
     u64 reg_checksum{};
     GraphicsPipelineKey key{};
+    /// gow3 21 Oct 2026 (GOW3_CPU_TRIMS=1): std::hash of `key`, computed by the worker so the
+    /// GPU thread's pipeline lookup skips hashing it (0: not computed).
+    u64 key_hash{};
     u32 num_stages{};
     std::array<PreparedStage, MaxShaderStages> stages{};
     PreparedVertexInputs vertex{};
@@ -121,12 +124,20 @@ public:
         std::vector<u32> commands;
         std::unique_ptr<PreparedDraw[]> draws;
         u32 num_draws{};
+        u32 draws_capacity{}; ///< gow3 21 Oct 2026 (GOW3_PREP_POOL=1): length of `draws`
         std::vector<std::unique_ptr<u32[]>> flat_chunks; ///< from the claiming worker
+        /// gow3 21 Oct 2026 (GOW3_PREP_POOL=1): blocks larger than a chunk (kept apart:
+        /// only standard chunks go back to the pool).
+        std::vector<std::unique_ptr<u32[]>> flat_big_chunks;
         u64 start_checksum{}, end_checksum{}; ///< set by the scanner
         AmdGpu::RegDelta delta;                ///< registers written, values at the end
         std::atomic<bool> scanned{false};
         std::atomic<bool> claimed{false};
         std::atomic<bool> gpu_done{false};
+
+        /// gow3 21 Oct 2026 (GOW3_PREP_POOL=1): hands its chunks back to the workers'
+        /// pool instead of freeing them (on whichever thread drops the last reference).
+        ~Submission();
     };
 
 private:

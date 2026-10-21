@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <cstdio>
 #include <cstdlib>
 #include <deque>
 #include <memory>
@@ -20,6 +21,28 @@ namespace Gow3Copy {
 namespace {
 
 thread_local bool in_copy_thread = false;
+
+// gow3 20 Oct 2026 (idle CPU): WaitAll and Run waited in std::this_thread::yield() loops
+// (SwitchToThread: a full-speed spin whenever no other thread was ready on that core), WaitAll
+// taking the pool mutex on every pass. They now return at once when nothing is pending (one
+// atomic load, no lock), spin a little with pause instructions (copies often end within
+// microseconds), then sleep on done_cv, which the thread that makes the pool idle (or that
+// finishes a ParallelFor's last index) signals. WaitAll still runs queued tasks itself.
+// GOW3_COPY_WAIT_BLOCK=0: the yield loops.
+bool BlockingWaits() {
+    static const bool on = [] {
+        const char* env = std::getenv("GOW3_COPY_WAIT_BLOCK");
+        const bool block = !(env && env[0] == '0');
+        std::printf("Copy threads: waits %s\n",
+                    block ? "spin briefly, then sleep (GOW3_COPY_WAIT_BLOCK=0: yield loops)"
+                          : "yield loops (GOW3_COPY_WAIT_BLOCK=0)");
+        return block;
+    }();
+    return on;
+}
+/// Pause instructions before a wait sleeps: ~10 us on older Intel cores, up to ~150 us on
+/// cores with a long pause (Skylake and later).
+constexpr unsigned WaitSpins = 2048;
 
 class Pool {
 public:
@@ -55,14 +78,20 @@ public:
     }
 
     void Async(std::function<void()> task) {
+        bool wake_waiters;
         {
             std::scoped_lock lk{mutex};
             const u64 epoch = epoch_base + epochs.size() - 1;
             ++epochs.back().pending;
             ++pending;
             async_tasks.push_back({std::move(task), epoch});
+            PublishIdle();
+            wake_waiters = idle_waiters != 0;
         }
         cv.notify_one();
+        if (wake_waiters) {
+            done_cv.notify_all(); // a sleeping WaitAll runs it too, as the yield loop did
+        }
     }
 
     void AfterCopies(std::function<void()> callback) {
@@ -72,13 +101,25 @@ public:
                 // Runs once every copy issued so far is done, in order with earlier ones.
                 epochs.back().callbacks.push_back(std::move(callback));
                 epochs.emplace_back();
+                PublishIdle();
                 return;
             }
         }
         callback();
     }
 
+    /// gow3: no task pending or running and no callback left (WaitAll would return). Acquire:
+    /// pairs with the release store in PublishIdle, made under the mutex after the last task
+    /// and callback ran, so their writes are visible to the caller once this returns true.
+    bool IdleNow() const {
+        return idle.load(std::memory_order_acquire);
+    }
+
     void WaitAll() {
+        if (BlockingWaits()) {
+            WaitAllBlocking();
+            return;
+        }
         // The waiting thread helps instead of only spinning.
         while (true) {
             Task task;
@@ -112,6 +153,21 @@ public:
         cv.notify_all();
         Work(*job);
         // Workers only call the task for indices below count, all done before this returns.
+        if (BlockingWaits()) {
+            for (unsigned spin = 0;
+                 spin < WaitSpins && job->done.load(std::memory_order_acquire) < count; ++spin) {
+                __builtin_ia32_pause();
+            }
+            // The thread finishing the last index takes the mutex before it signals done_cv:
+            // either this check (under the mutex) sees its count, or this thread is already
+            // asleep when the signal comes. Acquire: the indices' writes are visible here.
+            std::unique_lock lk{mutex};
+            done_cv.wait(lk, [&] { return job->done.load(std::memory_order_acquire) >= count; });
+            if (current == job) {
+                current.reset();
+            }
+            return;
+        }
         while (job->done.load(std::memory_order_acquire) < count) {
             std::this_thread::yield();
         }
@@ -176,16 +232,79 @@ private:
             lk.lock();
         }
         draining = false;
+        // The pool turns idle only here (the drain also covers decrements made meanwhile by
+        // threads that returned above): wake the sleeping WaitAll callers.
+        PublishIdle();
+        if (BlockingWaits() && IdleLocked()) {
+            done_cv.notify_all();
+        }
     }
 
-    static void Work(Job& job) {
+    void Work(Job& job) {
         const bool was = in_copy_thread;
         in_copy_thread = true;
         for (std::size_t i; (i = job.next.fetch_add(1, std::memory_order_relaxed)) < job.count;) {
             (*job.task)(i);
-            job.done.fetch_add(1, std::memory_order_release);
+            // Release: the index's writes before the count Run reads with acquire.
+            if (job.done.fetch_add(1, std::memory_order_release) + 1 == job.count &&
+                BlockingWaits()) {
+                // The last index: wake Run (see there for why the mutex is taken first).
+                { std::scoped_lock lk{mutex}; }
+                done_cv.notify_all();
+            }
         }
         in_copy_thread = was;
+    }
+
+    /// gow3: under the mutex. WaitAll's condition.
+    bool IdleLocked() const {
+        return pending == 0 && epochs.size() == 1 && !draining;
+    }
+    /// gow3: under the mutex, after every change of pending, epochs or draining: the flag
+    /// IdleNow and WaitAll read without the lock.
+    void PublishIdle() {
+        idle.store(IdleLocked(), std::memory_order_release);
+    }
+
+    /// gow3 (GOW3_COPY_WAIT_BLOCK): WaitAll without the yield loop.
+    void WaitAllBlocking() {
+        if (IdleNow()) {
+            return; // nothing pending: no lock (the acquire load orders the copies' writes)
+        }
+        bool spun = false;
+        while (true) {
+            Task task;
+            {
+                std::unique_lock lk{mutex};
+                if (spun) {
+                    // Sleeps until idle or until a queued task can be run here. The condition
+                    // is checked under the mutex its writers hold (Async, AfterCopies,
+                    // Complete), and they signal done_cv after changing it: no lost wake-up.
+                    ++idle_waiters;
+                    done_cv.wait(lk, [&] { return IdleLocked() || !async_tasks.empty(); });
+                    --idle_waiters;
+                }
+                if (IdleLocked()) {
+                    return;
+                }
+                if (!async_tasks.empty()) {
+                    task = std::move(async_tasks.front());
+                    async_tasks.pop_front();
+                }
+            }
+            if (task.run) {
+                RunAsync(task); // helps instead of only waiting
+                continue;
+            }
+            // Only running copies left: spin on the flag a little before sleeping.
+            for (unsigned spin = 0; spin < WaitSpins && !IdleNow(); ++spin) {
+                __builtin_ia32_pause();
+            }
+            if (IdleNow()) {
+                return;
+            }
+            spun = true;
+        }
     }
 
     void Loop(unsigned index) {
@@ -226,6 +345,11 @@ private:
     u64 epoch_base = 0;       ///< epoch number of epochs.front()
     std::size_t pending = 0;
     bool draining = false;
+    /// gow3 (GOW3_COPY_WAIT_BLOCK): signalled when the pool turns idle, a task is queued while
+    /// a WaitAll sleeps, or a ParallelFor's last index is done.
+    std::condition_variable done_cv;
+    std::atomic<bool> idle{true}; ///< IdleLocked() as of the last change (PublishIdle)
+    unsigned idle_waiters = 0;    ///< WaitAll callers asleep on done_cv (under the mutex)
 };
 
 Pool& GetPool() {
@@ -243,6 +367,10 @@ thread_local Batch batch;
 
 bool Enabled() {
     return GetPool().Enabled() && !Gow3Toggle::Disabled(Gow3Toggle::ParallelCopies);
+}
+
+bool Idle() {
+    return BlockingWaits() && batch.items.empty() && GetPool().IdleNow();
 }
 
 void Async(std::function<void()> task) {

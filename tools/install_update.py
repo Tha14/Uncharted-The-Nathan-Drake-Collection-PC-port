@@ -250,7 +250,74 @@ def install(pkg, game, log=print):
     return target / "uroot"
 
 
+# The base game (version 1.00) from its PKG: the three executables and their data.
+BASE_REQUIRED = ("eboot.bin", "big2-ps4_Shipping.elf", "big3-ps4_Shipping.elf", "sce_sys/param.sfo",
+                 "u1data", "u2data", "u3data")
+
+
+def install_game(pkg, parent, log=print):
+    """Unpacks the player's own base game PKG (for example the US copy, CUSA02320) into
+    <parent>/<title id> and returns its uroot, the folder the launcher uses as game folder. PkgTool
+    leaves out the PKG's metadata entries (param.sfo, playgo-chunk.dat, ...), which the launcher and
+    the update installer need, so they are added to sce_sys as for an update (20 Oct 2026: a base
+    unpacked by hand had none, and Install from .pkg refused it)."""
+    pkg, parent = Path(pkg), Path(parent)
+    listing = entries(pkg)
+    if "PARAM_SFO" not in listing:
+        raise UpdateError("This file is not a PS4 game package (it has no param.sfo).")
+    index, _, encrypted = listing["PARAM_SFO"]
+    if encrypted:
+        raise UpdateError("This PKG is encrypted (a store PKG). Use a decrypted (fake) PKG of the game.")
+    with tempfile.TemporaryDirectory() as temporary:
+        sfo = Path(temporary) / "param.sfo"
+        run_tool("pkg_extractentry", pkg, index, sfo)
+        values = sfo_values(sfo)
+    if str(values.get("CATEGORY", "")).startswith("gp"):
+        raise UpdateError("This is a game update, not the game. Install it under GAME UPDATE -> "
+                          "Install from .pkg once the game is installed.")
+    title = str(values.get("TITLE_ID") or pkg.stem).strip()
+    target = parent / title
+    if (target / "uroot" / "eboot.bin").is_file() or (target / "eboot.bin").is_file():
+        raise UpdateError(f"The game is there already:\n{target}\n\nChoose it with Change game folder.")
+    need = int(pkg.stat().st_size * 1.45) + (1 << 30)
+    free = shutil.disk_usage(parent).free
+    if free < need:
+        raise UpdateError(f"Not enough free space on that drive: {need / 2**30:.0f} GB needed, "
+                          f"{free / 2**30:.0f} GB free.")
+    partial = parent / f"{title}.partial"
+    shutil.rmtree(partial, ignore_errors=True)
+    try:
+        log(f"Unpacking {values.get('TITLE', 'the game')} ({title}), a few minutes...")
+        run_tool("pkg_extract", pkg, partial)
+        uroot = partial / "uroot"
+        if not uroot.is_dir():
+            raise UpdateError("The PKG held no game files (no uroot folder).")
+        log("Adding the game's metadata...")
+        for name, relative in METADATA.items():
+            if name in listing and not listing[name][2]:
+                destination = uroot / "sce_sys" / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                run_tool("pkg_extractentry", pkg, listing[name][0], destination)
+        missing = [name for name in BASE_REQUIRED if not (uroot / name).exists()]
+        if missing:
+            raise UpdateError("This PKG is not The Nathan Drake Collection, or it is damaged: "
+                              "missing " + ", ".join(missing))
+        log("Putting it in place...")
+        partial.rename(target)
+    except BaseException:
+        shutil.rmtree(partial, ignore_errors=True)
+        raise
+    return target / "uroot"
+
+
 if __name__ == "__main__":
+    # python tools/install_update.py --game <game.pkg> <destination folder>: the base game.
+    if len(sys.argv) == 4 and sys.argv[1] == "--game":
+        try:
+            print(f"Installed: {install_game(sys.argv[2], sys.argv[3])}")
+        except UpdateError as error:
+            sys.exit(str(error))
+        sys.exit(0)
     if len(sys.argv) != 3:
         sys.exit(__doc__)
     try:

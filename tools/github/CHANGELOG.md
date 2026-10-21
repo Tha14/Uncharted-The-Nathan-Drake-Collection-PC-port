@@ -4,6 +4,159 @@ Uncharted: The Nathan Drake Collection PC port, by **BilalReloaded**
 ([YouTube](https://www.youtube.com/@BilalReloaded/videos), [GitHub](https://github.com/bc160201983)).
 Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
+## 21 October 2026 (0.5.0)
+
+- **Wrong-looking surfaces from a damaged shader cache are repaired**: in Uncharted 3's museum the
+  tiled floor of one room showed as a flat red surface on one PC and correctly on another. The
+  shader cache keeps each shader version as two files, a description and the compiled code. A
+  session had rewritten the code file while Windows refused to replace its description (another
+  thread was reading it), so every later start drew that floor with another version's code.
+  Descriptions now carry a checksum of their code; a pair that doesn't match (or, in caches from
+  earlier versions, whose files were not written together) is thrown away and compiled again
+  once. On the affected PC exactly one pair out of about 20,000 was damaged, and the floor now
+  shows its pattern.
+- **Stutter when the game streams in the next area is gone on most laptops and iGPUs**: when a
+  level part loads into memory the GPU had used, the game rewrites it, and on graphics cards whose
+  memory the CPU can read directly (Resizable BAR, most current laptops; integrated GPUs) the port
+  fetched the GPU's bytes one 4 KiB page per write fault: thousands of faults in a few seconds,
+  50-180 ms frames (an RTX 4060 laptop in Uncharted 3's Cartagena: 31-46 frames over 40 ms in two
+  minutes). Each fault now fetches the finished GPU pages of its 256 KiB window in one copy, and
+  the rest of the window is written without faults: 0-4 such frames in the same spot, none from
+  this. Drake's Fortune had the same stalls.
+- **Multithreaded rendering no longer makes objects flicker**: with it on, whole objects drew
+  flat white for single frames in Uncharted 2 (a train car, Drake's gun, enemies; 6-13 times in
+  10 seconds of combat on a busy CPU) and weapons flat grey in Drake's Fortune (#23). With it on,
+  the port does a small constant copy of the game's on a second thread, and the next draws could
+  read its destination before it was written. Those draws now wait for that copy (a few dozen
+  times a second at most). Measured: 0 flickering frames in all three games, no FPS cost.
+- **Drake's Deception: multithreaded rendering on by default**: the port had kept it off in
+  Uncharted 3 since the freeze of #51 (fixed in 0.4.0). In a heavy Cartagena spot on an RTX 4060
+  laptop, where one CPU thread prepares every draw, it is the difference between 53.7 FPS with 11
+  stalls over 100 ms (off) and 60 FPS with 1 (on); no freeze in 15-20 minute tests. The launcher
+  turns it on once for Uncharted 3 (Advanced -> Multithreaded rendering turns it off again).
+- **Shader cache kept per graphics card**: a laptop that runs the game on its integrated GPU one
+  time and on its graphics card the next lost the whole shader cache at every switch (4,478 files
+  on an RTX 4060 laptop, then half-second compile freezes for minutes). The other card's cache now
+  waits beside the current one and comes back when you switch back (at most two are kept; if an
+  older version ran in between and left two caches of one card, the newer one comes back).
+- **Keyboard prompt for Uncharted 3's d-pad picture**: the d-pad prompt with its up arm lit
+  (young Drake in the museum, and wherever the game shows it) still showed the PlayStation
+  d-pad with the keyboard and mouse. It now shows the key bound to d-pad up on the lit arm.
+- **Aiming blur above 1080p is gone again (Uncharted 2 and 3)**: when you aim, the game measures
+  the distance under the crosshair to set its depth of field. Above 1080p the port moves that
+  measuring spot to the crosshair, but the corrected position sometimes didn't reach the GPU, so
+  the focus kept jumping between your target and the wall beside Nate (blur while aiming). The
+  correction now always reaches the GPU (checked at 4K: every frame corrected).
+- **Warning for USB, SD and exFAT drives**: with the port and the game on an external USB drive
+  (an NVMe SSD in a USB case, exFAT), an RTX 4060 laptop froze for 0.2-0.8 s dozens of times a
+  minute, because Windows writes to such drives without a cache and the port writes its shader
+  cache, logs and saves while you play. On the laptop's internal drive the same test had no
+  freeze over 100 ms. The launcher now says so before you play from such a drive (once per
+  folder), so you can copy the port and the game to an internal SSD.
+- **Drake's Fortune: the most common crash, "execute access to 0"** (#27, #30, #42, #62; the
+  same code is in Uncharted 2 and 3): for each shader the game fills a small table in a function
+  that keeps its counters just below the stack pointer, a place Windows' exception handling does
+  not have to keep. When the table crossed into a page the port watches for the GPU, the port's
+  page fault landed inside that function, a counter came back wrong, and a later draw called an
+  empty slot. The table's pages are now written once before the function starts, so a page
+  fault happens there, where nothing can be lost. It depends on the Windows version, which is why
+  it hit some players often and others never.
+- **Fewer multi-second freezes in all three games** (#71, #79): an effect and crowd-skinning
+  compute shader the three games share reads some of its buffer slots from floats when an effect
+  doesn't use them. The port already bound those as empty buffers, but it still built a separate
+  version of the shader for every new set of float values, compiled in the middle of the frame:
+  one shader had collected 1,177 versions, and single frames took up to 7.8 s here and 10 s on a
+  laptop. Those slots now count as empty when the shader version is chosen, so nothing new is
+  built for them. The same bug made memory rise through a session (#95): a 0.4.1 log shows
+  Uncharted 2 holding 9,942 compute pipelines after a few minutes, where the port now holds
+  about 30. A shader that still builds 100 or more versions is now named in the log.
+- **Faster start, and no more crash while loading shaders, for players of earlier versions**
+  (#92, #95): the shader cache had kept every version those freezes built, and the loading at
+  start rebuilt them all each time: 23,845 compute shaders in one player's cache (the AMD driver
+  crashed near the end of loading them), a 332-second load in another. None of those versions is
+  used again. At the first start of this version, a shader with 100 or more cached versions is
+  left out of the loading and its files are removed (the log names it); the one or two versions
+  the game really needs are built again when first used. On our PC that removed 1,651 of 1,730
+  compute shaders; all three games then run with 82, and the next start finds nothing to remove.
+- **Uncharted 2: crash on a garbage texture fixed** ("image_info.cpp UpdateSize: Assertion
+  Failed"): the game sometimes points a draw at data that isn't a texture. One such description,
+  a compressed format with a tiling layout compressed textures never use, made the port stop
+  while working out its size, before the check that skips garbage textures. It now has no size
+  and is skipped like the others. Found in a 16-minute session on an RTX 4060 laptop. A test
+  that turned 3,000 textures into that one reproduced the crash on the previous build; this
+  version kept running at 60 FPS. The same test found a second such stop (a garbage texture read
+  as a depth texture), fixed the same way.
+- **Video memory no longer only grows** (#95): the port kept every buffer range the game ever
+  used in video memory. On an RTX 4060 laptop, 16 minutes of Uncharted 2 with one level change
+  took that from 320 MiB to 1.9 GB, never less, and through a long session cards with 4-8 GB
+  fill up (then the driver moves memory to system RAM and the frame rate falls). Now, above a
+  quarter of the card's memory, ranges the game has not used for a minute are given back and
+  that memory is used again first. Ranges holding data only the GPU has are never given back.
+- **Less "out of device memory" on cards with little video memory** (#81): once the card's own
+  memory was full, the driver refused more, and the port stopped. On drivers that support it
+  (NVIDIA's do), the driver may now move memory to system RAM instead: slower while the card is
+  full, but the game goes on. (Checked with the driver; not yet on a small card itself.)
+- **5.1 and 7.1 surround sound**: the three games have their own stereo, 5.1 and 7.1 mixes,
+  and pick one from the speaker setup the system reports. The port always reported stereo, so
+  only the front left and right speakers ever had sound. It now reports your Windows output
+  device's setup (launcher Advanced -> Speakers: Auto, or Stereo / 5.1 / 7.1): on a 5.1 or 7.1
+  system the centre, subwoofer and surround speakers play the games' surround mix. Stereo
+  outputs and headphones keep the games' own stereo mix (a 5.1/7.1 mix chosen by hand is folded
+  to stereo there).
+- **Unlock all rewards** (launcher Advanced, off by default): every reward in Bonuses (skins,
+  weapons, render modes, art galleries, gameplay tweaks such as Slow Motion, Mirror World or One-
+  Shot Kills) and every story cutscene, in all three games, and rewards that are normally enabled
+  only after finishing the game can be enabled right away. Uncharted 2 and 3 use Naughty Dog's own
+  "give all" switches; Drake's Fortune's reward checks are patched. Nothing is written to the save:
+  turned off, the menus show your own progress again. Treasures, medals and trophies are not
+  touched. Needs update 1.02.
+- **Trophies**: the games award trophies as on the PS4, but the port only wrote them to the log
+  and told the games at every start that none had been earned. Earned trophies are now saved
+  (in the user folder, trophy/), the games are told which you have, and a new one shows a
+  PS5-style popup in the top right corner (below the FPS counter when it is there) with the
+  trophy's picture from your copy of the game and a short chime. The in-game menu (Insert) has a
+  Trophies tab with every trophy of the running game, earned ones lit. The trophy names are
+  encrypted in the game files and are not shown. Trophies earned with earlier versions were not
+  saved, so the count starts at zero.
+- **Controller light bar**: the games set the DualShock 4 / DualSense light bar (blue at the
+  start, then their in-game colours; Uncharted 2 also turns it red). The port ignored that, so
+  the light bar stayed as the driver left it. It now shows the games' colours.
+- **Smoother mouse aiming in all three games**: while aiming, Uncharted 2 and 3 turn their aim
+  camera by the right stick, but the mouse was mostly sent to the normal camera then, so aiming
+  with the mouse was choppy. While aiming the mouse is now the stick, and its speed is converted
+  with the inverse of the games' stick response, so the turn follows the mouse evenly (slow
+  movements turned too little before, fast ones too much). New mouse options (in-game menu
+  Controls tab and the launcher): aim sensitivity, up/down speed and invert left/right.
+- **Memory no longer grows the whole time you play**: each nested GPU command list kept a small
+  piece of memory forever, about 140 MB a minute in Uncharted 3 (over 8 GB in an hour of play,
+  enough to run a 16 GB PC out of memory). In the same test, memory now stays flat.
+
+- **US version (CUSA02320) supported**: tested from the US PKGs (base and update 1.02): Uncharted 1,
+  2 and 3 start and play (New Game in each, 60 FPS). Its 1.02 executables are byte-identical to the
+  European ones (CUSA02344), so every fix and patch of the port applies. Install it with the new
+  Install game from .pkg below. If your US copy stopped at the start before (#29, #43, #58, #73),
+  please try this version and send launcher-last-run.log if it still does.
+- **Install the game from its .pkg** (launcher Advanced -> FOLDERS -> Install game from .pkg): for
+  players who have the game as a PKG file (for example the US version, CUSA02320) instead of an
+  extracted folder. It unpacks it into a folder you choose, with the files the launcher and the
+  update installer need (unpacked by hand, those were missing and the update could not be
+  installed), and makes it the game folder. Then install update 1.02 with GAME UPDATE -> Install
+  from .pkg. The US version's game files are the same as the European ones, so every fix applies.
+
+From kuraeow (Steam Deck), merged:
+
+- **Games without update 1.02: idle game threads wake up for new work again** (#87): the fix that
+  lets the game's idle worker threads sleep instead of using whole processor cores has three
+  parts. On version 1.00 the code is compiled with other registers, so only the part that puts
+  the threads to sleep was applied: they woke only every 10 ms instead of when new work came.
+  All three parts now apply on 1.00 too, in all three games (1.02 unchanged).
+- **Motion vectors for animated characters** (#84): the temporal upscalers (DLSS, FSR 3.1/4) got
+  the camera's motion only, so moving characters' faces, hair and clothes smeared below Quality.
+  Characters now carry their own motion (measured in Uncharted 3 at 960x540 -> 1080p: half the
+  error with the camera still, a fifth in a fast turn). GOW3_CHARACTER_MOTION=0 turns it off.
+- **The screen wipe covers the whole screen below 720p** (#84): at 540p (the Steam Deck default)
+  the black bands of Uncharted 2 and 3's menu/loading wipe left the bottom quarter uncovered.
+
 ## 20 October 2026 (0.4.1)
 
 - **Drake's Fortune: crash after about an hour, "out of device memory"** (#63): the game handed

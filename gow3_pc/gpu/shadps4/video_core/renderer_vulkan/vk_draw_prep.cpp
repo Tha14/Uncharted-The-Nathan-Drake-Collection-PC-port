@@ -56,15 +56,73 @@ u32 DefaultWorkerCount() {
     return std::clamp<u32>(Gow3Threads::Available() / 2, 1, 8);
 }
 
+/// gow3 21 Oct 2026 (GOW3_PREP_POOL=1, low-end CPUs): every submission allocated its command
+/// copy, its prepared-draw array (~1 KiB a draw) and a fresh 64 KiB chunk for the flattened user
+/// data (zeroed by the worker; Uncharted 3 has ~130 submissions a frame), and the GPU command
+/// thread freed them all when it collected the submission. On 4 desktop cores those frees were
+/// 10-13% of the command thread's busy time (RtlFreeHeap walking the heap's large-block free
+/// list, a cache miss per entry; pooling only the chunks moved the cost to the next large free,
+/// the draw array). Submissions now go back to a pool with their buffers when the last
+/// reference drops and Build reuses them; chunks of the standard size go to a pool of their own
+/// and are reused without zeroing (every word handed out is copied in first; nothing reads past
+/// what was copied). The prepared draws are value-initialized again as before.
+bool ChunkPoolEnabled() {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_PREP_POOL");
+        return env && env[0] == '1';
+    }();
+    return enabled;
+}
+
+/// gow3 21 Oct 2026 (GOW3_CPU_TRIMS=1): see PreparedDraw::key_hash.
+bool CpuTrimsEnabled() {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_CPU_TRIMS");
+        return env && env[0] == '1';
+    }();
+    return enabled;
+}
+
+struct ChunkPool {
+    static constexpr size_t MaxSpare = 256; ///< 16 MiB of 64 KiB chunks
+    std::mutex mutex;
+    std::vector<std::unique_ptr<u32[]>> spare;
+};
+
+ChunkPool& Pool() {
+    // Never destroyed: submissions may die during shutdown.
+    static ChunkPool* const pool = [] {
+        auto* created = new ChunkPool;
+        created->spare.reserve(ChunkPool::MaxSpare);
+        return created;
+    }();
+    return *pool;
+}
+
 /// Flattened user data of one submission: chunks never move, so the GPU thread can read a
 /// prepared draw's data while the worker keeps appending.
 struct FlatArena {
     static constexpr size_t ChunkWords = 16 * 1024;
     std::vector<std::unique_ptr<u32[]>> chunks;
+    std::vector<std::unique_ptr<u32[]>> big_chunks; ///< pool on: blocks larger than a chunk
     size_t used = ChunkWords;
 
     const u32* Append(const std::vector<u32>& data) {
         return AppendArray(data.data(), data.size());
+    }
+
+    /// A standard chunk from the pool, or a new one (not zeroed).
+    static std::unique_ptr<u32[]> TakeChunk() {
+        auto& pool = Pool();
+        {
+            std::scoped_lock lk{pool.mutex};
+            if (!pool.spare.empty()) {
+                auto chunk = std::move(pool.spare.back());
+                pool.spare.pop_back();
+                return chunk;
+            }
+        }
+        return std::unique_ptr<u32[]>(new u32[ChunkWords]);
     }
 
     /// Trivially copyable elements, 8-byte aligned (sharps hold u64 bit fields).
@@ -74,7 +132,17 @@ struct FlatArena {
         const size_t words = (count * sizeof(T) + sizeof(u32) - 1) / sizeof(u32);
         used = (used + 1) & ~size_t(1);
         if (chunks.empty() || words > ChunkWords - std::min(used, ChunkWords)) {
-            chunks.push_back(std::make_unique<u32[]>(std::max(ChunkWords, words)));
+            if (!ChunkPoolEnabled()) {
+                chunks.push_back(std::make_unique<u32[]>(std::max(ChunkWords, words)));
+            } else if (words > ChunkWords) {
+                // A block of its own (never pooled); the open chunk stays open.
+                big_chunks.push_back(std::unique_ptr<u32[]>(new u32[words]));
+                u32* dst = big_chunks.back().get();
+                std::memcpy(dst, data, count * sizeof(T));
+                return reinterpret_cast<const T*>(dst);
+            } else {
+                chunks.push_back(TakeChunk());
+            }
             used = 0;
         }
         u32* dst = chunks.back().get() + used;
@@ -221,10 +289,93 @@ DrawPreparation::~DrawPreparation() {
     scanner = {};
 }
 
+namespace {
+/// gow3 21 Oct 2026 (GOW3_PREP_POOL=1): finished submissions with their buffers, for Build.
+struct SubmissionPool {
+    static constexpr size_t MaxSpare = 256;
+    static constexpr size_t MaxKeptCommandWords = 256 * 1024; ///< 1 MiB
+    static constexpr u32 MaxKeptDraws = 2048;
+    std::mutex mutex;
+    std::vector<DrawPreparation::Submission*> spare;
+};
+
+SubmissionPool& Submissions() {
+    static SubmissionPool* const pool = [] {
+        auto* created = new SubmissionPool;
+        created->spare.reserve(SubmissionPool::MaxSpare);
+        return created;
+    }();
+    return *pool;
+}
+
+/// The deleter of pooled submissions: on whichever thread drops the last reference, so no
+/// thread reads the submission any more (the recording thread keeps its own: KeepCurrent).
+void RecycleSubmission(DrawPreparation::Submission* submission) {
+    {
+        auto& chunks = Pool();
+        std::scoped_lock lk{chunks.mutex};
+        for (auto& chunk : submission->flat_chunks) {
+            if (chunks.spare.size() >= ChunkPool::MaxSpare) {
+                break;
+            }
+            chunks.spare.push_back(std::move(chunk));
+        }
+    }
+    submission->flat_chunks.clear(); // what the pool did not take is freed here
+    submission->flat_big_chunks.clear();
+    if (submission->commands.capacity() <= SubmissionPool::MaxKeptCommandWords &&
+        submission->draws_capacity <= SubmissionPool::MaxKeptDraws) {
+        auto& pool = Submissions();
+        std::scoped_lock lk{pool.mutex};
+        if (pool.spare.size() < SubmissionPool::MaxSpare) {
+            pool.spare.push_back(submission);
+            return;
+        }
+    }
+    delete submission;
+}
+} // namespace
+
 std::shared_ptr<DrawPreparation::Submission> DrawPreparation::Build(
     std::span<const u32> commands) {
     if (!Enabled()) {
         return {};
+    }
+    if (ChunkPoolEnabled()) {
+        // gow3 21 Oct 2026 (GOW3_PREP_POOL=1): a recycled submission, reset to a new one's state.
+        Submission* reused = nullptr;
+        {
+            auto& pool = Submissions();
+            std::scoped_lock lk{pool.mutex};
+            if (!pool.spare.empty()) {
+                reused = pool.spare.back();
+                pool.spare.pop_back();
+            }
+        }
+        Submission* submission = reused ? reused : new Submission;
+        submission->seq = 0;
+        submission->commands.assign(commands.begin(), commands.end());
+        submission->num_draws = 0;
+        ForEachPacket(submission->commands, [&](const AmdGpu::PM4Header* header) {
+            submission->num_draws += IsDirectDraw(header->type3.opcode);
+        });
+        if (submission->draws_capacity < submission->num_draws) {
+            submission->draws = std::make_unique<PreparedDraw[]>(submission->num_draws);
+            submission->draws_capacity = submission->num_draws;
+        } else {
+            for (u32 i = 0; i < submission->num_draws; ++i) {
+                std::destroy_at(&submission->draws[i]);
+                std::construct_at(&submission->draws[i]); // value-initialized, as new ones are
+            }
+        }
+        submission->start_checksum = submission->end_checksum = 0;
+        submission->delta.reset = false;
+        submission->delta.blocks.clear();
+        submission->delta.words.clear();
+        submission->scanned.store(false, std::memory_order_relaxed);
+        submission->claimed.store(false, std::memory_order_relaxed);
+        submission->gpu_done.store(false, std::memory_order_relaxed);
+        return std::shared_ptr<Submission>(submission, &RecycleSubmission);
     }
     auto submission = std::make_shared<Submission>();
     submission->commands.assign(commands.begin(), commands.end());
@@ -233,6 +384,22 @@ std::shared_ptr<DrawPreparation::Submission> DrawPreparation::Build(
     });
     submission->draws = std::make_unique<PreparedDraw[]>(submission->num_draws);
     return submission;
+}
+
+DrawPreparation::Submission::~Submission() {
+    // gow3 21 Oct 2026 (GOW3_PREP_POOL=1): no reference is left, so no thread reads the
+    // chunks any more (the recording thread keeps its submissions alive: KeepCurrent).
+    if (flat_chunks.empty() || !ChunkPoolEnabled()) {
+        return;
+    }
+    auto& pool = Pool();
+    std::scoped_lock lk{pool.mutex};
+    for (auto& chunk : flat_chunks) {
+        if (pool.spare.size() >= ChunkPool::MaxSpare) {
+            break; // the rest are freed with the vector
+        }
+        pool.spare.push_back(std::move(chunk));
+    }
 }
 
 void DrawPreparation::Enqueue(u64 seq, std::shared_ptr<Submission> submission) {
@@ -451,6 +618,8 @@ void DrawPreparation::WorkerLoop(std::stop_token stop, u32 index) {
                 if (pipeline_cache.PrepareGraphicsPipeline(sel)) {
                     draw.reg_checksum = checksum;
                     draw.key = sel.graphics_key;
+                    draw.key_hash =
+                        CpuTrimsEnabled() ? std::hash<GraphicsPipelineKey>{}(draw.key) : 0;
                     draw.num_stages = static_cast<u32>(prep_worker.stages.size());
                     for (u32 i = 0; i < draw.num_stages; ++i) {
                         const auto& stage = prep_worker.stages[i];
@@ -479,6 +648,7 @@ void DrawPreparation::WorkerLoop(std::stop_token stop, u32 index) {
         });
         // The arena's chunks live as long as the submission.
         target->flat_chunks = std::move(arena.chunks);
+        target->flat_big_chunks = std::move(arena.big_chunks);
         position = target->seq + 1;
     }
 }

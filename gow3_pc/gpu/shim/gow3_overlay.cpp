@@ -11,6 +11,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
+#include <map>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -18,6 +20,7 @@
 
 #include <SDL3/SDL.h>
 #include "gow3_settings.h"
+#include "gow3_trophies.h"
 #include "core/emulator_settings.h"
 #include "gow3_graphics.h"
 #include "gow3_perf_stats.h"
@@ -160,7 +163,23 @@ std::atomic<int> choice_result{-1}; // -1 open, -2 cancelled, else the chosen in
 // Closed lists' textures wait in choice_retired until the backend has destroyed them.
 std::vector<Gow3Png::Image> choice_pictures;
 std::vector<ImTextureData*> choice_textures, choice_retired;
+
+// Trophy popups (ShowTrophy) and the Trophies tab's pictures, guarded by imgui_mutex. A picture
+// becomes a texture before the next frame (UpdateTrophyTextures); retired ones are freed there.
+struct TrophyPopupItem {
+    Gow3Png::Image picture;
+    ImTextureData* tex = nullptr;
+    std::string title, text;
+    std::chrono::steady_clock::time_point shown{};
+};
+std::deque<TrophyPopupItem> trophy_popups;
+std::vector<ImTextureData*> trophy_retired;
+std::map<int, ImTextureData*> trophy_tab_textures; // by trophy id, of trophy_tab_list
+int trophy_tab_list = 0;
+bool trophy_tab_shown = false; // drawn this frame: its missing pictures load before the next
+float fps_top_right_height = 0.0f; // the FPS counter in the top right corner: popups go below it
 std::atomic<bool> choice_retiring{false};
+std::atomic<bool> trophy_showing{false}; // a popup is up or its texture still to free (Visible)
 float base_scale = 1.0f;
 
 // Present rate for the FPS counter.
@@ -177,7 +196,7 @@ void SetOpen(bool value) {
     ImGui::GetIO().MouseDrawCursor = value;
     CancelCapture();
     if (value) {
-        requested_tab = std::clamp(Gow3Settings::Get().menu_tab.load(), 0, 3);
+        requested_tab = std::clamp(Gow3Settings::Get().menu_tab.load(), 0, 4);
         ReloadControls();
     }
     if (!value && dirty) {
@@ -777,6 +796,9 @@ void ResetControls() {
     s.mouse = true;
     s.mouse_sens = 1.0f;
     s.mouse_invert = false;
+    s.mouse_invert_x = false;
+    s.mouse_aim_sens = 1.0f;
+    s.mouse_vertical = 1.0f;
     s.prompts = -1;
     s.stick_speed = 1.0f;
     Gow3Settings::ControlsChanged();
@@ -1035,6 +1057,11 @@ void ControlsTab() {
         ImGui::PopID();
         ImGui::BeginDisabled(!s.mouse);
         changed |= PercentRow("Mouse sensitivity", s.mouse_sens, 25, 500, "How far the camera turns per mouse movement.");
+        changed |= PercentRow("Mouse aim sensitivity", s.mouse_aim_sens, 25, 1000,
+                              "While aiming (the aim button held): the mouse sensitivity times this. Below 100% "
+                              "makes aiming finer.");
+        changed |= PercentRow("Mouse up/down speed", s.mouse_vertical, 25, 300,
+                              "Looking up and down compared with left and right.");
         Row("Invert mouse up/down");
         bool invert = s.mouse_invert;
         if (ImGui::Checkbox("##value", &invert)) {
@@ -1042,6 +1069,14 @@ void ControlsTab() {
             changed = true;
         }
         Help("Moving the mouse forward looks down.");
+        ImGui::PopID();
+        Row("Invert mouse left/right");
+        bool invert_x = s.mouse_invert_x;
+        if (ImGui::Checkbox("##value", &invert_x)) {
+            s.mouse_invert_x = invert_x;
+            changed = true;
+        }
+        Help("Moving the mouse left turns right.");
         ImGui::PopID();
         ImGui::EndDisabled();
         static const char* const icon_labels[] = {"Auto (the device you use)", "Keyboard and mouse", "PlayStation",
@@ -1166,6 +1201,59 @@ int RestartChanges() {
     return (s.deferred_readback != s.startup_deferred_readback) + (s.stale_readback != s.startup_stale_readback);
 }
 
+// The running game's trophies: earned pictures bright, the others dimmed.
+void TrophiesTab() {
+    trophy_tab_shown = true;
+    footer_help = "Trophy pictures come from your copy of the game. Their names are encrypted in the "
+                  "game files, so they are not shown.";
+    const Gow3Trophies::Summary list = Gow3Trophies::List();
+    if (list.game.empty()) {
+        ImGui::TextWrapped("The game has not opened its trophy list yet.");
+        return;
+    }
+    if (list.list != trophy_tab_list) {
+        for (auto& [id, tex] : trophy_tab_textures) {
+            if (tex) {
+                tex->WantDestroyNextFrame = true;
+                trophy_retired.push_back(tex);
+            }
+        }
+        trophy_tab_textures.clear();
+        trophy_tab_list = list.list;
+    }
+    const int earned = int(std::count(list.earned.begin(), list.earned.end(), true));
+    const int total = int(list.ids.size());
+    ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.45f, 1.0f), "%s", list.game.c_str());
+    char progress[64];
+    std::snprintf(progress, sizeof(progress), "%d of %d trophies earned", earned, total);
+    ImGui::ProgressBar(total ? float(earned) / float(total) : 0.0f, ImVec2(-1.0f, 0.0f), progress);
+    ImGui::Spacing();
+    const float cell = 72.0f * base_scale;
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+    const int columns = std::max(1, int((ImGui::GetContentRegionAvail().x + spacing) / (cell + spacing)));
+    for (int i = 0; i < total; ++i) {
+        const int id = list.ids[i];
+        const auto it = trophy_tab_textures.find(id);
+        ImTextureData* tex = it != trophy_tab_textures.end() ? it->second : nullptr;
+        if (tex) {
+            ImGui::ImageWithBg(tex->GetTexRef(), ImVec2(cell, cell), ImVec2(0, 0), ImVec2(1, 1),
+                               ImVec4(0, 0, 0, 0),
+                               list.earned[i] ? ImVec4(1, 1, 1, 1) : ImVec4(0.3f, 0.3f, 0.3f, 0.55f));
+        } else {
+            const ImVec2 at = ImGui::GetCursorScreenPos();
+            ImGui::GetWindowDrawList()->AddRectFilled(at, ImVec2(at.x + cell, at.y + cell),
+                                                      IM_COL32(50, 50, 56, 255), 6.0f * base_scale);
+            ImGui::Dummy(ImVec2(cell, cell));
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Trophy %d: %s", id, list.earned[i] ? "earned" : "not earned yet");
+        }
+        if ((i + 1) % columns != 0 && i + 1 < total) {
+            ImGui::SameLine();
+        }
+    }
+}
+
 void Menu() {
     auto& s = Gow3Settings::Get();
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -1188,7 +1276,7 @@ void Menu() {
         return;
     }
     footer_help = nullptr;
-    constexpr int TabCount = 4;
+    constexpr int TabCount = 5;
     const ImGuiIO& io = ImGui::GetIO();
     if (!io.WantTextInput && capture == CaptureNone) {
         const int step = ImGui::IsKeyPressed(ImGuiKey_GamepadR1, false) || ImGui::IsKeyPressed(ImGuiKey_E, false) ? 1
@@ -1201,7 +1289,7 @@ void Menu() {
     }
     const float footer = ImGui::GetFrameHeightWithSpacing() * 2.0f + ImGui::GetTextLineHeightWithSpacing() * 2.0f;
     if (ImGui::BeginTabBar("##tabs")) {
-        static const char* const tabs[TabCount] = {"Image", "Performance", "Overlay", "Controls"};
+        static const char* const tabs[TabCount] = {"Image", "Performance", "Overlay", "Controls", "Trophies"};
         for (int tab = 0; tab < TabCount; ++tab) {
             const ImGuiTabItemFlags flags = requested_tab == tab ? ImGuiTabItemFlags_SetSelected : 0;
             if (!ImGui::BeginTabItem(tabs[tab], nullptr, flags)) {
@@ -1216,7 +1304,8 @@ void Menu() {
                 case 0: ImageTab(); break;
                 case 1: PerformanceTab(); break;
                 case 2: OverlayTab(); break;
-                default: ControlsTab(); break;
+                case 3: ControlsTab(); break;
+                default: TrophiesTab(); break;
                 }
             }
             ImGui::EndChild();
@@ -1382,7 +1471,71 @@ void FpsCounter() {
                      ImGuiWindowFlags_NoFocusOnAppearing);
     ImGui::SetWindowFontScale(s.overlay_scale / 100.0f);
     ImGui::TextUnformatted(text.c_str());
+    fps_top_right_height = corner == 1 ? ImGui::GetWindowHeight() : 0.0f;
     ImGui::End();
+}
+
+// The front trophy popup: slides in at the top right, stays (shorter while others wait), fades.
+void TrophyPopup() {
+    TrophyPopupItem& item = trophy_popups.front();
+    const auto now = std::chrono::steady_clock::now();
+    if (item.shown == std::chrono::steady_clock::time_point{}) {
+        item.shown = now;
+    }
+    const float hold = trophy_popups.size() > 1 ? 3.0f : 6.0f;
+    const float t = std::chrono::duration<float>(now - item.shown).count();
+    if (t >= hold) {
+        if (item.tex) {
+            item.tex->WantDestroyNextFrame = true;
+            trophy_retired.push_back(item.tex);
+        }
+        trophy_popups.pop_front();
+        return;
+    }
+    const float in = std::min(t / 0.3f, 1.0f);
+    const float alpha = std::min(in, std::clamp((hold - t) / 0.4f, 0.0f, 1.0f));
+    const auto a = [&](int value) { return int(float(value) * alpha); };
+    const float s = base_scale;
+    const float width = 470.0f * s, height = 96.0f * s, pad = 24.0f * s;
+    const float slide = (1.0f - in) * (1.0f - in) * (width + pad);
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const float below_fps = fps_top_right_height > 0.0f ? fps_top_right_height + 8.0f * s : 0.0f;
+    const ImVec2 min(viewport->WorkPos.x + viewport->WorkSize.x - pad - width + slide,
+                     viewport->WorkPos.y + pad + below_fps);
+    const ImVec2 max(min.x + width, min.y + height);
+    ImDrawList* draw = ImGui::GetForegroundDrawList();
+    draw->AddRectFilled(min, max, IM_COL32(22, 22, 26, a(238)), 14.0f * s);
+    const float icon = height - 20.0f * s;
+    const ImVec2 icon_min(min.x + 10.0f * s, min.y + 10.0f * s);
+    const ImVec2 icon_max(icon_min.x + icon, icon_min.y + icon);
+    if (item.tex) {
+        draw->AddImageRounded(item.tex->GetTexRef(), icon_min, icon_max, ImVec2(0, 0), ImVec2(1, 1),
+                              IM_COL32(255, 255, 255, a(255)), 8.0f * s);
+    } else {
+        draw->AddRectFilled(icon_min, icon_max, IM_COL32(60, 60, 66, a(255)), 8.0f * s);
+    }
+    // A small cup, then the title; below it the text's lines.
+    ImFont* font = ImGui::GetFont();
+    const float size = ImGui::GetFontSize();
+    const float x = icon_max.x + 14.0f * s, y = min.y + 14.0f * s;
+    const ImU32 gold = IM_COL32(222, 184, 92, a(255));
+    draw->AddRectFilled(ImVec2(x, y + 2.0f * s), ImVec2(x + 12.0f * s, y + 9.0f * s), gold, 3.0f * s);
+    draw->AddRectFilled(ImVec2(x + 5.0f * s, y + 9.0f * s), ImVec2(x + 7.0f * s, y + 13.0f * s), gold);
+    draw->AddRectFilled(ImVec2(x + 2.0f * s, y + 13.0f * s), ImVec2(x + 10.0f * s, y + 15.0f * s), gold);
+    draw->AddText(font, size * 0.95f, ImVec2(x + 18.0f * s, y), IM_COL32(186, 186, 194, a(255)),
+                  item.title.c_str());
+    const std::string_view text = item.text;
+    const size_t newline = text.find('\n');
+    const std::string first(text.substr(0, newline));
+    draw->PushClipRect(ImVec2(x, min.y), ImVec2(max.x - 10.0f * s, max.y), true);
+    draw->AddText(font, size * 1.1f, ImVec2(x, y + 24.0f * s), IM_COL32(255, 255, 255, a(255)),
+                  first.c_str());
+    if (newline != std::string_view::npos) {
+        const std::string second(text.substr(newline + 1));
+        draw->AddText(font, size * 0.95f, ImVec2(x, y + 50.0f * s), IM_COL32(170, 170, 178, a(255)),
+                      second.c_str());
+    }
+    draw->PopClipRect();
 }
 
 void BackgroundLoading() {
@@ -1491,6 +1644,52 @@ void RetireChoiceTextures() {
     choice_textures.clear();
     choice_pictures.clear();
     choice_retiring = !choice_retired.empty();
+}
+
+ImTextureData* NewTexture(const Gow3Png::Image& picture) {
+    if (picture.rgba.empty()) {
+        return nullptr;
+    }
+    ImTextureData* tex = IM_NEW(ImTextureData)();
+    tex->Create(ImTextureFormat_RGBA32, picture.width, picture.height);
+    std::memcpy(tex->GetPixels(), picture.rgba.data(), picture.rgba.size());
+    ImGui::RegisterUserTexture(tex);
+    return tex;
+}
+
+// imgui_mutex held, before NewFrame: popup pictures and (a few per frame) the Trophies tab's
+// become textures; retired ones are freed once the backend let them go.
+void UpdateTrophyTextures() {
+    for (TrophyPopupItem& item : trophy_popups) {
+        if (!item.tex && !item.picture.rgba.empty()) {
+            item.tex = NewTexture(item.picture);
+            item.picture = {};
+        }
+    }
+    if (trophy_tab_shown) {
+        trophy_tab_shown = false;
+        const Gow3Trophies::Summary list = Gow3Trophies::List();
+        int budget = 6;
+        for (const int id : list.ids) {
+            if (list.list != trophy_tab_list || budget == 0) {
+                break;
+            }
+            if (!trophy_tab_textures.contains(id)) {
+                Gow3Png::Image picture;
+                Gow3Trophies::Picture(id, picture);
+                trophy_tab_textures[id] = NewTexture(picture);
+                --budget;
+            }
+        }
+    }
+    std::erase_if(trophy_retired, [](ImTextureData* tex) {
+        if (tex->Status != ImTextureStatus_Destroyed) {
+            return false;
+        }
+        ImGui::UnregisterUserTexture(tex);
+        IM_DELETE(tex);
+        return true;
+    });
 }
 
 // imgui_mutex held, before NewFrame: new pictures become textures, destroyed ones are freed.
@@ -1696,7 +1895,7 @@ void SetLoading(bool active, u32 done, u32 total) {
 bool Visible() {
     const auto& s = Gow3Settings::Get();
     return initialized && (loading || background_total || menu_open || text_entry_active || choice_active ||
-                           choice_retiring || s.show_fps);
+                           choice_retiring || s.show_fps || trophy_showing);
 }
 
 bool CapturesInput() {
@@ -1739,6 +1938,15 @@ int PollChoice() {
     return choice_result;
 }
 
+void ShowTrophy(Gow3Png::Image picture, const std::string& title, const std::string& text) {
+    std::scoped_lock lock{imgui_mutex};
+    if (trophy_popups.size() >= 32) {
+        return;
+    }
+    trophy_popups.push_back(TrophyPopupItem{std::move(picture), nullptr, title, text, {}});
+    trophy_showing = true;
+}
+
 void SetTextEntry(bool active, const std::string& prompt, const std::string& text) {
     std::scoped_lock lock{imgui_mutex};
     text_entry_active = active;
@@ -1759,7 +1967,7 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
     // has shown ten seconds of frames after loading.
     static int menu_at_start = [] {
         const char* env = std::getenv("GOW3_MENU_AT_START");
-        return env && *env ? std::clamp(std::atoi(env), 0, 3) : -1;
+        return env && *env ? std::clamp(std::atoi(env), 0, 4) : -1;
     }();
     static u32 shown_frames = 0;
     if (menu_at_start >= 0 && initialized && !loading && ++shown_frames > 600) {
@@ -1767,6 +1975,16 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
         Gow3Settings::Get().menu_tab = menu_at_start;
         SetOpen(true);
         menu_at_start = -1;
+    }
+    // GOW3_TEST_TROPHY=<seconds>,<id> (tests and screenshots): that trophy's popup once the game
+    // has shown frames that long after loading (marked earned for this session only, not saved).
+    static int test_trophy_frames = [] {
+        const char* env = std::getenv("GOW3_TEST_TROPHY");
+        return env && *env ? std::max(1, int(std::atof(env) * 60.0)) : -1;
+    }();
+    if (test_trophy_frames > 0 && initialized && !loading && --test_trophy_frames == 0) {
+        const char* comma = std::strchr(std::getenv("GOW3_TEST_TROPHY"), ',');
+        Gow3Trophies::Earned(comma ? std::atoi(comma + 1) : 1);
     }
     if (!Visible()) {
         return;
@@ -1785,6 +2003,7 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
     }
 
     UpdateChoiceTextures();
+    UpdateTrophyTextures();
     ImGui_ImplVulkan_NewFrame();
     ImGui::NewFrame();
     if (loading) {
@@ -1793,6 +2012,7 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
     if (menu_open) {
         Menu();
     }
+    fps_top_right_height = 0.0f;
     if (Gow3Settings::Get().show_fps && !menu_open) {
         FpsCounter();
     }
@@ -1805,6 +2025,10 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
     if (choice_active && !menu_open) {
         ChoiceBox();
     }
+    if (!trophy_popups.empty()) {
+        TrophyPopup();
+    }
+    trophy_showing = !trophy_popups.empty() || !trophy_retired.empty();
     ImGui::Render();
 
     const vk::RenderingAttachmentInfo attachment{

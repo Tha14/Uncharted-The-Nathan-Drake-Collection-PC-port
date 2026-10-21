@@ -136,9 +136,30 @@ void runtime_thread_attach_host(const char *name) {
     GuestThread *t=runtime_thread_current();
     snprintf(t->name,sizeof(t->name),"%s",name ? name : "host");
 }
+#ifdef _WIN32
+/* gow3 diagnostics: GOW3_PROFILE_GUEST=<prefixes> (with GOW3_PROFILE=<s>) samples the guest
+ * threads whose name starts with one of the comma-separated prefixes; "*" samples them all,
+ * "main" the guest main thread (20 Oct 2026: which game thread holds up a frame on a laptop). */
+static int profile_guest_wanted(const char *name) {
+    const char *e=getenv("GOW3_PROFILE_GUEST");
+    if (!e || !*e) return 0;
+    while (*e) {
+        const char *end=strchr(e,',');
+        size_t n=end ? (size_t)(end-e) : strlen(e);
+        if ((n==1 && e[0]=='*') || (n && strncmp(name,e,n)==0)) return 1;
+        if (!end) break;
+        e=end+1;
+    }
+    return 0;
+}
+#endif
 void runtime_thread_attach_main(void) {
     GuestThread *t=runtime_thread_current();
     snprintf(t->name,sizeof(t->name),"main");
+#ifdef _WIN32
+    extern void gow3_profile_current(const char *name);
+    if (profile_guest_wanted(t->name)) gow3_profile_current(t->name);
+#endif
 }
 static GuestThread *find_thread(void *handle) {
     GuestThread *found=NULL;
@@ -311,10 +332,9 @@ static void *host_start(void *p) {
     set_host_name(t->name);
 #ifdef _WIN32
     apply_guest_scheduling(t,GetCurrentThread(),"started");
-    { /* gow3 diagnostics: GOW3_PROFILE_GUEST=<name prefix> (with GOW3_PROFILE=<s>) */
+    { /* gow3 diagnostics: GOW3_PROFILE_GUEST=<prefixes> (see profile_guest_wanted) */
         extern void gow3_profile_current(const char *name);
-        const char *e=getenv("GOW3_PROFILE_GUEST");
-        if (e && *e && strncmp(t->name,e,strlen(e))==0) gow3_profile_current(t->name);
+        if (profile_guest_wanted(t->name)) gow3_profile_current(t->name);
     }
 #endif
     if (!exit_setjmp(t)) t->result=t->entry(t->argument);

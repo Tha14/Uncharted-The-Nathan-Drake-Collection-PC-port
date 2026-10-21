@@ -108,7 +108,11 @@ static int host_clock(uint32_t id,clockid_t *out) {
     }
 }
 static int clock_read(uint32_t id,GuestTimespec *ts) {
-    if (getenv("GOW3_CLOCK_TRACE") && id<32) {
+    /* gow3: looked up once, like time_scale(): getenv takes the CRT lock and scans the whole
+     * environment, on every guest clock read. */
+    static int clock_trace=-1;
+    if (clock_trace<0) clock_trace=getenv("GOW3_CLOCK_TRACE")!=NULL;
+    if (clock_trace && id<32) {
         static uint32_t seen;
         const uint32_t bit=UINT32_C(1)<<id;
         if (!(__atomic_fetch_or(&seen,bit,__ATOMIC_RELAXED)&bit))

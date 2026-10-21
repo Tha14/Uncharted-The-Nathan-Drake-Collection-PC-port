@@ -14,6 +14,7 @@
 #include <time.h>
 #ifdef _WIN32
 #include <windows.h>
+#include <psapi.h>
 #endif
 #ifndef _WIN32
 #include <sys/resource.h>
@@ -73,6 +74,53 @@ constexpr u32 PixelFormatBpp(PixelFormat pixel_format) {
     default:
         return 4;
     }
+}
+
+#if defined(_WIN32) && !defined(CREATE_WAITABLE_TIMER_HIGH_RESOLUTION)
+#define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
+#endif
+
+// gow3 20 Oct 2026 (idle CPU): the vblank thread waited for flips with
+// condition_variable::wait_until, which libc++ on Windows rounds down to whole milliseconds: in
+// the last millisecond of every tick the timeout became 0 and the thread spun (the mutex taken
+// on each pass), and std::this_thread::sleep_until rounds up to whole milliseconds (up to ~1 ms
+// late for the flip slots). It now sleeps on a high-resolution waitable timer (Windows 10
+// 1803+) and an event set with each queued flip, in one WaitForMultipleObjects. Without a
+// high-resolution timer it keeps the old waits: a plain waitable timer wakes only on the
+// system's timer tick (1-15.6 ms), which would delay vblanks and flips. GOW3_HR_VBLANK=0: the
+// old waits.
+VideoOutDriver::WaitHandles::WaitHandles() {
+#ifdef _WIN32
+    const char* env = std::getenv("GOW3_HR_VBLANK");
+    if (env && env[0] == '0') {
+        std::printf("VideoOut: vblank waits: condition variable and sleep_until "
+                    "(GOW3_HR_VBLANK=0)\n");
+        return;
+    }
+    timer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+                                   TIMER_ALL_ACCESS);
+    if (timer) {
+        request_event = CreateEventW(nullptr, FALSE, FALSE, nullptr); // auto-reset
+        if (!request_event) {
+            CloseHandle(timer);
+            timer = nullptr;
+        }
+    }
+    std::printf("VideoOut: vblank waits: %s\n",
+                timer ? "high-resolution timer and flip event (GOW3_HR_VBLANK=0: old waits)"
+                      : "condition variable and sleep_until (no high-resolution timer)");
+#endif
+}
+
+VideoOutDriver::WaitHandles::~WaitHandles() {
+#ifdef _WIN32
+    if (request_event) {
+        CloseHandle(request_event);
+    }
+    if (timer) {
+        CloseHandle(timer);
+    }
+#endif
 }
 
 VideoOutDriver::VideoOutDriver(u32 width, u32 height) {
@@ -429,6 +477,17 @@ void VideoOutDriver::Flip(const Request& req) {
         last_rf = rf;
         last_trf = trf;
         last_twf = twf;
+        // gow3 20 Oct 2026 (hybrid laptops): presentation waits inside the long frame.
+        const u64 present_now[4] = {Gow3Stats::frame_wait_ns.load(), Gow3Stats::submit_lock_ns.load(),
+                                    Gow3Stats::acquire_ns.load(), Gow3Stats::present_ns.load()};
+        static u64 last_present[4], window_present[4];
+        if (stall) {
+            std::printf("       presentation: frame waits %.1f ms, submit lock %.1f ms; swap thread "
+                        "acquire %.1f ms, present %.1f ms\n",
+                        (present_now[0] - last_present[0]) / 1e6, (present_now[1] - last_present[1]) / 1e6,
+                        (present_now[2] - last_present[2]) / 1e6, (present_now[3] - last_present[3]) / 1e6);
+        }
+        std::copy(std::begin(present_now), std::end(present_now), std::begin(last_present));
         const u64 copy_ns = Gow3Stats::t_copy.load(), copy_bytes = Gow3Stats::copy_bytes.load();
         u64 proc_flt = 0;
 #ifndef _WIN32
@@ -550,7 +609,13 @@ void VideoOutDriver::Flip(const Request& req) {
             // (and so the frame rate) differs a little.
             static u64 window_draws = 0, window_gpu_us = 0;
             const u64 all_draws = Gow3Stats::draws.load();
+#ifdef _WIN32
+            // gow3 20 Oct 2026: Windows has no rusage (gpu_user_us/gpu_sys_us stay 0, the line
+            // printed 0.00 us/draw): the thread times read above (15.6 ms steps, ~0.3% of 5 s).
+            const u64 gpu_us = gpu_ns / 1000;
+#else
             const u64 gpu_us = Gow3Stats::gpu_user_us.load() + Gow3Stats::gpu_sys_us.load();
+#endif
             const double us_per_draw = all_draws > window_draws
                                            ? double(gpu_us - window_gpu_us) / (all_draws - window_draws)
                                            : 0.0;
@@ -579,6 +644,42 @@ void VideoOutDriver::Flip(const Request& req) {
                         Gow3Stats::tick_wait_ns.exchange(0) / (window * 1e7),
                         frames ? double(Gow3Stats::reduced_draws.exchange(0)) / frames : 0.0,
                         frames ? double(Gow3Stats::scene_draws.exchange(0)) / frames : 0.0);
+            // gow3 20 Oct 2026: the presentation waits of the window (share of its wall time).
+            std::printf("Presentation waits: frames %.1f%%, submit lock %.1f%%; swap thread acquire "
+                        "%.1f%%, present %.1f%%\n",
+                        (present_now[0] - window_present[0]) / (window * 1e7),
+                        (present_now[1] - window_present[1]) / (window * 1e7),
+                        (present_now[2] - window_present[2]) / (window * 1e7),
+                        (present_now[3] - window_present[3]) / (window * 1e7));
+            std::copy(std::begin(present_now), std::end(present_now), std::begin(window_present));
+            // gow3 20 Oct 2026 (GitHub #95: memory rising over a long session): what holds memory,
+            // every 5 s, so a long run shows which part grows.
+            {
+                const auto& instance = presenter->GetInstance();
+                u64 private_mib = 0, working_mib = 0;
+#ifdef _WIN32
+                PROCESS_MEMORY_COUNTERS_EX memory{};
+                if (K32GetProcessMemoryInfo(GetCurrentProcess(),
+                                            reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory),
+                                            sizeof(memory))) {
+                    private_mib = memory.PrivateUsage >> 20;
+                    working_mib = memory.WorkingSetSize >> 20;
+                }
+#endif
+                const bool vram = instance.CanReportMemoryUsage();
+                std::printf("Memory: RAM %llu MiB private, %llu MiB working set; video memory %llu of "
+                            "%llu MiB (driver); buffer arenas %llu MiB (%llu in use, %llu given back "
+                            "so far), images %llu MiB (%llu)\n",
+                            static_cast<unsigned long long>(private_mib),
+                            static_cast<unsigned long long>(working_mib),
+                            static_cast<unsigned long long>(vram ? instance.GetDeviceMemoryUsage() >> 20 : 0),
+                            static_cast<unsigned long long>(vram ? instance.GetDeviceMemoryBudgetNow() >> 20 : 0),
+                            static_cast<unsigned long long>(Gow3Stats::arena_memory_bytes.load() >> 20),
+                            static_cast<unsigned long long>(Gow3Stats::arena_in_use_bytes.load() >> 20),
+                            static_cast<unsigned long long>(Gow3Stats::arena_released_bytes.load() >> 20),
+                            static_cast<unsigned long long>(Gow3Stats::image_bytes.load() >> 20),
+                            static_cast<unsigned long long>(Gow3Stats::images_live.load()));
+            }
             presenter->GetRasterizer().GetPipelineCache().ReportCompilerStats();
             Vulkan::WaitDiagnostics::Report();
             // Frame pacing: spread of the guest flip intervals (judder that the mean hides).
@@ -746,6 +847,13 @@ void VideoOutDriver::SubmitFlipInternal(VideoOutPort* port, s32 index, s64 flip_
             });
         }
         request_cv.notify_one();
+#ifdef _WIN32
+        // gow3 (GOW3_HR_VBLANK): set after the push, so a vblank thread that found the queue
+        // empty under the lock wakes on it (the event stays set until a wait consumes it).
+        if (waits.request_event) {
+            SetEvent(waits.request_event);
+        }
+#endif
     };
     // gow3 16 Oct: a fence deferred until its ray-cast results are back (RunEventWriteEop) comes
     // before this frame's flip, as on the console: the guest takes a finished flip as its frame's
@@ -797,6 +905,24 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
 
     Common::SetCurrentThreadName("shadPS4:PresentThread");
     Common::SetCurrentThreadRealtime(vblank_period);
+#ifdef _WIN32
+    // gow3 20 Oct 2026 (GOW3_HR_VBLANK): the old wait spun through each tick's last millisecond,
+    // so the thread was already running when the tick ended, even with every core busy. Asleep
+    // until the deadline, it runs above normal priority, so that when its timer fires it
+    // preempts a normal-priority thread (guest and port threads) instead of queueing behind one
+    // (a timer wake-up gets no priority boost). It runs a few microseconds per tick.
+    // GOW3_VBLANK_PRIORITY=0: normal priority.
+    if (waits.timer) {
+        const char* env = std::getenv("GOW3_VBLANK_PRIORITY");
+        const bool raise = !(env && env[0] == '0');
+        if (raise) {
+            SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
+        }
+        std::printf("VideoOut: vblank thread at %s priority\n",
+                    raise ? "above normal (GOW3_VBLANK_PRIORITY=0: normal)"
+                          : "normal (GOW3_VBLANK_PRIORITY=0)");
+    }
+#endif
 
     Common::AccurateTimer timer{vblank_period};
 
@@ -863,6 +989,55 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
     auto next_movie_vblank = std::chrono::steady_clock::now();
     bool movie_shown = false;
 
+    // gow3 20 Oct 2026 (idle CPU, GOW3_HR_VBLANK; see WaitHandles): with immediate flips the
+    // thread sleeps until the tick's deadline, a queued flip or the flip's slot on a
+    // high-resolution timer instead of spinning out each tick's last millisecond.
+    bool chain_ticks = false; ///< the last tick ended at last_tick_deadline (hr_wait)
+    auto last_tick_deadline = std::chrono::steady_clock::now();
+#ifdef _WIN32
+    const bool hr_waits = waits.timer && waits.request_event;
+    // Sleeps until `deadline`, or with `for_request` until a flip is queued; returns whether
+    // one is queued (checked again at the deadline, as wait_until with a predicate does). The
+    // auto-reset event can be left set by a flip already taken: then one more pass.
+    const auto hr_wait = [&](std::chrono::steady_clock::time_point deadline, bool for_request) {
+        const HANDLE handles[2] = {waits.timer, waits.request_event};
+        while (true) {
+            if (for_request) {
+                std::scoped_lock lk{mutex};
+                if (!requests.empty()) {
+                    return true;
+                }
+            }
+            const auto left = deadline - std::chrono::steady_clock::now();
+            if (left <= std::chrono::nanoseconds(0)) {
+                break;
+            }
+            if (left < std::chrono::microseconds(20)) {
+                // A few microseconds left: arming the timer would cost its whole wake-up delay.
+                while (std::chrono::steady_clock::now() < deadline) {
+                    __builtin_ia32_pause();
+                }
+                break;
+            }
+            LARGE_INTEGER due{};
+            due.QuadPart = -static_cast<LONGLONG>((left.count() + 99) / 100); // relative, 100 ns
+            if (!SetWaitableTimer(waits.timer, &due, 0, nullptr, nullptr, FALSE)) {
+                Sleep(1);
+                continue;
+            }
+            WaitForMultipleObjects(for_request ? 2 : 1, handles, FALSE, INFINITE);
+        }
+        if (!for_request) {
+            return false;
+        }
+        std::scoped_lock lk{mutex};
+        return !requests.empty();
+    };
+#else
+    constexpr bool hr_waits = false;
+    const auto hr_wait = [](std::chrono::steady_clock::time_point, bool) { return false; };
+#endif
+
     while (!token.stop_requested()) {
         if (const u32 limit = current_limit(); limit != frame_limit) {
             frame_limit = limit;
@@ -881,12 +1056,29 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
                            : frame_limit         ? std::chrono::nanoseconds(1000000000 / frame_limit)
                                                  : std::chrono::nanoseconds(0);
             next_flip = std::chrono::steady_clock::now();
+            chain_ticks = false;
             std::printf("VideoOut: vblank %.2f Hz (%s)\n", 1e9 / double(period.count()),
                         period == base_period ? "fast" : "follows the display with VSync");
         }
         const bool fast_vblank = vblank_period < movie_period - std::chrono::microseconds(500);
         timer.Start();
-        const auto tick_deadline = std::chrono::steady_clock::now() + vblank_period;
+        const auto tick_start = std::chrono::steady_clock::now();
+        auto tick_deadline = tick_start + vblank_period;
+        // gow3 20 Oct 2026 (GOW3_HR_VBLANK): a tick that follows one ended at its deadline by
+        // the high-resolution wait below runs from that deadline, not from the wake-up. The timer
+        // wakes a little late (tens to hundreds of microseconds) and counted from the wake-up the
+        // delays would add up (a 75 Hz vblank at ~73 Hz); the old wait spun through the last
+        // millisecond and woke on time, so this keeps its cadence. A tick that starts later than
+        // such a delay (a pause, a slow flip) runs from now, as before.
+        if (chain_ticks) {
+            chain_ticks = false;
+            const auto late = tick_start - last_tick_deadline;
+            if (late >= std::chrono::nanoseconds(0) &&
+                late < std::min<std::chrono::nanoseconds>(std::chrono::milliseconds(1),
+                                                          vblank_period / 2)) {
+                tick_deadline = last_tick_deadline + vblank_period;
+            }
+        }
 
         if (DebugState.IsGuestThreadsPaused()) {
             DrawLastFrame();
@@ -955,6 +1147,31 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
 
         if (!immediate_flips || main_port.flip_rate != 0 || movie) {
             timer.End();
+            continue;
+        }
+        if (hr_waits) {
+            // The loop below with the high-resolution waits: same steps and deadlines.
+            while (!token.stop_requested()) {
+                if (!hr_wait(tick_deadline, true)) {
+                    break; // next vblank
+                }
+                if (std::chrono::steady_clock::now() < next_flip) {
+                    if (next_flip >= tick_deadline) {
+                        break;
+                    }
+                    hr_wait(next_flip, false);
+                }
+                const auto now = std::chrono::steady_clock::now();
+                const auto request = receive_request();
+                if (request) {
+                    next_flip = std::max(next_flip + frame_period, now - frame_period);
+                    Flip(request);
+                    FRAME_END;
+                }
+            }
+            hr_wait(tick_deadline, false);
+            last_tick_deadline = tick_deadline;
+            chain_ticks = true;
             continue;
         }
         while (!token.stop_requested()) {

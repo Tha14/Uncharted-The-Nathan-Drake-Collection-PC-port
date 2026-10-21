@@ -480,18 +480,78 @@ static ABI int32_t ime_result(uint32_t *result) {
 }
 static ABI int32_t ime_term(void) { memset(&ime,0,sizeof(ime)); return 0; }
 
-/* ---- Trophies: accepted locally, recorded in the log ---- */
+/* ---- Trophies (gow3_trophies.cpp shows them) ----
+ * The three games keep three trophy lists, sce_sys/trophy/trophy01-03.trp; a game's context names
+ * its list by its service label. Earned trophies are saved in <user>/trophy/trophyNN.txt (an
+ * "id time" line each) and reported back to the game; a newly earned one is shown as a popup. */
+#define TROPHY_LISTS 4
+static pthread_mutex_t trophy_lock=PTHREAD_MUTEX_INITIALIZER;
+static struct { int32_t ctx; int list; } trophy_contexts[8];
+static uint32_t trophy_flags[TROPHY_LISTS][4];
+static int trophy_loaded[TROPHY_LISTS];
+static void trophy_file(int list,char *out,size_t size) {
+    snprintf(out,size,"%s/trophy/trophy%02d.txt",runtime_file_user_dir(),list);
+}
+static void trophy_load(int list) { /* trophy_lock held */
+    if (trophy_loaded[list]) return;
+    trophy_loaded[list]=1;
+    char path[700]; trophy_file(list,path,sizeof(path));
+    FILE *f=fopen(path,"r");
+    if (!f) return;
+    int id; long long when;
+    while (fscanf(f,"%d %lld",&id,&when)==2) if (id>=0 && id<128) trophy_flags[list][id/32]|=1u<<(id%32);
+    fclose(f);
+}
+static int trophy_list_of(int32_t ctx) { /* trophy_lock held */
+    for (int i=0;i<8;++i) if (trophy_contexts[i].ctx==ctx) return trophy_contexts[i].list;
+    return 0;
+}
 static ABI int32_t trophy_context(int32_t *ctx,int32_t user,uint32_t label,uint64_t options) {
-    (void)user; (void)label; (void)options;
+    (void)user; (void)options;
     if (!ctx) return TROPHY_INVALID;
-    *ctx=new_id(); return 0;
+    *ctx=new_id();
+    const int list=label>=1 && label<TROPHY_LISTS ? (int)label : 0;
+    printf("Runtime: trophy context %d: service label %u (list %d)\n",*ctx,label,list);
+    pthread_mutex_lock(&trophy_lock);
+    for (int i=0;i<8;++i) if (!trophy_contexts[i].ctx) { trophy_contexts[i].ctx=*ctx; trophy_contexts[i].list=list; break; }
+    if (list) trophy_load(list);
+    pthread_mutex_unlock(&trophy_lock);
+    return 0;
 }
 static ABI int32_t trophy_handle(int32_t *handle) { if (!handle) return TROPHY_INVALID; *handle=new_id(); return 0; }
-static ABI int32_t trophy_register(int32_t ctx,int32_t handle,uint64_t options) { (void)ctx; (void)handle; (void)options; return 0; }
+static ABI int32_t trophy_register(int32_t ctx,int32_t handle,uint64_t options) {
+    (void)handle; (void)options;
+    pthread_mutex_lock(&trophy_lock);
+    const int list=trophy_list_of(ctx);
+    uint32_t flags[4]={0};
+    if (list) memcpy(flags,trophy_flags[list],sizeof(flags));
+    pthread_mutex_unlock(&trophy_lock);
+    if (list) {
+        char guest[64], pack[1024];
+        snprintf(guest,sizeof(guest),"/app0/sce_sys/trophy/trophy%02d.trp",list);
+        if (!runtime_file_translate(guest,pack,sizeof(pack))) gow3gpu_trophy_list(pack,list,flags);
+    }
+    return 0;
+}
 static ABI int32_t trophy_unlock(int32_t ctx,int32_t handle,int32_t id,int32_t *platinum) {
-    (void)ctx; (void)handle;
-    printf("Runtime: trophy %d unlocked\n",id);
+    (void)handle;
     if (platinum) *platinum=-1;
+    if (id<0 || id>=128) return TROPHY_INVALID;
+    pthread_mutex_lock(&trophy_lock);
+    const int list=trophy_list_of(ctx);
+    int earned_now=0;
+    if (list && !(trophy_flags[list][id/32]>>(id%32) & 1)) {
+        trophy_flags[list][id/32]|=1u<<(id%32);
+        earned_now=1;
+        char path[700]; trophy_file(list,path,sizeof(path));
+        char folder[700]; snprintf(folder,sizeof(folder),"%s/trophy",runtime_file_user_dir());
+        mkdir(folder,0755);
+        FILE *f=fopen(path,"a");
+        if (f) { fprintf(f,"%d %lld\n",id,(long long)time(NULL)); fclose(f); }
+    }
+    pthread_mutex_unlock(&trophy_lock);
+    printf("Runtime: trophy %d of list %d %s\n",id,list,earned_now ? "earned" : "unlocked again");
+    if (earned_now) gow3gpu_trophy_earned(id);
     return 0;
 }
 static ABI int32_t trophy_game_info(int32_t ctx,int32_t handle,void *details,void *data) {
@@ -503,11 +563,16 @@ static ABI int32_t trophy_game_info(int32_t ctx,int32_t handle,void *details,voi
 static ABI int32_t trophy_info(int32_t ctx,int32_t handle,int32_t id,void *details,void *data) {
     (void)id; return trophy_game_info(ctx,handle,details,data);
 }
-/* Nothing is unlocked on this console: an empty 128-trophy flag set. */
+/* The saved trophies of the context's list: a 128-trophy flag set. */
 static ABI int32_t trophy_unlock_state(int32_t ctx,int32_t handle,uint32_t *flags,uint32_t *count) {
     if (!flags || !count) return TROPHY_INVALID;
     if (ctx<=0 || handle<=0) return TROPHY_INVALID;
     memset(flags,0,16); *count=0;
+    pthread_mutex_lock(&trophy_lock);
+    const int list=trophy_list_of(ctx);
+    if (list) memcpy(flags,trophy_flags[list],16);
+    pthread_mutex_unlock(&trophy_lock);
+    for (int i=0;i<4;++i) for (uint32_t bits=flags[i];bits;bits&=bits-1) ++*count;
     return 0;
 }
 static ABI int32_t trophy_release(int32_t id) { return id>0 ? 0 : TROPHY_INVALID; }

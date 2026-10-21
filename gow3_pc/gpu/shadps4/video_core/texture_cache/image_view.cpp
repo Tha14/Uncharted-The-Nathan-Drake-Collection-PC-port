@@ -55,7 +55,9 @@ ImageViewInfo::ImageViewInfo(const AmdGpu::Image& image, const Shader::ImageReso
         nfmt = AmdGpu::NumberFormat::Unorm;
     }
     format = Vulkan::LiverpoolToVK::SurfaceFormat(dfmt, nfmt);
-    if (desc.is_depth) {
+    // gow3: a garbage T# with a colour format in a depth slot keeps it (ImageInfo gives it no
+    // size, so it is dropped before any view is made).
+    if (desc.is_depth && Vulkan::LiverpoolToVK::IsPromotableToDepth(format)) {
         format = Vulkan::LiverpoolToVK::PromoteFormatToDepth(format);
     }
 

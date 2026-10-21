@@ -171,6 +171,44 @@ public:
         }
     }
 
+    /// gow3 21 Oct 2026 (GOW3_WAIT_SERVICES_FAULTS=1, default off): Uncharted 2's guest threads
+    /// lost 20-38% of a thread in read faults (~10 ms each) whose requests waited in the command
+    /// queue while the GPU command thread sat in the presenter's frames-ahead wait, which runs no
+    /// commands. Fault requests (SendFaultCommand) then go into a queue of their own that
+    /// ServiceQueuedCommands also runs from that wait; ProcessCommands takes them first, as
+    /// before in order with the rest of each thread's requests (the sender waits for each).
+    static bool WaitServicesFaults() {
+        static const bool on = [] {
+            const char* env = std::getenv("GOW3_WAIT_SERVICES_FAULTS");
+            return env && env[0] == '1';
+        }();
+        return on;
+    }
+
+    /// A guest thread's fault request: SendCommand<true> unless GOW3_WAIT_SERVICES_FAULTS=1.
+    void SendFaultCommand(auto&& func) {
+        if (!WaitServicesFaults()) {
+            SendCommand<true>(func);
+            return;
+        }
+        std::binary_semaphore sem{0};
+        {
+            std::scoped_lock lk{submit_mutex};
+            fault_queue.emplace([&sem, &func] {
+                func();
+                sem.release();
+            });
+            ++num_fault_commands;
+            ++num_commands;
+            submit_cv.notify_one();
+        }
+        sem.acquire();
+    }
+
+    /// GPU command thread, from waits (GOW3_WAIT_SERVICES_FAULTS=1): runs queued fault requests,
+    /// not inside another command and only with the draw recording thread idle. True: some ran.
+    bool ServiceQueuedCommands();
+
     void ReserveCopyBufferSpace() {
         GpuQueue& gfx_queue = mapped_queues[GfxQueueId];
         std::scoped_lock lk(gfx_queue.m_access);
@@ -312,6 +350,11 @@ private:
     std::mutex submit_mutex;
     std::condition_variable_any submit_cv;
     std::queue<Common::UniqueFunction<void>> command_queue{};
+    /// gow3 21 Oct 2026 (GOW3_WAIT_SERVICES_FAULTS=1): fault requests (SendFaultCommand), under
+    /// submit_mutex; counted in num_commands as well.
+    std::queue<Common::UniqueFunction<void>> fault_queue{};
+    std::atomic<u32> num_fault_commands{};
+    u32 command_depth = 0; ///< GPU command thread: commands running (ServiceQueuedCommands)
     std::thread::id gpu_id;
 #if defined(__linux__) || defined(_WIN32)
     u32 gpu_tid{};

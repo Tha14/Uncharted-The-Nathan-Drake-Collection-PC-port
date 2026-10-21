@@ -281,12 +281,35 @@ static ABI int32_t audio_volume(int32_t handle, int32_t flags, const int32_t *vo
         if (volume[c]<0 || volume[c]>VOLUME_0DB) { pthread_mutex_unlock(&p->lock); return ERR_INVALID_VOLUME; }
         p->volume[c]=volume[c];
     }
-    if (getenv("GOW3_AUDIO_TRACE"))
+    static int volume_trace=-1; /* gow3: getenv once, not per volume call */
+    if (volume_trace<0) volume_trace=getenv("GOW3_AUDIO_TRACE")!=NULL;
+    if (volume_trace)
         printf("Audio trace: port %d volume mask %#x: %d %d %d %d %d %d %d %d\n",
                (int)(p-ports),flags,p->volume[0],p->volume[1],p->volume[2],p->volume[3],
                p->volume[4],p->volume[5],p->volume[6],p->volume[7]);
     pthread_mutex_unlock(&p->lock);
     return 0;
+}
+/* The speaker channels the game is told it drives; it mixes its 8-channel main port for them
+   (Uncharted 2, 21 Oct 2026: told 2, only L/R carry sound; told 6, L R C LFE and the surround
+   pair in channels 7-8; told 8, all eight). GOW3_AUDIO_SPEAKERS=auto (default: the output
+   device's channels, 8 for 7.1, 6 for 5.1, else stereo), 2, 6 or 8. A stereo device keeps the
+   game's own stereo mix; a 5.1/7.1 mix forced onto it is folded to stereo (downmix_stereo). */
+static int speaker_channels(void) {
+    static int channels=-1;
+    if (channels<0) {
+        const char *v=getenv("GOW3_AUDIO_SPEAKERS");
+        int n=v && *v && strcmp(v,"auto") ? atoi(v) : 0;
+        if (!n) {
+            SDL_AudioSpec device; int device_frames;
+            const int device_channels=sdl_audio() && SDL_GetAudioDeviceFormat(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,&device,&device_frames)
+                                      ? device.channels : 2;
+            n=device_channels>=8 ? 8 : device_channels>=6 ? 6 : 2;
+        }
+        channels=n==6 || n==8 ? n : 2;
+        printf("Runtime: game audio mixed for %s\n",channels==8 ? "7.1" : channels==6 ? "5.1" : "stereo");
+    }
+    return channels;
 }
 static ABI int32_t audio_state(int32_t handle, PortState *state) {
     int32_t error=0;
@@ -299,7 +322,7 @@ static ABI int32_t audio_state(int32_t handle, PortState *state) {
     switch (p->type) {
     case 2: case 3: state->output=0x40; state->channel=1; break;          /* headphone */
     case 4: state->output=0x04; state->channel=1; state->volume=127; break; /* pad speaker */
-    default: state->output=0x01; state->channel=(uint8_t)(p->channels>2 ? 2 : p->channels); break;
+    default: state->output=0x01; state->channel=(uint8_t)(p->channels>2 ? speaker_channels() : p->channels); break;
     }
     return 0;
 }

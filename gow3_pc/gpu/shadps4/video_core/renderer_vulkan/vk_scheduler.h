@@ -733,6 +733,7 @@ public:
     /// records directly (Record() included, so callers may mix both) until the next
     /// KickRecording() or submission.
     [[gnu::noinline]] vk::CommandBuffer CommandBuffer() {
+        ++record_serial; // the caller may record anything (RecordSerial)
         if (recording_threaded && !direct_mode) {
             SyncRecording();
             direct_mode = true;
@@ -754,6 +755,7 @@ public:
     /// everything it uses (capture by value): it may run later on the recording thread.
     template <typename Func>
     void Record(Func&& func) {
+        ++record_serial;
         if (!recording_threaded || direct_mode) {
             func(current_cmdbuf);
             return;
@@ -770,6 +772,19 @@ public:
             const bool pushed = record_chunk->Push(std::forward<Func>(func));
             ASSERT(pushed);
         }
+    }
+
+    /// gow3 20 Oct 2026: advances on every Record() and CommandBuffer() call and with every new
+    /// command buffer. Two equal values: nothing was recorded in between, in the same command
+    /// buffer (Rasterizer::DispatchRecord skips a compute pipeline bind that changes nothing).
+    /// Only meaningful while commands are recorded on the calling thread (!IsRecordingThreaded).
+    [[nodiscard]] u64 RecordSerial() const noexcept {
+        return record_serial;
+    }
+
+    /// gow3: a recording thread exists (Record() may defer commands to it).
+    [[nodiscard]] bool IsRecordingThreaded() const noexcept {
+        return recording_threaded;
     }
 
     /// True when Record() defers commands (and RecordData() copies into chunks).
@@ -897,9 +912,14 @@ public:
     /// Defers an operation until the gpu has reached the current cpu tick.
     /// Runs as soon as possible in another thread.
     void DeferPriorityOperation(Common::UniqueFunction<void>&& func) {
+        DeferPriorityOperationAt(CurrentTick(), std::move(func));
+    }
+    /// gow3 21 Oct 2026 (GPU worker): runs `func` on the priority thread once the GPU has passed
+    /// `tick` (a submitted one: the thread waits for each operation in turn).
+    void DeferPriorityOperationAt(u64 tick, Common::UniqueFunction<void>&& func) {
         {
             std::unique_lock lk(priority_pending_ops_mutex);
-            priority_pending_ops.emplace(std::move(func), CurrentTick());
+            priority_pending_ops.emplace(std::move(func), tick);
         }
         priority_pending_ops_cv.notify_one();
     }
@@ -961,6 +981,9 @@ private:
     // gow3: whether recorder_thread runs, read on every Record(). std::jthread::joinable()
     // compares thread ids, which on Windows (libc++ over winpthreads) costs two system calls.
     bool recording_threaded{false};
+    u64 record_serial = 0; ///< gow3: see RecordSerial()
+    /// gow3 20 Oct 2026: the draw scheduler counts its waits for the submit lock (Gow3Stats).
+    bool count_lock_waits{false};
     std::jthread recorder_thread;
     tracy::VkCtxScope* profiler_scope{};
 };

@@ -5,6 +5,7 @@
 #include "gow3_overlay.h"
 #include "gow3_png.h"
 #include "gow3_settings.h"
+#include "gow3_trophies.h"
 #include "gow3_copy.h"
 #ifndef _WIN32
 #include <sys/resource.h>
@@ -400,6 +401,47 @@ std::thread g_window_thread;
 std::mutex g_window_mutex;
 std::condition_variable g_window_cv;
 bool g_window_ready;
+
+// gow3 20 Oct 2026 (idle CPU): the window thread pumped events every 2 ms forever (500 passes a
+// second, each taking the text-input and overlay locks and running SDL's event pump). While the
+// window has the focus it still does (mouse look, keyboard, pad). Without the focus SDL drops
+// the pad's and the keyboard's input anyway (SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS is not
+// set) and the mouse is released: it then pumps every 8 ms, every 16 ms while minimized, and a
+// request for the window thread (the text input dialog) wakes it at once.
+// GOW3_WINDOW_IDLE_BACKOFF=0: every 2 ms always.
+std::mutex g_window_wake_mutex;
+std::condition_variable g_window_wake_cv;
+bool g_window_wake = false; ///< under g_window_wake_mutex
+
+void WakeWindowThread() {
+    {
+        std::scoped_lock lock{g_window_wake_mutex};
+        g_window_wake = true;
+    }
+    g_window_wake_cv.notify_one();
+}
+
+/// The window thread's wait between event pumps (see above).
+void WindowThreadIdle(SDL_Window* window) {
+    static const bool backoff = [] {
+        const char* env = std::getenv("GOW3_WINDOW_IDLE_BACKOFF");
+        const bool on = !(env && env[0] == '0');
+        std::printf("Window: events every 2 ms%s\n",
+                    on ? ", 8 ms without the focus, 16 ms minimized "
+                         "(GOW3_WINDOW_IDLE_BACKOFF=0: 2 ms)"
+                       : " (GOW3_WINDOW_IDLE_BACKOFF=0)");
+        return on;
+    }();
+    const SDL_WindowFlags flags = backoff ? SDL_GetWindowFlags(window) : 0;
+    if (!backoff || ((flags & SDL_WINDOW_INPUT_FOCUS) && !(flags & SDL_WINDOW_MINIMIZED))) {
+        SDL_Delay(2);
+        return;
+    }
+    const auto wait = std::chrono::milliseconds((flags & SDL_WINDOW_MINIMIZED) ? 16 : 8);
+    std::unique_lock lock{g_window_wake_mutex};
+    g_window_wake_cv.wait_for(lock, wait, [] { return g_window_wake; });
+    g_window_wake = false;
+}
 } // namespace
 
 double Gow3DisplayRefreshRate() {
@@ -465,7 +507,7 @@ extern "C" int gow3gpu_init(const Gow3GpuConfig* config) {
         }
         g_window_cv.notify_all();
         while (window->PollEvents()) {
-            SDL_Delay(2);
+            WindowThreadIdle(window->GetSDLWindow());
         }
         LOG_INFO(Frontend, "Window closed by user");
         std::fflush(stdout);
@@ -568,12 +610,31 @@ extern "C" int gow3gpu_overlay_captures_input(void) {
 extern "C" int gow3gpu_text_input_begin(const char* initial, const char* prompt) {
     if (!g_window) return 0;
     g_window->BeginTextInput(initial ? initial : "", prompt ? prompt : "Text");
+    WakeWindowThread(); // gow3: started by the window thread, which may be in its idle wait
     return 1;
+}
+
+// gow3 tests: GOW3_TEST_CHOICE=<n> picks entry n of the game's list dialogs (the save list: 0 is
+// "New save" when offered) at once, without showing them. Automated runs cannot answer them: their
+// keyboard is off and the pad file only reaches the game.
+static int g_test_choice = -1;
+static int TestChoice() {
+    static const int pick = [] {
+        const char* env = std::getenv("GOW3_TEST_CHOICE");
+        return env && env[0] ? std::atoi(env) : -1;
+    }();
+    return pick;
 }
 
 extern "C" int gow3gpu_choice_begin(const char* title, const char* const* items, const char* const* images,
                                     int count, int focus) {
     if (!g_window || count <= 0) return 0;
+    if (const int pick = TestChoice(); pick >= 0) {
+        g_test_choice = std::min(pick, count - 1);
+        std::printf("Test: list dialog \"%s\": entry %d (%s) chosen (GOW3_TEST_CHOICE)\n", title ? title : "",
+                    g_test_choice, items[g_test_choice] ? items[g_test_choice] : "");
+        return 1;
+    }
     // Pictures are decoded here, on the game's thread, before the list is shown.
     std::vector<Gow3Png::Image> pictures(count);
     for (int i = 0; images && i < count; ++i) {
@@ -586,7 +647,20 @@ extern "C" int gow3gpu_choice_begin(const char* title, const char* const* items,
     return 1;
 }
 
+extern "C" void gow3gpu_trophy_list(const char* pack_path, int list, const uint32_t earned[4]) {
+    Gow3Trophies::SetList(pack_path ? pack_path : "", list, earned);
+}
+
+extern "C" void gow3gpu_trophy_earned(int id) {
+    Gow3Trophies::Earned(id);
+}
+
 extern "C" int gow3gpu_choice_poll(void) {
+    if (g_test_choice >= 0) {
+        const int pick = g_test_choice;
+        g_test_choice = -1;
+        return pick;
+    }
     return Gow3Overlay::PollChoice();
 }
 

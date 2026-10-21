@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
@@ -173,7 +174,18 @@ void FrameCapture::OnFlip(VAddr presented_address) {
         return;
     }
     bool arm = requested.exchange(false, std::memory_order_acq_rel);
-    if (!arm && trigger && std::filesystem::exists(trigger)) {
+    // gow3: the trigger is set for every player (diagnostics); a file-system lookup per flip
+    // costs a kernel call, so it is looked for at most every 250 ms (flip thread only).
+    static auto last_poll = std::chrono::steady_clock::time_point{};
+    const auto poll_due = [] {
+        const auto now = std::chrono::steady_clock::now();
+        if (now - last_poll < std::chrono::milliseconds(250)) {
+            return false;
+        }
+        last_poll = now;
+        return true;
+    };
+    if (!arm && trigger && poll_due() && std::filesystem::exists(trigger)) {
         std::error_code ec;
         // A number in the trigger file overrides GOW3_CAPTURE_PASSES for this capture.
         if (FILE* f = std::fopen(trigger, "r")) {

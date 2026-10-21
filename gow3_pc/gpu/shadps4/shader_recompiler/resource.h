@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <cstdlib>
+
 #include "common/types.h"
 #include "shader_recompiler/ir/type.h"
 #include "video_core/amdgpu/resource.h"
@@ -75,6 +77,55 @@ enum class BufferType : u8 {
     ClipPlanes,
 };
 
+/// gow3 20 Oct 2026: set by the renderer: the bytes of [address, address + size) that are mapped
+/// guest memory, counted from address.
+inline u64 (*gpu_mapped_extent)(u64 address, u64 size) = nullptr;
+
+/// gow3 20 Oct 2026: Naughty Dog's effect and crowd skinning compute shaders (cs 8f067540,
+/// 7d7e7206; all three games) fetch V#s from table slots that hold floats for some effects (the
+/// branches using them are not taken). BindBuffers binds those as null by this rule; they now
+/// read as null for the specialization and the translation too. Their random strides and formats
+/// made a new shader variant and compute pipeline each, built on the GPU thread: cs 8f067540 had
+/// 1,177 variants in our cache, and a frame building 465 of them took 9 s on a laptop (GitHub
+/// #71). GOW3_EFFECT_SHARP_FILTER=0: the old specialization (binding unchanged either way).
+/// 20 Oct 2026 night: cs 0c936dd6 of the same family too (an RTX 4060 laptop, 15 min of Uncharted
+/// 3: its unmapped 1-3 GB V#s, already bound as null, made 100+ variants, frames up to 0.9 s).
+inline bool IsEffectShader(u64 pgm_hash) {
+    return pgm_hash == 0x8f067540 || pgm_hash == 0x7d7e7206 || pgm_hash == 0x0c936dd6;
+}
+
+/// 20 Oct 2026 night: for every shader, not only the effect family. A list of shaders let the
+/// next one through (cs 0c936dd6, 100+ variants on the laptop): any V# BindBuffers binds as null
+/// (reaching past mapped memory other than an unbounded raw buffer, or spanning 1 GiB) now reads
+/// as null for the specialization and the translation as well, so garbage in a table slot can
+/// never make a new variant. Only odd-looking V#s (unaligned base, stride of 8 KiB or more, over
+/// 64 MiB: all the garbage seen so far) pay for the mapping lookup; the effect family keeps its
+/// stricter rule (odd = garbage, mapped or not).
+inline bool IsGarbageEffectBuffer(u64 pgm_hash, const AmdGpu::Buffer& buffer) {
+    static const bool enabled = [] {
+        const char* env = std::getenv("GOW3_EFFECT_SHARP_FILTER");
+        return !(env && env[0] == '0');
+    }();
+    const u64 size = buffer.GetSize();
+    if (!enabled || buffer.base_address == 0 || size == 0) {
+        return false;
+    }
+    const bool odd =
+        (buffer.base_address & 3) != 0 || buffer.stride >= 8192 || size > (u64{64} << 20);
+    if (IsEffectShader(pgm_hash)) {
+        if (odd) {
+            return true;
+        }
+    } else if (!odd) {
+        return false;
+    }
+    if (!gpu_mapped_extent) {
+        return false;
+    }
+    const u64 mapped = gpu_mapped_extent(buffer.base_address, size);
+    return mapped >= (u64{1} << 30) || (mapped != size && buffer.num_records < 0xFFFF0000u);
+}
+
 struct BufferResource {
     SharpFetch<AmdGpu::Buffer> sharp_fetch{};
     IR::Type used_types{};
@@ -102,7 +153,7 @@ struct BufferResource {
         } else if (post_op == SharpFetchPostOp::OffsetByProgramBase) {
             buffer.base_address += info.ProgramBase();
         }
-        if (!buffer.Valid()) {
+        if (!buffer.Valid() || IsGarbageEffectBuffer(info.pgm_hash, buffer)) {
             return AmdGpu::Buffer::Null();
         }
         return buffer;

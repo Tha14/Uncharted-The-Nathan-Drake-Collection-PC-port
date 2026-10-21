@@ -13,6 +13,9 @@
 
 #include <miniz.h>
 
+#include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <functional>
 #include <future>
@@ -163,8 +166,26 @@ bool WriteVector(const BlobType type, std::filesystem::path&& path_, std::vector
                         return;
                     }
                 }
+                // gow3 21 Oct 2026: the rename fails while another thread reads the old blob
+                // (the background warm-up): retry, then drop the write rather than leave a
+                // half-replaced meta/binary pair behind (WrittenTogether finds those).
                 std::error_code error;
-                std::filesystem::rename(temp, path, error);
+                for (int attempt = 0; attempt < 20; ++attempt) {
+                    std::filesystem::rename(temp, path, error);
+                    if (!error) {
+                        break;
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                }
+                if (error) {
+                    static std::atomic<u32> reported{0};
+                    if (reported.fetch_add(1, std::memory_order_relaxed) < 8) {
+                        LOG_WARNING(Render, "Pipeline cache: {} not replaced ({})",
+                                    path.filename().string(), error.message());
+                    }
+                    std::error_code ignored;
+                    std::filesystem::remove(temp, ignored);
+                }
             }
         }};
         std::scoped_lock lock{m_request};
@@ -258,6 +279,29 @@ size_t DataBase::CountBlobs(BlobType type) {
     return count;
 }
 
+void DataBase::ForEachBlobName(BlobType type,
+                               const std::function<void(const std::string& name)>& func) {
+    const auto ext = "." + GetBlobFileExtension(type);
+    if (EmulatorSettings.IsPipelineCacheArchived()) {
+        const auto num_files = mz_zip_reader_get_num_files(&zip_ar);
+        for (int index = 0; index < num_files; ++index) {
+            std::array<char, MZ_ZIP_MAX_ARCHIVE_FILENAME_SIZE> file_name{};
+            mz_zip_reader_get_filename(&zip_ar, index, file_name.data(), file_name.size());
+            const std::string name{file_name.data()};
+            if (name.ends_with(ext)) {
+                func(name.substr(0, name.size() - ext.size()));
+            }
+        }
+        return;
+    }
+    std::error_code error;
+    for (const auto& entry : std::filesystem::directory_iterator{cache_path, error}) {
+        if (entry.path().extension().string() == ext) {
+            func(entry.path().stem().string());
+        }
+    }
+}
+
 bool DataBase::ConcurrentReads() const {
     return !EmulatorSettings.IsPipelineCacheArchived();
 }
@@ -309,6 +353,144 @@ void DataBase::Clear() {
         }
     }
     LOG_WARNING(Render, "Pipeline cache cleared ({} files): it is rebuilt for this build", removed);
+}
+
+// gow3 21 Oct 2026: the cache holds one GPU's shaders. A laptop that runs the game on its
+// integrated GPU one time and on its graphics card the next lost the whole cache at every switch
+// (4478 files on the RTX 4060 laptop, then 0.5 s compile freezes for minutes). The other GPU's
+// cache now waits beside this one (<serial>.gpu-<n>, at most MaxKept) and comes back on a switch.
+bool DataBase::SwapCache(const std::function<bool(const std::vector<u8>&)>& matches) {
+    if (!opened || EmulatorSettings.IsPipelineCacheArchived()) {
+        return false;
+    }
+    namespace fs = std::filesystem;
+    constexpr size_t MaxKept = 2;
+    const fs::path parent = cache_path.parent_path();
+    const std::string prefix = cache_path.filename().string() + ".gpu-";
+    const auto stored_profile = [&](const fs::path& dir) {
+        std::vector<u8> data;
+        using namespace Common::FS;
+        const IOFile file{dir / ("profile." + GetBlobFileExtension(BlobType::ShaderProfile)),
+                          FileAccessMode::Read};
+        if (file.IsOpen()) {
+            data.resize(file.GetSize());
+            file.Read(data);
+        }
+        return data;
+    };
+    std::error_code ec;
+    std::vector<fs::path> kept;
+    for (const auto& entry : fs::directory_iterator(parent, ec)) {
+        if (entry.is_directory(ec) && entry.path().filename().string().starts_with(prefix)) {
+            kept.push_back(entry.path());
+        }
+    }
+    fs::path aside;
+    for (u32 n = 1; aside.empty() || fs::exists(aside, ec); ++n) {
+        aside = parent / fmt::format("{}{}", prefix, n);
+    }
+    fs::rename(cache_path, aside, ec);
+    if (ec) {
+        LOG_WARNING(Render, "Pipeline cache: could not put the other GPU's cache aside ({})",
+                    ec.message());
+        Clear();
+        return false;
+    }
+    // This GPU's most recently used cache comes back. A build without this swap (it clears the
+    // cache instead) run in between can leave two of one GPU (21 Oct, 4060 laptop): the older
+    // one goes, so it neither comes back stale later nor holds a place.
+    const auto stamp = [](const fs::path& dir) {
+        std::error_code time_ec;
+        return fs::last_write_time(dir, time_ec);
+    };
+    std::vector<fs::path> mine;
+    for (const auto& dir : kept) {
+        if (matches(stored_profile(dir))) {
+            mine.push_back(dir);
+        }
+    }
+    std::ranges::sort(mine, std::ranges::greater{}, stamp);
+    bool restored = false;
+    if (!mine.empty()) {
+        fs::rename(mine.front(), cache_path, ec);
+        restored = !ec;
+        if (restored) {
+            std::erase(kept, mine.front());
+            for (size_t i = 1; i < mine.size(); ++i) {
+                std::error_code remove_ec;
+                fs::remove_all(mine[i], remove_ec);
+                LOG_WARNING(Render, "Pipeline cache: an older cache of this GPU removed ({})",
+                            mine[i].filename().string());
+                std::erase(kept, mine[i]);
+            }
+        }
+    }
+    if (!restored) {
+        fs::create_directories(cache_path, ec);
+    }
+    // The least recently used caches of other GPUs go once more than MaxKept wait (this one
+    // counts). A folder's write time moves only when a shader is added, so the one just put aside
+    // (used last, maybe without new shaders) is stamped now and never goes; the others are ranked
+    // by the stamp they got when they were put aside.
+    std::error_code stamp_ec;
+    fs::last_write_time(aside, fs::file_time_type::clock::now(), stamp_ec);
+    std::ranges::sort(kept, {}, [&](const fs::path& dir) {
+        std::error_code time_ec;
+        return fs::last_write_time(dir, time_ec);
+    });
+    kept.push_back(aside);
+    while (kept.size() > MaxKept) {
+        fs::remove_all(kept.front(), ec);
+        kept.erase(kept.begin());
+    }
+    LOG_WARNING(Render, "Pipeline cache: another GPU's cache put aside as {}; {}",
+                aside.filename().string(),
+                restored ? "this GPU's earlier cache restored" : "this GPU starts a new cache");
+    return restored;
+}
+
+void DataBase::Remove(BlobType type, const std::string& name) {
+    if (!opened || EmulatorSettings.IsPipelineCacheArchived()) {
+        return;
+    }
+    auto path = cache_path / (name + "." + GetBlobFileExtension(type));
+    {
+        std::scoped_lock lock{m_request};
+        req_queue.emplace([path = std::move(path)] {
+            std::error_code ignored;
+            std::filesystem::remove(path, ignored);
+            std::filesystem::remove(std::filesystem::path{path} += ".tmp", ignored);
+        });
+    }
+    std::scoped_lock lk{submit_mutex};
+    ++num_requests;
+    request_cv.notify_one();
+}
+
+bool DataBase::WrittenTogether(BlobType type_a, const std::string& name_a, BlobType type_b,
+                               const std::string& name_b) const {
+    if (!opened || EmulatorSettings.IsPipelineCacheArchived()) {
+        return true;
+    }
+    namespace fs = std::filesystem;
+    const auto path_a = cache_path / (name_a + "." + GetBlobFileExtension(type_a));
+    const auto path_b = cache_path / (name_b + "." + GetBlobFileExtension(type_b));
+    std::error_code ec;
+    if (fs::exists(fs::path{path_a} += ".tmp", ec) || fs::exists(fs::path{path_b} += ".tmp", ec)) {
+        return false;
+    }
+    const auto time_a = fs::last_write_time(path_a, ec);
+    if (ec) {
+        return true; // the load fails on its own
+    }
+    const auto time_b = fs::last_write_time(path_b, ec);
+    if (ec) {
+        return true;
+    }
+    // Both are saved by one compile, the binary first: milliseconds apart (seconds when the
+    // IO thread is busy). One rewritten by a later session is minutes or days apart.
+    const auto apart = time_a > time_b ? time_a - time_b : time_b - time_a;
+    return apart <= std::chrono::seconds(30);
 }
 
 void DataBase::FinishPreload() {

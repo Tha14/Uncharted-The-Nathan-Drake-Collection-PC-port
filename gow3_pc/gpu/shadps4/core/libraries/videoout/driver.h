@@ -129,6 +129,19 @@ private:
 
     std::mutex mutex;
     std::condition_variable request_cv; ///< gow3: a flip was queued (immediate flips)
+    /// gow3 20 Oct 2026 (idle CPU, GOW3_HR_VBLANK): the vblank thread's wait objects (Win32
+    /// handles): an auto-reset event set with each queued flip, and a high-resolution waitable
+    /// timer. Both null when off or unsupported: request_cv and sleep_until, as before.
+    /// Declared before present_thread: closed once that thread has ended.
+    struct WaitHandles {
+        void* request_event = nullptr;
+        void* timer = nullptr;
+        WaitHandles();
+        ~WaitHandles();
+        WaitHandles(const WaitHandles&) = delete;
+        WaitHandles& operator=(const WaitHandles&) = delete;
+    };
+    WaitHandles waits;
     VideoOutPort main_port{};
     std::jthread present_thread;
     std::queue<Request> requests;

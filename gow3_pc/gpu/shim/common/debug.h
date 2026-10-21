@@ -17,10 +17,12 @@ enum MarkersPalette : int {
 #define EMULATOR_TRACE
 #define RENDERER_TRACE
 #define HLE_TRACE
-#define TRACE_HINT(str) ((void)(str))
-#define TRACE_WARN(msg) ((void)(msg))
-#define TRACE_ERROR(msg) ((void)(msg))
-#define TRACE_CRIT(msg) ((void)(msg))
+// gow3: the arguments are not evaluated (TRACE_HINT(fmt::format(...)) built a string per image
+// refresh with nothing to send it to).
+#define TRACE_HINT(str) ((void)0)
+#define TRACE_WARN(msg) ((void)0)
+#define TRACE_ERROR(msg) ((void)0)
+#define TRACE_CRIT(msg) ((void)0)
 #define GPU_SCOPE_LOCATION(name, color) tracy::SourceLocationData{name, TracyFunction, TracyFile, (uint32_t)TracyLine, color};
 #define MUTEX_LOCATION(name) tracy::SourceLocationData{nullptr, name, TracyFile, (uint32_t)TracyLine, 0};
 #define FRAME_END

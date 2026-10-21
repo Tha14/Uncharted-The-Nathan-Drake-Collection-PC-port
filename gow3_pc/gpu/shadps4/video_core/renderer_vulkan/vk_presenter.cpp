@@ -19,6 +19,7 @@
 #include "video_core/renderer_vulkan/vk_presenter.h"
 #include "video_core/renderer_vulkan/vk_warmup_inbox.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
+#include "video_core/amdgpu/liverpool.h" // gow3 21 Oct 2026: ServiceQueuedCommands
 #include "video_core/texture_cache/image.h"
 
 #include <algorithm>
@@ -45,6 +46,15 @@
 #endif
 
 namespace Vulkan {
+
+namespace {
+/// gow3 20 Oct 2026: presents on their own queue (Instance::SeparatePresentQueue) take that
+/// queue's lock only; on the graphics queue the submit lock, as before.
+std::mutex& PresentLock(const Instance& instance) {
+    static std::mutex present_queue_mutex;
+    return instance.SeparatePresentQueue() ? present_queue_mutex : Scheduler::submit_mutex;
+}
+} // namespace
 
 bool CanBlitToSwapchain(const vk::PhysicalDevice physical_device, vk::Format format) {
     const vk::FormatProperties props{physical_device.getFormatProperties(format)};
@@ -397,7 +407,17 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     // as raw 32-bit pixels (menus and movies included; the upscaler dumps scene frames only).
     static const char* frame_dump_trigger = std::getenv("GOW3_FRAME_DUMP_TRIGGER");
     static int frame_dump_index = 0;
-    const bool frame_dump = frame_dump_trigger && std::remove(frame_dump_trigger) == 0;
+    // gow3 20 Oct 2026 (idle CPU): the file is looked for at most every 250 ms. A remove() per
+    // frame (a failed file open in the kernel) was 0.6% of the GPU thread with diagnostics on.
+    static auto next_dump_check = std::chrono::steady_clock::time_point{};
+    bool frame_dump = false;
+    if (frame_dump_trigger) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= next_dump_check) {
+            next_dump_check = now + std::chrono::milliseconds(250);
+            frame_dump = std::remove(frame_dump_trigger) == 0;
+        }
+    }
     // gow3: scaled upscaler presets: the output-size display buffer drawn by the port.
     TemporalUpscaler::Display display{};
     const bool upscaled = rasterizer->GetUpscaler().DisplayOverride(cpu_address, display);
@@ -655,14 +675,91 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
                     const char* env = std::getenv("GOW3_POLL_WHILE_WAITING");
                     return !(env && env[0] == '0');
                 }();
-                if (poll_while_waiting && rasterizer) {
+                // gow3 20 Oct 2026 (idle CPU): the 0.25 ms polls woke the command thread up to
+                // ~4,000 times a second while the GPU was the bottleneck. Readbacks land in tick
+                // order once the GPU has passed their tick, so after a poll the oldest pending
+                // one can land no sooner than the GPU's next finished submission: the thread
+                // now sleeps until that submission (or the frame's tick) is done, lands what is
+                // finished and repeats; with no readback pending it waits plainly (below). Each
+                // readback still lands as soon as its submission is done (sooner than the next
+                // 0.25 ms poll). Readbacks left after a poll although done (the test knobs
+                // GOW3_TEST_READBACK_HOLD/LAG hold them) and a GPU that finishes nothing for
+                // 1 s go back to the 0.25 ms polls. GOW3_POLL_ON_COMPLETION=0: the 0.25 ms polls.
+                static const bool poll_on_completion = [] {
+                    const char* env = std::getenv("GOW3_POLL_ON_COMPLETION");
+                    const bool on = !(env && env[0] == '0') &&
+                                    !std::getenv("GOW3_TEST_READBACK_HOLD") &&
+                                    !std::getenv("GOW3_TEST_READBACK_LAG");
+                    std::printf("Presenter: frames-ahead wait lands readbacks %s\n",
+                                on ? "as each GPU submission finishes (GOW3_POLL_ON_COMPLETION=0: "
+                                     "every 0.25 ms)"
+                                   : "every 0.25 ms");
+                    return on;
+                }();
+                // gow3 21 Oct 2026 (GOW3_WAIT_SERVICES_FAULTS=1, the CPU worker): guest fault
+                // requests queued while this wait runs are served here (Uncharted 2: read faults
+                // waited ~10 ms each for the command thread, 20-38% of a guest thread): the wait
+                // goes in slices of at most 1 ms, re-checking the frame's tick after each slice
+                // and each served request (one may submit work), and lands readbacks as each
+                // submission finishes, as below. Only on the GPU command thread with the draw
+                // recording thread idle (Liverpool::ServiceQueuedCommands checks).
+                if (poll_while_waiting && rasterizer && liverpool &&
+                    AmdGpu::Liverpool::WaitServicesFaults()) {
                     auto* semaphore = draw_scheduler.GetWorkSemaphore();
                     auto& buffer_cache = rasterizer->GetBufferCache();
                     Gow3Stats::WaitTimer timer{Gow3Stats::tick_wait_ns};
+                    buffer_cache.PollReadbacksNow();
                     while (!semaphore->IsFree(tick)) {
-                        buffer_cache.PollReadbacksNow();
-                        if (semaphore->WaitFor(tick, 250'000)) {
+                        liverpool->ServiceQueuedCommands();
+                        if (semaphore->IsFree(tick)) {
                             break;
+                        }
+                        const u64 newest = buffer_cache.NewestPendingReadbackTick();
+                        const u64 known = semaphore->KnownGpuTick();
+                        const u64 target = newest > known ? std::min(tick, known + 1) : tick;
+                        if (semaphore->WaitFor(target, 1'000'000)) {
+                            buffer_cache.PollReadbacksNow();
+                        }
+                    }
+                    liverpool->ServiceQueuedCommands();
+                    buffer_cache.PollReadbacksNow();
+                } else if (poll_while_waiting && rasterizer) {
+                    auto* semaphore = draw_scheduler.GetWorkSemaphore();
+                    auto& buffer_cache = rasterizer->GetBufferCache();
+                    Gow3Stats::WaitTimer timer{Gow3Stats::tick_wait_ns};
+                    if (poll_on_completion) {
+                        bool on_completion = true;
+                        buffer_cache.PollReadbacksNow();
+                        while (!semaphore->IsFree(tick)) {
+                            if (on_completion) {
+                                // The newest pending readback's tick (0: none pending, also
+                                // counting readbacks without data pieces, e.g. fence-only); the
+                                // poll refreshed the GPU tick when any was pending.
+                                const u64 newest = buffer_cache.NewestPendingReadbackTick();
+                                if (newest == 0) {
+                                    break; // nothing to land: the plain wait below
+                                }
+                                const u64 known = semaphore->KnownGpuTick();
+                                if (newest > known) {
+                                    if (semaphore->WaitFor(std::min(tick, known + 1),
+                                                           1'000'000'000)) {
+                                        buffer_cache.PollReadbacksNow();
+                                        continue;
+                                    }
+                                }
+                                on_completion = false; // the 0.25 ms polls, as before
+                            }
+                            if (semaphore->WaitFor(tick, 250'000)) {
+                                break;
+                            }
+                            buffer_cache.PollReadbacksNow();
+                        }
+                    } else {
+                        while (!semaphore->IsFree(tick)) {
+                            buffer_cache.PollReadbacksNow();
+                            if (semaphore->WaitFor(tick, 250'000)) {
+                                break;
+                            }
                         }
                     }
                     buffer_cache.PollReadbacksNow();
@@ -796,7 +893,7 @@ void Presenter::PresentLoadingFrame() {
     info.AddSignal(swapchain.GetPresentReadySemaphore());
     present_scheduler.Flush(info);
     {
-        std::scoped_lock submit_lock{Scheduler::submit_mutex};
+        std::scoped_lock present_lock{PresentLock(instance)};
         swapchain.Present();
     }
     // A few frames a second during start-up: waiting keeps semaphores and the swapchain simple.
@@ -890,18 +987,34 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
         cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands,
                                vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlagBits::eByRegion,
                                {}, {}, pre_barriers);
-        const vk::ClearColorValue black{std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f}};
-        cmdbuf.clearColorImage(swapchain_image, vk::ImageLayout::eTransferDstOptimal, black, color_range);
-        const vk::MemoryBarrier clear_done{
-            .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
-            .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
-        };
-        cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
-                               vk::DependencyFlagBits::eByRegion, clear_done, {}, {});
+        const vk::ImageBlit blit =
+            MakeImageBlitFit(frame->width, frame->height, extent.width, extent.height);
+        // gow3 21 Oct 2026 (GPU worker): GOW3_PRESENT_SKIP_CLEAR=1 clears the swapchain image to
+        // black (the letterbox bars) only when the blit leaves part of it uncovered. The frame is
+        // made at the swapchain's size whenever the aspect ratios match, and the blit then writes
+        // every pixel: the clear was a full-screen write per frame for nothing (integrated GPUs
+        // share their memory bandwidth with the CPU).
+        static const bool skip_clear = [] {
+            const char* env = std::getenv("GOW3_PRESENT_SKIP_CLEAR");
+            return env && env[0] == '1';
+        }();
+        const bool covers_all = blit.dstOffsets[0].x == 0 && blit.dstOffsets[0].y == 0 &&
+                                u32(blit.dstOffsets[1].x) == extent.width &&
+                                u32(blit.dstOffsets[1].y) == extent.height;
+        if (!skip_clear || !covers_all) {
+            const vk::ClearColorValue black{std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f}};
+            cmdbuf.clearColorImage(swapchain_image, vk::ImageLayout::eTransferDstOptimal, black,
+                                   color_range);
+            const vk::MemoryBarrier clear_done{
+                .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
+                .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
+            };
+            cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+                                   vk::PipelineStageFlagBits::eTransfer,
+                                   vk::DependencyFlagBits::eByRegion, clear_done, {}, {});
+        }
         cmdbuf.blitImage(frame->image, vk::ImageLayout::eTransferSrcOptimal, swapchain_image,
-                         vk::ImageLayout::eTransferDstOptimal,
-                         MakeImageBlitFit(frame->width, frame->height, extent.width, extent.height),
-                         vk::Filter::eLinear);
+                         vk::ImageLayout::eTransferDstOptimal, blit, vk::Filter::eLinear);
         // gow3: the settings menu / FPS counter over the frame, at display resolution.
         const bool overlay = Gow3Overlay::Visible();
         const std::array post_barriers{
@@ -964,7 +1077,7 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
 
     // Present to swapchain.
     {
-        std::scoped_lock submit_lock{Scheduler::submit_mutex};
+        std::scoped_lock present_lock{PresentLock(instance)};
         if (!swapchain.Present() && window.GetWidth() != 0 && window.GetHeight() != 0) {
             swapchain.Recreate(window.GetWidth(), window.GetHeight());
         }
@@ -979,6 +1092,8 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
 Frame* Presenter::GetRenderFrame() {
     // Wait for free presentation frames
     Frame* frame;
+    // gow3 20 Oct 2026: the time this waits for presentation (counted; Stall lines).
+    Gow3Stats::WaitTimer wait_timer{Gow3Stats::frame_wait_ns};
     {
         std::unique_lock lock{free_mutex};
         free_cv.wait(lock, [this] { return !free_queue.empty(); });

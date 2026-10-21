@@ -110,8 +110,11 @@ struct Values {
     /// Controls (gow3gpu.h Gow3Controls; the menu's Controls tab). The maps are guarded by
     /// ControlsMutex(); a change calls ControlsChanged() so the pad reapplies them.
     std::string pad_map, key_map, mouse_map;
-    std::atomic<bool> mouse{true}, mouse_invert{false};
+    std::atomic<bool> mouse{true}, mouse_invert{false}, mouse_invert_x{false};
     std::atomic<float> mouse_sens{1.0f}, stick_speed{1.0f};
+    /// gow3 20 Oct 2026: mouse sensitivity while aiming (times mouse_sens) and up/down speed
+    /// compared with left/right.
+    std::atomic<float> mouse_aim_sens{1.0f}, mouse_vertical{1.0f};
     std::atomic<int> prompts{-1};
     std::atomic<unsigned> controls_generation{0};
     /// The controller shortcut for the in-game menu (GitHub #15: LT + R3 is also the sniper

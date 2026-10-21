@@ -9,6 +9,7 @@
 #include "common/logging/log.h"
 #include "core/emulator_settings.h"
 #include "gow3_settings.h"
+#include "gow3_toggles.h"
 #include "imgui/renderer/imgui_core.h"
 #include "sdl_window.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
@@ -118,9 +119,13 @@ void Swapchain::SetHDR(bool hdr) {
 
 bool Swapchain::AcquireNextImage() {
     vk::Device device = instance.GetDevice();
-    vk::Result result =
-        device.acquireNextImageKHR(swapchain, std::numeric_limits<u64>::max(),
-                                   image_acquired[frame_index], VK_NULL_HANDLE, &image_index);
+    vk::Result result;
+    {
+        Gow3Stats::WaitTimer timer{Gow3Stats::acquire_ns};
+        result = device.acquireNextImageKHR(swapchain, std::numeric_limits<u64>::max(),
+                                            image_acquired[frame_index], VK_NULL_HANDLE,
+                                            &image_index);
+    }
 
     switch (result) {
     case vk::Result::eSuccess:
@@ -150,7 +155,11 @@ bool Swapchain::Present() {
         .pImageIndices = &image_index,
     };
 
-    auto result = instance.GetPresentQueue().presentKHR(present_info);
+    vk::Result result;
+    {
+        Gow3Stats::WaitTimer timer{Gow3Stats::present_ns};
+        result = instance.GetPresentQueue().presentKHR(present_info);
+    }
     if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR) {
         needs_recreation = true;
     } else {

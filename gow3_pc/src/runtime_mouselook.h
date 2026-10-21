@@ -23,3 +23,5 @@ typedef struct {
 int runtime_mouselook_enabled(void);
 const MouseLookSite *runtime_mouselook_sites(unsigned *count);
 void runtime_mouselook_set_image(unsigned char *image);
+/* runtime_pad.c: the aim button (L2) was held at the last pad read. */
+int runtime_pad_aim_held(void);

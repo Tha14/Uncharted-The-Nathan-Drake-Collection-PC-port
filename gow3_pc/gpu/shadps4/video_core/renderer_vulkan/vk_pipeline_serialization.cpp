@@ -11,11 +11,13 @@
 #include <shared_mutex>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <fstream>
 #include <map>
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#include "common/hash.h"
 #include "common/serdes.h"
 #include "common/scope_exit.h"
 #include "video_core/renderer_vulkan/vk_pipeline_serialization.h"
@@ -34,7 +36,10 @@
 namespace Serialization {
 /* You should increment versions below once corresponding serialization scheme is changed. */
 static constexpr u32 ShaderBinaryVersion = 11u; // MUBUF ADDR64 loads (gow3)
-static constexpr u32 ShaderMetaVersion = 12u; // gow3: BufferResource::access_extent
+static constexpr u32 ShaderMetaVersion = 13u; // gow3: the hash of the binary it was written with
+/// gow3 21 Oct 2026: metas of earlier builds (no binary hash) still load when their binary was
+/// written together with them (DataBase::WrittenTogether).
+static constexpr u32 LegacyShaderMetaVersion = 12u; // BufferResource::access_extent
 static constexpr u32 PipelineKeyVersion = 5u; // gow3: Info layout (ImageResource::needs_native)
 
 /// gow3: the cache name of a shader's SPIR-V. Shaders that gained multi-wave LDS barriers get a
@@ -592,6 +597,103 @@ void RegisterPipelineData(const GraphicsPipelineKey& key, u64 hash,
                                        fmt::format("g_{:#018x}", hash), ar.TakeOff());
 }
 
+// gow3 21 Oct 2026 (Uncharted 3 museum: a tiled floor drawn flat red on one PC only): a meta and
+// the binary of the same permutation are separate files. On 20 Oct a session rewrote
+// 0x91304408_4.spv with another permutation's code while the rename of its meta failed (the
+// warm-up was reading the old one; only that .meta.tmp was left), and every later start drew the
+// floor with the wrong shader. A meta now carries the hash of the binary written just before it,
+// and a binary that does not match its meta is not used (the permutation compiles again).
+std::mutex g_binary_hash_mutex;
+std::unordered_map<u64, u64> g_binary_hashes; // HashCombine(program, permutation) -> XXH3 of SPIR-V
+
+u64 TakeBinaryHash(u64 perm_hash) {
+    std::scoped_lock lock{g_binary_hash_mutex};
+    const auto it = g_binary_hashes.find(perm_hash);
+    if (it == g_binary_hashes.end()) {
+        return 0;
+    }
+    const u64 hash = it->second;
+    g_binary_hashes.erase(it);
+    return hash;
+}
+
+/// Whether `spv` (the binary named by `pgm_hash`/`perm_idx`) is the one its meta was written
+/// with. Metas of earlier builds have no hash (0): their files must have been written together.
+bool BinaryMatchesMeta(const std::vector<u32>& spv, u64 binary_hash, u64 pgm_hash,
+                       size_t perm_idx) {
+    const auto meta_name = fmt::format("{:#018x}", HashCombine(pgm_hash, u64(perm_idx)));
+    const auto binary_name = Serialization::ShaderBinaryName(pgm_hash, perm_idx);
+    auto& db = Storage::DataBase::Instance();
+    const bool matches =
+        binary_hash != 0 ? XXH3_64bits(spv.data(), spv.size() * sizeof(u32)) == binary_hash
+                         : db.WrittenTogether(Storage::BlobType::ShaderMeta, meta_name,
+                                              Storage::BlobType::ShaderBinary, binary_name);
+    if (!matches) {
+        // Neither file is trusted again: the permutation compiles and saves anew when used.
+        db.Remove(Storage::BlobType::ShaderMeta, meta_name);
+        db.Remove(Storage::BlobType::ShaderBinary, binary_name);
+        static std::atomic<u32> reported{0};
+        if (reported.fetch_add(1, std::memory_order_relaxed) < 32) {
+            std::printf("Pipeline cache: shader %#llx permutation %zu: its binary is not the one "
+                        "its description was written with (%s); compiled again\n",
+                        static_cast<unsigned long long>(pgm_hash), perm_idx,
+                        binary_hash != 0 ? "hash differs" : "written at another time");
+            std::fflush(stdout);
+        }
+    }
+    return matches;
+}
+
+// gow3 21 Oct 2026 (#92, #95): before the compile-storm fix, two compute shaders the three games
+// share (8f067540, 7d7e7206) built a new version for every set of garbage floats in buffer slots
+// they don't use, and the cache kept each one: 1,268 and 383 versions here, 23,845 compute
+// pipelines in one reporter's cache. The warm-up built all of them at every start (332 s in #95;
+// an RX 9070 XT's driver crashed near the end in #92), and none is ever used again: those slots
+// now count as empty. A shader with this many cached versions (normal ones have a few dozen at
+// most, 35 here) is not warmed up and its files are removed; the versions it needs compile on
+// first use and are cached anew.
+constexpr size_t CrowdedShaderVersions = 100;
+// Filled before a warm-up reads the store, then read by the same thread only.
+std::unordered_set<u64> g_crowded_programs;
+
+void FindCrowdedShaders() {
+    g_crowded_programs.clear();
+    auto& db = Storage::DataBase::Instance();
+    std::unordered_map<u64, std::vector<std::string>> binaries;
+    db.ForEachBlobName(Storage::BlobType::ShaderBinary, [&](const std::string& name) {
+        unsigned long long pgm_hash{};
+        if (std::sscanf(name.c_str(), "%llx_", &pgm_hash) == 1) {
+            binaries[pgm_hash].push_back(name);
+        }
+    });
+    for (const auto& [pgm_hash, names] : binaries) {
+        if (names.size() < CrowdedShaderVersions) {
+            continue;
+        }
+        g_crowded_programs.insert(pgm_hash);
+        // Each version's binary, description and compute pipeline key (named by the same hash).
+        for (const auto& name : names) {
+            unsigned long long pgm{};
+            size_t perm_idx{};
+            if (std::sscanf(name.c_str(), "%llx_%zu", &pgm, &perm_idx) != 2) {
+                continue;
+            }
+            const u64 perm_hash = HashCombine(pgm_hash, u64(perm_idx));
+            db.Remove(Storage::BlobType::ShaderBinary, name);
+            db.Remove(Storage::BlobType::ShaderMeta, fmt::format("{:#018x}", perm_hash));
+            db.Remove(Storage::BlobType::PipelineKey, fmt::format("c_{:#018x}", perm_hash));
+        }
+        std::printf("Pipeline cache: shader %#llx has %zu cached versions (left by a compile "
+                    "storm): not warmed up, removed; the ones in use compile again\n",
+                    static_cast<unsigned long long>(pgm_hash), names.size());
+    }
+    std::fflush(stdout);
+}
+
+bool IsCrowdedShader(u64 pgm_hash) {
+    return g_crowded_programs.contains(pgm_hash);
+}
+
 void RegisterShaderMeta(const Shader::Info& info,
                         const std::optional<Shader::Gcn::FetchShaderData>& fetch_shader_data,
                         const Shader::StageSpecialization& spec, size_t perm_hash,
@@ -608,6 +710,7 @@ void RegisterShaderMeta(const Shader::Info& info,
 
     meta.Write(perm_hash);
     meta.Write(perm_idx);
+    meta.Write(TakeBinaryHash(perm_hash));
 
     spec.Serialize(ar);
     info.Serialize(ar);
@@ -621,6 +724,11 @@ void RegisterShaderBinary(std::vector<u32>&& spv, u64 pgm_hash, size_t perm_idx)
         return;
     }
 
+    {
+        std::scoped_lock lock{g_binary_hash_mutex};
+        g_binary_hashes[HashCombine(pgm_hash, u64(perm_idx))] =
+            XXH3_64bits(spv.data(), spv.size() * sizeof(u32));
+    }
     Storage::DataBase::Instance().Save(Storage::BlobType::ShaderBinary,
                                        Serialization::ShaderBinaryName(pgm_hash, perm_idx),
                                        std::move(spv));
@@ -628,12 +736,13 @@ void RegisterShaderBinary(std::vector<u32>&& spv, u64 pgm_hash, size_t perm_idx)
 
 bool LoadShaderMeta(Serialization::Archive& ar, Shader::Info& info,
                     std::optional<Shader::Gcn::FetchShaderData>& fetch_shader_data,
-                    Shader::StageSpecialization& spec, size_t& perm_idx) {
+                    Shader::StageSpecialization& spec, size_t& perm_idx, u64& binary_hash) {
     Serialization::Reader meta{ar};
 
     u32 meta_version{};
     meta.Read(meta_version);
-    if (meta_version != Serialization::ShaderMetaVersion) {
+    if (meta_version != Serialization::ShaderMetaVersion &&
+        meta_version != Serialization::LegacyShaderMetaVersion) {
         return false;
     }
 
@@ -646,6 +755,10 @@ bool LoadShaderMeta(Serialization::Archive& ar, Shader::Info& info,
     u64 perm_hash_ar{};
     meta.Read(perm_hash_ar);
     meta.Read(perm_idx);
+    binary_hash = 0;
+    if (meta_version == Serialization::ShaderMetaVersion) {
+        meta.Read(binary_hash);
+    }
 
     spec.Deserialize(ar);
     info.Deserialize(ar);
@@ -820,7 +933,9 @@ bool PipelineCache::LoadPipelineStage(Serialization::Archive& ar, size_t stage) 
     Shader::StageSpecialization spec{};
     spec.info = &program->info;
     size_t perm_idx{};
-    if (!LoadShaderMeta(ar, program->info, sel.fetch_shader, spec, perm_idx)) {
+    u64 binary_hash{};
+    if (!LoadShaderMeta(ar, program->info, sel.fetch_shader, spec, perm_idx, binary_hash) ||
+        IsCrowdedShader(program->info.pgm_hash)) {
         return false;
     }
 
@@ -828,7 +943,8 @@ bool PipelineCache::LoadPipelineStage(Serialization::Archive& ar, size_t stage) 
     Storage::DataBase::Instance().Load(Storage::BlobType::ShaderBinary,
                                        Serialization::ShaderBinaryName(program->info.pgm_hash, perm_idx),
                                        spv);
-    if (spv.empty()) {
+    if (spv.empty() ||
+        !BinaryMatchesMeta(spv, binary_hash, program->info.pgm_hash, perm_idx)) {
         return false;
     }
 
@@ -900,7 +1016,24 @@ bool PipelineCache::CheckCacheProfile() {
         // and every later session compiled every shader again (stutters on each new area).
         // Start a fresh cache for this build and GPU instead.
         LOG_WARNING(Render, "Pipeline cache isn't compatible with current system: rebuilding it");
-        Storage::DataBase::Instance().Clear();
+        // gow3 21 Oct 2026: a profile of the same build but another GPU (hybrid laptops) is kept
+        // aside instead, and this GPU's own cache comes back if it was kept (SwapCache).
+        if (profile_data.size() == sizeof(Shader::Profile)) {
+            const bool restored = Storage::DataBase::Instance().SwapCache(
+                [&](const std::vector<u8>& data) {
+                    Shader::Profile stored{};
+                    if (data.size() != sizeof(stored)) {
+                        return false;
+                    }
+                    std::memcpy(&stored, data.data(), sizeof(stored));
+                    return stored == profile;
+                });
+            if (restored) {
+                return true;
+            }
+        } else {
+            Storage::DataBase::Instance().Clear();
+        }
         Storage::DataBase::Instance().FinishPreload();
         profile_data.resize(sizeof(profile));
         std::memcpy(profile_data.data(), &profile, sizeof(profile));
@@ -916,6 +1049,7 @@ void PipelineCache::WarmUp(const std::function<void(u32, u32)>& progress) {
         return;
     }
 
+    FindCrowdedShaders();
     u32 num_pipelines{};
     u32 num_total_pipelines{};
     const u32 expected =
@@ -1079,6 +1213,7 @@ bool PipelineCache::StartBackgroundWarmUp() {
     warm.pool->Push([this, &warm] {
         const auto reader_started = std::chrono::steady_clock::now();
         auto& db = Storage::DataBase::Instance();
+        FindCrowdedShaders();
         warm.total = u32(db.CountBlobs(Storage::BlobType::PipelineKey));
         db.ForEachBlob(
             Storage::BlobType::PipelineKey,
@@ -1140,14 +1275,18 @@ void PipelineCache::ReadWarmEntry(BackgroundWarmup& warm, std::vector<u8>&& data
             db.Load(Storage::BlobType::ShaderMeta, fmt::format("{:#018x}", hashes[i]), meta_blob);
             if (!meta_blob.empty()) {
                 Serialization::Archive meta_ar{std::move(meta_blob)};
+                u64 binary_hash{};
                 if (LoadShaderMeta(meta_ar, stage->program->info, stage->fetch, stage->spec,
-                                   stage->perm_idx)) {
+                                   stage->perm_idx, binary_hash) &&
+                    !IsCrowdedShader(stage->program->info.pgm_hash)) {
                     std::vector<u32> spv;
                     db.Load(Storage::BlobType::ShaderBinary,
                             Serialization::ShaderBinaryName(stage->program->info.pgm_hash,
                                                             stage->perm_idx),
                             spv);
-                    if (!spv.empty()) {
+                    if (!spv.empty() && BinaryMatchesMeta(spv, binary_hash,
+                                                          stage->program->info.pgm_hash,
+                                                          stage->perm_idx)) {
                         const auto module_started = std::chrono::steady_clock::now();
                         stage->module = CompileSPV(spv, stage->device);
                         module_time = ElapsedNs(module_started);

@@ -71,8 +71,13 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         }
         return;
     }
-    if (key == "mouse" || key == "mouse_invert") {
-        (key == "mouse" ? v.mouse : v.mouse_invert) = i != 0;
+    if (key == "mouse" || key == "mouse_invert" || key == "mouse_invert_x") {
+        (key == "mouse" ? v.mouse : key == "mouse_invert" ? v.mouse_invert : v.mouse_invert_x) = i != 0;
+        return;
+    }
+    if (key == "mouse_aim_sens" || key == "mouse_vertical") {
+        (key == "mouse_aim_sens" ? v.mouse_aim_sens : v.mouse_vertical) =
+            f > 0.0f ? Clamp(f, 0.1f, 10.0f) : 1.0f;
         return;
     }
     if (key == "mouse_sens") {
@@ -264,6 +269,8 @@ void Load() {
         {"GOW3_PAD_MAP", "pad_map"},                  {"GOW3_KEY_MAP", "key_map"},
         {"GOW3_MOUSE_MAP", "mouse_map"},              {"GOW3_MOUSE", "mouse"},
         {"GOW3_MOUSE_SENS", "mouse_sens"},            {"GOW3_MOUSE_INVERT", "mouse_invert"},
+        {"GOW3_MOUSE_AIM_SENS", "mouse_aim_sens"},    {"GOW3_MOUSE_VERTICAL", "mouse_vertical"},
+        {"GOW3_MOUSE_INVERT_X", "mouse_invert_x"},
         {"GOW3_PROMPTS", "prompts"},                  {"GOW3_STICK_SPEED", "stick_speed"},
     };
     for (const auto& [env, key] : env_keys) {
@@ -421,6 +428,8 @@ KeyValues Current() {
     Append(text, "mouse=%d\nmouse_sens=%.2f\nmouse_invert=%d\nprompts=%s\nstick_speed=%.2f\n",
            int(v.mouse.load()), v.mouse_sens.load(), int(v.mouse_invert.load()), PromptsName(v.prompts),
            v.stick_speed.load());
+    Append(text, "mouse_aim_sens=%.2f\nmouse_vertical=%.2f\nmouse_invert_x=%d\n", v.mouse_aim_sens.load(),
+           v.mouse_vertical.load(), int(v.mouse_invert_x.load()));
     {
         std::scoped_lock lock{ControlsMutex()};
         text += "pad_map=" + v.pad_map + "\nkey_map=" + v.key_map + "\nmouse_map=" + v.mouse_map + "\n";
@@ -507,6 +516,18 @@ extern "C" float gow3gpu_controls_mouse_sens(void) {
 
 extern "C" int gow3gpu_controls_mouse_invert(void) {
     return Gow3Settings::Get().mouse_invert ? 1 : 0;
+}
+
+extern "C" float gow3gpu_controls_mouse_aim_sens(void) {
+    return Gow3Settings::Get().mouse_aim_sens;
+}
+
+extern "C" float gow3gpu_controls_mouse_vertical(void) {
+    return Gow3Settings::Get().mouse_vertical;
+}
+
+extern "C" int gow3gpu_controls_mouse_invert_x(void) {
+    return Gow3Settings::Get().mouse_invert_x ? 1 : 0;
 }
 
 extern "C" float gow3gpu_controls_stick_speed(void) {

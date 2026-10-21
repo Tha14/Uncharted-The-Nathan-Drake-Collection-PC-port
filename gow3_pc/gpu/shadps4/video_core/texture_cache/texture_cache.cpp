@@ -1430,6 +1430,8 @@ void TextureCache::RegisterImage(ImageId image_id) {
     image.flags |= ImageFlagBits::Registered;
     ++registry_generation;
     total_used_memory += Common::AlignUp(image.info.guest_size, 1024);
+    Gow3Stats::image_bytes += Common::AlignUp(image.info.guest_size, 1024);
+    ++Gow3Stats::images_live;
     image.lru_id = lru_cache.Insert(image_id, gc_tick);
     image.lru_touched_tick = gc_tick;
 
@@ -1466,6 +1468,8 @@ void TextureCache::UnregisterImage(ImageId image_id) {
     ++registry_generation;
     lru_cache.Free(image.lru_id);
     total_used_memory -= Common::AlignUp(image.info.guest_size, 1024);
+    Gow3Stats::image_bytes -= Common::AlignUp(image.info.guest_size, 1024);
+    --Gow3Stats::images_live;
     ForEachPage(image.info.guest_address, image.info.guest_size, [this, image_id](u64 page) {
         const auto page_it = page_table.find(page);
         if (page_it == nullptr) {
@@ -1592,7 +1596,31 @@ void TextureCache::UntrackImageTail(ImageId image_id) {
 
 void TextureCache::GarbageCollectImages() {
     Gow3Stats::Timer gc_timer{Gow3Stats::t_gc};
-    if (instance.CanReportMemoryUsage()) {
+    // gow3 20 Oct 2026 (idle CPU): the usage and the budget below were read from the driver
+    // (two vkGetPhysicalDeviceMemoryProperties2 calls, each a kernel query) on every submission.
+    // While the last reading was below the trigger level they are now read at most every 100 ms;
+    // in between the usage is that reading plus the images allocated and freed since (as
+    // total_used_memory counts them). Once that estimate reaches the trigger level, or while the
+    // last reading was at or above it, they are read on every call as before: the collector
+    // only ever runs on a fresh reading and decides the same evictions.
+    // GOW3_GC_BUDGET_CACHE=0: read on every call.
+    static const bool cache_readings = [] {
+        const char* env = std::getenv("GOW3_GC_BUDGET_CACHE");
+        const bool on = !(env && env[0] == '0');
+        std::printf("Texture cache: memory budget read %s\n",
+                    on ? "every 100 ms below the collection level "
+                         "(GOW3_GC_BUDGET_CACHE=0: every submission)"
+                       : "every submission (GOW3_GC_BUDGET_CACHE=0)");
+        return on;
+    }();
+    static auto next_reading = std::chrono::steady_clock::time_point{};
+    static bool reading_above_trigger = true;
+    bool read_usage = instance.CanReportMemoryUsage();
+    if (read_usage && cache_readings && !reading_above_trigger &&
+        total_used_memory < trigger_gc_memory && std::chrono::steady_clock::now() < next_reading) {
+        read_usage = false;
+    }
+    if (read_usage) {
         total_used_memory = instance.GetDeviceMemoryUsage();
         // gow3: on integrated GPUs (Steam Deck) the usage covers system-memory heaps holding
         // much more than images (buffers backing guest memory), and the startup budget left
@@ -1620,6 +1648,10 @@ void TextureCache::GarbageCollectImages() {
                 pressure_gc_memory = budget / 100 * 85;
                 critical_gc_memory = budget / 100 * 95;
             }
+        }
+        reading_above_trigger = total_used_memory >= trigger_gc_memory;
+        if (cache_readings) {
+            next_reading = std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
         }
     }
     if (total_used_memory < trigger_gc_memory) {

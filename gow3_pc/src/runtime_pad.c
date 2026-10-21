@@ -118,6 +118,7 @@ static void play_click(PadData *d) {
     if (now>=down && now<up) d->buttons|=BTN_TOUCHPAD;
 }
 
+static void apply_light_bar(SDL_Gamepad *g);
 /* Opens the first gamepad SDL knows about; called under lock. */
 static SDL_Gamepad *current_gamepad(void) {
     if (!sdl_ready) sdl_ready = SDL_WasInit(SDL_INIT_GAMEPAD) ? 1 : SDL_InitSubSystem(SDL_INIT_GAMEPAD) ? 1 : -1;
@@ -128,7 +129,10 @@ static SDL_Gamepad *current_gamepad(void) {
         SDL_JoystickID *ids=SDL_GetGamepads(&count);
         if (ids && count>0) {
             gamepad=SDL_OpenGamepad(ids[0]);
-            if (gamepad) { ++connected_count; printf("Runtime: gamepad connected: %s\n",SDL_GetGamepadName(gamepad)); }
+            if (gamepad) {
+                ++connected_count; printf("Runtime: gamepad connected: %s\n",SDL_GetGamepadName(gamepad));
+                apply_light_bar(gamepad);
+            }
         }
         SDL_free(ids);
     }
@@ -477,10 +481,22 @@ static void key_axis(uint8_t *axis, bool negative, bool positive) {
  * the mouse's speed (pixels per ms, smoothed over ~25 ms), starts past the games' stick dead
  * zone so slow movements turn the camera too, and lets go when the mouse rests. */
 /* Returns 1 when the mouse was used (moved or a button held while captured). */
+static int pad_aim_held;
+static int mouse_look_debug(void) {
+    static int debug=-1;
+    if (debug<0) { const char *e=getenv("GOW3_MOUSE_LOOK_DEBUG"); debug=e && e[0]=='1'; }
+    return debug;
+}
+int runtime_pad_aim_held(void) { return __atomic_load_n(&pad_aim_held,__ATOMIC_RELAXED); }
 static int sample_mouse(PadData *d) {
     if (!mouse_enabled()) return 0;
-    const float sensitivity=controls.mouse_sens>0.0f ? controls.mouse_sens : 1.0f;
+    /* 20 Oct 2026: the aim sensitivity while aiming, the up/down speed and the left/right invert
+     * (the mouse look handlers apply the same). */
+    const float aim=runtime_pad_aim_held() ? gow3gpu_controls_mouse_aim_sens() : 1.0f;
+    const float vertical=gow3gpu_controls_mouse_vertical();
+    const float sensitivity=(controls.mouse_sens>0.0f ? controls.mouse_sens : 1.0f)*(aim>0.0f ? aim : 1.0f);
     const float invert=controls.mouse_invert ? -1.0f : 1.0f;
+    const float invert_x=gow3gpu_controls_mouse_invert_x() ? -1.0f : 1.0f;
     float dx=0, dy=0; unsigned held=0;
     const int captured=gow3gpu_mouse_take(&dx,&dy,&held);
     const int used=captured && (held || fabsf(dx)+fabsf(dy)>2.0f);
@@ -497,12 +513,41 @@ static int sample_mouse(PadData *d) {
     vx+=(dx/dt-vx)*blend;
     vy+=(dy/dt-vy)*blend;
     if (!captured || now-last_motion>60000) { vx=vy=0; return used; }
-    /* Mouse look drives the game's camera directly (src/runtime_mouselook.c): no stick. */
-    if (gow3gpu_mouse_look_recent()) { vx=vy=0; return used; }
-    float sx=vx*sensitivity*0.12f, sy=vy*sensitivity*0.12f*invert;
+    /* Mouse look drives the game's camera directly (src/runtime_mouselook.c): no stick. While
+     * aiming the games turn their aim cameras by the right stick, so the mouse is the stick then
+     * (20 Oct 2026: the follow camera's hook kept being called while aiming, which switched this
+     * path off most of the time: aiming with the mouse was choppy). */
+    const int aiming=runtime_pad_aim_held();
+    /* The follow camera's hook turns the camera directly only while that camera runs at every pad
+     * read (the last 4); climbing, hanging, scripted and aim cameras read the stick, and the hook
+     * may still be called now and then for a camera not on screen (20 Oct 2026: the mouse looked
+     * stuck there behind the old 200 ms rule). Otherwise the mouse is the stick and the hook gets
+     * nothing, so it never turns twice. */
+    static unsigned seen_calls, history;
+    const unsigned calls=gow3gpu_mouse_look_calls();
+    history=((history<<1)|(calls!=seen_calls ? 1u : 0u))&15u;
+    seen_calls=calls;
+    const int direct=!aiming && history==15u;
+    gow3gpu_mouse_look_pause(!direct);
+    if (mouse_look_debug()) {
+        static uint64_t debug_last; static unsigned reads, direct_reads;
+        ++reads; direct_reads+=direct;
+        if (now-debug_last>=1000000) {
+            printf("Mouse debug: %u pad reads, %u with the camera hook (direct), aiming %d, stick %.2f %.2f\n",
+                   reads,direct_reads,aiming,vx,vy);
+            fflush(stdout);
+            debug_last=now; reads=direct_reads=0;
+        }
+    }
+    if (direct) { vx=vy=0; return used; }
+    /* The games turn at about (deflection past a ~0.15 dead zone)^1.5 of their full speed. The
+     * deflection is the inverse of that, so the turn follows the mouse's speed evenly (the linear
+     * mapping before turned slow movements too little and fast ones too much). */
+    float sx=vx*sensitivity*0.08f*invert_x, sy=vy*sensitivity*0.08f*invert*(vertical>0.0f ? vertical : 1.0f);
     const float magnitude=sqrtf(sx*sx+sy*sy);
     if (magnitude<0.002f) return used;
-    const float out=magnitude+0.15f>1.0f ? 1.0f : magnitude+0.15f;
+    const float shaped=powf(magnitude>1.0f ? 1.0f : magnitude,2.0f/3.0f);
+    const float out=0.15f+0.85f*shaped>1.0f ? 1.0f : 0.15f+0.85f*shaped;
     sx*=out/magnitude; sy*=out/magnitude;
     d->right_x=(uint8_t)(sx<-1.0f ? 0 : sx>1.0f ? 255 : (int)(128.0f+sx*127.0f));
     d->right_y=(uint8_t)(sy<-1.0f ? 0 : sy>1.0f ? 255 : (int)(128.0f+sy*127.0f));
@@ -562,6 +607,7 @@ static void sample_host(PadData *d) {
     }
     if (sample_mouse(d)) keyboard_used=1;
     if (d->buttons & BTN_L2) d->l2=255;
+    __atomic_store_n(&pad_aim_held,(d->buttons & BTN_L2) || d->l2>30,__ATOMIC_RELAXED);
     if (d->buttons & BTN_R2) d->r2=255;
     prompt_activity.keyboard=keyboard_used;
     prompt_activity.gamepad=gamepad_used;
@@ -576,6 +622,7 @@ static void sample_host(PadData *d) {
  * button icons follow, see update_prompt_device). An empty file releases everything. */
 static struct { uint32_t buttons; int stick[4]; float mouse[2]; int kbm, pad; } injected={0,{-1,-1,-1,-1},{0,0},0,0};
 static int replay_armed;      /* 1 while a GOW3_PAD_REPLAY recording plays, 2 once it ended */
+static int record_armed;      /* GOW3_PAD_RECORD: 1 after the token "record", 2 once recording */
 static uint64_t replay_start; /* 0: (re)start at the next sample */
 static void read_inject(void) {
     static const char *path; static int checked; static uint64_t last_check; static struct timespec mtime;
@@ -604,6 +651,7 @@ static void read_inject(void) {
     char token[64];
     while (fscanf(f,"%63s",token)==1) {
         if (!strcmp(token,"replay") && replay_armed!=1) { replay_armed=1; replay_start=0; } /* GOW3_PAD_REPLAY */
+        if (!strcmp(token,"record") && record_armed==0) record_armed=1; /* GOW3_PAD_RECORD */
         for (size_t i=0;i<sizeof(ps_names)/sizeof(*ps_names);++i) if (!strcmp(token,ps_names[i].name)) injected.buttons|=ps_names[i].ps;
         for (int i=0;i<4;++i) if (!strncmp(token,sticks[i],3)) { int v=atoi(token+3); injected.stick[i]=v<0 ? 0 : v>255 ? 255 : v; }
         if (!strncmp(token,"mx=",3)) injected.mouse[0]=(float)atof(token+3);
@@ -618,7 +666,10 @@ static void read_inject(void) {
 /* GOW3_PAD_RECORD=<file>: F9 starts and stops recording the pad state (gamepad or keyboard) with
  * the time since F9; GOW3_PAD_REPLAY=<file> plays such a recording back, started by the token
  * "replay" in GOW3_PAD_FILE (scripted tests repeat a route the player ran once). Lines: ms buttons
- * lx ly rx ry l2 r2, written when the state changes. */
+ * lx ly rx ry l2 r2, written when the state changes.
+ * 21 Oct 2026: the token "record" in GOW3_PAD_FILE arms it instead: the recording starts at the
+ * player's first stick or button input (time 0 = that input) and lasts until the game ends; F9
+ * does nothing then. A test script arms it when the level runs, as it starts a replay. */
 typedef struct { uint32_t ms, buttons; uint8_t axes[4], l2, r2; } PadSample;
 static FILE *record_file;
 static uint64_t record_start;
@@ -627,8 +678,18 @@ static void record_sample(const PadData *d) {
     static const char *path; static int checked, f9_was_down;
     if (!checked) { path=getenv("GOW3_PAD_RECORD"); checked=1; }
     if (!path || !*path || !sdl_ready) return;
+    if (record_armed==1 && !record_file) {
+        const int moved=d->buttons || abs(d->left_x-128)>24 || abs(d->left_y-128)>24 ||
+                        abs(d->right_x-128)>24 || abs(d->right_y-128)>24 || d->l2>32 || d->r2>32;
+        if (moved && (record_file=fopen(path,"w"))) {
+            record_armed=2;
+            record_start=now_us();
+            memset(&record_last,0xff,sizeof(record_last));
+            printf("Runtime: pad recording started at the first input (%s)\n",path);
+        }
+    }
     const bool *k=SDL_GetKeyboardState(NULL);
-    const int f9=k && k[SDL_SCANCODE_F9];
+    const int f9=k && k[SDL_SCANCODE_F9] && !record_armed;
     if (f9 && !f9_was_down) {
         if (record_file) {
             fclose(record_file); record_file=NULL;
@@ -697,6 +758,8 @@ static void sample(PadData *d) {
     d->buttons|=injected.buttons;
     if (injected.buttons & BTN_L2) d->l2=255;
     if (injected.buttons & BTN_R2) d->r2=255;
+    /* Aiming also when the pad file or a replay holds L2 (sample_host saw only the devices). */
+    if (d->buttons & BTN_L2) __atomic_store_n(&pad_aim_held,1,__ATOMIC_RELAXED);
     uint8_t *axes[4]={&d->left_x,&d->left_y,&d->right_x,&d->right_y};
     for (int i=0;i<4;++i) if (injected.stick[i]>=0) *axes[i]=(uint8_t)injected.stick[i];
     {
@@ -787,12 +850,40 @@ static ABI int32_t pad_vibration(int32_t handle, const uint8_t *param) {
 static ABI int32_t pad_ok_handle(int32_t handle) { return handle==PAD_HANDLE && opened ? 0 : ERR_INVALID_HANDLE; }
 static ABI int32_t pad_ok_handle_flag(int32_t handle, uint8_t flag) { (void)flag; return pad_ok_handle(handle); }
 
+/* The light bar colour the game sets (DualShock 4 / DualSense through SDL); kept for a gamepad
+   connected later. scePadResetLightBar goes back to the PS4's player 1 blue. */
+static uint8_t light_bar[3]={0,0,255};
+static int light_bar_set;
+static void apply_light_bar(SDL_Gamepad *g) {
+    if (g && light_bar_set) SDL_SetGamepadLED(g,light_bar[0],light_bar[1],light_bar[2]);
+}
+static void set_light_bar(uint8_t r, uint8_t g, uint8_t b) {
+    static uint32_t seen[16]; static int seen_count;
+    const uint32_t rgb=(uint32_t)r<<16 | (uint32_t)g<<8 | b;
+    int known=0;
+    for (int i=0;i<seen_count;++i) known|=seen[i]==rgb;
+    if (!known && seen_count<16) {
+        seen[seen_count++]=rgb;
+        printf("Runtime: light bar colour %06x\n",rgb);
+    }
+    pthread_mutex_lock(&lock);
+    light_bar[0]=r; light_bar[1]=g; light_bar[2]=b; light_bar_set=1;
+    apply_light_bar(current_gamepad());
+    pthread_mutex_unlock(&lock);
+}
 static ABI int32_t pad_light_bar(int32_t handle, const uint8_t *rgb) {
     if (handle!=PAD_HANDLE || !opened) return ERR_INVALID_HANDLE;
-    (void)rgb; return 0;
+    if (!rgb) return ERR_INVALID_ARG;
+    set_light_bar(rgb[0],rgb[1],rgb[2]);
+    return 0;
+}
+static ABI int32_t pad_reset_light_bar(int32_t handle) {
+    if (handle!=PAD_HANDLE || !opened) return ERR_INVALID_HANDLE;
+    set_light_bar(0,0,255);
+    return 0;
 }
 static const RuntimeExport exports[]={
-    {"scePadSetLightBar",pad_light_bar}, {"scePadResetLightBar",pad_ok_handle},
+    {"scePadSetLightBar",pad_light_bar}, {"scePadResetLightBar",pad_reset_light_bar},
     {"scePadInit",pad_init}, {"scePadOpen",pad_open}, {"scePadClose",pad_close},
     {"scePadReadState",pad_read_state}, {"scePadRead",pad_read},
     {"scePadGetControllerInformation",pad_info}, {"scePadSetVibration",pad_vibration},

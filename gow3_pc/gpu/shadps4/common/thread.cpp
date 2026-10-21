@@ -3,6 +3,8 @@
 // SPDX-FileCopyrightText: Copyright 2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstdio>
+#include <cstdlib>
 #include <ctime>
 #include <string>
 #include <thread>
@@ -107,6 +109,31 @@ void SetCurrentThreadPriority(ThreadPriority new_priority) {
     SetThreadPriority(handle, windows_priority);
 }
 
+#ifndef CREATE_WAITABLE_TIMER_MANUAL_RESET
+#define CREATE_WAITABLE_TIMER_MANUAL_RESET 0x00000001
+#endif
+#ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
+#define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
+#endif
+
+// gow3 20 Oct 2026 (idle CPU): AccurateSleep uses one high-resolution waitable timer per thread,
+// reused (as compat_sleep_ns). A new plain timer per call cost two kernel object calls per sleep
+// and woke only on the system timer's tick (1 ms at best, 15.6 ms when no process raised the
+// resolution); AccurateTimer (the vblank thread) made up for the late wake-ups with shorter
+// sleeps later, so the average period is the same either way. Before Windows 10 1803: a plain
+// timer per thread. GOW3_HR_SLEEP=0: a new plain timer per call, as before.
+static bool HighResolutionSleeps() {
+    static const bool on = [] {
+        const char* env = std::getenv("GOW3_HR_SLEEP");
+        const bool hr = !(env && env[0] == '0');
+        std::printf("Timers: %s\n",
+                    hr ? "high-resolution sleeps (GOW3_HR_SLEEP=0: plain timer per sleep)"
+                       : "plain timer per sleep (GOW3_HR_SLEEP=0)");
+        return hr;
+    }();
+    return on;
+}
+
 bool AccurateSleep(const std::chrono::nanoseconds duration, std::chrono::nanoseconds* remaining,
                    const bool interruptible) {
     const auto begin_sleep = std::chrono::high_resolution_clock::now();
@@ -114,10 +141,31 @@ bool AccurateSleep(const std::chrono::nanoseconds duration, std::chrono::nanosec
     LARGE_INTEGER interval{
         .QuadPart = -1 * (duration.count() / 100u),
     };
-    HANDLE timer = ::CreateWaitableTimer(NULL, TRUE, NULL);
+    // Not closed when the thread ends: AccurateTimer runs on long-lived threads only.
+    thread_local HANDLE thread_timer = nullptr;
+    HANDLE timer = nullptr;
+    if (HighResolutionSleeps()) {
+        if (!thread_timer) {
+            thread_timer = ::CreateWaitableTimerExW(
+                NULL, NULL,
+                CREATE_WAITABLE_TIMER_MANUAL_RESET | CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+                TIMER_ALL_ACCESS);
+            if (!thread_timer) {
+                thread_timer = ::CreateWaitableTimer(NULL, TRUE, NULL);
+            }
+        }
+        timer = thread_timer;
+    }
+    const bool owned = timer == nullptr;
+    if (owned) {
+        timer = ::CreateWaitableTimer(NULL, TRUE, NULL);
+    }
+    // Setting a timer again clears its signaled state (a reused timer's last expiry).
     SetWaitableTimer(timer, &interval, 0, NULL, NULL, 0);
     const auto ret = WaitForSingleObjectEx(timer, INFINITE, interruptible);
-    ::CloseHandle(timer);
+    if (owned) {
+        ::CloseHandle(timer);
+    }
 
     if (remaining) {
         const auto end_sleep = std::chrono::high_resolution_clock::now();
@@ -225,7 +273,11 @@ void SetThreadName(void* thread, const char* name) {
 #endif
 
 AccurateTimer::AccurateTimer(std::chrono::nanoseconds target_interval)
-    : target_interval(target_interval) {}
+    : target_interval(target_interval) {
+#ifdef _WIN32
+    HighResolutionSleeps(); // gow3: logs the sleep mode at startup (the vblank thread's timer)
+#endif
+}
 
 void AccurateTimer::Start() {
     const auto begin_sleep = std::chrono::high_resolution_clock::now();

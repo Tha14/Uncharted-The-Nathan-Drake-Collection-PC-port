@@ -4,9 +4,15 @@
 #include "gow3_profiler.h"
 #include <thread>
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <map>
+#include <mutex>
 #include <unordered_map>
+#include <vector>
+#include <fmt/format.h>
 #ifndef _WIN32
 #include <dlfcn.h>
 #endif
@@ -29,7 +35,8 @@ namespace Vulkan {
 std::mutex Scheduler::submit_mutex;
 
 Scheduler::Scheduler(const Instance& instance, bool threaded_recording)
-    : instance{instance}, work_semaphore{instance}, command_pool{instance, &work_semaphore} {
+    : instance{instance}, work_semaphore{instance}, command_pool{instance, &work_semaphore},
+      count_lock_waits{threaded_recording} {
     // gow3: GOW3_VK_RECORD_THREAD=0 records on the calling thread.
     const char* env = std::getenv("GOW3_VK_RECORD_THREAD");
     const char* checkpoints = std::getenv("GOW3_GPU_CHECKPOINTS");
@@ -228,6 +235,16 @@ void Scheduler::WaitHostCopies() {
             std::this_thread::yield();
         }
     }
+    // gow3 20 Oct 2026 (idle CPU): nothing on the copy threads and nothing batched by this
+    // thread (the common case): no clock reads for the statistics and no pool mutex. The
+    // recorder's copies are ordered by the acquire loads of host_copies_done above (released
+    // after each copy); the copy threads' by Gow3Copy::Idle's acquire load, which pairs with the
+    // pool's release store made once the last task and its AfterCopies callbacks had run. The
+    // caller's guest-visible write that follows therefore comes after every copy, as with
+    // WaitAsync. GOW3_COPY_WAIT_BLOCK=0: Idle() is false, WaitAsync as before.
+    if (Gow3Copy::Idle()) {
+        return;
+    }
     Gow3Stats::WaitTimer timer{Gow3Stats::copy_threads_wait_ns};
     Gow3Copy::WaitAsync();
 }
@@ -336,8 +353,68 @@ void Scheduler::Flush() {
 
 #ifdef _WIN32
 extern "C" char __ImageBase;
+extern "C" __declspec(dllimport) unsigned short __stdcall RtlCaptureStackBackTrace(
+    unsigned long frames_to_skip, unsigned long frames_to_capture, void** back_trace,
+    unsigned long* back_trace_hash);
 #endif
 namespace {
+// gow3 21 Oct 2026 (GPU worker): GOW3_SUBMIT_STATS=1 (diagnostics) - the draw scheduler's
+// submissions per 5 s by call stack: image offsets of the callers above SubmitExecution
+// (llvm-symbolizer --obj=gow3-probe.exe 0x140000000+offset). On integrated GPUs every
+// submission leaves the GPU idle while the next one is scheduled.
+constexpr unsigned long SubmitStackDepth = 6;
+using SubmitStack = std::array<u64, SubmitStackDepth>;
+bool SubmitStatsEnabled() {
+    static const bool on = [] {
+        const char* env = std::getenv("GOW3_SUBMIT_STATS");
+        return env && env[0] == '1';
+    }();
+    return on;
+}
+/// The callers above SubmitExecution as image offsets (zeros where the stack ends).
+SubmitStack NoteSubmitCaller() {
+    SubmitStack key{};
+#ifdef _WIN32
+    if (!SubmitStatsEnabled()) {
+        return key;
+    }
+    constexpr unsigned long Depth = SubmitStackDepth;
+    void* frames[Depth]{};
+    const unsigned n = RtlCaptureStackBackTrace(2, Depth, frames, nullptr);
+    for (unsigned i = 0; i < n && i < Depth; ++i) {
+        key[i] = reinterpret_cast<u64>(frames[i]) - reinterpret_cast<u64>(&__ImageBase);
+    }
+    static std::mutex mutex;
+    static std::map<std::array<u64, Depth>, u32> counts;
+    static u64 total = 0;
+    static auto last = std::chrono::steady_clock::now();
+    std::scoped_lock lock{mutex};
+    ++counts[key];
+    ++total;
+    if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::seconds{5}) {
+        last = now;
+        std::vector<std::pair<u32, std::array<u64, Depth>>> order;
+        for (const auto& [stack, count] : counts) {
+            order.emplace_back(count, stack);
+        }
+        std::ranges::sort(order, std::greater{});
+        std::printf("Submit stats (5 s): %llu draw-scheduler submissions\n",
+                    static_cast<unsigned long long>(total));
+        for (size_t i = 0; i < std::min<size_t>(order.size(), 8); ++i) {
+            std::printf("  %u x", order[i].first);
+            for (const u64 offset : order[i].second) {
+                std::printf(" %#llx", static_cast<unsigned long long>(offset));
+            }
+            std::printf("\n");
+        }
+        std::fflush(stdout);
+        counts.clear();
+        total = 0;
+    }
+#endif
+    return key;
+}
+
 struct GpuCheckpoint { const char* operation{}; u64 first{},second{},sequence{}; };
 std::array<GpuCheckpoint,65536> gpu_checkpoints;
 std::atomic<u64> checkpoint_index{};
@@ -483,6 +560,7 @@ void Scheduler::AllocateWorkerCommandBuffers() {
 
     current_cmdbuf = command_pool.Commit();
     Check(current_cmdbuf.begin(begin_info));
+    ++record_serial; // gow3: a new command buffer binds nothing (RecordSerial)
 
     // Invalidate dynamic state so it gets applied to the new command buffer.
     dynamic_state.Invalidate();
@@ -498,8 +576,18 @@ void Scheduler::AllocateWorkerCommandBuffers() {
 }
 
 void Scheduler::SubmitExecution(SubmitInfo& info) {
-    std::scoped_lock lk{submit_mutex};
+    std::unique_lock lk{submit_mutex, std::try_to_lock};
+    if (!lk.owns_lock()) {
+        if (count_lock_waits) {
+            Gow3Stats::WaitTimer timer{Gow3Stats::submit_lock_ns};
+            lk.lock();
+        } else {
+            lk.lock();
+        }
+    }
     const u64 signal_value = work_semaphore.NextTick();
+    // the draw scheduler's callers (GOW3_SUBMIT_STATS)
+    const SubmitStack submit_stack = count_lock_waits ? NoteSubmitCaller() : SubmitStack{};
 
 #if TRACY_GPU_ENABLED
     auto* profiler_ctx = instance.GetProfilerContext();
@@ -516,7 +604,22 @@ void Scheduler::SubmitExecution(SubmitInfo& info) {
     EndRendering();
     if (auto* profiler = GpuProfiler::Get(); profiler && profiler->Records(this)) {
         // Until the next submission's first timestamp: mostly the GPU waiting for it.
-        profiler->Mark(0x5B317ull, [] { return std::string{"(between submissions: GPU idle)"}; });
+        // GOW3_SUBMIT_STATS=1: one label per submitting call stack (which submissions leave
+        // the GPU idle).
+        u64 key = 0x5B317ull;
+        for (const u64 offset : submit_stack) {
+            key = (key ^ offset) * 0x100000001B3ull;
+        }
+        profiler->Mark(key, [&] {
+            std::string text{"(between submissions: GPU idle)"};
+            if (submit_stack[0]) {
+                text += " after";
+                for (const u64 offset : submit_stack) {
+                    text += fmt::format(" {:#x}", offset);
+                }
+            }
+            return text;
+        });
     }
     SyncRecording();
     // Guest memory copies into staging read by this submission (copy threads).

@@ -37,6 +37,12 @@ void FlushBatch();
 /// has finished.
 void WaitAsync();
 
+/// gow3 20 Oct 2026: true when WaitAsync() would have nothing to do: the calling thread's batch
+/// is empty and every task passed to Async() has finished, AfterCopies callbacks included. No
+/// lock; acquire ordering, so the tasks' writes are visible to the caller when it returns true.
+/// Always false with GOW3_COPY_WAIT_BLOCK=0 (callers then take the old path).
+bool Idle();
+
 /// Starts the calling thread's batch and runs `callback` once every task passed to Async() so
 /// far has finished (at once when none is pending), on whichever thread finishes last.
 /// Callbacks run in the order they were registered.

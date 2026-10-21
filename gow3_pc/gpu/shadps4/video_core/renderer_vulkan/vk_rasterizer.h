@@ -316,6 +316,11 @@ private:
         std::array<TextureSetEntry, MaxImages> entries{};
     };
     std::array<TextureSet, 32768> texture_sets{};
+    /// gow3 21 Oct 2026 (GOW3_CPU_TRIMS=1): BindTextures' resolved set, reused (only the entries
+    /// of the stage's images are reset; the GPU command thread alone memoizes sets).
+    std::array<TextureSetEntry, TextureSet::MaxImages> texture_set_scratch{};
+    /// gow3 21 Oct 2026 diagnostics (GOW3_FAULT_TIMES=1): see OnWriteFault.
+    static void NoteWriteFaultTime(VAddr addr, bool gpu_side, const std::array<u64, 5>& steps);
     u64 texture_set_hits = 0, texture_set_misses = 0;
     std::array<u64, 4> texture_set_why{}; ///< misses: other key, generation, image check, new
     /// Returns true when the stage's images were bound from the memo.
@@ -564,6 +569,9 @@ private:
         std::vector<SrtCopy> copies;
     };
     std::unordered_map<const void*, SrtPlan> srt_plans;
+    /// gow3: recent walkers and their plans (SrtPlanFor).
+    static constexpr u32 SrtPlanMemoSize = 32;
+    std::array<std::pair<const void*, const SrtPlan*>, SrtPlanMemoSize> srt_plan_memo{};
     const SrtPlan& SrtPlanFor(const Shader::Info& info);
     /// Guest address of each plan table for this user data (0: unknown), without downloads.
     void ResolveSrtTables(const SrtPlan& plan, const Shader::Info& info, VAddr* address);
@@ -572,6 +580,16 @@ public:
     /// `flat_dw` from for this user data (0: unknown) and what the caches know about it.
     VAddr SrtSourceAddress(Shader::PFN_SrtWalker walker, size_t walker_size,
                            std::span<const u32> user_data, u32 flat_dw, const char** kind);
+    /// gow3 diagnostics (GOW3_SRT_CHECK, 21 Oct 2026): the draw whose resource tables are being
+    /// walked (colour target 0, depth target, index buffer, index count), so a table the game
+    /// completed late can be matched to a pass and a mesh of a frame capture.
+    struct SrtDrawContext {
+        VAddr color0;
+        VAddr depth;
+        VAddr index;
+        u32 num_indices;
+    };
+    SrtDrawContext CurrentDrawContext() const;
 
 private:
     /// Diagnostics for a garbage V#: where the walker took flattened dword `flat_dw` from.
@@ -582,11 +600,17 @@ private:
     void SyncDmaMemory(const Shader::Info* stage);
     /// VS of the draw whose dynamic state is being set (diagnostic overrides).
     mutable u32 dynamic_vs_hash = 0;
+    /// gow3 21 Oct 2026: its pixel shader (GOW3_DEPTH_PROBE_FILE shader filter).
+    mutable u32 dynamic_ps_hash = 0;
     static inline std::atomic<bool> shadow_clear_far{false};
     static inline std::atomic<bool> depth16_clear_one{false};
     static inline std::atomic<bool> depth_bias_off{false};
     bool attachment_feedback_loop{};
     bool needs_barrier{};
+    /// gow3 (GOW3_SKIP_COMPUTE_REBIND): the compute pipeline the last DispatchRecord bound and
+    /// the scheduler's RecordSerial() right after its dispatch.
+    vk::Pipeline bound_compute_pipeline{};
+    u64 bound_compute_serial = ~u64{0};
     // gow3: two-stage draw pipeline (stage B state; the thread is the last member so it
     // stops first).
     static inline thread_local const AmdGpu::Regs* stage_regs = nullptr;
@@ -610,10 +634,26 @@ private:
     std::vector<PendingWrite> pending_writes;
     VAddr pending_min = ~VAddr{0}, pending_max = 0; ///< bounds of pending_writes
     u32 pending_checks = 0;
+    /// gow3 21 Oct 2026 (GOW3_PIPE_WRITE_END): writes noted for the packet PostDraw is building
+    /// take this position until it is committed (then its end: stage B has run it once there).
+    static constexpr u64 PendingUncommitted = ~u64{0};
+    bool noting_packet = false;
+    std::vector<u32> uncommitted_indices; ///< pending_writes entries to set at the commit
+    /// gow3 21 Oct 2026 (GOW3_SRT_PENDING_DRAIN): destinations of the copy shaders stage B runs
+    /// (scalar copy HLE etc.), which the next draws' resource tables read. Small (they merge).
+    bool noting_copy = false, copy_uncommitted = false;
+    std::vector<PendingWrite> pending_copy_writes;
+    VAddr copy_min = ~VAddr{0}, copy_max = 0;
+    bool PendingCopyWriteOverlaps(VAddr address, u64 size);
+    /// gow3 21 Oct 2026 (GOW3_SRT_PENDING_DRAIN): walks that drained the pipe for a pending write.
+    u64 srt_pending_drains = 0, srt_pending_changed = 0, srt_pending_zero = 0, srt_pending_ns = 0;
     u64 proxy_samples = 0; ///< texture bindings that read a scene proxy (statistics)
     float sampler_lod_bias = 0.0f; ///< gow3: extra bias of this draw's samplers
     bool scene_debug_frame = false; ///< GOW3_SCENE_DEBUG: this frame's passes are printed
     bool PendingWriteOverlaps(VAddr address, u64 size);
+    /// gow3 21 Oct 2026: stage A waits until stage B has run the packets that write the range
+    /// (`writes`; not the whole pipe: the work queued after them keeps stage B busy meanwhile).
+    void WaitPendingWrites(const std::vector<PendingWrite>& writes, VAddr address, u64 size);
     /// Stage B: the ring bindings of the stages of the packet being recorded.
     struct RingStage {
         const Shader::Info* info;

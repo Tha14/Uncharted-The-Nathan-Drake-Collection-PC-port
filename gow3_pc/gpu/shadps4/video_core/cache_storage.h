@@ -34,6 +34,16 @@ public:
     void FinishPreload();
     /// gow3: removes every cached blob (an incompatible cache is rebuilt, not ignored).
     void Clear();
+    /// gow3: puts the current cache aside (it belongs to another GPU) and moves back a cache put
+    /// aside earlier whose stored profile `matches`. True when one was moved back; otherwise the
+    /// cache starts empty.
+    bool SwapCache(const std::function<bool(const std::vector<u8>&)>& matches);
+    /// gow3: whether two blobs were written by the same save (within seconds of each other, no
+    /// write of either left unfinished): a pair that is not was half replaced by a later session.
+    [[nodiscard]] bool WrittenTogether(BlobType type_a, const std::string& name_a,
+                                       BlobType type_b, const std::string& name_b) const;
+    /// gow3: deletes a blob, in order with the saves queued before it.
+    void Remove(BlobType type, const std::string& name);
 
     bool Save(BlobType type, const std::string& name, std::vector<u8>&& data);
     bool Save(BlobType type, const std::string& name, std::vector<u32>&& data);
@@ -49,6 +59,8 @@ public:
     [[nodiscard]] bool ConcurrentReads() const;
     /// gow3: number of blobs ForEachBlob visits (the loading screen's total).
     size_t CountBlobs(BlobType type);
+    /// gow3: the names of the blobs of a type (as Load takes them), without reading them.
+    void ForEachBlobName(BlobType type, const std::function<void(const std::string& name)>& func);
 
 private:
     std::jthread io_worker{};

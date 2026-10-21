@@ -37,6 +37,7 @@
 #include "video_core/amdgpu/pm4_cmds.h"
 #include "video_core/renderdoc.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
+#include "video_core/renderer_vulkan/vk_runtime.h" // gow3: GOW3_READBACK_WAKE (scheduler)
 
 namespace AmdGpu {
 
@@ -240,8 +241,16 @@ void Liverpool::ProcessCommands() {
         Common::UniqueFunction<void> callback{};
         {
             std::scoped_lock lk{submit_mutex};
-            callback = std::move(command_queue.front());
-            command_queue.pop();
+            // gow3 21 Oct 2026 (GOW3_WAIT_SERVICES_FAULTS=1): fault requests have a queue of
+            // their own (empty otherwise).
+            if (!fault_queue.empty()) {
+                callback = std::move(fault_queue.front());
+                fault_queue.pop();
+                --num_fault_commands;
+            } else {
+                callback = std::move(command_queue.front());
+                command_queue.pop();
+            }
             --num_commands;
         }
         // gow3: commands touch the caches and land readbacks, which the draw recording thread
@@ -252,8 +261,48 @@ void Liverpool::ProcessCommands() {
         if (rasterizer) {
             rasterizer->DrainDrawPipe(Vulkan::DrawPipe::ReasonCommands);
         }
+        ++command_depth;
         callback();
+        --command_depth;
     }
+}
+
+// gow3 21 Oct 2026 (GOW3_WAIT_SERVICES_FAULTS=1): see liverpool.h. Only fault requests (they
+// read or write the caches as at any packet boundary; never PM4 work or flips), only on the GPU
+// command thread, never inside a running command (a flip sent as a command waits in the
+// presenter), and only while the draw recording thread is idle (nothing to drain).
+bool Liverpool::ServiceQueuedCommands() {
+    if (!WaitServicesFaults() || num_fault_commands.load(std::memory_order_acquire) == 0 ||
+        command_depth != 0) {
+        return false;
+    }
+#if defined(__linux__) || defined(_WIN32)
+    if (static_cast<u32>(gettid()) != gpu_tid) {
+        return false;
+    }
+#endif
+    if (rasterizer && !rasterizer->DrawPipeIdle()) {
+        return false;
+    }
+    bool serviced = false;
+    for (;;) {
+        Common::UniqueFunction<void> callback{};
+        {
+            std::scoped_lock lk{submit_mutex};
+            if (fault_queue.empty()) {
+                break;
+            }
+            callback = std::move(fault_queue.front());
+            fault_queue.pop();
+            --num_fault_commands;
+            --num_commands;
+        }
+        ++command_depth;
+        callback();
+        --command_depth;
+        serviced = true;
+    }
+    return serviced;
 }
 
 // gow3 19 Oct 2026 (#47): a C++ exception nothing caught on this thread (memory refused by
@@ -274,6 +323,15 @@ void Liverpool::Process(std::stop_token stoken) {
         std::_Exit(3);
     }
 }
+
+// gow3 21 Oct 2026 (GPU worker): GOW3_READBACK_WAKE=1 (see the idle loop in ProcessLoop). The
+// scheduler's priority thread wakes the command thread when the GPU has passed a readback; the
+// target is cleared before the Liverpool goes away.
+namespace {
+std::mutex g_readback_wake_mutex;
+Liverpool* g_readback_wake_target = nullptr; ///< guarded by g_readback_wake_mutex
+bool g_readback_woken = false;               ///< guarded by the target's submit_mutex
+} // namespace
 
 void Liverpool::ProcessLoop(std::stop_token stoken) {
     Common::SetCurrentThreadName("shadPS4:GpuCommandProcessor");
@@ -307,6 +365,35 @@ void Liverpool::ProcessLoop(std::stop_token stoken) {
     gpu_tid = gettid();
 #endif
 
+    // gow3 21 Oct 2026 (GPU worker): GOW3_READBACK_WAKE=1 - while fences wait for readbacks
+    // and there is nothing else to do, the loop below polled them every 1 ms: the guest blocked on
+    // a ray-cast fence learned of the results up to 1 ms after the GPU had them, and the GPU,
+    // drained by then, idled meanwhile. It now also wakes when the GPU passes the oldest pending
+    // readback (the 1 ms poll stays as the fallback).
+    static const bool readback_wake = [] {
+        const char* env = std::getenv("GOW3_READBACK_WAKE");
+        const bool on = env && env[0] == '1';
+        if (on) {
+            std::printf("GPU command thread: wakes when the GPU finishes a pending readback "
+                        "(GOW3_READBACK_WAKE=1)\n");
+        }
+        return on;
+    }();
+    if (readback_wake) {
+        std::scoped_lock guard{g_readback_wake_mutex};
+        g_readback_wake_target = this;
+    }
+    struct WakeTargetReset {
+        bool on;
+        ~WakeTargetReset() {
+            if (on) {
+                std::scoped_lock guard{g_readback_wake_mutex};
+                g_readback_wake_target = nullptr;
+            }
+        }
+    } wake_target_reset{readback_wake};
+    u64 wake_armed_tick = 0;
+
     while (!stoken.stop_requested()) {
         {
             const auto idle_start = std::chrono::steady_clock::now();
@@ -325,9 +412,31 @@ void Liverpool::ProcessLoop(std::stop_token stoken) {
                     rasterizer->Flush();
                 }
                 rasterizer->GetBufferCache().PollReadbacksNow();
+                if (readback_wake) {
+                    auto& scheduler = rasterizer->GetRuntime().GetScheduler();
+                    const u64 tick = rasterizer->GetBufferCache().OldestPendingReadbackTick();
+                    if (tick != 0 && tick != wake_armed_tick && tick < scheduler.CurrentTick()) {
+                        wake_armed_tick = tick;
+                        scheduler.DeferPriorityOperationAt(tick, [] {
+                            std::scoped_lock guard{g_readback_wake_mutex};
+                            if (Liverpool* target = g_readback_wake_target) {
+                                std::scoped_lock target_lock{target->submit_mutex};
+                                g_readback_woken = true;
+                                target->submit_cv.notify_all();
+                            }
+                        });
+                    }
+                }
                 lk.lock();
                 if (rasterizer->GetBufferCache().HasDeferredSignals()) {
-                    submit_cv.wait_for(lk, std::chrono::milliseconds{1});
+                    if (readback_wake) {
+                        submit_cv.wait_for(lk, std::chrono::milliseconds{1}, [this] {
+                            return std::exchange(g_readback_woken, false) || num_commands ||
+                                   num_submits || submit_done;
+                        });
+                    } else {
+                        submit_cv.wait_for(lk, std::chrono::milliseconds{1});
+                    }
                 }
             }
             Common::CondvarWait(submit_cv, lk, stoken,
@@ -424,6 +533,25 @@ bool FewerDrains() {
     static const bool on = [] {
         const char* env = std::getenv("GOW3_FEWER_DRAINS");
         return env && env[0] == '1';
+    }();
+    return on;
+}
+
+/// gow3 21 Oct 2026: GOW3_SKIP_IB_DRAIN=1 (multithreaded rendering): a nested command buffer on a
+/// compute queue (INDIRECT_BUFFER) does not drain the draw pipe. The packet itself only reads the
+/// nested buffer's words; every packet in it passes the drain check on its own, as nested buffers
+/// on the graphics queue do (PipelinedOpcode). Uncharted 3 on the RTX 4060 laptop: ~2,300 such
+/// drains a second, the command thread waiting 10-28% of its time in them. Unlike
+/// GOW3_FEWER_DRAINS, memory waits keep their drains. Off by default until measured.
+bool SkipIbDrain() {
+    static const bool on = [] {
+        const char* env = std::getenv("GOW3_SKIP_IB_DRAIN");
+        const bool value = env && env[0] == '1';
+        if (value) {
+            std::printf("GPU: nested compute buffers do not drain the draw pipe "
+                        "(GOW3_SKIP_IB_DRAIN=1)\n");
+        }
+        return value;
     }();
     return on;
 }
@@ -709,7 +837,16 @@ void RunEventWriteEop(Vulkan::Rasterizer& rasterizer, const u8* data) {
         if (wait_readbacks && cache.DeferUntilLastReadback(signal, label, value, bytes)) {
             // The GPU starts on the ray casts now rather than when the frame's command buffer is
             // submitted at its end: the fence (and the guest waiting for it) follows sooner.
-            if (results_pending) {
+            // gow3 21 Oct 2026 (GPU worker): GOW3_RAYCAST_FLUSH=lazy leaves them in the command
+            // buffer: ~65% of Uncharted 2's submissions came from here (~4 a frame), and on the
+            // Radeon iGPU the GPU idles ~0.4 ms at every submission boundary. When the guest
+            // blocks on the fence before submitting more, the idle loop in Process flushes them
+            // at once (HasUnsubmittedReadback); otherwise they go with the next submission.
+            static const bool lazy_flush = [] {
+                const char* env = std::getenv("GOW3_RAYCAST_FLUSH");
+                return env && std::string_view{env} == "lazy";
+            }();
+            if (results_pending && !lazy_flush) {
                 rasterizer.Flush();
             }
             return;
@@ -1047,6 +1184,10 @@ Liverpool::Task Liverpool::ProcessCeUpdate(std::span<const u32> ccb) {
                 YIELD_CE();
                 RESUME_CE(task);
             }
+            // gow3 20 Oct 2026: a finished nested task stays suspended at final_suspend; only
+            // top-level tasks were destroyed, so each indirect buffer leaked its coroutine frame
+            // (host memory grew for as long as the game ran).
+            task.handle.destroy();
             break;
         }
         default:
@@ -2019,6 +2160,7 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                     YIELD_GFX();
                     RESUME_GFX(task);
                 }
+                task.handle.destroy(); // the nested frame (see the constant engine's)
                 break;
             }
             case PM4ItOpcode::IncrementDeCounter: {
@@ -2167,8 +2309,11 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
         // check one by one) and memory waits (they drain only while unmet, as on the graphics
         // queue): compute drains were up to 35% of the command thread in Uncharted 3 on a Ryzen
         // laptop. Off by default (see the graphics WaitRegMem).
-        const bool pipelined_wait = FewerDrains() && (opcode == PM4ItOpcode::IndirectBuffer ||
-                                                      opcode == PM4ItOpcode::WaitRegMem);
+        // 21 Oct 2026 (GOW3_SKIP_IB_DRAIN=1): nested buffers alone.
+        const bool pipelined_wait =
+            (FewerDrains() &&
+             (opcode == PM4ItOpcode::IndirectBuffer || opcode == PM4ItOpcode::WaitRegMem)) ||
+            (opcode == PM4ItOpcode::IndirectBuffer && SkipIbDrain());
         if (rasterizer && opcode != PM4ItOpcode::Nop && opcode != PM4ItOpcode::SetShReg &&
             opcode != PM4ItOpcode::SetQueueReg && opcode != PM4ItOpcode::DispatchDirect &&
             opcode != PM4ItOpcode::DispatchIndirect && opcode != PM4ItOpcode::ReleaseMem &&
@@ -2213,6 +2358,7 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
                 YIELD_ASC(vqid);
                 RESUME_ASC(task, vqid);
             }
+            task.handle.destroy(); // the nested frame (see the constant engine's)
             break;
         }
         case PM4ItOpcode::DmaData: {

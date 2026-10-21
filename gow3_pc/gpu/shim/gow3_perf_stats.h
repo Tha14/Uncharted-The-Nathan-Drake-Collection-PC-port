@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // gow3: numbers for the performance overlay (gow3_overlay.cpp). A thread started once samples
-// CPU, RAM, GPU use (Windows counters) and VRAM (VK_EXT_memory_budget) twice a second;
+// CPU, RAM, GPU use (Windows counters) and VRAM (VK_EXT_memory_budget) once a second while the
+// overlay shows one of them (20 Oct 2026; GOW3_PERF_SAMPLER_PAUSE=0: twice a second, always);
 // a value that cannot be measured stays negative and shows as "n/a".
 
 #pragma once
@@ -104,7 +105,8 @@ inline std::string Format(const Sample& s, unsigned mask, bool row) {
     return out;
 }
 
-/// Starts the sampling thread the first time; later calls do nothing.
+/// Starts the sampling thread the first time. Every call also keeps it sampling: it sleeps
+/// once no call came for 2 s (the overlay calls it on each frame that shows a sampled item).
 void Start(const Vulkan::Instance& instance);
 /// The latest CPU, RAM, GPU and VRAM values (the caller fills FPS, frametime and upscaler).
 Sample Latest();

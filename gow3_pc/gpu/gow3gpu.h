@@ -33,6 +33,10 @@ int gow3gpu_text_input_poll(char *out_utf8, uint64_t size);
  * poll: -1 while open, -2 cancelled, else the chosen index. */
 int gow3gpu_choice_begin(const char *title, const char *const *items, const char *const *images, int count, int focus);
 int gow3gpu_choice_poll(void);
+/* Trophies (gow3_trophies.cpp): the running game's list (its trophy pack, a host path; the list
+ * number 1-3; 128 earned flags), then each newly earned trophy, shown as a popup. */
+void gow3gpu_trophy_list(const char *pack_path, int list, const uint32_t earned[4]);
+void gow3gpu_trophy_earned(int id);
 /* 1 while the in-game settings menu is open: the game's pad input is held neutral. */
 int gow3gpu_overlay_captures_input(void);
 /* Mouse movement since the last call (pixels) and held sources (bit 0 left, 1 middle, 2 right,
@@ -40,6 +44,9 @@ int gow3gpu_overlay_captures_input(void);
 int gow3gpu_mouse_take(float *dx, float *dy, unsigned *buttons);
 int gow3gpu_mouse_take_look(float *dx, float *dy);
 int gow3gpu_mouse_look_recent(void);
+/* 20 Oct 2026: camera hook calls so far, and whether hooks get the mouse (0) or not (1). */
+unsigned gow3gpu_mouse_look_calls(void);
+void gow3gpu_mouse_look_pause(int paused);
 void gow3gpu_mouse_inject(float dx, float dy);
 /* Button prompts (gow3_prompts.cpp): per PS4 button a label. Set 0, keyboard and mouse: its key
  * ("SPACE", "F", UTF-8 arrows) or mouse source ("@LMB" "@RMB" "@MMB" "@X1" "@X2" "@WHEELUP"
@@ -73,6 +80,10 @@ unsigned gow3gpu_controls_generation(void);
 void gow3gpu_controls_get(Gow3Controls *out);
 /* Live values for the camera hooks (src/runtime_mouselook.c). */
 float gow3gpu_controls_mouse_sens(void);
+/* gow3 20 Oct 2026: while aiming (times mouse_sens), up/down compared with left/right, invert left/right. */
+float gow3gpu_controls_mouse_aim_sens(void);
+float gow3gpu_controls_mouse_vertical(void);
+int gow3gpu_controls_mouse_invert_x(void);
 int gow3gpu_controls_mouse_invert(void);
 float gow3gpu_controls_stick_speed(void);
 /* The games' draw and shadow distances (menu Image tab, percent of the game's own;

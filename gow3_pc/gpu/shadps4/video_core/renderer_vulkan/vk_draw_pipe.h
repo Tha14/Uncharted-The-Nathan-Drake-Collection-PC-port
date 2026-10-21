@@ -203,6 +203,21 @@ private:
                 continue;
             }
             const u64 start = __rdtsc();
+            // gow3 21 Oct 2026, TEST KNOB (default off): GOW3_TEST_PIPE_DELAY_NS=<n> makes stage B
+            // busy-wait n ns before each packet, like a slower or loaded CPU (laptops). Used to
+            // reproduce the multithreaded late-constants race: stage A walks a draw's tables
+            // while the scalar copy before it still waits here (GOW3_SRT_PENDING_DRAIN).
+            static const u64 test_delay_ns = [] {
+                const char* env = std::getenv("GOW3_TEST_PIPE_DELAY_NS");
+                return env ? std::strtoull(env, nullptr, 10) : 0ull;
+            }();
+            if (test_delay_ns) {
+                const auto until = std::chrono::steady_clock::now() +
+                                   std::chrono::nanoseconds(test_delay_ns);
+                while (std::chrono::steady_clock::now() < until) {
+                    __builtin_ia32_pause();
+                }
+            }
             handler(context, reinterpret_cast<const u8*>(header + 1), header->payload);
             busy_cycles.fetch_add(__rdtsc() - start, std::memory_order_relaxed);
             at += header->size;

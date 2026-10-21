@@ -206,13 +206,64 @@ int EqueueInternal::WaitForEvents(OrbisKernelEvent* ev, int num, const OrbisKern
         const int value = env ? std::atoi(env) : 0;
         return value > 0 ? static_cast<u32>(std::min(value, 2000)) : 0u;
     }();
-    if (spin_us) {
-        const u32 limit = micros ? std::min(spin_us, micros) : spin_us;
-        const auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(limit);
+    // gow3 20 Oct 2026 (GOW3_IRQ_WAIT_SPIN=<us>, opt-in, off by default): the same watch, only
+    // for a queue that handed out a GPU interrupt event (GraphicsCore) in the last 2 ms. Measured
+    // on a Ryzen 7840HS laptop (RTX 4060 47 FPS, Radeon 780M 41 FPS, Uncharted 3, the GPU command
+    // thread CPU-bound with 0.4% idle): waking the sleeping interrupt thread was 6.9% (6.7%) of
+    // the GPU command thread, one kernel call per compute interrupt (TriggerEvent ->
+    // notify_all). A waiter that watches finds the next interrupt without a wakeup; the guest
+    // sees the same events, sooner. Queues without GPU events (and quiet ones: menus, loading)
+    // sleep at once as before, and a timed wait still returns at its timeout (the watch counts
+    // against it; GOW3_EQUEUE_SPIN_US, which watches every queue, did not do that, and a 780M
+    // run with it stopped flipping on 18 Oct). Off until laptop runs show it is safe.
+    static const u32 irq_spin_us = [] {
+        const char* env = std::getenv("GOW3_IRQ_WAIT_SPIN");
+        const int value = env && env[0] ? std::clamp(std::atoi(env), 0, 2000) : 0;
+        if (value) {
+            std::printf("Equeue: GPU interrupt waits watch %d us before sleeping "
+                        "(GOW3_IRQ_WAIT_SPIN=0 or unset: off)\n",
+                        value);
+            std::fflush(stdout);
+        }
+        return static_cast<u32>(value);
+    }();
+    constexpr s64 IrqHotNs = 2'000'000;
+    const auto now_ns = [] {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+                   std::chrono::steady_clock::now().time_since_epoch())
+            .count();
+    };
+    // Notes when this call hands out a GPU interrupt event (the next wait on this queue watches).
+    const auto note_irq = [&](int n) {
+        if (!irq_spin_us) {
+            return;
+        }
+        for (int i = 0; i < n; ++i) {
+            if (ev[i].filter == OrbisKernelEvent::Filter::GraphicsCore) {
+                m_irq_event_ns.store(now_ns(), std::memory_order_relaxed);
+                return;
+            }
+        }
+    };
+    u32 spin = spin_us;
+    s64 start_ns = 0;
+    if (!spin && irq_spin_us) {
+        const s64 last = m_irq_event_ns.load(std::memory_order_relaxed);
+        start_ns = now_ns();
+        if (last && start_ns - last < IrqHotNs) {
+            spin = irq_spin_us;
+        }
+    }
+    u32 remaining = micros;
+    if (spin) {
+        const u32 limit = micros ? std::min(spin, micros) : spin;
+        const auto started = std::chrono::steady_clock::now();
+        const auto until = started + std::chrono::microseconds(limit);
         u64 seen = m_matched.load(std::memory_order_acquire);
         {
             std::scoped_lock lock{m_mutex};
             if (predicate()) {
+                note_irq(count);
                 return count;
             }
         }
@@ -221,6 +272,7 @@ int EqueueInternal::WaitForEvents(OrbisKernelEvent* ev, int num, const OrbisKern
                 seen = now;
                 std::scoped_lock lock{m_mutex};
                 if (predicate()) {
+                    note_irq(count);
                     return count;
                 }
             }
@@ -228,6 +280,14 @@ int EqueueInternal::WaitForEvents(OrbisKernelEvent* ev, int num, const OrbisKern
                 break;
             }
             _mm_pause();
+        }
+        if (micros && spin != spin_us) {
+            // The watch counts against a timed wait (GOW3_IRQ_WAIT_SPIN; GOW3_EQUEUE_SPIN_US keeps
+            // its old behaviour).
+            const auto spent = std::chrono::duration_cast<std::chrono::microseconds>(
+                                   std::chrono::steady_clock::now() - started)
+                                   .count();
+            remaining = spent >= micros ? 0u : micros - static_cast<u32>(spent);
         }
     }
 
@@ -241,10 +301,11 @@ int EqueueInternal::WaitForEvents(OrbisKernelEvent* ev, int num, const OrbisKern
         // Wait up until the timeout value
         std::unique_lock lock{m_mutex};
         ++m_waiters;
-        m_cond.wait_for(lock, std::chrono::microseconds(micros), predicate);
+        m_cond.wait_for(lock, std::chrono::microseconds(remaining), predicate);
         --m_waiters;
     }
 
+    note_irq(count);
     return count;
 }
 

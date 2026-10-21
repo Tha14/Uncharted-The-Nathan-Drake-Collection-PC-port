@@ -133,6 +133,16 @@ struct WaitTimer {
                         std::memory_order_relaxed);
     }
 };
+/// gow3 20 Oct 2026 (hybrid laptops): wall time (ns) waiting on presentation: for a free
+/// presentation frame (Presenter::GetRenderFrame), for the submit lock (draw scheduler), and in
+/// the swapchain's acquire and present calls (swap thread).
+inline std::atomic<std::uint64_t> frame_wait_ns{0}, submit_lock_ns{0}, acquire_ns{0},
+    present_ns{0};
+/// gow3 20 Oct 2026 (GitHub #95, memory over long sessions): video memory held by the buffer
+/// arenas (residency chunks and ranges; never given back) and by the registered images.
+inline std::atomic<std::uint64_t> arena_memory_bytes{0}, image_bytes{0}, images_live{0};
+/// gow3 20 Oct 2026: arena memory bound to guest ranges now, and given back so far.
+inline std::atomic<std::uint64_t> arena_in_use_bytes{0}, arena_released_bytes{0};
 /// GPU thread rusage, refreshed after each graphics submission.
 inline std::atomic<std::uint64_t> gpu_sys_us{0}, gpu_user_us{0}, gpu_invol_switches{0},
     gpu_vol_switches{0}, gpu_minor_faults{0};

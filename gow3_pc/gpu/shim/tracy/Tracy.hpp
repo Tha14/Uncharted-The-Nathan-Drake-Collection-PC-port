@@ -9,14 +9,15 @@
 #define ZoneScopedN(name)
 #define ZoneScopedC(color)
 #define ZoneScopedNC(name, color)
-#define ZoneText(text, size) ((void)(text), (void)(size))
+// gow3: the arguments are not evaluated (a formatted string would still be built otherwise).
+#define ZoneText(text, size)
 #define ZoneName(text, size)
 #define FrameMark
 #define FrameMarkNamed(name)
-#define TracyMessageC(text, size, color) ((void)(text), (void)(size))
+#define TracyMessageC(text, size, color)
 #define TracyMessageL(text)
-#define TracyAllocN(ptr, size, name) ((void)(ptr), (void)(size))
-#define TracyFreeN(ptr, name) ((void)(ptr))
+#define TracyAllocN(ptr, size, name)
+#define TracyFreeN(ptr, name)
 #define TracyFiberEnter(name)
 #define TracyFiberLeave
 #define TracyPlot(name, value)

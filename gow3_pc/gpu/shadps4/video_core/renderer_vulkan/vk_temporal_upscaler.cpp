@@ -2231,8 +2231,16 @@ bool TemporalUpscaler::DisplayOverride(VAddr address, Display& display) {
     }();
     static int dump_index = 0;
     static int dump_remaining = 0;
-    if (dump && dump_remaining == 0 && std::remove(dump) == 0) {
-        dump_remaining = dump_count;
+    // gow3: the trigger file is looked for at most every 250 ms, not with a kernel call per frame.
+    static auto dump_poll = std::chrono::steady_clock::time_point{};
+    if (dump && dump_remaining == 0) {
+        if (const auto now = std::chrono::steady_clock::now();
+            now - dump_poll >= std::chrono::milliseconds(250)) {
+            dump_poll = now;
+            if (std::remove(dump) == 0) {
+                dump_remaining = dump_count;
+            }
+        }
     }
     if (dump_remaining > 0) {
         --dump_remaining;

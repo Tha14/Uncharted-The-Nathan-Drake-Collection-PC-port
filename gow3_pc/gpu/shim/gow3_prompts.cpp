@@ -49,7 +49,7 @@ constexpr int Size = 512;
 // (512x512 RGBA8) and the button pictures (BC1 with mips, found by decoding the paks: 256x256 face
 // and shoulder buttons, 512x512 flat "HOLD" buttons in two press positions). The three games share
 // most pictures; Uncharted 1 and 2 have their own Cross, Uncharted 3 its own HOLD Triangles.
-enum class Kind { Rgba, Color, Alpha, Face, Shoulder };
+enum class Kind { Rgba, Color, Alpha, Face, Shoulder, Dpad };
 struct KnownTexture {
     u64 hash;
     Kind kind;
@@ -74,6 +74,9 @@ constexpr KnownTexture known_textures[] = {
     {0x2e8ae3386e2a91ddULL, Kind::Shoulder, GOW3_PROMPT_L2, "Uncharted 3 L2 picture"},
     {0xbd74a617a879f120ULL, Kind::Shoulder, GOW3_PROMPT_R1, "Uncharted 3 R1 picture"},
     {0x784278339a5a55bfULL, Kind::Shoulder, GOW3_PROMPT_R2, "Uncharted 3 R2 picture"},
+    // 20 Oct 2026 (user, Uncharted 3 museum chapter): the d-pad with its up arm lit (256x256),
+    // found with GOW3_PROMPTS_LOG and a dump of the loaded pictures.
+    {0xe8a2f49b992621fcULL, Kind::Dpad, GOW3_PROMPT_UP, "Uncharted 3 d-pad up picture"},
 };
 
 // symbol3.fnt, the same in the three games: glyph id and its cell in the atlas.
@@ -1119,6 +1122,43 @@ void RedrawShoulder(Picture& pic, const std::string& label) {
     FromCanvas(canvas, pic);
 }
 
+// Uncharted 3's d-pad picture with one arm lit (orange): the bound key is written on that arm, in
+// the dark of the other arms, so the picture still reads as "this direction" (keyboard and mouse
+// only: other controllers' d-pads look the same).
+void RedrawDpad(Picture& pic, const std::string& label) {
+    const int w = pic.w, h = pic.h;
+    int x0 = w, y0 = h, x1 = -1, y1 = -1;
+    float dark[3] = {}, n_dark = 0;
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            const u8* c = &pic.rgba[(y * w + x) * 4];
+            if (c[3] < 128) {
+                continue;
+            }
+            // The lit arm: saturated orange (red well above blue).
+            if (c[0] > 150 && c[0] - c[2] > 90 && c[0] >= c[1]) {
+                x0 = std::min(x0, x), y0 = std::min(y0, y), x1 = std::max(x1, x), y1 = std::max(y1, y);
+            } else if (Luma(c) < 90) {
+                for (int i = 0; i < 3; ++i) {
+                    dark[i] += c[i];
+                }
+                ++n_dark;
+            }
+        }
+    }
+    if (x1 < x0 || (x1 - x0) < w / 16 || (y1 - y0) < h / 16) {
+        return;
+    }
+    const Rgb ink_color = n_dark ? Rgb{dark[0] / n_dark / 255, dark[1] / n_dark / 255, dark[2] / n_dark / 255}
+                                 : Rgb{0.12f, 0.12f, 0.11f};
+    Canvas canvas = ToCanvas(pic);
+    Painter p{canvas, 0, 0, w, h, false};
+    const float cx = (x0 + x1 + 1) / 2.0f, cy = (y0 + y1 + 1) / 2.0f;
+    const float aw = float(x1 - x0 + 1), ah = float(y1 - y0 + 1);
+    DrawPictureLabel(p, label, cx, cy, 0.62f * std::min(aw, ah), 0.86f * aw, ink_color);
+    FromCanvas(canvas, pic);
+}
+
 // Label sets: keyboard and mouse, other controllers. Device: which icons show (GOW3_PROMPT_*).
 constexpr int Sets = 2;
 int SetOf(int device) {
@@ -1172,6 +1212,8 @@ std::shared_ptr<const Texels> MakePicture(const KnownTexture& known, const u8* g
     FlipRows(pic); // stored upside down
     if (known.kind == Kind::Face) {
         RedrawFace(pic, label, controller);
+    } else if (known.kind == Kind::Dpad) {
+        RedrawDpad(pic, label);
     } else {
         RedrawShoulder(pic, label);
     }
@@ -1207,7 +1249,8 @@ std::shared_ptr<const Texels> Replacement(VAddr address, u32 guest_size, u32 mip
     const u64 hash = XXH3_64bits(guest, mip0_size);
     const KnownTexture* known = nullptr;
     for (const auto& k : known_textures) {
-        if (k.hash == hash && (k.kind == Kind::Face || k.kind == Kind::Shoulder) == picture) {
+        if (k.hash == hash &&
+            (k.kind == Kind::Face || k.kind == Kind::Shoulder || k.kind == Kind::Dpad) == picture) {
             known = &k;
         }
     }
@@ -1247,6 +1290,9 @@ std::shared_ptr<const Texels> Replacement(VAddr address, u32 guest_size, u32 mip
     const int set = SetOf(device.load(std::memory_order_relaxed));
     if (set < 0 || !state.canvas[set]) {
         return nullptr;
+    }
+    if (known->kind == Kind::Dpad && set != 0) {
+        return nullptr; // other controllers' d-pads look like the PlayStation one
     }
     std::string label;
     if (picture) {
@@ -1335,7 +1381,12 @@ int main(int argc, char** argv) {
     if (got != guest.size()) {
         return 1;
     }
-    const KnownTexture known{0, std::string(argv[1]) == "face" ? Kind::Face : Kind::Shoulder, 0, "test"};
+    const std::string kind_name = argv[1];
+    const KnownTexture known{0,
+                             kind_name == "face"   ? Kind::Face
+                             : kind_name == "dpad" ? Kind::Dpad
+                                                   : Kind::Shoulder,
+                             0, "test"};
     const auto texels = MakePicture(known, guest.data(), size, size, 9, argv[2], argv[3][0] == '1');
     // Mip 0 back from linear BC1 blocks.
     std::vector<u8> rgba(size_t(size) * size * 4);

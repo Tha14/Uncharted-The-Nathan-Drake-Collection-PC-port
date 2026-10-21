@@ -14,6 +14,12 @@ int gow3gpu_choice_begin(const char *title, const char *const *items, const char
 int gow3gpu_choice_poll(void) { return choice_next; }
 int runtime_savedata_param(int32_t user, const char *dir, void *param) { (void)user; (void)dir; (void)param; return -1; }
 int runtime_savedata_icon(int32_t user, const char *dir, char *out, size_t size) { (void)user; (void)dir; (void)out; (void)size; return -1; }
+static int trophy_lists_shown, trophies_shown, trophy_last_shown=-1;
+void gow3gpu_trophy_list(const char *pack, int list, const uint32_t earned[4]) { (void)pack; (void)list; (void)earned; ++trophy_lists_shown; }
+void gow3gpu_trophy_earned(int id) { ++trophies_shown; trophy_last_shown=id; }
+static char test_user[64];
+const char *runtime_file_user_dir(void) { return test_user; }
+int runtime_file_translate(const char *guest, char *out, size_t size) { snprintf(out,size,"%s",guest); return 0; }
 
 int main(void) {
     unsigned char param[128]={0}, result[64]={0}; /* the game zeroes the pointers it does not want */
@@ -91,10 +97,27 @@ int main(void) {
     assert(playgo_get_todo(handle,untouched,0,&pending)==PLAYGO_BAD_SIZE);
     assert(playgo_close(handle)==0 && playgo_close(handle)==PLAYGO_BAD_HANDLE && playgo_terminate()==0);
 
-    /* Trophies: nothing unlocked. */
+    /* Trophies: none until earned; an earned one is saved, reported back and shown once. */
+    snprintf(test_user,sizeof(test_user),"services-test-user-%d",(int)getpid());
+    mkdir(test_user,0755);
     uint32_t flags[4]={~0u,~0u,~0u,~0u}, count=7;
     assert(trophy_unlock_state(1,1,flags,&count)==0 && !flags[0] && !flags[3] && count==0);
     assert(trophy_unlock_state(1,1,NULL,&count)==TROPHY_INVALID && trophy_release(0)==TROPHY_INVALID);
+    int32_t trophy_ctx=0, trophy_hd=0, platinum=0;
+    assert(trophy_context(&trophy_ctx,1,2,0)==0 && trophy_handle(&trophy_hd)==0);
+    assert(trophy_register(trophy_ctx,trophy_hd,0)==0 && trophy_lists_shown==1);
+    assert(trophy_unlock(trophy_ctx,trophy_hd,5,&platinum)==0 && platinum==-1 && trophies_shown==1 && trophy_last_shown==5);
+    assert(trophy_unlock(trophy_ctx,trophy_hd,5,&platinum)==0 && trophies_shown==1);
+    assert(trophy_unlock(trophy_ctx,trophy_hd,128,&platinum)==TROPHY_INVALID);
+    assert(trophy_unlock_state(trophy_ctx,trophy_hd,flags,&count)==0 && flags[0]==1u<<5 && !flags[1] && count==1);
+    /* The next start reads it back. */
+    memset(trophy_flags,0,sizeof(trophy_flags)); memset(trophy_loaded,0,sizeof(trophy_loaded));
+    memset(trophy_contexts,0,sizeof(trophy_contexts));
+    assert(trophy_context(&trophy_ctx,1,2,0)==0);
+    assert(trophy_unlock_state(trophy_ctx,trophy_hd,flags,&count)==0 && flags[0]==1u<<5 && count==1);
+    char trophy_path[128];
+    trophy_file(2,trophy_path,sizeof(trophy_path)); remove(trophy_path);
+    snprintf(trophy_path,sizeof(trophy_path),"%s/trophy",test_user); rmdir(trophy_path); rmdir(test_user);
 
     float ratio=0; assert(safe_area(&ratio)==0 && ratio==1.0f && safe_area(NULL)==SYSTEM_PARAMETER);
     puts("services test: ok");
