@@ -21,6 +21,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+import tkinter.font as tkfont
 import webbrowser
 from tkinter import messagebox
 
@@ -180,6 +181,11 @@ INI_DEFAULTS = {
     "display_mode": "windowed", "vsync": "1", "fps_limit": "60", "frames_queued": "1",
     "async_shaders": "1", "fsr1": "0", "rcas": "1", "rcas_strength": "75", "show_fps": "1",
     "upscaler": "off",
+    # The performance counter (Display tab): the items on its line, its corner, layout, text size
+    # and background opacity. The runtime's defaults; the in-game Overlay tab writes them too.
+    "overlay_fps": "1", "overlay_frametime": "1", "overlay_gpu": "1", "overlay_cpu": "1",
+    "overlay_ram": "1", "overlay_vram": "0", "overlay_upscaler": "0", "overlay_corner": "1",
+    "overlay_layout": "0", "overlay_scale": "100", "overlay_opacity": "50",
 }
 # Cheats (Advanced page): name, title, hint. tools/probe_uncharted.py turns on the games' own
 # switches for them (CHEATS there).
@@ -1174,6 +1180,36 @@ class Toggle(tk.Canvas):
         self.create_oval(x, pad + 1, x + d, pad + 1 + d, fill=INK if self.value else MUTED, outline="")
 
 
+class Chip(tk.Canvas):
+    """A small on/off pill, for the performance counter's items (Display tab)."""
+
+    def __init__(self, parent, scale, font, label, value, command):
+        self.s, self.label, self.command = scale, label, command
+        self.value = bool(value)
+        self.font = tkfont.Font(font=font)
+        pad_x, pad_y = int(10 * scale), int(5 * scale)
+        w = self.font.measure(label) + 2 * pad_x
+        h = self.font.metrics("linespace") + 2 * pad_y
+        super().__init__(parent, width=w, height=h, bg=parent["bg"], highlightthickness=0, cursor="hand2")
+        self.w, self.h = w, h
+        self.bind("<Button-1>", lambda e: self.set(not self.value, notify=True))
+        self.draw()
+
+    def set(self, value, notify=False):
+        self.value = bool(value)
+        self.draw()
+        if notify:
+            self.command(self.value)
+
+    def draw(self):
+        self.delete("all")
+        fill = GOLD if self.value else PANEL
+        round_rect(self, 1, 1, self.w - 1, self.h - 1, self.h // 2, fill=fill,
+                   outline=GOLD if self.value else LINE)
+        self.create_text(self.w / 2, self.h / 2, text=self.label, font=self.font,
+                         fill=INK if self.value else MUTED)
+
+
 class Segmented(tk.Frame):
     """A row of choices; the selected one is gold."""
 
@@ -1578,6 +1614,10 @@ class Launcher:
                 widget.set(self.ini.get(key, INI_DEFAULTS[key]) == "1")
             elif isinstance(widget, Segmented):
                 widget.set(self.ini.get(key, INI_DEFAULTS[key]))
+        # The performance counter's items are Chip pills (overlay_panel): the loop above skips them.
+        for key, widget in getattr(self, "overlay_chips", {}).items():
+            if isinstance(widget, Chip):
+                widget.set(self.ini.get(key, INI_DEFAULTS[key]) == "1")
         settings = self.game_settings()
         if isinstance(self.widgets.get("resolution"), Segmented):
             self.widgets["resolution"].set(settings["resolution"])
@@ -1936,8 +1976,53 @@ class Launcher:
                              value, self.change_sharpening, self.f_small)
         self.widgets["sharpening"] = self.row(page, "Sharpening", "Makes the final picture crisper (AMD FidelityFX RCAS).",
                                               sharpening)
-        self.ini_toggle(page, "show_fps", "Show FPS counter", "Shows the frame rate in a corner of the screen.")
+        self.ini_toggle(page, "show_fps", "Show performance counter",
+                        "FPS, temperatures and memory in a corner of the screen. Insert, then the Overlay "
+                        "tab, changes it in the game too.")
+        self.overlay_panel(page)
         return page
+
+    # The performance counter's items: the ini key and the label on its pill.
+    OVERLAY_ITEMS = (("overlay_fps", "FPS"), ("overlay_frametime", "Frame time"), ("overlay_gpu", "GPU"),
+                     ("overlay_cpu", "CPU"), ("overlay_ram", "RAM"), ("overlay_vram", "VRAM"),
+                     ("overlay_upscaler", "Upscaler"))
+
+    def overlay_panel(self, page):
+        """What the performance counter shows, where and how big (Display tab; probe-u*.ini's
+        show_fps and overlay_* keys, the ones the in-game menu's Overlay tab writes). It is built
+        on its own: an error here leaves the rest of the page and the launcher working."""
+        try:
+            self._overlay_panel(page)
+        except Exception:
+            log_launcher_error(*sys.exc_info())
+            self.overlay_chips = {}
+
+    def _overlay_panel(self, page):
+        def items(parent):
+            box = tk.Frame(parent, bg=BG)
+            self.overlay_chips = {}
+            for key, label in self.OVERLAY_ITEMS:
+                chip = Chip(box, self.s, self.f_small, label,
+                            self.ini.get(key, INI_DEFAULTS[key]) == "1",
+                            lambda v, k=key: self.change(k, "1" if v else "0"))
+                chip.pack(side="left", padx=(self.px(6), 0))
+                self.overlay_chips[key] = chip
+            return box
+        self.row(page, "What it shows",
+                 "The frame rate, the frame time in milliseconds, the graphics card and the processor "
+                 "with their temperatures, and memory. Pick any; with nothing picked the counter is "
+                 "just its box.", items)
+        self.ini_choice(page, "overlay_corner", "Counter corner", "Where the counter sits.",
+                        [("0", "Top left"), ("1", "Top right"), ("2", "Bottom left"),
+                         ("3", "Bottom right")])
+        self.ini_choice(page, "overlay_layout", "Counter layout", "One line, or one item per line.",
+                        [("0", "One line"), ("1", "Stacked")])
+        self.ini_choice(page, "overlay_scale", "Counter size", "Text size of the counter.",
+                        [("75", "75%"), ("100", "100%"), ("125", "125%"), ("150", "150%"),
+                         ("200", "200%")])
+        self.ini_choice(page, "overlay_opacity", "Counter background",
+                        "How dark the counter's box is. None leaves the text on the picture.",
+                        [("0", "None"), ("25", "25%"), ("50", "50%"), ("75", "75%"), ("100", "100%")])
 
     def change_sharpening(self, value):
         if value == "off":
