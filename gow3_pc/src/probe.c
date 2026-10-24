@@ -1229,6 +1229,8 @@ int main(int argc, char **argv) {
     }
     if (patch_file) apply_patches(patch_file, segments, ns, relocs, nr);
     if (gpu_enabled) install_mouse_look(segments, ns, size);
+    /* gow3 24 Oct 2026: co-op research console (runtime_coop.c; GOW3_COOP_CMD / GOW3_COOP_BOOT, off by default). */
+    { extern void runtime_coop_install(unsigned char *, uint64_t); runtime_coop_install(image, size); }
     runtime_gamesettings_set_image(image, size);
     if (gpu_enabled && game_hooks) {
         install_orb_multiplier(segments, ns, size);

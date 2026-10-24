@@ -527,7 +527,11 @@ static int sample_mouse(PadData *d) {
     const unsigned calls=gow3gpu_mouse_look_calls();
     history=((history<<1)|(calls!=seen_calls ? 1u : 0u))&15u;
     seen_calls=calls;
-    const int direct=!aiming && history==15u;
+    /* gow3 24 Oct 2026: while aiming only the aim cameras' hooks count (Uncharted 2 and 3, see
+     * runtime_mouselook.c; the follow hooks neither take nor count then), so direct while aiming
+     * means an aim hook took the mouse at every pad read. Without one (Uncharted 1, the hook off, the
+     * game putting the direction back while it zooms in) the mouse is the stick, as before. */
+    const int direct=history==15u;
     gow3gpu_mouse_look_pause(!direct);
     if (mouse_look_debug()) {
         static uint64_t debug_last; static unsigned reads, direct_reads;
@@ -843,7 +847,10 @@ static ABI int32_t pad_vibration(int32_t handle, const uint8_t *param) {
     if (!param) return ERR_INVALID_ARG;
     pthread_mutex_lock(&lock);
     SDL_Gamepad *g=current_gamepad();
-    if (g) SDL_RumbleGamepad(g,(uint16_t)(param[0]*257),(uint16_t)(param[1]*257),1000);
+    /* gow3 24 Oct 2026 (GitHub #166): Controls -> Controller vibration off stops every rumble
+     * (a zero rumble also ends one that was running when the option was turned off). */
+    const int on=gow3gpu_controls_vibration();
+    if (g) SDL_RumbleGamepad(g,on ? (uint16_t)(param[0]*257) : 0,on ? (uint16_t)(param[1]*257) : 0,1000);
     pthread_mutex_unlock(&lock);
     return 0;
 }

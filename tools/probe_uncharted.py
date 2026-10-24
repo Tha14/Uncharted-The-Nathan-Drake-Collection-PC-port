@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 import time
 import shutil
 import struct
@@ -274,6 +275,29 @@ CUE_PRETOUCH_PATCHES = {  # 1.02: the assert path (r14d < 0x10000 in U1, line 0x
                                       "488d0dc80b0e0041b8e40a00004531c9ffd0cd41"),
     ])],
 }
+
+# Uncharted 2 "read access to 0 at guest offset 0xd09665" (GitHub #61 #113 #115 #164 #181 #187;
+# 24 Oct 2026): the particle setup's run grouping (particle-setup.cpp; the same leaf in all three
+# games: 1.02 U1 0x5fa2f0, U2 0xd09580, U3 0xf6bef0; 1.00 U1 0x4d0b80, U2 0x661150, U3 0x60dd70)
+# keeps its loop bounds below rsp: [rsp-8] = array + 0x10, [rsp-0x10] = count - 1 (1.00:
+# 1 - count). A page fault inside it (GPU write tracking) lets Windows build the exception frame
+# right below the 16-aligned rsp: [rsp-0x10] comes back wrong, the end-of-array test fails and the
+# look-ahead reads the entry one past the end (stale memory) and dereferences it. The reloads now
+# take the same values from r10 (array) and r11 (count), which the function never changes. Same
+# length, in place (analysis/triage-1022/d09665.md). UNCHARTED_RUN_GROUP_FIX=0: off.
+RUN_GROUP_PATCH = ("particle run grouping: loop bounds from registers, not below rsp", [
+    # 1.02: mov rcx,[rsp-8] -> lea rcx,[r10+0x10]; nop | mov r15,[rsp-0x10] -> lea r15,[r11-1]; nop
+    ("4c8b27 488b4c24f8 4a8d1c31 4c8b7c24f0 4929f7", [
+        (3, bytes.fromhex("488b4c24f8"), bytes.fromhex("498d4a1090")),
+        (12, bytes.fromhex("4c8b7c24f0"), bytes.fromhex("4d8d7bff90")),
+    ]),
+    # 1.00: mov rcx,[rsp-8] -> the same lea | mov rcx,[rsp-0x10]; lea r8,[rcx+rsi]
+    #       -> mov r8,rsi; sub r8,r11; inc r8   (rcx is zeroed right after, r8 = i + 1 - count)
+    ("4c8b27 488b4c24f8 4a8d1c31 488b4c24f0 4c8d0431 4531ed", [
+        (3, bytes.fromhex("488b4c24f8"), bytes.fromhex("498d4a1090")),
+        (12, bytes.fromhex("488b4c24f04c8d0431"), bytes.fromhex("4989f04d29d849ffc0")),
+    ]),
+])
 
 # Everything unlocked (launcher -> Advanced -> Unlock all chapters, UNCHARTED_UNLOCK=1): the three
 # games keep Bluepoint's tweak flags "Unlock Chapter Select by default" and "Unlock Brutal
@@ -941,6 +965,34 @@ def hang_watchdog(process, log_path, dumps, seconds, reports):
         print(f"Hang watchdog: the game froze; report {report}", flush=True)
 
 
+def remove_pipeline_binaries(cache):
+    """Deletes the pipeline binaries earlier versions saved (<cache>/<game>*/pipeline-binaries,
+    ~2 MB each, 20 GB on a tester's PC) on a background thread while the game runs: they are
+    no longer used (24 Oct 2026). A start that ends first leaves the rest to the next start."""
+    folders = [path for path in cache.glob("*/pipeline-binaries") if path.is_dir()]
+    if not folders:
+        return
+
+    def work():
+        files = size = 0
+        for folder in folders:
+            for path in folder.iterdir():
+                try:
+                    size += path.stat().st_size
+                    path.unlink()
+                    files += 1
+                except OSError:
+                    pass
+            try:
+                folder.rmdir()
+            except OSError:
+                pass
+        print(f"Pipeline binaries: {files} old files removed ({size / 2**30:.1f} GB), no longer used",
+              flush=True)
+
+    threading.Thread(target=work, name="remove-pipeline-binaries", daemon=True).start()
+
+
 def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=()):
     """game: the folder the prepare scripts read; app0 (default: game) with overlays laid over
     it is what the game sees as /app0."""
@@ -968,6 +1020,8 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
         patches.extend(FOCUS_NAN_PATCHES.get(executable, []))
     if os.environ.get("UNCHARTED_CUE_PRETOUCH", "1") != "0":
         patches.extend(CUE_PRETOUCH_PATCHES.get(executable, []))
+    if os.environ.get("UNCHARTED_RUN_GROUP_FIX", "1") != "0":
+        patches.append(RUN_GROUP_PATCH)
     for cheat in cheat_names(executable):
         patches.extend(CHEAT_PATCHES.get(executable, {}).get(cheat, []))
     # Ultrawide render sizes (the launcher's aspect ratio): the wider view (HOR_PLUS_PATCHES).
@@ -1055,6 +1109,11 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
         limit = ini_value(Path(env["GOW3_CONFIG"]), "fps_limit", "60")
         if limit.isdigit() and (int(limit) == 0 or int(limit) > 60):
             env["GOW3_VBLANK_HZ"] = "0"
+    # Save profiles (launcher Advanced, GitHub #66, 24 Oct 2026): profile N plays as PS4 user N,
+    # whose saves are in analysis\uncharted-user\savedata\N (profile 1: the folder of every earlier
+    # version). GOW3_USER_ID set outside the launcher (tests) wins.
+    profile = os.environ.get(f"UNCHARTED_SAVE_PROFILE_{game_key.upper()}", "1")
+    env.setdefault("GOW3_USER_ID", profile if profile.isdigit() and 1 <= int(profile) <= 16 else "1")
     multithreaded = os.environ.get(f"UNCHARTED_MULTITHREADED_{game_key.upper()}")
     # Drake's Fortune: its weapons (and at times other objects) drew with another draw's look on
     # some frames with multithreaded rendering (flat grey guns, the player and GitHub #23, 18 Oct
@@ -1112,6 +1171,13 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
         # 1440p, the same reader: global 0x1a5fdd0 + 0x35f8 in 1.02). Drake's Fortune aims sharp
         # without it, so it skips the copy and the wait.
         env.setdefault("GOW3_TINY_IMAGE_READBACK", "1")
+    # 24 Oct (GitHub #140, Uncharted 3 washed out in sunny areas): Uncharted 3 draws its bloom into
+    # mips 1 and 2 of a 7-level texture; their render targets became images of their own, so the
+    # tonemap read a bloom mip that nothing wrote. GOW3_MIP_TARGETS=1 draws them into the texture's
+    # mips (image_info.cpp, texture_cache.cpp). Uncharted 1 and 2 share this post-processing (their
+    # bloom mips are lost the same way): to be turned on for them after a test there.
+    if executable == "big3-ps4_Shipping.elf":
+        env.setdefault("GOW3_MIP_TARGETS", "1")
     # The PS4's system language (launcher -> Advanced -> Language; runtime_services.c): each game's
     # main menu offers it next to English (Square). 1 = English (US).
     language = os.environ.get("UNCHARTED_LANGUAGE", "").strip()
@@ -1288,7 +1354,13 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
     # m_gfxEopTick); cached pipelines avoid recompiling every shader on each run.
     # Set GOW3_PIPELINE_CACHE=0 when testing shader recompiler changes.
     env.setdefault("GOW3_PIPELINE_CACHE", "1")
-    env.setdefault("GOW3_PIPELINE_BINARIES", "1")
+    # No pipeline binaries (24 Oct 2026). Each pipeline made from one kept its ~2 MB in memory:
+    # Uncharted 2 used 15.5 GB of RAM with them and 7.0 GB without, and loaded its pipelines in
+    # 40 s instead of 9.6 s (the graphics driver's own shader cache does the job, faster).
+    # GOW3_PIPELINE_BINARIES=1 (test-env.txt) turns them back on.
+    env.setdefault("GOW3_PIPELINE_BINARIES", "0")
+    if env["GOW3_PIPELINE_BINARIES"] == "0":
+        remove_pipeline_binaries(Path(env["GOW3_GPU_USER_DIR"]) / "cache")
     env["GOW3_TOGGLE_FILE"] = str(user / "disabled-optimizations.txt")
     env["GOW3_LOADEXEC_FILE"] = str(loadexec)
     if args.capture:
@@ -1312,6 +1384,11 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
     command = [str(game_executable()), str(out / "boot-linked.bin"),
                "--no-game-hooks", "--low-image", "--content-profile", str(out / "content.bin"),
                "--app0", str(app0 or game), "--user", str(user)]
+    # gow3 24 Oct 2026, co-op research: UNCHARTED_COOP_OVERLAY=<dir> lays one more folder over
+    # /app0, ahead of the others (e.g. a U2 package manifest without the missing co-op skins,
+    # analysis/triage-1022/coop-work/make_coop_overlay.py). Off unless set.
+    if coop_overlay := os.environ.get("UNCHARTED_COOP_OVERLAY"):
+        command += ["--app0-overlay", coop_overlay]
     for overlay in overlays:
         command += ["--app0-overlay", str(overlay)]
     # guest_args is the game's complete argv; argv[0] is the program name.

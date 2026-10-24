@@ -9,8 +9,8 @@
 // ACPI thermal zone for the processor), and the graphics card shows as "GPU" instead of its
 // full name so the counter fits one line.
 //
-// 24 Oct 2026: RAM is the system's memory in use, not this process's working set, and it is
-// shown without the total ("RAM 11.2 GB") so the line stays short.
+// 24 Oct 2026: RAM is the game's own memory (its working set), shown without the system's total
+// ("RAM 6.1 GB") so the line stays short.
 
 #pragma once
 

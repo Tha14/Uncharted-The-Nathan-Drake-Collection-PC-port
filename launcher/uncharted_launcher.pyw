@@ -225,10 +225,10 @@ def voice_languages(game_dir):
             ids.update(SPEECH_PACKS.get(pack.name.removesuffix("_ps4.psarc").lower(), ()))
     return ids
 GAME_KEYS = ("u1", "u2", "u3")
-GAME_SETTING_DEFAULTS = {"preset": "medium", "resolution": "1920x1080", "aspect": "16:9", "multithreaded": False,
+GAME_SETTING_DEFAULTS = {"preset": "medium", "resolution": "1920x1080", "aspect": "16:9", "multithreaded": False, "save_profile": "1",
                          "async_readback": False, "controls": None, "mouse": True, "mouse_sens": "1.0",
                          "mouse_invert": False, "prompts": "auto", "mouse_aim_sens": "1.0",
-                         "mouse_vertical": "1.0", "mouse_invert_x": False}
+                         "mouse_vertical": "1.0", "mouse_invert_x": False, "vibration": True}
 
 # Keyboard and mouse controls (runtime_pad.c): action -> up to two bindings, "key:<SDL key name>"
 # or "mouse:<left|middle|right|x1|x2|wheel_up|wheel_down>". Stick directions take keys only.
@@ -505,7 +505,7 @@ DEFAULT_CONTROLS = {
 PROMPT_MODES = [("auto", "Auto"), ("keyboard", "Keyboard and mouse"), ("playstation", "PlayStation"),
                 ("xbox", "Xbox")]
 MOUSE_SENSITIVITIES = [("0.5", "0.5x"), ("0.75", "0.75x"), ("1.0", "1x"), ("1.5", "1.5x"), ("2.0", "2x"),
-                       ("3.0", "3x")]
+                       ("3.0", "3x"), ("4.0", "4x"), ("5.0", "5x")]
 # While aiming (times the sensitivity) and up/down compared with left/right (the in-game menu's
 # Controls tab has the same as sliders).
 MOUSE_FACTORS = [("0.5", "0.5x"), ("0.75", "0.75x"), ("1.0", "1x"), ("1.25", "1.25x"), ("1.5", "1.5x"),
@@ -611,7 +611,8 @@ def controls_to_ini(settings):
             "prompts": settings.get("prompts", "auto"),
             "mouse_aim_sens": settings.get("mouse_aim_sens", "1.0"),
             "mouse_vertical": settings.get("mouse_vertical", "1.0"),
-            "mouse_invert_x": "1" if settings.get("mouse_invert_x") else "0"}
+            "mouse_invert_x": "1" if settings.get("mouse_invert_x") else "0",
+            "vibration": "1" if settings.get("vibration", True) else "0"}
 
 
 def controls_from_ini(values, settings):
@@ -641,6 +642,8 @@ def controls_from_ini(values, settings):
             settings[key] = factor_value(values[key], options)
     if "mouse_invert_x" in values:
         settings["mouse_invert_x"] = values["mouse_invert_x"] == "1"
+    if "vibration" in values:
+        settings["vibration"] = values["vibration"] == "1"
     if "prompts" in values:
         settings["prompts"] = values["prompts"] if values["prompts"] in dict(PROMPT_MODES) else "auto"
     return True
@@ -1631,6 +1634,8 @@ class Launcher:
         self.refresh_render_size()
         if isinstance(self.widgets.get("multithreaded"), Toggle):
             self.widgets["multithreaded"].set(settings["multithreaded"])
+        if isinstance(self.widgets.get("save_profile"), Segmented):
+            self.widgets["save_profile"].set(str(settings.get("save_profile", "1")))
         if isinstance(self.widgets.get("mouse"), Toggle):
             self.widgets["mouse"].set(settings.get("mouse", True))
             self.widgets["mouse_sens"].set(settings.get("mouse_sens", "1.0"))
@@ -1638,6 +1643,7 @@ class Launcher:
             self.widgets["mouse_aim_sens"].set(settings.get("mouse_aim_sens", "1.0"))
             self.widgets["mouse_vertical"].set(settings.get("mouse_vertical", "1.0"))
             self.widgets["mouse_invert_x"].set(settings.get("mouse_invert_x", False))
+            self.widgets["vibration"].set(settings.get("vibration", True))
             self.widgets["prompts"].set(settings.get("prompts", "auto"))
             self.refresh_pad_slots()
         if hasattr(self, "binding_slots"):
@@ -2123,6 +2129,13 @@ class Launcher:
         self.widgets["mouse_invert_x"] = Toggle(aim, self.s, settings.get("mouse_invert_x", False),
                                                 lambda v: self.change_game_setting("mouse_invert_x", v))
         self.widgets["mouse_invert_x"].pack(side="left", padx=(self.px(8), 0))
+        # Controller vibration (#166): off stops every rumble.
+        rumble = tk.Frame(page, bg=BG)
+        rumble.pack(side="top", fill="x", pady=(self.px(10), 0))
+        tk.Label(rumble, text="Controller vibration", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
+        self.widgets["vibration"] = Toggle(rumble, self.s, settings.get("vibration", True),
+                                           lambda v: self.change_game_setting("vibration", v))
+        self.widgets["vibration"].pack(side="left", padx=(self.px(8), 0))
         icons = tk.Frame(page, bg=BG)
         icons.pack(side="top", fill="x", pady=(self.px(10), 0))
         tk.Label(icons, text="Button icons", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
@@ -2327,7 +2340,9 @@ class Launcher:
         return "break"
 
     def capture_button(self, event):
-        names = {1: "left", 2: "middle", 3: "right", 4: "x1", 5: "x2"}
+        # Tk 9 (the bundled Python 3.14) numbers the side buttons 8 and 9 on Windows (#152); 4 and
+        # 5 were Tk 8's numbers.
+        names = {1: "left", 2: "middle", 3: "right", 4: "x1", 5: "x2", 8: "x1", 9: "x2"}
         if event.num in names:
             self.capture_mouse(names[event.num])
         return "break"
@@ -2374,7 +2389,7 @@ class Launcher:
         settings = self.game_settings()
         settings.update({"controls": None, "mouse": True, "mouse_sens": "1.0", "mouse_invert": False,
                          "prompts": "auto", "pad_controls": None, "mouse_aim_sens": "1.0",
-                         "mouse_vertical": "1.0", "mouse_invert_x": False})
+                         "mouse_vertical": "1.0", "mouse_invert_x": False, "vibration": True})
         self.save_controls()
         self.refresh_controls()
 
@@ -2390,6 +2405,17 @@ class Launcher:
 
     def page_advanced(self):
         page = self.page()
+
+        # Save profiles (#66): profile N plays as PS4 user N, with its saves in savedata\N.
+        def save_profile(parent):
+            return Segmented(parent, (("1", "Profile 1"), ("2", "Profile 2"), ("3", "Profile 3")),
+                             str(self.game_settings().get("save_profile", "1")),
+                             lambda v: self.change_game_setting("save_profile", v), self.f_small)
+        self.widgets["save_profile"] = self.row(
+            page, "Save profile",
+            "Separate saves for this game: each profile keeps its own progress and in-game settings, "
+            "like another PS4 user. Profile 1 has your saves from earlier versions; switching never "
+            "deletes anything.", save_profile)
 
         def language(parent):
             voices = voice_languages(self.game_dir())
@@ -2719,7 +2745,7 @@ class Launcher:
     def change_game_setting(self, key, value):
         self.game_settings()[key] = value
         if key in ("mouse", "mouse_sens", "mouse_invert", "prompts", "mouse_aim_sens", "mouse_vertical",
-                   "mouse_invert_x"):
+                   "mouse_invert_x", "vibration"):
             self.save_controls()
         else:
             write_config(self.config)
@@ -2784,6 +2810,7 @@ class Launcher:
             else:
                 env.pop(f"UNCHARTED_OUTPUT_RES_{key.upper()}", None)
             env[f"UNCHARTED_MULTITHREADED_{key.upper()}"] = "1" if settings["multithreaded"] else "0"
+            env[f"UNCHARTED_SAVE_PROFILE_{key.upper()}"] = str(settings.get("save_profile", "1"))
             # Controls: in each game's settings file (save_controls), where its menu changes them.
         python = Path(sys.executable)
         if python.name.lower() == "pythonw.exe" and python.with_name("python.exe").exists():
@@ -2972,6 +2999,13 @@ class Launcher:
                             "A report was saved; see the log folder." if froze
                             else f"Exit code {code}. See the log for details.")
             if reason:
+                # 24 Oct 2026 (#148, #163, #172): crashes of a 1.00 game were reported as port bugs;
+                # most of the port's fixes are written for update 1.02.
+                version = app_version(self.game_dir())
+                if not self.update_dir() and version and version < "01.02":
+                    reason += (f"\n\nYour game is version {version.lstrip('0')} without update 1.02, so most of "
+                               "the port's crash fixes are skipped. Install update 1.02 first (Advanced -> "
+                               "GAME UPDATE).")
                 if messagebox.askyesno(APP_TITLE, f"The game stopped with an error:\n\n{reason}\n\nOpen the log folder?"):
                     self.open_logs()
         if self.direct:
