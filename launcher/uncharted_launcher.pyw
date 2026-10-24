@@ -183,8 +183,10 @@ INI_DEFAULTS = {
     "upscaler": "off",
     # The performance counter (Display tab): the items on its line, its corner, layout, text size
     # and background opacity. The runtime's defaults; the in-game Overlay tab writes them too.
-    "overlay_fps": "1", "overlay_frametime": "1", "overlay_gpu": "1", "overlay_cpu": "1",
-    "overlay_ram": "1", "overlay_vram": "0", "overlay_upscaler": "0", "overlay_corner": "1",
+    # Items as the runtime starts (DefaultItems: FPS, frame time, upscaler) until the game has
+    # written its ini once.
+    "overlay_fps": "1", "overlay_frametime": "1", "overlay_gpu": "0", "overlay_cpu": "0",
+    "overlay_ram": "0", "overlay_vram": "0", "overlay_upscaler": "1", "overlay_corner": "1",
     "overlay_layout": "0", "overlay_scale": "100", "overlay_opacity": "50",
 }
 # Cheats (Advanced page): name, title, hint. tools/probe_uncharted.py turns on the games' own

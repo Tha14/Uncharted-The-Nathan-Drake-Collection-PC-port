@@ -192,7 +192,9 @@ private:
     void TryLoad() {
         last_try_ns = NowMs();
         if (!lib) {
-            lib = LoadLibraryW(L"nvml.dll");
+            // From System32 only (the driver puts it there): a file of that name next to the
+            // game is never loaded (24 Oct 2026).
+            lib = LoadLibraryExW(L"nvml.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
             if (!lib) {
                 return;
             }
@@ -341,7 +343,7 @@ void Run(const Vulkan::Instance* instance) {
         }
         // The system's memory, not the game's working set: what Task Manager calls "In use"
         // (total minus what Windows can still hand out), which is what a player expects from
-        // a RAM readout (25 Oct 2026).
+        // a RAM readout (24 Oct 2026).
         MEMORYSTATUSEX system{.dwLength = sizeof(MEMORYSTATUSEX)};
         if (GlobalMemoryStatusEx(&system)) {
             s.ram_used_gb = double(system.ullTotalPhys - system.ullAvailPhys) / GiB;

@@ -9,7 +9,7 @@
 // ACPI thermal zone for the processor), and the graphics card shows as "GPU" instead of its
 // full name so the counter fits one line.
 //
-// 25 Oct 2026: RAM is the system's memory in use, not this process's working set, and it is
+// 24 Oct 2026: RAM is the system's memory in use, not this process's working set, and it is
 // shown without the total ("RAM 11.2 GB") so the line stays short.
 
 #pragma once
@@ -111,7 +111,7 @@ inline std::string Format(const Sample& s, unsigned mask, bool row) {
         add();
     }
     if (mask & Ram) {
-        // The system's RAM in use, without the total (25 Oct 2026).
+        // The system's RAM in use, without the total (24 Oct 2026).
         pair(part, sizeof(part), "RAM", s.ram_used_gb, -1.0);
         add();
     }
