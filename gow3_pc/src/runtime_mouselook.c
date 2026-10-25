@@ -713,6 +713,91 @@ static ABI void *u2_aim_camera_input(unsigned char *camera, unsigned char *param
     aim_input(&u2_aim, u2_aim_enabled(), camera, dir, (const int *)(image + 0x105dea4), lo, hi);
     return NULL;
 }
+/* gow3 25 Oct 2026: direct mouse aim in Uncharted 1. The aim camera's update calls the aim function
+ * 0x276a10 (its only caller, at 0xc4c52) with the controller (rsi, camera + 0xa50) and the camera's
+ * remembered aim direction (x, y, z; rcx, the 4th argument, which reaches the handler unchanged).
+ * The function turns that direction by the right stick (dead zone, curve, a turn rate that ramps up:
+ * the mouse as the stick was slow and accelerated), the camera keeps it, and aim assist and recoil go
+ * on top of the shown direction. The mouse turns the remembered direction before the function runs,
+ * the same angle per count as the other aim cameras (aim sensitivity on top), pitch inside +-70
+ * degrees.
+ * The game makes new aim cameras during one press (after a roll, about every 100 ms while Drake gets
+ * up; two can take turns within a frame), and each has its own direction. So the press's mouse turn
+ * is summed, and each controller remembers how much of it it already has: every camera gets each
+ * turn once. A new controller that starts where the last turned direction ended (within 3 degrees)
+ * already has the turns; one that starts elsewhere (the game's own direction after a roll) gets them
+ * on top. The follow camera's invert options apply (U1 has no separate aim ones that we know of).
+ * GOW3_MOUSE_LOOK_U1_AIM=0: the mouse is the stick while aiming again. */
+static int u1_aim_enabled(void) {
+    static int enabled = -1;
+    if (enabled < 0) enabled = knob("GOW3_MOUSE_LOOK_U1_AIM", 1);
+    return enabled;
+}
+static U1Look u1_aim = {.name = "U1 aim"};
+static struct {
+    int held;                    /* aiming at the last call */
+    float dx, dy;                /* this press's mouse turn so far (counts, game invert applied) */
+    unsigned clock;              /* calls, for replacing the least recently used controller */
+    struct {
+        const unsigned char *controller;
+        float dx, dy;            /* how much of the press's turn this controller's direction has */
+        unsigned used;
+    } given[4];
+    float last[3];               /* the last turned direction */
+    int have_last;
+} u1_press;
+static ABI void *u1_aim_input(unsigned char *out, unsigned char *controller, void *unused, float *dir) {
+    (void)out;
+    (void)unused;
+    if (!u1_aim_enabled() || !controller || !dir) return NULL;
+    if (!runtime_pad_aim_held()) {
+        u1_press.held = 0;
+        return NULL;
+    }
+    if (!u1_press.held) {
+        memset(&u1_press, 0, sizeof(u1_press));
+        u1_press.held = 1;
+    }
+    if (!aim_usable(dir)) return NULL;
+    float dx = 0, dy = 0;
+    if (aim_take(&u1_aim, (const int *)(image + 0x95ca20), &dx, &dy)) {
+        u1_press.dx += dx;
+        u1_press.dy += dy;
+    }
+    int slot = 0, found = 0;
+    for (int i = 0; i < 4; ++i) {
+        if (u1_press.given[i].controller == controller) {
+            slot = i;
+            found = 1;
+            break;
+        }
+        if (u1_press.given[i].used < u1_press.given[slot].used) slot = i;
+    }
+    if (!found) {
+        const float *l = u1_press.last;
+        const float dot = dir[0] * l[0] + dir[1] * l[1] + dir[2] * l[2];
+        const float lengths = sqrtf((dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]) *
+                                    (l[0] * l[0] + l[1] * l[1] + l[2] * l[2]));
+        const int continues = u1_press.have_last && lengths > 0.0f && dot > 0.9986f * lengths;
+        u1_press.given[slot].controller = controller;
+        u1_press.given[slot].dx = continues ? u1_press.dx : 0.0f;
+        u1_press.given[slot].dy = continues ? u1_press.dy : 0.0f;
+    }
+    u1_press.given[slot].used = ++u1_press.clock;
+    const float turn_x = u1_press.dx - u1_press.given[slot].dx, turn_y = u1_press.dy - u1_press.given[slot].dy;
+    const float per_count = look_scale();
+    if (turn_x != 0.0f) rotate_look(dir, turn_x, per_count);
+    if (turn_y != 0.0f) pitch_dir(dir, turn_y, per_count, -70.0f, 70.0f);
+    u1_press.given[slot].dx = u1_press.dx;
+    u1_press.given[slot].dy = u1_press.dy;
+    memcpy(u1_press.last, dir, sizeof(u1_press.last));
+    u1_press.have_last = 1;
+    if (look_debug()) {
+        static LookDebug d;
+        look_debug_line(&d, &u1_aim, 1, controller, dir, (float)slot, -70.0f, 70.0f, NULL, 1);
+    }
+    return NULL;
+}
 /* A cover camera: flat direction dir (x, 0, z, 0) and pitch in degrees inside lo..hi; follow-camera
  * input (not while aiming), the follow camera's invert options. */
 static void cover_input(U1Look *s, int enabled, unsigned char *camera, float *dir, float *pitch, const int *flags,
@@ -843,6 +928,15 @@ static const MouseLookSite sites[] = {
       0x68, 0x01, 0x00, 0x00, 0x49, 0x89, 0xd7, 0x48},
      24,
      (void *)u2_cover_camera_input},
+    /* gow3 25 Oct 2026: the aim function (its 4th argument, the remembered aim direction, also reaches
+     * the handler: the stub leaves rcx as it was). */
+    {"Uncharted 1 (aim)",
+     0x276a10,
+     6,
+     {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54, 0x53, 0x48, 0x81, 0xec,
+      0x08, 0x03, 0x00, 0x00, 0x45, 0x89, 0xc4, 0x48},
+     24,
+     (void *)u1_aim_input},
 };
 
 const MouseLookSite *runtime_mouselook_sites(unsigned *count) {

@@ -119,7 +119,15 @@ static void play_click(PadData *d) {
 }
 
 static void apply_light_bar(SDL_Gamepad *g);
-/* Opens the first gamepad SDL knows about; called under lock. */
+/* GOW3_PAD_INDEX=<n> (gow3 25 Oct 2026, local co-op: two game windows on one PC, one controller
+ * each): this game reads only the n-th controller SDL lists (1 = the first), none while fewer are
+ * connected; window.cpp then lets controller input in without the focus. Unset: the first one. */
+static int pad_index(void) {
+    static int index=-1;
+    if (index<0) { const char *e=getenv("GOW3_PAD_INDEX"); index=e && atoi(e)>0 ? atoi(e) : 0; }
+    return index;
+}
+/* Opens the first gamepad SDL knows about (or the GOW3_PAD_INDEX-th); called under lock. */
 static SDL_Gamepad *current_gamepad(void) {
     if (!sdl_ready) sdl_ready = SDL_WasInit(SDL_INIT_GAMEPAD) ? 1 : SDL_InitSubSystem(SDL_INIT_GAMEPAD) ? 1 : -1;
     if (sdl_ready<0) return NULL;
@@ -127,12 +135,17 @@ static SDL_Gamepad *current_gamepad(void) {
     if (!gamepad) {
         int count=0;
         SDL_JoystickID *ids=SDL_GetGamepads(&count);
-        if (ids && count>0) {
-            gamepad=SDL_OpenGamepad(ids[0]);
+        const int want=pad_index() ? pad_index()-1 : 0;
+        if (ids && count>want) {
+            gamepad=SDL_OpenGamepad(ids[want]);
             if (gamepad) {
-                ++connected_count; printf("Runtime: gamepad connected: %s\n",SDL_GetGamepadName(gamepad));
+                ++connected_count; printf("Runtime: gamepad connected: %s%s\n",SDL_GetGamepadName(gamepad),
+                                          pad_index() ? " (GOW3_PAD_INDEX)" : "");
                 apply_light_bar(gamepad);
             }
+        } else if (pad_index()) {
+            static int told=-1;
+            if (told!=count) { told=count; printf("Runtime: GOW3_PAD_INDEX=%d: %d controller(s) connected, waiting\n",pad_index(),count); fflush(stdout); }
         }
         SDL_free(ids);
     }

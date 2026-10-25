@@ -5,6 +5,9 @@
 #include <mutex>
 #include <vector>
 #include <cstdlib>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include <boost/container/static_vector.hpp>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -606,9 +609,23 @@ bool Instance::CreateDevice() {
     // every submission of the GPU command thread: 0.3-0.8 s freezes in Uncharted 1 and 3, the
     // thread neither idle nor in any counted wait. GOW3_PRESENT_QUEUE=0: presents on the
     // graphics queue, as before.
+    // gow3 25 Oct 2026 (GitHub #127, #128): RivaTuner's on-screen display flickers with presents on
+    // their own queue: in gameplay with DLSS at a 120 FPS limit it was missing from 5 of 60
+    // window captures, against 0 of 60 on the graphics queue. With its hooks in the process
+    // (RTSSHooks64.dll) presents stay on the graphics queue; GOW3_PRESENT_QUEUE=1 keeps the own
+    // queue anyway.
     static const bool present_queue_wanted = [] {
         const char* env = std::getenv("GOW3_PRESENT_QUEUE");
-        return !(env && env[0] == '0');
+        if (env && env[0]) {
+            return env[0] != '0';
+        }
+#ifdef _WIN32
+        if (GetModuleHandleW(L"RTSSHooks64.dll")) {
+            std::fputs("GPU: RivaTuner overlay found: presents on the graphics queue\n", stdout);
+            return false;
+        }
+#endif
+        return true;
     }();
     static constexpr std::array queue_priorities = {1.0f, 1.0f, 1.0f};
     const u32 queue_count =

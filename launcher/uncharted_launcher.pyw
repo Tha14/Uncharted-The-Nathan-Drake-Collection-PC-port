@@ -27,6 +27,7 @@ from tkinter import messagebox
 
 from PIL import Image, ImageDraw, ImageTk
 
+import net_lan  # launcher/net_lan.py: Uncharted 2 games hosted on this network (Multiplayer page)
 import updater  # launcher/updater.py: updates from the GitHub releases
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -37,6 +38,8 @@ USER_DIR = ROOT / "analysis" / "uncharted-user"
 INI_FILE = USER_DIR / "probe.ini"
 RUN_SCRIPT = ROOT / "tools" / "probe_uncharted.py"
 PREFIX_CONFIG_FILE = Path(os.environ.get("APPDATA", Path.home())) / "Uncharted Launcher" / "launcher.json"
+# Uncharted 2's net games for the Multiplayer page (the co-op research's *net-games* table).
+NET_GAMES_FILE = ROOT / "launcher" / "net_games.json"
 
 
 def wine_kernel32():
@@ -147,6 +150,52 @@ CREDITS = ("Credits: DLSS and DLAA use NVIDIA DLSS technology. NVIDIA, RTX and D
 LINKS = (("Patreon", "https://www.patreon.com/c/bilalreloaded", "#f96854", "#ff7f6e"),
          ("YouTube", "https://www.youtube.com/@BilalReloaded/videos", "#d6302a", "#ef4038"),
          ("GitHub", "https://github.com/bc160201983", "#24292f", "#3a4048"))
+
+def multiplayer_preview():
+    """The Multiplayer page (Uncharted 2 over the network, 25 Oct 2026) is hidden until it
+    works: UNCHARTED_MULTIPLAYER=1 or a file named multiplayer-preview in analysis\\uncharted-user
+    shows it."""
+    return os.environ.get("UNCHARTED_MULTIPLAYER") == "1" or (USER_DIR / "multiplayer-preview").exists()
+
+
+# The characters a player can pick on the Multiplayer page (actor, label): Uncharted 2's
+# multiplayer skins that ship in the Collection, and Drake's own models. Only those whose actor is
+# in the player's game files are offered (net_characters); "" = the net game's default model.
+NET_CHARACTERS = [
+    ("", "Default (Drake)"), ("hero-default", "Drake"), ("hero-parka", "Drake (winter)"),
+    ("mp-hero-chloe-variation", "Chloe"), ("mp-hero-elena", "Elena"), ("mp-hero-elena-divesuit", "Elena (dive suit)"),
+    ("mp-hero-divesuit", "Drake (dive suit)"), ("mp-hero-sullivan-blue", "Sully (blue)"),
+    ("mp-hero-sullivan-red", "Sully (red)"), ("mp-hero-sullivan-winter", "Sully (winter)"),
+    ("mp-hero-eddie", "Eddy Raja"), ("mp-hero-navarro", "Navarro"), ("mp-hero-roman", "Roman"),
+    ("mp-hero-red", "Harry Flynn"), ("mp-hero-pirate", "Pirate"), ("mp-hero-merc", "Mercenary"),
+    ("mp-hero-udf", "UDF soldier"), ("mp-hero-skeleton-1-glow", "Skeleton (glow)"),
+    ("mp-hero-skeleton-1-platinum", "Skeleton (platinum)"),
+]
+
+
+def net_characters(game_dir):
+    """NET_CHARACTERS whose actor package is in the game folder (all when it is not known)."""
+    actors = Path(game_dir) / "u2data" / "build" / "main" / "actor27" / "ps4" if game_dir else None
+    if not actors or not actors.is_dir():
+        return list(NET_CHARACTERS)
+    return [(a, label) for a, label in NET_CHARACTERS if not a or (actors / (a + ".pak")).exists()]
+
+
+def net_games():
+    """The net games the Multiplayer page offers (index = the game's *net-games* entry, label):
+    the complete entries of launcher/net_games.json, else The Village co-op."""
+    games = []
+    try:
+        data = json.loads(NET_GAMES_FILE.read_text(encoding="utf-8"))
+        for entry in data.get("games", []) if isinstance(data, dict) else data:
+            if entry.get("complete") and isinstance(entry.get("index"), int):
+                mode = {"coop": "Co-op"}.get(entry.get("kind"), (entry.get("mode") or "").title())
+                label = " - ".join(part for part in (entry.get("map") or entry.get("name"), mode) if part)
+                games.append({"index": entry["index"], "label": label or f"Net game {entry['index']}"})
+    except (OSError, ValueError, AttributeError, TypeError):
+        pass
+    return games or [{"index": 114, "label": "The Village - Co-op"}]
+
 
 GAMES = [
     {"key": "u1", "number": "1", "title": "DRAKE'S FORTUNE", "name": "Uncharted: Drake's Fortune", "subtitle": "Uncharted 1  •  double-click to play",
@@ -1457,6 +1506,7 @@ class Launcher:
         self.f_body_bold = ("Segoe UI Semibold", 10)
         self.f_small = ("Segoe UI", 9)
         self.f_tab = ("Segoe UI Semibold", 10)
+        self.f_caps = ("Segoe UI Semibold", 8)
         self.f_play = ("Georgia", 17, "bold")
 
     # -- layout -----------------------------------------------------------------------------
@@ -1584,6 +1634,20 @@ class Launcher:
             self.refresh_controls()
         if hasattr(self, "status") and not self.process:
             self.set_status(f"Ready to play {self.current_game()['name']}.")
+        self.update_multiplayer_tab()
+
+    def update_multiplayer_tab(self):
+        """The Multiplayer tab shows only while Uncharted 2 is chosen (its net games)."""
+        cell = getattr(self, "tab_cells", {}).get("multiplayer")
+        if cell is None:
+            return
+        if self.config.get("game") == "u2":
+            if not cell.winfo_manager():
+                cell.pack(side="left", padx=(0, self.px(26)))
+        else:
+            cell.pack_forget()
+            if getattr(self, "current_tab", None) == "multiplayer":
+                self.show_tab("setup", save=False)
 
     def game_settings(self):
         """Preset, render resolution and multithreading of the selected game."""
@@ -1720,8 +1784,12 @@ class Launcher:
         strip = tk.Frame(outer, bg=BG)
         strip.pack(side="top", fill="x")
         self.tab_buttons = {}
-        for name, label in (("setup", "QUICK SETUP"), ("display", "DISPLAY"), ("performance", "PERFORMANCE"),
-                            ("controls", "CONTROLS"), ("cheats", "CHEATS"), ("advanced", "ADVANCED")):
+        self.tab_cells = {}
+        tabs = [("setup", "QUICK SETUP"), ("display", "DISPLAY"), ("performance", "PERFORMANCE"),
+                ("controls", "CONTROLS"), ("cheats", "CHEATS"), ("advanced", "ADVANCED")]
+        if multiplayer_preview():
+            tabs.append(("multiplayer", "MULTIPLAYER"))
+        for name, label in tabs:
             cell = tk.Frame(strip, bg=BG)
             cell.pack(side="left", padx=(0, self.px(26)))
             text = tk.Label(cell, text=label, font=self.f_tab, bg=BG, fg=MUTED, cursor="hand2")
@@ -1731,6 +1799,7 @@ class Launcher:
             for widget in (cell, text):
                 widget.bind("<Button-1>", lambda e, n=name: self.show_tab(n))
             self.tab_buttons[name] = (text, bar)
+            self.tab_cells[name] = cell
         tk.Frame(outer, bg=LINE, height=1).pack(side="top", fill="x")
         self.body = tk.Frame(outer, bg=BG, height=self.px(330))
         self.body.pack(side="top", fill="both", expand=True, pady=(self.px(14), 0))
@@ -1746,8 +1815,16 @@ class Launcher:
             "cheats": self.page_cheats(),
             "advanced": self.page_advanced(),
         }
+        if multiplayer_preview():
+            self.pages["multiplayer"] = self.page_multiplayer()
 
     def show_tab(self, name, save=True):
+        if name == "multiplayer" and self.config.get("game") != "u2":
+            name = "setup"
+        self.current_tab = name
+        if name == "multiplayer" and not getattr(self, "net_searched", False):
+            self.net_searched = True
+            self.root.after(300, self.search_net_games)
         if save and self.config.get("tab") != name:
             self.config["tab"] = name
             write_config(self.config)
@@ -2515,6 +2592,224 @@ class Launcher:
         button.bind("<Leave>", lambda e: button.config(bg=PANEL))
         return button
 
+    # -- multiplayer (preview) --------------------------------------------------------------
+
+    def text_entry(self, parent, key, default, width=18):
+        """A one-line text box whose text is kept in the launcher's settings under key: a framed
+        well (gold frame while typing) with room around the text."""
+        value = tk.StringVar(value=str(self.config.get(key, default)))
+        well = tk.Frame(parent, bg=BG, highlightthickness=1, highlightbackground=LINE)
+        entry = tk.Entry(well, textvariable=value, width=width, font=self.f_body, bg=BG, fg=TEXT,
+                         insertbackground=GOLD, relief="flat", highlightthickness=0)
+        entry.pack(fill="x", expand=True, padx=self.px(8), pady=self.px(4))
+        entry.bind("<FocusIn>", lambda e: well.config(highlightbackground=GOLD))
+        entry.bind("<FocusOut>", lambda e: well.config(highlightbackground=LINE))
+        well.bind("<Button-1>", lambda e: entry.focus_set())
+        value.trace_add("write", lambda *a: self.change_config(key, value.get().strip()))
+        return well
+
+    def gold_button(self, parent, label, action, small=False):
+        """A main action (Host, Join): gold, like the PLAY button."""
+        button = tk.Label(parent, text=label, font=self.f_tab if small else self.f_body_bold, bg=GOLD, fg=INK,
+                          padx=self.px(12 if small else 20), pady=self.px(4 if small else 8), cursor="hand2")
+        button.bind("<Button-1>", lambda e: action())
+        button.bind("<Enter>", lambda e: button.config(bg=GOLD_HI))
+        button.bind("<Leave>", lambda e: button.config(bg=GOLD))
+        return button
+
+    def caps_label(self, parent, text, bg=PANEL):
+        return tk.Label(parent, text=text, font=self.f_caps, bg=bg, fg=DIM, anchor="w")
+
+    def mp_card(self, parent, title, text):
+        """A bordered panel with a gold title and a short explanation; returns (card, inside)."""
+        card = tk.Frame(parent, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
+        inside = tk.Frame(card, bg=PANEL)
+        inside.pack(fill="both", expand=True, padx=self.px(20), pady=self.px(16))
+        tk.Label(inside, text=title, font=self.f_tab, bg=PANEL, fg=GOLD, anchor="w").pack(side="top", fill="x")
+        tk.Label(inside, text=text, font=self.f_small, bg=PANEL, fg=MUTED, anchor="w", justify="left",
+                 wraplength=self.px(470)).pack(side="top", fill="x", pady=(self.px(3), self.px(14)))
+        return card, inside
+
+    def page_multiplayer(self):
+        """Uncharted 2's own online games between PCs (the LAN transport, gow3_pc/src/runtime_net.c;
+        tools/probe_uncharted.py net_mode). Hidden until it works (multiplayer_preview), and
+        shown only while Uncharted 2 is chosen (update_multiplayer_tab)."""
+        page = self.page()
+        # Header strip: what this is, the preview mark, the player's name.
+        banner = tk.Frame(page, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
+        banner.pack(side="top", fill="x", pady=(0, self.px(12)))
+        tk.Frame(banner, bg=GOLD, width=self.px(4)).pack(side="left", fill="y")
+        about = tk.Frame(banner, bg=PANEL)
+        about.pack(side="left", fill="both", expand=True, padx=self.px(18), pady=self.px(14))
+        head = tk.Frame(about, bg=PANEL)
+        head.pack(side="top", fill="x")
+        tk.Label(head, text="Uncharted 2 Multiplayer", font=self.f_card_title, bg=PANEL, fg=TEXT).pack(side="left")
+        tk.Label(head, text="PREVIEW", font=self.f_caps, bg=GOLD, fg=INK, padx=self.px(7),
+                 pady=self.px(1)).pack(side="left", padx=(self.px(12), 0))
+        tk.Label(about, text="Naughty Dog's own co-op and competitive modes, played between PCs on your "
+                             "network. Not finished yet: a game may not start, or may crash.",
+                 font=self.f_small, bg=PANEL, fg=MUTED, anchor="w", justify="left",
+                 wraplength=self.px(620)).pack(side="top", fill="x", pady=(self.px(5), 0))
+        characters = net_characters(self.game_dir())
+        character = tk.Frame(banner, bg=PANEL)
+        character.pack(side="right", padx=(0, self.px(20)), pady=self.px(14))
+        self.caps_label(character, "CHARACTER").pack(side="top", fill="x")
+        value = str(self.config.get("net_skin", ""))
+        if value not in {a for a, _ in characters}:
+            value = ""
+        self.widgets["net_skin"] = Dropdown(character, characters, value,
+                                            lambda v: self.change_config("net_skin", v), self.f_body)
+        self.widgets["net_skin"].pack(side="top", fill="x", pady=(self.px(4), 0))
+        name = tk.Frame(banner, bg=PANEL)
+        name.pack(side="right", padx=self.px(20), pady=self.px(14))
+        self.caps_label(name, "YOUR NAME").pack(side="top", fill="x")
+        self.text_entry(name, "net_name", "Drake", width=22).pack(side="top", pady=(self.px(4), 0))
+
+        columns = tk.Frame(page, bg=BG)
+        columns.pack(side="top", fill="both", expand=True)
+        columns.columnconfigure(0, weight=1, uniform="multiplayer")
+        columns.columnconfigure(1, weight=1, uniform="multiplayer")
+        host, inside = self.mp_card(columns, "HOST A GAME",
+                                    "Choose a map and mode, then host. Players on your network find your "
+                                    "game under Join a game; they load the same map.")
+        host.grid(row=0, column=0, sticky="nsew", padx=(0, self.px(8)))
+        join, joining = self.mp_card(columns, "JOIN A GAME",
+                                     "A game hosted on your network, or a host's address.")
+        join.grid(row=0, column=1, sticky="nsew", padx=(self.px(8), 0))
+
+        # Host card.
+        games = net_games()
+        value = str(self.config.get("net_game", games[0]["index"]))
+        if value not in {str(g["index"]) for g in games}:
+            value = str(games[0]["index"])
+        self.caps_label(inside, "MAP AND MODE").pack(side="top", fill="x")
+        self.widgets["net_game"] = Dropdown(inside, [(str(g["index"]), g["label"]) for g in games], value,
+                                            lambda v: self.change_config("net_game", v), self.f_body)
+        self.widgets["net_game"].pack(side="top", fill="x", pady=(self.px(4), 0))
+        self.gold_button(inside, "HOST GAME", self.host_net_game).pack(side="top", anchor="w",
+                                                                        pady=(self.px(18), self.px(10)))
+        tk.Label(inside, text="Uses port 27000. The first time, Windows asks whether Uncharted may use the "
+                              "network: allow it for private networks.",
+                 font=self.f_small, bg=PANEL, fg=DIM, anchor="w", justify="left",
+                 wraplength=self.px(470)).pack(side="top", fill="x")
+        # Local co-op: the same map and mode in two windows on this PC, one controller each.
+        tk.Frame(inside, bg=LINE, height=1).pack(side="top", fill="x", pady=(self.px(14), self.px(12)))
+        self.caps_label(inside, "ON THIS PC: PLAYER 2'S CHARACTER").pack(side="top", fill="x")
+        value = str(self.config.get("net_skin2", ""))
+        if value not in {a for a, _ in characters}:
+            value = ""
+        self.widgets["net_skin2"] = Dropdown(inside, characters, value,
+                                             lambda v: self.change_config("net_skin2", v), self.f_body)
+        self.widgets["net_skin2"].pack(side="top", fill="x", pady=(self.px(4), 0))
+        self.gold_button(inside, "LOCAL CO-OP (2 CONTROLLERS)", self.local_net_game).pack(
+            side="top", anchor="w", pady=(self.px(12), self.px(8)))
+        tk.Label(inside, text="Two game windows side by side, the first controller plays the left one, the "
+                              "second the right one. Needs a strong PC: two games run at once.",
+                 font=self.f_small, bg=PANEL, fg=DIM, anchor="w", justify="left",
+                 wraplength=self.px(470)).pack(side="top", fill="x")
+
+        # Join card: the games found, then join by address.
+        found = tk.Frame(joining, bg=PANEL)
+        found.pack(side="top", fill="x")
+        self.caps_label(found, "ON YOUR NETWORK").pack(side="left")
+        self.flat_button(found, "\u21bb  Refresh", self.search_net_games).pack(side="right")
+        self.net_list = tk.Frame(joining, bg=PANEL)
+        self.net_list.pack(side="top", fill="x", pady=(self.px(6), self.px(14)))
+        self.show_net_games(None)
+        tk.Frame(joining, bg=LINE, height=1).pack(side="top", fill="x", pady=(0, self.px(12)))
+        self.caps_label(joining, "BY ADDRESS").pack(side="top", fill="x")
+        by_address = tk.Frame(joining, bg=PANEL)
+        by_address.pack(side="top", fill="x", pady=(self.px(4), self.px(8)))
+        self.gold_button(by_address, "JOIN", lambda: self.join_net_game(self.config.get("net_address", "")),
+                         small=True).pack(side="right", padx=(self.px(8), 0))
+        self.text_entry(by_address, "net_address", "").pack(side="left", fill="x", expand=True)
+        tk.Label(joining, text="The host's IP address, with :port when it is not 27000. Over the internet, "
+                               "the host opens the port on their router, or you both use a virtual "
+                               "network such as Tailscale.",
+                 font=self.f_small, bg=PANEL, fg=DIM, anchor="w", justify="left",
+                 wraplength=self.px(470)).pack(side="top", fill="x")
+        return page
+
+    def search_net_games(self):
+        if getattr(self, "net_searching", False) or not hasattr(self, "net_list"):
+            return
+        self.net_searching = True
+        self.show_net_games("searching")
+        found = queue.Queue()
+        threading.Thread(target=lambda: found.put(self._find_net_games()), daemon=True).start()
+
+        def done():
+            try:
+                games = found.get_nowait()
+            except queue.Empty:
+                self.root.after(100, done)
+                return
+            self.net_searching = False
+            self.show_net_games(games)
+        self.root.after(100, done)
+
+    @staticmethod
+    def _find_net_games():
+        try:
+            return net_lan.find_games()
+        except OSError as error:
+            return error
+
+    def show_net_games(self, games):
+        """The Join card's list: None (not searched), "searching", an error, [] or the games."""
+        for child in self.net_list.winfo_children():
+            child.destroy()
+        if not isinstance(games, list) or not games:
+            if isinstance(games, OSError):
+                text = f"The search failed: {games}"
+            elif games == "searching":
+                text = "Looking for games on your network..."
+            elif games is None:
+                text = "Press Refresh to look for games."
+            else:
+                text = "No games on your network right now. The host presses HOST GAME first; or join by address."
+            box = tk.Frame(self.net_list, bg=BG, highlightthickness=1, highlightbackground=LINE)
+            box.pack(side="top", fill="x")
+            tk.Label(box, text=text, font=self.f_small, bg=BG, fg=MUTED, anchor="w", justify="left",
+                     wraplength=self.px(440)).pack(side="top", fill="x", padx=self.px(12), pady=self.px(12))
+            return
+        for game in games:
+            line = tk.Frame(self.net_list, bg=BG, highlightthickness=1, highlightbackground=LINE)
+            line.pack(side="top", fill="x", pady=(0, self.px(6)))
+            address = f"{game['address']}:{game['port']}"
+            self.gold_button(line, "JOIN", lambda a=address: self.join_net_game(a), small=True) \
+                .pack(side="right", padx=self.px(10), pady=self.px(8))
+            text = tk.Frame(line, bg=BG)
+            text.pack(side="left", fill="x", expand=True, padx=self.px(12), pady=self.px(7))
+            tk.Label(text, text=game["title"] or f"Net game {game['game']}", font=self.f_body_bold, bg=BG,
+                     fg=TEXT, anchor="w").pack(side="top", fill="x")
+            tk.Label(text, text=f"Host {game['host'] or '?'}   \u00b7   {game['players']}/{game['most']} players"
+                                f"   \u00b7   {game['address']}",
+                     font=self.f_small, bg=BG, fg=MUTED, anchor="w").pack(side="top", fill="x")
+
+    def host_net_game(self):
+        games = net_games()
+        index = str(self.config.get("net_game", games[0]["index"]))
+        label = next((g["label"] for g in games if str(g["index"]) == index), games[0]["label"])
+        self.play(net={"mode": "host", "address": "0.0.0.0:27000", "game": index, "title": label})
+
+    def local_net_game(self):
+        """Local co-op: this PC hosts on 127.0.0.1 in the left half of the screen with the first
+        controller; a second game (instance 2: its own log and user folders) joins it in the right
+        half with the second controller (GOW3_PAD_INDEX, GOW3_WINDOW_HALF)."""
+        games = net_games()
+        index = str(self.config.get("net_game", games[0]["index"]))
+        label = next((g["label"] for g in games if str(g["index"]) == index), games[0]["label"])
+        self.play(net={"mode": "host", "address": "127.0.0.1:27000", "game": index, "title": label, "local": True})
+
+    def join_net_game(self, address):
+        address = (address or "").strip()
+        if not address:
+            messagebox.showinfo(APP_TITLE, "Type the host's address (e.g. 192.168.1.20), or pick a game "
+                                           "found on your network.")
+            return
+        self.play(net={"mode": "join", "address": address})
+
     # -- footer -----------------------------------------------------------------------------
 
     def build_footer(self):
@@ -2768,7 +3063,11 @@ class Launcher:
         if not self.process:
             self.play()
 
-    def play(self):
+    def play(self, net=None):
+        """net: a Multiplayer page start (host or join an Uncharted 2 net game), else the chosen game."""
+        if net and self.process:
+            messagebox.showinfo(APP_TITLE, "A game is already running.")
+            return
         if not RUN_SCRIPT.exists():
             messagebox.showerror(APP_TITLE, f"Start script missing:\n{RUN_SCRIPT}")
             return
@@ -2783,8 +3082,23 @@ class Launcher:
         self.follow_ini()  # the in-game menu's last changes, not older values kept here
         self.save_ini({k: self.ini.get(k, v) for k, v in INI_DEFAULTS.items()})
         write_config(self.config)
-        game = self.current_game()
+        game = next(g for g in GAMES if g["key"] == "u2") if net else self.current_game()
         env = os.environ.copy()
+        # The Multiplayer page: Uncharted 2's own online game (tools/probe_uncharted.py net_mode).
+        for key in ("UNCHARTED_NET_MODE", "UNCHARTED_NET_ADDRESS", "UNCHARTED_NET_GAME", "UNCHARTED_NET_TITLE",
+                    "UNCHARTED_NET_NAME", "UNCHARTED_NET_SKIN", "UNCHARTED_INSTANCE", "GOW3_PAD_INDEX",
+                    "GOW3_WINDOW_HALF"):
+            env.pop(key, None)
+        if net:
+            env["UNCHARTED_NET_MODE"] = net["mode"]
+            env["UNCHARTED_NET_ADDRESS"] = net.get("address", "")
+            env["UNCHARTED_NET_NAME"] = str(self.config.get("net_name", ""))[:31]
+            env["UNCHARTED_NET_SKIN"] = str(self.config.get("net_skin", ""))
+            if net.get("local"):  # local co-op: the left window, the first controller, no mouse
+                env.update({"GOW3_PAD_INDEX": "1", "GOW3_WINDOW_HALF": "left", "GOW3_MOUSE": "0"})
+            if net["mode"] == "host":
+                env["UNCHARTED_NET_GAME"] = net["game"]
+                env["UNCHARTED_NET_TITLE"] = net["title"]
         env["UNCHARTED_DIAGNOSTICS"] = "1" if self.config.get("diagnostics", True) else "0"
         env["UNCHARTED_TORCH_FORWARD"] = "1" if self.config.get("torch_forward", True) else "0"
         env["UNCHARTED_JOB_SLEEP"] = "0" if self.config.get("job_sleep", "auto") == "off" else "1"
@@ -2842,8 +3156,66 @@ class Launcher:
         except OSError:
             self.run_log = None
         threading.Thread(target=self.read_output, args=(self.process,), daemon=True).start()
+        self.partner = None
+        if net and net.get("local"):
+            # The joiner: instance 2 (analysis/<game>-i2, analysis/uncharted-user-i2), the right
+            # window, the second controller. It connects again every second until the host listens.
+            partner_env = dict(env)
+            name = str(self.config.get("net_name", "") or "Drake")
+            partner_env.update({"UNCHARTED_INSTANCE": "2", "UNCHARTED_NET_MODE": "join",
+                                "UNCHARTED_NET_ADDRESS": "127.0.0.1:27000", "UNCHARTED_NET_NAME": (name + " 2")[:31],
+                                "UNCHARTED_NET_SKIN": str(self.config.get("net_skin2", "")),
+                                "GOW3_PAD_INDEX": "2", "GOW3_WINDOW_HALF": "right", "GOW3_MOUSE": "0"})
+            for key in ("UNCHARTED_NET_GAME", "UNCHARTED_NET_TITLE"):
+                partner_env.pop(key, None)
+            # 15 s later: the first game has prepared its files (both read the same game folder).
+            self.partner_start = (self.process, command, partner_env)
+            self.root.after(15000, self.start_partner)
         self.set_status(f"Starting {game['name']}...", "Preparing game files and code patches.")
         self.draw_play()
+
+    def start_partner(self):
+        pending = getattr(self, "partner_start", None)
+        self.partner_start = None
+        if not pending or not self.process or pending[0] is not self.process or self.process.poll() is not None:
+            return  # stopped meanwhile
+        _, command, env = pending
+        try:
+            self.partner = subprocess.Popen(command, cwd=str(ROOT), env=env, stdout=subprocess.PIPE,
+                                            stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                            creationflags=NO_WINDOW, text=True, encoding="utf-8", errors="replace")
+            threading.Thread(target=self.read_partner_output, args=(self.partner,), daemon=True).start()
+        except OSError as error:
+            self.partner = None
+            messagebox.showerror(APP_TITLE, f"Could not start the second game:\n{error}")
+
+    def read_partner_output(self, process):
+        """Local co-op: the second game's start script output, kept in launcher-last-run-2.log."""
+        try:
+            log = open(USER_DIR / "launcher-last-run-2.log", "w", encoding="utf-8")
+        except OSError:
+            log = None
+        for line in process.stdout:
+            if log:
+                try:
+                    log.write(line)
+                    log.flush()
+                except (OSError, ValueError):
+                    log = None
+        if log:
+            try:
+                log.write(f"exit code {process.wait()}\n")
+                log.close()
+            except (OSError, ValueError):
+                pass
+
+    def stop_partner(self):
+        partner = getattr(self, "partner", None)
+        self.partner = None
+        self.partner_start = None
+        if partner and partner.poll() is None:
+            subprocess.run(["taskkill", "/PID", str(partner.pid), "/T", "/F"], creationflags=NO_WINDOW,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def read_output(self, process):
         log = getattr(self, "run_log", None)
@@ -2986,6 +3358,7 @@ class Launcher:
 
     def finished(self, code):
         self.process = None
+        self.stop_partner()  # local co-op: the second game ends with the first
         self.draw_play()
         reason = self.crash_reason()
         # A freeze is reported however the game was closed (STOP, or Task Manager).
@@ -3017,6 +3390,7 @@ class Launcher:
         self.stopping = True
         subprocess.run(["taskkill", "/PID", str(self.process.pid), "/T", "/F"], creationflags=NO_WINDOW,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.stop_partner()
         self.set_status("Stopping the game...")
 
     # -- advanced actions -------------------------------------------------------------------

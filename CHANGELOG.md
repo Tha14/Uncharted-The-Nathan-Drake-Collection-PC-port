@@ -4,6 +4,32 @@ Uncharted: The Nathan Drake Collection PC port, by **BilalReloaded**
 ([YouTube](https://www.youtube.com/@BilalReloaded/videos), [GitHub](https://github.com/bc160201983)).
 Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
+## 25 October 2026 (0.6.1)
+
+- **Fewer random crashes in all three games** (crashes like "execute access to 0" or a sudden
+  close to the desktop, possibly also #205): the games' PS4 code keeps some values in the 128
+  bytes just below the stack pointer, a space the PS4's calling rules leave alone. Windows does
+  not: when it handles a page fault (the port uses them to track memory the GPU writes) it builds
+  its exception record right there and can overwrite those values. We had fixed two such routines
+  by hand (the shader constant tables in 0.4.1, the particle grouping in 0.6.0). Now the port finds
+  every routine that keeps values below the stack when a game starts (162 in Drake's Fortune, 144
+  in Uncharted 2, 153 in Uncharted 3) and runs each of their memory accesses that can fault with
+  the stack moved out of the way first. In a test that overwrites that space after every fault,
+  as Windows 10 does, the games now run instead of crashing at start, and the frame rate is
+  unchanged (Uncharted 2 uncapped: 96.6 vs 96.8 FPS). GOW3_RED_ZONE=0 turns it off.
+- **Drake's Fortune: mouse aiming without the "stick" feel** (#190): the aim camera's remembered
+  direction is now turned directly by the mouse, as in Uncharted 2 and 3 since 0.6.0: the same
+  movement turns the same angle, slow or fast (about 260 degrees for a fast swipe in our test, as
+  in Uncharted 2), with no speed cap and no acceleration. The game makes new aim cameras during
+  one press (after a roll), and each gets every mouse turn exactly once.
+- **RivaTuner's on-screen display flickered** (#127, #128): since 0.5.0 the game presents its frames
+  on a queue of its own, and RivaTuner missed some of them (its overlay was missing from 5 of 60
+  captures in Uncharted 3 with DLSS at a 120 FPS limit). With RivaTuner running, frames are
+  presented on the graphics queue again (60 of 60).
+- **Uncharted 2 ultrawide: shadows at the sides of the screen** came and went as the camera turned
+  at 21:9 and 32:9: the sun, rain and lamp shadows decided what casts a shadow with the 16:9 view.
+  They now use the full width (thanks to Ferosnow95, #192).
+
 ## 24 October 2026 (0.6.0)
 
 - **Uncharted 3 too bright in sunny areas** (#140): the glow around bright light (bloom) was

@@ -457,13 +457,22 @@ UNLOCK_PATCHES = {
 # orthographic cameras keep their own branches. The zoom loads jump to small stubs in dead assert
 # branches of the projection code (each now starts with int 0x41, so it still stops the game), and
 # back. Applied only to render sizes wider than 16:9 (UNCHARTED_HOR_PLUS=0: never).
-_XMM_BASE = {"rbx": 3, "rdi": 7}
+_GPR = {name: number for number, name in enumerate(
+    ("rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
+     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"))}
+_NOPS = {3: b"\x0f\x1f\x00", 4: b"\x0f\x1f\x40\x00", 5: b"\x0f\x1f\x44\x00\x00"}
 
 
 def _vex_mem(op, dst, src, base, disp):
-    """op xmm<dst>, xmm<src>, [base + disp32] (scalar single, VEX 2-byte; vmovss: src 0)."""
-    return bytes([0xc5, 0x80 | (~src & 15) << 3 | 2, op, 0x80 | dst << 3 | _XMM_BASE[base]]) + \
-        struct.pack("<i", disp)
+    """op xmm<dst>, xmm<src>, [base + disp32] (scalar single; vmovss: src 0): VEX 2-byte for
+    rax..rdi, 3-byte for r8..r15, with the SIB byte that rsp/r12 as a base need."""
+    reg = _GPR[base]
+    modrm = bytes([0x80 | dst << 3 | (reg & 7)]) + (b"\x24" if reg & 7 == 4 else b"")
+    if reg < 8:
+        prefix = bytes([0xc5, 0x80 | (~src & 15) << 3 | 2])
+    else:
+        prefix = bytes([0xc4, 0xc1, (~src & 15) << 3 | 2])
+    return prefix + bytes([op]) + modrm + struct.pack("<i", disp)
 
 
 def _vex_rip(op, dst, src, at, target):
@@ -474,27 +483,33 @@ def _vex_rip(op, dst, src, at, target):
 def hor_plus_variant(pattern, zoom, aspect, sites, caves):
     """One patch variant: sites (offset, base register, xmm with the zoom, a free xmm) are
     `vmovss xmm, [base + zoom]` loads; caves (offset, size, original first bytes) are the dead
-    assert branches that take the stubs. Offsets are from the start of the pattern's match."""
+    assert branches that take the stubs. Offsets are from the start of the pattern's match (a
+    cave may lie before it or in a neighbouring function: its original bytes are checked too)."""
     edits, cave_list = [], [list(cave) + [2] for cave in caves]  # + bytes used (after int 0x41)
     stubs = {}
     for offset, base, dst, free in sites:
         assert dst < 8 and free < 8 and dst != free
-        cave = next(c for c in cave_list if c[3] + 37 + 8 <= c[1])
-        stubs.setdefault(cave[0], []).append((cave[0] + cave[3], offset, base, dst, free))
-        cave[3] += 37
+        length = len(_vex_mem(0x10, dst, 0, base, zoom))
+        size = 21 + 2 * length
+        cave = next(c for c in cave_list if c[3] + size + 8 <= c[1])
+        stubs.setdefault(cave[0], []).append((cave[0] + cave[3], offset, base, dst, free, length))
+        cave[3] += size
     for cave_offset, size, original, used in cave_list:
         if cave_offset not in stubs:
             continue
         k, one = cave_offset + used, cave_offset + used + 4
         code = b"\xcd\x41"
-        for at, site, base, dst, free in stubs[cave_offset]:
+        for at, site, base, dst, free, length in stubs[cave_offset]:
+            mul_at = at + 8
+            min_at = mul_at + length
+            jmp_at = min_at + 8 + length
             code += (_vex_rip(0x10, free, 0, at, k) +                     # vmovss free, [16/9]
                      _vex_mem(0x59, free, free, base, aspect) +           # vmulss free, free, [aspect]
-                     _vex_rip(0x5d, free, free, at + 16, one) +           # vminss free, free, [1.0]
+                     _vex_rip(0x5d, free, free, min_at, one) +            # vminss free, free, [1.0]
                      _vex_mem(0x59, dst, free, base, zoom) +              # vmulss dst, free, [zoom]
-                     b"\xe9" + struct.pack("<i", site + 8 - (at + 37)))  # jmp back
+                     b"\xe9" + struct.pack("<i", site + length - (jmp_at + 5)))  # jmp back
             edits.append((site, _vex_mem(0x10, dst, 0, base, zoom),
-                          b"\xe9" + struct.pack("<i", at - (site + 5)) + b"\x0f\x1f\x00"))
+                          b"\xe9" + struct.pack("<i", at - (site + 5)) + _NOPS[length - 5]))
         edits.insert(0, (cave_offset, original, code + struct.pack("<ff", 16 / 9, 1.0)))
     return pattern, edits
 
@@ -515,6 +530,54 @@ HOR_PLUS_PATCHES = {
                          0x254, 0x250,
                          [(0x10, "rbx", 4, 0), (0x267, "rbx", 4, 0), (0xb2f, "rdi", 0, 1)],
                          [(0x26, 0xb6, bytes.fromhex("488b055d16b9004885c0"))]),
+    ]),
+    # Shadows past the 16:9 area (Uncharted 2): the culling frustums of the sun, rain and local
+    # (flashlight, lamp) shadows are built from the render camera's own zoom and aspect, in
+    # copies of the frustum-plane code (view-frustum.cpp MakeSunShadowViewFrustum 0xcccc90,
+    # MakeRainShadowViewFrustum 0xccd080, MakeLocalShadowViewFrustum 0xccda70). With the 16:9
+    # zoom their side planes stopped at the 16:9 picture: casters past it were culled from the
+    # shadow maps, and shadows at the sides came and went as the camera turned. Their zoom loads
+    # get the same zoom * min(1, aspect * 16/9); each stub goes in that function's own numPlanes
+    # assert (UNCHARTED_UW_SHADOWS=0: not applied).
+    ("Uncharted 2 ultrawide: sun shadows as wide as the view", [
+        hor_plus_variant("c5fa10b350020000 c5fa10ab54020000 c4637904ce00", 0x254, 0x250,
+                         [(0x8, "rbx", 5, 0)],
+                         [(-0x194, 0x35, bytes.fromhex("488b0573128a004885c0"))]),
+    ]),
+    ("Uncharted 2 ultrawide: rain shadows as wide as the view", [
+        hor_plus_variant("c5fa10ab50020000 c5fa10a354020000 c4637904c500", 0x254, 0x250,
+                         [(0x8, "rbx", 4, 3)],
+                         [(-0x124, 0x35, bytes.fromhex("488b05a50e8a004885c0"))]),
+    ]),
+    ("Uncharted 2 ultrawide: local light shadows as wide as the view", [
+        hor_plus_variant("c4c17a10942454020000 c4c17a10ac2450020000", 0x254, 0x250,
+                         [(0x0, "r12", 2, 5)],
+                         [(0x183, 0x35, bytes.fromhex("488b05c6018a004885c0"))]),
+    ]),
+    # The scene view's GPU constants (0xcfcb00, called from the scene view setup 0xc901c0): two more copies of the frustum code and the normalized side planes
+    # written into a constant buffer, for the render camera (r12) and a second view (r13). Same
+    # zoom (a square view keeps its own: min(1, 1.0 * 16/9) = 1). Stubs in the function's two
+    # SetConstantBuffers asserts and two of the neighbouring function 0xd01020's
+    # (UNCHARTED_UW_VIEW_CONSTANTS=0: not applied).
+    ("Uncharted 2 ultrawide: view constants as wide as the view (1)", [
+        hor_plus_variant("c4c17a109c2454020000 c4417a10bc2450020000", 0x254, 0x250,
+                         [(0x0, "r12", 3, 5)],
+                         [(0x10e7, 0x38, bytes.fromhex("488b0549fa86004885c0"))]),
+    ]),
+    ("Uncharted 2 ultrawide: view constants as wide as the view (2)", [
+        hor_plus_variant("c4c17a10842454020000 c57a100d???????? c5b25ec8", 0x254, 0x250,
+                         [(0x0, "r12", 0, 1)],
+                         [(0x2a24, 0x38, bytes.fromhex("488b0519da86004885c0"))]),
+    ]),
+    ("Uncharted 2 ultrawide: view constants as wide as the view (3)", [
+        hor_plus_variant("c4c17a109d54020000 c4c17a10a550020000", 0x254, 0x250,
+                         [(0x0, "r13", 3, 4)],
+                         [(0x28d4, 0x35, bytes.fromhex("488b0504c486004885c0"))]),
+    ]),
+    ("Uncharted 2 ultrawide: view constants as wide as the view (4)", [
+        hor_plus_variant("c4c17a108554020000 c5da5ec8", 0x254, 0x250,
+                         [(0x0, "r13", 0, 1)],
+                         [(0x2189, 0x35, bytes.fromhex("488b0568c186004885c0"))]),
     ])],
     # Infinite far 0x11c1107 (both of its paths), finite 0x11c11e1 and 0x11c1406, frustum planes
     # 0x11c1f21 (Uncharted 3 1.02).
@@ -526,6 +589,18 @@ HOR_PLUS_PATCHES = {
                           (0x32e, 0x65, bytes.fromhex("488b059313a3004885c0"))]),
     ])],
 }
+
+
+def hor_plus_patches(executable):
+    """HOR_PLUS_PATCHES of the game, without the groups switched off in the environment."""
+    skip = []
+    if os.environ.get("UNCHARTED_UW_SHADOWS", "1") == "0":
+        skip.append("shadows as wide as the view")
+    if os.environ.get("UNCHARTED_UW_VIEW_CONSTANTS", "1") == "0":
+        skip.append("view constants as wide as the view")
+    return [patch for patch in HOR_PLUS_PATCHES.get(executable, [])
+            if not any(text in patch[0] for text in skip)]
+
 
 PATCHES = {
     "eboot.bin": EBOOT_PATCHES,
@@ -993,11 +1068,100 @@ def remove_pipeline_binaries(cache):
     threading.Thread(target=work, name="remove-pipeline-binaries", daemon=True).start()
 
 
+def instance_suffix():
+    """UNCHARTED_INSTANCE=<n> (n >= 2; co-op tests, 25 Oct 2026): another game on this PC with its
+    own folders (analysis/<game>-i<n>, analysis/uncharted-user-i<n>), so that two instances can
+    play each other over the LAN transport (gow3_pc/src/runtime_net.c). Instance 1, the default,
+    uses the normal folders."""
+    value = os.environ.get("UNCHARTED_INSTANCE", "1").strip()
+    return f"-i{int(value)}" if value.isdigit() and int(value) >= 2 else ""
+
+
+# What a new instance's user folder starts with (copied once from the main one): settings, saves,
+# trophies and the shader caches (an empty cache would compile for minutes).
+INSTANCE_USER_SEED = ("probe.ini", "probe-u1.ini", "probe-u2.ini", "probe-u3.ini",
+                      "disabled-optimizations.txt", "skip.txt", "savedata", "trophy", "cache", "shader")
+
+
+def user_dir():
+    """The user folder (saves, settings, caches) of this instance."""
+    main_user = ROOT / "analysis/uncharted-user"
+    suffix = instance_suffix()
+    if not suffix:
+        return main_user
+    user = ROOT / f"analysis/uncharted-user{suffix}"
+    if not user.exists():
+        user.mkdir(parents=True)
+        for name in INSTANCE_USER_SEED:
+            source = main_user / name
+            if source.is_dir():
+                shutil.copytree(source, user / name)
+            elif source.is_file():
+                shutil.copy2(source, user / name)
+        print(f"Instance {suffix[2:]}: new user folder {user} (settings, saves and caches copied)")
+    return user
+
+
+def net_mode():
+    """LAN multiplayer (the launcher's Multiplayer page, Uncharted 2 only, 25 Oct 2026):
+    UNCHARTED_NET_MODE=host|join starts Uncharted 2's own online game ("task online") with the
+    LAN transport (gow3_pc/src/runtime_net.c) and the stand-ins for the removed session layer
+    (runtime_coop.c's netinit). Off unless set."""
+    mode = os.environ.get("UNCHARTED_NET_MODE", "").strip().lower()
+    return mode if mode in ("host", "join") else ""
+
+
+def net_game_env(env, user, roots):
+    """The runtime settings of a net game; returns the /app0 overlay it needs (tools/net_overlay.py,
+    built from the player's own game files; roots = the /app0 folders, topmost first).
+      UNCHARTED_NET_ADDRESS  host: [address:]port to listen on (default 0.0.0.0:27000);
+                             join: the host's address[:port] (port 27000 unless given)
+      UNCHARTED_NET_GAME     host: the net game (*net-games* index; 114 = The Village co-op)
+      UNCHARTED_NET_TITLE    host: its title in the LAN search
+      UNCHARTED_NET_NAME     the player's name
+      UNCHARTED_NET_SKIN     the player's character: an actor of the game (e.g. mp-hero-elena,
+                             hero-default); every machine shows this player with it (GOW3_NET_SKIN,
+                             runtime_net.c / runtime_coop_mp.c). Ignored when the game lacks it.
+    A joiner gets its player id and the net game from the host's welcome: the boot commands wait
+    for it (netwait) before setting up the net game (netinit auto). The per-game settings (levels,
+    teams, default character) follow from the net game inside the runtime (runtime_coop_mp.c)."""
+    from net_overlay import build_overlay, actor_exists
+    skin = os.environ.get("UNCHARTED_NET_SKIN", "").strip().lower()
+    if skin and not actor_exists(roots, skin):
+        print(f"Net game: character {skin} is not in the game files: the default one is used")
+        skin = ""
+    overlay = build_overlay(roots, user / "net-overlay", [skin] if skin else [])
+    if skin:
+        env["GOW3_NET_SKIN"] = skin
+    boot = user / "net-boot.txt"
+    boot.write_text("at 1\nnetwait\nnetinit auto 64\n", encoding="ascii")
+    env["GOW3_COOP_BOOT"] = str(boot)
+    # Multiplayer data the Collection does not ship (e.g. the bullets' MP explosion settings,
+    # the first shot faulted) falls back to its single-player twin (runtime_coop_mp.c).
+    env.setdefault("GOW3_COOP_MP_TWINS", "1")
+    address = os.environ.get("UNCHARTED_NET_ADDRESS", "").strip()
+    if name := os.environ.get("UNCHARTED_NET_NAME", "").strip():
+        env["GOW3_NET_NAME"] = name[:31]
+    if net_mode() == "host":
+        env["GOW3_NET_HOST"] = address or "0.0.0.0:27000"
+        env["GOW3_NET_GAME"] = os.environ.get("UNCHARTED_NET_GAME", "114").strip() or "114"
+        env["GOW3_NET_TITLE"] = os.environ.get("UNCHARTED_NET_TITLE", "")[:47]
+        print(f"Net game: hosting net game {env['GOW3_NET_GAME']} on {env['GOW3_NET_HOST']}")
+    else:
+        if address and ":" not in address:
+            address += ":27000"
+        env["GOW3_NET_JOIN"] = address or "127.0.0.1:27000"
+        env["GOW3_NET_ID"] = "auto"
+        print(f"Net game: joining {env['GOW3_NET_JOIN']}")
+    return overlay
+
+
 def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=()):
     """game: the folder the prepare scripts read; app0 (default: game) with overlays laid over
     it is what the game sees as /app0."""
-    out = ROOT / "analysis" / ("uncharted" if executable == "eboot.bin" else Path(executable).stem)
-    user = ROOT / "analysis/uncharted-user"
+    out = ROOT / "analysis" / (("uncharted" if executable == "eboot.bin" else Path(executable).stem)
+                               + instance_suffix())
+    user = user_dir()
     user.mkdir(parents=True, exist_ok=True)
     scripts = ROOT / "gow3_pc/scripts"
     for script in ("prepare.py", "link_modules.py", "content_profile.py"):
@@ -1030,7 +1194,7 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
     if "x" in size and os.environ.get("UNCHARTED_HOR_PLUS", "1") != "0":
         size_w, size_h = (int(value) for value in size.split("x"))
         if size_w / size_h > 16 / 9 + 0.01:
-            patches.extend(HOR_PLUS_PATCHES.get(executable, []))
+            patches.extend(hor_plus_patches(executable))
     if job_sleep_enabled():
         patches.extend(JOB_SLEEP_PATCHES)
         # Diagnostics: UNCHARTED_JOB_SLEEP_SPINS=<n> idle spins before a worker sleeps (1000).
@@ -1389,6 +1553,8 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
     # analysis/triage-1022/coop-work/make_coop_overlay.py). Off unless set.
     if coop_overlay := os.environ.get("UNCHARTED_COOP_OVERLAY"):
         command += ["--app0-overlay", coop_overlay]
+    if executable == "big2-ps4_Shipping.elf" and net_mode():
+        command += ["--app0-overlay", str(net_game_env(env, user, [*overlays, app0 or game]))]
     for overlay in overlays:
         command += ["--app0-overlay", str(overlay)]
     # guest_args is the game's complete argv; argv[0] is the program name.
@@ -1483,7 +1649,7 @@ def main():
     args = parser.parse_args()
     if args.seconds < 0:
         parser.error("--seconds must be nonnegative")
-    user = ROOT / "analysis/uncharted-user"
+    user = user_dir()
     user.mkdir(parents=True, exist_ok=True)
     loadexec = user / "loadexec.txt"
     executable = args.executable
@@ -1496,6 +1662,8 @@ def main():
             guest_args = ["/app0/eboot.bin"]
         else:
             guest_args = ["eboot.bin", "ispartofuccollection"]
+            if executable == "big2-ps4_Shipping.elf" and net_mode():
+                guest_args += ["task", "online"]  # Uncharted 2's own online game (net_mode)
     while True:
         loadexec.unlink(missing_ok=True)
         result = run_once(args, executable, guest_args, loadexec)
