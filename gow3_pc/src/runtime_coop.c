@@ -399,7 +399,10 @@ static void u2_add_local(void) {
     int32_t id = runtime_net_local_id();
     if (id <= 0) id = 1;
     const uint64_t slot = u2_slot_of(id);
-    u2_fill_slot(slot, id, -1, id == 1 ? "Drake" : "Partner");
+    /* our own name (run f7: the joiner's results listed itself as "Partner") */
+    extern const char *runtime_net_local_name(void);
+    const char *own = runtime_net_local_name();
+    u2_fill_slot(slot, id, -1, own && *own ? own : id == 1 ? "Drake" : "Partner");
     const int32_t host = 1;
     wr(ngm, &slot, 8);
     if (id == host) wr(ngm + 8, &slot, 8);

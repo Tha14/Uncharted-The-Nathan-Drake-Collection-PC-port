@@ -4,6 +4,14 @@ Uncharted: The Nathan Drake Collection PC port, by **BilalReloaded**
 ([YouTube](https://www.youtube.com/@BilalReloaded/videos), [GitHub](https://github.com/bc160201983)).
 Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
+## 25 October 2026 (0.6.2)
+
+- **The launcher did not open after updating to 0.6.1** (#208): the launcher's new network search
+  for the coming Uncharted 2 multiplayer is in a separate file, `launcher/net_lan.py`, which the
+  launcher loaded at start. The package build copied only the launcher's two older files, so 0.6.1
+  shipped without it and the launcher stopped before its window appeared. The package now copies
+  every launcher file, and the launcher opens even when that optional file is missing.
+
 ## 25 October 2026 (0.6.1)
 
 - **Fewer random crashes in all three games** (crashes like "execute access to 0" or a sudden

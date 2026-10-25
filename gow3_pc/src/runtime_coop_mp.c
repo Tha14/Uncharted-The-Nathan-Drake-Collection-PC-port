@@ -21,6 +21,8 @@
  *   GOW3_COOP_MP_SKIN=<actor>  the default player art (every slot without its own character)
  *   GOW3_COOP_MP_MENU_GUARD=1  leaving a net game: menu pages that were never loaded are skipped
  *                          (fault at 0x5c7c92)
+ *   GOW3_COOP_MP_RESULTS_SECONDS=<n>  how long the results stay up after a round (default 12;
+ *                          0 = the game's own rule: joiners leave at once, the host waits for ever)
  * Per-player characters (25 Oct): each player's GOW3_NET_SKIN travels in our hello and the host's
  * player list (runtime_net.c); every machine gives slot k (player id k + 1) skin index k
  * (slot+0x138) in our own 10-entry copy of *net-skins* (the shipped table has 2 entries).
@@ -377,6 +379,76 @@ static void install_skins(const char *fallback) {
         if (id == k + 1) runtime_coop_mp_slot_skin(image, slot, id);
     }
 }
+/* ---- after a round: ShowResults (online task state, vtable 0x100aa40) ---- */
+/* ShowResults' Update (0x5f0b30) decides when to leave (-> [vtbl+0x198] = Leave):
+ * - a joiner leaves as soon as -[[0x113a040]+0xc] / 300 < 0, i.e. at once with our net clock (it
+ *   counts up: runs f4-f6, the joiner was back at the title within a second);
+ * - the host leaves when every other player still in the game (slot+0x26c clear) has its
+ *   "done" byte slot+0x26d set (the removed session's message 0x105 set it, 0x5f0d1b), or when
+ *   alone once the same clock test passes. Nothing sets +0x26d any more: the host stayed in
+ *   ShowResults for ever (f4-f6: results page or black screen, net mode 26).
+ * The detour keeps both in ShowResults for GOW3_COOP_MP_RESULTS_SECONDS (default 12: the results
+ * page is up, the menu agent's `mpmenu auto`), then lets Update run; on the host it first marks the
+ * other players done. Both then leave to the title (Leave 0x5f00d0). Net games only (netinit). */
+static unsigned results_hold_ms = 12000;
+static int ABI results_hold(uint64_t state) {
+    (void)state;
+    static ULONGLONG since, last;
+    static int released;
+    const ULONGLONG now = GetTickCount64();
+    if (!since || now - last > 1000) {   /* a new visit (Update runs every frame while in it) */
+        since = now;
+        released = 0;
+        printf("CoopMP: round results: held for %u s\n", results_hold_ms / 1000);
+        fflush(stdout);
+    }
+    last = now;
+    if (now - since < results_hold_ms) return 1;
+    if (!released) {
+        released = 1;
+        const uint64_t ngm = (uint64_t)(uintptr_t)image + U2_NGM;
+        uint64_t local = 0;
+        rd(ngm, &local, 8);
+        int marked = 0;
+        for (int k = 0; k < 10; ++k) {
+            const uint64_t slot = ngm + 0x10 + (uint64_t)k * 0x2c0;
+            char name = 0;
+            const uint8_t done = 1;
+            rd(slot + 0x20, &name, 1);
+            if (!name || slot == local) continue;
+            if (wr(slot + 0x26d, &done, 1)) ++marked;
+        }
+        printf("CoopMP: round results: leaving (%d other player(s) marked done)\n", marked);
+        fflush(stdout);
+    }
+    return 0;
+}
+static int install_results_hold(void) {
+    static const unsigned char prologue[8] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56};
+    const uint64_t site = 0x5f0b30;
+    if (memcmp(image + site, prologue, sizeof(prologue))) return image[site] == 0xe9;
+    unsigned char *s = stub_page();
+    if (!s) return 0;
+    unsigned n = 0;
+#define B(...) do { const unsigned char b_[] = {__VA_ARGS__}; memcpy(s + n, b_, sizeof(b_)); n += sizeof(b_); } while (0)
+#define Q(v) do { const uint64_t q_ = (v); memcpy(s + n, &q_, 8); n += 8; } while (0)
+    /* entry rsp = 8 mod 16; 8 pushes + 8 = 0 mod 16 for the call */
+    B(0x50, 0x51, 0x52, 0x56, 0x57, 0x41, 0x50, 0x41, 0x51, 0x41, 0x52); /* push rax rcx rdx rsi rdi r8-r10 */
+    B(0x48, 0x83, 0xec, 0x08);                                        /* sub rsp, 8 */
+    B(0x48, 0xb8); Q((uint64_t)(uintptr_t)results_hold);              /* mov rax, results_hold */
+    B(0xff, 0xd0);                                                    /* call rax (rdi = state) */
+    B(0x48, 0x83, 0xc4, 0x08);                                        /* add rsp, 8 */
+    B(0x85, 0xc0);                                                    /* test eax, eax */
+    B(0x41, 0x5a, 0x41, 0x59, 0x41, 0x58, 0x5f, 0x5e, 0x5a, 0x59, 0x58); /* pop r10-r8 rdi rsi rdx rcx rax */
+    B(0x74, 0x01);                                                    /* jz +1: run Update */
+    B(0xc3);                                                          /* ret: held this frame */
+    memcpy(s + n, prologue, sizeof(prologue)); n += sizeof(prologue); /* replayed */
+    B(0xff, 0x25, 0x00, 0x00, 0x00, 0x00); Q((uint64_t)(uintptr_t)(image + site + 8)); /* jmp [rip] */
+#undef B
+#undef Q
+    return jump_to(site, s, 3);
+}
+
 /* ---- end of a net game: menu page stack (GOW3_COOP_MP_MENU_GUARD) ---- */
 /* Leave / back to the menus (0x5ccce0 -> 0x5c7bb0 state 0): every page id on the saved page
  * stack (menu +0x1164[i]) is looked up among the loaded pages (+0x370[200], id at page +0x10);
@@ -577,6 +649,13 @@ void runtime_coop_mp_netinit(unsigned char *base, long game) {
         printf("CoopMP: team games: local rank source %s\n", install_teams() ? "on (0x640588, 0x1065b08+0xb0c)" : "NOT installed");
     apply_levels(game, levels);
     install_skins(skin);
+    {
+        const char *v = getenv("GOW3_COOP_MP_RESULTS_SECONDS");
+        if (v && *v) results_hold_ms = (unsigned)(atof(v) * 1000);
+        if (results_hold_ms)
+            printf("CoopMP: round results: %s (%u s, then everyone leaves)\n",
+                   install_results_hold() ? "hold on (ShowResults Update 0x5f0b30)" : "hold NOT installed", results_hold_ms / 1000);
+    }
     report_game(game);
     fflush(stdout);
 }

@@ -27,7 +27,10 @@ from tkinter import messagebox
 
 from PIL import Image, ImageDraw, ImageTk
 
-import net_lan  # launcher/net_lan.py: Uncharted 2 games hosted on this network (Multiplayer page)
+try:  # launcher/net_lan.py: Uncharted 2 games hosted on this network (Multiplayer page). Optional:
+    import net_lan  # without it (0.6.1's package missed it, #208) the launcher must still open
+except ImportError:
+    net_lan = None
 import updater  # launcher/updater.py: updates from the GitHub releases
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -2750,6 +2753,8 @@ class Launcher:
 
     @staticmethod
     def _find_net_games():
+        if net_lan is None:
+            return OSError("launcher\\net_lan.py is missing")
         try:
             return net_lan.find_games()
         except OSError as error:

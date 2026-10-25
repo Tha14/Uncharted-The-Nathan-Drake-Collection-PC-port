@@ -1134,7 +1134,8 @@ def net_game_env(env, user, roots):
     if skin:
         env["GOW3_NET_SKIN"] = skin
     boot = user / "net-boot.txt"
-    boot.write_text("at 1\nnetwait\nnetinit auto 64\n", encoding="ascii")
+    # mpmenu auto (runtime_coop_menu.c): the game's own results pages after a round (25 Oct, run f6)
+    boot.write_text("at 1\nnetwait\nnetinit auto 64\nmpmenu auto\n", encoding="ascii")
     env["GOW3_COOP_BOOT"] = str(boot)
     # Multiplayer data the Collection does not ship (e.g. the bullets' MP explosion settings,
     # the first shot faulted) falls back to its single-player twin (runtime_coop_mp.c).

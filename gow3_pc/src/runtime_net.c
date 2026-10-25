@@ -715,6 +715,8 @@ int runtime_net_roster(int *ids, char (*names)[32], int max) {
     return n;
 }
 int runtime_net_local_id(void) { return started ? local_id : 0; }
+/* Our player name (GOW3_NET_NAME, default Drake / Sully); NULL when the transport is off. */
+const char *runtime_net_local_name(void) { return started ? local_name : NULL; }
 /* A player's character (GOW3_NET_SKIN of that machine: ours, from its hello, or from the host's
  * player list); 0 when unknown or none was chosen (the default model then). */
 int runtime_net_skin(int id, char *out, size_t size) {
@@ -747,6 +749,7 @@ void runtime_net_frame(unsigned char *base) { (void)base; }
 int runtime_net_peer(int *id, char *name, size_t size) { (void)id; (void)name; (void)size; return 0; }
 int runtime_net_roster(int *ids, char (*names)[32], int max) { (void)ids; (void)names; (void)max; return 0; }
 int runtime_net_local_id(void) { return 0; }
+const char *runtime_net_local_name(void) { return NULL; }
 int runtime_net_skin(int id, char *out, size_t size) { (void)id; (void)out; (void)size; return 0; }
 int runtime_net_ready(void) { return 0; }
 int runtime_net_game(void) { return -1; }
