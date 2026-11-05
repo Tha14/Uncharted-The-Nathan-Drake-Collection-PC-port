@@ -5,6 +5,7 @@ environment carries the options: UNCHARTED_DIAGNOSTICS=0 leaves out the measurem
 live trigger files, GOW3_VBLANK_HZ=0 unlocks the frame rate (480 Hz vblank, menu limit).
 """
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -1418,19 +1419,36 @@ def net_game_env(env, user, roots):
     return overlay
 
 
-def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=()):
-    """game: the folder the prepare scripts read; app0 (default: game) with overlays laid over
-    it is what the game sees as /app0."""
-    stem = "uncharted" if executable == "eboot.bin" else Path(executable).stem
-    out = args.analysis_root / stem if args.analysis_root else ROOT / "analysis" / (stem + instance_suffix())
-    user = args.user_dir
-    user.mkdir(parents=True, exist_ok=True)
-    scripts = ROOT / "gow3_pc/scripts"
-    for script in ("prepare.py", "link_modules.py", "content_profile.py"):
-        prepare_command = [sys.executable, str(scripts / script), str(game), "--out", str(out)]
-        if script != "content_profile.py":
-            prepare_command += ["--executable", executable]
-        subprocess.run(prepare_command, check=True)
+def u3mp_image(executable):
+    """Uncharted 3 multiplayer, set by the launcher (Multiplayer tab, u3mp/patcher/u3mp_import.py):
+    UNCHARTED_U3MP_IMAGE (the linked image), UNCHARTED_U3MP_IMAGE_SHA256 (its digest),
+    UNCHARTED_U3MP_OVERLAYS (folders, os.pathsep between them, the first wins), UNCHARTED_U3MP_VERSION.
+    Anything missing or a digest mismatch: None, and Uncharted 3 starts as usual."""
+    image = os.environ.get("UNCHARTED_U3MP_IMAGE", "")
+    if executable != "big3-ps4_Shipping.elf" or not image:
+        return None
+    path = Path(image)
+    want = os.environ.get("UNCHARTED_U3MP_IMAGE_SHA256", "").lower()
+    try:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as error:
+        print(f"Uncharted 3 multiplayer image not readable ({error}): starting Uncharted 3 without it")
+        return None
+    if want and digest != want:
+        print(f"Uncharted 3 multiplayer image {path} changed (sha256 {digest[:12]}..., expected "
+              f"{want[:12]}...): starting Uncharted 3 without it; import it again in the launcher")
+        return None
+    overlays = [Path(p) for p in os.environ.get("UNCHARTED_U3MP_OVERLAYS", "").split(os.pathsep) if p]
+    missing = [str(p) for p in overlays if not p.is_dir()]
+    if missing:
+        print(f"Uncharted 3 multiplayer overlays missing ({', '.join(missing)}): starting Uncharted 3 without them")
+        return None
+    return {"image": path, "overlays": overlays, "version": os.environ.get("UNCHARTED_U3MP_VERSION", "?")}
+
+
+def image_patches(executable):
+    """The launcher's code patches for this executable and the current settings (environment),
+    in the order they are applied to the linked image (apply_patches)."""
     patches = list(PATCHES[executable])
     if executable == "big2-ps4_Shipping.elf" and os.environ.get("UNCHARTED_TORCH_FORWARD", "1") != "0":
         patches.extend(TORCH_FORWARD_PATCHES)
@@ -1486,7 +1504,31 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
                 ("4d8d7001 807f5900 ???? 4981f8e8030000 7c??", 13, bytes.fromhex("e8030000"),
                  int(spins).to_bytes(4, "little")),
             ]))
-    apply_patches(out / "boot-linked.bin", patches)
+    return patches
+
+
+def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=()):
+    """game: the folder the prepare scripts read; app0 (default: game) with overlays laid over
+    it is what the game sees as /app0."""
+    stem = "uncharted" if executable == "eboot.bin" else Path(executable).stem
+    out = args.analysis_root / stem if args.analysis_root else ROOT / "analysis" / (stem + instance_suffix())
+    user = args.user_dir
+    user.mkdir(parents=True, exist_ok=True)
+    scripts = ROOT / "gow3_pc/scripts"
+    for script in ("prepare.py", "link_modules.py", "content_profile.py"):
+        prepare_command = [sys.executable, str(scripts / script), str(game), "--out", str(out)]
+        if script != "content_profile.py":
+            prepare_command += ["--executable", executable]
+        subprocess.run(prepare_command, check=True)
+    mp = u3mp_image(executable)
+    if mp:
+        # Uncharted 3 multiplayer (launcher -> Multiplayer): the image the launcher's import linked on
+        # this PC replaces the prepared one. It already holds the port's code patches it was tested
+        # with, so the patches are not applied again (some would not find their bytes).
+        shutil.copyfile(mp["image"], out / "boot-linked.bin")
+        print(f"Uncharted 3 multiplayer v{mp['version']}: {mp['image']} with {len(mp['overlays'])} overlays")
+    else:
+        apply_patches(out / "boot-linked.bin", image_patches(executable))
     # Settings per game (the launcher keeps them apart): the started game's own, also when the
     # Collection menu switches games.
     game_key = GAME_KEYS[executable]
@@ -1517,6 +1559,12 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
             except ResolutionTooLarge as error:
                 print(f"Render resolution {error}")
                 continue
+            except SystemExit as error:
+                if not mp:
+                    raise
+                # The multiplayer image keeps the PS4's render size if the patch does not fit it.
+                print(f"Uncharted 3 multiplayer: render resolution not changed ({error})")
+                break
             if candidate != (width, height):
                 print(f"Drake's Fortune renders at {candidate[0]}x{candidate[1]} instead of {width}x{height}")
             data, render_size = patched, candidate
@@ -1864,7 +1912,8 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
     # UNCHARTED_MOD_DIR: folders laid over the game before the update (the first holding a file
     # wins), e.g. the multiplayer menu built by tools/uc2mp_menu.py.
     mods = [m for m in os.environ.get("UNCHARTED_MOD_DIR", "").split(os.pathsep) if m]
-    for overlay in [*mods, *overlays]:
+    # Uncharted 3 multiplayer: its four overlays (the first wins) ahead of the update.
+    for overlay in [*mods, *(mp["overlays"] if mp else ()), *overlays]:
         command += ["--app0-overlay", str(overlay)]
     # guest_args is the game's complete argv; argv[0] is the program name.
     command += ["--guest-path", guest_args[0] if guest_args else "/app0/" + executable]
@@ -1897,7 +1946,16 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
         result["capture_directory"]=str(capture)
     start = time.monotonic()
     with (out / (name + ".log")).open("wb") as log:
-        process = subprocess.Popen(command, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
+        process = None
+        if mp and os.name == "nt":
+            # As the multiplayer runner starts it: ASLR off for this child (tools/u3mp_process.py).
+            try:
+                from u3mp_process import Popen as U3mpPopen
+                process = U3mpPopen(command, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
+            except (OSError, RuntimeError, ValueError) as error:
+                print(f"Uncharted 3 multiplayer: started without its address layout ({error})")
+        if process is None:
+            process = subprocess.Popen(command, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
         result["process_id"] = process.pid
         running = {"pid": process.pid, "runtime": str(Path(command[0]).resolve()),
                    "started_unix_ns": time.time_ns(), "active": True}
