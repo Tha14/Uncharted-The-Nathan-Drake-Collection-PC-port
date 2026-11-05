@@ -1,5 +1,20 @@
 # Uncharted: The Nathan Drake Collection — PC port
 
+## About this fork
+
+This repository is **João Fidalgo's fork** of
+[BilalReloaded's original PC port](https://github.com/bc160201983/Uncharted-The-Nathan-Drake-Collection-PC-port).
+The original port and its authors retain their credits and licensing below.
+
+This fork is intended to integrate experimental Uncharted 3 multiplayer restoration.
+The planned launcher workflow prepares multiplayer locally from the user's own PS3 and
+PS4 game copies. **That automatic preparation workflow is not implemented or ready for use yet.**
+The current conversion recipes do not reproduce the complete multiplayer asset set;
+missing converters and build recipes must be recovered or rebuilt and verified first.
+Game assets, converted overlays and patched game images must not be distributed in this
+repository. See [u3mp/README.md](u3mp/README.md) for the existing research source and its
+version-specific limitations; its status describes an earlier research snapshot.
+
 Run the PS4 **Uncharted: The Nathan Drake Collection** (CUSA02344: *Drake's Fortune*, *Among
 Thieves* and *Drake's Deception*) natively on Windows. The game's own x86-64 code runs directly
 on the PC; a runtime supplies the PS4 system libraries, and a Vulkan renderer executes the PS4 GPU
