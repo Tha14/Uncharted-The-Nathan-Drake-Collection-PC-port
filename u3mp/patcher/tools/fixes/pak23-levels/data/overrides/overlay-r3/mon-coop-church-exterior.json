@@ -1,0 +1,16 @@
+{
+ "templates": {
+  "levels/coop/monastery/walls/mon-external-stone-complete-ruin/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/monastery/trimmings/mon-external-stone-trim-horiz/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/general/textures/default/default-lightmap1.tga": "col-rooftops-interior.pak",
+  "art/general/textures/default/default-lightmap0.tga": "col-rooftops-interior.pak"
+ }
+}

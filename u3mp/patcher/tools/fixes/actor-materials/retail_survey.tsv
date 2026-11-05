@@ -1,0 +1,453 @@
+actor	layer	verdict	best_same_skeleton	cov	rev	ps3_color_not_in_retail	best_any	unit	cov	same_skeleton
+mp-chloe-artifact-mask	overlay-port	partial-same-skeleton	mp-chloe-u2-hair	0.707	0.749		mp-chloe-u2-hair	mp-chloe-u2-hair	0.707	True
+mp-chloe-aztec-mask	overlay-port	partial-same-skeleton	mp-chloe-u2-hair	0.765	0.984		mp-chloe-u2-hair	mp-chloe-u2-hair	0.765	True
+mp-chloe-cat-mask	overlay-r3	partial-same-skeleton	mp-chloe-syria-hair	0.833	0.928		mp-chloe-syria-hair	mp-chloe-syria-hair	0.833	True
+mp-chloe-devil-wings	overlay-port	no-retail	mp-chloe-marlowe-hair	0.009	0.003		mp-chloe-marlowe-hair	mp-chloe-marlowe-hair	0.009	True
+mp-chloe-egypt-mask	overlay-port	no-retail	mp-chloe-marlowe-london-torso	0.023	0.006		mp-hero-skel-ghengis-bones	mp-hero-skel-ghengis-bones	0.018	False
+mp-chloe-elena-bunny	overlay-port	no-retail					mp-hero-fat-sullivan-hair	mp-hero-fat-sullivan-hair	0.019	False
+mp-chloe-elena-cheetah-mask	overlay-port	no-retail					eurothug-heads-all	eurothug-head-c	0.02	False
+mp-chloe-elena-female-mask	overlay-port	partial-same-skeleton	mp-chloe-elena-hair	0.71	0.956		mp-chloe-elena-hair	mp-chloe-elena-hair	0.71	True
+mp-chloe-elena-foo-dog-mask	overlay-port	no-retail					eurothug-heads-all	eurothug-head-d	0.022	False
+mp-chloe-elena-giraffe-mask	overlay-port	no-retail					pirate-clown-mask-all	pirate-clown-mask-c	0.015	False
+mp-chloe-elena-headband-00	overlay-r3	no-retail	mp-chloe-marlowe-hair	0.032	0.011		mp-chloe-marlowe-hair	mp-chloe-marlowe-hair	0.032	True
+mp-chloe-elena-jak-goggles	overlay-port	partial-same-skeleton	mp-chloe-elena-hair	0.663	0.907		mp-chloe-elena-hair	mp-chloe-elena-hair	0.663	True
+mp-chloe-elena-mountie-hat	overlay-port	no-retail	mp-chloe-elena-hair	0.41	0.293		mp-chloe-elena-hair	mp-chloe-elena-hair	0.41	True
+mp-chloe-elena-panda-mask	overlay-port	no-retail					eurothug-heads-all	eurothug-head-d	0.019	False
+mp-chloe-elena-tiara	overlay-port	no-retail	chloe-syria	0.057	0.001		marlowe-hair-cloth	marlowe-hair-cloth	0.053	False
+mp-chloe-elena-veil	overlay-port	no-retail	mp-chloe-marlowe-hair	0.012	0.003		mp-chloe-marlowe-hair	mp-chloe-marlowe-hair	0.012	True
+mp-chloe-glasses-a	overlay-r3	no-retail	mp-chloe-marlowe-london-torso	0.144	0.005		young-marlowe	young-marlowe	0.252	False
+mp-chloe-hat-a	overlay-r3	no-retail	mp-chloe-u2-hair	0.314	0.221		mp-chloe-u2-hair	mp-chloe-u2-hair	0.314	True
+mp-chloe-headdress	overlay-port	no-retail	mp-chloe-young-marlowe-hair	0.008	0.004		pirate-clown-mask-all	pirate-clown-mask-c	0.01	False
+mp-chloe-jak-goggles	overlay-port	partial-same-skeleton	mp-chloe-u2-hair	0.792	0.972		mp-chloe-u2-hair	mp-chloe-u2-hair	0.792	True
+mp-chloe-marlowe-crown	overlay-port	no-retail	mp-chloe-marlowe-hair	0.016	0.006		mp-chloe-marlowe-hair	mp-chloe-marlowe-hair	0.016	True
+mp-chloe-marlowe-desert-wrap-a	overlay-r3	no-retail	mp-chloe-marlowe-hair	0.08	0.041		mp-chloe-marlowe-hair	mp-chloe-marlowe-hair	0.08	True
+mp-chloe-marlowe-gas-mask	overlay-port	no-retail	mp-chloe-marlowe-london-torso	0.04	0.005		mp-hero-skel-sfd-bones	mp-hero-skel-sfd-bones	0.027	False
+mp-chloe-marlowe-goggles-a	overlay-r3	no-retail					mp-hero-skel-marco-bones	mp-hero-skel-marco-bones	0.097	False
+mp-chloe-marlowe-hat-a	overlay-r3	partial-same-skeleton	mp-chloe-marlowe-hair	0.674	0.604		mp-chloe-marlowe-hair	mp-chloe-marlowe-hair	0.674	True
+mp-chloe-marlowe-jak-goggles	overlay-port	partial-same-skeleton	mp-chloe-marlowe-hair	0.758	0.992		mp-chloe-marlowe-hair	mp-chloe-marlowe-hair	0.758	True
+mp-chloe-marlowe-mask-a	overlay-r3	no-retail	mp-chloe-young-marlowe-torso	0.06	0.004		marlowe-desert	marlowe-desert	0.116	False
+mp-chloe-marlowe-phantom-mask	overlay-port	partial-same-skeleton	mp-chloe-marlowe-hair	0.709	0.825		mp-chloe-marlowe-hair	mp-chloe-marlowe-hair	0.709	True
+mp-chloe-marlowe-royal-necklace	overlay-port	no-retail	mp-chloe-elena-yemen-torso	0.022	0.003		marlowe-desert	marlowe-desert	0.049	False
+mp-chloe-marlowe-sunglasses	overlay-port	no-retail					sol-part-attachments	sol-attach-med-headgear-06	0.03	False
+mp-chloe-navy-hat	overlay-r3	no-retail	mp-chloe-syria-hair	0.535	0.562		mp-chloe-syria-hair	mp-chloe-syria-hair	0.535	True
+mp-chloe-nurse-hat	overlay-port	no-retail					mp-hero-young-sullivan-hair	mp-hero-young-sullivan-hair	0.032	False
+mp-chloe-skel	overlay-r3	no-retail	mp-chloe-marlowe-london-torso	0.016	0.009		mp-chloe-marlowe-london-torso	mp-chloe-marlowe-london-torso	0.016	True
+mp-chloe-skull-mask	overlay-port	no-retail					agent-armor-all	agent-armor-head-a	0.04	False
+mp-chloe-snake-mask	overlay-port	no-retail	mp-chloe-u2-hair	0.473	0.46		mp-chloe-u2-hair	mp-chloe-u2-hair	0.473	True
+mp-chloe-teddy-bear-mask	overlay-port	no-retail					agent-armor-all	agent-armor-head-a	0.022	False
+mp-chloe-unicorn-mask	overlay-r3	partial-same-skeleton	mp-chloe-u2-hair	0.662	0.676		mp-chloe-u2-hair	mp-chloe-u2-hair	0.662	True
+mp-chloe-wings	overlay-port	no-retail					sol-armor-part-attachments	sol-attachment-helmet	0.002	False
+mp-chloe-winter-hat	overlay-r3	no-retail	mp-chloe-syria-hair	0.397	0.401		mp-chloe-syria-hair	mp-chloe-syria-hair	0.397	True
+mp-chloe-winter-scarf	overlay-port	no-retail	mp-chloe-u2-winter-torso	0.017	0.003		mp-chloe-u2-winter-torso	mp-chloe-u2-winter-torso	0.017	True
+mp-chloe-young-marlowe-glasses-a	overlay-r3	no-retail	mp-chloe-marlowe-london-torso	0.078	0.004		npcnormal-black-all	npcnormal-black-head-b	0.084	False
+mp-chloe-young-marlowe-hat-a	overlay-r3	partial-same-skeleton	mp-chloe-young-marlowe-hair	0.756	0.513		mp-chloe-young-marlowe-hair	mp-chloe-young-marlowe-hair	0.756	True
+mp-chloe-young-marlowe-jak-goggles	overlay-port	partial-same-skeleton	mp-chloe-young-marlowe-hair	0.773	0.99		mp-chloe-young-marlowe-hair	mp-chloe-young-marlowe-hair	0.773	True
+mp-hero-agent-a-const-hat	overlay-port	no-retail	mp-hero-agent-a-hair	0.334	0.302		mp-hero-agent-a-hair	mp-hero-agent-a-hair	0.334	True
+mp-hero-agent-a-jak-goggles	overlay-port	no-retail	mp-hero-agent-a-hair	0.599	0.879		mp-hero-agent-a-hair	mp-hero-agent-a-hair	0.599	True
+mp-hero-agent-a-police-hat	overlay-port	no-retail	mp-hero-agent-a-hair	0.411	0.407		mp-hero-agent-a-hair	mp-hero-agent-a-hair	0.411	True
+mp-hero-agent-a-steampunk-glasses	overlay-port	partial-same-skeleton	mp-hero-agent-a-hair	0.817	0.989		mp-hero-agent-a-hair	mp-hero-agent-a-hair	0.817	True
+mp-hero-agent-b-const-hat	overlay-port	partial-same-skeleton	mp-hero-agent-med-b-hair	0.803	0.226		mp-hero-agent-med-b-hair	mp-hero-agent-med-b-hair	0.803	True
+mp-hero-agent-b-hair	overlay-r3	near-mesh-review	mp-hero-dead-agent-hair	0.962	0.961		mp-hero-dead-agent-hair	mp-hero-dead-agent-hair	0.962	True
+mp-hero-agent-b-jak-goggles	overlay-port	no-retail	mp-hero-agent-med-b-hair	0.597	0.724		mp-hero-agent-med-b-hair	mp-hero-agent-med-b-hair	0.597	True
+mp-hero-agent-b-legs	overlay-r3	retail-copy	mp-hero-agent-a-legs	0.995	0.995		mp-hero-agent-a-legs	mp-hero-agent-a-legs	0.995	True
+mp-hero-agent-b-police-hat	overlay-port	no-retail	mp-hero-agent-med-b-hair	0.452	0.355		mp-hero-agent-med-b-hair	mp-hero-agent-med-b-hair	0.452	True
+mp-hero-agent-b-steampunk-glasses	overlay-port	partial-same-skeleton	mp-hero-agent-med-b-hair	0.821	0.823		mp-hero-agent-med-b-hair	mp-hero-agent-med-b-hair	0.821	True
+mp-hero-agent-med-a-const-hat	overlay-port	no-retail	mp-hero-talbot-hair	0.039	0.019		mp-hero-talbot-hair	mp-hero-talbot-hair	0.039	True
+mp-hero-agent-med-a-jak-goggles	overlay-port	no-retail	hero-desert-no-gear-w-holster-head	0.122	0.014		hero-desert-no-gear-w-holster-head	hero-desert-no-gear-w-holster-head	0.122	True
+mp-hero-agent-med-a-police-hat	overlay-port	no-retail	hero-head-dirt-02-tan	0.092	0.008		cartaciv-male-b-all	cartaciv-male-hat-d	0.015	False
+mp-hero-agent-med-a-steam-glasses	overlay-port	no-retail	mp-kit-base-head-skin-a	0.104	0.022		mp-kit-base-head-skin-a	mp-kit-base-head-skin-a	0.104	True
+mp-hero-agent-med-a-steampunk-glasses	overlay-port	no-retail	mp-kit-base-head-skin-a	0.104	0.022		mp-kit-base-head-skin-a	mp-kit-base-head-skin-a	0.104	True
+mp-hero-agent-med-b-jak-goggles	overlay-port	no-retail	mp-hero-agent-med-b-hair	0.597	0.722		mp-hero-agent-med-b-hair	mp-hero-agent-med-b-hair	0.597	True
+mp-hero-bandana	overlay-port	no-retail	mp-hero-sol-b3b-torso	0.024	0.003		cartaciv-male-b-all	cartaciv-male-head-c	0.022	False
+mp-hero-bed-leader-face-cloth	overlay-port	no-retail					yem-civ-female-body-all	yem-civ-female-head-b	0.056	False
+mp-hero-bed-leader-glasses	overlay-port	no-retail	mp-hero-jeff-torso	0.134	0.007		sol-part-heads	sol-head-06	0.14	False
+mp-hero-bed-leader-goggles-a	overlay-r3	no-retail	mp-kit-base-head-skin-a	0.046	0.009		agent-brute-a	agent-brute-a	0.119	False
+mp-hero-bed-leader-jak-goggles	overlay-port	no-retail					sullivan-head-dirt-01	sullivan-head-dirt-01	0.071	False
+mp-hero-bed-leader-mask	overlay-port	no-retail					sullivan-london-dirt-02	sullivan-london-dirt-02	0.266	False
+mp-hero-bed-leader-mexcian-mask	overlay-port	no-retail	mp-hero-dead-agent-torso	0.153	0.045		eurothug-heads-all	eurothug-head-d	0.141	False
+mp-hero-bedouin-a-jak-goggles	overlay-port	no-retail					sullivan-young-holster	sullivan-young-holster	0.138	False
+mp-hero-bedouin-b-jak-goggles	overlay-port	no-retail					sullivan-young-holster	sullivan-young-holster	0.135	False
+mp-hero-bedouin-c-jak-goggles	overlay-port	no-retail					agent-misc-all	agent-glasses-c	0.019	False
+mp-hero-crown	overlay-r3	no-retail	mp-hero-french-hair	0.355	0.301		mp-hero-french-hair	mp-hero-french-hair	0.355	True
+mp-hero-cutter-backwards-hat	overlay-port	no-retail	mp-hero-sullivan-hair	0.052	0.011		mp-hero-sullivan-hair	mp-hero-sullivan-hair	0.052	True
+mp-hero-cutter-brain	overlay-port	no-retail	mp-hero-fat-torso	0.066	0.005		eurothug-heads-all	eurothug-hat-a	0.023	False
+mp-hero-cutter-cap	overlay-port	no-retail	mp-hero-eddie-hair	0.075	0.029		mp-hero-eddie-hair	mp-hero-eddie-hair	0.075	True
+mp-hero-cutter-dogu-mask	overlay-port	no-retail	hero-desert-no-gear-w-holster-head	0.03	0.006		hero-desert-no-gear-w-holster-head	hero-desert-no-gear-w-holster-head	0.03	True
+mp-hero-cutter-gas-mask	overlay-port	no-retail	mp-hero-young-sullivan-hair	0.039	0.018		mp-hero-young-sullivan-hair	mp-hero-young-sullivan-hair	0.039	True
+mp-hero-cutter-glasses-a	overlay-r3	no-retail	mp-hero-flynn-torso	0.102	0.004		agent-misc-all	agent-glasses-c	0.058	False
+mp-hero-cutter-guard-hat	overlay-port	no-retail					pirate-clown-mask-all	pirate-clown-mask-a	0.016	False
+mp-hero-cutter-jak-goggles	overlay-port	no-retail	hero-desert-head-dust	0.107	0.012		hero-desert-head-dust	hero-desert-head-dust	0.107	True
+mp-hero-cutter-samurai-helmet	overlay-port	no-retail	mp-hero-eddie-hair	0.032	0.019		mp-hero-eddie-hair	mp-hero-eddie-hair	0.032	True
+mp-hero-cutter-shark-mask	overlay-port	no-retail	mp-hero-sol-b1b-torso	0.002	0.001		cartaciv-male-b-all	cartaciv-male-hat-d	0.002	False
+mp-hero-cutter-sombrero	overlay-port	no-retail	hero-desert-head	0.016	0.001		sol-armor-part-heads-02	sol-armor-head-02	0.008	False
+mp-hero-cutter-tape-mask	overlay-port	no-retail	hero-desert-head	0.056	0.007		pirate-clown-mask-all	pirate-clown-mask-d	0.037	False
+mp-hero-dead-agent-jak-goggles	overlay-port	no-retail	mp-hero-dead-agent-hair	0.313	0.457		mp-hero-dead-agent-hair	mp-hero-dead-agent-hair	0.313	True
+mp-hero-dead-agent-spider-1	overlay-r3	partial-same-skeleton	mp-hero-dead-agent-hair	0.613	0.977		mp-hero-dead-agent-hair	mp-hero-dead-agent-hair	0.613	True
+mp-hero-dead-agent-spider-2	overlay-r3	partial-same-skeleton	mp-hero-dead-agent-hair	0.6	0.979		mp-hero-dead-agent-hair	mp-hero-dead-agent-hair	0.6	True
+mp-hero-dead-agent-spider-3	overlay-r3	partial-same-skeleton	mp-hero-dead-agent-hair	0.61	0.979		mp-hero-dead-agent-hair	mp-hero-dead-agent-hair	0.61	True
+mp-hero-dead-explorer-hat	overlay-port	no-retail	mp-hero-young-sullivan-hair	0.033	0.008		mp-hero-young-sullivan-hair	mp-hero-young-sullivan-hair	0.033	True
+mp-hero-dead-explorer-jak-goggles	overlay-port	no-retail	hero-desert-head	0.095	0.011		hero-desert-head	hero-desert-head	0.095	True
+mp-hero-dead-explorer-nose-ring	overlay-port	no-retail	mp-hero-dead-agent-torso	0.103	0.013		agent-armor-all	agent-armor-head-a	0.064	False
+mp-hero-dead-explorer-tree	overlay-port	no-retail	mp-hero-dead-explorer-torso	0.039	0.007		sullivan-young-holster	sullivan-young-holster	0.095	False
+mp-hero-des-oss-a-gas-mask	overlay-port	no-retail	mp-hero-sol-b1b-torso	0.021	0.005		pirate-head-all	pirate-maskc-grap-head	0.021	False
+mp-hero-des-oss-a-horns	overlay-port	no-retail	mp-hero-agent-med-b-hair	0.013	0.003		mp-hero-agent-med-b-hair	mp-hero-agent-med-b-hair	0.013	True
+mp-hero-des-oss-a-jak-goggles	overlay-port	no-retail	hero-head-dirt-02-dust	0.071	0.006		agent-misc-all	agent-glasses-c	0.029	False
+mp-hero-des-oss-b-gas-mask	overlay-port	no-retail	mp-hero-sol-b3b-torso	0.028	0.005		mp-hero-sol-b3b-torso	mp-hero-sol-b3b-torso	0.028	True
+mp-hero-des-oss-b-jak-goggles	overlay-port	no-retail	hero-desert-no-gear-w-holster-head	0.098	0.009		sullivan-young	sullivan-young	0.134	False
+mp-hero-des-oss-c-goggles	overlay-port	no-retail	hero-desert-head	0.184	0.013		sullivan-london-dirt-02	sullivan-london-dirt-02	0.304	False
+mp-hero-des-oss-c-jak-goggles	overlay-port	no-retail					eurothug-heads-all	eurothug-head-a	0.049	False
+mp-hero-desert-wrap-a	overlay-r3	no-retail	hero-french-head	0.038	0.003		bedouin-all	bedouin-wrap-a	0.09	False
+mp-hero-djinn-glasses	overlay-port	no-retail					agent-misc-all	agent-glasses-a	0.063	False
+mp-hero-djinn-helmet	overlay-port	no-retail	hero-desert-no-gear-w-holster-head	0.073	0.01		hero-desert-no-gear-w-holster-head	hero-desert-no-gear-w-holster-head	0.073	True
+mp-hero-djinn-horns	overlay-port	no-retail	mp-hero-young-sullivan-hair	0.001	0.001		npcnormal-asian-all	npcnormal-asian-head-b	0.001	False
+mp-hero-djinn-wrap	overlay-port	no-retail	mp-hero-talbot-hair	0.016	0.011		mp-hero-talbot-hair	mp-hero-talbot-hair	0.016	True
+mp-hero-eddie-chain-necklace	overlay-port	no-retail	hero-london-no-gear-ring	0.031	0.061		hero-london-no-gear-ring	hero-london-no-gear-ring	0.031	True
+mp-hero-eddie-glasses	overlay-r3	partial-same-skeleton	mp-hero-eddie-hair	0.832	0.995		mp-hero-eddie-hair	mp-hero-eddie-hair	0.832	True
+mp-hero-eddie-jak-goggles	overlay-port	no-retail	hero-head-dirt-02-dust	0.135	0.016		hero-head-dirt-02-dust	hero-head-dirt-02-dust	0.135	True
+mp-hero-eddie-jester-hat	overlay-port	no-retail	mp-hero-agent-med-b-hair	0.011	0.004		cartaciv-male-b-all	cartaciv-male-hat-a	0.009	False
+mp-hero-elf-ears	overlay-port	no-retail	mp-hero-divesuit-torso	0.089	0.013		mp-hero-divesuit-torso	mp-hero-divesuit-torso	0.089	True
+mp-hero-fat-bed-leader-jak-goggles	overlay-port	no-retail					sullivan-young-holster	sullivan-young-holster	0.139	False
+mp-hero-fat-bed-leader-mask	overlay-port	no-retail	mp-hero-fat-torso-extra-2	0.052	0.008		pirate-clown-mask-all	pirate-clown-mask-c	0.05	False
+mp-hero-fat-bed-leader-party-hat	overlay-port	no-retail	mp-hero-talbot-hair	0.032	0.001		sullivan-head-dirt-01	sullivan-head-dirt-01	0.048	False
+mp-hero-fat-cutter-jak-goggles	overlay-port	no-retail	hero-desert-no-gear-head	0.123	0.014		hero-desert-no-gear-head	hero-desert-no-gear-head	0.123	True
+mp-hero-fat-cutter-party-hat	overlay-port	no-retail	mp-hero-eddie-hair	0.032	0.002		mp-hero-eddie-hair	mp-hero-eddie-hair	0.032	True
+mp-hero-fat-eddie-jak-goggles	overlay-port	no-retail	hero-head-dirt-02-dust	0.094	0.011		eurothug-heads-all	eurothug-hat-a	0.043	False
+mp-hero-fat-eddie-mask	overlay-port	no-retail	mp-hero-fat-torso	0.067	0.007		cartaciv-male-b-all	cartaciv-male-hat-hair-b	0.03	False
+mp-hero-fat-eddie-party-hat	overlay-port	no-retail	mp-hero-eddie-hair	0.048	0.003		mp-hero-eddie-hair	mp-hero-eddie-hair	0.048	True
+mp-hero-fat-jak-goggles	overlay-port	no-retail	mp-hero-french-hair	0.525	0.656		mp-hero-french-hair	mp-hero-french-hair	0.525	True
+mp-hero-fat-lazarevic-jak-goggles	overlay-port	no-retail	hero-french-head	0.106	0.012		hero-french-head	hero-french-head	0.106	True
+mp-hero-fat-lazarevic-mask	overlay-port	no-retail					pirate-clown-mask-all	pirate-clown-mask-b	0.045	False
+mp-hero-fat-lazarevic-party-hat	overlay-port	no-retail	mp-hero-sullivan-hair	0.016	0.001		yemen-pipeclimb-break	yemen-pipeclimb-break	0.016	False
+mp-hero-fat-party-hat	overlay-port	no-retail	mp-hero-dead-agent-hair	0.032	0.002		mp-hero-dead-agent-hair	mp-hero-dead-agent-hair	0.032	True
+mp-hero-fat-ramses-jak-goggles	overlay-port	no-retail	mp-hero-flynn-torso	0.044	0.006		sol-armor-goggles-v2	sol-armor-goggles-v2	0.015	False
+mp-hero-fat-sullivan-jak-goggles	overlay-port	no-retail	mp-hero-sullivan-hair	0.509	0.622		mp-hero-sullivan-hair	mp-hero-sullivan-hair	0.509	True
+mp-hero-fat-sullivan-mask	overlay-port	no-retail	mp-hero-fat-torso	0.063	0.007		pirate-clown-mask-all	pirate-clown-mask-b	0.045	False
+mp-hero-fat-sullivan-party-hat	overlay-port	no-retail	mp-hero-eddie-hair	0.032	0.002		mp-hero-eddie-hair	mp-hero-eddie-hair	0.032	True
+mp-hero-fat-talbot-jak-goggles	overlay-port	partial-same-skeleton	mp-hero-talbot-hair	0.613	0.755		mp-hero-talbot-hair	mp-hero-talbot-hair	0.613	True
+mp-hero-fat-talbot-legs	overlay-r3	no-retail	mp-hero-talbot-legs	0.201	0.174		mp-hero-talbot-legs	mp-hero-talbot-legs	0.201	True
+mp-hero-fat-talbot-mask	overlay-port	no-retail	mp-hero-fat-torso-extra-2	0.063	0.01		yem-civ-female-body-all	yem-civ-female-head-b	0.067	False
+mp-hero-fat-talbot-party-hat	overlay-port	no-retail	mp-hero-roman-torso	0.048	0.001		mp-hero-roman-torso	mp-hero-roman-torso	0.048	True
+mp-hero-flynn-jak-goggles	overlay-port	partial-same-skeleton	mp-hero-flynn-torso	0.716	0.35		mp-hero-flynn-torso	mp-hero-flynn-torso	0.716	True
+mp-hero-flynn-mask	overlay-r3	no-retail	mp-hero-sullivan-hair	0.027	0.007		sullivan-default-head	sullivan-default-head	0.054	False
+mp-hero-french-legs-coop	overlay-port	same-mesh-other-texture	mp-hero-french-legs	0.998	0.998	mp-drake-french-body-leg-wound-color.tga,mp-drake-french-pants-coop-color.tga	mp-hero-french-legs	mp-hero-french-legs	0.998	True
+mp-hero-french-part-goggles	overlay-r3	no-retail					misc-gas-mask-a	misc-gas-mask-a	0.063	False
+mp-hero-french-part-hat-a	overlay-r3	no-retail	mp-hero-fat-torso	0.382	0.1		cartaciv-male-b-all	cartaciv-male-hat-hair-a	0.201	False
+mp-hero-french-part-hat-top	overlay-r3	no-retail	mp-hero-french-hair	0.406	0.276		mp-hero-french-hair	mp-hero-french-hair	0.406	True
+mp-hero-french-part-monocle	overlay-r3	no-retail	mp-hero-rescuer-torso	0.052	0.003		mp-hero-rescuer-torso	mp-hero-rescuer-torso	0.052	True
+mp-hero-french-part-sunglasses	overlay-r3	no-retail	mp-hero-des-oss-b-torso	0.172	0.007		agent-misc-all	agent-glasses-a	0.132	False
+mp-hero-guerro-jak-goggles	overlay-port	no-retail	mp-hero-young-sullivan-hair	0.063	0.027		mp-hero-young-sullivan-hair	mp-hero-young-sullivan-hair	0.063	True
+mp-hero-guerro-legs	overlay-r3	no-retail	mp-hero-talbot-legs	0.006	0.005		mp-hero-talbot-legs	mp-hero-talbot-legs	0.006	True
+mp-hero-jak-goggles	overlay-port	no-retail	mp-hero-french-hair	0.538	0.675		mp-hero-french-hair	mp-hero-french-hair	0.538	True
+mp-hero-jeff-glasses	overlay-port	no-retail					agent-misc-all	agent-glasses-c	0.043	False
+mp-hero-jeff-jak-goggles	overlay-port	no-retail	mp-hero-jeff-torso	0.467	0.17		mp-hero-jeff-torso	mp-hero-jeff-torso	0.467	True
+mp-hero-lazarevic-crown	overlay-port	no-retail	mp-hero-fat-sullivan-hair	0.035	0.009		cartaciv-male-b-all	cartaciv-male-hat-hair-b	0.019	False
+mp-hero-lazarevic-hair	overlay-port	no-retail	mp-hero-agent-med-b-hair	0.326	0.175		mp-hero-agent-med-b-hair	mp-hero-agent-med-b-hair	0.326	True
+mp-hero-lazarevic-helmet	overlay-r3	no-retail					yem-civ-female-body-all	yem-civ-female-head-b	0.046	False
+mp-hero-lazarevic-jak-goggles	overlay-port	no-retail	hero-desert-no-gear-head	0.099	0.011		hero-desert-no-gear-head	hero-desert-no-gear-head	0.099	True
+mp-hero-lazarevic-viking-helmet	overlay-port	no-retail					pirate-clown-mask-all	pirate-clown-mask-c	0.05	False
+mp-hero-lieutenant-jak-goggles	overlay-port	no-retail	hero-desert-no-gear-head	0.093	0.011		hero-desert-no-gear-head	hero-desert-no-gear-head	0.093	True
+mp-hero-lieutenant-viking-helmet	overlay-port	no-retail	mp-hero-fat-torso-extra-2	0.089	0.02		pirate-clown-mask-all	pirate-clown-mask-a	0.073	False
+mp-hero-make-believe-hair	overlay-port	no-retail	mp-hero-young-sullivan-hair	0.032	0.036		mp-hero-young-sullivan-hair	mp-hero-young-sullivan-hair	0.032	True
+mp-hero-make-believe-legs	overlay-r3	no-retail	mp-hero-thug-a-legs	0.006	0.007		cartaciv-male-b-all	cartaciv-male-body-e	0.009	False
+mp-hero-navarro-goggles	overlay-port	no-retail	mp-kit-base-head-skin-a	0.022	0.009		misc-gas-mask-a	misc-gas-mask-a	0.052	False
+mp-hero-navarro-jak-goggles	overlay-port	no-retail	mp-hero-navarro-hair	0.495	0.965		mp-hero-navarro-hair	mp-hero-navarro-hair	0.495	True
+mp-hero-ngp-legs	overlay-r3	no-retail	mp-hero-u2-legs	0.033	0.022		mp-hero-u2-legs	mp-hero-u2-legs	0.033	True
+mp-hero-part-bag-mask	overlay-port	no-retail	mp-hero-talbot-hair	0.016	0.008		yem-civ-female-body-all	yem-civ-female-head-a	0.021	False
+mp-hero-part-bronze-mask	overlay-port	no-retail	mp-hero-french-hair	0.567	0.698		mp-hero-french-hair	mp-hero-french-hair	0.567	True
+mp-hero-part-horse-mask	overlay-port	no-retail	mp-hero-sullivan-hair	0.012	0.008		mp-hero-sullivan-hair	mp-hero-sullivan-hair	0.012	True
+mp-hero-part-lion-mask	overlay-port	no-retail	mp-hero-dead-agent-hair	0.006	0.006		eurothug-heads-all	eurothug-hat-a	0.006	False
+mp-hero-part-present-mask	overlay-port	no-retail	hero-desert-no-gear-w-holster-head	0.024	0.003		hero-desert-no-gear-w-holster-head	hero-desert-no-gear-w-holster-head	0.024	True
+mp-hero-part-pumpkin-mask	overlay-port	no-retail	hero-head-dirt-02-dust	0.023	0.004		hero-head-dirt-02-dust	hero-head-dirt-02-dust	0.023	True
+mp-hero-part-raptor-mask	overlay-port	no-retail	hero-head-dirt-01	0.014	0.003		hero-head-dirt-01	hero-head-dirt-01	0.014	True
+mp-hero-part-spartan-mask	overlay-port	no-retail	mp-hero-french-hair	0.226	0.139		mp-hero-french-hair	mp-hero-french-hair	0.226	True
+mp-hero-part-suit-mask	overlay-port	no-retail	mp-hero-french-hair	0.24	0.17		mp-hero-french-hair	mp-hero-french-hair	0.24	True
+mp-hero-part-wetsuit-goggles	overlay-r3	partial-same-skeleton	mp-hero-french-hair	0.757	0.935		mp-hero-french-hair	mp-hero-french-hair	0.757	True
+mp-hero-part-winter-hat	overlay-port	no-retail	mp-hero-french-hair	0.105	0.044		mp-hero-french-hair	mp-hero-french-hair	0.105	True
+mp-hero-pirate-football-pads	overlay-port	no-retail	hero-desert-bandoleer-only-dust	0.008	0.002		yem-civ-male-torso-all	yem-civ-male-shirt-a	0.003	False
+mp-hero-pirate-jak-goggles	overlay-port	no-retail	hero-desert-head	0.123	0.014		hero-desert-head	hero-desert-head	0.123	True
+mp-hero-pirate-skull-necklace	overlay-port	no-retail	hero-desert-no-gear	0.014	0.001		yem-civ-male-torso-all	yem-civ-male-shirt-b	0.008	False
+mp-hero-ramses-eye-patch	overlay-port	no-retail					yem-civ-female-full-all	yem-civ-female-full-b	0.074	False
+mp-hero-ramses-hat	overlay-r3	no-retail	mp-hero-ramses-bandana	0.326	0.647		mp-hero-ramses-bandana	mp-hero-ramses-bandana	0.326	True
+mp-hero-ramses-jak-goggles	overlay-port	no-retail	mp-hero-ramses-bandana	0.358	0.988		mp-hero-ramses-bandana	mp-hero-ramses-bandana	0.358	True
+mp-hero-ramses-parrot-hat	overlay-port	no-retail	mp-hero-ramses-bandana	0.449	0.968		mp-hero-ramses-bandana	mp-hero-ramses-bandana	0.449	True
+mp-hero-rescuer-bandana	overlay-port	no-retail	mp-hero-rescuer-hair	0.269	0.22		mp-hero-rescuer-hair	mp-hero-rescuer-hair	0.269	True
+mp-hero-rescuer-jak-goggles	overlay-port	partial-same-skeleton	mp-hero-rescuer-hair	0.618	0.968		mp-hero-rescuer-hair	mp-hero-rescuer-hair	0.618	True
+mp-hero-rescuer-yak-hat	overlay-port	no-retail	mp-hero-rescuer-hair	0.02	0.011		mp-hero-rescuer-hair	mp-hero-rescuer-hair	0.02	True
+mp-hero-roman-axe-hat	overlay-port	partial-same-skeleton	mp-hero-roman-torso	0.669	0.252		mp-hero-roman-torso	mp-hero-roman-torso	0.669	True
+mp-hero-roman-hair	overlay-port	partial-same-skeleton	mp-hero-roman-torso	0.965	0.291		mp-hero-roman-torso	mp-hero-roman-torso	0.965	True
+mp-hero-roman-jak-goggles	overlay-port	no-retail	mp-hero-roman-torso	0.566	0.271		mp-hero-roman-torso	mp-hero-roman-torso	0.566	True
+mp-hero-schafer-hair	overlay-port	partial-same-skeleton	mp-hero-schafer-torso	0.958	0.328		mp-hero-schafer-torso	mp-hero-schafer-torso	0.958	True
+mp-hero-schafer-hat	overlay-port	no-retail	mp-hero-schafer-torso	0.378	0.095		mp-hero-schafer-torso	mp-hero-schafer-torso	0.378	True
+mp-hero-schafer-jak-goggles	overlay-port	no-retail	mp-hero-schafer-torso	0.582	0.284		mp-hero-schafer-torso	mp-hero-schafer-torso	0.582	True
+mp-hero-skel-bones-glow	overlay-r3	retail-copy	mp-hero-skel-bones	0.992	0.992		mp-hero-skel-bones	mp-hero-skel-bones	0.992	True
+mp-hero-skel-genghis-jak-goggles	overlay-port	no-retail	mp-hero-lazarevic-torso	0.114	0.025		eurothug-heads-all	eurothug-head-c	0.124	False
+mp-hero-skel-genghis-mask	overlay-port	no-retail	hero-desert-head	0.209	0.021		eurothug-heads-all	eurothug-head-a	0.123	False
+mp-hero-skel-gold-teeth	overlay-port	no-retail	mp-hero-skel-sfd-bones	0.57	0.039		mp-hero-skel-sfd-bones	mp-hero-skel-sfd-bones	0.57	True
+mp-hero-skel-horns	overlay-port	no-retail	hero-head-dirt-01	0.042	0.002		sullivan-young-holster	sullivan-young-holster	0.066	False
+mp-hero-skel-jak-goggles	overlay-port	no-retail	mp-hero-young-sullivan-hair	0.053	0.023		sullivan-young	sullivan-young	0.161	False
+mp-hero-skel-marco-polo-jak-goggles	overlay-port	no-retail					npcnormal-asian-all	npcnormal-asian-head-b	0.082	False
+mp-hero-skel-marco-polo-mask	overlay-port	no-retail	mp-hero-divesuit-torso	0.202	0.068		eurothug-heads-all	eurothug-head-a	0.196	False
+mp-hero-skel-mohawk	overlay-port	no-retail	mp-hero-eddie-hair	0.028	0.011		mp-hero-eddie-hair	mp-hero-eddie-hair	0.028	True
+mp-hero-skel-sfd-jak-goggles	overlay-port	no-retail	mp-hero-young-sullivan-hair	0.05	0.022		sullivan-young	sullivan-young	0.163	False
+mp-hero-skel-sfd-mask	overlay-port	no-retail	mp-hero-divesuit-torso	0.212	0.067		mp-hero-divesuit-torso	mp-hero-divesuit-torso	0.212	True
+mp-hero-sol-b1a-gas-mask	overlay-port	no-retail	mp-hero-sol-b1a-torso	0.016	0.001		pirate-head-all	pirate-maskc-grap-head	0.022	False
+mp-hero-sol-b1a-jak-goggles	overlay-port	no-retail					sol-armor-goggles-v2	sol-armor-goggles-v2	0.011	False
+mp-hero-sol-b1b-clown-mask	overlay-port	no-retail					pirate-clown-mask-all	pirate-clown-mask-a	0.869	False
+mp-hero-sol-b1b-gas-mask	overlay-port	partial-same-skeleton	mp-hero-sol-b1b-torso	0.928	0.38		mp-hero-sol-b1b-torso	mp-hero-sol-b1b-torso	0.928	True
+mp-hero-sol-b1b-jak-goggles	overlay-port	no-retail	hero-head-dirt-02-dust	0.137	0.016		hero-head-dirt-02-dust	hero-head-dirt-02-dust	0.137	True
+mp-hero-sol-b2a-clown-mask	overlay-port	no-retail	mp-hero-schafer-torso	0.015	0.004		sol-part-attachments	sol-attach-med-headgear-06	0.012	False
+mp-hero-sol-b2a-jak-goggles	overlay-port	no-retail	hero-desert-no-gear-w-holster-head	0.095	0.011		cartaciv-male-b-all	cartaciv-male-hat-hair-a	0.033	False
+mp-hero-sol-b2b-clown-mask	overlay-port	no-retail	mp-hero-sol-b1b-torso	0.016	0.007		agent-misc-all	agent-glasses-b	0.012	False
+mp-hero-sol-b2b-jak-goggles	overlay-port	no-retail	mp-hero-rescuer-hair	0.015	0.008		agent-misc-all	agent-glasses-a	0.012	False
+mp-hero-sol-b3b-clown-mask	overlay-port	no-retail					desoss-all	desoss-wrape	0.014	False
+mp-hero-sol-b3b-jak-goggles	overlay-port	no-retail					agent-misc-all	agent-glasses-c	0.028	False
+mp-hero-sullivan-head-ascot	overlay-r3	same-mesh-other-texture	mp-hero-sullivan-hair	0.901	0.993	mp-sully-ascot-color.tga	mp-hero-sullivan-hair	mp-hero-sullivan-hair	0.901	True
+mp-hero-sullivan-part-bird-mask	overlay-port	no-retail					pirate-head-all	pirate-wrapd-snipe-head	0.007	False
+mp-hero-sullivan-part-fancy-hat	overlay-port	no-retail	mp-hero-sullivan-hair	0.391	0.301		mp-hero-sullivan-hair	mp-hero-sullivan-hair	0.391	True
+mp-hero-sullivan-part-french-hat	overlay-port	partial-same-skeleton	mp-hero-sullivan-hair	0.744	0.462		mp-hero-sullivan-hair	mp-hero-sullivan-hair	0.744	True
+mp-hero-sullivan-part-glasses-a	overlay-r3	no-retail					agent-misc-all	agent-glasses-a	0.097	False
+mp-hero-sullivan-part-hat-bowler	overlay-r3	no-retail	mp-hero-sullivan-hair	0.534	0.319		mp-hero-sullivan-hair	mp-hero-sullivan-hair	0.534	True
+mp-hero-sullivan-part-hat-e	overlay-r3	no-retail	mp-hero-sullivan-hair	0.587	0.327		mp-hero-sullivan-hair	mp-hero-sullivan-hair	0.587	True
+mp-hero-sullivan-part-jak-goggles	overlay-port	partial-same-skeleton	mp-hero-sullivan-hair	0.688	0.84		mp-hero-sullivan-hair	mp-hero-sullivan-hair	0.688	True
+mp-hero-sullivan-part-moai-mask	overlay-port	no-retail					sol-armor-part-extras-02	sol-armor-goggles-v2	0.007	False
+mp-hero-sullivan-part-necklace	overlay-port	no-retail	hero-french-ring	0.027	0.037		hero-french-ring	hero-french-ring	0.027	True
+mp-hero-sullivan-part-ring-01	overlay-r3	no-retail	mp-hero-agent-a-torso	0.086	0.005		agent-clown-mask-all	agent-clown-mask-c	0.086	False
+mp-hero-sullivan-part-ring-06	overlay-r3	no-retail					sol-part-heads	sol-head-09	0.062	False
+mp-hero-sullivan-part-roundglasses	overlay-r3	no-retail					agent-misc-all	agent-glasses-c	0.257	False
+mp-hero-sullivan-part-sideburns	overlay-port	no-retail					pirate-clown-mask-all	pirate-clown-mask-b	0.116	False
+mp-hero-sullivan-part-straw-hat	overlay-port	partial-same-skeleton	mp-hero-sullivan-hair	0.662	0.558		mp-hero-sullivan-hair	mp-hero-sullivan-hair	0.662	True
+mp-hero-sullivan-part-tengu-mask	overlay-port	no-retail	hero-desert-head	0.026	0.004		yem-civ-female-body-all	yem-civ-female-head-b	0.027	False
+mp-hero-sullivan-young-jak-goggles	overlay-port	partial-same-skeleton	mp-hero-young-sullivan-hair	0.647	0.752		mp-hero-young-sullivan-hair	mp-hero-young-sullivan-hair	0.647	True
+mp-hero-talbot-aztec-mask	overlay-port	partial-same-skeleton	mp-hero-talbot-hair	0.654	0.98		mp-hero-talbot-hair	mp-hero-talbot-hair	0.654	True
+mp-hero-talbot-burlap-mask	overlay-port	no-retail					cartaciv-female-b-all	cartaciv-female-head-b	0.016	False
+mp-hero-talbot-dive-helmet	overlay-port	no-retail					sol-part-extras	sol-extra-med-headgear-01	0.002	False
+mp-hero-talbot-gas-mask	overlay-port	no-retail	hero-desert-head	0.136	0.017		hero-desert-head	hero-desert-head	0.136	True
+mp-hero-talbot-hat-cowboy	overlay-r3	partial-same-skeleton	mp-hero-talbot-hair	0.7	0.449		mp-hero-talbot-hair	mp-hero-talbot-hair	0.7	True
+mp-hero-talbot-jak-goggles	overlay-port	partial-same-skeleton	mp-hero-talbot-hair	0.615	0.754		mp-hero-talbot-hair	mp-hero-talbot-hair	0.615	True
+mp-hero-talbot-mask-a	overlay-r3	no-retail	mp-hero-bedouin-b-torso	0.024	0.002		desoss-all	desoss-wrape	0.016	False
+mp-hero-talbot-noh-mask	overlay-port	partial-same-skeleton	mp-hero-talbot-hair	0.635	0.941		mp-hero-talbot-hair	mp-hero-talbot-hair	0.635	True
+mp-hero-talbot-nose-ring	overlay-port	no-retail	mp-hero-young-sullivan-torso	0.511	0.012		mp-hero-young-sullivan-torso	mp-hero-young-sullivan-torso	0.511	True
+mp-hero-talbot-octo-mask	overlay-port	no-retail					sol-part-attachments	sol-attach-med-headgear-06	0.009	False
+mp-hero-talbot-t-rex-mask	overlay-port	no-retail	mp-hero-sullivan-hair	0.005	0.003		cartaciv-male-b-all	cartaciv-male-hat-a	0.004	False
+mp-hero-thug-a-jak-goggles	overlay-port	no-retail	hero-french-head	0.074	0.007		agent-misc-all	agent-glasses-c	0.039	False
+mp-hero-thug-b-jak-goggles	overlay-port	no-retail	hero-desert-no-gear-w-holster-head	0.129	0.015		hero-desert-no-gear-w-holster-head	hero-desert-no-gear-w-holster-head	0.129	True
+mp-hero-thug-c-jak-goggles	overlay-port	no-retail	hero-french-head	0.127	0.015		hero-french-head	hero-french-head	0.127	True
+mp-hero-thug-d-jak-goggles	overlay-port	no-retail	hero-desert-no-gear-w-holster-head	0.121	0.014		hero-desert-no-gear-w-holster-head	hero-desert-no-gear-w-holster-head	0.121	True
+mp-hero-thug-e-legs	overlay-r3	near-mesh-review	mp-hero-thug-f-legs	0.953	0.865		mp-hero-thug-f-legs	mp-hero-thug-f-legs	0.953	True
+mp-hero-thug-f-jak-goggles	overlay-port	no-retail	hero-french-head	0.127	0.015		hero-french-head	hero-french-head	0.127	True
+mp-kit-base-arms-bicep-skin-b-00	overlay-r3	same-mesh-other-texture	mp-kit-base-arms-bicep-skin-a-00	0.973	0.973	arms-skin-b-00-color.tga	mp-kit-base-arms-bicep-skin-a-00	mp-kit-base-arms-bicep-skin-a-00	0.973	True
+mp-kit-base-arms-bicep-skin-c-00	overlay-r3	same-mesh-other-texture	mp-kit-base-arms-bicep-skin-a-00	0.973	0.973	arms-skin-c-00-color.tga	mp-kit-base-arms-bicep-skin-a-00	mp-kit-base-arms-bicep-skin-a-00	0.973	True
+mp-kit-base-arms-hands-skin-b-00	overlay-r3	partial-same-skeleton	mp-kit-base-arms-hands-skin-a-00	0.832	0.828		mp-kit-base-arms-hands-skin-a-00	mp-kit-base-arms-hands-skin-a-00	0.832	True
+mp-kit-base-arms-hands-skin-c-00	overlay-r3	partial-same-skeleton	mp-kit-base-arms-hands-skin-a-00	0.832	0.828		mp-kit-base-arms-hands-skin-a-00	mp-kit-base-arms-hands-skin-a-00	0.832	True
+mp-kit-base-arms-low-arm-skin-b-00	overlay-r3	same-mesh-other-texture	mp-kit-base-arms-low-arm-skin-a-00	0.944	0.944	arms-skin-b-00-color.tga	mp-kit-base-arms-low-arm-skin-a-00	mp-kit-base-arms-low-arm-skin-a-00	0.944	True
+mp-kit-base-arms-low-arm-skin-c-00	overlay-r3	same-mesh-other-texture	mp-kit-base-arms-low-arm-skin-a-00	0.944	0.944	arms-skin-c-00-color.tga	mp-kit-base-arms-low-arm-skin-a-00	mp-kit-base-arms-low-arm-skin-a-00	0.944	True
+mp-kit-base-arms-should-skin-b-00	overlay-r3	same-mesh-other-texture	mp-kit-base-arms-should-skin-a-00	0.9	0.9	arms-skin-b-00-color.tga,torso-skin-b-00-color.tga	mp-kit-base-arms-should-skin-a-00	mp-kit-base-arms-should-skin-a-00	0.9	True
+mp-kit-base-arms-should-skin-c-00	overlay-r3	same-mesh-other-texture	mp-kit-base-arms-should-skin-a-00	0.9	0.9	arms-skin-c-00-color.tga,torso-skin-c-00-color.tga	mp-kit-base-arms-should-skin-a-00	mp-kit-base-arms-should-skin-a-00	0.9	True
+mp-kit-base-arms-up-arm-skin-b-00	overlay-r3	partial-same-skeleton	mp-kit-base-arms-up-arm-skin-a-00	0.881	0.881		mp-kit-base-arms-up-arm-skin-a-00	mp-kit-base-arms-up-arm-skin-a-00	0.881	True
+mp-kit-base-arms-up-arm-skin-c-00	overlay-r3	partial-same-skeleton	mp-kit-base-arms-up-arm-skin-a-00	0.881	0.881		mp-kit-base-arms-up-arm-skin-a-00	mp-kit-base-arms-up-arm-skin-a-00	0.881	True
+mp-kit-base-head-skin-b-00	overlay-r3	no-retail	mp-kit-base-head-skin-a	0.224	0.247		npcnormal-black-all	npcnormal-black-head	0.749	False
+mp-kit-base-head-skin-c-00	overlay-r3	no-retail					npcnormal-asian-all	npcnormal-asian-head	0.73	False
+mp-kit-base-legs-feet-skin-b	overlay-r3	same-mesh-other-texture	mp-kit-base-legs-feet-skin-a	1.0	1.0	mp-kit-base-legs-skin-b-00-color.tga	mp-kit-base-legs-feet-skin-a	mp-kit-base-legs-feet-skin-a	1.0	True
+mp-kit-base-legs-feet-skin-c	overlay-r3	same-mesh-other-texture	mp-kit-base-legs-feet-skin-a	1.0	1.0	mp-kit-base-legs-skin-c-00-color.tga	mp-kit-base-legs-feet-skin-a	mp-kit-base-legs-feet-skin-a	1.0	True
+mp-kit-base-legs-skin-b-00	overlay-r3	same-mesh-other-texture	mp-kit-base-legs-skin-a	0.996	0.995	mp-kit-base-legs-skin-b-00-color.tga	mp-kit-base-legs-skin-a	mp-kit-base-legs-skin-a	0.996	True
+mp-kit-base-legs-skin-c-00	overlay-r3	same-mesh-other-texture	mp-kit-base-legs-skin-a	0.996	0.995	mp-kit-base-legs-skin-c-00-color.tga	mp-kit-base-legs-skin-a	mp-kit-base-legs-skin-a	0.996	True
+mp-kit-base-neck-skin-b-00	overlay-r3	partial-same-skeleton	mp-kit-base-neck-skin-a	0.854	0.854		mp-kit-base-neck-skin-a	mp-kit-base-neck-skin-a	0.854	True
+mp-kit-base-neck-skin-c-00	overlay-r3	partial-same-skeleton	mp-kit-base-neck-skin-a	0.856	0.856		mp-kit-base-neck-skin-a	mp-kit-base-neck-skin-a	0.856	True
+mp-kit-base-torso-in-skin-a-00	overlay-r3	no-retail	mp-kit-base-arms-should-skin-a-00	0.069	0.048		pir-parts-temp-d	pir-parts-temp-d	0.707	False
+mp-kit-base-torso-in-skin-b-00	overlay-r3	no-retail	mp-kit-base-arms-should-skin-a-00	0.064	0.045		pir-parts-temp-d	pir-parts-temp-d	0.653	False
+mp-kit-base-torso-in-skin-c-00	overlay-r3	no-retail	mp-kit-base-arms-should-skin-a-00	0.064	0.045		pir-parts-temp-d	pir-parts-temp-d	0.653	False
+mp-kit-clown-mask-a	overlay-r3	mesh-on-other-skeleton					pirate-clown-mask-all	pirate-clown-mask-d	0.999	False
+mp-kit-clown-mask-b	overlay-r3	mesh-on-other-skeleton					pirate-clown-mask-all	pirate-clown-mask-b	0.999	False
+mp-kit-clown-mask-c	overlay-r3	mesh-on-other-skeleton					pirate-clown-mask-all	pirate-clown-mask-b	0.999	False
+mp-kit-clown-mask-d	overlay-r3	mesh-on-other-skeleton					pirate-clown-mask-all	pirate-clown-mask-d	0.999	False
+mp-kit-clown-mask-ndi	overlay-r3	mesh-on-other-skeleton					pirate-clown-mask-all	pirate-clown-mask-d	0.999	False
+mp-kit-hunter-arms-cowboy-a	overlay-port	no-retail	mp-hero-des-oss-c-torso	0.06	0.012		mp-hero-des-oss-c-torso	mp-hero-des-oss-c-torso	0.06	True
+mp-kit-hunter-arms-cowboy-b	overlay-port	no-retail	mp-hero-fat-torso-extra-5	0.083	0.008		mp-hero-fat-torso-extra-5	mp-hero-fat-torso-extra-5	0.083	True
+mp-kit-hunter-arms-gloves-a	overlay-r3	no-retail	mp-hero-udf-torso	0.087	0.011		mp-hero-udf-torso	mp-hero-udf-torso	0.087	True
+mp-kit-hunter-arms-gloves-b	overlay-r3	no-retail					pirate-torso-all	pirate-glovesa	0.038	False
+mp-kit-hunter-arms-gloves-c	overlay-r3	no-retail	mp-hero-des-oss-c-torso	0.045	0.006		agent-armor-all	agent-armor-body	0.051	False
+mp-kit-hunter-feet-boots-b	overlay-r3	no-retail	mp-hero-thug-a-legs	0.016	0.003		tre-gra-gold-scarab-brooch-icon	tre-gra-gold-scarab-brooch-icon	0.008	False
+mp-kit-hunter-feet-boots-c	overlay-r3	no-retail	mp-kit-hunter-feet-boots-a	0.01	0.011		yem-civ-male-shoes-all	yem-civ-male-shoes-c	0.019	False
+mp-kit-hunter-feet-boots-d	overlay-r3	no-retail	mp-hero-fat-legs	0.023	0.006		bedouin-all	bedouin-boots-b	0.016	False
+mp-kit-hunter-feet-cowboy-a	overlay-port	no-retail	mp-hero-dead-agent-legs	0.019	0.003		pub-bathroom-tp-roll	pub-bathroom-tp-roll	0.019	False
+mp-kit-hunter-feet-cowboy-b	overlay-port	no-retail	mp-hero-lieutenant-legs	0.016	0.004		yem-civ-male-shoes-all	yem-civ-male-shoes-a	0.008	False
+mp-kit-hunter-feet-shoes-c	overlay-r3	no-retail					binoculars	binoculars	0.02	False
+mp-kit-hunter-head-cowboy-a	overlay-port	no-retail	mp-hero-french-hair	0.027	0.004		mp-hero-french-hair	mp-hero-french-hair	0.027	True
+mp-kit-hunter-head-cowboy-b	overlay-port	no-retail	mp-hero-young-sullivan-hair	0.019	0.002		mp-hero-young-sullivan-hair	mp-hero-young-sullivan-hair	0.019	True
+mp-kit-hunter-head-glasses-a	overlay-r3	no-retail	mp-hero-young-sullivan-hair	0.161	0.013		mp-hero-young-sullivan-hair	mp-hero-young-sullivan-hair	0.161	True
+mp-kit-hunter-head-hat-a	overlay-r3	no-retail	mp-hero-ramses-bandana	0.024	0.012		mp-hero-ramses-bandana	mp-hero-ramses-bandana	0.024	True
+mp-kit-hunter-head-hat-b	overlay-r3	no-retail	mp-hero-agent-med-b-hair	0.03	0.003		cartaciv-male-b-all	cartaciv-male-hat-c	0.373	False
+mp-kit-hunter-head-hat-c	overlay-r3	no-retail	mp-hero-dead-agent-hair	0.042	0.005		sol-part-extras	sol-extra-med-headgear-03	0.021	False
+mp-kit-hunter-legs-pants-a	overlay-r3	no-retail	mp-hero-thug-b-legs	0.006	0.004		mp-hero-thug-b-legs	mp-hero-thug-b-legs	0.006	True
+mp-kit-hunter-legs-pants-b	overlay-r3	no-retail	mp-hero-agent-med-a-legs	0.005	0.004		mp-hero-agent-med-a-legs	mp-hero-agent-med-a-legs	0.005	True
+mp-kit-hunter-legs-pants-d	overlay-r3	no-retail	mp-hero-agent-med-b-legs	0.006	0.003		pirate-pants-com-all	pirate-pantsc-com-leg	0.008	False
+mp-kit-hunter-legs-pants-e	overlay-r3	no-retail	mp-kit-hunter-legs-pants-j	0.003	0.003		mp-kit-hunter-legs-pants-j	mp-kit-hunter-legs-pants-j	0.003	True
+mp-kit-hunter-legs-pants-k	overlay-r3	no-retail	mp-kit-hunter-legs-pants-j	0.268	0.305		mp-kit-hunter-legs-pants-j	mp-kit-hunter-legs-pants-j	0.268	True
+mp-kit-hunter-legs-pants-l	overlay-r3	no-retail	mp-hero-jeff-legs	0.009	0.004		mp-hero-jeff-legs	mp-hero-jeff-legs	0.009	True
+mp-kit-hunter-legs-pants-m	overlay-r3	no-retail	mp-hero-rescuer-legs	0.003	0.003		pirate-pants-com-all	pirate-pantse-com-leg	0.005	False
+mp-kit-hunter-legs-pants-n	overlay-r3	no-retail	mp-hero-young-sullivan-legs	0.008	0.006		mp-hero-young-sullivan-legs	mp-hero-young-sullivan-legs	0.008	True
+mp-kit-hunter-legs-pants-o	overlay-r3	no-retail	mp-hero-young-sullivan-legs	0.005	0.004		mp-hero-young-sullivan-legs	mp-hero-young-sullivan-legs	0.005	True
+mp-kit-hunter-pants-cowboy-a	overlay-port	no-retail	mp-hero-lazarevic-legs	0.005	0.004		pirate-pants-com-all	pirate-pantse-com-leg	0.005	False
+mp-kit-hunter-pants-cowboy-b	overlay-port	no-retail	mp-hero-winter-legs	0.004	0.004		mp-hero-winter-legs	mp-hero-winter-legs	0.004	True
+mp-kit-hunter-torso-cowboy-a	overlay-port	no-retail	hero-desert-bandoleer-only-dust	0.01	0.003		hero-desert-bandoleer-only-dust	hero-desert-bandoleer-only-dust	0.01	True
+mp-kit-hunter-torso-cowboy-b	overlay-port	no-retail	mp-hero-thug-a-torso	0.009	0.003		pirate-torso-all	pirate-torso-shirtb-shot-midarms	0.005	False
+mp-kit-hunter-torso-jacket-a	overlay-r3	no-retail	mp-hero-winter-torso	0.006	0.001		desoss-coata	desoss-coata	0.005	False
+mp-kit-hunter-torso-jacket-b	overlay-r3	no-retail	mp-hero-thug-c-torso	0.005	0.001		pirate-leader-shot	pirate-leader-shot	0.011	False
+mp-kit-hunter-torso-jacket-c	overlay-r3	no-retail	mp-hero-bed-leader-sword-torso	0.006	0.001		eurothug-body-full-all	eurothug-body-a	0.011	False
+mp-kit-hunter-torso-jacket-d	overlay-r3	no-retail	mp-hero-thug-f-torso	0.01	0.002		mp-hero-thug-f-torso	mp-hero-thug-f-torso	0.01	True
+mp-kit-hunter-torso-jacket-e	overlay-r3	no-retail	hero-desert	0.014	0.001		pirate-torso-all	pirate-jacketg-lowarms	0.006	False
+mp-kit-hunter-torso-jacket-f	overlay-r3	no-retail	mp-hero-bed-leader-sword-torso	0.014	0.001		bedouin-leader	bedouin-leader	0.015	False
+mp-kit-hunter-torso-shirt-a	overlay-r3	no-retail	mp-hero-desert-torso	0.014	0.002		sullivan-young-shirt	sullivan-young-shirt	0.014	False
+mp-kit-hunter-torso-shirt-b	overlay-r3	no-retail	hero-desert	0.024	0.002		hero-desert	hero-desert	0.024	True
+mp-kit-hunter-torso-shirt-c	overlay-r3	no-retail	hero-desert-no-ring-dirty	0.018	0.001		lieutenant-dagger	lieutenant-dagger	0.006	False
+mp-kit-hunter-torso-shirt-d	overlay-r3	no-retail	hero-des-no-ring-dust	0.016	0.001		hero-des-no-ring-dust	hero-des-no-ring-dust	0.016	True
+mp-kit-hunter-torso-shirt-d-00	overlay-r3	no-retail	hero-des-no-ring-dust	0.018	0.002		pirate-torso-all	pirate-torso-shirtd-grap-fullarms	0.007	False
+mp-kit-hunter-torso-shirt-e	overlay-r3	no-retail	mp-hero-bed-leader-sword-torso	0.017	0.001		yem-hotel-gate	yem-hotel-gate	0.007	False
+mp-kit-hunter-torso-shirt-f	overlay-r3	no-retail	hero-des-no-ring-dust-dirty	0.024	0.001		hero-des-no-ring-dust-dirty	hero-des-no-ring-dust-dirty	0.024	True
+mp-kit-hunter-torso-shirt-g	overlay-port	same-mesh-other-texture	mp-kit-shirt-comic-a	0.953	0.953	shirt-flames-color.tga	mp-kit-shirt-comic-a	mp-kit-shirt-comic-a	0.953	True
+mp-kit-hunter-torso-shirt-gas	overlay-port	retail-copy	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0		mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-i	overlay-port	same-mesh-other-texture	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0	shirt-tron-color.tga	mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-j	overlay-port	same-mesh-other-texture	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0	shirt-rainbow-color.tga	mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-jolly	overlay-port	retail-copy	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0		mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-k	overlay-port	same-mesh-other-texture	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0	shirts-flags-brazil-color.tga	mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-l	overlay-port	same-mesh-other-texture	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0	shirts-flags-dan-color.tga	mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-m	overlay-port	same-mesh-other-texture	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0	shirts-flags-fran-color.tga	mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-n	overlay-port	same-mesh-other-texture	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0	shirts-flags-gb-color.tga	mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-o	overlay-port	same-mesh-other-texture	mp-kit-shirt-comic-a	0.953	0.953	shirts-flags-ger-color.tga	mp-kit-shirt-comic-a	mp-kit-shirt-comic-a	0.953	True
+mp-kit-hunter-torso-shirt-p	overlay-port	same-mesh-other-texture	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0	shirts-flags-italy-color.tga	mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-q	overlay-port	same-mesh-other-texture	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0	shirts-flags-jp-color.tga	mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-r	overlay-port	same-mesh-other-texture	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0	shirts-flags-kaz-color.tga	mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-s	overlay-port	same-mesh-other-texture	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0	shirts-flags-spain-color.tga	mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-skello	overlay-port	near-mesh-review	mp-kit-shirt-comic-a	0.953	0.953		mp-kit-shirt-comic-a	mp-kit-shirt-comic-a	0.953	True
+mp-kit-hunter-torso-shirt-snake	overlay-port	retail-copy	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0		mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-t	overlay-port	same-mesh-other-texture	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0	shirts-flags-mexico-color.tga	mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-u	overlay-port	same-mesh-other-texture	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0	shirts-flags-porto-color.tga	mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-v	overlay-port	same-mesh-other-texture	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0	shirts-flags-us-color.tga	mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-w	overlay-port	retail-copy	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0		mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-x	overlay-port	retail-copy	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0		mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-y	overlay-port	retail-copy	mp-kit-hunter-torso-shirt-trumpet	1.0	1.0		mp-kit-hunter-torso-shirt-trumpet	mp-kit-hunter-torso-shirt-trumpet	1.0	True
+mp-kit-hunter-torso-shirt-z	overlay-port	near-mesh-review	mp-kit-shirt-comic-b	0.925	0.924		mp-kit-shirt-comic-b	mp-kit-shirt-comic-b	0.925	True
+mp-kit-hunter-torso-vest-c	overlay-r3	no-retail	mp-hero-bed-leader-sword-torso	0.009	0.001		pirate-torso-all	pirate-jacketc-snipe-noarmsneck	0.004	False
+mp-kit-hunter-torso-vest-d	overlay-r3	no-retail	hero-desert-bandoleer-only-dust	0.007	0.002		sullivan-young-shirt	sullivan-young-shirt	0.012	False
+mp-kit-killzone-full-a	overlay-r3	no-retail	mp-hero-pirate-torso	0.016	0.033		mp-hero-pirate-torso	mp-hero-pirate-torso	0.016	True
+mp-kit-killzone-full-helmet-a	overlay-r3	no-retail	mp-hero-eddie-hair	0.017	0.009		sol-armor-goggles	sol-armor-goggles	0.017	False
+mp-kit-killzone-jak-goggles	overlay-port	no-retail	mp-hero-lazarevic-fat-torso	0.041	0.007		npcnormal-asian-all	npcnormal-asian-head	0.046	False
+mp-kit-merc-arms-cowboy-c	overlay-port	no-retail	mp-kit-base-arms-hands-skin-a-00	0.051	0.023		mp-kit-base-arms-hands-skin-a-00	mp-kit-base-arms-hands-skin-a-00	0.051	True
+mp-kit-merc-arms-cowboy-d	overlay-port	no-retail					yem-civ-male-body-all	yem-civ-male-hands-a	0.045	False
+mp-kit-merc-arms-gloves-f	overlay-r3	no-retail	mp-hero-des-oss-c-torso	0.068	0.013		pirate-torso-all	pirate-glovesa	0.169	False
+mp-kit-merc-arms-gloves-g	overlay-r3	no-retail	mp-hero-agent-med-b-torso	0.084	0.012		pirate-torso-all	pirate-glovesa	0.272	False
+mp-kit-merc-arms-gloves-h	overlay-r3	no-retail	mp-hero-des-oss-c-torso	0.036	0.007		pirate-torso-all	pirate-glovesa	0.169	False
+mp-kit-merc-arms-gloves-i	overlay-r3	no-retail	mp-hero-fat-torso-extra-3	0.047	0.005		pirate-torso-all	pirate-glovesa	0.109	False
+mp-kit-merc-feet-boots-b	overlay-r3	no-retail	mp-hero-thug-d-legs	0.019	0.002		tre-cru-pearl-diamond-necklace-icon	tre-cru-pearl-diamond-necklace-icon	0.01	False
+mp-kit-merc-feet-boots-c	overlay-r3	no-retail					tre-cha-ruby-mask-pendant-icon	tre-cha-ruby-mask-pendant-icon	0.009	False
+mp-kit-merc-feet-boots-f	overlay-r3	no-retail	mp-hero-fat-legs	0.016	0.007		yem-civ-male-shoes-all	yem-civ-male-shoes-a	0.014	False
+mp-kit-merc-feet-boots-g	overlay-r3	no-retail	mp-hero-thug-d-legs	0.015	0.004		mp-hero-thug-d-legs	mp-hero-thug-d-legs	0.015	True
+mp-kit-merc-feet-cowboy-c	overlay-port	no-retail	mp-kit-hunter-feet-boots-a	0.014	0.022		mp-kit-hunter-feet-boots-a	mp-kit-hunter-feet-boots-a	0.014	True
+mp-kit-merc-feet-cowboy-d	overlay-port	no-retail	mp-hero-schafer-legs	0.018	0.005		civilian-crowd-cartagena-male-a	civilian-crowd-cartagena-male-a	0.014	False
+mp-kit-merc-head-cowboy-c	overlay-port	no-retail	mp-hero-french-hair	0.016	0.002		desoss-all	desoss-wrapa	0.02	False
+mp-kit-merc-head-cowboy-d	overlay-port	no-retail	mp-hero-flynn-torso	0.025	0.002		cartaciv-male-b-all	cartaciv-male-hat-hair-b	0.014	False
+mp-kit-merc-head-glasses-a	overlay-r3	no-retail					pirate-clown-mask-all	pirate-clown-mask-c	0.113	False
+mp-kit-merc-head-hat-c	overlay-r3	no-retail	mp-kit-hunter-head-hat-d	0.045	0.028		mp-kit-hunter-head-hat-d	mp-kit-hunter-head-hat-d	0.045	True
+mp-kit-merc-head-hat-d	overlay-r3	no-retail	mp-hero-young-sullivan-hair	0.025	0.009		talbot	talbot	0.093	False
+mp-kit-merc-head-hat-e	overlay-r3	no-retail	hero-head-dirt-01	0.069	0.002		hero-head-dirt-01	hero-head-dirt-01	0.069	True
+mp-kit-merc-head-helmet-a	overlay-r3	no-retail					desoss-armor-all	desoss-armor-det-helmet	0.585	False
+mp-kit-merc-head-helmet-d	overlay-r3	no-retail	mp-hero-sullivan-hair	0.025	0.007		mp-hero-sullivan-hair	mp-hero-sullivan-hair	0.025	True
+mp-kit-merc-head-helmet-g	overlay-r3	no-retail	hero-desert-no-gear-w-holster-head	0.026	0.004		yem-civ-female-body-all	yem-civ-female-head-c	0.016	False
+mp-kit-merc-head-helmet-j	overlay-r3	no-retail	mp-hero-rescuer-hair	0.024	0.011		mp-hero-rescuer-hair	mp-hero-rescuer-hair	0.024	True
+mp-kit-merc-head-mask-d	overlay-r3	no-retail	mp-hero-dead-agent-hair	0.023	0.005		pirate-head-all	pirate-wrapb-head	0.03	False
+mp-kit-merc-legs-pants-a	overlay-r3	no-retail	mp-hero-thug-d-legs	0.012	0.004		pirate-pants-com-all	pirate-pantsa-com	0.524	False
+mp-kit-merc-legs-pants-b	overlay-r3	no-retail	mp-hero-thug-a-legs	0.008	0.004		agent-armor-all	agent-armor-body	0.478	False
+mp-kit-merc-legs-pants-f	overlay-r3	no-retail	mp-hero-agent-med-b-legs	0.064	0.091		mp-hero-agent-med-b-legs	mp-hero-agent-med-b-legs	0.064	True
+mp-kit-merc-legs-pants-h	overlay-r3	no-retail	mp-hero-agent-med-b-legs	0.121	0.091		mp-hero-agent-med-b-legs	mp-hero-agent-med-b-legs	0.121	True
+mp-kit-merc-pants-cowboy-c	overlay-port	no-retail	mp-hero-rescuer-legs	0.004	0.004		yem-civ-male-pants-all	yem-civ-male-pants-a	0.006	False
+mp-kit-merc-pants-cowboy-d	overlay-port	no-retail	mp-hero-bedouin-a-legs	0.003	0.002		sol-part-extras	sol-extra-med-packs-10	0.003	False
+mp-kit-merc-torso-armor-a	overlay-r3	no-retail	hero-des-no-ring-dust-dirty	0.006	0.001		pirate-torso-all	pirate-torso-jacketd-noarms	0.017	False
+mp-kit-merc-torso-armor-b	overlay-r3	no-retail					agent-armor-all	agent-armor-body	0.521	False
+mp-kit-merc-torso-armor-e	overlay-r3	no-retail	mp-hero-des-oss-b-torso	0.005	0.002		sullivan-cloth-london-dirt-01	sullivan-cloth-london-dirt-01	0.007	False
+mp-kit-merc-torso-cowboy-c	overlay-port	no-retail	mp-kit-misc-torso-shirt-amc	0.004	0.008		desoss-coatc	desoss-coatc	0.006	False
+mp-kit-merc-torso-cowboy-d	overlay-port	no-retail	mp-hero-agent-med-a-torso	0.008	0.002		agent-med-all	agent-med-jacket-a	0.008	False
+mp-kit-merc-torso-jacket-b	overlay-r3	no-retail	mp-hero-u2-torso	0.008	0.002		eurothug-body-full-all	eurothug-body-f	0.006	False
+mp-kit-merc-torso-shirt-a	overlay-r3	no-retail					agent-armor-all	agent-armor-body	0.079	False
+mp-kit-merc-torso-shirt-b	overlay-r3	no-retail	hero-desert-bandoleer-only-dust	0.006	0.002		pirate-torso-all	pirate-torso-jacketd-noarms	0.006	False
+mp-kit-merc-torso-shirt-c	overlay-r3	no-retail	mp-hero-bed-leader-sword-torso	0.009	0.002		bedouin-leader	bedouin-leader	0.021	False
+mp-kit-merc-torso-shirt-e	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirt-pogo-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-f	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirt-tron-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-g	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirt-rainbow-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-h	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirts-flags-brazil-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-i	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirts-flags-dan-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-j	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirts-flags-fran-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-k	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirts-flags-gb-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-l	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirts-flags-ger-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-m	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirts-flags-italy-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-n	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirts-flags-jp-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-o	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirts-flags-kaz-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-p	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirts-flags-spain-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-q	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirts-flags-mexico-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-r	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirts-flags-porto-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-s	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	shirts-flags-us-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-snake	overlay-port	retail-copy	mp-kit-misc-torso-shirt-pax	0.998	0.998		mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-t	overlay-port	retail-copy	mp-kit-misc-torso-shirt-pax	0.998	0.998		mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-trumpet	overlay-port	retail-copy	mp-kit-misc-torso-shirt-pax	0.998	0.998		mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-u	overlay-port	retail-copy	mp-kit-misc-torso-shirt-pax	0.998	0.998		mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-v	overlay-port	retail-copy	mp-kit-misc-torso-shirt-pax	0.998	0.998		mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-x	overlay-port	retail-copy	mp-kit-misc-torso-shirt-pax	0.998	0.998		mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-y	overlay-port	retail-copy	mp-kit-misc-torso-shirt-pax	0.998	0.998		mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-shirt-z	overlay-port	retail-copy	mp-kit-misc-torso-shirt-pax	0.998	0.998		mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-merc-torso-suit-a	overlay-r3	no-retail	mp-hero-flynn-torso	0.004	0.001		bedouin-leader	bedouin-leader	0.008	False
+mp-kit-merc-torso-suit-b	overlay-r3	no-retail	mp-hero-bed-leader-sword-torso	0.009	0.001		yem-civ-female-torso-all	yem-civ-female-shirt-c	0.007	False
+mp-kit-merc-torso-vest-b	overlay-r3	no-retail	mp-hero-thug-d-torso	0.006	0.002		pirate-torso-all	pirate-torso-shirtb-shot-midarms	0.004	False
+mp-kit-misc-feet-make-believe	overlay-port	no-retail	mp-hero-dead-agent-legs	0.017	0.003		cartaciv-male-b-all	cartaciv-male-body-e	0.048	False
+mp-kit-misc-hair-make-believe	overlay-port	no-retail	mp-hero-young-sullivan-hair	0.032	0.036		mp-hero-young-sullivan-hair	mp-hero-young-sullivan-hair	0.032	True
+mp-kit-misc-legs-make-believe	overlay-port	no-retail	mp-hero-sol-b2b-legs	0.004	0.004		mp-hero-sol-b2b-legs	mp-hero-sol-b2b-legs	0.004	True
+mp-kit-misc-torso-make-believe	overlay-port	no-retail	mp-hero-bedouin-b-torso	0.007	0.002		pirate-torso-all	pirate-torso-shirtd-grap-fullarms	0.021	False
+mp-kit-misc-torso-shirt-amc-2	overlay-port	retail-copy	mp-kit-misc-torso-shirt-pax	0.998	0.998		mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-misc-torso-shirt-balls-1	overlay-r3	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	mp-kit-shirt-balls-a-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-misc-torso-shirt-balls-2	overlay-r3	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	mp-kit-shirt-balls-b-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-misc-torso-shirt-esc-toy	overlay-r3	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	mp-kit-shirt-esctoy-a-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-misc-torso-shirt-tlou-a	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	mp-kit-shirt-last-of-us-hero-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-misc-torso-shirt-tlou-b	overlay-port	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	mp-kit-shirt-last-of-us-villain-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+mp-kit-pirate-helmet-hat-a-00	overlay-r3	no-retail	hero-head-dirt-01	0.102	0.004		hero-head-dirt-01	hero-head-dirt-01	0.102	True
+mp-kit-pirate-legs-pants-a-00	overlay-r3	no-retail	mp-hero-cutter-legs	0.105	0.088		mp-hero-cutter-legs	mp-hero-cutter-legs	0.105	True
+mp-kit-pirate-legs-pants-b-00	overlay-r3	no-retail	mp-hero-cutter-legs	0.107	0.086		pirate-pants-com-all	pirate-pantsb-com	0.201	False
+mp-kit-pirate-legs-pants-c-00	overlay-r3	no-retail	mp-hero-cutter-legs	0.124	0.089		pirate-pants-com-all	pirate-pantse-com-leg	0.677	False
+mp-kit-pirate-legs-pants-c-01	overlay-r3	no-retail	mp-hero-cutter-legs	0.104	0.086		pirate-pants-com-all	pirate-pantsc-com-leg	0.468	False
+mp-kit-pirate-legs-pants-c-03	overlay-r3	no-retail	mp-hero-cutter-legs	0.124	0.089		pirate-pants-com-all	pirate-pantse-com-leg	0.677	False
+mp-kit-pirate-legs-pants-d-00	overlay-r3	no-retail	mp-hero-cutter-legs	0.09	0.075		pirate-pants-com-all	pirate-pantsd-com-leg	0.198	False
+mp-kit-pirate-torso-in-shirt-a-00	overlay-r3	mesh-on-other-skeleton	mp-hero-u2-torso	0.013	0.001		pirate-torso-all	pirate-torso-shirtd-grap-fullarms	0.937	False
+mp-kit-pirate-torso-in-shirt-a-03	overlay-r3	mesh-on-other-skeleton	mp-hero-u2-torso	0.013	0.001		pirate-torso-all	pirate-torso-shirtd-grap-fullarms	0.927	False
+mp-kit-pirate-torso-in-shirt-a-04	overlay-r3	mesh-on-other-skeleton	mp-hero-u2-torso	0.013	0.001		pirate-torso-all	pirate-torso-shirtd-grap-fullarms	0.927	False
+mp-kit-pirate-torso-in-shirt-c-00	overlay-r3	no-retail	hero-desert	0.019	0.001		hero-desert	hero-desert	0.019	True
+mp-kit-pirate-torso-out-jacket-d-00	overlay-r3	no-retail					pirate-torso-all	pirate-torso-jacket-fullarms	0.227	False
+mp-kit-pirate-torso-out-jacket-e-00	overlay-r3	no-retail					pirate-torso-all	pirate-torso-jacketb-noarmsneck	0.713	False
+mp-kit-shared-3d-glasses	overlay-port	no-retail	mp-hero-lazarevic-torso	0.099	0.005		agent-misc-all	agent-glasses-c	0.053	False
+mp-kit-shared-bird-nest	overlay-port	no-retail	hero-head-dirt-02-dust	0.051	0.004		hero-head-dirt-02-dust	hero-head-dirt-02-dust	0.051	True
+mp-kit-shared-bucket-helmet	overlay-port	no-retail	mp-hero-sol-b1a-torso	0.016	0.004		sol-armor-part-extras-02	sol-armor-goggles-v2	0.012	False
+mp-kit-shared-captain-hat	overlay-port	no-retail	hero-french-head	0.073	0.006		hero-french-head	hero-french-head	0.073	True
+mp-kit-shared-descendent-mask	overlay-port	no-retail	mp-hero-fat-torso-extra-2	0.078	0.025		yem-civ-female-full-all	yem-civ-female-full-b	0.051	False
+mp-kit-shared-desert-hat	overlay-port	no-retail	hero-french-head	0.104	0.006		hero-french-head	hero-french-head	0.104	True
+mp-kit-shared-drink-hat	overlay-port	no-retail	hero-head-dirt-02-tan	0.036	0.003		eurothug-heads-all	eurothug-hat-b	0.01	False
+mp-kit-shared-explorer-hat	overlay-port	no-retail	mp-hero-talbot-hair	0.038	0.008		eurothug-heads-all	eurothug-hat-a	0.032	False
+mp-kit-shared-eye-mask	overlay-port	no-retail					pirate-clown-mask-all	pirate-clown-mask-d	0.069	False
+mp-kit-shared-gas-mask	overlay-port	no-retail	hero-desert-head-dust	0.034	0.003		hero-desert-head-dust	hero-desert-head-dust	0.034	True
+mp-kit-shared-jak-goggles	overlay-port	no-retail	hero-desert-head-dust	0.128	0.015		eurothug-heads-all	eurothug-hat-a	0.039	False
+mp-kit-shared-knight-helmet	overlay-port	no-retail	mp-hero-agent-a-hair	0.014	0.007		mp-hero-agent-a-hair	mp-hero-agent-a-hair	0.014	True
+mp-kit-shared-monster-mask	overlay-r3	no-retail					sol-part-heads	sol-head-09	0.009	False
+mp-kit-shared-night-vision-helmet	overlay-port	no-retail					sullivan-head-dirt-01	sullivan-head-dirt-01	0.066	False
+mp-kit-shared-old-scholar-hat	overlay-port	no-retail	mp-hero-french-hair	0.01	0.004		sol-part-extras	sol-extra-med-headgear-03	0.005	False
+mp-kit-shared-panda-mask	overlay-port	no-retail	mp-hero-talbot-hair	0.019	0.01		pirate-clown-mask-all	pirate-clown-mask-a	0.027	False
+mp-kit-shared-pirate-hat	overlay-port	no-retail	mp-hero-ramses-bandana	0.18	0.178		mp-hero-ramses-bandana	mp-hero-ramses-bandana	0.18	True
+mp-kit-shared-reporter-glasses	overlay-port	no-retail					agent-misc-all	agent-glasses-b	0.07	False
+mp-kit-shared-round-sunglasses	overlay-port	no-retail	mp-hero-cutter-torso	0.049	0.007		agent-misc-all	agent-glasses-a	0.042	False
+mp-kit-shared-sailor-hat	overlay-port	no-retail	mp-hero-dead-agent-hair	0.03	0.009		mp-hero-dead-agent-hair	mp-hero-dead-agent-hair	0.03	True
+mp-kit-shared-samurai-helmet	overlay-port	no-retail	mp-hero-agent-med-b-hair	0.029	0.013		mp-hero-agent-med-b-hair	mp-hero-agent-med-b-hair	0.029	True
+mp-kit-shared-ski-mask	overlay-port	no-retail					pirate-clown-mask-all	pirate-clown-mask-c	0.051	False
+mp-kit-shared-space-helmet	overlay-port	no-retail	mp-hero-sol-b1a-torso	0.016	0.005		mp-hero-sol-b1a-torso	mp-hero-sol-b1a-torso	0.016	True
+mp-kit-shared-star-glasses	overlay-port	no-retail	mp-hero-sol-b3b-torso	0.071	0.005		agent-misc-all	agent-glasses-a	0.096	False
+mp-kit-shared-straw-hat	overlay-port	no-retail	mp-hero-dead-agent-hair	0.033	0.019		mp-hero-dead-agent-hair	mp-hero-dead-agent-hair	0.033	True
+mp-kit-shared-stylish-sunglasses	overlay-port	no-retail	mp-hero-des-oss-b-torso	0.156	0.009		desoss-all	desoss-wrapb	0.123	False
+mp-kit-shared-tiger-mask	overlay-port	no-retail	mp-hero-talbot-hair	0.023	0.008		pirate-clown-mask-all	pirate-clown-mask-b	0.029	False
+mp-kit-shared-wing-helmet	overlay-port	no-retail	mp-hero-agent-med-b-hair	0.028	0.012		mp-hero-agent-med-b-hair	mp-hero-agent-med-b-hair	0.028	True
+mp-kit-shared-wizard-hat	overlay-port	no-retail	mp-hero-talbot-hair	0.01	0.004		mp-hero-talbot-hair	mp-hero-talbot-hair	0.01	True
+mp-kit-shirt-nd-a	overlay-r3	same-mesh-other-texture	mp-kit-misc-torso-shirt-pax	0.998	0.998	mp-kit-shirt-nd-a-color.tga	mp-kit-misc-torso-shirt-pax	mp-kit-misc-torso-shirt-pax	0.998	True
+pirate-armor-a-full-mp	overlay-r3	no-retail	pirate-pants-com-all	0.143	0.78		pirate-armor-all	pirate-armor-a	0.323	False
+pirate-boat-multi	overlay-r3	no-retail								

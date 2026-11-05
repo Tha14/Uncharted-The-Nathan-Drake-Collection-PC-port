@@ -1,0 +1,19 @@
+{
+ "id": "skin-textures",
+ "title": "Weapon skin textures rebuilt 1024x1024 from PS3 (skin-batch/apply_skins.py)",
+ "kind": "unavailable",
+ "job": "skin-batch",
+ "family": "overlay-r3/actor33",
+ "needs": [
+  "ps3_disc",
+  "ps4"
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/actor33/ps4/*.pak"
+ ],
+ "status": "not-applied",
+ "applied": "2026-11-01 16:26 (sub-agent; install unverified in the transcript)",
+ "notes": "Kept for the record; nothing to run.",
+ "recipe_version_added": "1.0.0",
+ "reason": "Never installed: work/backup-skintex does not exist and the overlay-r3 weapon paks are the 2026-10-29 wpnmods.py builds (convert-actors-r3 rebuilds them byte for byte). The 11-01 skin-batch builder was not kept (only its e1..e4 survey scripts)."
+}

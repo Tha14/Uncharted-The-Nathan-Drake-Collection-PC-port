@@ -1,0 +1,33 @@
+{
+ "templates": {
+  "levels/desert-village/outsource/des-crashed-plane-b/default": [
+   "grave-01-firstyard-yard-low.pak",
+   "levels/ship-graveyard/debris/grave-debris-sludge-freighter-wreck:sludge03,d9e5c173-d5d0-4f15-b136-f9925fdd5ad4,prime-shader.fx"
+  ],
+  "levels/desert-village/outsource/des-crashed-plane-a/default": [
+   "grave-01-firstyard-yard-low.pak",
+   "levels/ship-graveyard/debris/grave-debris-sludge-freighter-wreck:sludge03,d9e5c173-d5d0-4f15-b136-f9925fdd5ad4,prime-shader.fx"
+  ]
+ },
+ "params": {
+  "levels/desert-village/outsource/des-crashed-plane-b/default": {
+   "g_specularBrightness": [
+    23.13382911682129
+   ],
+   "g_specularEnvironmentStrength": [
+    4.62677001953125
+   ]
+  },
+  "levels/desert-village/outsource/des-crashed-plane-a/default": {
+   "g_specularBrightness": [
+    3.1313400268554688
+   ],
+   "g_specularEnvironmentStrength": [
+    1.5656700134277344
+   ]
+  }
+ },
+ "texsrc": {
+  "art/general/textures/default/default-env-reflection.dds": "cargo-plane-air-multi-int.pak"
+ }
+}

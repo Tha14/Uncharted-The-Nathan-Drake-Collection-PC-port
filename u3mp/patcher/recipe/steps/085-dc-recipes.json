@@ -1,0 +1,30 @@
+{
+ "id": "dc-recipes",
+ "title": "overlay-r3/r2/port dc1 + dc2: every DC file convert-dc1 does not reproduce (merged net.bin / menu.bin / modules.bin / medals / looks / scenes / vox* / weapon-* / net-always-loaded / ss-coop-adv-fort / part modules, and 80 conversions + .dci), rebuilt from provenance recipes (dcconv/apply_recipes.py)",
+ "kind": "script",
+ "job": "dcconv",
+ "family": "overlay-r3/dc1",
+ "needs": [
+  "ps3_disc",
+  "ps3_update",
+  "ps3_data2",
+  "ps4"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/apply_recipes.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/dc1/ps4/**",
+  "work/overlay-r3/u3data/build/main/dc2/**",
+  "work/overlay-r2/u3data/build/main/dc1/ps4/**",
+  "work/overlay-port/u3data/build/main/dc1/ps4/**"
+ ],
+ "status": "reproducible",
+ "log_lines": 12,
+ "notes": "The cloud merge scripts are lost (dcsynth/dcgraft2/dcmod4/ngconv2/netfix.py: only fragments in the 10-27 transcripts). tools/dcconv/dc-recipes.json.gz records, for each target file, which bytes of the user's PS4 retail / PS3 1.19 module (raw, 32-bit-swapped or 16-bit-swapped) make it up, its pointer slots, and the few bytes no source holds. Sources are sha256-checked; each output must hit the reference sha256 or it is not written. Final (reference) states: the session dctools steps afterwards find their changes present and do nothing. Verified 2026-11-05 end to end (rebuild_overlays --only convert-dc1,dc-recipes,enemy-stall-option-defaults,coop-audit-option-defaults on D:): 302 of the 303 dc1/dc2 manifest files sha256-identical, the 303rd is skel-retargets.bin (airport-igc3); 5947 literal bytes in 8.15 MB rebuilt.",
+ "recipe_version_added": "1.5.0"
+}

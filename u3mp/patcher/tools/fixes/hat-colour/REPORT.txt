@@ -1,0 +1,91 @@
+hat colour on the character page (v7.34, page cbe59a09) -- cause and fix
+=========================================================================
+
+Hat identified: mesh sid 4476eaf7 = sid("mp-chloe-navy-hat") (find_sid.py; f9b797a4 = mp-chloe-u2-winter-torso,
+718e4549 = mp-chloe-u2-legs). The game loads work/overlay-r3/.../actor33/ps4/mp-chloe-navy-hat.pak (overlay-port has
+the same pak with cb3 capacity 8 instead of 4; retail PS4 has no mp-chloe-navy-hat and no same-mesh hat: survey verdict
+no-retail, best same-skeleton match mp-chloe-syria-hair cov 0.535 = only the hair part).
+
+Cause (data side, proven by matdump.txt / ps3mats.py):
+  The converted pak was built with retail template mp-chloe-u2-legs (its effect hashes C99DB1A68156A8FD /
+  5981BA29E4C7D880 occur in that retail pak only) and the two non-shadowblocker PS3 materials were mapped crosswise:
+    PS3 chloe-navy-hat/default  (textures: navy-hat-color, navy-hat-normal, navy-hat-TINT-MASK)
+        -> template mp-kit-holster-a-00:default   effect C99DB1A68156A8FD
+           features: COLOR_1_APPLY_COLOR_MAP, COLOR_4_APPLY_MASK_TEXTURE, ... NO COLOR_1_APPLY_INSTANCE_TINT,
+           NO COLOR_1_APPLY_COLOR_TINT_WITH_MASK; binds Color1/Mask4(holster spec!)/Normal1, no tint-mask bind.
+    PS3 chloe-hair-mp-syria/mp  (hair-trans, hair-normal-7, noise, hair-color; no tint mask)
+        -> template chloe-pants-mp:default        effect 5981BA29E4C7D880
+           features WITH COLOR_1_APPLY_COLOR_TINT_WITH_MASK + COLOR_1_APPLY_INSTANCE_TINT, and the bind
+           g_tNdFetchColorTintMask1Map = chloe-navy-hat-tint-mask.tga (the hat's mask, on the hair).
+  So the CPU side is right (cmcol/chcol ff520a0a, instance flag 0x10, +0x2b0 = 0.32/0.039/0.039 for the hat
+  instance) but the hat's pixel shader variant has no instance-tint term; the only material that reads the tint is the
+  hair under the hat (that is the "navy hat tinted a hair slot" observation). Retail tintable parts
+  (mp-kit-hunter-head-hat-d 4EF7E68D2B25D8E6, mp-chloe-u2-winter-torso chloe-winter-jacket:mp 484EFE32DCC6D8D1) all
+  carry COLOR_1_APPLY_COLOR_TINT_WITH_MASK + COLOR_1_APPLY_INSTANCE_TINT and a g_tNdFetchColorTintMask1Map bind.
+  Inferred (not read from the shader bytecode, the EFFECT blobs carry no symbol strings): the feature list is what
+  selects the shader variant, so without those two features the compiled program ignores the +0x2b0 tint constant.
+  The mask itself is fine: PS3 chloe-navy-hat-tint-mask 256x256, 21.3% of texels above 50% (maskcov.py) -- the tint
+  reaches only that part of the hat on PS3 too (band/top area), not the whole hat.
+  The "+0x30 = 8 vs 2/3" note is the cb3fix capacity (per-instance cbuffer slots), unrelated to tint.
+
+Fix: rebuild from the PS3 source with a retail template whose cloth material is tintable, mapping the tint-mask material
+to the tintable template material and the others to non-tint ones (build_hat.py: role pool as actor-materials/build.py,
+plus "PS3 material has a tint mask <=> template material has COLOR_1_APPLY_INSTANCE_TINT", overlay/UV3 variants
+excluded). mp-chloe-navy-hat -> template mp-chloe-elena-u1-torso: hat = mp-u1-elena-clothes:default
+(916174E188365808, tint+mask, binds navy-hat color/tint-mask/normal), hair = elena-hair-mp-1uvset:default (real hair
+shader with chloe-hair-trans as alpha, no tint). Same joints/FG sections, same submeshes/vertex/index counts,
+ps4check 0->0, crashcheck 0->0, ps4verify 0, VRAM 0x10400 -> 0x37800 (cap 256, budget 0x80000).
+
+Same fault elsewhere (scan_tint.py -> scan_tint.tsv, all converted paks vs their PS3 material tables):
+  TINT-LOST 218 paks (65 overlay-r3, 153 overlay-port), TINT-EXTRA 41, tint-ok 84; 249 distinct paks. All 249
+  rebuilt by batch_hats.py (batch.json, batch3.log) and re-gated by mkmanifest.py: 249 pass, 0 skipped (mkmanifest.log:
+  ps4check not worse ('type 2' = a template cube map, retail reports it too), crashcheck 0, ps4verify 0, same
+  joints/FG, same geometry, material count = old or = PS3 count, every PS3 material with a tint mask now has
+  tint features + mask bind and every one without has no tint features, VRAM <= 0x80000). 85 replace an overlay-r3
+  pak, 164 are new overlay-r3 files shadowing overlay-port. Caps: 247 x 256, 2 x 128 (mp-hero-flynn-coop,
+  pirate-armor-a-full-mp). Largest VRAM 0x66800 (mp-hero-fat-talbot-torso, mp-kit-killzone-full-a).
+  21 parts are also in actor-materials/out: rebuilt with the same role pools (build.py) plus the tint rule; their
+  actor-materials template was tried first and dropped only where it has no tintable material (mp-kit-shirt-comic-b
+  for the 19 mp-kit parts -> mp-kit-hunter-legs-pants-j) or where it fails the tint rule (mp-hero-fat-talbot-torso:
+  mp-hero-fat-torso tints teeth/tongue -> mp-hero-schafer-torso; mp-hero-flynn-coop: mp-hero-flynn-torso has no
+  tintable cloth for the pants mask -> mp-hero-jeff-torso cap 128; Flynn's skin/face now come from Jeff's template,
+  worth a look by eye). The two earlier head-wear skips that remained: mp-hero-roman-axe-hat retried with
+  mp-hero-winter-legs (the first template tinted the hair), mp-hero-sullivan-part-glasses-a accepted from the newer
+  patch13 source (380 verts; the old pak was converted from the disc pak, 341) with the geometry gate waived for it.
+  Templates used: chloe skeleton -> mp-chloe-u2-legs / mp-chloe-elena-u1-torso; male skeleton -> mp-hero-fat-torso,
+  mp-hero-schafer-torso, mp-hero-roman-torso, ... (out/<name>.json 'template'). Hair under a hat now gets a real hair
+  template where the template pak has one (alpha from the PS3 hair-trans map) instead of a cloth material.
+
+Who gets a tint (dis.py, dis_690100.txt / dis_600000.txt from u3_ps4.elf, vaddr 0 = file +0x10000):
+  NetCharacter ctor 0x68fbe0: args+0x20 = look record; if present, 0x48 bytes are copied to ch+0x2cc8 (so ch+0x2cdc =
+  default colour, ch+0x2ce0[5] = per-slot colours, ch+0x2d00 bit0 = look flag); if absent, bit0 is cleared (0x68fce9).
+  NetCharacter::Init 0x690100: bit0 clear -> no tint at all (0x690150). Else per body slot 0..4 the part entry from
+  0x9952a0 (net.bin 0x38 entry) must have +0x2c != 0 (0x6901ee) to set ch+0x2d10[slot]; the loop at 0x690490 then
+  resets each instance (0xe48bd0) and writes the slot colour (0x10bc590) only where that flag is set (0x6904ae).
+  So: (1) a part whose net.bin colour row +0x2c is 0 is never tinted -> a tint material on it draws the mask black:
+  7 such parts are excluded (safe_list.txt). (2) Plain Characters (looks.bin spawns, IGC NPCs) never pass here:
+  pirate-armor-a-full-mp (looks.bin only) is excluded. (3) Co-op AI: not traced to the ctor caller (no direct call to
+  0x68fbe0 in either disassembly), but retail precedent is strong: 138 of the 79 heroes' default torso/legs parts are
+  retail paks with COLOR_1_APPLY_INSTANCE_TINT and a colour row, including the AI-only shade (mp-hero-shade f2f5643e)
+  and every villain faction (pirate, agent, thug, des-oss, sol, bedouin) that retail co-op draws correctly, so AI
+  NetCharacters do receive a look record with colours (precedent2.py). Parts that are only in the hat-stats table or
+  unreferenced (10) are left out as not shown reachable; mp-hero-flynn-coop is left out (airport-igc2 supplies it).
+  safe_list.txt: 229 of 249 parts; safe_only.txt has them comma-joined for --only (dry run checked).
+VRAM (look_vram.txt): all 249 parts +15.0 MiB resident (21.7 -> 36.6 MiB; cap 256 full mips, no streaming), the 229
+  safe ones +13.4 MiB. Per look (worst rebuilt choice per hero slot + largest rebuilt hat 320 KiB): pirate 821 KiB,
+  hunter 675 KiB, killzone-a 640 KiB; competitive worst 10 players 5.7 MiB, co-op worst 3 players + every AI default
+  look 2.8 MiB. Against a 2823 MiB texture-cache limit that a run already exceeded by 183 MiB this is < 0.3%: it does
+  not change the overflow picture, and a level only loads the looks present.
+
+Install: python scratch/hat-colour/apply_hat_colour.py            (dry run)
+         python scratch/hat-colour/apply_hat_colour.py --apply    (backup to work/backup-hat-colour, then install)
+         python scratch/hat-colour/apply_hat_colour.py --restore
+         --only mp-chloe-navy-hat   limits any of the three to the reported hat (tested apply+restore on a temp copy).
+Expected: on the character page the band/top area of Chloe's navy hat (21% of the texture, the white part of the PS3
+mask) follows the swatch; the hair no longer takes the hat colour. Other head-wear follows its own PS3 mask.
+No helper change (h01_tint stays as in v7.34); no edits file for build_next.py is needed.
+
+Files:
+  build_hat.py NAME TEMPLATE [CAP]   one rebuild + gate            batch_hats.py   head-wear batch (tintpaks.json)
+  mkmanifest.py                      re-gate out/*.pak, manifest   apply_hat_colour.py  dry run / --apply / --restore
+  backup: work/backup-hat-colour     out/<name>.json = template, cap, material roles

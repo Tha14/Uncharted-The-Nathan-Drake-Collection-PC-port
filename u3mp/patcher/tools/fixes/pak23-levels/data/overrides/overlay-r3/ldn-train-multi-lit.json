@@ -1,0 +1,38 @@
+{
+ "templates": {
+  "levels/london-underground/ground/ug-service-concrete-2-sludge-mp-2/default": [
+   "grave-02-hollowhulk-hold-1.pak",
+   "levels/ship-graveyard/multiplayer/wreck/grave-panels-wet-multi2:metal-hull-wet-faded-white,300efdb1-63ed-4f58-a6b3-3b58f570fb68,prime-shader.fx"
+  ],
+  "levels/london-underground/walls/block/ug-vic-block-01-emblem-overlay/default": [
+   "ldn-station-entrance.pak",
+   "levels/london-underground/walls/tile/ug-tile-backing:default,cd866833-abed-4f46-af37-a4c5d45aaecb,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/levels/london/textures/underground/ground/ug-dust-normal-01.tga": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-blend-mask-03.tga": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/ground/ug-tunnel-ground-normal.tga": "ldn-stations-connection.pak",
+  "art/levels/london/textures/underground/ground/ug-track-plank-color.tga": "ldn-stations-connection.pak",
+  "art/levels/london/textures/underground/walls/tile/ug-paint-spec-maskr.tga": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/envi-maps/ug-library-dxt1-128-reflection-abstract.dds": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-01-normal.tga": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-blend-mask-02.tga": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-blend-mask-01.tga": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-vic-wall-concrete-color-01.tga": "ldn-stations-connection.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-wall-concrete-blend.tga": "ldn-stations-connection.pak",
+  "art/levels/london/textures/underground/metals/ug-rusty-01-color.tga": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/ground/ug-dust-color-01.tga": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-01-color.tga": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-paint-color.tga": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/ground/ug-track-plank-normal.tga": "ldn-stations-connection.pak",
+  "art/levels/london/textures/underground/envi-maps/ug-envimap-station-256-env-reflection.dds": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/ground/ug-gravel-blend.tga": "ldn-stations-connection.pak",
+  "art/levels/london/textures/underground/walls/block/ug-vic-wall-grit-blend-01.tga": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-wall-concrete-color.tga": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/envi-maps/ug-shaft-256-env-reflection.dds": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/metals/ug-rusty-01-normal.tga": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-wall-concrete-normal.tga": "ldn-station-entrance.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-concrete-normal.tga": "ldn-stations-connection.pak"
+ }
+}

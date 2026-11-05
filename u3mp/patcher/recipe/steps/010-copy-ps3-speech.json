@@ -1,0 +1,15 @@
+{
+ "id": "copy-ps3-speech",
+ "title": "overlay-r3 sound1/streams/speech: 11716 PS3 multiplayer voice lines (english)",
+ "kind": "copy-list",
+ "list": "copy-ps3-speech.tsv",
+ "family": "overlay-r3/sound1/streams",
+ "needs": [
+  "ps3_disc"
+ ],
+ "speech": true,
+ "status": "reproducible",
+ "applied": "2026-10-27 (pre-session seed), 2026-11-01 apply_vo (83 Fort lines)",
+ "notes": "11637 entries of build/main/sound1/streams/speech/english-mp.psarc and 79 of goty-speech-english.psarc, byte copies (PS3 XVAG, big-endian flag, read by the PS4 parser). --speech-langs copies other <lang>-mp.psarc the disc has into speech/<lang>/ (not part of the reference manifest).",
+ "recipe_version_added": "1.0.0"
+}

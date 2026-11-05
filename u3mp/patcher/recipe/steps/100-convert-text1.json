@@ -1,0 +1,27 @@
+{
+ "id": "convert-text1",
+ "title": "overlay-r3: 66 text banks 2..23.{common,networking,subtitles} = PS4 core.psarc text + PS3 MP strings (text1-merge/merge_text1.py)",
+ "kind": "script",
+ "job": "text1-merge",
+ "family": "overlay-r3/text1",
+ "needs": [
+  "ps4",
+  "ps3_disc"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/merge_text1.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/text1/ps4/*"
+ ],
+ "must_write": false,
+ "status": "reproducible",
+ "applied": "2026-10-27 10:11 (cloud); merge rewritten 2026-11-05",
+ "notes": "Source of the PS3 strings is the disc's goty-patch.psarc (build/main/text1), not text1.psarc or dlc-patch18; 47 fixed keys (41 networking, 5 common, 1 subtitles) plus the helper's 'Your party does not have enough players' message. Verified 2026-11-05: 66/66 byte-identical.",
+ "recipe_version_added": "1.0.0",
+ "recipe_version_changed": "1.1.0"
+}

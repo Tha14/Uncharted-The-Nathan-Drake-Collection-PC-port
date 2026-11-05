@@ -1,0 +1,29 @@
+{
+ "id": "london-fade",
+ "title": "Fade-distance records restored in 87 stage paks + ldn-train sun back to 886.71 (london/apply_london.py --maps all)",
+ "kind": "script",
+ "job": "london",
+ "family": "overlay-r3/pak23",
+ "needs": [
+  "ps3_disc",
+  "ps3_update",
+  "ps3_data2",
+  "ps4",
+  "python:numpy"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/apply_london.py",
+   "--maps",
+   "all",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/pak23/ps4/*.pak"
+ ],
+ "status": "needs-converted-base",
+ "applied": "2026-11-02 03:35 (backup-london, 3.0 GB)",
+ "recipe_version_added": "1.0.0"
+}

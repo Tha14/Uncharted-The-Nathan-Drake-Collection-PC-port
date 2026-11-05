@@ -1,0 +1,461 @@
+{
+"mp-chloe-elena-u1-legs": [
+"objects/characters/u2-mp-characters/u1-elena/mp-u1-elena-shorts:default"
+],
+"mp-chloe-elena-u1-torso": [
+"objects/characters/u2-mp-characters/u1-elena/mp-u1-elena-clothes:default"
+],
+"mp-chloe-elena-u2-reporter-legs": [
+"objects/characters/u2-mp-characters/elena-reporter/mp/elena-reporter-pants-mp:default"
+],
+"mp-chloe-elena-u2-reporter-torso": [
+"objects/characters/u2-mp-characters/elena-reporter/mp/elena-reporter-jacket-mp:default"
+],
+"mp-chloe-elena-u2-winter-legs": [
+"objects/characters/u2-mp-characters/elena-winter/mp/elena-winter-pants-mp:default"
+],
+"mp-chloe-elena-u2-winter-torso": [
+"objects/characters/u2-mp-characters/elena-winter/mp/elena-winter-jacket-mp:default"
+],
+"mp-chloe-elena-yemen-legs": [
+"objects/elena/uncharted3/elena-mp/elena-pants-mp:mp-dirt"
+],
+"mp-chloe-elena-yemen-torso": [
+"objects/elena/uncharted3/elena-mp/elena-blouse-mp:mp-dirt"
+],
+"mp-chloe-marlowe-desert-legs": [
+"objects/characters/marlowe-desert/mp/mp-marlowe-desert-pants:default"
+],
+"mp-chloe-marlowe-desert-torso": [
+"objects/characters/marlowe-desert/mp/mp-marlowe-desert-blouse:default"
+],
+"mp-chloe-marlowe-london-legs": [
+"objects/characters/marlowe/mp/marlowe-leather-pants-mp:mp"
+],
+"mp-chloe-marlowe-london-torso": [
+"objects/characters/marlowe/mp/marlowe-leather-pants-mp:mp",
+"objects/characters/marlowe/mp/mp-marlowe-leather-coat:default"
+],
+"mp-chloe-syria-legs": [
+"objects/characters/chloe/uncharted3/mp/chloe-pants-u3-mp:default"
+],
+"mp-chloe-syria-torso": [
+"objects/characters/chloe/uncharted3/mp/chloe-jacket-u3-mp:default"
+],
+"mp-chloe-u2-legs": [
+"objects/characters/u2-mp-characters/chloe-u2/chloe-pants-mp:default"
+],
+"mp-chloe-u2-torso": [
+"objects/characters/u2-mp-characters/chloe-u2/chloe-body-mp:default"
+],
+"mp-chloe-u2-winter-torso": [
+"objects/characters/u2-mp-characters/chloe-winter/chloe-winter-jacket:mp"
+],
+"mp-chloe-young-marlowe-legs": [
+"objects/characters/marlowe/mp/marlowe-young-suit-mp:mp"
+],
+"mp-chloe-young-marlowe-torso": [
+"objects/characters/marlowe/mp/marlowe-young-suit-mp:mp"
+],
+"mp-hero-agent-a-legs": [
+"objects/characters/npc-sp/agent/legs/mp/agent-legs-pants-a-mp:default"
+],
+"mp-hero-agent-a-torso": [
+"objects/characters/npc-sp/agent/torso/mp/agent-torso-jacket-a-mp:default"
+],
+"mp-hero-agent-med-a-legs": [
+"objects/characters/npc-sp/agent/legs/mp/agent-medium-legs-pants-a-mp:default"
+],
+"mp-hero-agent-med-a-torso": [
+"objects/characters/npc-sp/agent/torso/mp/agent-med-torso-jacket-a-mp:default"
+],
+"mp-hero-agent-med-b-legs": [
+"objects/characters/npc-sp/agent/legs/mp/agent-legs-pants-a-mp:default"
+],
+"mp-hero-agent-med-b-torso": [
+"objects/characters/npc-sp/agent/torso/mp/agent-med-torso-jacket-b-mp-2:default"
+],
+"mp-hero-bed-leader-legs": [
+"objects/characters/bedouin-leader/mp/mp-pants:default"
+],
+"mp-hero-bed-leader-sword-torso": [
+"objects/characters/bedouin-leader/mp/mp-headwrap:default",
+"objects/characters/bedouin-leader/mp/mp-shirt:default"
+],
+"mp-hero-bedouin-a-legs": [
+"objects/characters/npc-sp/bedouin/legs/mp/bedouin-legs-pants-a-mp:default"
+],
+"mp-hero-bedouin-a-torso": [
+"objects/characters/npc-sp/bedouin/torso/mp/bedouin-torso-vest-a-mp:default",
+"objects/characters/npc-sp/bedouin/helmet/mp/bedouin-helmet-wrap-a-mp:default"
+],
+"mp-hero-bedouin-b-legs": [
+"objects/characters/npc-sp/bedouin/legs/mp/bedouin-legs-pants-a-mp:default"
+],
+"mp-hero-bedouin-b-torso": [
+"objects/characters/npc-sp/bedouin/helmet/mp/bedouin-helmet-wrap-b-mp:default",
+"objects/characters/npc-sp/bedouin/torso/mp/bedouin-torso-vest-b-mp:default"
+],
+"mp-hero-bedouin-c-legs": [
+"objects/characters/npc-sp/bedouin/legs/mp/bedouin-legs-pants-a-mp:default"
+],
+"mp-hero-bedouin-c-torso": [
+"objects/characters/npc-sp/bedouin/torso/mp/bedouin-torso-vest-c-mp:default",
+"objects/characters/npc-sp/bedouin/helmet/mp/bedouin-helmet-wrap-b-mp:default"
+],
+"mp-hero-cutter-legs": [
+"objects/characters/cutter/mp/pants-mp:default"
+],
+"mp-hero-cutter-torso": [
+"objects/characters/cutter/mp/jacket-mp:default"
+],
+"mp-hero-dead-agent-legs": [
+"objects/characters/npc-sp/agent/torso/mp/mp-agent-legs-spiders-a:default"
+],
+"mp-hero-dead-agent-torso": [
+"objects/characters/npc-sp/agent/torso/mp/mp-agent-torso-jacket-spiders-a:default"
+],
+"mp-hero-dead-explorer-legs": [
+"objects/characters/u2-mp-characters/roman/mp-roman-pants:default",
+"objects/characters/dead-explorer/legs:default"
+],
+"mp-hero-dead-explorer-torso": [
+"objects/characters/dead-explorer/torso:default"
+],
+"mp-hero-des-oss-a-legs": [
+"objects/characters/npc-sp/deset-oss/legs/mp/desert-oss-legs-pants-a-mp:default"
+],
+"mp-hero-des-oss-a-torso": [
+"objects/characters/npc-sp/deset-oss/torso/mp/desert-oss-torso-out-jacket-a-mp:default"
+],
+"mp-hero-des-oss-b-legs": [
+"objects/characters/npc-sp/deset-oss/legs/mp/desert-oss-legs-pants-a-mp:default"
+],
+"mp-hero-des-oss-b-torso": [
+"objects/characters/npc-sp/deset-oss/torso/mp/desert-oss-torso-out-jacket-b-mp:default"
+],
+"mp-hero-des-oss-c-legs": [
+"objects/characters/npc-sp/deset-oss/legs/mp/desert-oss-legs-pants-a-mp:default"
+],
+"mp-hero-des-oss-c-torso": [
+"objects/characters/npc-sp/deset-oss/torso/mp/desert-oss-torso-out-jacket-c-mp:default"
+],
+"mp-hero-desert-legs": [
+"objects/characters/hero/desert/mp/mp-pants:default"
+],
+"mp-hero-desert-torso": [
+"objects/characters/hero/desert/mp/mp-shirt:default"
+],
+"mp-hero-divesuit-legs": [
+"objects/characters/u2-mp-characters/roman/mp-roman-pants:default",
+"objects/characters/u2-mp-characters/hero-divesuit/mp-hero-divesuit-legs:default"
+],
+"mp-hero-divesuit-torso": [
+"objects/characters/u2-mp-characters/hero-divesuit/mp-hero-divesuit-torso:default"
+],
+"mp-hero-eddie-legs": [
+"objects/characters/u2-mp-characters/eddie/mp-eddie-legs:default"
+],
+"mp-hero-eddie-torso": [
+"objects/characters/u2-mp-characters/eddie/mp-eddie-shirt:default"
+],
+"mp-hero-fat-bed-leader-legs": [
+"objects/characters/bedouin-leader/mp/mp-pants:default"
+],
+"mp-hero-fat-cutter-legs": [
+"objects/characters/cutter/mp/pants-mp:default"
+],
+"mp-hero-fat-eddie-legs": [
+"objects/characters/u2-mp-characters/eddie/mp-eddie-legs:default"
+],
+"mp-hero-fat-legs": [
+"objects/characters/u2-mp-characters/fat-drake/mp-drake-fat-legs:default"
+],
+"mp-hero-fat-sullivan-legs": [
+"objects/characters/sullivan/mp/pants-mp-french:mp"
+],
+"mp-hero-fat-torso-extra-1": [
+"objects/characters/bedouin-leader/mp/mp-shirt:default",
+"objects/characters/bedouin-leader/mp/mp-headwrap:default"
+],
+"mp-hero-fat-torso-extra-2": [
+"objects/characters/cutter/mp/jacket-mp:default"
+],
+"mp-hero-fat-torso-extra-3": [
+"objects/characters/u2-mp-characters/eddie/mp-eddie-shirt:default"
+],
+"mp-hero-fat-torso-extra-4": [
+"objects/characters/pirate-leader/mp/mp-pirate-leader-helmet-hat-a-00:default"
+],
+"mp-hero-fat-torso-extra-5": [
+"objects/characters/sullivan/mp/shirt-mp-french:mp"
+],
+"mp-hero-fat-torso": [
+"objects/characters/u2-mp-characters/fat-drake/mp-drake-fat-torso:default"
+],
+"mp-hero-flynn-legs": [
+"objects/characters/u2-mp-characters/flynn/flynn-pants-mp:default"
+],
+"mp-hero-flynn-torso": [
+"objects/characters/u2-mp-characters/flynn/flynn-body-mp:default"
+],
+"mp-hero-french-legs": [
+"objects/characters/hero/french/mp/french-pants-mp:default"
+],
+"mp-hero-french-torso": [
+"objects/characters/hero/french/mp/french-shirt-mp:default",
+"objects/characters/hero/french/mp/french-pants-mp:default"
+],
+"mp-hero-jeff-legs": [
+"objects/characters/u2-mp-characters/jeff/mp-jeff-pants:default",
+"objects/characters/u2-mp-characters/roman/mp-roman-pants:default"
+],
+"mp-hero-jeff-torso": [
+"objects/characters/u2-mp-characters/jeff/mp-jeff-shirt:default"
+],
+"mp-hero-lazarevic-fat-legs": [
+"objects/characters/u2-mp-characters/fat-lazarevic/mp-lazarevic-fat-legs:default"
+],
+"mp-hero-lazarevic-fat-torso": [
+"objects/characters/u2-mp-characters/fat-lazarevic/mp-lazarevic-fat-torso:default"
+],
+"mp-hero-lazarevic-legs": [
+"objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-legs:default",
+"objects/characters/u2-mp-characters/roman/mp-roman-pants:default"
+],
+"mp-hero-lazarevic-torso": [
+"objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-torso:default"
+],
+"mp-hero-lieutenant-legs": [
+"objects/characters/u2-mp-characters/lt-draza/mp-draza-legs:default",
+"objects/characters/u2-mp-characters/roman/mp-roman-pants:default"
+],
+"mp-hero-lieutenant-torso": [
+"objects/characters/u2-mp-characters/lt-draza/mp-draza-torso:default"
+],
+"mp-hero-london-legs": [
+"objects/characters/hero/suit-dirty/mp/pants-mp:default"
+],
+"mp-hero-london-torso": [
+"objects/characters/hero/suit-dirty/mp/jacket-mp:default"
+],
+"mp-hero-navarro-legs": [
+"objects/characters/u2-mp-characters/navarro/mp-navarro-legs:default"
+],
+"mp-hero-navarro-torso": [
+"objects/characters/u2-mp-characters/navarro/mp-navarro-shirt:default"
+],
+"mp-hero-pirate-legs": [
+"objects/enemies/_pirates/p-cloth-pants-fabric:p_khakis05-bruiser",
+"objects/enemies/_pirates/p-skin:p-bruiser02"
+],
+"mp-hero-pirate-torso": [
+"objects/enemies/_pirates/p-skin:p-bruiser02",
+"objects/enemies/_pirates/p-cloth-pants-fabric:default_teethtongue"
+],
+"mp-hero-redshirt-legs": [
+"objects/characters/u2-mp-characters/udf/mp-udf-lower:default"
+],
+"mp-hero-redshirt-torso": [
+"objects/characters/u2-mp-characters/drake-red-shirt/mp-drake-red-shirt:default"
+],
+"mp-hero-rescuer-legs": [
+"objects/characters/u2-mp-characters/rescuer/mp-rescuer-legs:default",
+"objects/characters/u2-mp-characters/roman/mp-roman-pants:default"
+],
+"mp-hero-rescuer-torso": [
+"objects/characters/u2-mp-characters/rescuer/mp-rescuer-torso:default"
+],
+"mp-hero-roman-legs": [
+"objects/characters/u2-mp-characters/roman/mp-roman-pants:default"
+],
+"mp-hero-roman-torso": [
+"objects/characters/u2-mp-characters/roman/mp-roman-shirt:default"
+],
+"mp-hero-schafer-legs": [
+"objects/characters/u2-mp-characters/shafer/mp-shafer-legs:default"
+],
+"mp-hero-schafer-torso": [
+"objects/characters/u2-mp-characters/shafer/mp-shafer-torso:default"
+],
+"mp-hero-shade": [
+"objects/characters/shade/djinn-mp-up-arm-leg:default",
+"objects/characters/shade/djinn-mp-arms:default",
+"objects/characters/shade/djinn-mp-torso:default",
+"objects/characters/shade/djinn-mp-legs:default"
+],
+"mp-hero-skel-bones": [
+"objects/characters/u2-mp-characters/skeleton/mp-skeleton:default"
+],
+"mp-hero-skel-flesh": [
+"objects/characters/u2-mp-characters/skeleton/mp-skeleton-cloth:default"
+],
+"mp-hero-skel-ghengis-bones": [
+"objects/characters/u2-mp-characters/skeleton-ghengis/mp-skeleton-ghengis-bones:default"
+],
+"mp-hero-skel-ghengis-flesh": [
+"objects/characters/u2-mp-characters/skeleton-ghengis/mp-skeleton-ghengis-cloth:default"
+],
+"mp-hero-skel-marco-bones": [
+"objects/characters/u2-mp-characters/skeleton-marco/mp-skeleton-bones:default"
+],
+"mp-hero-skel-marco-flesh": [
+"objects/characters/u2-mp-characters/skeleton-marco/mp-skeleton-cloth:default"
+],
+"mp-hero-skel-sfd-bones": [
+"objects/characters/u2-mp-characters/skeleton/mp-skeleton:default"
+],
+"mp-hero-skel-sfd-flesh": [
+"objects/characters/u2-mp-characters/skeleton/mp-skeleton-cloth:default"
+],
+"mp-hero-sol-b1a-legs": [
+"objects/characters/u2-mp-characters/roman/mp-roman-pants:default",
+"objects/characters/u2-mp-characters/soldier-b-1a/mp-soldier-b-1a-legs:default"
+],
+"mp-hero-sol-b1a-torso": [
+"objects/characters/u2-mp-characters/soldier-b-1a/mp-soldier-b-1a-torso:default"
+],
+"mp-hero-sol-b1b-legs": [
+"objects/characters/u2-mp-characters/soldier-b-1b/mp-soldier-b-1b-legs:default",
+"objects/characters/u2-mp-characters/roman/mp-roman-pants:default"
+],
+"mp-hero-sol-b1b-torso": [
+"objects/characters/u2-mp-characters/soldier-b-1b/mp-soldier-b-1b-torso:default"
+],
+"mp-hero-sol-b2a-legs": [
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-legs:default",
+"objects/characters/u2-mp-characters/roman/mp-roman-pants:default"
+],
+"mp-hero-sol-b2a-torso": [
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-torso:default"
+],
+"mp-hero-sol-b2b-legs": [
+"objects/characters/u2-mp-characters/soldier-b-2b/mp-soldier-b-2b-pants:default",
+"objects/characters/u2-mp-characters/roman/mp-roman-pants:default"
+],
+"mp-hero-sol-b2b-torso": [
+"objects/characters/u2-mp-characters/soldier-b-2b/mp-soldier-b-2b-torso:default"
+],
+"mp-hero-sol-b3b-legs": [
+"objects/characters/u2-mp-characters/soldier-b-3b/mp-soldier-b-3b-legs:default",
+"objects/characters/u2-mp-characters/roman/mp-roman-pants:default"
+],
+"mp-hero-sol-b3b-torso": [
+"objects/characters/u2-mp-characters/soldier-b-3b/mp-soldier-b-3b-torso:default"
+],
+"mp-hero-sullivan-legs": [
+"objects/characters/sullivan/mp/pants-mp-french:mp"
+],
+"mp-hero-sullivan-london-legs": [
+"objects/characters/sullivan/suit-dirty/mp/pants-dirty-mp:default"
+],
+"mp-hero-sullivan-london-torso": [
+"objects/characters/sullivan/suit-dirty/mp/shirt-dirty-mp:default"
+],
+"mp-hero-sullivan-torso": [
+"objects/characters/sullivan/mp/shirt-mp-french:mp"
+],
+"mp-hero-talbot-desert-torso": [
+"objects/characters/talbot/mp/mp-talbot-desert-torso-shirt-no-tie:default-without-tie"
+],
+"mp-hero-talbot-legs": [
+"objects/characters/talbot/mp/mp-talbot-pants:default"
+],
+"mp-hero-talbot-torso": [
+"objects/characters/talbot/mp/mp-talbot-jacket:default"
+],
+"mp-hero-thug-a-legs": [
+"objects/characters/npc-sp/euro-thug/torso/mp/thug-a-mp:default"
+],
+"mp-hero-thug-a-torso": [
+"objects/characters/npc-sp/euro-thug/helmet/mp/euro-thug-head-helmet-hat-a-mp:default",
+"objects/characters/npc-sp/euro-thug/torso/mp/thug-a-mp:default",
+"objects/characters/npc-sp/euro-thug/torso/mp/euro-thug-torso-out-jacket-a-mp:default"
+],
+"mp-hero-thug-b-legs": [
+"objects/characters/npc-sp/euro-thug/legs/mp/euro-thug-legs-pants-b-mp:default"
+],
+"mp-hero-thug-b-torso": [
+"objects/characters/npc-sp/euro-thug/torso/mp/euro-thug-torso-jacket-b-mp:default"
+],
+"mp-hero-thug-c-legs": [
+"objects/characters/npc-sp/euro-thug/torso/mp/thug-c-mp:default"
+],
+"mp-hero-thug-c-torso": [
+"objects/characters/npc-sp/euro-thug/torso/mp/thug-c-mp:default",
+"objects/characters/npc-sp/euro-thug/torso/mp/euro-thug-torso-vest-c-mp:default"
+],
+"mp-hero-thug-d-legs": [
+"objects/characters/npc-sp/euro-thug/torso/mp/thug-d-mp:default"
+],
+"mp-hero-thug-d-torso": [
+"objects/characters/npc-sp/euro-thug/torso/mp/euro-thug-torso-vest-d-mp:default"
+],
+"mp-hero-thug-f-legs": [
+"objects/characters/npc-sp/euro-thug/torso/mp/thug-c-mp:default"
+],
+"mp-hero-thug-f-torso": [
+"objects/characters/npc-sp/euro-thug/torso/mp/thug-f-mp:default",
+"objects/characters/npc-sp/euro-thug/torso/mp/euro-thug-torso-vest-f-mp:default"
+],
+"mp-hero-u2-legs": [
+"objects/characters/u2-mp-characters/drake-u2/hero-main-outfit-pants-u2-mp:default"
+],
+"mp-hero-u2-torso": [
+"objects/characters/u2-mp-characters/drake-u2/hero-main-outfit-shirt-u2-mp:default"
+],
+"mp-hero-udf-legs": [
+"objects/characters/u2-mp-characters/udf/mp-udf-lower:default"
+],
+"mp-hero-udf-torso": [
+"objects/characters/u2-mp-characters/udf/mp-udf-torso:default"
+],
+"mp-hero-winter-legs": [
+"objects/characters/u2-mp-characters/udf/mp-udf-lower:default"
+],
+"mp-hero-winter-torso": [
+"objects/characters/u2-mp-characters/drake-winter/mp-drake-winter-torso:default"
+],
+"mp-hero-young-sullivan-legs": [
+"objects/characters/sullivan/colombia/mp/mp-pants:default"
+],
+"mp-hero-young-sullivan-torso": [
+"objects/characters/sullivan/colombia/mp/mp-guayabera:default"
+],
+"mp-kit-hunter-feet-boots-a": [
+"objects/characters/mp-kit/feet/treasure-hunter/mp-kit-treasure-hunter-feet-boots-a-00:body-fma"
+],
+"mp-kit-hunter-legs-pants-j": [
+"objects/characters/mp-kit/legs/treasure-hunter/mp-kit-treasure-hunter-legs-pants-j-00:default"
+],
+"pirate-armor-all": [
+"objects/characters/mp-kit/arms/mp-kit-pirate-arms-gloves-b-00:default",
+"objects/characters/npc-sp/pirate/feet/sp-pirate-feet-boots-b-00:body-fma"
+],
+"pirate-brute-all": [
+"objects/characters/npc-sp/pirate/feet/sp-pirate-feet-boots-b-00:body-fma"
+],
+"pirate-clown-mask-all": [
+"objects/characters/mp-kit/helmet/mp-kit-clownmask-a-00:default",
+"objects/characters/mp-kit/helmet/mp-kit-clownmask-b-00:default",
+"objects/characters/mp-kit/helmet/mp-kit-clownmask-c-00:default",
+"objects/characters/mp-kit/helmet/mp-kit-clownmask-d-00:default"
+],
+"pirate-head-all": [
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-mask-a-00:default",
+"objects/characters/npc-sp/pirate/helmet/sp-pirate-legs-helmet-wrap-a-00:default",
+"objects/characters/npc-sp/pirate/helmet/sp-mercenary-helmet-wrap-a-00:default"
+],
+"pirate-pants-com-all": [
+"objects/characters/npc-sp/pirate/legs/sp-mercenary-legs-pants-a-00:default",
+"objects/characters/npc-sp/pirate/legs/sp-pirate-legs-pants-c-01:default",
+"objects/characters/npc-sp/pirate/legs/sp-pirate-legs-pants-b-00:default",
+"objects/characters/npc-sp/pirate/legs/sp-pirate-legs-pants-d-00:default",
+"objects/characters/npc-sp/pirate/legs/pirate-legs-pants-a-00:default",
+"objects/characters/npc-sp/pirate/legs/sp-pirate-legs-pants-c-00:default"
+],
+"pirate-torso-all": [
+"objects/characters/mp-kit/torso-inner/mp-kit-pirate-torso-in-shirt-a-grappler:default",
+"objects/characters/mp-kit/arms/mp-kit-pirate-arms-gloves-b-00:default"
+]
+}

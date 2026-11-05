@@ -1,0 +1,23 @@
+{
+ "id": "emblem-cap3",
+ "title": "7 Airstrip emblem paks: cbuffer capacity 2 -> 3 (wall-emblem-test/set_cap3.py)",
+ "kind": "script",
+ "job": "wall-emblem-test",
+ "family": "overlay-r3/actor33",
+ "needs": [],
+ "cwd": "{{OUT}}",
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/set_cap3.py"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/actor33/ps4/air-multi-emblem-*.pak"
+ ],
+ "status": "needs-converted-base",
+ "applied": "2026-11-02 02:01",
+ "notes": "idempotent: a value of 3 counts as already applied; the emblem-test value 2 and a fresh mkemblem_v2 build value 8 are both raised to 3; missing paks are reported and skipped. With wall-emblem-actors: 8/8 reference hashes (2026-11-05).",
+ "recipe_version_added": "1.0.0",
+ "must_write": false
+}

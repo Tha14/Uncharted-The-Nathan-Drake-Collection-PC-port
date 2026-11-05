@@ -1,0 +1,27 @@
+{
+ "id": "actors-hk-tables",
+ "title": "Havok reflection tables for the own-skeleton actor conversions, rebuilt from the decrypted PS3 1.19 and PS4 executables (actor33/actors_hk.py)",
+ "kind": "script",
+ "job": "actor33",
+ "family": "overlay-r3/actor33 (tool data)",
+ "needs": [
+  "ps4",
+  "ps3_update"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/actors_hk.py"
+  ]
+ ],
+ "ok_codes": [
+  0,
+  3
+ ],
+ "writes": [],
+ "must_write": false,
+ "status": "needs-input",
+ "applied": "2026-11-01 14:38..14:42 (maps-batch/tools/mkhk.py + 5 patches, recovered from the transcript)",
+ "notes": "Writes toolsets/*/data/hk2010_ps3.json + hk2011_ps4.json in the rendered actor33 job (never shipped: derived from the executables). Inputs: RECIPE_PS3_ELF (decrypted 1.19 EBOOT.elf; the 1.10 disc EBOOT gives different tables) and RECIPE_PS4_ELF (decrypted PS4 eboot), objdump (GNU binutils) for the PS4 constructor scan. Exit 3 = inputs missing: the actor paks with their own Havok collision (Lab boxes, breakable props) then fail in convert-actors. Verified 2026-11-05: both tables sha256-identical to the 11-01 ones (359/306 PS3, 490/341 PS4 classes).",
+ "recipe_version_added": "1.4.0"
+}

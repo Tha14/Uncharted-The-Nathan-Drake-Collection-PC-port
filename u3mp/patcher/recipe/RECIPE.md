@@ -1,0 +1,128 @@
+# Overlay rebuild recipe (patcher phase 1)
+
+Goal: regenerate the four game-data overlays the launcher loads over the retail PS4 game
+(`work/overlay-r3` > `overlay-r2` > `overlay-port` > `overlay-mp`) from a user's own game copies, so
+the patcher ships only scripts. This folder is the recipe; `../tools/` holds every script it runs.
+
+## Inputs (what the user points the patcher at)
+
+| input | how it is recognised (region-agnostic, content only) | what is read |
+|---|---|---|
+| PS4 Nathan Drake Collection folder (`--ps4`) | `eboot.bin`, `sce_sys/param.sfo`, `u3data/build/main/{pak23_ps4.txt,core.psarc,dc1,pak23,actor33,sound1}`, `u2data/build/main/sound1` | retail paks, dc1, text, `u2data`/`u3data` sound streams, `param.sfo` TITLE_ID (for the PKG of phase 2) |
+| PS3 Uncharted 3 data (`--ps3-u3`, repeatable, folders are scanned 4 levels deep) | **disc**: `build/main/pak23.psarc` or `actor33.psarc`; **update** (1.19): `dlc-patch18.psarc` / `dlc-patch13.psarc`; **data2** (written by the game/server): `net18.bin`, `build/main/*-7.psarc`; **dlcmaps**: `dlc-map1..4.psarc`. `PARAM.SFO` is only used to label the folder and to reject a non-Uncharted-3 title. | see the steps |
+| PS3 Uncharted 2 data (`--ps3-u2`) | `build/main/pak22.psarc` / `actor27.psarc` / `dc1.psarc` | nothing today (0 overlay files come from U2; the folder is required because the patcher is for owners of all three games) |
+
+On this PC: PS4 `D:/2. PS Games/PS4/Uncharted - The Nathan Drake Collection [CUSA02320]`; PS3 U3 disc
+`D:/2. PS Games/PS3/Uncharted 3 - ... [BCES01670]/PS3_GAME/USRDIR` (GOTY 01.10), update
+`RPCS3/dev_hdd0/game/BCES01670/USRDIR` (1.19), data2 `.../BCES01670DATA2/USRDIR`, dlcmaps
+`.../BCES01176/USRDIR`; PS3 U2 `D:/2. PS Games/PS3/Uncharted 2 - Among Thieves [BCES00757]/PS3_GAME/USRDIR`
+(01.00; RPCS3 also has `BCES00757` 1.09 and `BCUS98123` 1.33).
+
+## Running it
+
+```
+cd "PKG Converter/recipe"
+python rebuild_overlays.py --ps4 "<PS4 folder>" --ps3-u3 "<U3 disc folder>" --ps3-u3 "<RPCS3 dev_hdd0/game>" \
+                           --ps3-u2 "<U2 folder>" --out "<output folder>" [--speech-langs all] [--continue-on-error]
+python verify_output.py "<output folder>"          # compares with manifest.tsv, per family
+python rebuild_overlays.py --list                   # the step table
+```
+
+Output: `<out>/work/overlay-*` (the overlays), `<out>/work/backup-*` (what the fix scripts replaced),
+`<out>/scratch/<job>` (rendered scripts), `<out>/_recipe/state.json` + `log.txt`. Re-running on the
+same `--out` skips steps whose recorded outputs are unchanged and steps whose files already equal
+the reference manifest, so updates are incremental. Python 3.11+; numpy (and Pillow, ffmpeg) for
+the steps that say so (`--list`, `needs`).
+
+## Files in this folder
+
+| file | what |
+|---|---|
+| `manifest.tsv` / `manifest.json` | reference: overlay, path, size, sha256, mtime of all 15 541 overlay files (`make_manifest.py`) |
+| `provenance.tsv` | per file: class and source (`provenance.py`, from the hash tables below) |
+| `lists/*.tsv` | copy lists of the copy steps (destination, archive, entry, size, sha256); `levels-*.txt`, `hat-colour-only.txt` name lists |
+| `steps/ORDER.txt`, `steps/NNN-<id>.json` | the step registry (see `ADDING-A-FIX.md`); `make_steps.py` regenerates the initial set |
+| `rebuild_overlays.py`, `recipe_lib.py`, `verify_output.py`, `gather_tools.py` | driver, library, verifier, tool collector |
+| `GAPS.md` | what cannot be regenerated and why |
+| `retail-ps4-hashes.tsv`, `retail-ps4-psarc-entries.tsv`, `retail-ps4-u2data-sound.tsv`, `ps3-hashes/*.tsv`, `backup-hashes-*.tsv`, `transfer-hashes.tsv`, `stage-assets-hashes.tsv` | hash tables used for the provenance (names and hashes only, no data; `hash_tree.py`, `psarc_hash.py`) |
+| `transcript-mining/` | how the session transcripts were mined for every overlay write (`SUMMARY.md`, `overlay-writes.tsv`, `inline-writes/`) |
+
+## Families and provenance (reference overlays, 2026-11-03)
+
+| family | files | MB | produced by | clean rebuild |
+|---|---|---|---|---|
+| overlay-mp `vtex1/ps4` | 882 | 124 | byte copies of PS3 UI textures: 710 loose `build/main/vtex1`, 134 `dlc-patch13`, 11 `dlc-patch18`, 25 `goty-patch`, 2 `lab-trench-v1-7` | 882 match |
+| overlay-r3 `sound1/streams` | 11 980 | 379 | byte copies: 11 637 `english-mp.psarc`, 79 `goty-speech-english.psarc`, 65 `goty-dlc.psarc`, 199 PS4 `u2data` streams | 11 980 match |
+| overlay-r3 `sound1/banks` | 128 | 167 | 4 retail copies; 124 PS3 banks converted by `sound-banks/convert_banks.py` | 128 match |
+| overlay-r3 `pak23/ps4` | 328 | 3 864 | stage pipeline conversions (cloud) + 10 session fixes; rebuilt by `pak23-levels` (plan.tsv) | 1 + 195 match, 22 base (= pre-session state), 100 equivalent |
+| overlay-r3 `actor33/ps4` | 538 | 284 | ps4actor conversions (cloud) + 5 session rebuild batches | 0 |
+| overlay-r3 `dc1/ps4` | 281 | 6 | DC conversions (cloud) + 9 session edits; `skel-retargets.bin` from retail | 1 match + 72 by `convert-dc1` (tools/dcconv); the dctools edit steps reproduce every checkpoint exactly once the converted net.bin / menu.bin / modules.bin base exists (that base, the cloud "netfix" merge, is still missing) |
+| overlay-r3 `text1/ps4` | 66 | 12 | PS4 text banks + goty-patch MP strings, `text1-merge/merge_text1.py` | 66 match |
+| overlay-r3 `vtex1`, `dc2` | 10 | 10 | EULA renders, emblem, particle modules | 0 |
+| overlay-r2 (`pak23` 427, `actor33` 33, `dc1` 16) | 476 | 2 277 | second conversion pass (cloud) + shade-npc copies; pak23 by `pak23-levels` | pak23: 295 match, 131 equivalent (all shadowed by r3) |
+| overlay-port (`pak23` 160, `actor33` 680, `dc1` 3) | 843 | 1 096 | first conversion pass (cloud) + shade-npc copies; pak23 by `pak23-levels` | pak23: 137 match, 23 equivalent |
+| overlay-mp `actor33`, `pak23` | 5 | 13 | `convert_net.py` + 3 actor conversions; `net-ingame12.pak` retail copy | 1 match |
+| `pak23_ps4.txt` x4 | 4 | 3 | `mkregistry.py` + lab_reg / apply_maps / air_emblem / shade_npc; final state by `registry-final` (line provenance) | 4 match |
+| **total** | **15 541** | **8 234** | | **12 869 match = 82.8 % of files, 495 MB = 6.0 % of bytes; 4 differ, 2 668 missing** |
+
+Everything in the "cloud" column was converted between 2026-10-25 and 10-30 in a Claude cloud sandbox
+with `u3mp/paktools`; the command lines never reached this PC (details and remedies in `GAPS.md`).
+The session fixes of 2026-10-31 .. 11-03 are all shipped as steps; those that only patch an existing
+converted pak run once the conversion exists.
+
+## Step order (steps/ORDER.txt)
+
+1. `copy-ps3-vtex1`, `copy-ps3-speech`, `copy-ps3-sfx`, `copy-ps4-retail` (byte copies, sha256-checked)
+2. `convert-levels-port`, `convert-levels-r2`, `convert-levels-r3`, `convert-actors-r3`, `convert-dc1`,
+   `convert-dc2-part-modules` (documented, not runnable here); `convert-banks`, `convert-text1` (runnable since 1.1.0)
+3. `registry-pak23` (mkregistry)
+4. session fixes in application order: `facility-collapse`, `lab-registration`*, `elim-pic`*,
+   `classic-netgames`*, `skins-net-names`*, `maps-batch`*, `rpcn-menu-page`*, `skin-textures`, `wall-emblem`,
+   `borneo-water-jitter`, `map-colors-lightmap`, `borneo-grass-leaf`, `coop-voice-fort`, `hair-key`*, `eula-pages`,
+   `map-colors2`, `actor-materials`, `coop-desc-fix`, `excess-wall`, `hat-colour`, `airport-igc2`,
+   `enemy-stall-option-defaults`, `emblem-cap3`, `coop-audit-option-defaults`, `shade-npc-paks`, `coop-voice-all`,
+   `london-fade`, `airport-igc3`, `vram-gap` (* = dctools steps: restored 2026-11-05, verified sha256-identical from their backups with `tools/dcconv/verify_dctools_chain.py`; maps-batch is now `maps-batch-dc` + `maps-batch-files`, and `eula-menu-box` follows `rpcn-menu-page`)
+
+Per-file order where several fixes touch one file (from the transcripts): `net.bin`: netfix -> lab_reg ->
+elim_pic -> classic -> skins -> apply_maps -> hair_key -> coop_desc_fix -> coop_vox (rerun `classic` after
+any net.bin rebuild). `modules.bin`: lab_reg -> elim_pic -> skins size table -> apply_maps -> mk_rpcn ->
+apply_vo -> coop_vox. `air-multi.pak`: air_emblem -> mapcolor -> mapcolor2 -> london. `air-multi-strip.pak`:
+excess -> london -> vram_gap. `facility-multi.pak`: collapse -> london. `ss-multiplayer/*.bin`: ssfix ->
+option_defaults -> option_defaults_2. `vox*.bin`: apply_vo -> coop_vox.
+
+## Timing (this PC, Python 3.15, NVMe)
+
+* Clean rebuild of everything that can run: **96 s** (copy steps 13 s for 12 868 files / 495 MB; the rest is
+  script steps failing fast for lack of converted bases). A second run on the same output: 37 s (copies
+  verified by hash and skipped).
+* Update-mode run on a copy of the reference overlays (8.2 GB): 56 s the first time (the manifest-state check
+  hashes the files a step owns, up to 3.9 GB for the pak23 steps), 21 s the second time. Result: 15 537 of
+  15 541 files untouched and identical; every script step reported "already applied" / "already at the
+  reference state"; the 4 `pak23_ps4.txt` differ only because `registry-pak23` ran once before the
+  reference-state check existed (it drops the lab34 lines that `lab-registration`/`maps-batch` add; on a
+  complete overlay the step is now skipped). Test outputs were on `D:/1. PC Games/Uncharted-windows/u3-recipe-test*`
+  and were deleted; the verify reports are in `test-results/`.
+* Not measured (not runnable here): the conversion pipelines. From the batch timestamps the cloud passes took
+  about a day each; `batch_hats.py` and `actor-materials/build.py` run for hours.
+
+## Dependencies (recipe 1.1.0, verified 2026-11-05)
+
+| what | version used | steps |
+|---|---|---|
+| Python | 3.15.1 (driver default `C:\Python315`), 3.14.10, 3.13.18 all work | all |
+| numpy | 2.5.4 | `map-colors-lightmap` (verified: 14/14 paks = recorded md5_after), `map-colors2`, `wall-emblem`, `actor-materials`, `excess-wall`, `hat-colour`, `london-fade`; paktools `ps4actor`/`texcodec`/`bggeom` |
+| Pillow | 13.0.0 | `eula-pages` (JPEG flip + q95 re-save is part of the reference bytes) |
+| ffmpeg | 8.1.1 (msys2 clang64) | `eula-pages` (lanczos mips; 7/7 identical), `convert-banks` (MP3 decode for 95 banks; 8.1.1 and the original 6.1.1 give identical banks) |
+
+A step whose `python:` need is missing in the driver's interpreter is skipped with a message; run the driver with a
+Python that has numpy + Pillow (the patcher should bundle one). ffmpeg is looked up in `RECIPE_FFMPEG`, PATH and
+`C:/msys64/clang64/bin/ffmpeg.exe`; without it `eula-pages` writes equivalent pages and `convert-banks` skips the MP3 banks.
+`gather_tools.py` no longer re-gathers `map-colors`, `eula-batch`, `sound-banks`, `text1-merge` (maintained in `tools/fixes`).
+
+
+## DC tools (2026-11-05)
+
+* `tools/fixes/dctools/common.py`, `dcedit.py`, `dcsyms.py`: the original DC reader / append-only editor / symbol inserter (u3mp/dctools of the U3_Multiplayer branch; the originals are kept in `tools/dctools-recovered/` with the other 20 scripts of that folder). Steps that import them name `with_jobs: ["dctools"]` (the driver renders that job too and puts it on PYTHONPATH).
+* `tools/dcconv/dcconv.py`: PS3 -> PS4 DC converter. `learn` aligns PS3/PS4 pairs object by object and keeps a layout per object key; `convert` lays a PS3 module out from the learned schemas; `test` compares with reference files. `schema-oldconv.json` (shipped) holds the layouts of the 2026-10-27 cloud conversions; the retail schema is learned on the user's PC from the PS3 disc and PS4 Collection DC modules (about 10 minutes, cached in `work/_dcconv/`).
+* `tools/dcconv/verify_dctools_chain.py --project <P> --test <dir on D:>`: reruns every dctools step from its backup and compares with the next checkpoint (29 checks). `make_convert_list.py` regenerates `fixes/dcconv/dc1-convert.tsv`.
+* `dc-recipes` (step 085, `tools/fixes/dcconv/apply_recipes.py`): rebuilds every DC file `convert-dc1` does not reproduce - the merged modules (net.bin, menu.bin, modules.bin, medals, looks, scenes, vox*, weapon-*, net-always-loaded(.dci), ss-coop-adv-fort, dc2 part modules, overlay-r2 / overlay-port DC) and 80 ss / ai / render-settings conversions - from `tools/dcconv/dc-recipes.json.gz` (`dcrecipe.py`: copy ops over the user's PS4 retail and PS3 1.19 files, pointer slots, 5947 literal bytes in all). `make_recipes.py` regenerates the recipes from the reference overlays. With convert-dc1 and the option-default fixes this gives 302/303 dc1+dc2 files sha256-identical (+ skel-retargets.bin from airport-igc3).

@@ -1,0 +1,742 @@
+{
+"pirate-armor-a-full-mp": [
+"looks.bin"
+],
+"mp-chloe-artifact-mask": [
+"net.bin"
+],
+"mp-chloe-aztec-mask": [
+"net.bin"
+],
+"mp-chloe-cat-mask": [
+"net.bin"
+],
+"mp-chloe-devil-wings": [
+"net.bin"
+],
+"mp-chloe-egypt-mask": [
+"net.bin"
+],
+"mp-chloe-elena-bunny": [
+"net.bin"
+],
+"mp-chloe-elena-cheetah-mask": [
+"net.bin"
+],
+"mp-chloe-elena-female-mask": [
+"net.bin"
+],
+"mp-chloe-elena-foo-dog-mask": [
+"net.bin"
+],
+"mp-chloe-elena-giraffe-mask": [
+"net.bin"
+],
+"mp-chloe-elena-headband-00": [
+"net.bin"
+],
+"mp-chloe-elena-panda-mask": [
+"net.bin"
+],
+"mp-chloe-elena-tiara": [
+"net.bin"
+],
+"mp-chloe-elena-veil": [
+"net.bin"
+],
+"mp-chloe-headdress": [
+"net.bin"
+],
+"mp-chloe-marlowe-crown": [
+"net.bin"
+],
+"mp-chloe-marlowe-gas-mask": [
+"net.bin"
+],
+"mp-chloe-marlowe-jak-goggles": [
+"net.bin"
+],
+"mp-chloe-marlowe-mask-a": [
+"net.bin",
+"vox.bin"
+],
+"mp-chloe-marlowe-phantom-mask": [
+"net.bin"
+],
+"mp-chloe-marlowe-royal-necklace": [
+"net.bin"
+],
+"mp-chloe-marlowe-sunglasses": [
+"net.bin"
+],
+"mp-chloe-navy-hat": [
+"net.bin"
+],
+"mp-chloe-skull-mask": [
+"net.bin"
+],
+"mp-chloe-snake-mask": [
+"net.bin"
+],
+"mp-chloe-teddy-bear-mask": [
+"net.bin"
+],
+"mp-hero-agent-a-jak-goggles": [
+"net.bin"
+],
+"mp-hero-agent-a-police-hat": [
+"net.bin"
+],
+"mp-hero-agent-a-steampunk-glasses": [
+"net.bin"
+],
+"mp-hero-agent-b-police-hat": [
+"net.bin"
+],
+"mp-hero-agent-b-steampunk-glasses": [
+"net.bin"
+],
+"mp-hero-agent-med-a-jak-goggles": [
+"net.bin"
+],
+"mp-hero-agent-med-a-police-hat": [
+"net.bin"
+],
+"mp-hero-agent-med-a-steam-glasses": [
+"net.bin"
+],
+"mp-hero-agent-med-b-jak-goggles": [
+"net.bin"
+],
+"mp-hero-bandana": [
+"net.bin"
+],
+"mp-hero-bed-leader-goggles-a": [
+"net.bin"
+],
+"mp-hero-bed-leader-jak-goggles": [
+"net.bin"
+],
+"mp-hero-bed-leader-mexcian-mask": [
+"net.bin"
+],
+"mp-hero-bedouin-a-jak-goggles": [
+"net.bin"
+],
+"mp-hero-bedouin-b-jak-goggles": [
+"net.bin"
+],
+"mp-hero-bedouin-c-jak-goggles": [
+"net.bin"
+],
+"mp-hero-crown": [
+"net.bin"
+],
+"mp-hero-cutter-backwards-hat": [
+"net.bin"
+],
+"mp-hero-cutter-brain": [
+"net.bin"
+],
+"mp-hero-cutter-dogu-mask": [
+"net.bin"
+],
+"mp-hero-cutter-gas-mask": [
+"net.bin"
+],
+"mp-hero-cutter-jak-goggles": [
+"net.bin"
+],
+"mp-hero-cutter-samurai-helmet": [
+"net.bin"
+],
+"mp-hero-cutter-sombrero": [
+"net.bin"
+],
+"mp-hero-dead-agent-jak-goggles": [
+"net.bin"
+],
+"mp-hero-dead-explorer-hat": [
+"net.bin"
+],
+"mp-hero-dead-explorer-jak-goggles": [
+"net.bin"
+],
+"mp-hero-dead-explorer-tree": [
+"net.bin"
+],
+"mp-hero-des-oss-a-gas-mask": [
+"net.bin"
+],
+"mp-hero-des-oss-a-horns": [
+"net.bin"
+],
+"mp-hero-des-oss-a-jak-goggles": [
+"net.bin"
+],
+"mp-hero-des-oss-b-jak-goggles": [
+"net.bin"
+],
+"mp-hero-des-oss-c-goggles": [
+"net.bin"
+],
+"mp-hero-des-oss-c-jak-goggles": [
+"net.bin"
+],
+"mp-hero-eddie-jak-goggles": [
+"net.bin"
+],
+"mp-hero-eddie-jester-hat": [
+"net.bin"
+],
+"mp-hero-elf-ears": [
+"net.bin"
+],
+"mp-hero-fat-bed-leader-jak-goggles": [
+"net.bin"
+],
+"mp-hero-fat-bed-leader-mask": [
+"net.bin"
+],
+"mp-hero-fat-bed-leader-party-hat": [
+"net.bin"
+],
+"mp-hero-fat-cutter-jak-goggles": [
+"net.bin"
+],
+"mp-hero-fat-cutter-party-hat": [
+"net.bin"
+],
+"mp-hero-fat-eddie-jak-goggles": [
+"net.bin"
+],
+"mp-hero-fat-eddie-mask": [
+"net.bin"
+],
+"mp-hero-fat-eddie-party-hat": [
+"net.bin"
+],
+"mp-hero-fat-jak-goggles": [
+"net.bin"
+],
+"mp-hero-fat-lazarevic-jak-goggles": [
+"net.bin"
+],
+"mp-hero-fat-lazarevic-mask": [
+"net.bin"
+],
+"mp-hero-fat-lazarevic-party-hat": [
+"net.bin"
+],
+"mp-hero-fat-party-hat": [
+"net.bin"
+],
+"mp-hero-fat-ramses-jak-goggles": [
+"net.bin"
+],
+"mp-hero-fat-sullivan-jak-goggles": [
+"net.bin"
+],
+"mp-hero-fat-sullivan-mask": [
+"net.bin"
+],
+"mp-hero-fat-sullivan-party-hat": [
+"net.bin"
+],
+"mp-hero-fat-talbot-jak-goggles": [
+"net.bin"
+],
+"mp-hero-fat-talbot-mask": [
+"net.bin"
+],
+"mp-hero-fat-talbot-party-hat": [
+"net.bin"
+],
+"mp-hero-fat-talbot-torso": [
+"net.bin",
+"vox.bin"
+],
+"mp-hero-flynn-jak-goggles": [
+"net.bin"
+],
+"mp-hero-french-part-hat-a": [
+"net.bin"
+],
+"mp-hero-guerro-jak-goggles": [
+"net.bin"
+],
+"mp-hero-jak-goggles": [
+"net.bin"
+],
+"mp-hero-jeff-glasses": [
+"net.bin"
+],
+"mp-hero-jeff-jak-goggles": [
+"net.bin"
+],
+"mp-hero-lazarevic-crown": [
+"net.bin"
+],
+"mp-hero-lazarevic-helmet": [
+"net.bin"
+],
+"mp-hero-lazarevic-jak-goggles": [
+"net.bin"
+],
+"mp-hero-lazarevic-viking-helmet": [
+"net.bin"
+],
+"mp-hero-lieutenant-jak-goggles": [
+"net.bin"
+],
+"mp-hero-lieutenant-viking-helmet": [
+"net.bin"
+],
+"mp-hero-make-believe-hair": [
+"net.bin"
+],
+"mp-hero-make-believe-legs": [
+"net.bin"
+],
+"mp-hero-navarro-goggles": [
+"net.bin"
+],
+"mp-hero-navarro-jak-goggles": [
+"net.bin"
+],
+"mp-hero-ngp-legs": [
+"net.bin"
+],
+"mp-hero-part-bronze-mask": [
+"net.bin"
+],
+"mp-hero-part-horse-mask": [
+"net.bin"
+],
+"mp-hero-part-lion-mask": [
+"net.bin"
+],
+"mp-hero-part-raptor-mask": [
+"net.bin"
+],
+"mp-hero-part-suit-mask": [
+"net.bin"
+],
+"mp-hero-part-wetsuit-goggles": [
+"net.bin"
+],
+"mp-hero-part-winter-hat": [
+"net.bin"
+],
+"mp-hero-pirate-football-pads": [
+"net.bin"
+],
+"mp-hero-pirate-jak-goggles": [
+"net.bin"
+],
+"mp-hero-ramses-jak-goggles": [
+"net.bin"
+],
+"mp-hero-ramses-parrot-hat": [
+"net.bin"
+],
+"mp-hero-rescuer-yak-hat": [
+"net.bin"
+],
+"mp-hero-roman-axe-hat": [
+"net.bin"
+],
+"mp-hero-roman-jak-goggles": [
+"net.bin"
+],
+"mp-hero-schafer-hat": [
+"net.bin"
+],
+"mp-hero-schafer-jak-goggles": [
+"net.bin"
+],
+"mp-hero-skel-bones-glow": [
+"net.bin"
+],
+"mp-hero-skel-genghis-jak-goggles": [
+"net.bin"
+],
+"mp-hero-skel-genghis-mask": [
+"net.bin"
+],
+"mp-hero-skel-jak-goggles": [
+"net.bin"
+],
+"mp-hero-skel-marco-polo-jak-goggles": [
+"net.bin"
+],
+"mp-hero-skel-marco-polo-mask": [
+"net.bin"
+],
+"mp-hero-skel-sfd-jak-goggles": [
+"net.bin"
+],
+"mp-hero-skel-sfd-mask": [
+"net.bin"
+],
+"mp-hero-sol-b1a-gas-mask": [
+"net.bin"
+],
+"mp-hero-sol-b1a-jak-goggles": [
+"net.bin"
+],
+"mp-hero-sol-b1b-clown-mask": [
+"net.bin"
+],
+"mp-hero-sol-b1b-jak-goggles": [
+"net.bin"
+],
+"mp-hero-sol-b2a-clown-mask": [
+"net.bin"
+],
+"mp-hero-sol-b2a-jak-goggles": [
+"net.bin"
+],
+"mp-hero-sol-b2b-clown-mask": [
+"net.bin"
+],
+"mp-hero-sol-b2b-jak-goggles": [
+"net.bin"
+],
+"mp-hero-sol-b3b-clown-mask": [
+"net.bin"
+],
+"mp-hero-sol-b3b-jak-goggles": [
+"net.bin"
+],
+"mp-hero-sullivan-part-bird-mask": [
+"net.bin"
+],
+"mp-hero-sullivan-part-fancy-hat": [
+"net.bin"
+],
+"mp-hero-sullivan-part-french-hat": [
+"net.bin"
+],
+"mp-hero-sullivan-part-glasses-a": [
+"net.bin"
+],
+"mp-hero-sullivan-part-jak-goggles": [
+"net.bin"
+],
+"mp-hero-sullivan-part-roundglasses": [
+"net.bin"
+],
+"mp-hero-sullivan-part-straw-hat": [
+"net.bin"
+],
+"mp-hero-sullivan-young-jak-goggles": [
+"net.bin"
+],
+"mp-hero-talbot-aztec-mask": [
+"net.bin"
+],
+"mp-hero-talbot-burlap-mask": [
+"net.bin"
+],
+"mp-hero-talbot-dive-helmet": [
+"net.bin"
+],
+"mp-hero-talbot-gas-mask": [
+"net.bin"
+],
+"mp-hero-talbot-jak-goggles": [
+"net.bin"
+],
+"mp-hero-talbot-mask-a": [
+"net.bin",
+"vox.bin"
+],
+"mp-hero-talbot-noh-mask": [
+"net.bin"
+],
+"mp-hero-talbot-octo-mask": [
+"net.bin"
+],
+"mp-hero-talbot-t-rex-mask": [
+"net.bin"
+],
+"mp-hero-thug-a-jak-goggles": [
+"net.bin"
+],
+"mp-hero-thug-b-jak-goggles": [
+"net.bin"
+],
+"mp-hero-thug-c-jak-goggles": [
+"net.bin"
+],
+"mp-hero-thug-d-jak-goggles": [
+"net.bin"
+],
+"mp-hero-thug-f-jak-goggles": [
+"net.bin"
+],
+"mp-kit-hunter-arms-cowboy-a": [
+"net.bin"
+],
+"mp-kit-hunter-arms-gloves-b": [
+"net.bin"
+],
+"mp-kit-hunter-arms-gloves-c": [
+"net.bin"
+],
+"mp-kit-hunter-feet-shoes-c": [
+"net.bin"
+],
+"mp-kit-hunter-head-hat-b": [
+"net.bin"
+],
+"mp-kit-hunter-head-hat-c": [
+"net.bin"
+],
+"mp-kit-hunter-torso-cowboy-a": [
+"net.bin"
+],
+"mp-kit-hunter-torso-cowboy-b": [
+"net.bin"
+],
+"mp-kit-hunter-torso-jacket-a": [
+"net.bin"
+],
+"mp-kit-hunter-torso-jacket-b": [
+"net.bin"
+],
+"mp-kit-hunter-torso-jacket-c": [
+"net.bin"
+],
+"mp-kit-hunter-torso-jacket-d": [
+"net.bin"
+],
+"mp-kit-hunter-torso-jacket-e": [
+"net.bin"
+],
+"mp-kit-hunter-torso-jacket-f": [
+"net.bin"
+],
+"mp-kit-hunter-torso-shirt-a": [
+"net.bin"
+],
+"mp-kit-hunter-torso-shirt-c": [
+"net.bin"
+],
+"mp-kit-hunter-torso-shirt-d-00": [
+"net.bin"
+],
+"mp-kit-hunter-torso-shirt-d": [
+"net.bin"
+],
+"mp-kit-hunter-torso-shirt-f": [
+"net.bin"
+],
+"mp-kit-hunter-torso-vest-d": [
+"net.bin"
+],
+"mp-kit-killzone-full-a": [
+"net.bin",
+"vox.bin"
+],
+"mp-kit-killzone-helmet-a": [
+"net.bin"
+],
+"mp-kit-merc-arms-cowboy-c": [
+"net.bin"
+],
+"mp-kit-merc-arms-cowboy-d": [
+"net.bin"
+],
+"mp-kit-merc-arms-gloves-b": [
+"net.bin"
+],
+"mp-kit-merc-arms-gloves-d": [
+"net.bin"
+],
+"mp-kit-merc-arms-gloves-f": [
+"net.bin"
+],
+"mp-kit-merc-arms-gloves-g": [
+"net.bin"
+],
+"mp-kit-merc-arms-gloves-h": [
+"net.bin"
+],
+"mp-kit-merc-arms-gloves-i": [
+"net.bin"
+],
+"mp-kit-merc-feet-boots-b": [
+"net.bin"
+],
+"mp-kit-merc-head-hat-c": [
+"net.bin"
+],
+"mp-kit-merc-head-hat-e": [
+"net.bin"
+],
+"mp-kit-merc-head-helmet-b": [
+"net.bin"
+],
+"mp-kit-merc-head-helmet-c": [
+"net.bin"
+],
+"mp-kit-merc-head-helmet-e": [
+"net.bin",
+"vox.bin"
+],
+"mp-kit-merc-head-mask-a": [
+"net.bin"
+],
+"mp-kit-merc-head-mask-d": [
+"net.bin"
+],
+"mp-kit-merc-head-wrap-a": [
+"net.bin"
+],
+"mp-kit-merc-head-wrap-b": [
+"net.bin"
+],
+"mp-kit-merc-legs-pants-f": [
+"net.bin"
+],
+"mp-kit-merc-legs-pants-h": [
+"net.bin"
+],
+"mp-kit-merc-torso-armor-a": [
+"net.bin"
+],
+"mp-kit-merc-torso-armor-b": [
+"net.bin"
+],
+"mp-kit-merc-torso-armor-e": [
+"net.bin"
+],
+"mp-kit-merc-torso-cowboy-c": [
+"net.bin"
+],
+"mp-kit-merc-torso-cowboy-d": [
+"net.bin"
+],
+"mp-kit-merc-torso-jacket-b": [
+"net.bin"
+],
+"mp-kit-merc-torso-shirt-a": [
+"net.bin"
+],
+"mp-kit-merc-torso-shirt-b": [
+"net.bin"
+],
+"mp-kit-merc-torso-shirt-c": [
+"net.bin"
+],
+"mp-kit-merc-torso-vest-b": [
+"net.bin"
+],
+"mp-kit-misc-hair-make-believe": [
+"net.bin"
+],
+"mp-kit-misc-torso-make-believe": [
+"net.bin"
+],
+"mp-kit-pirate-arms-gloves-b-00": [
+"net.bin"
+],
+"mp-kit-pirate-feet-boots-b-00": [
+"net.bin"
+],
+"mp-kit-pirate-feet-boots-c-00": [
+"net.bin"
+],
+"mp-kit-pirate-feet-sandles-a-00": [
+"net.bin"
+],
+"mp-kit-pirate-feet-sandles-b-00": [
+"net.bin"
+],
+"mp-kit-pirate-helmet-hat-a-00": [
+"net.bin"
+],
+"mp-kit-pirate-helmet-wrap-a-00": [
+"net.bin"
+],
+"mp-kit-pirate-helmet-wrap-a-03": [
+"net.bin"
+],
+"mp-kit-pirate-helmet-wrap-a-04": [
+"net.bin"
+],
+"mp-kit-pirate-helmet-wrap-a-06": [
+"net.bin"
+],
+"mp-kit-pirate-helmet-wrap-b-00": [
+"net.bin"
+],
+"mp-kit-pirate-legs-pants-a-00": [
+"net.bin"
+],
+"mp-kit-pirate-legs-pants-b-00": [
+"net.bin"
+],
+"mp-kit-pirate-legs-pants-c-00": [
+"net.bin"
+],
+"mp-kit-pirate-legs-pants-c-01": [
+"net.bin"
+],
+"mp-kit-pirate-legs-pants-c-03": [
+"net.bin"
+],
+"mp-kit-pirate-legs-pants-d-00": [
+"net.bin"
+],
+"mp-kit-pirate-torso-in-shirt-a-00": [
+"net.bin"
+],
+"mp-kit-pirate-torso-in-shirt-a-04": [
+"net.bin"
+],
+"mp-kit-pirate-torso-in-shirt-c-00": [
+"net.bin"
+],
+"mp-kit-pirate-torso-out-jacket-e-00": [
+"net.bin"
+],
+"mp-kit-shared-descendent-mask": [
+"net.bin"
+],
+"mp-kit-shared-desert-hat": [
+"net.bin"
+],
+"mp-kit-shared-eye-mask": [
+"net.bin"
+],
+"mp-kit-shared-knight-helmet": [
+"net.bin"
+],
+"mp-kit-shared-monster-mask": [
+"net.bin"
+],
+"mp-kit-shared-old-scholar-hat": [
+"net.bin"
+],
+"mp-kit-shared-panda-mask": [
+"net.bin"
+],
+"mp-kit-shared-round-sunglasses": [
+"net.bin"
+],
+"mp-kit-shared-sailor-hat": [
+"net.bin"
+],
+"mp-kit-shared-ski-mask": [
+"net.bin"
+],
+"mp-kit-shared-wizard-hat": [
+"net.bin"
+],
+"mp-hero-flynn-coop": [
+"vox.bin"
+]
+}

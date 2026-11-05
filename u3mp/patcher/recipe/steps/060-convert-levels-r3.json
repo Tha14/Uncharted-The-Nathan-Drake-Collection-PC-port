@@ -1,0 +1,33 @@
+{
+ "id": "convert-levels-r3",
+ "title": "overlay-r3: cloud-converted level paks (third pass + h017 worlds, 2026-10-27..30) rebuilt per plan.tsv (pak23-levels/levels.py r3)",
+ "kind": "script",
+ "job": "pak23-levels",
+ "family": "overlay-r3/pak23",
+ "needs": [
+  "ps4",
+  "ps3_disc",
+  "ps3_update",
+  "ps3_dlcmaps",
+  "python:numpy",
+  "ps3_data2"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/levels.py",
+   "r3",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/pak23/ps4/*.pak",
+  "work/backup-pak23-levels/overlay-r3/*.pak"
+ ],
+ "must_write": false,
+ "status": "partly-reproducible",
+ "applied": "2026-10-27 08:25 .. 10-30 (cloud)",
+ "notes": "Rows of plan.tsv: identical = byte-identical to the reference file; base = identical to the recorded pre-session state (backup-london etc.), the later fix steps make the final; equivalent = no recorded converter state reproduces it, built with the nearest version and installed only when the file is missing. Converter versions: f525859 (tools/paktools + pak23-levels/paktools-f525859 overlay), git 003b433 / 7d45c1f (pak23-levels/paktools-*). See tools/fixes/pak23-levels/README.md and recipe/GAPS.md.",
+ "recipe_version_added": "1.0.0",
+ "recipe_version_changed": "1.6.0"
+}

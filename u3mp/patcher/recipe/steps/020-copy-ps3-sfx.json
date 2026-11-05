@@ -1,0 +1,14 @@
+{
+ "id": "copy-ps3-sfx",
+ "title": "overlay-r3 sound1/streams/sfx: 65 PS3 DLC sound effects missing on PS4",
+ "kind": "copy-list",
+ "list": "copy-ps3-sfx.tsv",
+ "family": "overlay-r3/sound1/streams",
+ "needs": [
+  "ps3_disc"
+ ],
+ "status": "reproducible",
+ "applied": "2026-10-31 23:16 (inline ins.py; list work/dlc-sfx-installed.tsv)",
+ "notes": "goty-dlc.psarc entries, byte copies.",
+ "recipe_version_added": "1.0.0"
+}

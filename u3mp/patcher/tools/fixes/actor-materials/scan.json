@@ -1,0 +1,1191 @@
+[
+{
+"n": "ak74-mp",
+"layer": "overlay-r3",
+"subs": 8,
+"ps4": 3,
+"ps3": 4,
+"src": [
+[
+"patch18",
+4
+],
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "gold-gan-ivory-gau-pendant",
+"layer": "overlay-r3",
+"subs": 2,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"patch13",
+2
+]
+]
+},
+{
+"n": "gold-hair-ornament",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 3,
+"src": [
+[
+"patch13",
+3
+]
+]
+},
+{
+"n": "gold-large-square-ghau",
+"layer": "overlay-r3",
+"subs": 2,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"patch13",
+2
+]
+]
+},
+{
+"n": "gold-treasure-aj",
+"layer": "overlay-r3",
+"subs": 2,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"patch13",
+2
+]
+]
+},
+{
+"n": "hematite-lions-nepal",
+"layer": "overlay-r3",
+"subs": 2,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"patch13",
+2
+]
+]
+},
+{
+"n": "hk416-mp",
+"layer": "overlay-r3",
+"subs": 9,
+"ps4": 3,
+"ps3": 4,
+"src": [
+[
+"patch18",
+4
+],
+[
+"patch13",
+3
+],
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-chloe-hat-a",
+"layer": "overlay-r3",
+"subs": 10,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"patch13",
+3
+],
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-chloe-marlowe-desert-wrap-a",
+"layer": "overlay-r3",
+"subs": 8,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-chloe-marlowe-hat-a",
+"layer": "overlay-r3",
+"subs": 9,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-chloe-skel",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-chloe-young-marlowe-hat-a",
+"layer": "overlay-r3",
+"subs": 2,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"patch13",
+2
+],
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-coop-cutter",
+"layer": "overlay-r3",
+"subs": 13,
+"ps4": 12,
+"ps3": 13,
+"src": [
+[
+"disc",
+13
+]
+]
+},
+{
+"n": "mp-hero-agent-b-legs",
+"layer": "overlay-r3",
+"subs": 11,
+"ps4": 2,
+"ps3": 4,
+"src": [
+[
+"patch13",
+4
+]
+]
+},
+{
+"n": "mp-hero-agent-b-torso",
+"layer": "overlay-r3",
+"subs": 15,
+"ps4": 2,
+"ps3": 6,
+"src": [
+[
+"patch13",
+6
+]
+]
+},
+{
+"n": "mp-hero-cutter-torso-w-scarf",
+"layer": "overlay-r3",
+"subs": 21,
+"ps4": 3,
+"ps3": 10,
+"src": [
+[
+"patch13",
+10
+]
+]
+},
+{
+"n": "mp-hero-eddie-glasses",
+"layer": "overlay-r3",
+"subs": 6,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"patch13",
+2
+]
+]
+},
+{
+"n": "mp-hero-fat-talbot-legs",
+"layer": "overlay-r3",
+"subs": 11,
+"ps4": 2,
+"ps3": 4,
+"src": [
+[
+"disc",
+4
+]
+]
+},
+{
+"n": "mp-hero-fat-talbot-torso",
+"layer": "overlay-r3",
+"subs": 18,
+"ps4": 2,
+"ps3": 8,
+"src": [
+[
+"patch13",
+8
+],
+[
+"disc",
+8
+]
+]
+},
+{
+"n": "mp-hero-flynn-coop",
+"layer": "overlay-r3",
+"subs": 22,
+"ps4": 1,
+"ps3": 8,
+"src": [
+[
+"disc",
+8
+]
+]
+},
+{
+"n": "mp-hero-french-part-hat-a",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 3,
+"src": [
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-hero-french-part-hat-top",
+"layer": "overlay-r3",
+"subs": 6,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-hero-french-part-monocle",
+"layer": "overlay-r3",
+"subs": 2,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-hero-french-torso-coop",
+"layer": "overlay-r3",
+"subs": 26,
+"ps4": 8,
+"ps3": 11,
+"src": [
+[
+"disc",
+11
+]
+]
+},
+{
+"n": "mp-hero-guerro-legs",
+"layer": "overlay-r3",
+"subs": 13,
+"ps4": 2,
+"ps3": 4,
+"src": [
+[
+"patch13",
+4
+],
+[
+"disc",
+4
+]
+]
+},
+{
+"n": "mp-hero-guerro-torso",
+"layer": "overlay-r3",
+"subs": 16,
+"ps4": 2,
+"ps3": 5,
+"src": [
+[
+"patch13",
+5
+],
+[
+"disc",
+5
+]
+]
+},
+{
+"n": "mp-hero-lazarevic-coop",
+"layer": "overlay-r3",
+"subs": 19,
+"ps4": 1,
+"ps3": 7,
+"src": [
+[
+"disc",
+7
+]
+]
+},
+{
+"n": "mp-hero-make-believe-torso",
+"layer": "overlay-r3",
+"subs": 18,
+"ps4": 2,
+"ps3": 6,
+"src": [
+[
+"patch13",
+6
+]
+]
+},
+{
+"n": "mp-hero-ngp-legs",
+"layer": "overlay-r3",
+"subs": 6,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-hero-ngp-torso",
+"layer": "overlay-r3",
+"subs": 27,
+"ps4": 1,
+"ps3": 11,
+"src": [
+[
+"disc",
+11
+]
+]
+},
+{
+"n": "mp-hero-ramses-equip-legs",
+"layer": "overlay-r3",
+"subs": 17,
+"ps4": 2,
+"ps3": 6,
+"src": [
+[
+"disc",
+6
+]
+]
+},
+{
+"n": "mp-hero-ramses-equip-torso",
+"layer": "overlay-r3",
+"subs": 24,
+"ps4": 2,
+"ps3": 9,
+"src": [
+[
+"disc",
+9
+]
+]
+},
+{
+"n": "mp-hero-ramses-hat",
+"layer": "overlay-r3",
+"subs": 8,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-hero-sol-med-b-1a",
+"layer": "overlay-r3",
+"subs": 30,
+"ps4": 1,
+"ps3": 10,
+"src": [
+[
+"disc",
+10
+]
+]
+},
+{
+"n": "mp-hero-subway-torso",
+"layer": "overlay-r3",
+"subs": 22,
+"ps4": 2,
+"ps3": 9,
+"src": [
+[
+"disc",
+9
+]
+]
+},
+{
+"n": "mp-hero-sullivan-head-ascot",
+"layer": "overlay-r3",
+"subs": 8,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-hero-sullivan-part-hat-bowler",
+"layer": "overlay-r3",
+"subs": 6,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-hero-sullivan-part-hat-e",
+"layer": "overlay-r3",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-hero-talbot-hat-cowboy",
+"layer": "overlay-r3",
+"subs": 6,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-hero-thug-e-legs",
+"layer": "overlay-r3",
+"subs": 11,
+"ps4": 2,
+"ps3": 4,
+"src": [
+[
+"patch13",
+4
+]
+]
+},
+{
+"n": "mp-hero-thug-e-torso",
+"layer": "overlay-r3",
+"subs": 15,
+"ps4": 3,
+"ps3": 6,
+"src": [
+[
+"patch13",
+6
+]
+]
+},
+{
+"n": "mp-kit-base-arms-hands-skin-c-00",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-base-arms-should-skin-b-00",
+"layer": "overlay-r3",
+"subs": 6,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-base-arms-should-skin-c-00",
+"layer": "overlay-r3",
+"subs": 6,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-base-head-skin-b-00",
+"layer": "overlay-r3",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-base-head-skin-c-00",
+"layer": "overlay-r3",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-base-neck-skin-b-00",
+"layer": "overlay-r3",
+"subs": 6,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-base-neck-skin-c-00",
+"layer": "overlay-r3",
+"subs": 6,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-killzone-full-a",
+"layer": "overlay-r3",
+"subs": 11,
+"ps4": 2,
+"ps3": 4,
+"src": [
+[
+"disc",
+4
+]
+]
+},
+{
+"n": "mp-kit-killzone-full-helmet-a",
+"layer": "overlay-r3",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-killzone-helmet-a",
+"layer": "overlay-r3",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-merc-arms-gloves-b",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-merc-arms-gloves-d",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-merc-head-helmet-b",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-merc-head-helmet-c",
+"layer": "overlay-r3",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-merc-head-helmet-e",
+"layer": "overlay-r3",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-merc-head-helmet-g",
+"layer": "overlay-r3",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-merc-head-helmet-k",
+"layer": "overlay-r3",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-merc-head-mask-a",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-merc-head-wrap-a",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-merc-head-wrap-b",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-merc-legs-pants-f",
+"layer": "overlay-r3",
+"subs": 8,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-kit-merc-legs-pants-h",
+"layer": "overlay-r3",
+"subs": 8,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-kit-pirate-arms-gloves-b-00",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-pirate-feet-boots-b-00",
+"layer": "overlay-r3",
+"subs": 2,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-pirate-feet-boots-c-00",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-pirate-feet-sandles-a-00",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-pirate-feet-sandles-b-00",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-pirate-helmet-wrap-a-00",
+"layer": "overlay-r3",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-pirate-helmet-wrap-a-03",
+"layer": "overlay-r3",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-pirate-helmet-wrap-a-04",
+"layer": "overlay-r3",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-pirate-helmet-wrap-a-06",
+"layer": "overlay-r3",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-pirate-helmet-wrap-b-00",
+"layer": "overlay-r3",
+"subs": 3,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-pirate-legs-pants-a-00",
+"layer": "overlay-r3",
+"subs": 9,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-kit-pirate-legs-pants-b-00",
+"layer": "overlay-r3",
+"subs": 9,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-kit-pirate-legs-pants-c-00",
+"layer": "overlay-r3",
+"subs": 8,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-kit-pirate-legs-pants-c-01",
+"layer": "overlay-r3",
+"subs": 9,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-kit-pirate-legs-pants-c-03",
+"layer": "overlay-r3",
+"subs": 8,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-kit-pirate-legs-pants-d-00",
+"layer": "overlay-r3",
+"subs": 9,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "pirate-armor-a-full-mp",
+"layer": "overlay-r3",
+"subs": 47,
+"ps4": 10,
+"ps3": 15,
+"src": [
+[
+"disc",
+15
+]
+]
+},
+{
+"n": "silver-treasure-ad",
+"layer": "overlay-r3",
+"subs": 2,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"patch13",
+2
+]
+]
+},
+{
+"n": "silver-treasure-aj",
+"layer": "overlay-r3",
+"subs": 2,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"patch13",
+2
+]
+]
+},
+{
+"n": "mp-hero-fat-hair",
+"layer": "overlay-port",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"patch13",
+2
+]
+]
+},
+{
+"n": "mp-hero-flynn-hair",
+"layer": "overlay-port",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"patch13",
+2
+]
+]
+},
+{
+"n": "mp-hero-french-hair-coop",
+"layer": "overlay-port",
+"subs": 5,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+},
+{
+"n": "mp-hero-french-legs-coop",
+"layer": "overlay-port",
+"subs": 8,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"disc",
+3
+]
+]
+},
+{
+"n": "mp-hero-jeff-jak-goggles",
+"layer": "overlay-port",
+"subs": 9,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"patch13",
+3
+]
+]
+},
+{
+"n": "mp-hero-rescuer-jak-goggles",
+"layer": "overlay-port",
+"subs": 9,
+"ps4": 2,
+"ps3": 3,
+"src": [
+[
+"patch13",
+3
+]
+]
+},
+{
+"n": "mp-hero-ramses-bandana",
+"layer": "overlay-mp",
+"subs": 3,
+"ps4": 1,
+"ps3": 2,
+"src": [
+[
+"disc",
+2
+]
+]
+}
+]

@@ -1,0 +1,34 @@
+{
+ "id": "airport-igc2",
+ "title": "Airport IGC Flynn co-op character rebuilt (actor33/rebuild_am.py igc2 = airport-igc2/build_hat.py hero-london cap 128, apply_igc2.py)",
+ "kind": "script",
+ "job": "actor33",
+ "family": "overlay-r3/actor33",
+ "needs": [
+  "ps3_disc",
+  "ps4"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/rebuild_am.py",
+   "igc2"
+  ],
+  [
+   "{{PYTHON}}",
+   "{{SCRATCH}}/airport-igc2/apply_igc2.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/actor33/ps4/mp-hero-flynn-coop.pak"
+ ],
+ "status": "reproducible",
+ "applied": "2026-11-02 01:04",
+ "notes": "Byte-identical to the overlay (686e4260..., 2026-11-05). Lazarevic co-op is the actor-materials build.",
+ "recipe_version_added": "1.0.0",
+ "with_jobs": [
+  "actor-materials",
+  "airport-igc2"
+ ]
+}

@@ -1,0 +1,30 @@
+{
+ "id": "wall-emblem-actors",
+ "title": "The 8 Airstrip wall-emblem actor paks (second-version build of 2026-11-01 22:01: wall-emblem/mkemblem_v2.py --actors-only, actor33/install_emblem_actors.py)",
+ "kind": "script",
+ "job": "actor33",
+ "with_jobs": [
+  "wall-emblem"
+ ],
+ "family": "overlay-r3/actor33",
+ "needs": [
+  "ps4",
+  "ps3_disc",
+  "python:numpy"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/install_emblem_actors.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/actor33/ps4/air-multi-emblem-*.pak"
+ ],
+ "must_write": false,
+ "status": "reproducible",
+ "applied": "2026-11-01 22:01 (sub-agent: mkemblem.py + diag2/patch.py, --actors-only), installed 22:21",
+ "notes": "Needs overlay-r3 pak23/ps4/air-multi.pak (any state: the actors do not depend on it). The 8 builds equal work/backup-emblem-test (7) and the overlay air-multi-emblem-ground.pak; emblem-cap3 then gives the reference hashes (verified 2026-11-05). The air-multi.pak / ingame12 / pak23_ps4.txt part stays in wall-emblem.",
+ "recipe_version_added": "1.4.0"
+}

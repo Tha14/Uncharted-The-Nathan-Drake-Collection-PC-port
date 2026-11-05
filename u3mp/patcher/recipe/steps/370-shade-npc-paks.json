@@ -1,0 +1,23 @@
+{
+ "id": "shade-npc-paks",
+ "title": "Shade Arena 43-spawner pak copied over 5 maps in overlay-r2 / overlay-port (coop-audit/apply_shade_npc_paks.py)",
+ "kind": "script",
+ "job": "coop-audit",
+ "family": "overlay-r2 + overlay-port/pak23",
+ "needs": [],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/apply_shade_npc_paks.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r2/u3data/build/main/pak23/ps4/*-shade-npc-ingame12.pak",
+  "work/overlay-port/u3data/build/main/pak23/ps4/*-shade-npc-ingame12.pak",
+  "work/overlay-*/u3data/build/main/pak23_ps4.txt"
+ ],
+ "status": "needs-converted-base",
+ "applied": "2026-11-02 02:20",
+ "recipe_version_added": "1.0.0"
+}

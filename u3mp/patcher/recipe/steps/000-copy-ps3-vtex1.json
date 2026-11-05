@@ -1,0 +1,16 @@
+{
+ "id": "copy-ps3-vtex1",
+ "title": "overlay-mp vtex1: 882 PS3 UI textures (ranks, medals, emblems, playlists, net-levels, controller schemes)",
+ "kind": "copy-list",
+ "list": "copy-ps3-vtex1.tsv",
+ "family": "overlay-mp/vtex1",
+ "needs": [
+  "ps3_disc",
+  "ps3_update"
+ ],
+ "tolerate_missing": 0.01,
+ "status": "reproducible",
+ "applied": "2026-10-26 (pre-session seed) + 2026-11-01 lab-*.dds",
+ "notes": "710 loose files of the disc build/main/vtex1, 134 from dlc-patch13.psarc, 11 from dlc-patch18.psarc, 25 from goty-patch.psarc, 2 from DATA2 lab-trench-v1-7.psarc. Byte copies (PS3 DDS is accepted by the PS4 loader).",
+ "recipe_version_added": "1.0.0"
+}

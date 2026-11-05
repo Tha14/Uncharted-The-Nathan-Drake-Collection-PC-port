@@ -1,0 +1,2313 @@
+{
+"mp-chloe-artifact-mask": {
+"heroes": [
+"roman:body0",
+"sullivan-fat:body0"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-aztec-mask": {
+"heroes": [
+"roman:body0",
+"sullivan-fat:body0"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-cat-mask": {
+"heroes": [
+"roman:body0",
+"sullivan-fat:body0"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-devil-wings": {
+"heroes": [
+"roman:body0",
+"sullivan-fat:body0"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-egypt-mask": {
+"heroes": [
+"roman:body0",
+"sullivan-fat:body0"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-elena-bunny": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-elena-cheetah-mask": {
+"heroes": [
+"cutter-fat:0x38",
+"eddie-fat:0x28",
+"thug-a:0x28"
+],
+"col": [
+"a662ec45"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-elena-female-mask": {
+"heroes": [
+"cutter-fat:0x38",
+"eddie-fat:0x28",
+"thug-a:0x28"
+],
+"col": [
+"66c24534"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-elena-foo-dog-mask": {
+"heroes": [
+"cutter-fat:0x38",
+"eddie-fat:0x28",
+"thug-a:0x28"
+],
+"col": [
+"a662ec45"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-elena-giraffe-mask": {
+"heroes": [
+"cutter-fat:0x38",
+"eddie-fat:0x28",
+"thug-a:0x28"
+],
+"col": [
+"a662ec45"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-elena-headband-00": {
+"heroes": [
+"elena:0x28"
+],
+"col": [
+"a662ec45"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-elena-panda-mask": {
+"heroes": [
+"cutter-fat:0x38",
+"eddie-fat:0x28",
+"thug-a:0x28"
+],
+"col": [
+"a662ec45"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-elena-tiara": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-elena-veil": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-headdress": {
+"heroes": [
+"roman:body0",
+"sullivan-fat:body0"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-marlowe-crown": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-marlowe-gas-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-marlowe-jak-goggles": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-marlowe-mask-a": {
+"heroes": [
+"marlowe-london:0x28"
+],
+"col": [
+"de50cc9"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-marlowe-phantom-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-marlowe-royal-necklace": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-marlowe-sunglasses": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-navy-hat": {
+"heroes": [
+"roman:body0",
+"sullivan-fat:body0"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-skull-mask": {
+"heroes": [
+"roman:body0",
+"sullivan-fat:body0"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-snake-mask": {
+"heroes": [
+"roman:body0",
+"sullivan-fat:body0"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-chloe-teddy-bear-mask": {
+"heroes": [
+"roman:body0",
+"sullivan-fat:body0"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-agent-a-jak-goggles": {
+"heroes": [
+"cutter-fat:0x28"
+],
+"col": [
+"4b1a86"
+],
+"other": []
+},
+"mp-hero-agent-a-police-hat": {
+"heroes": [
+"cutter-fat:0x28"
+],
+"col": [
+"4b1a86"
+],
+"other": []
+},
+"mp-hero-agent-a-steampunk-glasses": {
+"heroes": [
+"cutter-fat:0x28"
+],
+"col": [
+"4b1a86"
+],
+"other": []
+},
+"mp-hero-agent-b-jak-goggles": {
+"heroes": [],
+"col": [],
+"other": []
+},
+"mp-hero-agent-b-police-hat": {
+"heroes": [],
+"col": [],
+"other": [
+"7edb1b0a"
+]
+},
+"mp-hero-agent-b-steampunk-glasses": {
+"heroes": [],
+"col": [],
+"other": [
+"7edb1b0a"
+]
+},
+"mp-hero-agent-med-a-jak-goggles": {
+"heroes": [
+"fat-talbot:0x28"
+],
+"col": [
+"853be798"
+],
+"other": []
+},
+"mp-hero-agent-med-a-police-hat": {
+"heroes": [
+"fat-talbot:0x28"
+],
+"col": [
+"853be798"
+],
+"other": []
+},
+"mp-hero-agent-med-a-steam-glasses": {
+"heroes": [
+"fat-talbot:0x28"
+],
+"col": [
+"853be798"
+],
+"other": []
+},
+"mp-hero-agent-med-a-steampunk-glasses": {
+"heroes": [],
+"col": [],
+"other": []
+},
+"mp-hero-agent-med-b-jak-goggles": {
+"heroes": [
+"des-oss-a:0x38"
+],
+"col": [
+"ffa3ae23"
+],
+"other": []
+},
+"mp-hero-bandana": {
+"heroes": [
+"agent-med-a:0x20",
+"schafer:body0",
+"shade:0x28",
+"thug-b:0x20",
+"thug-d:0x20"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-bed-leader-goggles-a": {
+"heroes": [
+"bedouin-leader:0x28"
+],
+"col": [
+"97b5422a"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-bed-leader-jak-goggles": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-bed-leader-mexcian-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-bedouin-a-jak-goggles": {
+"heroes": [
+"agent-a:0x28"
+],
+"col": [
+"9494c30a"
+],
+"other": []
+},
+"mp-hero-bedouin-b-jak-goggles": {
+"heroes": [
+"sol-b1b:0x28"
+],
+"col": [
+"9494c30a"
+],
+"other": []
+},
+"mp-hero-bedouin-c-jak-goggles": {
+"heroes": [
+"ramses-fat:0x20"
+],
+"col": [
+"9494c30a"
+],
+"other": []
+},
+"mp-hero-crown": {
+"heroes": [
+"agent-med-a:0x20",
+"schafer:body0",
+"shade:0x28",
+"thug-b:0x20",
+"thug-d:0x20"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-cutter-backwards-hat": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-cutter-brain": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-cutter-dogu-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-cutter-gas-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-cutter-jak-goggles": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-cutter-samurai-helmet": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-cutter-sombrero": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-dead-agent-jak-goggles": {
+"heroes": [
+"skel:0x28"
+],
+"col": [
+"0"
+],
+"other": []
+},
+"mp-hero-dead-explorer-hat": {
+"heroes": [
+"killzone-a:0x20"
+],
+"col": [
+"dada0f0e"
+],
+"other": []
+},
+"mp-hero-dead-explorer-jak-goggles": {
+"heroes": [
+"killzone-a:0x20"
+],
+"col": [
+"dada0f0e"
+],
+"other": []
+},
+"mp-hero-dead-explorer-tree": {
+"heroes": [
+"killzone-a:0x20"
+],
+"col": [
+"dada0f0e"
+],
+"other": []
+},
+"mp-hero-des-oss-a-gas-mask": {
+"heroes": [
+"agent-med-a:0x28"
+],
+"col": [
+"30584f69"
+],
+"other": []
+},
+"mp-hero-des-oss-a-horns": {
+"heroes": [
+"agent-med-a:0x28"
+],
+"col": [
+"30584f69"
+],
+"other": []
+},
+"mp-hero-des-oss-a-jak-goggles": {
+"heroes": [
+"agent-med-a:0x28"
+],
+"col": [
+"30584f69"
+],
+"other": []
+},
+"mp-hero-des-oss-b-gas-mask": {
+"heroes": [],
+"col": [],
+"other": []
+},
+"mp-hero-des-oss-b-jak-goggles": {
+"heroes": [
+"make-believe:0x20"
+],
+"col": [
+"30584f69"
+],
+"other": []
+},
+"mp-hero-des-oss-c-goggles": {
+"heroes": [
+"thug-b:0x38"
+],
+"col": [
+"30584f69"
+],
+"other": []
+},
+"mp-hero-des-oss-c-jak-goggles": {
+"heroes": [
+"thug-b:0x38"
+],
+"col": [
+"30584f69"
+],
+"other": []
+},
+"mp-hero-eddie-jak-goggles": {
+"heroes": [
+"bedouin-b:0x38"
+],
+"col": [
+"ae3e1283"
+],
+"other": [
+"7edb1b0a"
+]
+},
+"mp-hero-eddie-jester-hat": {
+"heroes": [
+"bedouin-b:0x38"
+],
+"col": [
+"ae3e1283"
+],
+"other": [
+"7edb1b0a"
+]
+},
+"mp-hero-elf-ears": {
+"heroes": [
+"agent-med-a:0x20",
+"schafer:body0",
+"shade:0x28",
+"thug-b:0x20",
+"thug-d:0x20"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-fat-bed-leader-jak-goggles": {
+"heroes": [
+"shade:0x28"
+],
+"col": [
+"97b5422a"
+],
+"other": []
+},
+"mp-hero-fat-bed-leader-mask": {
+"heroes": [
+"shade:0x28"
+],
+"col": [
+"97b5422a"
+],
+"other": []
+},
+"mp-hero-fat-bed-leader-party-hat": {
+"heroes": [
+"shade:0x28"
+],
+"col": [
+"97b5422a"
+],
+"other": []
+},
+"mp-hero-fat-cutter-jak-goggles": {
+"heroes": [
+"drake-ngp:0x28"
+],
+"col": [
+"de50cc9"
+],
+"other": []
+},
+"mp-hero-fat-cutter-party-hat": {
+"heroes": [
+"drake-ngp:0x28"
+],
+"col": [
+"de50cc9"
+],
+"other": []
+},
+"mp-hero-fat-eddie-jak-goggles": {
+"heroes": [
+"drake-fat:body0"
+],
+"col": [
+"ae3e1283"
+],
+"other": []
+},
+"mp-hero-fat-eddie-mask": {
+"heroes": [
+"drake-fat:body0"
+],
+"col": [
+"ae3e1283"
+],
+"other": []
+},
+"mp-hero-fat-eddie-party-hat": {
+"heroes": [
+"drake-fat:body0"
+],
+"col": [
+"ae3e1283"
+],
+"other": []
+},
+"mp-hero-fat-jak-goggles": {
+"heroes": [
+"thug-c:0x20"
+],
+"col": [
+"a501ff66"
+],
+"other": []
+},
+"mp-hero-fat-lazarevic-jak-goggles": {
+"heroes": [
+"elena-u2-reporter:0x28"
+],
+"col": [
+"5447cff3"
+],
+"other": []
+},
+"mp-hero-fat-lazarevic-mask": {
+"heroes": [
+"elena-u2-reporter:0x28"
+],
+"col": [
+"5447cff3"
+],
+"other": []
+},
+"mp-hero-fat-lazarevic-party-hat": {
+"heroes": [
+"elena-u2-reporter:0x28"
+],
+"col": [
+"5447cff3"
+],
+"other": []
+},
+"mp-hero-fat-party-hat": {
+"heroes": [
+"thug-c:0x20"
+],
+"col": [
+"a501ff66"
+],
+"other": []
+},
+"mp-hero-fat-ramses-jak-goggles": {
+"heroes": [
+"agent-med-a:0x38"
+],
+"col": [
+"a22ee27"
+],
+"other": []
+},
+"mp-hero-fat-sullivan-jak-goggles": {
+"heroes": [
+"fat-lazarevic:0x28"
+],
+"col": [
+"d9b82572"
+],
+"other": []
+},
+"mp-hero-fat-sullivan-mask": {
+"heroes": [
+"fat-lazarevic:0x28"
+],
+"col": [
+"d9b82572"
+],
+"other": []
+},
+"mp-hero-fat-sullivan-party-hat": {
+"heroes": [
+"fat-lazarevic:0x28"
+],
+"col": [
+"d9b82572"
+],
+"other": []
+},
+"mp-hero-fat-talbot-jak-goggles": {
+"heroes": [
+"elena-u1:0x28"
+],
+"col": [
+"d62aaea6"
+],
+"other": []
+},
+"mp-hero-fat-talbot-mask": {
+"heroes": [
+"elena-u1:0x28"
+],
+"col": [
+"d62aaea6"
+],
+"other": []
+},
+"mp-hero-fat-talbot-party-hat": {
+"heroes": [
+"elena-u1:0x28"
+],
+"col": [
+"d62aaea6"
+],
+"other": []
+},
+"mp-hero-fat-talbot-torso": {
+"heroes": [
+"fat-talbot:0x20"
+],
+"col": [
+"d62aaea6"
+],
+"other": []
+},
+"mp-hero-flynn-coop": {
+"heroes": [],
+"col": [],
+"other": []
+},
+"mp-hero-flynn-jak-goggles": {
+"heroes": [
+"thug-a:0x20"
+],
+"col": [
+"694d88d8"
+],
+"other": [
+"7edb1b0a"
+]
+},
+"mp-hero-french-part-hat-a": {
+"heroes": [
+"agent-med-a:0x20",
+"drake-french:0x28",
+"schafer:body0",
+"shade:0x28",
+"thug-b:0x20",
+"thug-d:0x20"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-guerro-jak-goggles": {
+"heroes": [
+"des-oss-c:0x28"
+],
+"col": [
+"71cb94b8"
+],
+"other": []
+},
+"mp-hero-jak-goggles": {
+"heroes": [
+"agent-med-a:0x20",
+"schafer:body0",
+"shade:0x28",
+"thug-b:0x20",
+"thug-d:0x20"
+],
+"col": [
+"863ee502"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-jeff-glasses": {
+"heroes": [
+"bedouin-a:0x38"
+],
+"col": [
+"a501ff66"
+],
+"other": []
+},
+"mp-hero-jeff-jak-goggles": {
+"heroes": [
+"bedouin-a:0x38"
+],
+"col": [
+"a501ff66"
+],
+"other": []
+},
+"mp-hero-lazarevic-crown": {
+"heroes": [],
+"col": [],
+"other": [
+"7edb1b0a"
+]
+},
+"mp-hero-lazarevic-helmet": {
+"heroes": [],
+"col": [],
+"other": [
+"7edb1b0a"
+]
+},
+"mp-hero-lazarevic-jak-goggles": {
+"heroes": [],
+"col": [],
+"other": [
+"7edb1b0a"
+]
+},
+"mp-hero-lazarevic-viking-helmet": {
+"heroes": [],
+"col": [],
+"other": [
+"7edb1b0a"
+]
+},
+"mp-hero-lieutenant-jak-goggles": {
+"heroes": [
+"shade:body0"
+],
+"col": [
+"fadb9970"
+],
+"other": []
+},
+"mp-hero-lieutenant-viking-helmet": {
+"heroes": [
+"shade:body0"
+],
+"col": [
+"fadb9970"
+],
+"other": []
+},
+"mp-hero-make-believe-hair": {
+"heroes": [
+"flynn:0x28"
+],
+"col": [
+"0"
+],
+"other": []
+},
+"mp-hero-make-believe-legs": {
+"heroes": [
+"bed-fat:0x20"
+],
+"col": [
+"f3252c56"
+],
+"other": []
+},
+"mp-hero-navarro-goggles": {
+"heroes": [
+"roman:0x28"
+],
+"col": [
+"302e17f"
+],
+"other": []
+},
+"mp-hero-navarro-jak-goggles": {
+"heroes": [
+"roman:0x28"
+],
+"col": [
+"302e17f"
+],
+"other": []
+},
+"mp-hero-ngp-legs": {
+"heroes": [
+"drake-ngp:0x38"
+],
+"col": [
+"5bc1dff9"
+],
+"other": []
+},
+"mp-hero-part-bronze-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-part-horse-mask": {
+"heroes": [
+"agent-med-a:0x20",
+"schafer:body0",
+"shade:0x28",
+"thug-b:0x20",
+"thug-d:0x20"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-part-lion-mask": {
+"heroes": [
+"agent-med-a:0x20",
+"schafer:body0",
+"shade:0x28",
+"thug-b:0x20",
+"thug-d:0x20"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-part-present-mask": {
+"heroes": [],
+"col": [],
+"other": []
+},
+"mp-hero-part-raptor-mask": {
+"heroes": [
+"agent-med-a:0x20",
+"schafer:body0",
+"shade:0x28",
+"thug-b:0x20",
+"thug-d:0x20"
+],
+"col": [
+"f2f5643e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-part-suit-mask": {
+"heroes": [
+"agent-med-a:0x20",
+"schafer:body0",
+"shade:0x28",
+"thug-b:0x20",
+"thug-d:0x20"
+],
+"col": [
+"863ee502"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-part-wetsuit-goggles": {
+"heroes": [
+"agent-med-a:0x20",
+"schafer:body0",
+"shade:0x28",
+"thug-b:0x20",
+"thug-d:0x20"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-part-winter-hat": {
+"heroes": [
+"agent-med-a:0x20",
+"schafer:body0",
+"shade:0x28",
+"thug-b:0x20",
+"thug-d:0x20"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-pirate-football-pads": {
+"heroes": [
+"chloe-u2:0x28"
+],
+"col": [
+"ae3e1283"
+],
+"other": []
+},
+"mp-hero-pirate-jak-goggles": {
+"heroes": [
+"chloe-u2:0x28"
+],
+"col": [
+"ae3e1283"
+],
+"other": []
+},
+"mp-hero-ramses-jak-goggles": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-ramses-parrot-hat": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-rescuer-yak-hat": {
+"heroes": [
+"navarro:0x28"
+],
+"col": [
+"81a5f6f4"
+],
+"other": []
+},
+"mp-hero-roman-axe-hat": {
+"heroes": [
+"sullivan-fat:0x20"
+],
+"col": [
+"42ac05f8"
+],
+"other": []
+},
+"mp-hero-roman-jak-goggles": {
+"heroes": [
+"sullivan-fat:0x20"
+],
+"col": [
+"42ac05f8"
+],
+"other": []
+},
+"mp-hero-schafer-hat": {
+"heroes": [
+"drake-udf:0x28"
+],
+"col": [
+"de50cc9"
+],
+"other": []
+},
+"mp-hero-schafer-jak-goggles": {
+"heroes": [
+"drake-udf:0x28"
+],
+"col": [
+"de50cc9"
+],
+"other": []
+},
+"mp-hero-skel-bones-glow": {
+"heroes": [],
+"col": [],
+"other": [
+"0b3952e7"
+]
+},
+"mp-hero-skel-genghis-jak-goggles": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-skel-genghis-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-skel-jak-goggles": {
+"heroes": [
+"des-oss-a:0x28"
+],
+"col": [
+"df67c9fd"
+],
+"other": []
+},
+"mp-hero-skel-marco-polo-jak-goggles": {
+"heroes": [
+"prakoso:0x28"
+],
+"col": [
+"834f7acd"
+],
+"other": []
+},
+"mp-hero-skel-marco-polo-mask": {
+"heroes": [
+"prakoso:0x28"
+],
+"col": [
+"834f7acd"
+],
+"other": []
+},
+"mp-hero-skel-sfd-jak-goggles": {
+"heroes": [
+"jeff:0x28"
+],
+"col": [
+"834f7acd"
+],
+"other": []
+},
+"mp-hero-skel-sfd-mask": {
+"heroes": [
+"jeff:0x28"
+],
+"col": [
+"834f7acd"
+],
+"other": []
+},
+"mp-hero-sol-b1a-gas-mask": {
+"heroes": [
+"sullivan-fat:0x28"
+],
+"col": [
+"a06d19c6"
+],
+"other": []
+},
+"mp-hero-sol-b1a-jak-goggles": {
+"heroes": [
+"sullivan-fat:0x28"
+],
+"col": [
+"a06d19c6"
+],
+"other": []
+},
+"mp-hero-sol-b1b-clown-mask": {
+"heroes": [
+"drake-winter:0x28"
+],
+"col": [
+"0"
+],
+"other": []
+},
+"mp-hero-sol-b1b-jak-goggles": {
+"heroes": [
+"drake-winter:0x28"
+],
+"col": [
+"a06d19c6"
+],
+"other": []
+},
+"mp-hero-sol-b2a-clown-mask": {
+"heroes": [
+"bedouin-b:0x20"
+],
+"col": [
+"0"
+],
+"other": []
+},
+"mp-hero-sol-b2a-jak-goggles": {
+"heroes": [
+"bedouin-b:0x20"
+],
+"col": [
+"a06d19c6"
+],
+"other": []
+},
+"mp-hero-sol-b2b-clown-mask": {
+"heroes": [
+"agent-a:0x20"
+],
+"col": [
+"0"
+],
+"other": []
+},
+"mp-hero-sol-b2b-jak-goggles": {
+"heroes": [
+"agent-a:0x20"
+],
+"col": [
+"a06d19c6"
+],
+"other": []
+},
+"mp-hero-sol-b3b-clown-mask": {
+"heroes": [
+"chloe-u2-leather:0x28"
+],
+"col": [
+"0"
+],
+"other": []
+},
+"mp-hero-sol-b3b-jak-goggles": {
+"heroes": [
+"chloe-u2-leather:0x28"
+],
+"col": [
+"a06d19c6"
+],
+"other": []
+},
+"mp-hero-sullivan-part-bird-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-sullivan-part-fancy-hat": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-sullivan-part-french-hat": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-sullivan-part-glasses-a": {
+"heroes": [
+"sullivan:0x28"
+],
+"col": [
+"a501ff66"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-sullivan-part-jak-goggles": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-sullivan-part-roundglasses": {
+"heroes": [
+"sullivan-london:0x28"
+],
+"col": [
+"0"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-sullivan-part-straw-hat": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-sullivan-young-jak-goggles": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-talbot-aztec-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-talbot-burlap-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-talbot-dive-helmet": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-talbot-gas-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-talbot-jak-goggles": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-talbot-mask-a": {
+"heroes": [
+"talbot:0x28"
+],
+"col": [
+"d62aaea6"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-talbot-noh-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-talbot-octo-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-talbot-t-rex-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-hero-thug-a-jak-goggles": {
+"heroes": [
+"thug-f:0x20"
+],
+"col": [
+"9fc76c34"
+],
+"other": []
+},
+"mp-hero-thug-b-jak-goggles": {
+"heroes": [
+"eddie-fat:0x38"
+],
+"col": [
+"ef1fad7a"
+],
+"other": []
+},
+"mp-hero-thug-c-jak-goggles": {
+"heroes": [
+"skel-sfd:0x28"
+],
+"col": [
+"c0a81240"
+],
+"other": []
+},
+"mp-hero-thug-d-jak-goggles": {
+"heroes": [
+"sol-b1b:body0"
+],
+"col": [
+"eae2fe6"
+],
+"other": []
+},
+"mp-hero-thug-f-jak-goggles": {
+"heroes": [
+"agent-med-b:0x38"
+],
+"col": [
+"51c15192"
+],
+"other": []
+},
+"mp-kit-hunter-arms-cowboy-a": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-arms-gloves-b": {
+"heroes": [
+"hunter:0x30"
+],
+"col": [
+"d370ccb5"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-arms-gloves-c": {
+"heroes": [
+"hunter:0x30"
+],
+"col": [
+"d370ccb5"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-feet-shoes-c": {
+"heroes": [
+"hunter:0x40"
+],
+"col": [
+"d370ccb5"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-head-hat-b": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-head-hat-c": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-torso-cowboy-a": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-torso-cowboy-b": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-torso-jacket-a": {
+"heroes": [
+"hunter:0x20"
+],
+"col": [
+"e895bc69"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-torso-jacket-b": {
+"heroes": [
+"hunter:0x20"
+],
+"col": [
+"e895bc69"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-torso-jacket-c": {
+"heroes": [
+"hunter:0x20"
+],
+"col": [
+"435c7ce3"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-torso-jacket-d": {
+"heroes": [
+"hunter:0x20"
+],
+"col": [
+"435c7ce3"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-torso-jacket-e": {
+"heroes": [
+"hunter:0x20"
+],
+"col": [
+"e77d09fe"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-torso-jacket-f": {
+"heroes": [
+"hunter:0x20"
+],
+"col": [
+"e77d09fe"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-torso-shirt-a": {
+"heroes": [
+"hunter:0x20"
+],
+"col": [
+"57e812ab"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-torso-shirt-c": {
+"heroes": [
+"hunter:0x20"
+],
+"col": [
+"57e812ab"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-torso-shirt-d-00": {
+"heroes": [
+"hunter:0x20"
+],
+"col": [
+"57e812ab"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-torso-shirt-d": {
+"heroes": [
+"hunter:0x20"
+],
+"col": [
+"57e812ab"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-torso-shirt-f": {
+"heroes": [
+"hunter:0x20"
+],
+"col": [
+"57e812ab"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-hunter-torso-vest-d": {
+"heroes": [
+"hunter:0x20"
+],
+"col": [
+"57e812ab"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-killzone-full-a": {
+"heroes": [
+"killzone-a:body0",
+"make-believe:0x28"
+],
+"col": [
+"c463c36a"
+],
+"other": []
+},
+"mp-kit-killzone-helmet-a": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-arms-cowboy-c": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-arms-cowboy-d": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-arms-gloves-b": {
+"heroes": [
+"hunter:0x30"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-arms-gloves-d": {
+"heroes": [
+"hunter:0x30"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-arms-gloves-f": {
+"heroes": [
+"hunter:0x30"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-arms-gloves-g": {
+"heroes": [
+"hunter:0x30"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-arms-gloves-h": {
+"heroes": [
+"hunter:0x30"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-arms-gloves-i": {
+"heroes": [
+"hunter:0x30"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-feet-boots-b": {
+"heroes": [
+"hunter:0x40"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-head-hat-c": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-head-hat-e": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-head-helmet-b": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-head-helmet-c": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-head-helmet-e": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-head-mask-a": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-head-mask-d": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-head-wrap-a": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-head-wrap-b": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-legs-pants-f": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-legs-pants-h": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-torso-armor-a": {
+"heroes": [
+"pirate:0x20"
+],
+"col": [
+"4b287869"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-torso-armor-b": {
+"heroes": [
+"pirate:0x20"
+],
+"col": [
+"4b287869"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-torso-armor-e": {
+"heroes": [
+"pirate:0x20"
+],
+"col": [
+"4b287869"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-torso-cowboy-c": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-torso-cowboy-d": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-torso-jacket-b": {
+"heroes": [
+"pirate:0x20"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-torso-shirt-a": {
+"heroes": [
+"pirate:0x20"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-torso-shirt-b": {
+"heroes": [
+"pirate:0x20"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-torso-shirt-c": {
+"heroes": [
+"pirate:0x20"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-merc-torso-vest-b": {
+"heroes": [
+"pirate:0x20"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-misc-hair-make-believe": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-misc-torso-make-believe": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-arms-gloves-b-00": {
+"heroes": [
+"hunter:0x30"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-feet-boots-b-00": {
+"heroes": [
+"hunter:0x40"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-feet-boots-c-00": {
+"heroes": [
+"hunter:0x40"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-feet-sandles-a-00": {
+"heroes": [
+"hunter:0x40"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-feet-sandles-b-00": {
+"heroes": [
+"hunter:0x40"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-helmet-hat-a-00": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-helmet-wrap-a-00": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-helmet-wrap-a-03": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-helmet-wrap-a-04": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-helmet-wrap-a-06": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-helmet-wrap-b-00": {
+"heroes": [
+"pirate:0x28"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-legs-pants-a-00": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-legs-pants-b-00": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-legs-pants-c-00": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-legs-pants-c-01": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-legs-pants-c-03": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-legs-pants-d-00": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-torso-in-shirt-a-00": {
+"heroes": [
+"pirate:0x20"
+],
+"col": [
+"4c3bec71"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-torso-in-shirt-a-04": {
+"heroes": [
+"pirate:0x20"
+],
+"col": [
+"4c3bec71"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-torso-in-shirt-c-00": {
+"heroes": [
+"pirate:0x20"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-pirate-torso-out-jacket-e-00": {
+"heroes": [
+"pirate:0x20"
+],
+"col": [
+"5e46032e"
+],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-shared-descendent-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-shared-desert-hat": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-shared-eye-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-shared-knight-helmet": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-shared-monster-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-shared-old-scholar-hat": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-shared-panda-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-shared-round-sunglasses": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-shared-sailor-hat": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-shared-ski-mask": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"mp-kit-shared-wizard-hat": {
+"heroes": [],
+"col": [],
+"other": [
+"f99a36aa"
+]
+},
+"pirate-armor-a-full-mp": {
+"heroes": [],
+"col": [],
+"other": []
+}
+}

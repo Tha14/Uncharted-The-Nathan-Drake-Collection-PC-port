@@ -1,0 +1,40 @@
+{
+ "id": "hat-colour",
+ "title": "Tintable head-wear templates: 249 paks rebuilt, the 229 of safe_only.txt installed (actor33/rebuild_am.py hats, hat-colour/apply_hat_colour.py --only)",
+ "kind": "script",
+ "job": "actor33",
+ "family": "overlay-r3/actor33",
+ "needs": [
+  "ps3_disc",
+  "ps3_update",
+  "ps4",
+  "python:numpy"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/rebuild_am.py",
+   "hats"
+  ],
+  [
+   "{{PYTHON}}",
+   "{{SCRATCH}}/hat-colour/apply_hat_colour.py",
+   "--only",
+   "@{{SCRATCH}}/hat-colour/safe_only.txt",
+   "--apply",
+   "--work",
+   "{{PROJECT}}/work"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/actor33/ps4/*.pak"
+ ],
+ "status": "reproducible",
+ "applied": "2026-11-02 01:04",
+ "notes": "jobs-hats.tsv = template/cap of batch.json per pak; mp-hero-ramses-jak-goggles was built before build_hat got its OVERLAY/UV_3 template filter (option no-overlay-filter = HAT_NO_OVERLAY_FILTER=1). 249/249 byte-identical to hat-colour/manifest.json (2026-11-05, 152 s). Installed: safe_only.txt (229 = work/backup-hat-colour/state.json; the earlier lists/hat-colour-only.txt held only the 81 that had a backup copy).",
+ "recipe_version_added": "1.0.0",
+ "with_jobs": [
+  "actor-materials",
+  "hat-colour"
+ ]
+}

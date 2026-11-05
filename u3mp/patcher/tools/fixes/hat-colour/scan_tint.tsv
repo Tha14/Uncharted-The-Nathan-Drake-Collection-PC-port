@@ -1,0 +1,536 @@
+air-multi-emblem-board-0	overlay-r3	no-ps3	
+air-multi-emblem-board-1	overlay-r3	no-ps3	
+air-multi-emblem-corr-blue	overlay-r3	no-ps3	
+air-multi-emblem-corr	overlay-r3	no-ps3	
+air-multi-emblem-diamond	overlay-r3	no-ps3	
+air-multi-emblem-ground	overlay-r3	no-ps3	
+air-multi-emblem-stucco	overlay-r3	no-ps3	
+air-multi-emblem-tower	overlay-r3	no-ps3	
+alouhette-helicopter-pirate-mp	overlay-r3	no-ps3	
+capture-idol-silver	overlay-r3	no-ps3	
+cargo-plane-mp	overlay-r3	no-ps3	
+fort-arch-door	overlay-r3	no-ps3	
+fort-coop-gate-1	overlay-r3	no-ps3	
+fort-coop-gate-2	overlay-r3	no-ps3	
+fort-coop-gate-3	overlay-r3	no-ps3	
+fort-coop-gate-4	overlay-r3	no-ps3	
+fort-coop-idol-holder	overlay-r3	no-ps3	
+fort-coop-wall-switch-1	overlay-r3	no-ps3	
+fort-gate-break	overlay-r3	no-ps3	
+fort-gate-courtyard	overlay-r3	no-ps3	
+fort-grate	overlay-r3	no-ps3	
+gaz-van-grenade-launcher	overlay-r3	no-ps3	
+gaz-van-lod0	overlay-r3	no-ps3	
+gold-gan-ivory-gau-pendant	overlay-r3	ps4-material-missing	objects/treasures/ganesh-ivory-gau-pendant/default
+gold-hair-ornament	overlay-r3	ps4-material-missing	objects/treasure-common/bronze-generic/bronze-gen-hair-ornament
+gold-hair-ornament	overlay-r3	ps4-material-missing	objects/treasures/hair-ornament/default
+gold-large-square-ghau	overlay-r3	ps4-material-missing	objects/treasures/large-square-ghau/default
+gold-treasure-aj	overlay-r3	ps4-material-missing	objects/treasure/treasures-gold/item-aj
+gompa-destruct-rail-1x1	overlay-r3	no-ps3	
+gompa-destruct-rail-2x1	overlay-r3	no-ps3	
+gompa-destruct-rail-endcap-a	overlay-r3	no-ps3	
+gompa-lantern-a	overlay-r3	no-ps3	
+gompa-lantern-b	overlay-r3	no-ps3	
+gompa-lantern-c	overlay-r3	no-ps3	
+grave-moving-big	overlay-r3	no-ps3	
+graveyard-container	overlay-r3	no-ps3	
+grv-col-multi-buoy-tall	overlay-r3	no-ps3	
+grv-col-multi-tugboat-busted-rail	overlay-r3	no-ps3	
+grv-col-multi-wide-ships-a	overlay-r3	no-ps3	
+grv-col-multi-wide-ships-b	overlay-r3	no-ps3	
+grv-col-multi-wreck-tugboat	overlay-r3	no-ps3	
+hematite-lions-nepal	overlay-r3	ps4-material-missing	objects/treasure-common/treasure-hematite-gen/hematite-lions-nepal
+ldn-arch-break	overlay-r3	no-ps3	
+ldn-fence-break	overlay-r3	no-ps3	
+ldn-street-garage-door	overlay-r3	no-ps3	
+lt-box00	overlay-r3	no-ps3	
+lt-box01	overlay-r3	no-ps3	
+lt-box02	overlay-r3	no-ps3	
+lt-box03	overlay-r3	no-ps3	
+lt-box04	overlay-r3	no-ps3	
+lt-box05	overlay-r3	no-ps3	
+lt-box06	overlay-r3	no-ps3	
+lt-box07	overlay-r3	no-ps3	
+lt-box08	overlay-r3	no-ps3	
+lt-box09	overlay-r3	no-ps3	
+lt-box10	overlay-r3	no-ps3	
+lt-box11	overlay-r3	no-ps3	
+lt-box12	overlay-r3	no-ps3	
+lt-box13	overlay-r3	no-ps3	
+lt-box14	overlay-r3	no-ps3	
+lt-box15	overlay-r3	no-ps3	
+lt-box16	overlay-r3	no-ps3	
+lt-box17	overlay-r3	no-ps3	
+lt-box18	overlay-r3	no-ps3	
+lt-box19	overlay-r3	no-ps3	
+lt-box20	overlay-r3	no-ps3	
+lt-box31	overlay-r3	no-ps3	
+lt-box32	overlay-r3	no-ps3	
+lt-box33	overlay-r3	no-ps3	
+lt-box36	overlay-r3	no-ps3	
+lt-box37	overlay-r3	no-ps3	
+m715-fort	overlay-r3	no-ps3	
+mi-24-heli-lod0	overlay-r3	no-ps3	
+mp-chloe-cat-mask	overlay-r3	TINT-EXTRA	objects/characters/chloe/uncharted3/mp/chloe-cat-mask/default mask=1 ['chloe-legs-tint-mask.tga']
+mp-chloe-elena-headband-00	overlay-r3	TINT-LOST	objects/elena/uncharted3/elena-mp/mp-elena-headband-00/default tint=0 mask=0 []
+mp-chloe-hat-a	overlay-r3	ps4-material-missing	objects/characters/chloe/uncharted3/mp/chloe-hair-mp-syria/mp
+mp-chloe-marlowe-desert-wrap-a	overlay-r3	ps4-material-missing	objects/characters/marlowe/mp/marlowe-desert-wrap/default
+mp-chloe-marlowe-hat-a	overlay-r3	ps4-material-missing	objects/characters/marlowe/mp/marlowe-hat-veil-mp/default
+mp-chloe-marlowe-mask-a	overlay-r3	TINT-LOST	objects/characters/marlowe/mp/marlowe-mask-mp/default tint=0 mask=0 []
+mp-chloe-navy-hat	overlay-r3	TINT-EXTRA	objects/characters/chloe/uncharted3/mp/chloe-hair-mp-syria/mp mask=1 ['chloe-navy-hat-tint-mask.tga']
+mp-chloe-navy-hat	overlay-r3	TINT-LOST	objects/characters/chloe/uncharted3/mp/chloe-navy-hat/default tint=0 mask=0 []
+mp-chloe-skel	overlay-r3	ps4-material-missing	objects/characters/u2-mp-characters/skeleton/mp-skeleton/default
+mp-chloe-unicorn-mask	overlay-r3	tint-ok	objects/characters/chloe/uncharted3/mp/chloe-unicorn-mask/default ['chloe-unicorn-mask-tint-mask.tga']
+mp-chloe-winter-hat	overlay-r3	tint-ok	objects/characters/chloe/uncharted3/mp/winter-chloe-hat/default ['winter-chloe-hat-tint-mask.tga']
+mp-chloe-young-marlowe-hat-a	overlay-r3	ps4-material-missing	objects/characters/marlowe/marlowe-hair/mp
+mp-chloe-young-marlowe-hat-a	overlay-r3	ps4-material-missing	objects/characters/marlowe/mp/young-marlowe-hat-mp/default
+mp-coop-cutter	overlay-r3	ps4-material-missing	objects/characters/mp-kit/legs/mp-kit-holster-a-00/default
+mp-hero-agent-b-legs	overlay-r3	ps4-material-missing	objects/characters/npc-sp/agent/feet/mp/agent-feet-shoes-a-mp/default
+mp-hero-agent-b-legs	overlay-r3	ps4-material-missing	objects/characters/npc-sp/agent/legs/mp/agent-legs-pants-a-mp/default
+mp-hero-agent-b-torso	overlay-r3	tint-ok	objects/characters/npc-sp/agent/torso/mp/agent-torso-jacket-a-mp/default ['agent-torso-jacket-a-mp-tint-mask.tga']
+mp-hero-bed-leader-goggles-a	overlay-r3	TINT-LOST	objects/characters/bedouin-leader/mp/mp-goggles/default tint=0 mask=0 []
+mp-hero-crown	overlay-r3	TINT-LOST	objects/characters/hero/french/mp/drake-crown/default tint=0 mask=0 []
+mp-hero-cutter-torso-w-scarf	overlay-r3	tint-ok	objects/characters/cutter/mp/cutter-scarf/default ['cutter-jacket-tint-mask.tga']
+mp-hero-cutter-torso-w-scarf	overlay-r3	tint-ok	objects/characters/cutter/mp/jacket-mp/default ['cutter-jacket-tint-mask.tga']
+mp-hero-eddie-glasses	overlay-r3	ps4-material-missing	objects/characters/u2-mp-characters/eddie/mp-eddie-hair/default
+mp-hero-fat-talbot-legs	overlay-r3	ps4-material-missing	objects/characters/talbot/mp/mp-talbot-pants/default
+mp-hero-fat-talbot-legs	overlay-r3	ps4-material-missing	objects/characters/talbot/talbot-shoes/default-2
+mp-hero-fat-talbot-torso	overlay-r3	tint-ok	objects/characters/talbot/mp/mp-talbot-jacket/default ['mp-talbot-torso-suit-tint-mask.tga']
+mp-hero-fat-talbot-torso	overlay-r3	TINT-EXTRA	objects/characters/talbot/talbot-teeth/default mask=1 ['flat-tint-mask.tga']
+mp-hero-fat-talbot-torso	overlay-r3	TINT-EXTRA	objects/characters/talbot/talbot-tongue/default mask=1 ['flat-tint-mask.tga']
+mp-hero-flynn-coop	overlay-r3	TINT-EXTRA	objects/characters/u2-mp-characters/flynn/flynn-body-coop/default mask=0 []
+mp-hero-flynn-coop	overlay-r3	TINT-EXTRA	objects/characters/u2-mp-characters/flynn/flynn-boots-mp/default mask=0 []
+mp-hero-flynn-coop	overlay-r3	TINT-LOST	objects/characters/u2-mp-characters/flynn/flynn-pants-mp-coop/default tint=1 mask=0 []
+mp-hero-french-part-hat-a	overlay-r3	ps4-material-missing	objects/characters/hero/french/mp/new-hair-2-mp/default
+mp-hero-french-part-hat-a	overlay-r3	ps4-material-missing	objects/characters/hero/french/mp/new-hair-no-alpha-mp/default
+mp-hero-french-part-hat-a	overlay-r3	TINT-LOST	objects/characters/npc-sp/cartagena/helmet/cartagena-civ-helmet-hat-a-00/default tint=0 mask=0 []
+mp-hero-french-part-hat-top	overlay-r3	ps4-material-missing	objects/characters/hero/london/mp/mp-tophat/default
+mp-hero-french-part-monocle	overlay-r3	ps4-material-missing	objects/characters/hero/london/mp/london-monocle/default
+mp-hero-french-torso-coop	overlay-r3	tint-ok	objects/characters/hero/french/mp/french-pants-mp/default ['mp-drake-desert-pants-tint-mask.tga']
+mp-hero-french-torso-coop	overlay-r3	ps4-material-missing	objects/characters/hero/french/mp/french-shirt-mp-coop/default
+mp-hero-guerro-legs	overlay-r3	ps4-material-missing	objects/characters/ngp/guerro/mp-ngp-guerro-head/default
+mp-hero-guerro-legs	overlay-r3	ps4-material-missing	objects/characters/ngp/guerro/mp-ngp-guerro-pants/default
+mp-hero-guerro-torso	overlay-r3	tint-ok	objects/characters/ngp/guerro/mp-ngp-guerro-torso/default ['guerro-body-tint-mask.tga']
+mp-hero-lazarevic-coop	overlay-r3	tint-ok	objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-legs-coop/default ['body-tint-mask.tga']
+mp-hero-lazarevic-coop	overlay-r3	tint-ok	objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-torso-coop/default ['body-tint-mask.tga']
+mp-hero-lazarevic-coop	overlay-r3	tint-ok	objects/characters/u2-mp-characters/roman/mp-roman-pants/default ['body-tint-mask.tga']
+mp-hero-lazarevic-helmet	overlay-r3	TINT-LOST	objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-helmet/default tint=0 mask=0 []
+mp-hero-make-believe-legs	overlay-r3	TINT-LOST	objects/characters/mp-kit/feet/dlc/mp-kit-mb-jeremy-shoes-a-00/body-fma tint=0 mask=0 []
+mp-hero-make-believe-legs	overlay-r3	tint-ok	objects/characters/mp-kit/legs/dlc/mp-kit-mb-jeremy-pants-a-00/default ['mb-shoes-tint-mask.tga']
+mp-hero-make-believe-torso	overlay-r3	tint-ok	objects/characters/mp-kit/torso-inner/dlc/mp-kit-mb-jeremy-shirt-a-00/default ['mb-torso-tint-mask.tga']
+mp-hero-ngp-legs	overlay-r3	TINT-LOST	objects/characters/ngp/ngp-drake/mp-ngp-drake-clothes/default tint=0 mask=0 []
+mp-hero-ngp-legs	overlay-r3	ps4-material-missing	objects/characters/ngp/ngp-drake/mp-ngp-drake-pants/default
+mp-hero-ngp-torso	overlay-r3	tint-ok	objects/characters/ngp/ngp-drake/mp-ngp-drake-clothes/default ['drake-body-tint-mask.tga']
+mp-hero-part-wetsuit-goggles	overlay-r3	TINT-LOST	objects/characters/hero/french/mp/drake-wetsuit-goggles/default tint=0 mask=0 []
+mp-hero-ramses-equip-legs	overlay-r3	tint-ok	objects/characters/pirate-leader/mp/mp-pirate-leader-legs-pants-a-00/default ['mp-kit-pirate-torso-in-shirt-a-00-tint-mask.tga']
+mp-hero-ramses-equip-torso	overlay-r3	tint-ok	objects/characters/pirate-leader/mp/mp-pirate-leader-torso-in-shirt-a-00/default ['mp-kit-pirate-torso-in-shirt-a-00-tint-mask.tga']
+mp-hero-ramses-hat	overlay-r3	ps4-material-missing	objects/characters/pirate-leader/mp/mp-pirate-leader-helmet-hat-a-00/default
+mp-hero-skel-bones-glow	overlay-r3	TINT-EXTRA	objects/characters/u2-mp-characters/skeleton/mp-skeleton/default mask=0 []
+mp-hero-sullivan-head-ascot	overlay-r3	ps4-material-missing	objects/characters/sullivan/mp/mp-ascot/default
+mp-hero-sullivan-part-glasses-a	overlay-r3	TINT-LOST	objects/characters/sullivan/mp/mp-sunglasses/default tint=0 mask=0 []
+mp-hero-sullivan-part-hat-bowler	overlay-r3	ps4-material-missing	objects/characters/sullivan/mp/mp-bowler/default
+mp-hero-sullivan-part-hat-e	overlay-r3	ps4-material-missing	objects/characters/sullivan/mp/fedora-hat-mp/default
+mp-hero-sullivan-part-roundglasses	overlay-r3	TINT-LOST	objects/characters/sullivan/mp/mp-glasses/default tint=0 mask=0 []
+mp-hero-talbot-hat-cowboy	overlay-r3	ps4-material-missing	objects/characters/talbot/mp-talbot-cowboyhat/default
+mp-hero-talbot-mask-a	overlay-r3	TINT-LOST	objects/characters/talbot/mp-talbot-mask/default tint=0 mask=0 []
+mp-hero-thug-e-legs	overlay-r3	ps4-material-missing	objects/characters/npc-sp/euro-thug/feet/mp/euro-thug-feet-shoe-c-mp/mp
+mp-hero-thug-e-legs	overlay-r3	ps4-material-missing	objects/characters/npc-sp/euro-thug/torso/mp/thug-c-mp/default
+mp-hero-thug-e-torso	overlay-r3	tint-ok	objects/characters/npc-sp/euro-thug/torso/mp/euro-thug-torso-in-shirt-f-mp/default ['mp-kit-euro-thug-torso-in-shirt-f-mp-tint-mask.tga']
+mp-kit-base-arms-hands-skin-c-00	overlay-r3	ps4-material-missing	objects/characters/mp-kit/torso-inner/mp-kit-base-skin-c-00/default
+mp-kit-base-arms-should-skin-b-00	overlay-r3	ps4-material-missing	objects/characters/mp-kit/torso-inner/mp-kit-base-skin-b-00/torso
+mp-kit-base-arms-should-skin-c-00	overlay-r3	ps4-material-missing	objects/characters/mp-kit/torso-inner/mp-kit-base-skin-c-00/torso
+mp-kit-base-head-skin-b-00	overlay-r3	ps4-material-missing	objects/characters/mp-kit/heads/mp-kit-eyes-b-00/default
+mp-kit-base-head-skin-c-00	overlay-r3	ps4-material-missing	objects/characters/mp-kit/heads/mp-kit-base-head-skin-c-00/default
+mp-kit-base-neck-skin-b-00	overlay-r3	ps4-material-missing	objects/characters/mp-kit/heads/mp-kit-base-head-skin-b-00/default
+mp-kit-base-neck-skin-c-00	overlay-r3	ps4-material-missing	objects/characters/mp-kit/heads/mp-kit-base-head-skin-c-00/default
+mp-kit-clown-mask-a	overlay-r3	tint-ok	objects/characters/mp-kit/helmet/mp-kit-clownmask-a-00/default ['ndi-clown-mask-a-00-tint-mask.tga']
+mp-kit-clown-mask-b	overlay-r3	tint-ok	objects/characters/mp-kit/helmet/mp-kit-clownmask-b-00/default ['mp-kit-clown-mask-b-00-tint-mask.tga']
+mp-kit-clown-mask-c	overlay-r3	tint-ok	objects/characters/mp-kit/helmet/mp-kit-clownmask-c-00/default ['ndi-clown-mask-a-00-tint-mask.tga']
+mp-kit-clown-mask-d	overlay-r3	tint-ok	objects/characters/mp-kit/helmet/mp-kit-clownmask-d-00/default ['ndi-clown-mask-a-00-tint-mask.tga']
+mp-kit-clown-mask-ndi	overlay-r3	tint-ok	objects/characters/mp-kit/helmet/mp-kit-clownmask-ndi/default ['ndi-clown-mask-a-00-tint-mask.tga']
+mp-kit-hunter-arms-gloves-b	overlay-r3	TINT-LOST	objects/characters/mp-kit/arms/treasure-hunter/mp-kit-treasure-hunter-arms-gloves-b-00/default tint=0 mask=0 []
+mp-kit-hunter-arms-gloves-c	overlay-r3	TINT-LOST	objects/characters/mp-kit/arms/treasure-hunter/mp-kit-treasure-hunter-arms-gloves-c-00/default tint=0 mask=0 []
+mp-kit-hunter-feet-boots-b	overlay-r3	tint-ok	objects/characters/mp-kit/feet/treasure-hunter/mp-kit-treasure-hunter-feet-boots-b-00/body-fma ['mp-kit-treasure-hunter-feet-boots-b-00-tint-mask.tga']
+mp-kit-hunter-feet-boots-c	overlay-r3	tint-ok	objects/characters/mp-kit/feet/treasure-hunter/mp-kit-treasure-hunter-feet-shoes-a-00/body-fma ['mp-kit-treasure-hunter-feet-shoes-a-00-tint-mask.tga']
+mp-kit-hunter-feet-boots-d	overlay-r3	tint-ok	objects/characters/mp-kit/feet/treasure-hunter/mp-kit-treasure-hunter-feet-shoes-d-00/body-fma ['mp-kit-treasure-hunter-feet-shoes-d-00-tint-mask.tga']
+mp-kit-hunter-feet-shoes-c	overlay-r3	TINT-EXTRA	objects/characters/mp-kit/feet/treasure-hunter/mp-kit-treasure-hunter-feet-shoes-c-00/body-fma mask=1 ['mp-kit-treasure-hunter-feet-boots-a-00-tint-mask.tga']
+mp-kit-hunter-head-glasses-a	overlay-r3	tint-ok	objects/characters/mp-kit/helmet/treasure-hunter/mp-kit-treasure-hunter-helmet-sunglasses-a-00/default ['mp-kit-treasure-hunter-helmet-sunglasses-a-00-tint-mask.tga']
+mp-kit-hunter-head-hat-a	overlay-r3	tint-ok	objects/characters/mp-kit/helmet/mp-hunter-fedora/default ['cartagena-civ-helmet-hat-mp-00-tint-mask.tga']
+mp-kit-hunter-head-hat-b	overlay-r3	TINT-EXTRA	objects/characters/npc-sp/cartagena/helmet/cartagena-civ-helmet-hat-c-00/default mask=1 ['cartagena-civ-helmet-hat-a-00-tint-mask.tga']
+mp-kit-hunter-head-hat-c	overlay-r3	TINT-EXTRA	objects/characters/npc-sp/cartagena/helmet/cartagena-civ-helmet-hat-b-00/default mask=1 ['cartagena-civ-helmet-hat-a-00-tint-mask.tga']
+mp-kit-hunter-legs-pants-a	overlay-r3	tint-ok	objects/characters/mp-kit/legs/treasure-hunter/mp-kit-treasure-hunter-legs-pants-a-00/default ['mp-kit-treasure-hunter-legs-pants-a-00-tint-mask.tga']
+mp-kit-hunter-legs-pants-b	overlay-r3	tint-ok	objects/characters/mp-kit/legs/treasure-hunter/mp-kit-treasure-hunter-legs-pants-b-00/default ['mp-kit-treasure-hunter-legs-pants-b-00-tint-mask.tga']
+mp-kit-hunter-legs-pants-d	overlay-r3	tint-ok	objects/characters/mp-kit/legs/treasure-hunter/mp-kit-treasure-hunter-legs-pants-c-00/default ['mp-kit-treasure-hunter-legs-pants-c-00-tint-mask.tga']
+mp-kit-hunter-legs-pants-e	overlay-r3	tint-ok	objects/characters/mp-kit/legs/treasure-hunter/mp-kit-treasure-hunter-legs-pants-d-00/default ['mp-kit-treasure-hunter-legs-pants-d-00-tint-mask.tga']
+mp-kit-hunter-legs-pants-k	overlay-r3	tint-ok	objects/characters/mp-kit/legs/treasure-hunter/mp-kit-treasure-hunter-legs-pants-k-00/default ['mp-kit-treasure-hunter-legs-pants-k-00-tint-mask.tga']
+mp-kit-hunter-legs-pants-l	overlay-r3	tint-ok	objects/characters/mp-kit/legs/treasure-hunter/mp-kit-treasure-hunter-legs-pants-i-00/default ['mp-kit-treasure-hunter-legs-pants-l-00-tint-mask.tga']
+mp-kit-hunter-legs-pants-m	overlay-r3	tint-ok	objects/characters/mp-kit/legs/treasure-hunter/mp-kit-treasure-hunter-legs-pants-m-00/default ['mp-kit-treasure-hunter-legs-pants-m-00-tint-mask.tga']
+mp-kit-hunter-legs-pants-n	overlay-r3	tint-ok	objects/characters/mp-kit/legs/treasure-hunter/mp-kit-treasure-hunter-legs-pants-n-00/default ['mp-kit-treasure-hunter-legs-pants-n-00-tint-mask.tga']
+mp-kit-hunter-legs-pants-o	overlay-r3	tint-ok	objects/characters/mp-kit/legs/treasure-hunter/mp-kit-treasure-hunter-legs-pants-o-00/default ['mp-kit-treasure-hunter-legs-pants-o-00-tint-mask.tga']
+mp-kit-hunter-torso-jacket-a	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-a-00/default tint=0 mask=0 []
+mp-kit-hunter-torso-jacket-b	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-b-00/default tint=0 mask=0 []
+mp-kit-hunter-torso-jacket-c	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-c-00/default tint=0 mask=0 []
+mp-kit-hunter-torso-jacket-d	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-d-00/default tint=0 mask=0 []
+mp-kit-hunter-torso-jacket-e	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-e-00/default tint=0 mask=0 []
+mp-kit-hunter-torso-jacket-f	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-f-00/default tint=0 mask=0 []
+mp-kit-hunter-torso-shirt-a	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-a-00/default tint=0 mask=0 []
+mp-kit-hunter-torso-shirt-c	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-g-00/default tint=0 mask=0 []
+mp-kit-hunter-torso-shirt-d-00	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-e-00/default tint=0 mask=0 []
+mp-kit-hunter-torso-shirt-d	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-f-00/default tint=0 mask=0 []
+mp-kit-hunter-torso-shirt-f	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-c-00/default tint=0 mask=0 []
+mp-kit-hunter-torso-vest-d	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-vest-d-00/default tint=0 mask=0 []
+mp-kit-killzone-full-a	overlay-r3	ps4-material-missing	objects/characters/guerilla/hgh/mp-hgh-body/default
+mp-kit-killzone-full-a	overlay-r3	ps4-material-missing	objects/characters/guerilla/hgh/mp-hgh-full/default
+mp-kit-killzone-full-a	overlay-r3	TINT-LOST	objects/characters/guerilla/hgh/mp-hgh-head/default tint=0 mask=0 []
+mp-kit-killzone-full-helmet-a	overlay-r3	tint-ok	objects/characters/guerilla/hgh/mp-hgh-head/default ['hgh-head-tint-mask.tga']
+mp-kit-killzone-helmet-a	overlay-r3	TINT-LOST	objects/characters/guerilla/ice/mp-ice-head/default tint=0 mask=0 []
+mp-kit-merc-arms-gloves-b	overlay-r3	TINT-LOST	objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-b-00/default tint=0 mask=0 []
+mp-kit-merc-arms-gloves-d	overlay-r3	TINT-LOST	objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-d-00/default tint=0 mask=0 []
+mp-kit-merc-arms-gloves-f	overlay-r3	TINT-LOST	objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-f-00/default tint=0 mask=0 []
+mp-kit-merc-arms-gloves-g	overlay-r3	TINT-LOST	objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-g-00/default tint=0 mask=0 []
+mp-kit-merc-arms-gloves-h	overlay-r3	TINT-LOST	objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-h-00/default tint=0 mask=0 []
+mp-kit-merc-arms-gloves-i	overlay-r3	TINT-LOST	objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-i-00/default tint=0 mask=0 []
+mp-kit-merc-feet-boots-b	overlay-r3	TINT-EXTRA	objects/characters/mp-kit/feet/mercenary/mp-kit-mercenary-feet-boots-b-00/body-fma mask=1 ['mp-kit-treasure-hunter-feet-boots-a-00-tint-mask.tga']
+mp-kit-merc-feet-boots-c	overlay-r3	tint-ok	objects/characters/mp-kit/feet/mercenary/mp-kit-mercenary-feet-boots-c-00/body-fma ['mp-kit-mercenary-feet-boots-c-00-tint-mask.tga']
+mp-kit-merc-feet-boots-f	overlay-r3	tint-ok	objects/characters/mp-kit/feet/mercenary/mp-kit-mercenary-feet-boots-f-00/body-fma ['mp-kit-mercenary-feet-boots-f-00-tint-mask.tga']
+mp-kit-merc-feet-boots-g	overlay-r3	tint-ok	objects/characters/mp-kit/feet/mercenary/mp-kit-mercenary-feet-boots-g-00/body-fma ['mp-kit-mercenary-feet-boots-g-00-tint-mask.tga']
+mp-kit-merc-head-glasses-a	overlay-r3	tint-ok	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-glasses-a-00/default ['mp-kit-mercenary-helmet-glasses-a-00-tint-mask.tga']
+mp-kit-merc-head-hat-c	overlay-r3	TINT-EXTRA	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-hat-c-00/default mask=1 ['cartagena-civ-helmet-hat-a-00-tint-mask.tga']
+mp-kit-merc-head-hat-d	overlay-r3	tint-ok	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-hat-d-00/default ['mp-kit-mercenary-helmet-hat-d-00-tint-mask.tga']
+mp-kit-merc-head-hat-e	overlay-r3	TINT-EXTRA	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-hat-e-00/default mask=1 ['cartagena-civ-helmet-hat-a-00-tint-mask.tga']
+mp-kit-merc-head-helmet-a	overlay-r3	tint-ok	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-a-00/default ['mp-kit-mercenary-helmet-helmet-a-00-tint-mask.tga']
+mp-kit-merc-head-helmet-b	overlay-r3	TINT-LOST	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-b-00/default tint=0 mask=0 []
+mp-kit-merc-head-helmet-c	overlay-r3	TINT-LOST	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-f-00/default tint=0 mask=0 []
+mp-kit-merc-head-helmet-d	overlay-r3	tint-ok	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-k-00/default ['mp-kit-mercenary-helmet-helmet-d-00-tint-mask.tga']
+mp-kit-merc-head-helmet-e	overlay-r3	TINT-LOST	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-e-00/default tint=0 mask=0 []
+mp-kit-merc-head-helmet-g	overlay-r3	tint-ok	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-g-00/default ['mp-kit-mercenary-helmet-helmet-g-00-tint-mask.tga']
+mp-kit-merc-head-helmet-j	overlay-r3	tint-ok	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-j-00/default ['mp-kit-mercenary-helmet-helmet-j-00-tint-mask.tga']
+mp-kit-merc-head-mask-a	overlay-r3	TINT-LOST	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-mask-a-00/default tint=0 mask=0 []
+mp-kit-merc-head-mask-d	overlay-r3	TINT-EXTRA	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-mask-d-00/default mask=1 ['cartagena-civ-helmet-hat-a-00-tint-mask.tga']
+mp-kit-merc-head-wrap-a	overlay-r3	TINT-LOST	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-wrap-a-00/default tint=0 mask=0 []
+mp-kit-merc-head-wrap-b	overlay-r3	TINT-LOST	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-wrap-b-00/default tint=0 mask=0 []
+mp-kit-merc-legs-pants-a	overlay-r3	tint-ok	objects/characters/mp-kit/legs/mercenary/mp-kit-mercenary-legs-pants-a-00/default ['mp-kit-mercenary-legs-pants-a-00-tint-mask.tga']
+mp-kit-merc-legs-pants-b	overlay-r3	tint-ok	objects/characters/mp-kit/legs/mercenary/mp-kit-mercenary-legs-pants-b-00/default ['mp-kit-mercenary-legs-pants-b-00-tint-mask.tga']
+mp-kit-merc-legs-pants-f	overlay-r3	ps4-material-missing	objects/characters/mp-kit/legs/mercenary/mp-kit-mercenary-legs-pants-f-00/default
+mp-kit-merc-legs-pants-f	overlay-r3	TINT-EXTRA	objects/characters/mp-kit/legs/mp-kit-holster-a-00/default mask=1 ['mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga']
+mp-kit-merc-legs-pants-h	overlay-r3	ps4-material-missing	objects/characters/mp-kit/legs/mercenary/mp-kit-mercenary-legs-pants-h-00/default
+mp-kit-merc-legs-pants-h	overlay-r3	TINT-EXTRA	objects/characters/mp-kit/legs/mp-kit-holster-a-00/default mask=1 ['mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga']
+mp-kit-merc-torso-armor-a	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-outer/mercenary/mp-kit-mercenary-torso-out-armor-a-00/default tint=0 mask=0 []
+mp-kit-merc-torso-armor-b	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-outer/mercenary/mp-kit-mercenary-torso-out-armor-b-00/default tint=0 mask=0 []
+mp-kit-merc-torso-armor-e	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-outer/mercenary/mp-kit-mercenary-torso-out-armor-e-00/default tint=0 mask=0 []
+mp-kit-merc-torso-jacket-b	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-outer/mercenary/mp-kit-mercenary-torso-out-jacket-b-00/default tint=0 mask=0 []
+mp-kit-merc-torso-shirt-a	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-inner/mercenary/mp-kit-mercenary-torso-in-shirt-a-00/default tint=0 mask=0 []
+mp-kit-merc-torso-shirt-b	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-inner/mercenary/mp-kit-mercenary-torso-in-shirt-b-00/default tint=0 mask=0 []
+mp-kit-merc-torso-shirt-c	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-inner/mercenary/mp-kit-mercenary-torso-in-shirt-c-00/default tint=0 mask=0 []
+mp-kit-merc-torso-vest-b	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-inner/mercenary/mp-kit-mercenary-torso-in-vest-b-00/default tint=0 mask=0 []
+mp-kit-pirate-arms-gloves-b-00	overlay-r3	TINT-LOST	objects/characters/mp-kit/arms/mp-kit-pirate-arms-gloves-b-00/default tint=0 mask=0 []
+mp-kit-pirate-feet-boots-b-00	overlay-r3	TINT-LOST	objects/characters/mp-kit/feet/mp-kit-pirate-feet-boots-b-00/body-fma tint=0 mask=0 []
+mp-kit-pirate-feet-boots-c-00	overlay-r3	TINT-LOST	objects/characters/mp-kit/feet/mp-kit-pirate-feet-boots-c-00/body-fma tint=0 mask=0 []
+mp-kit-pirate-feet-sandles-a-00	overlay-r3	TINT-LOST	objects/characters/mp-kit/feet/mp-kit-pirate-feet-sandals-a-00/body-fma tint=0 mask=0 []
+mp-kit-pirate-feet-sandles-b-00	overlay-r3	TINT-LOST	objects/characters/mp-kit/feet/mp-kit-pirate-feet-sandals-b-00/body-fma tint=0 mask=0 []
+mp-kit-pirate-helmet-hat-a-00	overlay-r3	TINT-EXTRA	objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-hat-a-00/default mask=1 ['cartagena-civ-helmet-hat-a-00-tint-mask.tga']
+mp-kit-pirate-helmet-wrap-a-00	overlay-r3	TINT-LOST	objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-00/default tint=0 mask=0 []
+mp-kit-pirate-helmet-wrap-a-03	overlay-r3	TINT-LOST	objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-03/default tint=0 mask=0 []
+mp-kit-pirate-helmet-wrap-a-04	overlay-r3	TINT-LOST	objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-04/default tint=0 mask=0 []
+mp-kit-pirate-helmet-wrap-a-06	overlay-r3	TINT-LOST	objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-06/default tint=0 mask=0 []
+mp-kit-pirate-helmet-wrap-b-00	overlay-r3	TINT-LOST	objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-b-00/default tint=0 mask=0 []
+mp-kit-pirate-legs-pants-a-00	overlay-r3	TINT-EXTRA	objects/characters/mp-kit/legs/mp-kit-holster-a-00/default mask=1 ['mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga']
+mp-kit-pirate-legs-pants-a-00	overlay-r3	ps4-material-missing	objects/characters/mp-kit/legs/mp-kit-pirate-legs-pants-a-00/default
+mp-kit-pirate-legs-pants-b-00	overlay-r3	TINT-EXTRA	objects/characters/mp-kit/legs/mp-kit-holster-a-00/default mask=1 ['mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga']
+mp-kit-pirate-legs-pants-b-00	overlay-r3	ps4-material-missing	objects/characters/mp-kit/legs/mp-kit-pirate-legs-pants-b-00/default
+mp-kit-pirate-legs-pants-c-00	overlay-r3	TINT-EXTRA	objects/characters/mp-kit/legs/mp-kit-holster-a-00/default mask=1 ['mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga']
+mp-kit-pirate-legs-pants-c-00	overlay-r3	ps4-material-missing	objects/characters/mp-kit/legs/mp-kit-pirate-legs-pants-c-00/default
+mp-kit-pirate-legs-pants-c-01	overlay-r3	ps4-material-missing	objects/characters/mp-kit/legs/mp-kit-holster-a-00/default
+mp-kit-pirate-legs-pants-c-01	overlay-r3	TINT-EXTRA	objects/characters/mp-kit/legs/mp-kit-pirate-legs-pants-c-01/default mask=1 ['mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga']
+mp-kit-pirate-legs-pants-c-03	overlay-r3	TINT-EXTRA	objects/characters/mp-kit/legs/mp-kit-holster-a-00/default mask=1 ['mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga']
+mp-kit-pirate-legs-pants-c-03	overlay-r3	ps4-material-missing	objects/characters/mp-kit/legs/mp-kit-pirate-legs-pants-c-03/default
+mp-kit-pirate-legs-pants-d-00	overlay-r3	TINT-EXTRA	objects/characters/mp-kit/legs/mp-kit-holster-a-00/default mask=1 ['mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga']
+mp-kit-pirate-legs-pants-d-00	overlay-r3	ps4-material-missing	objects/characters/mp-kit/legs/mp-kit-pirate-legs-pants-d-00/default
+mp-kit-pirate-torso-in-shirt-a-00	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-inner/mp-kit-pirate-torso-in-shirt-a-00/default tint=0 mask=0 []
+mp-kit-pirate-torso-in-shirt-a-04	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-inner/mp-kit-pirate-torso-in-shirt-a-04/default tint=0 mask=0 []
+mp-kit-pirate-torso-in-shirt-c-00	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-inner/mp-kit-pirate-torso-in-shirt-c-00/default tint=0 mask=0 []
+mp-kit-pirate-torso-out-jacket-e-00	overlay-r3	TINT-LOST	objects/characters/mp-kit/torso-outer/mp-kit-pirate-torso-out-jacket-e-00/default tint=0 mask=0 []
+mp-kit-shared-monster-mask	overlay-r3	TINT-LOST	objects/characters/shambala-creature/creature/lod0 tint=0 mask=0 []
+mp-kit-shared-monster-mask	overlay-r3	TINT-EXTRA	objects/characters/shambala-creature/teeth/lod0 mask=1 ['drake-london-dirty-tint-mask.tga']
+mp-wrk-crash-boxcar	overlay-r3	no-ps3	
+mp-wrk-explode-tanker-lod1	overlay-r3	no-ps3	
+mp-wrk-explode-tanker	overlay-r3	no-ps3	
+oasis-4x2x2-contnair	overlay-r3	no-ps3	
+pirate-armor-a-full-mp	overlay-r3	tint-ok	objects/characters/mp-kit/arms/mp-kit-pirate-arms-gloves-b-00/default ['mp-kit-pirate-arms-gloves-b-00-tint-mask.tga']
+pirate-armor-a-full-mp	overlay-r3	ps4-material-missing	objects/characters/mp-kit/heads/mp-kit-base-head-skin-b-00/do-not-use
+pirate-armor-a-full-mp	overlay-r3	ps4-material-missing	objects/characters/mp-kit/heads/mp-kit-eyes-b-00/default
+pirate-armor-a-full-mp	overlay-r3	ps4-material-missing	objects/characters/mp-kit/torso-inner/mp-kit-base-skin-b-00/arms
+pirate-armor-a-full-mp	overlay-r3	ps4-material-missing	objects/characters/mp-kit/torso-inner/mp-kit-base-skin-b-00/torso
+pirate-armor-a-full-mp	overlay-r3	ps4-material-missing	objects/characters/npc-normal/soldier-armor/acc-pirate-armor/acc-29
+pirate-armor-a-full-mp	overlay-r3	TINT-EXTRA	objects/characters/npc-sp/pirate/feet/sp-pirate-feet-boots-b-00/body-fma mask=0 []
+pirate-boat-multi	overlay-r3	no-ps3	
+pumpkin-fish-school	overlay-r3	no-ps3	
+rover-4d-agent-hvk-fort	overlay-r3	no-ps3	
+sd-edge	overlay-r3	no-ps3	
+sd12-tunnel-sh	overlay-r3	no-ps3	
+sd17-rf-e	overlay-r3	no-ps3	
+sd17-rf-n	overlay-r3	no-ps3	
+sd17-st-el	overlay-r3	no-ps3	
+sd17-st-eu	overlay-r3	no-ps3	
+sd17-st-nl	overlay-r3	no-ps3	
+sd17-st-nu	overlay-r3	no-ps3	
+sd2-goal-0	overlay-r3	no-ps3	
+sd2-goal-1	overlay-r3	no-ps3	
+sd2-structure-0	overlay-r3	no-ps3	
+sd2-structure-1	overlay-r3	no-ps3	
+sd2-structure-2	overlay-r3	no-ps3	
+sd2-structure-3	overlay-r3	no-ps3	
+sd2-turf-0	overlay-r3	no-ps3	
+sd2-turf-1	overlay-r3	no-ps3	
+sd22-mouth	overlay-r3	no-ps3	
+sd22-spawn	overlay-r3	no-ps3	
+sd22-tbase	overlay-r3	no-ps3	
+sd23-flags	overlay-r3	no-ps3	
+sd9-tower	overlay-r3	no-ps3	
+sd9-var	overlay-r3	no-ps3	
+shark-mako	overlay-r3	no-ps3	
+silver-treasure-ad	overlay-r3	ps4-material-missing	objects/treasure/treasures-gems/item-cq
+silver-treasure-aj	overlay-r3	ps4-material-missing	objects/treasure/treasure-silver-2ndset/item-cv
+t62-drum-scrap	overlay-r3	no-ps3	
+t62-scrap	overlay-r3	no-ps3	
+t62-tank-lod0	overlay-r3	no-ps3	
+t62-tank-mg-turret-lod1	overlay-r3	no-ps3	
+t62-tank-mg-turret	overlay-r3	no-ps3	
+t62-tank-mp	overlay-r3	no-ps3	
+vil-m-cover-low-col	overlay-r3	no-ps3	
+vil-m-cover-low	overlay-r3	no-ps3	
+vil-m-cover-tall-col	overlay-r3	no-ps3	
+vil-m-cover-tall	overlay-r3	no-ps3	
+vil-multi-gateway-door	overlay-r3	no-ps3	
+vil4-break-bldng-a-multi	overlay-r3	no-ps3	
+vil4-break-bldng-a	overlay-r3	no-ps3	
+vil4-gateway-destruct	overlay-r3	no-ps3	
+vulture-fma	overlay-r3	no-ps3	
+vulture	overlay-r3	no-ps3	
+wz-blowup-fiat-a	overlay-r3	no-ps3	
+yem-luggage-a	overlay-r3	no-ps3	
+yem-luggage-b	overlay-r3	no-ps3	
+yem-luggage-c	overlay-r3	no-ps3	
+yem-luggage-d	overlay-r3	no-ps3	
+yem-luggage-e	overlay-r3	no-ps3	
+yem-luggage-rack-1	overlay-r3	no-ps3	
+crate-wood-1x1x1-a-break-des	overlay-port	no-ps3	
+crate-wood-1x1x1-a-break	overlay-port	no-ps3	
+crate-wood-2x1x1-a	overlay-port	no-ps3	
+fort-coop-antenna-wire	overlay-port	no-ps3	
+fort-coop-gate-5	overlay-port	no-ps3	
+gompa-banner-c	overlay-port	no-ps3	
+gompa-flag-vert-a	overlay-port	no-ps3	
+gompa-prayerbanner-a	overlay-port	no-ps3	
+gompa-prayerbanner-b	overlay-port	no-ps3	
+gompa-streamer-a	overlay-port	no-ps3	
+mp-chloe-artifact-mask	overlay-port	TINT-EXTRA	objects/characters/chloe/uncharted3/mp/chloe-hair-mp-syria/default mask=1 ['chloe-legs-tint-mask.tga']
+mp-chloe-aztec-mask	overlay-port	TINT-EXTRA	objects/characters/chloe/uncharted3/mp/chloe-aztec-mask/default mask=1 ['chloe-legs-tint-mask.tga']
+mp-chloe-devil-wings	overlay-port	TINT-LOST	objects/characters/chloe/uncharted3/mp/chloe-devil-wings/default tint=0 mask=0 []
+mp-chloe-egypt-mask	overlay-port	TINT-LOST	objects/characters/chloe/uncharted3/mp/chloe-egypt-mask/default tint=0 mask=0 []
+mp-chloe-elena-bunny	overlay-port	TINT-LOST	objects/elena/uncharted3/elena-mp/elena-bunny-ears-and-tail/mp tint=0 mask=0 []
+mp-chloe-elena-cheetah-mask	overlay-port	TINT-LOST	objects/elena/uncharted3/elena-mp/elena-cheetah-mask/mp tint=0 mask=0 []
+mp-chloe-elena-female-mask	overlay-port	TINT-LOST	objects/elena/uncharted3/elena-mp/elena-female-mask/mp tint=0 mask=0 []
+mp-chloe-elena-female-mask	overlay-port	TINT-EXTRA	objects/elena/uncharted3/elena-mp/elena-hair-mp-1uvset/default mask=1 ['chloe-legs-tint-mask.tga']
+mp-chloe-elena-foo-dog-mask	overlay-port	TINT-LOST	objects/elena/uncharted3/elena-mp/elena-foo-dog-mask/mp tint=0 mask=0 []
+mp-chloe-elena-giraffe-mask	overlay-port	TINT-LOST	objects/elena/uncharted3/elena-mp/elena-giraffe-mask/mp tint=0 mask=0 []
+mp-chloe-elena-jak-goggles	overlay-port	tint-ok	objects/characters/hero/french/mp/drake-jak-goggles/default ['drake-jak-goggles-tint-mask.tga']
+mp-chloe-elena-mountie-hat	overlay-port	tint-ok	objects/elena/uncharted3/elena-mp/elena-mountie-hat/mp ['elena-mountie-hat-tint-mask.tga']
+mp-chloe-elena-panda-mask	overlay-port	TINT-LOST	objects/elena/uncharted3/elena-mp/elena-panda-mask/mp tint=0 mask=0 []
+mp-chloe-elena-tiara	overlay-port	TINT-LOST	objects/elena/uncharted3/elena-mp/elena-tiara/mp tint=0 mask=0 []
+mp-chloe-elena-veil	overlay-port	TINT-LOST	objects/elena/uncharted3/elena-mp/elena-bride-veil/mp tint=0 mask=0 []
+mp-chloe-headdress	overlay-port	TINT-LOST	objects/characters/chloe/uncharted3/mp/chloe-headdress/default tint=0 mask=0 []
+mp-chloe-jak-goggles	overlay-port	tint-ok	objects/characters/hero/french/mp/drake-jak-goggles/default ['drake-jak-goggles-tint-mask.tga']
+mp-chloe-marlowe-crown	overlay-port	TINT-LOST	objects/characters/marlowe/mp/marlowe-crown/default tint=0 mask=0 []
+mp-chloe-marlowe-gas-mask	overlay-port	TINT-LOST	objects/characters/marlowe/mp/desert-marlowe-mask/default tint=0 mask=0 []
+mp-chloe-marlowe-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-chloe-marlowe-jak-goggles	overlay-port	TINT-EXTRA	objects/characters/marlowe/marlowe-hair/mp mask=1 ['chloe-legs-tint-mask.tga']
+mp-chloe-marlowe-phantom-mask	overlay-port	TINT-EXTRA	objects/characters/marlowe/marlowe-hair/mp mask=1 ['chloe-legs-tint-mask.tga']
+mp-chloe-marlowe-royal-necklace	overlay-port	TINT-LOST	objects/characters/marlowe/mp/suited-marlowe-royal-necklace/default tint=0 mask=0 []
+mp-chloe-marlowe-sunglasses	overlay-port	TINT-LOST	objects/characters/marlowe/mp/marlowe-cat-eye-sunglasses/default tint=0 mask=0 []
+mp-chloe-skull-mask	overlay-port	TINT-LOST	objects/characters/chloe/uncharted3/mp/chloe-skull-mask/default tint=0 mask=0 []
+mp-chloe-snake-mask	overlay-port	TINT-EXTRA	objects/characters/chloe/uncharted3/mp/chloe-hair-mp-syria/default mask=1 ['chloe-snake-mask -tint-mask.tga']
+mp-chloe-snake-mask	overlay-port	TINT-LOST	objects/characters/chloe/uncharted3/mp/chloe-snake-mask/default tint=0 mask=0 []
+mp-chloe-teddy-bear-mask	overlay-port	TINT-LOST	objects/characters/chloe/uncharted3/mp/chloe-teddy-bear-mask/default tint=0 mask=0 []
+mp-chloe-young-marlowe-jak-goggles	overlay-port	tint-ok	objects/characters/hero/french/mp/drake-jak-goggles/default ['drake-jak-goggles-tint-mask.tga']
+mp-hero-agent-a-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-agent-a-police-hat	overlay-port	TINT-LOST	objects/characters/npc-sp/agent/helmet/agent-police-hat/default tint=0 mask=0 []
+mp-hero-agent-a-steampunk-glasses	overlay-port	TINT-LOST	objects/characters/npc-sp/agent/helmet/agent-steampunk-glasses/default tint=0 mask=0 []
+mp-hero-agent-b-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-agent-b-police-hat	overlay-port	TINT-LOST	objects/characters/npc-sp/agent/helmet/agent-police-hat/default tint=0 mask=0 []
+mp-hero-agent-b-steampunk-glasses	overlay-port	TINT-LOST	objects/characters/npc-sp/agent/helmet/agent-steampunk-glasses/default tint=0 mask=0 []
+mp-hero-agent-med-a-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-agent-med-a-police-hat	overlay-port	TINT-LOST	objects/characters/npc-sp/agent/helmet/agent-police-hat/default tint=0 mask=0 []
+mp-hero-agent-med-a-steam-glasses	overlay-port	TINT-LOST	objects/characters/npc-sp/agent/helmet/agent-steampunk-glasses/default tint=0 mask=0 []
+mp-hero-agent-med-a-steampunk-glasses	overlay-port	TINT-LOST	objects/characters/npc-sp/agent/helmet/agent-steampunk-glasses/default tint=0 mask=0 []
+mp-hero-agent-med-b-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-bandana	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-bandana/default tint=0 mask=0 []
+mp-hero-bed-leader-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-bed-leader-mexcian-mask	overlay-port	TINT-LOST	objects/characters/bedouin-leader/mp/salim-mexican-mask/default tint=0 mask=0 []
+mp-hero-bedouin-a-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-bedouin-b-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-bedouin-c-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-cutter-backwards-hat	overlay-port	TINT-LOST	objects/characters/cutter/mp/cutter-backwards-hat/default tint=0 mask=0 []
+mp-hero-cutter-brain	overlay-port	TINT-LOST	objects/characters/cutter/mp/cutter-brain/default tint=0 mask=0 []
+mp-hero-cutter-dogu-mask	overlay-port	TINT-LOST	objects/characters/cutter/mp/cutter-dogu-mask/default tint=0 mask=0 []
+mp-hero-cutter-gas-mask	overlay-port	TINT-LOST	objects/characters/cutter/mp/cutter-gas-mask/default tint=0 mask=0 []
+mp-hero-cutter-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-cutter-samurai-helmet	overlay-port	TINT-LOST	objects/characters/cutter/mp/cutter-samurai-helmet/default tint=0 mask=0 []
+mp-hero-cutter-sombrero	overlay-port	TINT-LOST	objects/characters/cutter/mp/cutter-sombrero/default tint=0 mask=0 []
+mp-hero-dead-agent-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-dead-explorer-hat	overlay-port	TINT-LOST	objects/characters/dead-explorer/dead-explorer-hat/alower tint=0 mask=0 []
+mp-hero-dead-explorer-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-dead-explorer-tree	overlay-port	TINT-LOST	objects/characters/dead-explorer/tree-hat/alower tint=0 mask=0 []
+mp-hero-des-oss-a-gas-mask	overlay-port	TINT-LOST	objects/characters/npc-sp/deset-oss/helmet/mp/desert-agent-13-mask/default tint=0 mask=0 []
+mp-hero-des-oss-a-horns	overlay-port	TINT-LOST	objects/characters/npc-sp/deset-oss/helmet/mp/desert-oss-13-horns/default tint=0 mask=0 []
+mp-hero-des-oss-a-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-des-oss-b-gas-mask	overlay-port	TINT-LOST	objects/characters/npc-sp/deset-oss/helmet/dessert-agent-44-mask/default tint=0 mask=0 []
+mp-hero-des-oss-b-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-des-oss-c-goggles	overlay-port	TINT-LOST	objects/characters/npc-sp/deset-oss/helmet/mp/desert-agent-99-mask/default tint=0 mask=0 []
+mp-hero-des-oss-c-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-eddie-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-eddie-jester-hat	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/eddie/eddie-jester-hat/default tint=0 mask=0 []
+mp-hero-elf-ears	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-elf-ears/default tint=0 mask=0 []
+mp-hero-fat-bed-leader-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-fat-bed-leader-mask	overlay-port	TINT-LOST	objects/characters/cutter/mp/cutter-fat-mask/default tint=0 mask=0 []
+mp-hero-fat-bed-leader-party-hat	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat/default tint=0 mask=0 []
+mp-hero-fat-cutter-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-fat-cutter-party-hat	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat/default tint=0 mask=0 []
+mp-hero-fat-eddie-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-fat-eddie-mask	overlay-port	TINT-LOST	objects/characters/cutter/mp/cutter-fat-mask/default tint=0 mask=0 []
+mp-hero-fat-eddie-party-hat	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat/default tint=0 mask=0 []
+mp-hero-fat-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-fat-lazarevic-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-fat-lazarevic-mask	overlay-port	TINT-LOST	objects/characters/cutter/mp/cutter-fat-mask/default tint=0 mask=0 []
+mp-hero-fat-lazarevic-party-hat	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat/default tint=0 mask=0 []
+mp-hero-fat-party-hat	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat/default tint=0 mask=0 []
+mp-hero-fat-ramses-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-fat-sullivan-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-fat-sullivan-mask	overlay-port	TINT-LOST	objects/characters/cutter/mp/cutter-fat-mask/default tint=0 mask=0 []
+mp-hero-fat-sullivan-party-hat	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat/default tint=0 mask=0 []
+mp-hero-fat-talbot-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-fat-talbot-mask	overlay-port	TINT-LOST	objects/characters/cutter/mp/cutter-fat-mask/default tint=0 mask=0 []
+mp-hero-fat-talbot-party-hat	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat/default tint=0 mask=0 []
+mp-hero-flynn-hair	overlay-port	ps4-material-missing	objects/characters/flynn/flynn/hair/lod0
+mp-hero-flynn-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-french-legs-coop	overlay-port	ps4-material-missing	objects/characters/hero/french/mp/french-shoe-mp/default
+mp-hero-guerro-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-jeff-glasses	overlay-port	TINT-LOST	objects/characters/jeff/mp/jeff-glasses/jeff-glasses tint=0 mask=0 []
+mp-hero-jeff-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-jeff-jak-goggles	overlay-port	ps4-material-missing	objects/characters/jeff/jeff-acc/default
+mp-hero-lazarevic-crown	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/lazarevic/lazarevic-crown/default tint=0 mask=0 []
+mp-hero-lazarevic-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-lazarevic-viking-helmet	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/lazarevic/lazarevic-viking-helm/default tint=0 mask=0 []
+mp-hero-lieutenant-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-lieutenant-viking-helmet	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/lt-draza/draza-viking-helmet/default tint=0 mask=0 []
+mp-hero-make-believe-hair	overlay-port	TINT-LOST	objects/characters/mp-kit/helmet/dlc/mb-goggles/default tint=0 mask=0 []
+mp-hero-navarro-goggles	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/navarro/atoq-goggles/default tint=0 mask=0 []
+mp-hero-navarro-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-part-bronze-mask	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-bronze-mask/default tint=0 mask=0 []
+mp-hero-part-horse-mask	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-horse/default tint=0 mask=0 []
+mp-hero-part-lion-mask	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-lion-mask/default tint=0 mask=0 []
+mp-hero-part-present-mask	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-present-hat/default tint=0 mask=0 []
+mp-hero-part-raptor-mask	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-raptor-mask/default tint=0 mask=0 []
+mp-hero-part-suit-mask	overlay-port	TINT-LOST	objects/characters/hero/french/mp/suited-drake-mask/default tint=0 mask=0 []
+mp-hero-part-winter-hat	overlay-port	TINT-LOST	objects/characters/hero/french/mp/winter-drake-hat/default tint=0 mask=0 []
+mp-hero-pirate-football-pads	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/pirate/prakoso-football-pads/default tint=0 mask=0 []
+mp-hero-pirate-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-ramses-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-ramses-jak-goggles	overlay-port	TINT-EXTRA	objects/characters/pirate-leader/mp/mp-pirate-leader-helmet-bandana-a-00/default mask=1 ['drake-london-dirty-tint-mask.tga']
+mp-hero-ramses-parrot-hat	overlay-port	TINT-LOST	objects/characters/pirate-leader/mp/rameses-parrot/default tint=0 mask=0 []
+mp-hero-rescuer-jak-goggles	overlay-port	ps4-material-missing	objects/characters/hero/french/mp/drake-jak-goggles/default
+mp-hero-rescuer-yak-hat	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/rescuer/tenzin-yak-hat/default tint=0 mask=0 []
+mp-hero-roman-axe-hat	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/roman/roman-head-axe/default tint=0 mask=0 []
+mp-hero-roman-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-schafer-hat	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/shafer/schafer-hat/default tint=0 mask=0 []
+mp-hero-schafer-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-skel-genghis-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-skel-genghis-mask	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/skeleton-ghengis/mp-skeleton-ghengis-mask/default tint=0 mask=0 []
+mp-hero-skel-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-skel-marco-polo-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-skel-marco-polo-mask	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/skeleton-marco/mp-skeleton-mask/default tint=0 mask=0 []
+mp-hero-skel-sfd-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-skel-sfd-mask	overlay-port	TINT-LOST	objects/characters/sfd/mask/default tint=0 mask=0 []
+mp-hero-sol-b1a-gas-mask	overlay-port	TINT-LOST	objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-mask-a-00/default tint=0 mask=0 []
+mp-hero-sol-b1a-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-sol-b1b-clown-mask	overlay-port	TINT-LOST	objects/characters/mp-kit/helmet/mp-kit-clownmask-a-00/default tint=0 mask=0 []
+mp-hero-sol-b1b-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-sol-b2a-clown-mask	overlay-port	TINT-LOST	objects/characters/mp-kit/helmet/mp-kit-clownmask-b-00/default tint=0 mask=0 []
+mp-hero-sol-b2a-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-sol-b2b-clown-mask	overlay-port	TINT-LOST	objects/characters/mp-kit/helmet/mp-kit-clownmask-c-00/default tint=0 mask=0 []
+mp-hero-sol-b2b-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-sol-b3b-clown-mask	overlay-port	TINT-LOST	objects/characters/mp-kit/helmet/mp-kit-clownmask-d-00/default tint=0 mask=0 []
+mp-hero-sol-b3b-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-sullivan-part-bird-mask	overlay-port	TINT-LOST	objects/characters/sullivan/mp/sullivan-bird-mask/default tint=0 mask=0 []
+mp-hero-sullivan-part-fancy-hat	overlay-port	TINT-LOST	objects/characters/sullivan/mp/sullivan-fancy-hat/default tint=0 mask=0 []
+mp-hero-sullivan-part-french-hat	overlay-port	TINT-LOST	objects/characters/sullivan/mp/sullivan-french-hat/default tint=0 mask=0 []
+mp-hero-sullivan-part-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-sullivan-part-straw-hat	overlay-port	TINT-LOST	objects/characters/sullivan/mp/sullivan-straw-hat/default tint=0 mask=0 []
+mp-hero-sullivan-young-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-talbot-aztec-mask	overlay-port	TINT-LOST	objects/characters/talbot/mp/talbot-aztec-mask/default-without-tie tint=0 mask=0 []
+mp-hero-talbot-burlap-mask	overlay-port	TINT-LOST	objects/characters/talbot/mp/talbot-burlap-mask/default-without-tie tint=0 mask=0 []
+mp-hero-talbot-dive-helmet	overlay-port	TINT-LOST	objects/characters/talbot/mp/talbot-dive-helmet/default-without-tie tint=0 mask=0 []
+mp-hero-talbot-gas-mask	overlay-port	TINT-LOST	objects/characters/talbot/mp/desert-talbot-mask/default-without-tie tint=0 mask=0 []
+mp-hero-talbot-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-talbot-noh-mask	overlay-port	TINT-LOST	objects/characters/talbot/mp/talbot-noh-mask/default-without-tie tint=0 mask=0 []
+mp-hero-talbot-octo-mask	overlay-port	TINT-LOST	objects/characters/talbot/mp/talbot-octo-mask/default-without-tie tint=0 mask=0 []
+mp-hero-talbot-t-rex-mask	overlay-port	TINT-LOST	objects/characters/talbot/mp/talbot-t-rex-mask/default-without-tie tint=0 mask=0 []
+mp-hero-thug-a-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-thug-b-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-thug-c-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-thug-d-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-hero-thug-f-jak-goggles	overlay-port	TINT-LOST	objects/characters/hero/french/mp/drake-jak-goggles/default tint=0 mask=0 []
+mp-kit-hunter-arms-cowboy-a	overlay-port	TINT-LOST	objects/characters/mp-kit/arms/dlc/mp-kit-western-arms-gloves-a-00/default tint=0 mask=0 []
+mp-kit-hunter-feet-cowboy-a	overlay-port	tint-ok	objects/characters/mp-kit/feet/dlc/mp-kit-western-feet-boots-a-00/body-fma ['mp-kit-western-feet-boots-a-00-tint-mask.tga']
+mp-kit-hunter-feet-cowboy-b	overlay-port	tint-ok	objects/characters/mp-kit/feet/dlc/mp-kit-western-feet-boots-b-00/body-fma ['mp-kit-western-legs-pants-b-00-tint-mask.tga']
+mp-kit-hunter-head-cowboy-a	overlay-port	tint-ok	objects/characters/mp-kit/helmet/dlc/mp-kit-western-helmet-hat-a-00/default ['mp-kit-western-helmet-hat-a-00-tint-mask.tga']
+mp-kit-hunter-head-cowboy-b	overlay-port	tint-ok	objects/characters/mp-kit/helmet/dlc/mp-kit-western-helmet-hat-b-00/default ['mp-kit-western-helmet-hat-b-00-tint-mask.tga']
+mp-kit-hunter-pants-cowboy-a	overlay-port	tint-ok	objects/characters/mp-kit/legs/dlc/mp-kit-western-legs-pants-a-00/default ['mp-kit-western-legs-pants-a-00-tint-mask.tga']
+mp-kit-hunter-pants-cowboy-b	overlay-port	tint-ok	objects/characters/mp-kit/legs/dlc/mp-kit-western-legs-pants-b-00/default ['mp-kit-western-legs-pants-b-00-tint-mask.tga']
+mp-kit-hunter-torso-cowboy-a	overlay-port	TINT-LOST	objects/characters/mp-kit/torso-inner/dlc/mp-kit-western-torso-in-vest-a-00/default tint=0 mask=0 []
+mp-kit-hunter-torso-cowboy-b	overlay-port	TINT-LOST	objects/characters/mp-kit/torso-inner/dlc/mp-kit-western-torso-shirt-a-00/default tint=0 mask=0 []
+mp-kit-killzone-jak-goggles	overlay-port	tint-ok	objects/characters/hero/french/mp/drake-jak-goggles/default ['drake-jak-goggles-tint-mask.tga']
+mp-kit-merc-arms-cowboy-c	overlay-port	TINT-LOST	objects/characters/mp-kit/arms/dlc/mp-kit-western-arms-gloves-c-00/default tint=0 mask=0 []
+mp-kit-merc-arms-cowboy-d	overlay-port	TINT-LOST	objects/characters/mp-kit/arms/dlc/mp-kit-western-arms-gloves-d-00/default tint=0 mask=0 []
+mp-kit-merc-feet-cowboy-c	overlay-port	tint-ok	objects/characters/mp-kit/feet/dlc/mp-kit-western-feet-boots-c-00/body-fma ['mp-kit-western-feet-boots-c-00-tint-mask.tga']
+mp-kit-merc-feet-cowboy-d	overlay-port	tint-ok	objects/characters/mp-kit/feet/dlc/mp-kit-western-feet-boots-d-00/body-fma ['mp-kit-western-feet-boots-d-00-tint-mask.tga']
+mp-kit-merc-head-cowboy-c	overlay-port	tint-ok	objects/characters/mp-kit/helmet/dlc/mp-kit-western-helmet-hat-c-00/default ['mp-kit-western-helmet-hat-c-00-tint-mask.tga']
+mp-kit-merc-head-cowboy-d	overlay-port	tint-ok	objects/characters/mp-kit/helmet/dlc/mp-kit-western-helmet-hat-d-00/default ['mp-kit-western-helmet-hat-d-00-tint-mask.tga']
+mp-kit-merc-pants-cowboy-c	overlay-port	tint-ok	objects/characters/mp-kit/legs/dlc/mp-kit-western-legs-pants-c-00/default ['mp-kit-western-legs-pants-c-00-tint-mask.tga']
+mp-kit-merc-pants-cowboy-d	overlay-port	tint-ok	objects/characters/mp-kit/legs/dlc/mp-kit-western-legs-pants-d-00/default ['mp-kit-western-legs-pants-d-00-tint-mask.tga']
+mp-kit-merc-torso-cowboy-c	overlay-port	TINT-LOST	objects/characters/mp-kit/torso-inner/dlc/mp-kit-western-torso-in-vest-b-00/default tint=0 mask=0 []
+mp-kit-merc-torso-cowboy-d	overlay-port	TINT-LOST	objects/characters/mp-kit/torso-inner/dlc/mp-kit-western-torso-in-vest-c-00/default tint=0 mask=0 []
+mp-kit-misc-feet-make-believe	overlay-port	tint-ok	objects/characters/mp-kit/feet/dlc/mp-kit-mb-jeremy-shoes-a-00/body-fma ['mb-shoes-tint-mask.tga']
+mp-kit-misc-hair-make-believe	overlay-port	TINT-LOST	objects/characters/mp-kit/helmet/dlc/mb-goggles/default tint=0 mask=0 []
+mp-kit-misc-legs-make-believe	overlay-port	tint-ok	objects/characters/mp-kit/legs/dlc/mp-kit-mb-jeremy-pants-a-00/default ['mb-legs-tint-mask.tga']
+mp-kit-misc-torso-make-believe	overlay-port	TINT-LOST	objects/characters/mp-kit/torso-inner/dlc/mp-kit-mb-jeremy-shirt-a-00/default tint=0 mask=0 []
+mp-kit-shared-3d-glasses	overlay-port	tint-ok	objects/characters/sullivan/mp/sullivan-3d-glasses/default ['suited-sullivan-3d-glasses-tint-mask.tga']
+mp-kit-shared-bird-nest	overlay-port	tint-ok	objects/characters/cutter/mp/cutter-bird-nest/default ['cutter-bird-nest-tint-mask.tga']
+mp-kit-shared-bucket-helmet	overlay-port	tint-ok	objects/characters/u2-mp-characters/lt-draza/draza--helmet/default ['draza-helmet-tint-mask.tga']
+mp-kit-shared-captain-hat	overlay-port	tint-ok	objects/characters/u2-mp-characters/pirate/prakoso-pirate-hat/default ['prakoso-pirate-hat-tint-mask.tga']
+mp-kit-shared-descendent-mask	overlay-port	TINT-LOST	objects/characters/u2-mp-characters/roman/mp-roman-mask/default tint=0 mask=0 []
+mp-kit-shared-descendent-mask	overlay-port	TINT-EXTRA	objects/characters/u2-mp-characters/roman/roman-mask-eyes/default mask=1 ['descendant-skin-color-tint-mask.tga']
+mp-kit-shared-desert-hat	overlay-port	TINT-EXTRA	objects/characters/talbot/mp/desert-talbot-hat/default-without-tie mask=1 ['cartagena-civ-helmet-hat-a-00-tint-mask.tga']
+mp-kit-shared-drink-hat	overlay-port	tint-ok	objects/characters/u2-mp-characters/navarro/atoq-drink-hat/default ['atoq-drink-hat-tint-mask.tga']
+mp-kit-shared-eye-mask	overlay-port	TINT-EXTRA	objects/characters/u2-mp-characters/flynn/flynn-eye-mask/default mask=1 ['cartagena-civ-helmet-hat-a-00-tint-mask.tga']
+mp-kit-shared-gas-mask	overlay-port	tint-ok	objects/characters/talbot/mp/desert-talbot-gas-mask/default-without-tie ['desert-talbot-gas-mask-tint-mask.tga']
+mp-kit-shared-jak-goggles	overlay-port	tint-ok	objects/characters/hero/french/mp/drake-jak-goggles/default ['drake-jak-goggles-tint-mask.tga']
+mp-kit-shared-knight-helmet	overlay-port	TINT-EXTRA	objects/characters/u2-mp-characters/lazarevic/lazarevic-medieval-helm/default mask=1 ['cartagena-civ-helmet-hat-a-00-tint-mask.tga']
+mp-kit-shared-night-vision-helmet	overlay-port	tint-ok	objects/characters/npc-sp/agent/helmet/agent-night-vision/default ['agent-night-vision-tint-mask.tga']
+mp-kit-shared-old-scholar-hat	overlay-port	TINT-LOST	objects/characters/hero/french/mp/suited-drake-medieval-hat/default tint=0 mask=0 []
+mp-kit-shared-panda-mask	overlay-port	TINT-EXTRA	objects/characters/marlowe/mp/suited-marlowe-ski-mask/default mask=1 ['cartagena-civ-helmet-hat-a-00-tint-mask.tga']
+mp-kit-shared-pirate-hat	overlay-port	tint-ok	objects/characters/pirate-leader/mp/rameses-pirate-hat/default ['rameses-pirate-hat-tint-mask.tga']
+mp-kit-shared-reporter-glasses	overlay-port	tint-ok	objects/elena/uncharted3/elena-mp/reporter-elena-glasses/mp ['reporter-elena-glasses-tint-mask.tga']
+mp-kit-shared-round-sunglasses	overlay-port	TINT-EXTRA	objects/characters/marlowe/mp/young-marlowe-sunglasses/default mask=1 ['cartagena-civ-helmet-hat-a-00-tint-mask.tga']
+mp-kit-shared-sailor-hat	overlay-port	TINT-EXTRA	objects/characters/hero/french/mp/drake-sailor-hat/default mask=1 ['cartagena-civ-helmet-hat-a-00-tint-mask.tga']
+mp-kit-shared-samurai-helmet	overlay-port	tint-ok	objects/characters/cutter/mp/cutter-samurai-helmet/default ['cutter-samurai-helmet-tint-mask.tga']
+mp-kit-shared-ski-mask	overlay-port	TINT-EXTRA	objects/characters/hero/french/mp/winter-drake-ski-mask/default mask=1 ['cartagena-civ-helmet-hat-a-00-tint-mask.tga']
+mp-kit-shared-space-helmet	overlay-port	tint-ok	objects/characters/chloe/uncharted3/mp/chloe-helmet/default ['chloe-helmet-tint-mask.tga']
+mp-kit-shared-star-glasses	overlay-port	tint-ok	objects/characters/u2-mp-characters/lazarevic/lazarevic-glasses/default ['lazarevic-glasses-tint-mask.tga']
+mp-kit-shared-straw-hat	overlay-port	tint-ok	objects/characters/u2-mp-characters/roman/roman-straw-hat/default ['roman-straw-hat-tint-mask.tga']
+mp-kit-shared-stylish-sunglasses	overlay-port	tint-ok	objects/elena/uncharted3/elena-mp/elena-stylish-sunglasses/mp ['elena-stylish-sunglasses-tint-mask.tga']
+mp-kit-shared-tiger-mask	overlay-port	tint-ok	objects/characters/hero/french/mp/drake-tiger-mask/default ['drake-tiger-mask-tint-mask.tga']
+mp-kit-shared-wizard-hat	overlay-port	TINT-EXTRA	objects/characters/hero/french/mp/drake-tall-hat/default mask=1 ['cartagena-civ-helmet-hat-a-00-tint-mask.tga']
+vil-flag-long-a	overlay-port	no-ps3	
+vil-flag-tall-a	overlay-port	no-ps3	

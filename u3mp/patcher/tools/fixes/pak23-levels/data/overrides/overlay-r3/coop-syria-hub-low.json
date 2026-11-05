@@ -1,0 +1,55 @@
+{
+ "templates": {
+  "levels/syria/lores/syria-lores-01/default": [
+   "ldn-pub-office.pak",
+   "levels/london/pub/ldn-pub-ceiling-bar:default,d7113565-0cc7-4883-961b-6362ec5aecaf,prime-shader.fx"
+  ],
+  "levels/syria/lores/syria-lores-02/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ]
+ },
+ "params": {
+  "levels/syria/lores/syria-lores-01/default": {
+   "g_blendSoftness_blendOffset_linearBlendOffset": [
+    0.029999999329447746,
+    1.0,
+    0.0
+   ]
+  }
+ },
+ "bytes": {
+  "3679436": [
+   60,
+   82
+  ],
+  "3679437": [
+   82,
+   60
+  ],
+  "3679452": [
+   62,
+   82
+  ],
+  "3679453": [
+   82,
+   62
+  ],
+  "3680752": [
+   18,
+   17
+  ],
+  "3680753": [
+   17,
+   18
+  ],
+  "3680760": [
+   22,
+   17
+  ],
+  "3680761": [
+   17,
+   22
+  ]
+ }
+}

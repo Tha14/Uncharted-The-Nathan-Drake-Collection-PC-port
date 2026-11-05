@@ -1,0 +1,14 @@
+{
+ "id": "copy-ps4-retail",
+ "title": "overlay-r3: 205 files copied from the PS4 game itself (199 u2data sfx streams, 4 sound banks, 1 level pak)",
+ "kind": "copy-list",
+ "list": "copy-ps4-retail.tsv",
+ "family": "overlay-r3/sound1 + pak23",
+ "needs": [
+  "ps4"
+ ],
+ "status": "reproducible",
+ "applied": "2026-10-27 (install_streams.py batch44) and seed",
+ "notes": "Renamed copies: e.g. coop-syria-persistent.pak = retail syria-persistent.pak, shambhala-alley-local.bnk = metal-hand-work.bnk (empty bank).",
+ "recipe_version_added": "1.0.0"
+}

@@ -1,0 +1,28 @@
+{
+ "id": "facility-collapse",
+ "title": "Facility: collapse the low-poly shell wall (Prototype360) in facility-multi.pak",
+ "kind": "script",
+ "job": "inline",
+ "family": "overlay-r3/pak23",
+ "needs": [
+  "ps3_disc"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/facility_collapse.py",
+   "--apply"
+  ]
+ ],
+ "ok_codes": [
+  0,
+  3
+ ],
+ "must_write": false,
+ "writes": [
+  "work/overlay-r3/u3data/build/main/pak23/ps4/facility-multi.pak"
+ ],
+ "status": "needs-converted-base",
+ "applied": "2026-10-31 22:49 + 22:55",
+ "recipe_version_added": "1.0.0"
+}

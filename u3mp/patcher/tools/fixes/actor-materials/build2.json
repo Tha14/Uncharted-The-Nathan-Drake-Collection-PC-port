@@ -1,0 +1,386 @@
+{
+"mp-hero-flynn-coop": {
+"template": "mp-hero-flynn-torso",
+"cap": 256,
+"before": 1,
+"after": 8,
+"vram": [
+228864,
+215040
+],
+"check": [
+2,
+1
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-hero-lazarevic-coop": {
+"template": "mp-hero-lazarevic-torso",
+"cap": 256,
+"before": 1,
+"after": 7,
+"vram": [
+226816,
+186368
+],
+"check": [
+2,
+1
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-hero-french-hair-coop": {
+"template": "mp-hero-french-hair",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+80896,
+22528
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-port",
+"tried": []
+},
+"mp-hero-fat-hair": {
+"template": "mp-hero-french-hair",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+99328,
+22528
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-port",
+"tried": []
+},
+"mp-kit-killzone-helmet-a": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+60416,
+92160
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-merc-arms-gloves-b": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+97280,
+92160
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-merc-arms-gloves-d": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+97280,
+92160
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-merc-head-helmet-b": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+60416,
+92160
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-merc-head-helmet-c": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+60416,
+92160
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-merc-head-helmet-e": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+60416,
+92160
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-merc-head-helmet-k": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+40960,
+10240
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-merc-head-mask-a": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+60416,
+92160
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-merc-head-wrap-a": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+60416,
+92160
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-merc-head-wrap-b": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+60416,
+92160
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-pirate-arms-gloves-b-00": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+52736,
+47616
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-pirate-feet-boots-b-00": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+45056,
+92160
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-pirate-feet-boots-c-00": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+45056,
+92160
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-pirate-feet-sandles-a-00": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+67584,
+59392
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-pirate-feet-sandles-b-00": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+77824,
+59392
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-pirate-helmet-wrap-a-00": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+107520,
+138240
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-pirate-helmet-wrap-a-03": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+60416,
+92160
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-pirate-helmet-wrap-a-04": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+60416,
+92160
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-pirate-helmet-wrap-a-06": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+117760,
+92160
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+},
+"mp-kit-pirate-helmet-wrap-b-00": {
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"before": 1,
+"after": 2,
+"vram": [
+45056,
+138240
+],
+"check": [
+0,
+0
+],
+"layer": "overlay-r3",
+"tried": []
+}
+}

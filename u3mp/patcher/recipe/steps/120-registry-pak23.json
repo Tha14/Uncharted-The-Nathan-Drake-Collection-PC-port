@@ -1,0 +1,28 @@
+{
+ "id": "registry-pak23",
+ "title": "pak23_ps4.txt of all four overlays (retail registry + PS4-format definitions of the ported PS3 levels)",
+ "kind": "script",
+ "job": "registry",
+ "family": "pak23_ps4.txt",
+ "needs": [
+  "ps4",
+  "ps3_update"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/run_mkregistry.py",
+   "overlay-mp",
+   "overlay-port",
+   "overlay-r2",
+   "overlay-r3"
+  ]
+ ],
+ "writes": [
+  "work/overlay-*/u3data/build/main/pak23_ps4.txt"
+ ],
+ "status": "reproducible-when-paks-present",
+ "applied": "2026-10-26..27 (mkregistry.py), later appended by lab_reg, apply_maps, apply_air_emblem, apply_shade_npc_paks",
+ "notes": "Only entries whose packages/actors/banks exist in the overlay are kept, so the result matches the reference only once the converted paks are present.",
+ "recipe_version_added": "1.0.0"
+}

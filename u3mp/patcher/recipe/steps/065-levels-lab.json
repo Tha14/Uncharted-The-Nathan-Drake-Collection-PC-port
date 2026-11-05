@@ -1,0 +1,29 @@
+{
+ "id": "levels-lab",
+ "title": "Lab levels: 16 stage paks + 31 -ingame12 + 16 -pak stubs from the DATA2 Lab psarcs (pak23-levels/levels.py lab)",
+ "kind": "script",
+ "job": "pak23-levels",
+ "family": "overlay-r3/pak23",
+ "needs": [
+  "ps4",
+  "ps3_update",
+  "ps3_data2",
+  "python:numpy"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/levels.py",
+   "lab",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/pak23/ps4/lab-*.pak"
+ ],
+ "must_write": false,
+ "status": "reproducible",
+ "applied": "2026-10-31 23:47..23:59 (scratchpad lab/, gh2 paktools f525859)",
+ "notes": "The 2026-10-31 local conversion replayed from the transcript: labsrc = dlc-patch13 + lab-multi-01-7 + actor-parts-7 + lab-trench-v1-7 psarcs (xl.py), res = mkres.py over the retail pak23, stagepipe (no paramfix/cubefix, no caps, U3_TEXDICT = retail TextureDictionaries.csv), ps4ingame for the -pak-ingame12 paks, the 248-byte empty level for the -pak stubs. All 63 files byte-identical (verified 2026-11-05).",
+ "recipe_version_added": "1.6.0"
+}

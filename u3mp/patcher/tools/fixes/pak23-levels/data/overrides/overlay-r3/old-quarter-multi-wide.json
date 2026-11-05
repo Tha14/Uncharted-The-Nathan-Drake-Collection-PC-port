@@ -1,0 +1,63 @@
+{
+ "templates": {
+  "levels/yemen/wide/yem-wide-buildings-01b-night/default": [
+   "ldn-pub-office.pak",
+   "levels/london/lights/ldn-pub-small-lamp-inc:default,107462b0-3804-4284-93d1-a5ea4410abba,prime-shader.fx"
+  ],
+  "levels/yemen/window/yem-sg-windows-blue-no-incand/default": [
+   "airport-1.pak",
+   "levels/airport/windows/air-windows-skylight-glass-trans:default,0a6dd9ef-e2b7-4f2d-9f75-06e1347cdc99,prime-shader.fx"
+  ],
+  "levels/yemen/window/yem-sg-windows-red-no-incand/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-marble-blue-to-nuetral-01:default,18f7dcc9-7437-46f1-bff5-d07cb7260058,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/levels/yemen/textures/walls/yem-whiteplaster-spec.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/walls/brickwalls/yem-brickbase02-blend.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/metal/yem-water-tower-color.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/ground/yem-market-pavers01-normal.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/horse-chase/textures/cliff-rock/horse-cliff-rock-horiz-04-normal.tga": "yem-intro-alleys-wide.pak",
+  "art/levels/yemen/textures/walls/yem-stucco-05-color.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/work/mel/yem-metal-001-normal.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/metal/yem-water-tower-spec-mask.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/walls/yem-whiteplaster-color.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/ground/yem-rock-horiz-04-dark-color.tga": "yem-intro-alleys-wide.pak",
+  "art/levels/yemen/textures/walls/brickwalls/yem-brickbase02-spec.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/work/mel/yem-poor-window-group-color.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/wide/yem-wide-cliff-rock-organic-01-normal.tga": "yem-intro-alleys-wide.pak",
+  "art/levels/yemen/work/mel/yem-poor-window-group-normal.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/detail/yem-trimornate01drk-color.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/horse-chase/textures/ground/horse-ground-sand-rough-01-normal.tga": "yem-intro-alleys-wide.pak",
+  "art/levels/yemen/textures/wide/yem-wide-cliff-rock-horiz-04-height-blend.tga": "yem-intro-alleys-wide.pak",
+  "art/levels/yemen/textures/walls/yem-whiteplaster-blend.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/wide/yem-wide-buildings-detail.tga": "yem-intro-alleys-wide.pak",
+  "art/levels/yemen/textures/detail/yem-trimornate01-color.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/windows/yem-richbldg-window-01-color.tga": "yem-chase-alley-roofs.pak",
+  "art/general/textures/default/default-lightmap1.tga": "airport-wide.pak",
+  "art/levels/yemen/work/mel/yem-poor-window-group-spec-mask.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/ground/yem-ground-sand-dark-01-color.tga": "yem-intro-alleys-wide.pak",
+  "art/levels/yemen/textures/windows/yem-richbldg-window-01-spec-mask.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/wide/yem-wide-rock-horiz-04-normal.tga": "yem-intro-alleys-wide.pak",
+  "art/levels/horse-chase/textures/ground/horse-ground-sand-grains-02-spec-mask.tga": "yem-intro-alleys-wide.pak",
+  "art/levels/yemen/textures/wide/yem-wide-cliff-rock-generic-01-spec-mask.tga": "yem-intro-alleys-wide.pak",
+  "art/levels/yemen/textures/detail/yem-trimornate01-blend.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/walls/brickwalls/yem-brickbase02-normal.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/metal/yem-water-tower-normal.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/ground/yem-market-pavers01-blend.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/detail/yem-trimornate01-spec.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/wide/yem-wide-cliff-rock-horiz-04-dark-color.tga": "yem-intro-alleys-wide.pak",
+  "art/levels/yemen/textures/wide/yem-wide-buildings-06-normal.tga": "yem-intro-alleys-wide.pak",
+  "art/levels/yemen/textures/wide/yem-wide-cliff-rock-organic-01-dark-color.tga": "yem-intro-alleys-wide.pak",
+  "art/levels/yemen/textures/ground/yem-market-pavers01-color.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/work/mel/yem-metal-001-color.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/wide/yem-wide-buildings-spec-mask-02.tga": "yem-intro-alleys-wide.pak",
+  "art/levels/yemen/textures/walls/brickwalls/yem-brickbase02-color.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/walls/yem-whiteplaster-normal.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/environment/yem-market-fountain-env-reflection.dds": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/detail/yem-trimornate01-normal.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/wide/yem-wide-buildings-06-spec-test.tga": "yem-intro-alleys-wide.pak",
+  "art/general/textures/default/default-lightmap0.tga": "airport-wide.pak"
+ }
+}

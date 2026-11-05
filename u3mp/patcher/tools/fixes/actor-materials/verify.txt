@@ -1,0 +1,57 @@
+mp-coop-cutter                   mats 12->12 tab 12->12 subs 13->24 nv 11634->28334 ni 53391->133032 vram 0x60600->0x4d200 size 2983432 joints_same=True fg/tags_same=False maxj 207/208 check 4->2 crash 0->0 verify 1 flat 0 cap 0
+    ! type 2
+    ! type 2
+    ! page 0 too large (0x1fd030)
+    fg diff [(['mp-coop-cutter'], ['mp-coop-cutter', 'mp-coop-cutter-lod1']), (0, 1)]
+mp-hero-agent-b-torso            mats  2-> 6 tab 9->6 subs 15->15 nv 8198->8198 ni 34770->34770 vram 0x37600->0x56c00 size 1167424 joints_same=True fg/tags_same=True maxj 182/232 check 2->2 crash 0->0 verify 0 flat 2 cap 256
+    ! type 2
+    ! type 2
+mp-hero-cutter-torso-w-scarf     mats  3->10 tab 9->10 subs 21->21 nv 13376->13376 ni 59334->59334 vram 0x37600->0x5ca00 size 1785880 joints_same=True fg/tags_same=True maxj 231/232 check 2->2 crash 0->0 verify 0 flat 1 cap 256
+    ! type 2
+    ! type 2
+mp-hero-fat-hair                 mats  1-> 2 tab 1->2 subs 5->5 nv 4778->4778 ni 8739->8739 vram 0x18400->0x5800 size 387512 joints_same=True fg/tags_same=True maxj 180/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-hero-fat-talbot-torso         mats  2-> 8 tab 9->8 subs 18->18 nv 12424->12424 ni 49041->49041 vram 0x37e00->0x74400 size 1580936 joints_same=True fg/tags_same=True maxj 231/232 check 2->1 crash 0->0 verify 0 flat 8 cap 256
+    ! type 2
+mp-hero-flynn-coop               mats  1-> 8 tab 9->8 subs 22->22 nv 22772->22772 ni 62301->62301 vram 0x37e00->0x34800 size 1908928 joints_same=True fg/tags_same=True maxj 231/232 check 2->1 crash 0->0 verify 0 flat 0 cap 256
+    ! type 2
+mp-hero-french-hair-coop         mats  1-> 2 tab 1->2 subs 5->5 nv 4826->4826 ni 8739->8739 vram 0x13c00->0x6400 size 373488 joints_same=True fg/tags_same=True maxj 190/232 check 0->0 crash 0->0 verify 0 flat 0 cap 0
+mp-hero-french-torso-coop        mats  8->11 tab 9->11 subs 26->26 nv 19437->19437 ni 88719->88719 vram 0x38600->0x33200 size 2054872 joints_same=True fg/tags_same=True maxj 231/232 check 2->1 crash 0->0 verify 0 flat 0 cap 0
+    ! type 2
+mp-hero-guerro-torso             mats  2-> 5 tab 9->5 subs 16->16 nv 12420->12420 ni 59595->59595 vram 0x37600->0x47400 size 1666800 joints_same=True fg/tags_same=True maxj 225/232 check 2->1 crash 0->0 verify 0 flat 0 cap 256
+    ! type 2
+mp-hero-lazarevic-coop           mats  1-> 7 tab 9->7 subs 19->19 nv 10037->10037 ni 40875->40875 vram 0x37600->0x2d800 size 1131248 joints_same=True fg/tags_same=True maxj 231/232 check 2->1 crash 0->0 verify 0 flat 0 cap 256
+    ! type 2
+mp-hero-make-believe-torso       mats  2-> 6 tab 9->6 subs 18->18 nv 14101->14101 ni 63225->63225 vram 0x37600->0x79800 size 2002544 joints_same=True fg/tags_same=True maxj 225/232 check 2->1 crash 0->0 verify 0 flat 1 cap 256
+    ! type 2
+mp-hero-ngp-torso                mats  1->11 tab 7->11 subs 27->27 nv 14721->14721 ni 65832->65832 vram 0x2dc00->0x51e00 size 1932648 joints_same=True fg/tags_same=True maxj 231/232 check 2->2 crash 0->0 verify 0 flat 2 cap 128
+    ! type 2
+    ! type 2
+mp-hero-ramses-equip-legs        mats  2-> 6 tab 3->6 subs 17->17 nv 5434->5434 ni 22137->22137 vram 0x8c00->0x15800 size 697336 joints_same=True fg/tags_same=True maxj 231/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-hero-ramses-equip-torso       mats  2-> 9 tab 9->9 subs 24->24 nv 14937->14937 ni 59799->59799 vram 0x38600->0x3cc00 size 1823464 joints_same=True fg/tags_same=True maxj 231/232 check 2->1 crash 0->0 verify 0 flat 6 cap 128
+    ! type 2
+mp-hero-sol-med-b-1a             mats  1->10 tab 2->10 subs 30->30 nv 14972->14972 ni 63948->63948 vram 0x9c00->0x53a00 size 1931912 joints_same=True fg/tags_same=True maxj 231/232 check 0->0 crash 0->0 verify 0 flat 1 cap 128
+mp-hero-subway-torso             mats  2-> 9 tab 7->9 subs 22->22 nv 13550->13550 ni 57180->57180 vram 0x2dc00->0x4b200 size 1762792 joints_same=True fg/tags_same=True maxj 231/232 check 2->2 crash 0->0 verify 0 flat 1 cap 256
+    ! type 2
+    ! type 2
+mp-hero-thug-e-torso             mats  3-> 6 tab 9->6 subs 15->15 nv 9432->9432 ni 43365->43365 vram 0x38600->0x4f000 size 1507072 joints_same=True fg/tags_same=True maxj 231/232 check 2->1 crash 0->0 verify 0 flat 3 cap 256
+    ! type 2
+mp-kit-killzone-helmet-a         mats  1-> 2 tab 1->2 subs 5->5 nv 2858->2858 ni 11079->11079 vram 0xec00->0x16800 size 342776 joints_same=True fg/tags_same=True maxj 170/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-merc-arms-gloves-b        mats  1-> 2 tab 1->2 subs 3->3 nv 1032->1032 ni 4896->4896 vram 0x17c00->0x16800 size 245848 joints_same=True fg/tags_same=True maxj 68/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-merc-arms-gloves-d        mats  1-> 2 tab 1->2 subs 3->3 nv 1186->1186 ni 5808->5808 vram 0x17c00->0x16800 size 255848 joints_same=True fg/tags_same=True maxj 68/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-merc-head-helmet-b        mats  1-> 2 tab 1->2 subs 3->3 nv 1039->1039 ni 4584->4584 vram 0xec00->0x16800 size 245272 joints_same=True fg/tags_same=True maxj 90/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-merc-head-helmet-c        mats  1-> 2 tab 1->2 subs 5->5 nv 2457->2457 ni 6876->6876 vram 0xec00->0x16800 size 314808 joints_same=True fg/tags_same=True maxj 170/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-merc-head-helmet-e        mats  1-> 2 tab 1->2 subs 5->5 nv 2687->2687 ni 8421->8421 vram 0xec00->0x16800 size 324168 joints_same=True fg/tags_same=True maxj 90/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-merc-head-helmet-k        mats  1-> 2 tab 1->2 subs 5->5 nv 6021->6021 ni 22500->22500 vram 0xa000->0x16800 size 479592 joints_same=True fg/tags_same=True maxj 90/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-merc-head-mask-a          mats  1-> 2 tab 1->2 subs 3->3 nv 1281->1281 ni 5142->5142 vram 0xec00->0x16800 size 253032 joints_same=True fg/tags_same=True maxj 182/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-merc-head-wrap-a          mats  1-> 2 tab 1->2 subs 3->3 nv 1047->1047 ni 4509->4509 vram 0xec00->0x16800 size 247288 joints_same=True fg/tags_same=True maxj 90/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-merc-head-wrap-b          mats  1-> 2 tab 1->2 subs 3->3 nv 1055->1055 ni 5196->5196 vram 0xec00->0x16800 size 243992 joints_same=True fg/tags_same=True maxj 90/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-pirate-arms-gloves-b-00   mats  1-> 2 tab 1->2 subs 3->3 nv 1226->1226 ni 5412->5412 vram 0xce00->0xba00 size 212328 joints_same=True fg/tags_same=True maxj 68/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-pirate-feet-boots-b-00    mats  1-> 2 tab 1->2 subs 2->2 nv 664->664 ni 3240->3240 vram 0xb000->0x16800 size 217560 joints_same=True fg/tags_same=True maxj 219/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-pirate-feet-boots-c-00    mats  1-> 2 tab 1->2 subs 3->3 nv 1190->1190 ni 5100->5100 vram 0xb000->0x16800 size 248328 joints_same=True fg/tags_same=True maxj 14/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-pirate-feet-sandles-a-00  mats  1-> 2 tab 1->2 subs 3->3 nv 1107->1107 ni 4455->4455 vram 0x10800->0xe800 size 210216 joints_same=True fg/tags_same=True maxj 14/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-pirate-feet-sandles-b-00  mats  1-> 2 tab 1->2 subs 3->3 nv 1304->1304 ni 5028->5028 vram 0x13000->0xe800 size 220664 joints_same=True fg/tags_same=True maxj 14/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-pirate-helmet-wrap-a-00   mats  1-> 2 tab 1->2 subs 5->5 nv 2698->2698 ni 11169->11169 vram 0x1a400->0x21c00 size 382600 joints_same=True fg/tags_same=True maxj 90/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-pirate-helmet-wrap-a-03   mats  1-> 2 tab 1->2 subs 5->5 nv 2676->2676 ni 11169->11169 vram 0xec00->0x16800 size 335592 joints_same=True fg/tags_same=True maxj 90/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-pirate-helmet-wrap-a-04   mats  1-> 2 tab 1->2 subs 5->5 nv 2676->2676 ni 11169->11169 vram 0xec00->0x16800 size 335592 joints_same=True fg/tags_same=True maxj 90/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-pirate-helmet-wrap-a-06   mats  1-> 2 tab 1->2 subs 5->5 nv 2676->2676 ni 11169->11169 vram 0x1cc00->0x16800 size 335592 joints_same=True fg/tags_same=True maxj 90/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256
+mp-kit-pirate-helmet-wrap-b-00   mats  1-> 2 tab 1->2 subs 3->3 nv 1364->1364 ni 5334->5334 vram 0xb000->0x21c00 size 303608 joints_same=True fg/tags_same=True maxj 90/232 check 0->0 crash 0->0 verify 0 flat 0 cap 256

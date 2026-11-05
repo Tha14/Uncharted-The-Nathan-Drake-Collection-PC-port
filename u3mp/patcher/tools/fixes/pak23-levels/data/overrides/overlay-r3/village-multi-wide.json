@@ -1,0 +1,30 @@
+{
+ "templates": {
+  "levels/village/wide/vil-mountain-snow-rock-wide/default": [
+   "yem-chase-alley-roofs.pak",
+   "levels/yemen/wood/yem-wood-06c:default,83474522-ec7f-4478-ae69-42ad847b2f6c,prime-shader.fx"
+  ],
+  "levels/village/wide/vil-mountain-foliage-rock-wide-pre/default": [
+   "yem-chase-alley-roofs.pak",
+   "levels/yemen/wood/yem-wood-06c:default,83474522-ec7f-4478-ae69-42ad847b2f6c,prime-shader.fx"
+  ],
+  "general/layout-textures/gen-beige-01/default": [
+   "cha-forest-crawl.pak",
+   "levels/chateau/water/cha-forest-noflow-water-cheap:default,620d7e7b-3474-41da-8187-c7d5eafb9c0f,prime-shader.fx"
+  ],
+  "levels/village/village-multi/vil-river-water-3/default": [
+   "cha-forest-crawl.pak",
+   "levels/chateau/water/cha-forest-noflow-water-cheap:default,620d7e7b-3474-41da-8187-c7d5eafb9c0f,prime-shader.fx"
+  ],
+  "levels/village/trees/vil-wide-leafy-trees/default": [
+   "cha-forest-crawl.pak",
+   "levels/chateau/water/cha-forest-noflow-water-cheap:default,620d7e7b-3474-41da-8187-c7d5eafb9c0f,prime-shader.fx"
+  ]
+ },
+ "bytes": {
+  "3314864": [
+   1,
+   0
+  ]
+ }
+}

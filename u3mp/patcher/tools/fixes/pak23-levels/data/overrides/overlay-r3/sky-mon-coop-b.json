@@ -1,0 +1,11 @@
+{
+ "templates": {
+  "levels/sky/-big3/mp-coop/sky-mon-coop-b/default": [
+   "sky-yem-chase.pak",
+   "levels/sky/-big3/sky-yem-chase:default,4af05fa5-e908-4d81-a13c-a28124f0d35e,sky-clouds.fx"
+  ]
+ },
+ "texsrc": {
+  "art/general/textures/default/default-color-black.tga": "sky-london-wide.pak"
+ }
+}

@@ -1,0 +1,11720 @@
+{
+"mp-chloe-devil-wings": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+111616,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+329416,
+398680
+],
+"tint_new": {
+"objects/characters/chloe/uncharted3/mp/chloe-devil-wings:default": [
+true,
+[
+"chloe-devil-wings-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/chloe/uncharted3/mp/chloe-devil-wings:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-egypt-mask": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+111616,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+370936,
+440184
+],
+"tint_new": {
+"objects/characters/chloe/uncharted3/mp/chloe-egypt-mask:default": [
+true,
+[
+"chloe-egypt-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/chloe/uncharted3/mp/chloe-egypt-mask:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-elena-bunny": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+111616,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+320280,
+389544
+],
+"tint_new": {
+"objects/elena/uncharted3/elena-mp/elena-bunny-ears-and-tail:mp": [
+true,
+[
+"elena-bunny-ears-and-tail-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/elena/uncharted3/elena-mp/elena-bunny-ears-and-tail:mp": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-elena-cheetah-mask": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+111616,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+402712,
+472008
+],
+"tint_new": {
+"objects/elena/uncharted3/elena-mp/elena-cheetah-mask:mp": [
+true,
+[
+"elena-cheetah-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/elena/uncharted3/elena-mp/elena-cheetah-mask:mp": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-elena-female-mask": {
+"ok": true,
+"template": "mp-chloe-elena-u1-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+68608,
+166912
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+479776,
+726432
+],
+"tint_new": {
+"objects/elena/uncharted3/elena-mp/elena-female-mask:mp": [
+true,
+[
+"elena-female-mask-tint-mask.tga"
+]
+],
+"objects/elena/uncharted3/elena-mp/elena-hair-mp-1uvset:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/elena/uncharted3/elena-mp/elena-female-mask:mp": [
+false,
+[]
+],
+"objects/elena/uncharted3/elena-mp/elena-hair-mp-1uvset:default": [
+true,
+[
+"chloe-legs-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-elena-foo-dog-mask": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+111616,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+377576,
+446872
+],
+"tint_new": {
+"objects/elena/uncharted3/elena-mp/elena-foo-dog-mask:mp": [
+true,
+[
+"elena-foo-dog-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/elena/uncharted3/elena-mp/elena-foo-dog-mask:mp": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-elena-giraffe-mask": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+111616,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+382280,
+451576
+],
+"tint_new": {
+"objects/elena/uncharted3/elena-mp/elena-giraffe-mask:mp": [
+true,
+[
+"elena-giraffe-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/elena/uncharted3/elena-mp/elena-giraffe-mask:mp": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-elena-headband-00": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+111616,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+295880,
+361320
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/elena/uncharted3/elena-mp/mp-elena-headband-00:default": [
+true,
+[
+"mp-elena-headband-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/elena/uncharted3/elena-mp/mp-elena-headband-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-elena-panda-mask": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+111616,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+402664,
+471960
+],
+"tint_new": {
+"objects/elena/uncharted3/elena-mp/elena-panda-mask:mp": [
+true,
+[
+"elena-panda-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/elena/uncharted3/elena-mp/elena-panda-mask:mp": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-elena-tiara": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+78848,
+110592
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+281496,
+350776
+],
+"tint_new": {
+"objects/elena/uncharted3/elena-mp/elena-tiara:mp": [
+true,
+[
+"elena-tiara-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/elena/uncharted3/elena-mp/elena-tiara:mp": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-elena-veil": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+69632,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+253288,
+364616
+],
+"tint_new": {
+"objects/elena/uncharted3/elena-mp/elena-bride-veil:mp": [
+true,
+[
+"elena_bride_veil-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/elena/uncharted3/elena-mp/elena-bride-veil:mp": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-headdress": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+111616,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+328216,
+397464
+],
+"tint_new": {
+"objects/characters/chloe/uncharted3/mp/chloe-headdress:default": [
+true,
+[
+"chloe-headdress-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/chloe/uncharted3/mp/chloe-headdress:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-marlowe-crown": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+111616,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+338008,
+407288
+],
+"tint_new": {
+"objects/characters/marlowe/mp/marlowe-crown:default": [
+true,
+[
+"marlowe-crown-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/marlowe/mp/marlowe-crown:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-marlowe-gas-mask": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+111616,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+356072,
+425368
+],
+"tint_new": {
+"objects/characters/marlowe/mp/desert-marlowe-mask:default": [
+true,
+[
+"marlowe-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/marlowe/mp/desert-marlowe-mask:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-marlowe-jak-goggles": {
+"ok": true,
+"template": "mp-chloe-elena-u1-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+57344,
+227328
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+501168,
+819456
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/marlowe/marlowe-hair:mp": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+],
+"objects/characters/marlowe/marlowe-hair:mp": [
+true,
+[
+"chloe-legs-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-marlowe-mask-a": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+68608,
+78848
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+203864,
+247544
+],
+"tint_new": {
+"objects/characters/marlowe/mp/marlowe-mask-mp:default": [
+true,
+[
+"mp-marlowe-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/marlowe/mp/marlowe-mask-mp:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-marlowe-sunglasses": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+111616,
+110592
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+278040,
+310488
+],
+"tint_new": {
+"objects/characters/marlowe/mp/marlowe-cat-eye-sunglasses:default": [
+true,
+[
+"marlowe-cat-eye-sunglasses-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/marlowe/mp/marlowe-cat-eye-sunglasses:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-chloe-elena-u1-torso",
+256,
+[
+"ps4check 1>0 ['type 2']",
+"no material got tint+mask"
+]
+],
+[
+"mp-chloe-u2-winter-torso",
+256,
+[
+"ps4check 1>0 ['type 2']",
+"no material got tint+mask"
+]
+],
+[
+"mp-chloe-u2-torso",
+256,
+[
+"ps4check 1>0 ['type 2']",
+"no material got tint+mask"
+]
+],
+[
+"mp-chloe-elena-u2-winter-torso",
+256,
+[
+"ps4check 1>0 ['type 2']",
+"no material got tint+mask"
+]
+],
+[
+"mp-chloe-elena-u2-reporter-torso",
+256,
+[
+"ps4check 1>0 ['type 2']",
+"no material got tint+mask"
+]
+],
+[
+"mp-chloe-syria-torso",
+256,
+[
+"ps4check 1>0 ['type 2']",
+"no material got tint+mask"
+]
+],
+[
+"mp-chloe-elena-yemen-torso",
+256,
+[
+"ps4check 1>0 ['type 2']",
+"no material got tint+mask"
+]
+]
+],
+"secs": 0
+},
+"mp-chloe-navy-hat": {
+"ok": true,
+"template": "mp-chloe-elena-u1-torso",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+66560,
+227328
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+634976,
+944160
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/chloe/uncharted3/mp/chloe-navy-hat:default": [
+true,
+[
+"chloe-navy-hat-tint-mask.tga"
+]
+],
+"objects/characters/chloe/uncharted3/mp/chloe-hair-mp-syria:mp": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/chloe/uncharted3/mp/chloe-navy-hat:default": [
+false,
+[]
+],
+"objects/characters/chloe/uncharted3/mp/chloe-hair-mp-syria:mp": [
+true,
+[
+"chloe-navy-hat-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-skull-mask": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+111616,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+300152,
+369400
+],
+"tint_new": {
+"objects/characters/chloe/uncharted3/mp/chloe-skull-mask:default": [
+true,
+[
+"chloe-skull-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/chloe/uncharted3/mp/chloe-skull-mask:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-snake-mask": {
+"ok": true,
+"template": "mp-chloe-elena-u1-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+71680,
+248832
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+515024,
+840336
+],
+"tint_new": {
+"objects/characters/chloe/uncharted3/mp/chloe-snake-mask:default": [
+true,
+[
+"chloe-snake-mask -tint-mask.tga"
+]
+],
+"objects/characters/chloe/uncharted3/mp/chloe-hair-mp-syria:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/chloe/uncharted3/mp/chloe-snake-mask:default": [
+false,
+[]
+],
+"objects/characters/chloe/uncharted3/mp/chloe-hair-mp-syria:default": [
+true,
+[
+"chloe-snake-mask -tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-teddy-bear-mask": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+111616,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+379992,
+449256
+],
+"tint_new": {
+"objects/characters/chloe/uncharted3/mp/chloe-teddy-bear-mask:default": [
+true,
+[
+"chloe-teddy-bear-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/chloe/uncharted3/mp/chloe-teddy-bear-mask:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-agent-a-jak-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+66560,
+189440
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+487928,
+743368
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-a-mp:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-a-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-agent-a-police-hat": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+66560,
+189440
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+419064,
+641320
+],
+"tint_new": {
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-a-mp:default": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/helmet/agent-police-hat:default": [
+true,
+[
+"agent-police-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-a-mp:default": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/helmet/agent-police-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-agent-a-steampunk-glasses": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+115712,
+123904
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+513880,
+654648
+],
+"tint_new": {
+"objects/characters/npc-sp/agent/helmet/agent-steampunk-glasses:default": [
+true,
+[
+"agent-steampunk-tint-mask.tga"
+]
+],
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-a-mp:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-a-mp:default": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/helmet/agent-steampunk-glasses:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-agent-b-jak-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+66560,
+222208
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+492552,
+780760
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-med-b-mp:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-med-b-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-agent-b-police-hat": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+66560,
+222208
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+419048,
+673720
+],
+"tint_new": {
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-med-b-mp:default": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/helmet/agent-police-hat:default": [
+true,
+[
+"agent-police-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-med-b-mp:default": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/helmet/agent-police-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-agent-b-steampunk-glasses": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+66560,
+156672
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+465832,
+688520
+],
+"tint_new": {
+"objects/characters/npc-sp/agent/helmet/agent-steampunk-glasses:default": [
+true,
+[
+"agent-steampunk-tint-mask.tga"
+]
+],
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-med-b-mp:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-med-b-mp:default": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/helmet/agent-steampunk-glasses:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-agent-med-a-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+352848,
+399256
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-agent-med-a-police-hat": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+311520,
+324376
+],
+"tint_new": {
+"objects/characters/npc-sp/agent/helmet/agent-police-hat:default": [
+true,
+[
+"agent-police-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/helmet/agent-police-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-agent-med-a-steam-glasses": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+64512,
+77824
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+270192,
+283832
+],
+"tint_new": {
+"objects/characters/npc-sp/agent/helmet/agent-steampunk-glasses:default": [
+true,
+[
+"agent-steampunk-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/helmet/agent-steampunk-glasses:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-agent-med-a-steampunk-glasses": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+64512,
+77824
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+270240,
+283864
+],
+"tint_new": {
+"objects/characters/npc-sp/agent/helmet/agent-steampunk-glasses:default": [
+true,
+[
+"agent-steampunk-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/helmet/agent-steampunk-glasses:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-agent-med-b-jak-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+66560,
+222208
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+490728,
+778936
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-med-b-mp:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-med-b-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-bandana": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+258960,
+305352
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-bandana:default": [
+true,
+[
+"drake-bandana-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-bandana:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-bed-leader-goggles-a": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+54272,
+78848
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+177664,
+202520
+],
+"tint_new": {
+"objects/characters/bedouin-leader/mp/mp-goggles:default": [
+true,
+[
+"mp-bedouin-leader-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/bedouin-leader/mp/mp-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-bed-leader-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+312192,
+358584
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-bed-leader-mexcian-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+54272,
+78848
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+341120,
+366024
+],
+"tint_new": {
+"objects/characters/bedouin-leader/mp/salim-mexican-mask:default": [
+true,
+[
+"salim-mexican-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/bedouin-leader/mp/salim-mexican-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-bedouin-a-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+312192,
+358584
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-bedouin-b-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+312688,
+359080
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-bedouin-c-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+312784,
+359176
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-crown": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+70656,
+224256
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+416552,
+702984
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-crown:default": [
+true,
+[
+"drake-crown-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-crown:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-cutter-backwards-hat": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+264224,
+310616
+],
+"tint_new": {
+"objects/characters/cutter/mp/cutter-backwards-hat:default": [
+true,
+[
+"cutter-backwards-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/cutter/mp/cutter-backwards-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-cutter-brain": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+255360,
+301784
+],
+"tint_new": {
+"objects/characters/cutter/mp/cutter-brain:default": [
+true,
+[
+"cutter-brain-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/cutter/mp/cutter-brain:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-cutter-dogu-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+369296,
+415688
+],
+"tint_new": {
+"objects/characters/cutter/mp/cutter-dogu-mask:default": [
+true,
+[
+"cutter-dogu-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/cutter/mp/cutter-dogu-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-cutter-gas-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+365024,
+411400
+],
+"tint_new": {
+"objects/characters/cutter/mp/cutter-gas-mask:default": [
+true,
+[
+"cutter-gas-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/cutter/mp/cutter-gas-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-cutter-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+336480,
+382872
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-cutter-samurai-helmet": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+314144,
+360536
+],
+"tint_new": {
+"objects/characters/cutter/mp/cutter-samurai-helmet:default": [
+true,
+[
+"cutter-samurai-helmet-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/cutter/mp/cutter-samurai-helmet:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-dead-agent-jak-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+66560,
+222208
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+506440,
+794648
+],
+"tint_new": {
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-med-b-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-med-b-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-dead-explorer-hat": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+256544,
+302936
+],
+"tint_new": {
+"objects/characters/dead-explorer/dead-explorer-hat:alower": [
+true,
+[
+"dead_explorer_hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/dead-explorer/dead-explorer-hat:alower": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-dead-explorer-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+375952,
+422344
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-dead-explorer-tree": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+318576,
+364984
+],
+"tint_new": {
+"objects/characters/dead-explorer/tree-hat:alower": [
+true,
+[
+"dead-explorer-tree-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/dead-explorer/tree-hat:alower": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-des-oss-a-gas-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+297104,
+343464
+],
+"tint_new": {
+"objects/characters/npc-sp/deset-oss/helmet/mp/desert-agent-13-mask:default": [
+true,
+[
+"desert-agent-13-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/deset-oss/helmet/mp/desert-agent-13-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-des-oss-a-horns": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+236016,
+282392
+],
+"tint_new": {
+"objects/characters/npc-sp/deset-oss/helmet/mp/desert-oss-13-horns:default": [
+true,
+[
+"desert-agent-13-horns-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/deset-oss/helmet/mp/desert-oss-13-horns:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-des-oss-a-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+305040,
+351432
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-des-oss-b-gas-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+336032,
+382392
+],
+"tint_new": {
+"objects/characters/npc-sp/deset-oss/helmet/dessert-agent-44-mask:default": [
+true,
+[
+"desert-agent-44-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/deset-oss/helmet/dessert-agent-44-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-des-oss-b-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+346352,
+392744
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-des-oss-c-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+72704,
+86016
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+263904,
+277656
+],
+"tint_new": {
+"objects/characters/npc-sp/deset-oss/helmet/mp/desert-agent-99-mask:default": [
+true,
+[
+"desert-agent-99-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/deset-oss/helmet/mp/desert-agent-99-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-des-oss-c-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+305040,
+351432
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-eddie-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+376640,
+423032
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-eddie-jester-hat": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+298400,
+345032
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/eddie/eddie-jester-hat:default": [
+true,
+[
+"eddie-jester-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/eddie/eddie-jester-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-elf-ears": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+64512,
+110592
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+243040,
+289432
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-elf-ears:default": [
+true,
+[
+"drake-elf-ears-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-elf-ears:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-bed-leader-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+312288,
+358680
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-bed-leader-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+300592,
+347032
+],
+"tint_new": {
+"objects/characters/cutter/mp/cutter-fat-mask:default": [
+true,
+[
+"fat-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/cutter/mp/cutter-fat-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-bed-leader-party-hat": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+72704,
+118784
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+183632,
+230216
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat:default": [
+true,
+[
+"fat-party-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-cutter-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+381504,
+427896
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-cutter-party-hat": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+72704,
+118784
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+183616,
+230200
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat:default": [
+true,
+[
+"fat-party-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-eddie-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+381888,
+428280
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-eddie-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+342688,
+389112
+],
+"tint_new": {
+"objects/characters/cutter/mp/cutter-fat-mask:default": [
+true,
+[
+"fat-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/cutter/mp/cutter-fat-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-eddie-party-hat": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+72704,
+118784
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+183600,
+230200
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat:default": [
+true,
+[
+"fat-party-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-jak-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+70656,
+224256
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+574760,
+860952
+],
+"tint_new": {
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-lazarevic-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+376464,
+422856
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-lazarevic-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+341584,
+388024
+],
+"tint_new": {
+"objects/characters/cutter/mp/cutter-fat-mask:default": [
+true,
+[
+"fat-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/cutter/mp/cutter-fat-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-lazarevic-party-hat": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+72704,
+118784
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+183616,
+230200
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat:default": [
+true,
+[
+"fat-party-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-party-hat": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+72704,
+118784
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+183568,
+230152
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat:default": [
+true,
+[
+"fat-party-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-ramses-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+312176,
+358568
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-sullivan-jak-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+90112,
+327680
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+608744,
+964440
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/sullivan/mp/hair-mp:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/sullivan/mp/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-sullivan-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+335120,
+381544
+],
+"tint_new": {
+"objects/characters/cutter/mp/cutter-fat-mask:default": [
+true,
+[
+"fat-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/cutter/mp/cutter-fat-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-sullivan-party-hat": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+72704,
+118784
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+183616,
+230200
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat:default": [
+true,
+[
+"fat-party-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-talbot-jak-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+66560,
+222208
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+520472,
+808840
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/talbot/talbot-hair:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/talbot/talbot-hair:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-talbot-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+331984,
+378424
+],
+"tint_new": {
+"objects/characters/cutter/mp/cutter-fat-mask:default": [
+true,
+[
+"fat-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/cutter/mp/cutter-fat-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-talbot-party-hat": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+72704,
+118784
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+183696,
+230280
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat:default": [
+true,
+[
+"fat-party-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/fat-drake/fat-drake-party-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-flynn-jak-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+90112,
+294912
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+641352,
+978776
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/flynn/flynn/hair:lod0": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/flynn/flynn/hair:lod0": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-hero-flynn-torso",
+256,
+[
+"no material got tint+mask"
+]
+]
+],
+"secs": 0
+},
+"mp-hero-french-part-hat-a": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+97280,
+263168
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+292160,
+653304
+],
+"tint_new": {
+"objects/characters/npc-sp/cartagena/helmet/cartagena-civ-helmet-hat-a-00:default": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+],
+"objects/characters/hero/french/mp/new-hair-no-alpha-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/new-hair-2-mp:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/cartagena/helmet/cartagena-civ-helmet-hat-a-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-guerro-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+371856,
+418248
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-jak-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+70656,
+224256
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+523928,
+810120
+],
+"tint_new": {
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-jeff-glasses": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+335024,
+381464
+],
+"tint_new": {
+"objects/characters/jeff/mp/jeff-glasses:jeff-glasses": [
+true,
+[
+"jeff-glasses-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/jeff/mp/jeff-glasses:jeff-glasses": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-jeff-jak-goggles": {
+"ok": true,
+"template": "mp-hero-jeff-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+74752,
+181248
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+480616,
+811280
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/jeff/jeff-acc:default": [
+false,
+[]
+],
+"objects/characters/hero/main/new-hair-2:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/main/new-hair-2:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-lazarevic-crown": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+255872,
+302264
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/lazarevic/lazarevic-crown:default": [
+true,
+[
+"lazarevic-crown-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/lazarevic/lazarevic-crown:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-lazarevic-helmet": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+439152,
+485784
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-helmet:default": [
+true,
+[
+"helmet-spec-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-helmet:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-lazarevic-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+376048,
+422440
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-lazarevic-viking-helmet": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+39936,
+184320
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+264512,
+409320
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/lazarevic/lazarevic-viking-helm:default": [
+true,
+[
+"lazarevic-viking-helmet-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/lazarevic/lazarevic-viking-helm:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-lieutenant-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+371520,
+417912
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-lieutenant-viking-helmet": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+291184,
+337592
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/lt-draza/draza-viking-helmet:default": [
+true,
+[
+"draza-viking-helmet-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/lt-draza/draza-viking-helmet:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-navarro-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+110592
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+303984,
+317608
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/navarro/atoq-goggles:default": [
+true,
+[
+"atoq-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/navarro/atoq-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-navarro-jak-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+68608,
+224256
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+447240,
+735448
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/u2-mp-characters/navarro/mp-navarro-hair:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/navarro/mp-navarro-hair:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-part-bronze-mask": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+70656,
+224256
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+493624,
+779816
+],
+"tint_new": {
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-bronze-mask:default": [
+true,
+[
+"drake-bronze-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-bronze-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-part-horse-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+406160,
+452536
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-horse:default": [
+true,
+[
+"drake-horse-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-horse:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-part-lion-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+417712,
+464104
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-lion-mask:default": [
+true,
+[
+"drake-lion-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-lion-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-part-present-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+349328,
+395720
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-present-hat:default": [
+true,
+[
+"drake-present-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-present-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-part-raptor-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+418272,
+464920
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-raptor-mask:default": [
+true,
+[
+"drake-raptor-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-raptor-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-part-suit-mask": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+70656,
+224256
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+397656,
+683848
+],
+"tint_new": {
+"objects/characters/hero/french/mp/suited-drake-mask:default": [
+true,
+[
+"suited-drake-mask-tint-mask.tga"
+]
+],
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/suited-drake-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-part-wetsuit-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+70656,
+224256
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+543560,
+830008
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-wetsuit-goggles:default": [
+true,
+[
+"wetsuit-drake-goggles-tint-mask.tga"
+]
+],
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-wetsuit-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-part-winter-hat": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+70656,
+224256
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+348920,
+635112
+],
+"tint_new": {
+"objects/characters/hero/french/mp/winter-drake-hat:default": [
+true,
+[
+"winter-drake-hat-tint-mask.tga"
+]
+],
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/winter-drake-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-pirate-football-pads": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+427584,
+474232
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/pirate/prakoso-football-pads:default": [
+true,
+[
+"prakoso-football-pads-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/pirate/prakoso-football-pads:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-pirate-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+377520,
+423912
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-ramses-jak-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso-extra-4",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+68608,
+158720
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+394304,
+835152
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/pirate-leader/mp/mp-pirate-leader-helmet-bandana-a-00:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+],
+"objects/characters/pirate-leader/mp/mp-pirate-leader-helmet-bandana-a-00:default": [
+true,
+[
+"drake-london-dirty-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-ramses-parrot-hat": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+54272,
+78848
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+286544,
+311432
+],
+"tint_new": {
+"objects/characters/pirate-leader/mp/rameses-parrot:default": [
+true,
+[
+"ramses-parrot-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/pirate-leader/mp/rameses-parrot:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-rescuer-yak-hat": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+345504,
+391896
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/rescuer/tenzin-yak-hat:default": [
+true,
+[
+"tenzin-yak-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/rescuer/tenzin-yak-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-roman-axe-hat": {
+"ok": true,
+"template": "mp-hero-winter-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+74752,
+192512
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+398296,
+502792
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/roman/roman-head-axe:default": [
+true,
+[
+"roman-head-axe-tint-mask.tga"
+]
+],
+"objects/characters/u2-mp-characters/roman/mp-roman-hair:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/roman/mp-roman-hair:default": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/roman/roman-head-axe:default": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-hero-roman-torso",
+256,
+[
+"tint wrong: roman-head-axe:default lost"
+]
+],
+[
+"mp-hero-fat-torso",
+256,
+[
+"tint wrong: roman-head-axe:default lost"
+]
+],
+[
+"mp-hero-schafer-torso",
+256,
+[
+"tint wrong: roman-head-axe:default lost"
+]
+],
+[
+"mp-hero-flynn-torso",
+256,
+[
+"tint wrong: roman-head-axe:default lost"
+]
+],
+[
+"mp-hero-jeff-torso",
+256,
+[
+"tint wrong: roman-head-axe:default lost"
+]
+],
+[
+"mp-hero-fat-torso-extra-3",
+256,
+[
+"tint wrong: roman-head-axe:default lost"
+]
+],
+[
+"mp-kit-hunter-legs-pants-j",
+256,
+[
+"tint wrong: mp-roman-hair:default extra"
+]
+]
+],
+"secs": 0
+},
+"mp-hero-roman-jak-goggles": {
+"ok": true,
+"template": "mp-hero-roman-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+74752,
+164864
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+501320,
+761328
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/u2-mp-characters/roman/mp-roman-hair:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/roman/mp-roman-hair:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-schafer-hat": {
+"ok": true,
+"template": "mp-hero-schafer-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+98304,
+168960
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+430488,
+671008
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/shafer/schafer-hat:default": [
+true,
+[
+"schafer-hat-tint-mask.tga"
+]
+],
+"objects/characters/u2-mp-characters/shafer/mp-shafer-hair:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/shafer/mp-shafer-hair:default": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/shafer/schafer-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-schafer-jak-goggles": {
+"ok": true,
+"template": "mp-hero-schafer-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+98304,
+168960
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+593448,
+833984
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/u2-mp-characters/shafer/mp-shafer-hair:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/shafer/mp-shafer-hair:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-skel-genghis-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+312864,
+359256
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-skel-genghis-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+297840,
+344248
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/skeleton-ghengis/mp-skeleton-ghengis-mask:default": [
+true,
+[
+"ghengis-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/skeleton-ghengis/mp-skeleton-ghengis-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-skel-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+335920,
+382312
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-skel-marco-polo-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+312992,
+359384
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-skel-marco-polo-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+310944,
+357304
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/skeleton-marco/mp-skeleton-mask:default": [
+true,
+[
+"mp-marco-polo-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/skeleton-marco/mp-skeleton-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-skel-sfd-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+335984,
+382392
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-skel-sfd-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+309808,
+356248
+],
+"tint_new": {
+"objects/characters/sfd/mask:default": [
+true,
+[
+"sfd-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/sfd/mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sol-b1a-gas-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+39936,
+184320
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+164624,
+309384
+],
+"tint_new": {
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-mask-a-00:default": [
+true,
+[
+"mp-kit-mercenary-helmet-mask-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-mask-a-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sol-b1a-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+312768,
+359160
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sol-b1b-clown-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+501792,
+548440
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-clownmask-a-00:default": [
+true,
+[
+"ndi-clown-mask-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-clownmask-a-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sol-b1b-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+347696,
+394088
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sol-b2a-clown-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+346752,
+393160
+],
+"tint_new": {
+"objects/characters/mp-kit/helmet/mp-kit-clownmask-b-00:default": [
+true,
+[
+"mp-kit-clown-mask-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-clownmask-b-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sol-b2a-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+361744,
+408136
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sol-b2b-clown-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+352752,
+399160
+],
+"tint_new": {
+"objects/characters/mp-kit/helmet/mp-kit-clownmask-c-00:default": [
+true,
+[
+"ndi-clown-mask-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-clownmask-c-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sol-b2b-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+336384,
+382776
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sol-b3b-clown-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+312544,
+358952
+],
+"tint_new": {
+"objects/characters/mp-kit/helmet/mp-kit-clownmask-d-00:default": [
+true,
+[
+"ndi-clown-mask-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-clownmask-d-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sol-b3b-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+312016,
+358408
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sullivan-part-bird-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+381440,
+427800
+],
+"tint_new": {
+"objects/characters/sullivan/mp/sullivan-bird-mask:default": [
+true,
+[
+"sullivan-bird-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/sullivan/mp/sullivan-bird-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sullivan-part-fancy-hat": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+90112,
+327680
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+466152,
+829640
+],
+"tint_new": {
+"objects/characters/sullivan/mp/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/sullivan/mp/sullivan-fancy-hat:default": [
+true,
+[
+"sullivan-fancy-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/sullivan/mp/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/sullivan/mp/sullivan-fancy-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sullivan-part-french-hat": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+90112,
+327680
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+437816,
+798344
+],
+"tint_new": {
+"objects/characters/sullivan/mp/sullivan-french-hat:default": [
+true,
+[
+"sullivan-french-hat-tint-mask.tga"
+]
+],
+"objects/characters/sullivan/mp/hair-mp:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/sullivan/mp/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/sullivan/mp/sullivan-french-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sullivan-part-glasses-a": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+54272,
+78848
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+178160,
+205064
+],
+"tint_new": {
+"objects/characters/sullivan/mp/mp-sunglasses:default": [
+true,
+[
+"mp-sully-sunglasses-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/sullivan/mp/mp-sunglasses:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sullivan-part-jak-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+90112,
+327680
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+611816,
+967432
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/sullivan/mp/hair-mp:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/sullivan/mp/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sullivan-part-roundglasses": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+31744,
+36864
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+155072,
+160488
+],
+"tint_new": {
+"objects/characters/sullivan/mp/mp-glasses:default": [
+true,
+[
+"mp-sully-round-glasses-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/sullivan/mp/mp-glasses:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sullivan-part-straw-hat": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+90112,
+327680
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+450472,
+810872
+],
+"tint_new": {
+"objects/characters/sullivan/mp/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/sullivan/mp/sullivan-straw-hat:default": [
+true,
+[
+"sullivan-straw-hat-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/sullivan/mp/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/sullivan/mp/sullivan-straw-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-sullivan-young-jak-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+70656,
+243712
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+637048,
+942632
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/sullivan/mp-hair-young:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/sullivan/mp-hair-young:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-talbot-aztec-mask": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+66560,
+181248
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+514712,
+757944
+],
+"tint_new": {
+"objects/characters/talbot/mp/talbot-aztec-mask:default-without-tie": [
+true,
+[
+"flat-tint-mask.tga"
+]
+],
+"objects/characters/talbot/talbot-hair:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/talbot/talbot-hair:default": [
+false,
+[]
+],
+"objects/characters/talbot/mp/talbot-aztec-mask:default-without-tie": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-talbot-burlap-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+369344,
+415736
+],
+"tint_new": {
+"objects/characters/talbot/mp/talbot-burlap-mask:default-without-tie": [
+true,
+[
+"talbot-burlap-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/talbot/mp/talbot-burlap-mask:default-without-tie": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-talbot-dive-helmet": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+39936,
+184320
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+286736,
+431624
+],
+"tint_new": {
+"objects/characters/talbot/mp/talbot-dive-helmet:default-without-tie": [
+true,
+[
+"talbot-dive-helmet-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/talbot/mp/talbot-dive-helmet:default-without-tie": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-talbot-gas-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+370992,
+417384
+],
+"tint_new": {
+"objects/characters/talbot/mp/desert-talbot-mask:default-without-tie": [
+true,
+[
+"desert-talbot-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/talbot/mp/desert-talbot-mask:default-without-tie": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-talbot-jak-goggles": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+66560,
+222208
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+508040,
+796408
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+],
+"objects/characters/talbot/talbot-hair:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/talbot/talbot-hair:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-talbot-mask-a": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+221056,
+267496
+],
+"tint_new": {
+"objects/characters/talbot/mp-talbot-mask:default": [
+true,
+[
+"mp-talbit-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/talbot/mp-talbot-mask:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-talbot-noh-mask": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+66560,
+222208
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+512808,
+801176
+],
+"tint_new": {
+"objects/characters/talbot/talbot-hair:default": [
+false,
+[]
+],
+"objects/characters/talbot/mp/talbot-noh-mask:default-without-tie": [
+true,
+[
+"talbot-noh-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/talbot/talbot-hair:default": [
+false,
+[]
+],
+"objects/characters/talbot/mp/talbot-noh-mask:default-without-tie": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-talbot-octo-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+278928,
+325320
+],
+"tint_new": {
+"objects/characters/talbot/mp/talbot-octo-mask:default-without-tie": [
+true,
+[
+"talbot-octo-mask-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/talbot/mp/talbot-octo-mask:default-without-tie": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-talbot-t-rex-mask": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+351600,
+397976
+],
+"tint_new": {
+"objects/characters/talbot/mp/talbot-t-rex-mask:default-without-tie": [
+true,
+[
+"talbot-t-rex-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/talbot/mp/talbot-t-rex-mask:default-without-tie": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-thug-a-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+309792,
+356184
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-thug-b-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+372832,
+419224
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-thug-c-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+371568,
+417960
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-thug-d-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+371280,
+417672
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-thug-f-jak-goggles": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+371568,
+417960
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+true,
+[
+"drake-jak-goggles-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/drake-jak-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-killzone-helmet-a": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+342776,
+412424
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/guerilla/ice/mp-ice-head:default": [
+true,
+[
+"ice-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/guerilla/ice/mp-ice-head:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-head-helmet-b": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+184320
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+245272,
+356120
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-b-00:default": [
+true,
+[
+"mp-kit-mercenary-helmet-helmet-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-b-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-head-helmet-c": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+314808,
+384552
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-f-00:default": [
+true,
+[
+"mp-kit-mercenary-helmet-helmet-f-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-f-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-head-helmet-e": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+324168,
+393912
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-e-00:default": [
+true,
+[
+"mp-kit-mercenary-helmet-helmet-e-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-e-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-head-mask-a": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+184320
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+253032,
+363864
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-mask-a-00:default": [
+true,
+[
+"mp-kit-mercenary-helmet-mask-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-mask-a-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-head-wrap-a": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+247288,
+317032
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-wrap-a-00:default": [
+true,
+[
+"mp-kit-mercenary-helmet-wrap-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-wrap-a-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-head-wrap-b": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+243992,
+313736
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-wrap-b-00:default": [
+true,
+[
+"mp-kit-mercenary-helmet-wrap-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-wrap-b-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-helmet-wrap-a-00": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+138240,
+148480
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+382600,
+411352
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-00:default": [
+true,
+[
+"mp-kit-pirate-helmet-wrap-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-helmet-wrap-a-03": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+335592,
+405304
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-03:default": [
+true,
+[
+"mp-kit-pirate-helmet-wrap-a-03-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-03:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-helmet-wrap-a-04": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+335592,
+405304
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-04:default": [
+true,
+[
+"mp-kit-pirate-helmet-wrap-a-04-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-04:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-helmet-wrap-a-06": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+184320
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+335592,
+446376
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-06:default": [
+true,
+[
+"mp-kit-pirate-helmet-wrap-a-06-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-06:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-helmet-wrap-b-00": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+138240,
+230400
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+303608,
+414376
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-b-00:default": [
+true,
+[
+"mp-kit-pirate-helmet-wrap-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-b-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-shared-descendent-mask": {
+"ok": true,
+"template": "mp-hero-sol-b2b-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+109056,
+237056
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+447576,
+672368
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/roman/mp-roman-mask:default": [
+true,
+[
+"descendant-skin-color-tint-mask.tga"
+]
+],
+"objects/characters/u2-mp-characters/roman/roman-mask-eyes:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/u2-mp-characters/roman/mp-roman-mask:default": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/roman/roman-mask-eyes:default": [
+true,
+[
+"descendant-skin-color-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-shared-monster-mask": {
+"ok": true,
+"template": "mp-hero-schafer-torso",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+217600,
+247808
+],
+"check": [
+2,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+882712,
+715496
+],
+"tint_new": {
+"objects/characters/shambala-creature/eyes:default": [
+false,
+[]
+],
+"objects/characters/shambala-creature/hair:fma": [
+false,
+[]
+],
+"objects/characters/shambala-creature/teeth:lod0": [
+false,
+[]
+],
+"objects/characters/shambala-creature/creature:lod0": [
+true,
+[
+"sla-creature-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/shambala-creature/eyes:default": [
+false,
+[]
+],
+"objects/characters/shambala-creature/hair:fma": [
+false,
+[]
+],
+"objects/characters/shambala-creature/teeth:lod0": [
+true,
+[
+"drake-london-dirty-tint-mask.tga"
+]
+],
+"objects/characters/shambala-creature/creature:lod0": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/hero-arms-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/eyelashes:default": [
+false,
+[]
+],
+"objects/characters/hero/eyeoverlay:default": [
+false,
+[]
+],
+"objects/characters/hero/eyes:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-shared-old-scholar-hat": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+70656,
+191488
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+313528,
+562856
+],
+"tint_new": {
+"objects/characters/hero/french/mp/suited-drake-medieval-hat:default": [
+true,
+[
+"suited-drake-medieval-hat-tint-mask.tga"
+]
+],
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/hero/hair-mp:default": [
+false,
+[]
+],
+"objects/characters/hero/french/mp/suited-drake-medieval-hat:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-chloe-artifact-mask": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+63488,
+167936
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+557360,
+657152
+],
+"tint_new": {
+"objects/characters/chloe/uncharted3/mp/chloe-artifact-mask:default": [
+false,
+[]
+],
+"objects/characters/chloe/uncharted3/mp/chloe-hair-mp-syria:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/chloe/uncharted3/mp/chloe-artifact-mask:default": [
+false,
+[]
+],
+"objects/characters/chloe/uncharted3/mp/chloe-hair-mp-syria:default": [
+true,
+[
+"chloe-legs-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-chloe-syria-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-young-marlowe-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-u2-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-marlowe-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-elena-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-elena-u1-torso",
+256,
+[
+"tint wrong: chloe-artifact-mask:default extra"
+]
+]
+],
+"secs": 0
+},
+"mp-chloe-aztec-mask": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+71680,
+214016
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+619536,
+757480
+],
+"tint_new": {
+"objects/characters/chloe/uncharted3/mp/chloe-hair-mp-syria:default": [
+false,
+[]
+],
+"objects/characters/chloe/uncharted3/mp/chloe-aztec-mask:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/chloe/uncharted3/mp/chloe-hair-mp-syria:default": [
+false,
+[]
+],
+"objects/characters/chloe/uncharted3/mp/chloe-aztec-mask:default": [
+true,
+[
+"chloe-legs-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-chloe-syria-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-young-marlowe-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-u2-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-marlowe-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-elena-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-elena-u1-torso",
+256,
+[
+"tint wrong: chloe-aztec-mask:default extra"
+]
+]
+],
+"secs": 0
+},
+"mp-chloe-cat-mask": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+58368,
+146432
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+670624,
+754320
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/chloe/uncharted3/mp/chloe-hair-mp-syria:mp": [
+false,
+[]
+],
+"objects/characters/chloe/uncharted3/mp/chloe-cat-mask:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/chloe/uncharted3/mp/chloe-hair-mp-syria:mp": [
+false,
+[]
+],
+"objects/characters/chloe/uncharted3/mp/chloe-cat-mask:default": [
+true,
+[
+"chloe-legs-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-chloe-u2-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-young-marlowe-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-syria-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-marlowe-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-elena-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-elena-u1-torso",
+256,
+[
+"tint wrong: chloe-cat-mask:default extra"
+]
+]
+],
+"secs": 0
+},
+"mp-chloe-marlowe-phantom-mask": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+57344,
+146432
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+468112,
+552672
+],
+"tint_new": {
+"objects/characters/marlowe/mp/suited-marlowe-phantom-mask:default": [
+false,
+[]
+],
+"objects/characters/marlowe/marlowe-hair:mp": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/marlowe/mp/suited-marlowe-phantom-mask:default": [
+false,
+[]
+],
+"objects/characters/marlowe/marlowe-hair:mp": [
+true,
+[
+"chloe-legs-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-chloe-young-marlowe-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-marlowe-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-u2-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-syria-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-elena-hair",
+256,
+"build failed",
+"layer\\scratch\\hat-colour\\build_hat.py\", line 98, in build\n    best = max(c2, key=lambda m: len(ks & kinds_of_binds(A, m)) - len(kinds_of_binds(A, m) - ks))\nValueError: max() iterable argument is empty"
+],
+[
+"mp-chloe-elena-u1-torso",
+256,
+[
+"tint wrong: suited-marlowe-phantom-mask:default extra"
+]
+]
+],
+"secs": 0
+},
+"mp-chloe-marlowe-royal-necklace": {
+"ok": true,
+"template": "mp-chloe-u2-legs",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+78848,
+77824
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+277000,
+313480
+],
+"tint_new": {
+"objects/characters/marlowe/mp/suited-marlowe-royal-necklace:default": [
+true,
+[
+"suited-marlowe-royal-necklace-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/marlowe/mp/suited-marlowe-royal-necklace:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-cutter-sombrero": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+348864,
+395240
+],
+"tint_new": {
+"objects/characters/cutter/mp/cutter-sombrero:default": [
+true,
+[
+"cutter-sombrero-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/cutter/mp/cutter-sombrero:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-fat-talbot-torso": {
+"ok": true,
+"template": "mp-hero-schafer-torso",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+476160,
+419840
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+1580936,
+1560064
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/talbot/talbot-eye-fma:default": [
+false,
+[]
+],
+"objects/characters/talbot/talbot-tongue:default": [
+false,
+[]
+],
+"objects/characters/talbot/talbot-teeth:default": [
+false,
+[]
+],
+"objects/characters/talbot/mp/mp-talbot-jacket:default": [
+true,
+[
+"mp-talbot-torso-suit-tint-mask.tga"
+]
+],
+"objects/characters/talbot/mp/mp-talbot-head:default": [
+false,
+[]
+],
+"objects/characters/talbot/talbot-hands:mp": [
+false,
+[]
+],
+"objects/characters/talbot/talbot-hair:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/talbot/talbot-eye-fma:default": [
+false,
+[]
+],
+"objects/characters/talbot/talbot-tongue:default": [
+true,
+[
+"flat-tint-mask.tga"
+]
+],
+"objects/characters/talbot/talbot-teeth:default": [
+true,
+[
+"flat-tint-mask.tga"
+]
+],
+"objects/characters/talbot/mp/mp-talbot-jacket:default": [
+true,
+[
+"mp-talbot-torso-suit-tint-mask.tga"
+]
+],
+"objects/characters/talbot/mp/mp-talbot-head:default": [
+false,
+[]
+],
+"objects/characters/talbot/talbot-hands:mp": [
+false,
+[]
+],
+"objects/characters/talbot/talbot-hair:default": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-hero-fat-torso",
+256,
+[
+"tint wrong: talbot-teeth:default extra talbot-tongue:default extra"
+]
+]
+],
+"secs": 0
+},
+"mp-hero-flynn-coop": {
+"ok": true,
+"template": "mp-hero-jeff-torso",
+"cap": 128,
+"layer": "overlay-r3",
+"vram": [
+215040,
+314368
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+1908928,
+2053552
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/flynn/flynn-pants-mp-coop:default": [
+true,
+[
+"flynn-pants-tint-mask.tga"
+]
+],
+"objects/characters/u2-mp-characters/flynn/flynn-arms-mp:default": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/flynn/flynn-boots-mp:default": [
+false,
+[]
+],
+"objects/characters/flynn/flynn/flynn-eye:default": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/flynn/flynn-head-mp:default": [
+false,
+[]
+],
+"objects/characters/flynn/flynn/hair:lod0": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/flynn/flynn-body-coop:default": [
+false,
+[]
+],
+"objects/characters/flynn/flynn/misc-accessories:wristband-watch-fma": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/u2-mp-characters/flynn/flynn-pants-mp-coop:default": [
+true,
+[]
+],
+"objects/characters/u2-mp-characters/flynn/flynn-arms-mp:default": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/flynn/flynn-boots-mp:default": [
+true,
+[]
+],
+"objects/characters/flynn/flynn/flynn-eye:default": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/flynn/flynn-head-mp:default": [
+false,
+[]
+],
+"objects/characters/flynn/flynn/hair:lod0": [
+false,
+[]
+],
+"objects/characters/u2-mp-characters/flynn/flynn-body-coop:default": [
+true,
+[]
+],
+"objects/characters/flynn/flynn/misc-accessories:wristband-watch-fma": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-hero-flynn-torso",
+256,
+[
+"tint wrong: flynn-pants-mp-coop:default lost"
+]
+],
+[
+"mp-hero-fat-torso",
+128,
+[
+"tint wrong: flynn-boots-mp:default extra flynn-body-coop:default extra misc-accessories:wristband-watch-fma extra"
+]
+],
+[
+"mp-hero-schafer-torso",
+128,
+[
+"tint wrong: flynn-boots-mp:default extra flynn-body-coop:default extra misc-accessories:wristband-watch-fma extra"
+]
+]
+],
+"secs": 0
+},
+"mp-hero-make-believe-hair": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+81920,
+245760
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+461640,
+757928
+],
+"tint_new": {
+"objects/characters/mp-kit/helmet/dlc/mb-goggles:default": [
+true,
+[
+"mb-goggles-tint-mask.tga"
+]
+],
+"objects/characters/mp-kit/heads/dlc/mb-jeremy-hair-a-00:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/heads/dlc/mb-jeremy-hair-a-00:default": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/dlc/mb-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-make-believe-legs": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+115712,
+248832
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+503968,
+592960
+],
+"tint_new": {
+"objects/characters/mp-kit/feet/dlc/mp-kit-mb-jeremy-shoes-a-00:body-fma": [
+true,
+[
+"mb-shoes-tint-mask.tga"
+]
+],
+"objects/characters/mp-kit/legs/dlc/mp-kit-mb-jeremy-pants-a-00:default": [
+true,
+[
+"mb-legs-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/feet/dlc/mp-kit-mb-jeremy-shoes-a-00:body-fma": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/dlc/mp-kit-mb-jeremy-pants-a-00:default": [
+true,
+[
+"mb-shoes-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-ngp-legs": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+74752,
+78848
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+454992,
+412392
+],
+"tint_new": {
+"objects/characters/ngp/ngp-drake/mp-ngp-drake-clothes:default": [
+true,
+[
+"drake-body-tint-mask.tga"
+]
+],
+"objects/characters/ngp/ngp-drake/mp-ngp-drake-pants:default": [
+true,
+[
+"drake-body-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/ngp/ngp-drake/mp-ngp-drake-clothes:default": [
+false,
+[]
+],
+"objects/characters/hero/suit-dirty/mp/pants-mp:default": [
+true,
+[
+"drake-london-dirty-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-hero-skel-bones-glow": {
+"ok": true,
+"template": "mp-hero-skel-marco-bones",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+51200,
+174080
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+616416,
+763296
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/skeleton/mp-skeleton:default": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+false,
+[]
+],
+"objects/characters/npc-sp/skull-teeth:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/u2-mp-characters/skeleton/mp-skeleton:default": [
+true,
+[]
+],
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+false,
+[]
+],
+"objects/characters/npc-sp/skull-teeth:default": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-hero-skel-sfd-bones",
+256,
+[
+"tint wrong: mp-skeleton:default extra"
+]
+],
+[
+"mp-hero-skel-bones",
+256,
+[
+"tint wrong: mp-skeleton:default extra"
+]
+]
+],
+"secs": 0
+},
+"mp-kit-hunter-arms-cowboy-a": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+212480,
+289720
+],
+"tint_new": {
+"objects/characters/mp-kit/arms/dlc/mp-kit-western-arms-gloves-a-00:default": [
+true,
+[
+"mp-kit-western-arms-gloves-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/arms/dlc/mp-kit-western-arms-gloves-a-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-arms-gloves-b": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+211760,
+288968
+],
+"tint_new": {
+"objects/characters/mp-kit/arms/treasure-hunter/mp-kit-treasure-hunter-arms-gloves-b-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-arms-gloves-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/arms/treasure-hunter/mp-kit-treasure-hunter-arms-gloves-b-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-arms-gloves-c": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+97280,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+225056,
+302264
+],
+"tint_new": {
+"objects/characters/mp-kit/arms/treasure-hunter/mp-kit-treasure-hunter-arms-gloves-c-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-arms-gloves-c-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/arms/treasure-hunter/mp-kit-treasure-hunter-arms-gloves-c-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-feet-shoes-c": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+102400,
+92160
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+202296,
+200600
+],
+"tint_new": {
+"objects/characters/mp-kit/feet/treasure-hunter/mp-kit-treasure-hunter-feet-shoes-c-00:body-fma": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/feet/treasure-hunter/mp-kit-treasure-hunter-feet-shoes-c-00:body-fma": [
+true,
+[
+"mp-kit-treasure-hunter-feet-boots-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-head-hat-b": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+117760,
+92160
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+202368,
+191112
+],
+"tint_new": {
+"objects/characters/npc-sp/cartagena/helmet/cartagena-civ-helmet-hat-c-00:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/npc-sp/cartagena/helmet/cartagena-civ-helmet-hat-c-00:default": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-head-hat-c": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+117760,
+92160
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+202080,
+190824
+],
+"tint_new": {
+"objects/characters/npc-sp/cartagena/helmet/cartagena-civ-helmet-hat-b-00:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/npc-sp/cartagena/helmet/cartagena-civ-helmet-hat-b-00:default": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-torso-cowboy-a": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+437048,
+506472
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/dlc/mp-kit-western-torso-in-vest-a-00:default": [
+true,
+[
+"mp-kit-western-torso-in-vest-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/dlc/mp-kit-western-torso-in-vest-a-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-torso-cowboy-b": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+488360,
+557800
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/dlc/mp-kit-western-torso-shirt-a-00:default": [
+true,
+[
+"mp-kit-western-torso-in-shirt-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/dlc/mp-kit-western-torso-shirt-a-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-torso-jacket-a": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+189440
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+307144,
+403000
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-a-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-torso-out-jacket-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-a-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-torso-jacket-b": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+426408,
+495816
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-b-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-torso-out-jacket-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-b-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-torso-jacket-c": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+406056,
+475480
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-c-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-torso-out-jacket-c-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-c-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-torso-jacket-d": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+413064,
+482488
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-d-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-torso-out-jacket-d-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-d-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-torso-jacket-e": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+310456,
+379864
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-e-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-torso-out-jacket-e-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-e-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-torso-jacket-f": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+411336,
+480744
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-f-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-torso-out-jacket-f-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-f-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-torso-shirt-a": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+339096,
+408504
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-a-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-torso-in-shirt-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-a-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-torso-shirt-c": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+184320
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+278280,
+388824
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-g-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-torso-in-shirt-g-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-g-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-torso-shirt-d": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+251656,
+321064
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-f-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-torso-in-shirt-f-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-f-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-torso-shirt-d-00": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+476872,
+546280
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-e-00:default": [
+true,
+[
+"mp_kit_treasure_hunter_torso_in_shirt_e_00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-e-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-torso-shirt-f": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+204488,
+273656
+],
+"tint_new": {
+"objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-c-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-torso-in-shirt-c-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/treasure-hunter/mp-kit-treasure-hunter-torso-in-shirt-c-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-hunter-torso-vest-d": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+450360,
+519768
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-vest-d-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-torso-out-vest-d-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-vest-d-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-killzone-full-a": {
+"ok": true,
+"template": "mp-hero-winter-legs",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+419840
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+2540824,
+2940408
+],
+"tint_new": {
+"objects/characters/guerilla/hgh/mp-hgh-head:default": [
+true,
+[
+"hgh-head-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/guerilla/hgh/mp-hgh-body:default": [
+true,
+[
+"hgh-body-tint-mask.tga"
+]
+],
+"objects/characters/guerilla/hgh/mp-hgh-full:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/guerilla/hgh/mp-hgh-head:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-kit-hunter-legs-pants-j",
+256,
+[
+"tint wrong: mp-hgh-full:default extra"
+]
+]
+],
+"secs": 0
+},
+"mp-kit-merc-arms-cowboy-c": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+64512,
+77824
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+173536,
+217992
+],
+"tint_new": {
+"objects/characters/mp-kit/arms/dlc/mp-kit-western-arms-gloves-c-00:default": [
+true,
+[
+"mp-kit-western-arms-gloves-c-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/arms/dlc/mp-kit-western-arms-gloves-c-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-arms-cowboy-d": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+64512,
+77824
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+166320,
+210776
+],
+"tint_new": {
+"objects/characters/mp-kit/arms/dlc/mp-kit-western-arms-gloves-d-00:default": [
+true,
+[
+"mp-kit-western-arms-gloves-d-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/arms/dlc/mp-kit-western-arms-gloves-d-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-arms-gloves-b": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+245848,
+315576
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-b-00:default": [
+true,
+[
+"mp-kit-mercenary-arms-gloves-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-b-00:default": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-kit-shirt-comic-b",
+256,
+[
+"tint wrong: mp-kit-mercenary-arms-gloves-b-00:default lost"
+]
+]
+],
+"secs": 0
+},
+"mp-kit-merc-arms-gloves-d": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+255848,
+325576
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-d-00:default": [
+true,
+[
+"mp-kit-mercenary-arms-gloves-d-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-d-00:default": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-kit-shirt-comic-b",
+256,
+[
+"tint wrong: mp-kit-mercenary-arms-gloves-d-00:default lost"
+]
+]
+],
+"secs": 0
+},
+"mp-kit-merc-arms-gloves-f": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+54272,
+78848
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+170096,
+225800
+],
+"tint_new": {
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-f-00:default": [
+true,
+[
+"mp-kit-mercenary-arms-gloves-f-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-f-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-arms-gloves-g": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+54272,
+78848
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+170240,
+225944
+],
+"tint_new": {
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-g-00:default": [
+true,
+[
+"mp-kit-mercenary-arms-gloves-g-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-g-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-arms-gloves-h": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+54272,
+78848
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+169776,
+225480
+],
+"tint_new": {
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-h-00:default": [
+true,
+[
+"mp-kit-mercenary-arms-gloves-h-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-h-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-arms-gloves-i": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+54272,
+78848
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+169616,
+225320
+],
+"tint_new": {
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-i-00:default": [
+true,
+[
+"mp-kit-mercenary-arms-gloves-i-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-i-00:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-feet-boots-b": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+102400,
+92160
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+198072,
+196424
+],
+"tint_new": {
+"objects/characters/mp-kit/feet/mercenary/mp-kit-mercenary-feet-boots-b-00:body-fma": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/feet/mercenary/mp-kit-mercenary-feet-boots-b-00:body-fma": [
+true,
+[
+"mp-kit-treasure-hunter-feet-boots-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-head-hat-c": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+117760,
+92160
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+201744,
+190424
+],
+"tint_new": {
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-hat-c-00:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-hat-c-00:default": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-head-hat-e": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+117760,
+92160
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+209120,
+197800
+],
+"tint_new": {
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-hat-e-00:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-hat-e-00:default": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-head-mask-d": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+58368,
+138240
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+154008,
+248744
+],
+"tint_new": {
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-mask-d-00:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-mask-d-00:default": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-legs-pants-f": {
+"ok": true,
+"template": "mp-hero-sullivan-london-legs",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+102400,
+158720
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+476792,
+576816
+],
+"tint_new": {
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/mercenary/mp-kit-mercenary-legs-pants-f-00:default": [
+true,
+[
+"mp-kit-mercenary-legs-pants-f-00-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-legs-pants-h": {
+"ok": true,
+"template": "mp-hero-sullivan-london-legs",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+102400,
+158720
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+380952,
+480976
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/mercenary/mp-kit-mercenary-legs-pants-h-00:default": [
+true,
+[
+"mp-kit-mercenary-legs-pants-h-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-torso-armor-a": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+49152,
+78848
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+450376,
+498376
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-outer/mercenary/mp-kit-mercenary-torso-out-armor-a-00:default": [
+true,
+[
+"mp-kit-mercenary-torso-out-armor-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-outer/mercenary/mp-kit-mercenary-torso-out-armor-a-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-torso-armor-b": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+49152,
+78848
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+476344,
+524344
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-outer/mercenary/mp-kit-mercenary-torso-out-armor-b-00:default": [
+true,
+[
+"mp-kit-mercenary-torso-out-armor-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-outer/mercenary/mp-kit-mercenary-torso-out-armor-b-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-torso-armor-e": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+535336,
+604840
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-outer/mercenary/mp-kit-mercenary-torso-out-armor-e-00:default": [
+true,
+[
+"mp-kit-mercenary-torso-out-armor-e-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-outer/mercenary/mp-kit-mercenary-torso-out-armor-e-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-torso-cowboy-c": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+472184,
+541656
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/dlc/mp-kit-western-torso-in-vest-b-00:default": [
+true,
+[
+"mp-kit-western-torso-in-vest-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/dlc/mp-kit-western-torso-in-vest-b-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-torso-cowboy-d": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+437144,
+506616
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/dlc/mp-kit-western-torso-in-vest-c-00:default": [
+true,
+[
+"mp-kit-western-torso-in-vest-c-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/dlc/mp-kit-western-torso-in-vest-c-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-torso-jacket-b": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+184320
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+445784,
+556408
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-outer/mercenary/mp-kit-mercenary-torso-out-jacket-b-00:default": [
+true,
+[
+"mp-kit-mercenary-torso-out-jacket-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-outer/mercenary/mp-kit-mercenary-torso-out-jacket-b-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-torso-shirt-a": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+230400
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+325752,
+482424
+],
+"tint_new": {
+"objects/characters/mp-kit/torso-inner/mercenary/mp-kit-mercenary-torso-in-shirt-a-00:default": [
+true,
+[
+"mp-kit-mercenary-torso-in-shirt-a-00-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/mercenary/mp-kit-mercenary-torso-in-shirt-a-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-torso-shirt-b": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+49152,
+98304
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+439864,
+507464
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/mercenary/mp-kit-mercenary-torso-in-shirt-b-00:default": [
+true,
+[
+"mp-kit-mercenary-torso-in-shirt-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/mercenary/mp-kit-mercenary-torso-in-shirt-b-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-torso-shirt-c": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+49152,
+98304
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+525800,
+593400
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/mercenary/mp-kit-mercenary-torso-in-shirt-c-00:default": [
+true,
+[
+"mp-kit-mercenary-torso-in-shirt-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/mercenary/mp-kit-mercenary-torso-in-shirt-c-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-merc-torso-vest-b": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+184320
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+520968,
+631576
+],
+"tint_new": {
+"objects/characters/mp-kit/torso-inner/mercenary/mp-kit-mercenary-torso-in-vest-b-00:default": [
+true,
+[
+"mp-kit-mercenary-torso-in-vest-a-00-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/mercenary/mp-kit-mercenary-torso-in-vest-b-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-misc-hair-make-believe": {
+"ok": true,
+"template": "mp-hero-fat-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+81920,
+245760
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+462696,
+759000
+],
+"tint_new": {
+"objects/characters/mp-kit/helmet/dlc/mb-goggles:default": [
+true,
+[
+"mb-goggles-tint-mask.tga"
+]
+],
+"objects/characters/mp-kit/heads/dlc/mb-jeremy-hair-a-00:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/heads/dlc/mb-jeremy-hair-a-00:default": [
+false,
+[]
+],
+"objects/characters/mp-kit/helmet/dlc/mb-goggles:default": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-misc-torso-make-believe": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+503512,
+573032
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/dlc/mp-kit-mb-jeremy-shirt-a-00:default": [
+true,
+[
+"mb-torso-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/dlc/mp-kit-mb-jeremy-shirt-a-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-arms-gloves-b-00": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+47616,
+98816
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+212328,
+282040
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/arms/mp-kit-pirate-arms-gloves-b-00:default": [
+true,
+[
+"mp-kit-pirate-arms-gloves-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/arms/mp-kit-pirate-arms-gloves-b-00:default": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-kit-shirt-comic-b",
+256,
+[
+"tint wrong: mp-kit-pirate-arms-gloves-b-00:default lost"
+]
+]
+],
+"secs": 0
+},
+"mp-kit-pirate-feet-boots-b-00": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+217560,
+287272
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-boots-b-00:body-fma": [
+true,
+[
+"mp-kit-pirate-feet-boots-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-boots-b-00:body-fma": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-kit-shirt-comic-b",
+256,
+[
+"tint wrong: mp-kit-pirate-feet-boots-b-00:body-fma lost"
+]
+]
+],
+"secs": 0
+},
+"mp-kit-pirate-feet-boots-c-00": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+248328,
+318024
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-boots-c-00:body-fma": [
+true,
+[
+"mp-kit-pirate-feet-boots-c-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-boots-c-00:body-fma": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-kit-shirt-comic-b",
+256,
+[
+"tint wrong: mp-kit-pirate-feet-boots-c-00:body-fma lost"
+]
+]
+],
+"secs": 0
+},
+"mp-kit-pirate-feet-sandles-a-00": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+59392,
+67584
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+210216,
+236920
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-sandals-a-00:body-fma": [
+true,
+[
+"mp-kit-pirate-feet-sandles-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-sandals-a-00:body-fma": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-kit-shirt-comic-b",
+256,
+[
+"tint wrong: mp-kit-pirate-feet-sandals-a-00:body-fma lost"
+]
+]
+],
+"secs": 0
+},
+"mp-kit-pirate-feet-sandles-b-00": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+59392,
+77824
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+220664,
+257608
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-sandals-b-00:body-fma": [
+true,
+[
+"mp-kit-pirate-feet-sandles-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-sandals-b-00:body-fma": [
+false,
+[]
+]
+},
+"tried": [
+[
+"mp-kit-shirt-comic-b",
+256,
+[
+"tint wrong: mp-kit-pirate-feet-sandals-b-00:body-fma lost"
+]
+]
+],
+"secs": 0
+},
+"mp-kit-pirate-helmet-hat-a-00": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+123904,
+72704
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+215448,
+179208
+],
+"tint_new": {
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-hat-a-00:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-hat-a-00:default": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-legs-pants-a-00": {
+"ok": true,
+"template": "mp-hero-sullivan-london-legs",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+102400,
+158720
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+430328,
+530272
+],
+"tint_new": {
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/mp-kit-pirate-legs-pants-a-00:default": [
+true,
+[
+"mp-kit-pirate-legs-pants-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-legs-pants-b-00": {
+"ok": true,
+"template": "mp-hero-sullivan-london-legs",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+102400,
+125952
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+432664,
+499840
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/mp-kit-pirate-legs-pants-b-00:default": [
+true,
+[
+"mp-kit-pirate-legs-pants-b-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-legs-pants-c-00": {
+"ok": true,
+"template": "mp-hero-sullivan-london-legs",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+102400,
+153600
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+425496,
+519704
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/mp-kit-pirate-legs-pants-c-00:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-legs-pants-c-01": {
+"ok": true,
+"template": "mp-hero-sullivan-london-legs",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+45056,
+153600
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+378840,
+530088
+],
+"tint_new": {
+"objects/characters/mp-kit/legs/mp-kit-pirate-legs-pants-c-01:default": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/legs/mp-kit-pirate-legs-pants-c-01:default": [
+true,
+[
+"mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-legs-pants-c-03": {
+"ok": true,
+"template": "mp-hero-sullivan-london-legs",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+102400,
+199680
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+425496,
+566496
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/mp-kit-pirate-legs-pants-c-03:default": [
+true,
+[
+"mp-kit-pirate-legs-pants-c-03-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-legs-pants-d-00": {
+"ok": true,
+"template": "mp-hero-sullivan-london-legs",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+102400,
+120832
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+439512,
+500968
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+false,
+[]
+],
+"objects/characters/mp-kit/legs/mp-kit-pirate-legs-pants-d-00:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": [
+true,
+[
+"mp-kit-treasure-hunter-legs-pants-j-00-tint-mask.tga"
+]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-torso-in-shirt-a-00": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+189440
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+309624,
+425192
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/mp-kit-pirate-torso-in-shirt-a-00:default": [
+true,
+[
+"mp-kit-pirate-torso-in-shirt-a-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/mp-kit-pirate-torso-in-shirt-a-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-torso-in-shirt-a-04": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+51200,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+263688,
+374136
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/mp-kit-pirate-torso-in-shirt-a-04:default": [
+true,
+[
+"mp-kit-pirate-torso-in-shirt-a-04-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/mp-kit-pirate-torso-in-shirt-a-04:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-torso-in-shirt-c-00": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+92160,
+143360
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+297080,
+366552
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/mp-kit-pirate-torso-in-shirt-c-00:default": [
+true,
+[
+"mp-kit-pirate-torso-in-shirt-c-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-inner/mp-kit-pirate-torso-in-shirt-c-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-pirate-torso-out-jacket-e-00": {
+"ok": true,
+"template": "mp-kit-hunter-legs-pants-j",
+"cap": 256,
+"layer": "overlay-r3",
+"vram": [
+49152,
+78848
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+408440,
+456408
+],
+"tint_new": {
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-outer/mp-kit-pirate-torso-out-jacket-e-00:default": [
+true,
+[
+"mp-kit-pirate-torso-out-jacket-e-00-tint-mask.tga"
+]
+]
+},
+"tint_old": {
+"objects/characters/mp-kit/torso-outer/mp-kit-pirate-torso-out-jacket-e-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-shared-desert-hat": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+117760,
+92160
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+246928,
+235736
+],
+"tint_new": {
+"objects/characters/talbot/mp/desert-talbot-hat:default-without-tie": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/talbot/mp/desert-talbot-hat:default-without-tie": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-shared-eye-mask": {
+"ok": true,
+"template": "mp-hero-sol-b2b-torso",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+117760,
+92160
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+272128,
+420688
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/flynn/flynn-eye-mask:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/u2-mp-characters/flynn/flynn-eye-mask:default": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-shared-knight-helmet": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+117760,
+92160
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+289888,
+278632
+],
+"tint_new": {
+"objects/characters/u2-mp-characters/lazarevic/lazarevic-medieval-helm:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/u2-mp-characters/lazarevic/lazarevic-medieval-helm:default": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-shared-panda-mask": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+117760,
+92160
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+326896,
+315720
+],
+"tint_new": {
+"objects/characters/marlowe/mp/suited-marlowe-ski-mask:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/marlowe/mp/suited-marlowe-ski-mask:default": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-shared-round-sunglasses": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+84992,
+59392
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+230640,
+219448
+],
+"tint_new": {
+"objects/characters/marlowe/mp/young-marlowe-sunglasses:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/marlowe/mp/young-marlowe-sunglasses:default": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-shared-sailor-hat": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+117760,
+92160
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+250704,
+239512
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-sailor-hat:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/hero/french/mp/drake-sailor-hat:default": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-shared-ski-mask": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+117760,
+92160
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+309872,
+298680
+],
+"tint_new": {
+"objects/characters/hero/french/mp/winter-drake-ski-mask:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/hero/french/mp/winter-drake-ski-mask:default": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"mp-kit-shared-wizard-hat": {
+"ok": true,
+"template": "mp-kit-shirt-comic-b",
+"cap": 256,
+"layer": "overlay-port",
+"vram": [
+117760,
+92160
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+259632,
+248456
+],
+"tint_new": {
+"objects/characters/hero/french/mp/drake-tall-hat:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/hero/french/mp/drake-tall-hat:default": [
+true,
+[
+"cartagena-civ-helmet-hat-a-00-tint-mask.tga"
+]
+]
+},
+"tried": [],
+"secs": 0
+},
+"pirate-armor-a-full-mp": {
+"ok": true,
+"template": "pirate-pants-com-all",
+"cap": 128,
+"layer": "overlay-r3",
+"vram": [
+195584,
+374272
+],
+"check": [
+0,
+0
+],
+"crash": [
+0,
+0
+],
+"size": [
+2472056,
+2560736
+],
+"tint_new": {
+"objects/characters/mp-kit/heads/mp-kit-base-head-skin-b-00:do-not-use": [
+false,
+[]
+],
+"objects/characters/mp-kit/heads/mp-kit-base-head-skin-b-00:default": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/mp-kit-base-skin-b-00:torso": [
+false,
+[]
+],
+"objects/characters/mp-kit/torso-inner/mp-kit-base-skin-b-00:arms": [
+false,
+[]
+],
+"objects/characters/npc-sp/pirate/legs/pirate-legs-pants-d-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/pirate/helmet/pirate-helmet-mask-a-00:pirate-armor": [
+false,
+[]
+],
+"objects/characters/mp-kit/arms/mp-kit-pirate-arms-gloves-b-00:default": [
+true,
+[
+"mp-kit-pirate-arms-gloves-b-00-tint-mask.tga"
+]
+],
+"objects/characters/npc-sp/pirate/feet/sp-pirate-feet-boots-b-00:body-fma": [
+false,
+[]
+],
+"objects/characters/npc-sp/pirate/torso/pirate-torso-shirt-d-00:default": [
+false,
+[]
+],
+"objects/characters/npc-normal/soldier-armor/acc-pirate-armor:armor-body": [
+false,
+[]
+],
+"objects/characters/npc-normal/soldier-armor/acc:armor-helmet": [
+false,
+[]
+],
+"objects/characters/npc-normal/soldier-armor/acc-pirate-armor:acc-29": [
+false,
+[]
+],
+"objects/characters/npc-normal/soldier-armor/acc-pirate-armor:armor-limbs-acc": [
+false,
+[]
+],
+"objects/characters/mp-kit/heads/mp-kit-eyes-b-00:default": [
+false,
+[]
+]
+},
+"tint_old": {
+"objects/characters/npc-normal/soldier-armor/acc-pirate-armor:armor-limbs-acc": [
+false,
+[]
+],
+"objects/characters/npc-normal/soldier-armor/acc-pirate-armor:armor-body": [
+false,
+[]
+],
+"objects/characters/mp-kit/heads/mp-kit-base-head-skin-b-00:default": [
+false,
+[]
+],
+"library/utilities/lib-shadowblocker:shadowblocker": [
+false,
+[]
+],
+"objects/characters/npc-sp/pirate/legs/pirate-legs-pants-d-00:default": [
+false,
+[]
+],
+"objects/characters/mp-kit/arms/mp-kit-pirate-arms-gloves-b-00:default": [
+true,
+[
+"mp-kit-pirate-arms-gloves-b-00-tint-mask.tga"
+]
+],
+"objects/characters/npc-sp/pirate/torso/pirate-torso-shirt-d-00:default": [
+false,
+[]
+],
+"objects/characters/npc-sp/pirate/feet/sp-pirate-feet-boots-b-00:body-fma": [
+true,
+[]
+],
+"objects/characters/npc-sp/pirate/helmet/pirate-helmet-mask-a-00:pirate-armor": [
+false,
+[]
+],
+"objects/characters/npc-normal/soldier-armor/acc:armor-helmet": [
+false,
+[]
+]
+},
+"tried": [
+[
+"pirate-torso-all",
+128,
+[
+"tint wrong: mp-kit-base-skin-b-00:arms extra mp-kit-base-skin-b-00:torso extra"
+]
+]
+],
+"secs": 1
+}
+}

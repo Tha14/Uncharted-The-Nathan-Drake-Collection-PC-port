@@ -1,0 +1,26 @@
+{
+ "id": "borneo-water-jitter",
+ "title": "Borneo co-op water material fix (borneo/fix_water_jitter.py --only \"^dig-coop\")",
+ "kind": "script",
+ "job": "borneo",
+ "family": "overlay-r3/pak23",
+ "needs": [
+  "ps3_disc",
+  "ps3_data2"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/fix_water_jitter.py",
+   "--only",
+   "^dig-coop",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/pak23/ps4/dig-coop-*.pak"
+ ],
+ "status": "needs-converted-base",
+ "applied": "2026-11-01 20:26",
+ "recipe_version_added": "1.0.0"
+}

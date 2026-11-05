@@ -1,0 +1,28 @@
+{
+ "id": "convert-banks",
+ "title": "overlay-r3: 124 PS3 sound banks converted to the PS4 SCREAM format (sound-banks/convert_banks.py)",
+ "kind": "script",
+ "job": "sound-banks",
+ "family": "overlay-r3/sound1/banks",
+ "needs": [
+  "ps3_disc",
+  "ps3_update"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/convert_banks.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/sound1/banks/ps4/*.bnk"
+ ],
+ "must_write": false,
+ "log_lines": 4,
+ "status": "reproducible",
+ "applied": "2026-10-27 15:51 (cloud b34.tar/glob.tar); converter rewritten 2026-11-05",
+ "notes": "bnkconv.py rewrites SBlk v4/v5 big-endian to SBlk v13 (rules re-derived 2026-11-05; envelope table adsr_env.json and its nearest-pair fallback are the original 2026-10-27 converter's). MP3 (codec 3) and PCM16 samples are re-encoded by vagenc.py, an exact pure-Python port of the original vagenc.c (third_party/vagenc-oct27-src). MP3 is decoded with ffmpeg (-f mp3 -i pipe:0 -f s16le -ac 1 -ar <rate> pipe:1, data read from sample+0x80 for the header data size, trimmed to the header sample count). Verified 2026-11-05 with ffmpeg 8.1.1 (msys2 clang64; the original used 6.1.1-3ubuntu5): all 124 banks byte-identical. Without ffmpeg the 95 banks with MP3 samples are skipped with a message. Pure Python, about 29 min with 6 worker processes.",
+ "recipe_version_added": "1.0.0",
+ "recipe_version_changed": "1.2.0"
+}

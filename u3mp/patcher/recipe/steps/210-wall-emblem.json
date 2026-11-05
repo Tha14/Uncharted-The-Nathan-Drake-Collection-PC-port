@@ -1,0 +1,36 @@
+{
+ "id": "wall-emblem",
+ "title": "Airstrip wall emblems as separate actors: 7 air-multi-emblem-*.pak, air-multi.pak, air-multi-ingame12.pak, pak23_ps4.txt (wall-emblem/apply_air_emblem.py)",
+ "kind": "script",
+ "job": "wall-emblem",
+ "family": "overlay-r3/actor33 + pak23",
+ "needs": [
+  "ps3_disc",
+  "ps3_update",
+  "ps4",
+  "python:numpy"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/mkemblem.py",
+   "{{PROJECT}}/work/overlay-r3/u3data/build/main",
+   "{{PS4}}/u3data/build/main/actor33/ps4"
+  ],
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/apply_air_emblem.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/actor33/ps4/air-multi-emblem-*.pak",
+  "work/overlay-r3/u3data/build/main/pak23/ps4/air-multi.pak",
+  "work/overlay-r3/u3data/build/main/pak23/ps4/air-multi-ingame12.pak",
+  "work/overlay-r3/u3data/build/main/pak23_ps4.txt"
+ ],
+ "status": "needs-converted-base",
+ "applied": "2026-11-01 17:46 / 22:21",
+ "notes": "mkemblem.py here is the first version (17:41; its actors = D:/u3-backups/backup-wall-emblem/actor33-v1, byte-identical 2026-11-05 with toolset 4c36373). The installed actors are the 22:01 second version: step wall-emblem-actors. Full mkemblem.py stops in ps4ingame (navmesh header 0x1b0) on the disc air-multi-ingame12.pak, so the pak23 part of this step still needs the original out/pak23 (pak23 family).",
+ "recipe_version_added": "1.0.0"
+}

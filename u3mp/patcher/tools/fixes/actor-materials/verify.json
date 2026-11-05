@@ -1,0 +1,3461 @@
+{
+ "mp-coop-cutter": {
+  "layer": "overlay-r3",
+  "ps3src": "retail",
+  "template": "cutter",
+  "cap": 0,
+  "before": 12,
+  "after": 12,
+  "tabB": 12,
+  "tabA": 12,
+  "size": [
+   1855824,
+   2983432
+  ],
+  "vram": [
+   394752,
+   315904
+  ],
+  "subs": [
+   13,
+   24
+  ],
+  "nv": [
+   11634,
+   28334
+  ],
+  "ni": [
+   53391,
+   133032
+  ],
+  "maxj": [
+   207,
+   207
+  ],
+  "fg_same": false,
+  "skel": "0xe1a93cff",
+  "hier": "0x88ef4599",
+  "nj": 208,
+  "jh": "66bd353e",
+  "fg_old": [
+   3785964799,
+   2297382297,
+   208,
+   "66bd353e"
+  ],
+  "check": [
+   4,
+   2
+  ],
+  "check_new": [
+   "type 2",
+   "type 2"
+  ],
+  "verify": [
+   "page 0 too large (0x1fd030)"
+  ],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 0,
+  "cubes": [],
+  "flat": [],
+  "roles": [],
+  "old_used": {
+   "objects/characters/cutter/uk/pants:default": 2,
+   "objects/characters/cutter/uk/shirt:default": 1,
+   "objects/characters/cutter/uk/shoes:default": 1,
+   "objects/characters/cutter/uk/jacket:default": 1,
+   "objects/characters/hero/arms:default": 1,
+   "objects/characters/hero/mouth:default": 1,
+   "objects/characters/cutter/brows:default": 1,
+   "objects/characters/cutter/head:default": 1,
+   "objects/characters/hero/eyeoverlay:default": 1,
+   "objects/characters/cutter/eyes:default": 1,
+   "objects/characters/cutter/eyelashes:default": 1,
+   "library/utilities/lib-shadowblocker:shadowblocker": 1
+  }
+ },
+ "mp-hero-agent-b-torso": {
+  "layer": "overlay-r3",
+  "ps3src": "patch13",
+  "template": "mp-hero-agent-a-torso",
+  "cap": 256,
+  "before": 2,
+  "after": 6,
+  "tabB": 9,
+  "tabA": 6,
+  "size": [
+   1288144,
+   1167424
+  ],
+  "vram": [
+   226816,
+   355328
+  ],
+  "subs": [
+   15,
+   15
+  ],
+  "nv": [
+   8198,
+   8198
+  ],
+  "ni": [
+   34770,
+   34770
+  ],
+  "maxj": [
+   182,
+   182
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   2,
+   2
+  ],
+  "check_new": [
+   "type 2",
+   "type 2"
+  ],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [
+   "eyes-env-reflection.dds",
+   "default-neutral-env-reflection.dds"
+  ],
+  "flat": [
+   [
+    [
+     "mp",
+     "agent-head-skin-b-mp:default"
+    ],
+    "hMask4Map"
+   ],
+   [
+    [
+     "mp",
+     "agent-skin-b-mp:arms-default"
+    ],
+    "hMask4Map"
+   ]
+  ],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/hero/mouth/default-mp",
+    "exact",
+    "objects/characters/hero/mouth:default-mp"
+   ],
+   [
+    "objects/characters/mp-kit/heads/mp-kit-eyes-a-01/default",
+    "exact",
+    "objects/characters/mp-kit/heads/mp-kit-eyes-a-01:default"
+   ],
+   [
+    "objects/characters/npc-sp/agent/heads/mp/agent-head-skin-b-mp/default",
+    "head",
+    "objects/characters/npc-sp/agent/heads/agent-head-skin-c-00:default",
+    3
+   ],
+   [
+    "objects/characters/npc-sp/agent/torso/mp/agent-skin-b-mp/arms-default",
+    "arms",
+    "objects/characters/npc-sp/agent/torso/mp/agent-skin-a-mp:arms-default",
+    3
+   ],
+   [
+    "objects/characters/npc-sp/agent/torso/mp/agent-torso-jacket-a-mp/default",
+    "exact",
+    "objects/characters/npc-sp/agent/torso/mp/agent-torso-jacket-a-mp:default"
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 2,
+   "objects/characters/mp-kit/heads/mp-kit-eyes-a-01:default": 13
+  }
+ },
+ "mp-hero-cutter-torso-w-scarf": {
+  "layer": "overlay-r3",
+  "ps3src": "patch13",
+  "template": "mp-hero-cutter-torso",
+  "cap": 256,
+  "before": 3,
+  "after": 10,
+  "tabB": 9,
+  "tabA": 10,
+  "size": [
+   1619936,
+   1785880
+  ],
+  "vram": [
+   226816,
+   379392
+  ],
+  "subs": [
+   21,
+   21
+  ],
+  "nv": [
+   13376,
+   13376
+  ],
+  "ni": [
+   59334,
+   59334
+  ],
+  "maxj": [
+   231,
+   231
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   2,
+   2
+  ],
+  "check_new": [
+   "type 2",
+   "type 2"
+  ],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [
+   "eyes-env-reflection.dds",
+   "eyes-env-reflection.dds"
+  ],
+  "flat": [
+   [
+    [
+     "mp",
+     "cutter-scarf:default"
+    ],
+    "hMask4Map"
+   ]
+  ],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/cutter/brows/default",
+    "exact",
+    "objects/characters/cutter/brows:default"
+   ],
+   [
+    "objects/characters/cutter/eyelashes/default",
+    "exact",
+    "objects/characters/cutter/eyelashes:default"
+   ],
+   [
+    "objects/characters/cutter/eyes-fma/fma",
+    "exact",
+    "objects/characters/cutter/eyes-fma:fma"
+   ],
+   [
+    "objects/characters/cutter/mp/cutter-scarf/default",
+    "cloth",
+    "objects/characters/cutter/mp/jacket-mp:default",
+    3
+   ],
+   [
+    "objects/characters/cutter/mp/head-mp/default",
+    "exact",
+    "objects/characters/cutter/mp/head-mp:default"
+   ],
+   [
+    "objects/characters/cutter/mp/jacket-mp/default",
+    "exact",
+    "objects/characters/cutter/mp/jacket-mp:default"
+   ],
+   [
+    "objects/characters/hero/eyeoverlay/default",
+    "exact",
+    "objects/characters/hero/eyeoverlay:default"
+   ],
+   [
+    "objects/characters/hero/main/hero-arms/default",
+    "exact",
+    "objects/characters/hero/main/hero-arms:default"
+   ],
+   [
+    "objects/characters/hero/mouth-fma/default",
+    "exact",
+    "objects/characters/hero/mouth-fma:default"
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 2,
+   "objects/characters/cutter/mp/cutter-scarf:default": 18,
+   "objects/characters/hero/eyeoverlay:default": 1
+  }
+ },
+ "mp-hero-fat-hair": {
+  "layer": "overlay-port",
+  "ps3src": "patch13",
+  "template": "mp-hero-french-hair",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   441096,
+   387512
+  ],
+  "vram": [
+   99328,
+   22528
+  ],
+  "subs": [
+   5,
+   5
+  ],
+  "nv": [
+   4778,
+   4778
+  ],
+  "ni": [
+   8739,
+   8739
+  ],
+  "maxj": [
+   180,
+   180
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/hero/hair-mp/default",
+    "exact",
+    "objects/characters/hero/hair-mp:default"
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 5
+  }
+ },
+ "mp-hero-fat-talbot-torso": {
+  "layer": "overlay-r3",
+  "ps3src": "patch13",
+  "template": "mp-hero-fat-torso",
+  "cap": 256,
+  "before": 2,
+  "after": 8,
+  "tabB": 9,
+  "tabA": 8,
+  "size": [
+   1551488,
+   1580936
+  ],
+  "vram": [
+   228864,
+   476160
+  ],
+  "subs": [
+   18,
+   18
+  ],
+  "nv": [
+   12424,
+   12424
+  ],
+  "ni": [
+   49041,
+   49041
+  ],
+  "maxj": [
+   231,
+   231
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   2,
+   1
+  ],
+  "check_new": [
+   "type 2"
+  ],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [
+   "eyes-env-reflection.dds"
+  ],
+  "flat": [
+   [
+    [
+     "talbot",
+     "talbot-tongue:default"
+    ],
+    "hColorTintMask1Map"
+   ],
+   [
+    [
+     "talbot",
+     "talbot-tongue:default"
+    ],
+    "hMask4Map"
+   ],
+   [
+    [
+     "talbot",
+     "talbot-teeth:default"
+    ],
+    "hColorTintMask1Map"
+   ],
+   [
+    [
+     "talbot",
+     "talbot-teeth:default"
+    ],
+    "hMask4Map"
+   ],
+   [
+    [
+     "mp",
+     "mp-talbot-jacket:default"
+    ],
+    "hMask4Map"
+   ],
+   [
+    [
+     "mp",
+     "mp-talbot-head:default"
+    ],
+    "hMask4Map"
+   ],
+   [
+    [
+     "talbot",
+     "talbot-hands:mp"
+    ],
+    "hMask4Map"
+   ],
+   [
+    [
+     "talbot",
+     "talbot-hair:default"
+    ],
+    "hMask4Map"
+   ]
+  ],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/talbot/mp/mp-talbot-head/default",
+    "head",
+    "objects/characters/u2-mp-characters/fat-drake/mp-drake-fat-head:default",
+    4
+   ],
+   [
+    "objects/characters/talbot/mp/mp-talbot-jacket/default",
+    "cloth",
+    "objects/characters/u2-mp-characters/fat-drake/mp-drake-fat-torso:default",
+    3
+   ],
+   [
+    "objects/characters/talbot/talbot-eye-fma/default",
+    "eyes",
+    "objects/characters/hero/eyes:default",
+    2
+   ],
+   [
+    "objects/characters/talbot/talbot-hair/default",
+    "hair",
+    "objects/characters/u2-mp-characters/fat-drake/mp-drake-fat-hair:default",
+    2
+   ],
+   [
+    "objects/characters/talbot/talbot-hands/mp",
+    "arms",
+    "objects/characters/u2-mp-characters/fat-drake/mp-drake-fat-arms:default",
+    2
+   ],
+   [
+    "objects/characters/talbot/talbot-teeth/default",
+    "mouth NO-SLOT-FOR-mouth",
+    "objects/characters/u2-mp-characters/fat-drake/mp-drake-fat-torso:default",
+    2
+   ],
+   [
+    "objects/characters/talbot/talbot-tongue/default",
+    "mouth NO-SLOT-FOR-mouth",
+    "objects/characters/u2-mp-characters/fat-drake/mp-drake-fat-torso:default",
+    2
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 2,
+   "objects/characters/talbot/talbot-eye-fma:default": 16
+  }
+ },
+ "mp-hero-flynn-coop": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-hero-flynn-torso",
+  "cap": 256,
+  "before": 1,
+  "after": 8,
+  "tabB": 9,
+  "tabA": 8,
+  "size": [
+   2124976,
+   1908928
+  ],
+  "vram": [
+   228864,
+   215040
+  ],
+  "subs": [
+   22,
+   22
+  ],
+  "nv": [
+   22772,
+   22772
+  ],
+  "ni": [
+   62301,
+   62301
+  ],
+  "maxj": [
+   231,
+   231
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   2,
+   1
+  ],
+  "check_new": [
+   "type 2"
+  ],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [
+   "eyes-env-reflection.dds"
+  ],
+  "flat": [],
+  "roles": [
+   [
+    "objects/characters/flynn/flynn/flynn-eye/default",
+    "exact",
+    "objects/characters/flynn/flynn/flynn-eye:default"
+   ],
+   [
+    "objects/characters/flynn/flynn/hair/lod0",
+    "exact",
+    "objects/characters/flynn/flynn/hair:lod0"
+   ],
+   [
+    "objects/characters/flynn/flynn/misc-accessories/wristband-watch-fma",
+    "exact",
+    "objects/characters/flynn/flynn/misc-accessories:wristband-watch-fma"
+   ],
+   [
+    "objects/characters/u2-mp-characters/flynn/flynn-arms-mp/default",
+    "exact",
+    "objects/characters/u2-mp-characters/flynn/flynn-arms-mp:default"
+   ],
+   [
+    "objects/characters/u2-mp-characters/flynn/flynn-body-coop/default",
+    "cloth",
+    "objects/characters/u2-mp-characters/flynn/flynn-body-mp:default",
+    2
+   ],
+   [
+    "objects/characters/u2-mp-characters/flynn/flynn-boots-mp/default",
+    "cloth",
+    "objects/characters/u2-mp-characters/flynn/flynn-body-mp:default",
+    2
+   ],
+   [
+    "objects/characters/u2-mp-characters/flynn/flynn-head-mp/default",
+    "exact",
+    "objects/characters/u2-mp-characters/flynn/flynn-head-mp:default"
+   ],
+   [
+    "objects/characters/u2-mp-characters/flynn/flynn-pants-mp-coop/default",
+    "cloth",
+    "objects/characters/u2-mp-characters/flynn/flynn-body-mp:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "objects/characters/u2-mp-characters/flynn/flynn-pants-mp-coop:default": 22
+  }
+ },
+ "mp-hero-french-hair-coop": {
+  "layer": "overlay-port",
+  "ps3src": "retail",
+  "template": "mp-hero-french-hair",
+  "cap": 0,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   404856,
+   373488
+  ],
+  "vram": [
+   80896,
+   25600
+  ],
+  "subs": [
+   5,
+   5
+  ],
+  "nv": [
+   4826,
+   4826
+  ],
+  "ni": [
+   8739,
+   8739
+  ],
+  "maxj": [
+   190,
+   190
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 0,
+  "cubes": [],
+  "flat": [],
+  "roles": [],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 5
+  }
+ },
+ "mp-hero-french-torso-coop": {
+  "layer": "overlay-r3",
+  "ps3src": "retail",
+  "template": "mp-hero-french-torso",
+  "cap": 0,
+  "before": 8,
+  "after": 11,
+  "tabB": 9,
+  "tabA": 11,
+  "size": [
+   1948576,
+   2054872
+  ],
+  "vram": [
+   230912,
+   209408
+  ],
+  "subs": [
+   26,
+   26
+  ],
+  "nv": [
+   19437,
+   19437
+  ],
+  "ni": [
+   88719,
+   88719
+  ],
+  "maxj": [
+   231,
+   231
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   2,
+   1
+  ],
+  "check_new": [
+   "type 2"
+  ],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 0,
+  "cubes": [],
+  "flat": [],
+  "roles": [],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 4,
+   "objects/characters/hero/mouth:default": 10,
+   "objects/characters/hero/eyes:default": 3,
+   "objects/characters/hero/eyeoverlay:default": 1,
+   "objects/characters/hero/french/mp/brows-mp:default": 1,
+   "objects/characters/hero/eyelashes:default": 1,
+   "objects/characters/hero/french/mp/hero-arms-mp:default": 3,
+   "objects/characters/hero/french/mp/mp-head:default": 3
+  }
+ },
+ "mp-hero-guerro-torso": {
+  "layer": "overlay-r3",
+  "ps3src": "patch13",
+  "template": "mp-hero-french-torso",
+  "cap": 256,
+  "before": 2,
+  "after": 5,
+  "tabB": 9,
+  "tabA": 5,
+  "size": [
+   1542048,
+   1666800
+  ],
+  "vram": [
+   226816,
+   291840
+  ],
+  "subs": [
+   16,
+   16
+  ],
+  "nv": [
+   12420,
+   12420
+  ],
+  "ni": [
+   59595,
+   59595
+  ],
+  "maxj": [
+   225,
+   225
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   2,
+   1
+  ],
+  "check_new": [
+   "type 2"
+  ],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [
+   "eyes-env-reflection.dds"
+  ],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/ngp/guerro/mp-ngp-guerro-head/default",
+    "head",
+    "objects/characters/hero/french/mp/mp-head:default",
+    3
+   ],
+   [
+    "objects/characters/ngp/guerro/mp-ngp-guerro-torso/default",
+    "cloth",
+    "objects/characters/hero/french/mp/french-shirt-mp:default",
+    4
+   ],
+   [
+    "objects/characters/ngp/marisa/mp-ngp-marisa-eyes/default",
+    "eyes",
+    "objects/characters/hero/eyes:default",
+    3
+   ],
+   [
+    "objects/characters/ngp/marisa/mp-ngp-marisa-teeth/default",
+    "mouth",
+    "objects/characters/hero/mouth:default",
+    2
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 2,
+   "objects/characters/ngp/guerro/mp-ngp-guerro-torso:default": 14
+  }
+ },
+ "mp-hero-lazarevic-coop": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-hero-lazarevic-torso",
+  "cap": 256,
+  "before": 1,
+  "after": 7,
+  "tabB": 9,
+  "tabA": 7,
+  "size": [
+   1408016,
+   1131248
+  ],
+  "vram": [
+   226816,
+   186368
+  ],
+  "subs": [
+   19,
+   19
+  ],
+  "nv": [
+   10037,
+   10037
+  ],
+  "ni": [
+   40875,
+   40875
+  ],
+  "maxj": [
+   231,
+   231
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   2,
+   1
+  ],
+  "check_new": [
+   "type 2"
+  ],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [
+   "eyes-env-reflection.dds"
+  ],
+  "flat": [],
+  "roles": [
+   [
+    "objects/characters/u2-mp-characters/lazarevic/mouth-2/default",
+    "exact",
+    "objects/characters/u2-mp-characters/lazarevic/mouth-2:default"
+   ],
+   [
+    "objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-arms/default",
+    "exact",
+    "objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-arms:default"
+   ],
+   [
+    "objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-eyes/default",
+    "exact",
+    "objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-eyes:default"
+   ],
+   [
+    "objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-head/default",
+    "exact",
+    "objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-head:default"
+   ],
+   [
+    "objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-legs-coop/default",
+    "cloth",
+    "objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-torso:default",
+    4
+   ],
+   [
+    "objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-torso-coop/default",
+    "cloth",
+    "objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-torso:default",
+    4
+   ],
+   [
+    "objects/characters/u2-mp-characters/roman/mp-roman-pants/default",
+    "cloth",
+    "objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-torso:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "objects/characters/u2-mp-characters/roman/mp-roman-pants:default": 19
+  }
+ },
+ "mp-hero-make-believe-torso": {
+  "layer": "overlay-r3",
+  "ps3src": "patch13",
+  "template": "mp-hero-french-torso",
+  "cap": 256,
+  "before": 2,
+  "after": 6,
+  "tabB": 9,
+  "tabA": 6,
+  "size": [
+   1664656,
+   2002544
+  ],
+  "vram": [
+   226816,
+   497664
+  ],
+  "subs": [
+   18,
+   18
+  ],
+  "nv": [
+   14101,
+   14101
+  ],
+  "ni": [
+   63225,
+   63225
+  ],
+  "maxj": [
+   225,
+   225
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   2,
+   1
+  ],
+  "check_new": [
+   "type 2"
+  ],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [
+   "eyes-env-reflection.dds"
+  ],
+  "flat": [
+   [
+    [
+     "dlc",
+     "mp-kit-mb-jeremy-shirt-a-00:default"
+    ],
+    "hMask4Map"
+   ]
+  ],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/heads/dlc/mb-jeremy-head-skin-a-00/default",
+    "head",
+    "objects/characters/hero/french/mp/mp-head:default",
+    3
+   ],
+   [
+    "objects/characters/mp-kit/heads/mp-kit-eyes-b-00/default",
+    "eyes",
+    "objects/characters/hero/eyes:default",
+    3
+   ],
+   [
+    "objects/characters/mp-kit/torso-inner/dlc/mb-jeremy-base-skin-a-00/default-arms",
+    "arms",
+    "objects/characters/hero/french/mp/hero-arms-mp:default",
+    3
+   ],
+   [
+    "objects/characters/mp-kit/torso-inner/dlc/mb-jeremy-base-skin-a-00/default-torso",
+    "arms",
+    "objects/characters/hero/french/mp/hero-arms-mp:default",
+    3
+   ],
+   [
+    "objects/characters/mp-kit/torso-inner/dlc/mp-kit-mb-jeremy-shirt-a-00/default",
+    "cloth",
+    "objects/characters/hero/french/mp/french-shirt-mp:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "objects/characters/mp-kit/heads/dlc/mb-jeremy-head-skin-a-00:default": 16,
+   "library/utilities/lib-shadowblocker:shadowblocker": 2
+  }
+ },
+ "mp-hero-ngp-torso": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-hero-french-torso",
+  "cap": 128,
+  "before": 1,
+  "after": 11,
+  "tabB": 7,
+  "tabA": 11,
+  "size": [
+   1534856,
+   1932648
+  ],
+  "vram": [
+   187392,
+   335360
+  ],
+  "subs": [
+   27,
+   27
+  ],
+  "nv": [
+   14721,
+   14721
+  ],
+  "ni": [
+   65832,
+   65832
+  ],
+  "maxj": [
+   231,
+   231
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   2,
+   2
+  ],
+  "check_new": [
+   "type 2",
+   "type 2"
+  ],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [
+   "eyes-env-reflection.dds",
+   "eyes-env-reflection.dds"
+  ],
+  "flat": [
+   [
+    [
+     "ngp-drake",
+     "mp-ngp-drake-clothes:default"
+    ],
+    "hMask4Map"
+   ],
+   [
+    [
+     "main",
+     "hero-arms:default"
+    ],
+    "hMask4Map"
+   ]
+  ],
+  "roles": [
+   [
+    "objects/characters/hero/eyelashes/default",
+    "exact",
+    "objects/characters/hero/eyelashes:default"
+   ],
+   [
+    "objects/characters/hero/eyeoverlay/default",
+    "exact",
+    "objects/characters/hero/eyeoverlay:default"
+   ],
+   [
+    "objects/characters/hero/eyes/default",
+    "exact",
+    "objects/characters/hero/eyes:default"
+   ],
+   [
+    "objects/characters/hero/french/mp/brows-mp/default",
+    "exact",
+    "objects/characters/hero/french/mp/brows-mp:default"
+   ],
+   [
+    "objects/characters/hero/french/mp/hero-arms-mp/default",
+    "exact",
+    "objects/characters/hero/french/mp/hero-arms-mp:default"
+   ],
+   [
+    "objects/characters/hero/french/mp/mp-head/default",
+    "exact",
+    "objects/characters/hero/french/mp/mp-head:default"
+   ],
+   [
+    "objects/characters/hero/head/default",
+    "head",
+    "objects/characters/hero/french/mp/mp-head:default",
+    4
+   ],
+   [
+    "objects/characters/hero/main/hero-arms/default",
+    "arms",
+    "objects/characters/hero/french/mp/hero-arms-mp:default",
+    2
+   ],
+   [
+    "objects/characters/hero/mouth/default",
+    "exact",
+    "objects/characters/hero/mouth:default"
+   ],
+   [
+    "objects/characters/ngp/ngp-drake/mp-ngp-drake-acc/default",
+    "cloth",
+    "objects/characters/hero/french/mp/french-holster-mp:default",
+    3
+   ],
+   [
+    "objects/characters/ngp/ngp-drake/mp-ngp-drake-clothes/default",
+    "cloth",
+    "objects/characters/hero/french/mp/french-shirt-mp:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "objects/characters/hero/head:default": 27
+  }
+ },
+ "mp-hero-ramses-equip-legs": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-hero-fat-ramses-legs",
+  "cap": 256,
+  "before": 2,
+  "after": 6,
+  "tabB": 3,
+  "tabA": 6,
+  "size": [
+   528960,
+   697336
+  ],
+  "vram": [
+   35840,
+   88064
+  ],
+  "subs": [
+   17,
+   17
+  ],
+  "nv": [
+   5434,
+   5434
+  ],
+  "ni": [
+   22137,
+   22137
+  ],
+  "maxj": [
+   231,
+   231
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/legs/mp-kit-holster-a-00/default",
+    "exact",
+    "objects/characters/mp-kit/legs/mp-kit-holster-a-00:default"
+   ],
+   [
+    "objects/characters/pirate-leader/mp/mp-pirate-leader-feet-boots-a-00/default",
+    "exact",
+    "objects/characters/pirate-leader/mp/mp-pirate-leader-feet-boots-a-00:default"
+   ],
+   [
+    "objects/characters/pirate-leader/mp/mp-pirate-leader-legs-pants-a-00/default",
+    "exact",
+    "objects/characters/pirate-leader/mp/mp-pirate-leader-legs-pants-a-00:default"
+   ],
+   [
+    "objects/weapons/machete/machete-blade/default",
+    "exact",
+    "objects/weapons/machete/machete-blade:default"
+   ],
+   [
+    "objects/weapons/machete/machete-handle/default-pirate-leader",
+    "exact",
+    "objects/weapons/machete/machete-handle:default-pirate-leader"
+   ]
+  ],
+  "old_used": {
+   "objects/characters/mp-kit/legs/mp-kit-holster-a-00:default": 15,
+   "library/utilities/lib-shadowblocker:shadowblocker": 2
+  }
+ },
+ "mp-hero-ramses-equip-torso": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-hero-french-torso",
+  "cap": 128,
+  "before": 2,
+  "after": 9,
+  "tabB": 9,
+  "tabA": 9,
+  "size": [
+   1729056,
+   1823464
+  ],
+  "vram": [
+   230912,
+   248832
+  ],
+  "subs": [
+   24,
+   24
+  ],
+  "nv": [
+   14937,
+   14937
+  ],
+  "ni": [
+   59799,
+   59799
+  ],
+  "maxj": [
+   231,
+   231
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   2,
+   1
+  ],
+  "check_new": [
+   "type 2"
+  ],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [
+   "eyes-env-reflection.dds"
+  ],
+  "flat": [
+   [
+    [
+     "mp",
+     "mp-pirate-leader-accs-bandolier-a-00:default"
+    ],
+    "hMask4Map"
+   ],
+   [
+    [
+     "shotgun-pistol",
+     "shotgun-pistol:default"
+    ],
+    "hMask4Map"
+   ],
+   [
+    [
+     "mp",
+     "mp-pirate-leader-torso-in-shirt-a-00:default"
+    ],
+    "hMask4Map"
+   ],
+   [
+    [
+     "mp",
+     "mp-pirate-leader-torso-out-jacket-a-00:default"
+    ],
+    "hMask4Map"
+   ],
+   [
+    [
+     "mp",
+     "mp-pirate-leader-body-skin-a-00:default"
+    ],
+    "hMask4Map"
+   ],
+   [
+    [
+     "mp",
+     "mp-pirate-leader-head-skin-a-00:default"
+    ],
+    "hMask4Map"
+   ]
+  ],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/hero/mouth/default",
+    "exact",
+    "objects/characters/hero/mouth:default"
+   ],
+   [
+    "objects/characters/pirate-leader/mp/mp-pirate-leader-accs-bandolier-a-00/default",
+    "cloth",
+    "objects/characters/hero/french/mp/french-holster-mp:default",
+    3
+   ],
+   [
+    "objects/characters/pirate-leader/mp/mp-pirate-leader-body-skin-a-00/default",
+    "arms",
+    "objects/characters/hero/french/mp/hero-arms-mp:default",
+    4
+   ],
+   [
+    "objects/characters/pirate-leader/mp/mp-pirate-leader-eyes-a-00/default",
+    "eyes",
+    "objects/characters/hero/eyes:default",
+    3
+   ],
+   [
+    "objects/characters/pirate-leader/mp/mp-pirate-leader-head-skin-a-00/default",
+    "head",
+    "objects/characters/hero/french/mp/mp-head:default",
+    4
+   ],
+   [
+    "objects/characters/pirate-leader/mp/mp-pirate-leader-torso-in-shirt-a-00/default",
+    "cloth",
+    "objects/characters/hero/french/mp/french-shirt-mp:default",
+    3
+   ],
+   [
+    "objects/characters/pirate-leader/mp/mp-pirate-leader-torso-out-jacket-a-00/default",
+    "cloth",
+    "objects/characters/hero/french/mp/french-holster-mp:default",
+    3
+   ],
+   [
+    "objects/weapons/shotgun-pistol/shotgun-pistol/default",
+    "cloth",
+    "objects/characters/hero/french/mp/french-holster-mp:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 2,
+   "objects/characters/hero/mouth:default": 22
+  }
+ },
+ "mp-hero-sol-med-b-1a": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-hero-french-torso",
+  "cap": 128,
+  "before": 1,
+  "after": 10,
+  "tabB": 2,
+  "tabA": 10,
+  "size": [
+   1114976,
+   1931912
+  ],
+  "vram": [
+   39936,
+   342528
+  ],
+  "subs": [
+   30,
+   30
+  ],
+  "nv": [
+   14972,
+   14972
+  ],
+  "ni": [
+   63948,
+   63948
+  ],
+  "maxj": [
+   231,
+   231
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [],
+  "flat": [
+   [
+    [
+     "soldier-med-acc",
+     "acc:leg-holster"
+    ],
+    "hMask4Map"
+   ]
+  ],
+  "roles": [
+   [
+    "objects/characters/npc-normal/soldier-armor/acc/acc-20",
+    "cloth",
+    "objects/characters/hero/french/mp/french-holster-mp:default",
+    4
+   ],
+   [
+    "objects/characters/npc-normal/soldier-armor/acc/acc-23",
+    "cloth",
+    "objects/characters/hero/french/mp/french-holster-mp:default",
+    4
+   ],
+   [
+    "objects/characters/npc-normal/soldier-armor/acc/acc-24",
+    "cloth",
+    "objects/characters/hero/french/mp/french-holster-mp:default",
+    4
+   ],
+   [
+    "objects/characters/npc-normal/soldier-armor/acc/acc-25",
+    "cloth",
+    "objects/characters/hero/french/mp/french-holster-mp:default",
+    4
+   ],
+   [
+    "objects/characters/npc-normal/soldier-armor/acc/armor-helmet",
+    "cloth",
+    "objects/characters/hero/french/mp/french-holster-mp:default",
+    4
+   ],
+   [
+    "objects/characters/npc-normal/soldier-armor/acc/armor-limbs-acc",
+    "cloth",
+    "objects/characters/hero/french/mp/french-holster-mp:default",
+    4
+   ],
+   [
+    "objects/characters/npc-normal/soldier-armor/body/armor-body",
+    "cloth",
+    "objects/characters/hero/french/mp/french-holster-mp:default",
+    3
+   ],
+   [
+    "objects/characters/npc-normal/soldier-armor/skin/sec-guard-01",
+    "arms",
+    "objects/characters/hero/french/mp/hero-arms-mp:default",
+    3
+   ],
+   [
+    "objects/characters/npc-normal/soldier/soldier-med-acc/acc/leg-holster",
+    "cloth",
+    "objects/characters/hero/french/mp/french-holster-mp:default",
+    3
+   ],
+   [
+    "objects/characters/npc-normal/soldier/soldier-med-acc/armor-goggles-eyes/default",
+    "cloth",
+    "objects/characters/hero/french/mp/french-holster-mp:default",
+    4
+   ]
+  ],
+  "old_used": {
+   "objects/characters/npc-normal/soldier/soldier-med-acc/acc:leg-holster": 30
+  }
+ },
+ "mp-hero-subway-torso": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-hero-french-torso",
+  "cap": 256,
+  "before": 2,
+  "after": 9,
+  "tabB": 7,
+  "tabA": 9,
+  "size": [
+   1406952,
+   1762792
+  ],
+  "vram": [
+   187392,
+   307712
+  ],
+  "subs": [
+   22,
+   22
+  ],
+  "nv": [
+   13550,
+   13550
+  ],
+  "ni": [
+   57180,
+   57180
+  ],
+  "maxj": [
+   231,
+   231
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   2,
+   2
+  ],
+  "check_new": [
+   "type 2",
+   "type 2"
+  ],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [
+   "eyes-env-reflection.dds",
+   "eyes-env-reflection.dds"
+  ],
+  "flat": [
+   [
+    [
+     "drake-red-shirt",
+     "mp-drake-subway-shirt:default"
+    ],
+    "hMask4Map"
+   ]
+  ],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/hero/eyelashes/default",
+    "exact",
+    "objects/characters/hero/eyelashes:default"
+   ],
+   [
+    "objects/characters/hero/eyeoverlay/default",
+    "exact",
+    "objects/characters/hero/eyeoverlay:default"
+   ],
+   [
+    "objects/characters/hero/eyes/default",
+    "exact",
+    "objects/characters/hero/eyes:default"
+   ],
+   [
+    "objects/characters/hero/french/mp/brows-mp/default",
+    "exact",
+    "objects/characters/hero/french/mp/brows-mp:default"
+   ],
+   [
+    "objects/characters/hero/french/mp/hero-arms-mp/default",
+    "exact",
+    "objects/characters/hero/french/mp/hero-arms-mp:default"
+   ],
+   [
+    "objects/characters/hero/french/mp/mp-head/default",
+    "exact",
+    "objects/characters/hero/french/mp/mp-head:default"
+   ],
+   [
+    "objects/characters/hero/mouth/default",
+    "exact",
+    "objects/characters/hero/mouth:default"
+   ],
+   [
+    "objects/characters/u2-mp-characters/drake-red-shirt/mp-drake-subway-shirt/default",
+    "cloth",
+    "objects/characters/hero/french/mp/french-holster-mp:default",
+    2
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 5,
+   "objects/characters/hero/mouth:default": 17
+  }
+ },
+ "mp-hero-thug-e-torso": {
+  "layer": "overlay-r3",
+  "ps3src": "patch13",
+  "template": "mp-hero-french-torso",
+  "cap": 256,
+  "before": 3,
+  "after": 6,
+  "tabB": 9,
+  "tabA": 6,
+  "size": [
+   1348224,
+   1507072
+  ],
+  "vram": [
+   230912,
+   323584
+  ],
+  "subs": [
+   15,
+   15
+  ],
+  "nv": [
+   9432,
+   9432
+  ],
+  "ni": [
+   43365,
+   43365
+  ],
+  "maxj": [
+   231,
+   231
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   2,
+   1
+  ],
+  "check_new": [
+   "type 2"
+  ],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [
+   "eyes-env-reflection.dds"
+  ],
+  "flat": [
+   [
+    [
+     "mp",
+     "euro-thug-torso-in-shirt-f-mp:default"
+    ],
+    "hMask4Map"
+   ],
+   [
+    [
+     "mp",
+     "euro-thug-head-skin-c-mp:neck-mp"
+    ],
+    "hMask4Map"
+   ],
+   [
+    [
+     "mp",
+     "euro-thug-head-skin-c-mp:default-mp"
+    ],
+    "hMask4Map"
+   ]
+  ],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/hero/eyes/default",
+    "exact",
+    "objects/characters/hero/eyes:default"
+   ],
+   [
+    "objects/characters/hero/mouth/default",
+    "exact",
+    "objects/characters/hero/mouth:default"
+   ],
+   [
+    "objects/characters/npc-sp/euro-thug/heads/mp/euro-thug-head-skin-c-mp/default-mp",
+    "head",
+    "objects/characters/hero/french/mp/mp-head:default",
+    3
+   ],
+   [
+    "objects/characters/npc-sp/euro-thug/heads/mp/euro-thug-head-skin-c-mp/neck-mp",
+    "head",
+    "objects/characters/hero/french/mp/mp-head:default",
+    3
+   ],
+   [
+    "objects/characters/npc-sp/euro-thug/torso/mp/euro-thug-torso-in-shirt-f-mp/default",
+    "cloth",
+    "objects/characters/hero/french/mp/french-shirt-mp:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 2,
+   "objects/characters/hero/mouth:default": 11,
+   "objects/characters/hero/eyes:default": 2
+  }
+ },
+ "mp-kit-killzone-helmet-a": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   296128,
+   342776
+  ],
+  "vram": [
+   60416,
+   92160
+  ],
+  "subs": [
+   5,
+   5
+  ],
+  "nv": [
+   2858,
+   2858
+  ],
+  "ni": [
+   11079,
+   11079
+  ],
+  "maxj": [
+   170,
+   170
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/guerilla/ice/mp-ice-head/default",
+    "head",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 5
+  }
+ },
+ "mp-kit-merc-arms-gloves-b": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   241104,
+   245848
+  ],
+  "vram": [
+   97280,
+   92160
+  ],
+  "subs": [
+   3,
+   3
+  ],
+  "nv": [
+   1032,
+   1032
+  ],
+  "ni": [
+   4896,
+   4896
+  ],
+  "maxj": [
+   68,
+   68
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 2,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-b-00/default",
+    "arms",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 3
+  }
+ },
+ "mp-kit-merc-arms-gloves-d": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   251088,
+   255848
+  ],
+  "vram": [
+   97280,
+   92160
+  ],
+  "subs": [
+   3,
+   3
+  ],
+  "nv": [
+   1186,
+   1186
+  ],
+  "ni": [
+   5808,
+   5808
+  ],
+  "maxj": [
+   68,
+   68
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 2,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-d-00/default",
+    "arms",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 3
+  }
+ },
+ "mp-kit-merc-head-helmet-b": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   198976,
+   245272
+  ],
+  "vram": [
+   60416,
+   92160
+  ],
+  "subs": [
+   3,
+   3
+  ],
+  "nv": [
+   1039,
+   1039
+  ],
+  "ni": [
+   4584,
+   4584
+  ],
+  "maxj": [
+   90,
+   90
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 2,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-b-00/default",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    4
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 3
+  }
+ },
+ "mp-kit-merc-head-helmet-c": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   268528,
+   314808
+  ],
+  "vram": [
+   60416,
+   92160
+  ],
+  "subs": [
+   5,
+   5
+  ],
+  "nv": [
+   2457,
+   2457
+  ],
+  "ni": [
+   6876,
+   6876
+  ],
+  "maxj": [
+   170,
+   170
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-f-00/default",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 5
+  }
+ },
+ "mp-kit-merc-head-helmet-e": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   277888,
+   324168
+  ],
+  "vram": [
+   60416,
+   92160
+  ],
+  "subs": [
+   5,
+   5
+  ],
+  "nv": [
+   2687,
+   2687
+  ],
+  "ni": [
+   8421,
+   8421
+  ],
+  "maxj": [
+   90,
+   90
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-e-00/default",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 5
+  }
+ },
+ "mp-kit-merc-head-helmet-k": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   413888,
+   479592
+  ],
+  "vram": [
+   40960,
+   92160
+  ],
+  "subs": [
+   5,
+   5
+  ],
+  "nv": [
+   6021,
+   6021
+  ],
+  "ni": [
+   22500,
+   22500
+  ],
+  "maxj": [
+   90,
+   90
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/helmet/dlc/mp-kit-hgh-helmet-a-00/default",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    2
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 5
+  }
+ },
+ "mp-kit-merc-head-mask-a": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   206736,
+   253032
+  ],
+  "vram": [
+   60416,
+   92160
+  ],
+  "subs": [
+   3,
+   3
+  ],
+  "nv": [
+   1281,
+   1281
+  ],
+  "ni": [
+   5142,
+   5142
+  ],
+  "maxj": [
+   182,
+   182
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 2,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-mask-a-00/default",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    4
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 3
+  }
+ },
+ "mp-kit-merc-head-wrap-a": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   200992,
+   247288
+  ],
+  "vram": [
+   60416,
+   92160
+  ],
+  "subs": [
+   3,
+   3
+  ],
+  "nv": [
+   1047,
+   1047
+  ],
+  "ni": [
+   4509,
+   4509
+  ],
+  "maxj": [
+   90,
+   90
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 2,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-wrap-a-00/default",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 3
+  }
+ },
+ "mp-kit-merc-head-wrap-b": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   197696,
+   243992
+  ],
+  "vram": [
+   60416,
+   92160
+  ],
+  "subs": [
+   3,
+   3
+  ],
+  "nv": [
+   1055,
+   1055
+  ],
+  "ni": [
+   5196,
+   5196
+  ],
+  "maxj": [
+   90,
+   90
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 2,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-wrap-b-00/default",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 3
+  }
+ },
+ "mp-kit-pirate-arms-gloves-b-00": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   208048,
+   212328
+  ],
+  "vram": [
+   52736,
+   47616
+  ],
+  "subs": [
+   3,
+   3
+  ],
+  "nv": [
+   1226,
+   1226
+  ],
+  "ni": [
+   5412,
+   5412
+  ],
+  "maxj": [
+   68,
+   68
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 2,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/arms/mp-kit-pirate-arms-gloves-b-00/default",
+    "arms",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    4
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 3
+  }
+ },
+ "mp-kit-pirate-feet-boots-b-00": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   164296,
+   217560
+  ],
+  "vram": [
+   45056,
+   92160
+  ],
+  "subs": [
+   2,
+   2
+  ],
+  "nv": [
+   664,
+   664
+  ],
+  "ni": [
+   3240,
+   3240
+  ],
+  "maxj": [
+   219,
+   219
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 1,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/feet/mp-kit-pirate-feet-boots-b-00/body-fma",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 2
+  }
+ },
+ "mp-kit-pirate-feet-boots-c-00": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   194952,
+   248328
+  ],
+  "vram": [
+   45056,
+   92160
+  ],
+  "subs": [
+   3,
+   3
+  ],
+  "nv": [
+   1190,
+   1190
+  ],
+  "ni": [
+   5100,
+   5100
+  ],
+  "maxj": [
+   14,
+   14
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 2,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/feet/mp-kit-pirate-feet-boots-c-00/body-fma",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 3
+  }
+ },
+ "mp-kit-pirate-feet-sandles-a-00": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   211896,
+   210216
+  ],
+  "vram": [
+   67584,
+   59392
+  ],
+  "subs": [
+   3,
+   3
+  ],
+  "nv": [
+   1107,
+   1107
+  ],
+  "ni": [
+   4455,
+   4455
+  ],
+  "maxj": [
+   14,
+   14
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 2,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/feet/mp-kit-pirate-feet-sandals-a-00/body-fma",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 3
+  }
+ },
+ "mp-kit-pirate-feet-sandles-b-00": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   232632,
+   220664
+  ],
+  "vram": [
+   77824,
+   59392
+  ],
+  "subs": [
+   3,
+   3
+  ],
+  "nv": [
+   1304,
+   1304
+  ],
+  "ni": [
+   5028,
+   5028
+  ],
+  "maxj": [
+   14,
+   14
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 2,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/feet/mp-kit-pirate-feet-sandals-b-00/body-fma",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    3
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 3
+  }
+ },
+ "mp-kit-pirate-helmet-wrap-a-00": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   335872,
+   382600
+  ],
+  "vram": [
+   107520,
+   138240
+  ],
+  "subs": [
+   5,
+   5
+  ],
+  "nv": [
+   2698,
+   2698
+  ],
+  "ni": [
+   11169,
+   11169
+  ],
+  "maxj": [
+   90,
+   90
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-00/default",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    5
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 5
+  }
+ },
+ "mp-kit-pirate-helmet-wrap-a-03": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   289184,
+   335592
+  ],
+  "vram": [
+   60416,
+   92160
+  ],
+  "subs": [
+   5,
+   5
+  ],
+  "nv": [
+   2676,
+   2676
+  ],
+  "ni": [
+   11169,
+   11169
+  ],
+  "maxj": [
+   90,
+   90
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-03/default",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    4
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 5
+  }
+ },
+ "mp-kit-pirate-helmet-wrap-a-04": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   289184,
+   335592
+  ],
+  "vram": [
+   60416,
+   92160
+  ],
+  "subs": [
+   5,
+   5
+  ],
+  "nv": [
+   2676,
+   2676
+  ],
+  "ni": [
+   11169,
+   11169
+  ],
+  "maxj": [
+   90,
+   90
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-04/default",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    4
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 5
+  }
+ },
+ "mp-kit-pirate-helmet-wrap-a-06": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   346560,
+   335592
+  ],
+  "vram": [
+   117760,
+   92160
+  ],
+  "subs": [
+   5,
+   5
+  ],
+  "nv": [
+   2676,
+   2676
+  ],
+  "ni": [
+   11169,
+   11169
+  ],
+  "maxj": [
+   90,
+   90
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 3,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-06/default",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    5
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 5
+  }
+ },
+ "mp-kit-pirate-helmet-wrap-b-00": {
+  "layer": "overlay-r3",
+  "ps3src": "disc",
+  "template": "mp-kit-shirt-comic-b",
+  "cap": 256,
+  "before": 1,
+  "after": 2,
+  "tabB": 1,
+  "tabA": 2,
+  "size": [
+   194448,
+   303608
+  ],
+  "vram": [
+   45056,
+   138240
+  ],
+  "subs": [
+   3,
+   3
+  ],
+  "nv": [
+   1364,
+   1364
+  ],
+  "ni": [
+   5334,
+   5334
+  ],
+  "maxj": [
+   90,
+   90
+  ],
+  "fg_same": true,
+  "skel": "0x27e57f43",
+  "hier": "0x3f00723",
+  "nj": 232,
+  "jh": "48197b7b",
+  "fg_old": [
+   669351747,
+   66062115,
+   232,
+   "48197b7b"
+  ],
+  "check": [
+   0,
+   0
+  ],
+  "check_new": [],
+  "verify": [],
+  "crash": [
+   0,
+   0
+  ],
+  "crash_new": [],
+  "crash_old": [],
+  "cb3": 2,
+  "cubes": [],
+  "flat": [],
+  "roles": [
+   [
+    "library/utilities/lib-shadowblocker/shadowblocker",
+    "shadowblocker",
+    "shadowblocker"
+   ],
+   [
+    "objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-b-00/default",
+    "cloth",
+    "objects/characters/mp-kit/torso-inner/mp-kit-shirt-comic-b-00:default",
+    6
+   ]
+  ],
+  "old_used": {
+   "library/utilities/lib-shadowblocker:shadowblocker": 3
+  }
+ }
+}

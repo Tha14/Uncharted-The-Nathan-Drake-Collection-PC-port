@@ -1,0 +1,37 @@
+{
+ "id": "actor-materials",
+ "title": "37 character paks rebuilt with retail material templates (actor33/rebuild_am.py am = build.py --one / mkretail rename per recorded job, actor-materials/apply_actor_materials.py)",
+ "kind": "script",
+ "job": "actor33",
+ "family": "overlay-r3/actor33",
+ "needs": [
+  "ps3_disc",
+  "ps3_update",
+  "ps4",
+  "python:numpy"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/rebuild_am.py",
+   "am"
+  ],
+  [
+   "{{PYTHON}}",
+   "{{SCRATCH}}/actor-materials/apply_actor_materials.py",
+   "--apply",
+   "--work",
+   "{{PROJECT}}/work"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/actor33/ps4/*.pak"
+ ],
+ "status": "reproducible",
+ "applied": "2026-11-02 00:11",
+ "notes": "jobs-am.tsv = template, cap and PS3 source the session search (build.py, build2.py gates, mkretail.py) picked for each of the 37 paks; rebuilt deterministically with no gate against the current overlay. 37/37 byte-identical to actor-materials/manifest.json (2026-11-05, 27 s). hat-colour and airport-igc2 replace some of them afterwards.",
+ "recipe_version_added": "1.0.0",
+ "with_jobs": [
+  "actor-materials"
+ ]
+}

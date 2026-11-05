@@ -1,0 +1,26 @@
+{
+ "id": "hair-key",
+ "title": "Hair kind/key entries in net.bin (hat-chloe/apply_hair_key.py)",
+ "kind": "script",
+ "job": "hat-chloe",
+ "with_jobs": [
+  "dctools"
+ ],
+ "family": "overlay-r3/dc1",
+ "needs": [],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/apply_hair_key.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/dc1/ps4/net.bin"
+ ],
+ "status": "needs-converted-base",
+ "applied": "2026-11-01 22:21",
+ "notes": "Idempotent. Verified 2026-11-05: overlay net.bin.bak-hairkey -> net.bin.bak-coopdesc sha256-identical; then coop-desc-fix -> the current net.bin, identical.",
+ "recipe_version_added": "1.0.0",
+ "recipe_version_changed": "1.2.0"
+}

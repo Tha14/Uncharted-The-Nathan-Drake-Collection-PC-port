@@ -1,0 +1,25 @@
+{
+ "id": "map-colors2",
+ "title": "Normal-map blend / gloss / stripes on 8 level paks (map-colors2/apply_mapcolor2.py)",
+ "kind": "script",
+ "job": "map-colors2",
+ "family": "overlay-r3/pak23",
+ "needs": [
+  "ps3_disc",
+  "ps4",
+  "python:numpy"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/apply_mapcolor2.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/pak23/ps4/*.pak"
+ ],
+ "status": "needs-converted-base",
+ "applied": "2026-11-01 23:31 / 11-02 00:11 (backup-mapcolor2)",
+ "recipe_version_added": "1.0.0"
+}

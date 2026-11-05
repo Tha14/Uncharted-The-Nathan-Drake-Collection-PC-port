@@ -1,0 +1,32 @@
+Converter snapshots used by build_actors.py (u3mp/paktools of github.com/fidalgojoao/Uncharted2-Multiplayer-Dev,
+branch U3_Multiplayer, GPL v2 like tools/paktools). Each folder is a complete paktools copy (Python only).
+
+folder    origin                                                     used for
+c6b291a   git c6b291a (2026-10-26 13:13), = tools/paktools ps4actor   overlay-mp hero-london(-ring) (10-26 06:xx)
+de13aa1   git de13aa1 (10-26 14:42, v4.85)                            overlay-port kit parts
+port-v1   de13aa1 with ps4actor FMT table without slot 4 (4 vertex    overlay-port kit parts of the earliest
+          formats, 16 bytes) - the uncommitted cloud version before   batches (10-26 12:xx)
+          v4.85, recovered from the paks
+003b433   git 003b433 (10-27 00:02, v5.07): ps4actor = 7d45c1f,   own-skeleton props (--own-skel needs
+          newer collision.py                                    collision.decode_mesh)
+0a20361   git 0a20361 (10-26 21:36, v4.99); same ps4actor as 6db6b8f  props/kits converted before v5.01
+1323bad   git 1323bad (10-26 18:58, v4.97): anim.py (first commit)     anim-* / multi-celebrate-* paks
+anim32    1323bad with anim.py clip tail pad max(32, 16*groups)        anim paks of the earlier cloud batches
+animng1   1323bad with anim.py clip tail pad 16*groups + 16           (search candidate; see jobs.tsv)
+7d45c1f   git 7d45c1f (10-26 22:06, v5.01) = 003b433 / 4c36373        as1 / overlay-r3 / overlay-r2 conversions,
+          ps4actor; + stage/cubefix.py, cb3fix.py from tools/paktools  wpnmods weapon skins, convert_net (net.pak)
+4c36373   git 4c36373 (10-27 23:45, branch tip) = the session's gh2    wall-emblem mkemblem (v1 and v2)
+f525859   tools/paktools (= the 10-31 tip f525859, gone from GitHub)  Lab boxes / stadium art groups (maps-batch
+          + ndpak.py / ps4writer.py / stage/ps4stage.py of            build_paks.py actor part)
+          fixes/pak23-levels/paktools-f525859 + ps4actor.py of 7d45c1f
+
+data/hk2010_ps3.json, data/hk2011_ps4.json (Havok reflection tables) are NOT shipped: step actors-hk-tables
+builds them from the user's decrypted executables (actors_hk.py, mkhk.py).
+v0618     c6b291a with ps4actor.py as it was on 2026-10-26 06:18 (cloud chat:  overlay-mp mp-hero-ramses-bandana
+          the 06:20 Write + the ps3_block_materials patch; recovered      (= dlc-patch18 mp-hero-part-lion-mask
+          line by line from the shared chat)                              renamed, template the retail bandana)
+animkv    1323bad with anim.py writing the event key/value pointer for     overlay-port anim-soldier-mp, anim-npc-medium-mp
+          every PS3 list, also empty ones ('if kv is None' instead of     (the 10-26 cloud anim.py before the retail
+          'if not kv'); recovered from the paks 2026-11-05                 null-for-empty rule)
+Post passes 'flatfix' / 'cubetype' (worker.py): the 2026-10-27 assets-agent passes (batch30-flatcolor flatfix.py: generated
+flat-color.tga VRAM_DESC 0x47 -> sRGB 0x48 + 0x010f0000; cubefix.fix_retail_types alone), recovered from that transcript.

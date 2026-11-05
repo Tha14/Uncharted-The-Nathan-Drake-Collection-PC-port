@@ -1,0 +1,30 @@
+{
+ "id": "convert-actors-r3",
+ "title": "Converted actor paks of overlay-port / -r2 / -r3 / -mp + overlay-mp net.pak, rebuilt with the recovered converter versions and parameters (actor33/build_actors.py, jobs.tsv)",
+ "kind": "script",
+ "job": "actor33",
+ "family": "overlay-*/actor33 + overlay-mp/pak23 net.pak",
+ "needs": [
+  "ps4",
+  "ps3_disc",
+  "ps3_update",
+  "ps3_data2",
+  "python:numpy"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/build_actors.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-*/u3data/build/main/actor33/ps4/*.pak",
+  "work/overlay-mp/u3data/build/main/pak23/ps4/net.pak"
+ ],
+ "must_write": false,
+ "status": "reproducible",
+ "applied": "2026-10-26 .. 10-30 (cloud: mpbatch/assetbatch/lightbatch -> ps4actor, anim.py, wpnmods.py, convert_net.py), 2026-11-01 (Lab boxes, maps-batch build_paks)",
+ "notes": "jobs.tsv = one row per overlay pak (converter toolset, PS3 source, retail template, mode, texture cap, env, post passes), found 2026-11-05 by reconverting every pak and comparing sha256 (scratch/actor-rebuild/search.py). Only byte-identical builds are installed (status identical/base); the rest is listed in GAPS.md. Toolsets: toolsets/SOURCES.txt. Needs actors-hk-tables for own-skeleton props.",
+ "recipe_version_added": "1.0.0"
+}

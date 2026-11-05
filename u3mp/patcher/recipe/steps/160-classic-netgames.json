@@ -1,0 +1,22 @@
+{
+ "id": "classic-netgames",
+ "title": "Classic netgames: +0x68 flag copy, old loadout/settings, boosters on for the 23 type-0x13 games (dctools/classic.py; rerun after any net.bin rebuild)",
+ "kind": "script",
+ "job": "dctools",
+ "family": "overlay-r3/dc1",
+ "needs": [],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/classic.py"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/dc1/ps4/net.bin"
+ ],
+ "status": "needs-converted-base",
+ "applied": "2026-11-01 03:33",
+ "notes": "Final 03:33 form (v7.08 x051, main transcript line 8002). Works on the current net.bin; exits 0 when no Classic netgame is in the old form. Verified 2026-11-05: backup-classic -> backup-skins/net.bin sha256-identical.",
+ "recipe_version_added": "1.0.0",
+ "recipe_version_changed": "1.2.0"
+}

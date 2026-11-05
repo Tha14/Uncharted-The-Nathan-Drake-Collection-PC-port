@@ -1,0 +1,49 @@
+{
+"reference": "pak23_ps4.txt",
+"lines": 19166,
+"sources": [
+"ps3-p18",
+"retail"
+],
+"ops": [
+[
+"C",
+"retail",
+0,
+10945,
+true,
+0
+],
+[
+"L",
+[
+"level-name net "
+],
+true
+],
+[
+"C",
+"ps3-p18",
+10145,
+3,
+true,
+0
+],
+[
+"C",
+"retail",
+10945,
+8216,
+true,
+0
+],
+[
+"C",
+"retail",
+19161,
+1,
+false,
+0
+]
+]
+}

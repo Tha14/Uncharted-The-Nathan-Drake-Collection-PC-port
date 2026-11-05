@@ -1,0 +1,25 @@
+{
+ "id": "coop-voice-all",
+ "title": "Co-op voice for all adventures: vox.bin, vox-igc.bin, vox-mp.bin, net.bin (coop-voice2/apply_coop_vox.py)",
+ "kind": "script",
+ "job": "coop-voice2",
+ "family": "overlay-r3/dc1",
+ "needs": [
+  "ps3_update",
+  "ps4"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/apply_coop_vox.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/dc1/ps4/vox*.bin",
+  "work/overlay-r3/u3data/build/main/dc1/ps4/net.bin"
+ ],
+ "status": "needs-converted-base",
+ "applied": "2026-11-02 02:47",
+ "recipe_version_added": "1.0.0"
+}

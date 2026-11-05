@@ -1,0 +1,3330 @@
+{
+"mp-coop-cutter": {
+"src": "disc",
+"nverts": 5897,
+"top": [
+[
+0.758,
+0.482,
+"cutter",
+"cutter",
+true,
+2
+],
+[
+0.758,
+0.451,
+"cutter-syria",
+"cutter-syria",
+true,
+2
+],
+[
+0.316,
+0.605,
+"mp-hero-cutter-torso",
+"mp-hero-cutter-torso",
+false,
+3
+]
+],
+"union": [
+[
+"cutter",
+0.758,
+0.482
+]
+],
+"union_cov": 0.758,
+"mats": {
+"objects/characters/hero/eyeoverlay/default": [
+"drake-eyeoverlay-color.tga",
+"drake-eyeoverlay-normal.tga",
+"drake-eyeoverlay-trans.tga",
+"eyes-env-reflection.dds"
+],
+"objects/characters/cutter/uk/pants/default": [
+"cutter-pants-color.tga",
+"cutter-pants-normal.tga"
+],
+"objects/characters/cutter/uk/shirt/default": [
+"cutter-shirt-color.tga",
+"cutter-shirt-normal.tga",
+"cutter-shirt-spec-mask.tga"
+],
+"objects/characters/cutter/uk/shoes/default": [
+"cutter-shoes-color.tga",
+"cutter-shoes-normal.tga",
+"cutter-shoes-spec-mask.tga"
+],
+"objects/characters/cutter/uk/jacket/default": [
+"cutter-jacket-color.tga",
+"cutter-jacket-normal.tga",
+"default-neutral-env-reflection.dds"
+],
+"objects/characters/hero/arms/default": [
+"drake-arms-color.tga",
+"hero-arms-normal.tga",
+"hero-arms-spec-mask.tga"
+],
+"objects/characters/hero/mouth/default": [
+"drake-mouth-color.tga",
+"drake-mouth-normal.tga"
+],
+"objects/characters/cutter/brows/default": [
+"cutter-brows-color.tga",
+"cutter-brows-normal.tga",
+"cutter-brows-spec-mask.tga",
+"cutter-brows-trans.tga",
+"default-noise.tga"
+],
+"objects/characters/cutter/head/default": [
+"cutter-head-detail-normal.tga",
+"cutter-head-normal.tga",
+"cutter-head-spec-exp.tga",
+"cutter-head-wrinkle-normal.tga"
+],
+"objects/characters/cutter/eyes/default": [
+"chloe-eyes-normal.tga",
+"cutter-eyes-color.tga",
+"eyes-env-reflection.dds"
+],
+"objects/characters/cutter/eyelashes/default": [
+"drake-eyelashes-normal.tga",
+"drake-eyelashes-trans.tga",
+"eyeslash-color.tga"
+],
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00/default": [
+"mp-kit-holster-a-00-color.tga",
+"mp-kit-holster-a-00-normal.tga"
+]
+},
+"best": "cutter",
+"mat_only_ps3": [
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default"
+],
+"mat_only_ret": [],
+"tex_only_ps3": [
+"chloe-eyes-normal.tga",
+"cutter-shirt-spec-mask.tga",
+"mp-kit-holster-a-00-color.tga",
+"mp-kit-holster-a-00-normal.tga"
+],
+"tex_only_ret": [
+"cutter-head-ao.tga",
+"cutter-head-color.tga",
+"cutter-head-spec-mask.tga",
+"cutter-head-wrinkle-ao.tga",
+"cutter-jacket-spec-mask.tga",
+"cutter-pants-spec-mask.tga",
+"default-cornea.tga",
+"drake-eyeoverlay-spec-mask.tga"
+]
+},
+"mp-hero-agent-b-torso": {
+"src": "patch13",
+"nverts": 2678,
+"top": [
+[
+0.717,
+0.731,
+"mp-hero-agent-a-torso",
+"mp-hero-agent-a-torso",
+true,
+3
+],
+[
+0.396,
+0.835,
+"agent-armor-all",
+"agent-armor-head-b",
+false,
+30
+],
+[
+0.577,
+0.51,
+"agent-head-all",
+"agent-head-b",
+false,
+15
+]
+],
+"union": [
+[
+"mp-hero-agent-a-torso",
+0.717,
+0.731
+],
+[
+"mp-hero-dead-agent-torso",
+0.069,
+0.243
+],
+[
+"hero-desert-head-dust",
+0.046,
+0.067
+]
+],
+"union_cov": 0.832,
+"mats": {
+"objects/characters/mp-kit/heads/mp-kit-eyes-a-01/default": [
+"default-cornea.tga",
+"eyes-env-reflection.dds",
+"mp-kit-eyes-01-color.tga"
+],
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/hero/mouth/default-mp": [
+"drake-mouth-color.tga",
+"drake-mouth-normal.tga"
+],
+"objects/characters/npc-sp/agent/torso/mp/agent-skin-b-mp/arms-default": [
+"agent-arms-skin-b-00-color.tga",
+"agent-arms-skin-b-00-normal.tga",
+"default-neutral-env-reflection.dds"
+],
+"objects/characters/npc-sp/agent/heads/mp/agent-head-skin-b-mp/default": [
+"agent-head-skin-b-00-color.tga",
+"agent-head-skin-b-00-normal.tga",
+"default-neutral-env-reflection.dds"
+],
+"objects/characters/npc-sp/agent/torso/mp/agent-torso-jacket-a-mp/default": [
+"agent-torso-jacket-a-00-normal.tga",
+"agent-torso-jacket-a-mp-color.tga",
+"agent-torso-jacket-a-mp-tint-mask.tga"
+]
+},
+"best": "mp-hero-agent-a-torso",
+"mat_only_ps3": [
+"objects/characters/npc-sp/agent/heads/mp/agent-head-skin-b-mp:default",
+"objects/characters/npc-sp/agent/torso/mp/agent-skin-b-mp:arms-default"
+],
+"mat_only_ret": [
+"objects/characters/npc-sp/agent/heads/agent-head-skin-c-00:default",
+"objects/characters/npc-sp/agent/torso/mp/agent-skin-a-mp:arms-default"
+],
+"tex_only_ps3": [
+"agent-arms-skin-b-00-color.tga",
+"agent-arms-skin-b-00-normal.tga",
+"agent-head-skin-b-00-color.tga",
+"agent-head-skin-b-00-normal.tga"
+],
+"tex_only_ret": [
+"agent-arms-skin-c-00-color.tga",
+"agent-arms-skin-c-00-normal.tga",
+"agent-arms-skin-c-00-spec-mask.tga",
+"agent-head-skin-c-00-color.tga",
+"agent-head-skin-c-00-normal.tga",
+"agent-head-skin-c-00-spec-mask.tga",
+"agent-torso-jacket-a-00-spec-mask.tga"
+]
+},
+"mp-hero-cutter-torso-w-scarf": {
+"src": "patch13",
+"nverts": 3811,
+"top": [
+[
+0.801,
+0.991,
+"mp-hero-cutter-torso",
+"mp-hero-cutter-torso",
+true,
+3
+],
+[
+0.398,
+0.163,
+"cutter",
+"cutter",
+false,
+2
+],
+[
+0.398,
+0.153,
+"cutter-syria",
+"cutter-syria",
+false,
+2
+]
+],
+"union": [
+[
+"mp-hero-cutter-torso",
+0.801,
+0.991
+]
+],
+"union_cov": 0.801,
+"mats": {
+"objects/characters/cutter/mp/cutter-scarf/default": [
+"cutter-scarf-color.tga",
+"cutter-scarf-normal.tga",
+"cutter-scarf-tint-mask.tga"
+],
+"objects/characters/cutter/brows/default": [
+"cutter-brows-color.tga",
+"cutter-brows-normal.tga",
+"cutter-brows-spec-mask.tga",
+"cutter-brows-trans.tga",
+"default-noise.tga"
+],
+"objects/characters/cutter/eyes-fma/fma": [
+"default-cornea.tga"
+],
+"objects/characters/hero/eyeoverlay/default": [
+"drake-eyeoverlay-color.tga",
+"drake-eyeoverlay-normal.tga",
+"drake-eyeoverlay-trans.tga",
+"eyes-env-reflection.dds"
+],
+"objects/characters/cutter/eyelashes/default": [
+"drake-eyelashes-normal.tga",
+"drake-eyelashes-trans.tga",
+"eyeslash-color.tga"
+],
+"objects/characters/hero/mouth-fma/default": [
+"drake-mouth-color.tga",
+"drake-mouth-normal.tga"
+],
+"objects/characters/hero/main/hero-arms/default": [
+"hero-arms-color.tga",
+"hero-arms-normal.tga"
+],
+"objects/characters/cutter/mp/head-mp/default": [
+"cutter-head-color.tga",
+"cutter-head-detail-normal.tga",
+"cutter-head-normal.tga",
+"cutter-head-spec-mask.tga"
+],
+"objects/characters/cutter/mp/jacket-mp/default": [
+"cutter-jacket-color.tga",
+"cutter-jacket-normal.tga",
+"cutter-jacket-tint-mask.tga"
+],
+"library/utilities/lib-shadowblocker/shadowblocker": []
+},
+"best": "mp-hero-cutter-torso",
+"mat_only_ps3": [
+"objects/characters/cutter/mp/cutter-scarf:default"
+],
+"mat_only_ret": [],
+"tex_only_ps3": [
+"cutter-scarf-color.tga",
+"cutter-scarf-normal.tga",
+"cutter-scarf-tint-mask.tga"
+],
+"tex_only_ret": [
+"cutter-eyes-color.tga",
+"cutter-jacket-spec-mask.tga",
+"drake-eyeoverlay-spec-mask.tga",
+"hero-arms-spec-mask.tga"
+]
+},
+"mp-hero-fat-hair": {
+"src": "patch13",
+"nverts": 1637,
+"top": [
+[
+0.904,
+0.903,
+"mp-hero-french-hair",
+"mp-hero-french-hair",
+true,
+3
+],
+[
+0.533,
+0.133,
+"hero-desert-head-dust",
+"hero-desert-head-dust",
+true,
+3
+],
+[
+0.533,
+0.133,
+"hero-desert-head",
+"hero-desert-head",
+true,
+3
+]
+],
+"union": [
+[
+"mp-hero-french-hair",
+0.904,
+0.903
+]
+],
+"union_cov": 0.904,
+"mats": {
+"objects/characters/hero/hair-mp/default": [
+"drake-head-hair-normal.tga",
+"drake-head-hair-shift.tga"
+],
+"library/utilities/lib-shadowblocker/shadowblocker": []
+},
+"best": "mp-hero-french-hair",
+"mat_only_ps3": [],
+"mat_only_ret": [],
+"tex_only_ps3": [],
+"tex_only_ret": [
+"drake-head-hair-color.tga",
+"drake-head-hair-trans.tga"
+]
+},
+"mp-hero-fat-talbot-torso": {
+"src": "patch13",
+"nverts": 4733,
+"top": [
+[
+0.325,
+0.958,
+"mp-hero-talbot-hair",
+"mp-hero-talbot-hair",
+true,
+3
+],
+[
+0.239,
+0.358,
+"mp-hero-talbot-torso",
+"mp-hero-talbot-torso",
+true,
+3
+],
+[
+0.171,
+0.19,
+"mp-hero-talbot-desert-torso",
+"mp-hero-talbot-desert-torso",
+true,
+3
+]
+],
+"union": [
+[
+"mp-hero-talbot-hair",
+0.325,
+0.958
+],
+[
+"mp-hero-talbot-torso",
+0.237,
+0.358
+]
+],
+"union_cov": 0.562,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/talbot/talbot-eye-fma/default": [
+"default-cornea.tga",
+"talbot-eyes-normal.tga"
+],
+"objects/characters/talbot/talbot-hair/default": [
+"talbot-hair-normal.tga",
+"talbot-hair-trans.tga"
+],
+"objects/characters/talbot/talbot-hands/mp": [
+"talbot-hands-color.tga",
+"talbot-hands-normal.tga"
+],
+"objects/characters/talbot/mp/mp-talbot-head/default": [
+"default-neutral-env-reflection.dds",
+"mp-talbot-head-color.tga",
+"mp-talbot-head-detail-normal.tga",
+"mp-talbot-head-normal.tga"
+],
+"objects/characters/talbot/talbot-teeth/default": [
+"talbot-teeth-color.tga",
+"talbot-teeth-normal.tga"
+],
+"objects/characters/talbot/talbot-tongue/default": [
+"elena-tongue-color.tga",
+"talbot-tongue-normal.tga"
+],
+"objects/characters/talbot/mp/mp-talbot-jacket/default": [
+"mp-talbot-torso-suit-color.tga",
+"mp-talbot-torso-suit-normal.tga",
+"mp-talbot-torso-suit-tint-mask.tga"
+]
+},
+"best": "mp-hero-talbot-hair",
+"mat_only_ps3": [
+"objects/characters/talbot/mp/mp-talbot-head:default",
+"objects/characters/talbot/mp/mp-talbot-jacket:default",
+"objects/characters/talbot/talbot-eye-fma:default",
+"objects/characters/talbot/talbot-hands:mp",
+"objects/characters/talbot/talbot-teeth:default",
+"objects/characters/talbot/talbot-tongue:default"
+],
+"mat_only_ret": [],
+"tex_only_ps3": [
+"default-cornea.tga",
+"default-neutral-env-reflection.dds",
+"elena-tongue-color.tga",
+"mp-talbot-head-color.tga",
+"mp-talbot-head-detail-normal.tga",
+"mp-talbot-head-normal.tga",
+"mp-talbot-torso-suit-color.tga",
+"mp-talbot-torso-suit-normal.tga",
+"mp-talbot-torso-suit-tint-mask.tga",
+"talbot-eyes-normal.tga",
+"talbot-hands-color.tga",
+"talbot-hands-normal.tga",
+"talbot-teeth-color.tga",
+"talbot-teeth-normal.tga",
+"talbot-tongue-normal.tga"
+],
+"tex_only_ret": [
+"default-noise-strand.tga",
+"talbot-hair-color.tga"
+]
+},
+"mp-hero-flynn-coop": {
+"src": "disc",
+"nverts": 5883,
+"top": [
+[
+0.794,
+0.968,
+"mp-hero-flynn-torso",
+"mp-hero-flynn-torso",
+true,
+3
+],
+[
+0.176,
+0.962,
+"mp-hero-flynn-legs",
+"mp-hero-flynn-legs",
+true,
+3
+],
+[
+0.137,
+0.064,
+"sullivan-young",
+"sullivan-young",
+false,
+2
+]
+],
+"union": [
+[
+"mp-hero-flynn-torso",
+0.794,
+0.968
+],
+[
+"mp-hero-flynn-legs",
+0.176,
+0.962
+]
+],
+"union_cov": 0.97,
+"mats": {
+"objects/characters/u2-mp-characters/flynn/flynn-arms-mp/default": [
+"flynn-arms-color.tga",
+"flynn-arms-normal.tga"
+],
+"objects/characters/u2-mp-characters/flynn/flynn-boots-mp/default": [
+"flynn-shose-color.tga",
+"flynn-shose-normal.tga"
+],
+"objects/characters/flynn/flynn/flynn-eye/default": [
+"default-cornea.tga",
+"eyes-env-reflection.dds",
+"eyes3-color.tga"
+],
+"objects/characters/u2-mp-characters/flynn/flynn-head-mp/default": [
+"flynn-head-color.tga",
+"flynn-head-normal.tga"
+],
+"objects/characters/flynn/flynn/hair/lod0": [
+"brown-hair-color.tga",
+"brown-hair-normal.tga",
+"brown-hair-trans.tga",
+"default-noise.tga"
+],
+"objects/characters/u2-mp-characters/flynn/flynn-body-coop/default": [
+"flynn-shirt-pants-boots-e-color.tga",
+"flynn-shirt-pants-boots-normal.tga"
+],
+"objects/characters/flynn/flynn/misc-accessories/wristband-watch-fma": [
+"wrist-watch-color.tga",
+"wrist-watch-normal.tga",
+"wrist-watch-spec-exp-mask.tga",
+"wrist-watch-spec-mask.tga"
+],
+"objects/characters/u2-mp-characters/flynn/flynn-pants-mp-coop/default": [
+"flynn-pants-color.tga",
+"flynn-pants-normal.tga",
+"flynn-pants-tint-mask.tga"
+]
+},
+"best": "mp-hero-flynn-torso",
+"mat_only_ps3": [
+"objects/characters/u2-mp-characters/flynn/flynn-body-coop:default",
+"objects/characters/u2-mp-characters/flynn/flynn-boots-mp:default",
+"objects/characters/u2-mp-characters/flynn/flynn-pants-mp-coop:default"
+],
+"mat_only_ret": [
+"objects/characters/u2-mp-characters/flynn/flynn-body-mp:default"
+],
+"tex_only_ps3": [
+"flynn-pants-color.tga",
+"flynn-pants-normal.tga",
+"flynn-pants-tint-mask.tga",
+"flynn-shose-color.tga",
+"flynn-shose-normal.tga"
+],
+"tex_only_ret": [
+"flynn-arms-spec-mask.tga",
+"flynn-head-spec-mask.tga"
+]
+},
+"mp-hero-flynn-hair": {
+"src": "patch13",
+"nverts": 1783,
+"top": [
+[
+0.964,
+0.356,
+"mp-hero-flynn-torso",
+"mp-hero-flynn-torso",
+true,
+3
+],
+[
+0.087,
+0.028,
+"sullivan-default-head",
+"sullivan-default-head",
+false,
+3
+],
+[
+0.087,
+0.028,
+"sullivan-head-dirt-01",
+"sullivan-head-dirt-01",
+false,
+3
+]
+],
+"union": [
+[
+"mp-hero-flynn-torso",
+0.964,
+0.356
+]
+],
+"union_cov": 0.964,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/flynn/flynn/hair/lod0": [
+"brown-hair-color.tga",
+"brown-hair-normal.tga",
+"brown-hair-trans.tga",
+"default-noise.tga"
+]
+},
+"best": "mp-hero-flynn-torso",
+"mat_only_ps3": [],
+"mat_only_ret": [
+"objects/characters/flynn/flynn/flynn-eye:default",
+"objects/characters/flynn/flynn/misc-accessories:wristband-watch-fma",
+"objects/characters/u2-mp-characters/flynn/flynn-arms-mp:default",
+"objects/characters/u2-mp-characters/flynn/flynn-body-mp:default",
+"objects/characters/u2-mp-characters/flynn/flynn-head-mp:default"
+],
+"tex_only_ps3": [],
+"tex_only_ret": [
+"default-cornea.tga",
+"eyes-env-reflection.dds",
+"eyes3-color.tga",
+"flynn-arms-color.tga",
+"flynn-arms-normal.tga",
+"flynn-arms-spec-mask.tga",
+"flynn-head-color.tga",
+"flynn-head-normal.tga",
+"flynn-head-spec-mask.tga",
+"flynn-shirt-pants-boots-e-color.tga",
+"flynn-shirt-pants-boots-normal.tga",
+"wrist-watch-color.tga",
+"wrist-watch-normal.tga",
+"wrist-watch-spec-exp-mask.tga",
+"wrist-watch-spec-mask.tga"
+]
+},
+"mp-hero-french-hair-coop": {
+"src": "disc",
+"nverts": 1640,
+"top": [
+[
+0.998,
+0.999,
+"mp-hero-french-hair",
+"mp-hero-french-hair",
+true,
+3
+],
+[
+0.576,
+0.144,
+"hero-desert-head-dust",
+"hero-desert-head-dust",
+true,
+3
+],
+[
+0.576,
+0.144,
+"hero-desert-head",
+"hero-desert-head",
+true,
+3
+]
+],
+"union": [
+[
+"mp-hero-french-hair",
+0.998,
+0.999
+]
+],
+"union_cov": 0.998,
+"mats": {
+"objects/characters/hero/hair-mp/default": [
+"drake-head-hair-normal.tga",
+"drake-head-hair-shift.tga"
+],
+"library/utilities/lib-shadowblocker/shadowblocker": []
+},
+"best": "mp-hero-french-hair",
+"mat_only_ps3": [],
+"mat_only_ret": [],
+"tex_only_ps3": [],
+"tex_only_ret": [
+"drake-head-hair-color.tga",
+"drake-head-hair-trans.tga"
+]
+},
+"mp-hero-french-torso-coop": {
+"src": "disc",
+"nverts": 4138,
+"top": [
+[
+0.993,
+0.993,
+"mp-hero-french-torso",
+"mp-hero-french-torso",
+true,
+3
+],
+[
+0.483,
+0.63,
+"mp-hero-redshirt-torso",
+"mp-hero-redshirt-torso",
+true,
+3
+],
+[
+0.487,
+0.6,
+"mp-hero-udf-torso",
+"mp-hero-udf-torso",
+true,
+3
+]
+],
+"union": [
+[
+"mp-hero-french-torso",
+0.993,
+0.993
+]
+],
+"union_cov": 0.993,
+"mats": {
+"objects/characters/hero/mouth/default": [
+"drake-mouth-color.tga",
+"drake-mouth-normal.tga"
+],
+"objects/characters/hero/eyes/default": [
+"chloe-eyes-normal.tga",
+"drake-eyes-color.tga",
+"eyes-env-reflection.dds"
+],
+"objects/characters/hero/eyeoverlay/default": [
+"drake-eyeoverlay-color.tga",
+"drake-eyeoverlay-normal.tga",
+"drake-eyeoverlay-trans.tga",
+"eyes-env-reflection.dds"
+],
+"objects/characters/hero/eyelashes/default": [
+"drake-eyelashes-normal.tga",
+"drake-eyelashes-trans.tga",
+"eyeslash-color.tga"
+],
+"objects/characters/hero/french/mp/brows-mp/default": [
+"default-noise.tga",
+"drake-brows-color.tga",
+"drake-brows-normal.tga",
+"drake-brows-spec-mask.tga",
+"drake-brows-trans.tga"
+],
+"objects/characters/hero/french/mp/french-pants-mp/default": [
+"mp-drake-desert-pants-tint-mask.tga",
+"mp-drake-french-body-color.tga",
+"mp-drake-french-body-normal.tga"
+],
+"objects/characters/hero/french/mp/french-shirt-mp-coop/default": [
+"mp-drake-desert-body-tint-mask.tga",
+"mp-drake-french-body-color.tga",
+"mp-drake-french-body-normal.tga"
+],
+"objects/characters/hero/french/mp/hero-arms-mp/default": [
+"hero-arms-color.tga",
+"hero-arms-normal.tga"
+],
+"objects/characters/hero/french/mp/french-holster-mp/default": [
+"drake-french-holster-color.tga",
+"drake-french-holster-normal.tga"
+],
+"objects/characters/hero/french/mp/mp-head/default": [
+"drake-head-spec-mask.tga",
+"mp-drake-head-color.tga",
+"mp-drake-head-normal.tga"
+],
+"library/utilities/lib-shadowblocker/shadowblocker": []
+},
+"best": "mp-hero-french-torso",
+"mat_only_ps3": [
+"objects/characters/hero/french/mp/french-shirt-mp-coop:default"
+],
+"mat_only_ret": [
+"objects/characters/hero/french/mp/french-shirt-mp:default"
+],
+"tex_only_ps3": [
+"chloe-eyes-normal.tga"
+],
+"tex_only_ret": [
+"default-cornea.tga",
+"drake-eyeoverlay-spec-mask.tga",
+"drake-french-holster-spec-mask.tga",
+"drake-head-spec-exp.tga",
+"hero-arms-spec-mask.tga",
+"mp-drake-french-body-spec-mask.tga"
+]
+},
+"mp-hero-guerro-torso": {
+"src": "patch13",
+"nverts": 3459,
+"top": [
+[
+0.088,
+0.146,
+"eurothug-heads-all",
+"eurothug-head-c",
+false,
+20
+],
+[
+0.075,
+0.132,
+"eurothug-heads-all",
+"eurothug-head-d",
+false,
+20
+],
+[
+0.06,
+0.161,
+"npcnormal-asian-all",
+"npcnormal-asian-head-b",
+false,
+24
+]
+],
+"union": [
+[
+"hero-london-dirt-01",
+0.098,
+0.028
+],
+[
+"mp-hero-fat-torso-extra-5",
+0.053,
+0.077
+],
+[
+"mp-hero-pirate-torso",
+0.043,
+0.069
+],
+[
+"mp-hero-ramses-torso",
+0.033,
+0.053
+]
+],
+"union_cov": 0.227,
+"mats": {
+"objects/characters/ngp/guerro/mp-ngp-guerro-torso/default": [
+"guerro-body-color.tga",
+"guerro-body-normal.tga",
+"guerro-body-spec-mask.tga",
+"guerro-body-tint-mask.tga"
+],
+"objects/characters/ngp/guerro/mp-ngp-guerro-head/default": [
+"guerro-head-color.tga",
+"guerro-head-normal.tga",
+"guerro-head-spec-mask.tga"
+],
+"objects/characters/ngp/marisa/mp-ngp-marisa-teeth/default": [
+"drake_teeth_c.dds",
+"drake_teeth_n.dds"
+],
+"objects/characters/ngp/marisa/mp-ngp-marisa-eyes/default": [
+"default-cornea.tga",
+"eye_hazel_c.dds",
+"eyes-env-reflection.dds"
+],
+"library/utilities/lib-shadowblocker/shadowblocker": []
+},
+"best": "mp-hero-fat-torso-extra-5",
+"mat_only_ps3": [
+"objects/characters/ngp/guerro/mp-ngp-guerro-head:default",
+"objects/characters/ngp/guerro/mp-ngp-guerro-torso:default",
+"objects/characters/ngp/marisa/mp-ngp-marisa-eyes:default",
+"objects/characters/ngp/marisa/mp-ngp-marisa-teeth:default"
+],
+"mat_only_ret": [
+"objects/characters/hero/mouth:default",
+"objects/characters/sullivan/eyes:default",
+"objects/characters/sullivan/mp/head-mp:default",
+"objects/characters/sullivan/mp/shirt-mp-french:mp",
+"objects/characters/sullivan/skin-lorez:mp",
+"objects/characters/sullivan/watch:mp"
+],
+"tex_only_ps3": [
+"drake_teeth_c.dds",
+"drake_teeth_n.dds",
+"eye_hazel_c.dds",
+"guerro-body-color.tga",
+"guerro-body-normal.tga",
+"guerro-body-spec-mask.tga",
+"guerro-body-tint-mask.tga",
+"guerro-head-color.tga",
+"guerro-head-normal.tga",
+"guerro-head-spec-mask.tga"
+],
+"tex_only_ret": [
+"body-mp-french-color.tga",
+"body-mp-french-shirt-tint-mask.tga",
+"body-normal.tga",
+"default-env-reflection.dds",
+"default-flat-normal.tga",
+"default-neutral-env-reflection.dds",
+"drake-mouth-color.tga",
+"drake-mouth-normal.tga",
+"head-ao.tga",
+"head-color.tga",
+"head-detail-normal.tga",
+"head-normal.tga",
+"head-spec-mask.tga",
+"sullivan-skin-ao-color.tga",
+"sullivan-skin-color.tga",
+"sullivan-skin-normal.tga",
+"sullivan-skin-spec-mask.tga",
+"sullivan-watch-color.tga",
+"sullivan-watch-normal.tga",
+"sullivan-watch-spec-mask.tga",
+"sully-eyes-color.tga"
+]
+},
+"mp-hero-lazarevic-coop": {
+"src": "disc",
+"nverts": 3662,
+"top": [
+[
+0.706,
+0.968,
+"mp-hero-lazarevic-torso",
+"mp-hero-lazarevic-torso",
+true,
+3
+],
+[
+0.262,
+0.971,
+"mp-hero-lazarevic-legs",
+"mp-hero-lazarevic-legs",
+true,
+3
+],
+[
+0.12,
+0.179,
+"mp-hero-lazarevic-fat-torso",
+"mp-hero-lazarevic-fat-torso",
+true,
+3
+]
+],
+"union": [
+[
+"mp-hero-lazarevic-torso",
+0.706,
+0.968
+],
+[
+"mp-hero-lazarevic-legs",
+0.262,
+0.971
+]
+],
+"union_cov": 0.969,
+"mats": {
+"objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-torso-coop/default": [
+"body-color.tga",
+"body-normal.tga",
+"body-spec-mask.tga",
+"body-tint-mask.tga"
+],
+"objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-eyes/default": [
+"default-cornea.tga",
+"eyes-env-reflection.dds",
+"mp-kit-eyes-a-00-color.tga"
+],
+"objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-head/default": [
+"head-scarred-color.tga",
+"head-scarred-normal.tga",
+"head-scarred-spec-mask.tga"
+],
+"objects/characters/u2-mp-characters/lazarevic/mouth-2/default": [
+"drake-mouth-color.tga",
+"drake-mouth-normal.tga"
+],
+"objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-legs-coop/default": [
+"legs--tint-mask.tga",
+"legs-color.tga",
+"legs-normal.tga",
+"legs-spec-mask.tga"
+],
+"objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-arms/default": [
+"arms-color.tga",
+"arms-normal.tga",
+"arms-spec-mask.tga"
+],
+"objects/characters/u2-mp-characters/roman/mp-roman-pants/default": [
+"mp-hero-roman-legs-color.tga",
+"mp-hero-roman-legs-normal.tga",
+"mp-hero-roman-legs-tint-mask.tga"
+]
+},
+"best": "mp-hero-lazarevic-torso",
+"mat_only_ps3": [
+"objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-legs-coop:default",
+"objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-torso-coop:default",
+"objects/characters/u2-mp-characters/roman/mp-roman-pants:default"
+],
+"mat_only_ret": [
+"objects/characters/u2-mp-characters/lazarevic/mp-lazarevic-torso:default"
+],
+"tex_only_ps3": [
+"legs--tint-mask.tga",
+"legs-color.tga",
+"legs-normal.tga",
+"legs-spec-mask.tga",
+"mp-hero-roman-legs-color.tga",
+"mp-hero-roman-legs-normal.tga",
+"mp-hero-roman-legs-tint-mask.tga"
+],
+"tex_only_ret": []
+},
+"mp-hero-make-believe-torso": {
+"src": "patch13",
+"nverts": 4443,
+"top": [
+[
+0.312,
+0.564,
+"agent-med-all",
+"agent-med-head-a",
+false,
+12
+],
+[
+0.184,
+0.941,
+"mp-kit-base-arms-should-skin-a-00",
+"mp-kit-base-arms-should-skin-a-00",
+true,
+3
+],
+[
+0.151,
+0.873,
+"mp-kit-base-arms-hands-skin-a-00",
+"mp-kit-base-arms-hands-skin-a-00",
+true,
+3
+]
+],
+"union": [
+[
+"mp-hero-agent-med-a-torso",
+0.248,
+0.293
+],
+[
+"mp-kit-base-arms-should-skin-a-00",
+0.18,
+0.941
+],
+[
+"hero-london-dirt-01",
+0.049,
+0.042
+]
+],
+"union_cov": 0.476,
+"mats": {
+"objects/characters/mp-kit/torso-inner/dlc/mp-kit-mb-jeremy-shirt-a-00/default": [
+"mb-torso-color.tga",
+"mb-torso-normal.tga",
+"mb-torso-tint-mask.tga"
+],
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/heads/dlc/mb-jeremy-head-skin-a-00/default": [
+"mb-head-skin-color.tga",
+"mb-head-skin-normal.tga",
+"mb-head-skin-spec-mask.tga"
+],
+"objects/characters/mp-kit/torso-inner/dlc/mb-jeremy-base-skin-a-00/default-torso": [
+"mb-torso-skin-color.tga",
+"mb-torso-skin-normal.tga",
+"mb-torso-skin-spec-mask.tga"
+],
+"objects/characters/mp-kit/torso-inner/dlc/mb-jeremy-base-skin-a-00/default-arms": [
+"mb-arms-skin-color.tga",
+"mb-arms-skin-normal.tga",
+"mb-arms-skin-spec-mask.tga"
+],
+"objects/characters/mp-kit/heads/mp-kit-eyes-b-00/default": [
+"default-cornea.tga",
+"eyes-env-reflection.dds",
+"mp-kit-eyes-b-00-color.tga"
+]
+},
+"best": "mp-kit-base-arms-should-skin-a-00",
+"mat_only_ps3": [
+"objects/characters/mp-kit/heads/dlc/mb-jeremy-head-skin-a-00:default",
+"objects/characters/mp-kit/heads/mp-kit-eyes-b-00:default",
+"objects/characters/mp-kit/torso-inner/dlc/mb-jeremy-base-skin-a-00:default-arms",
+"objects/characters/mp-kit/torso-inner/dlc/mb-jeremy-base-skin-a-00:default-torso",
+"objects/characters/mp-kit/torso-inner/dlc/mp-kit-mb-jeremy-shirt-a-00:default"
+],
+"mat_only_ret": [
+"objects/characters/mp-kit/torso-inner/mp-kit-base-skin-a-00:arms",
+"objects/characters/mp-kit/torso-inner/mp-kit-base-skin-a-00:torso"
+],
+"tex_only_ps3": [
+"default-cornea.tga",
+"eyes-env-reflection.dds",
+"mb-arms-skin-color.tga",
+"mb-arms-skin-normal.tga",
+"mb-arms-skin-spec-mask.tga",
+"mb-head-skin-color.tga",
+"mb-head-skin-normal.tga",
+"mb-head-skin-spec-mask.tga",
+"mb-torso-color.tga",
+"mb-torso-normal.tga",
+"mb-torso-skin-color.tga",
+"mb-torso-skin-normal.tga",
+"mb-torso-skin-spec-mask.tga",
+"mb-torso-tint-mask.tga",
+"mp-kit-eyes-b-00-color.tga"
+],
+"tex_only_ret": [
+"mp-kit-base-arms-skin-a-00-color.tga",
+"mp-kit-base-arms-skin-a-00-spec-mask.tga",
+"mp-kit-base-arms-skin-b-00-normal.tga",
+"mp-kit-base-arms-skin-b-00-spec-mask.tga",
+"torso-skin-a-00-color.tga",
+"torso-skin-b-00-normal.tga"
+]
+},
+"mp-hero-ngp-torso": {
+"src": "disc",
+"nverts": 4343,
+"top": [
+[
+0.454,
+0.621,
+"mp-hero-redshirt-torso",
+"mp-hero-redshirt-torso",
+true,
+3
+],
+[
+0.454,
+0.588,
+"mp-hero-udf-torso",
+"mp-hero-udf-torso",
+true,
+3
+],
+[
+0.438,
+0.6,
+"mp-hero-london-torso",
+"mp-hero-london-torso",
+true,
+3
+]
+],
+"union": [
+[
+"mp-hero-winter-torso",
+0.463,
+0.496
+],
+[
+"mp-hero-french-torso",
+0.053,
+0.481
+],
+[
+"hero-london-dirt-01",
+0.033,
+0.125
+]
+],
+"union_cov": 0.55,
+"mats": {
+"objects/characters/hero/mouth/default": [
+"drake-mouth-color.tga",
+"drake-mouth-normal.tga"
+],
+"objects/characters/hero/eyes/default": [
+"default-cornea.tga",
+"drake-eyes-color.tga",
+"eyes-env-reflection.dds"
+],
+"objects/characters/hero/eyeoverlay/default": [
+"drake-eyeoverlay-color.tga",
+"drake-eyeoverlay-normal.tga",
+"drake-eyeoverlay-trans.tga",
+"eyes-env-reflection.dds"
+],
+"objects/characters/hero/eyelashes/default": [
+"drake-eyelashes-normal.tga",
+"drake-eyelashes-trans.tga",
+"eyeslash-color.tga"
+],
+"objects/characters/hero/french/mp/brows-mp/default": [
+"default-noise.tga",
+"drake-brows-color.tga",
+"drake-brows-normal.tga",
+"drake-brows-spec-mask.tga",
+"drake-brows-trans.tga"
+],
+"objects/characters/hero/french/mp/hero-arms-mp/default": [
+"hero-arms-color.tga",
+"hero-arms-normal.tga"
+],
+"objects/characters/hero/french/mp/mp-head/default": [
+"drake-head-spec-mask.tga",
+"mp-drake-head-color.tga",
+"mp-drake-head-normal.tga"
+],
+"objects/characters/ngp/ngp-drake/mp-ngp-drake-clothes/default": [
+"drake-body-color.tga",
+"drake-body-normal.tga",
+"drake-body-tint-mask.tga"
+],
+"objects/characters/ngp/ngp-drake/mp-ngp-drake-acc/default": [
+"drake-holster-color.tga",
+"drake-holster-normal.tga",
+"drake-holster-spec-mask.tga"
+],
+"objects/characters/hero/main/hero-arms/default": [
+"hero-arms-color.tga",
+"hero-arms-normal.tga"
+],
+"objects/characters/hero/head/default": [
+"drake-head-detail-normal.tga",
+"drake-head-normal.tga",
+"drake-head-spec-mask.tga",
+"drake-normal-wrinkle.tga"
+]
+},
+"best": "mp-hero-redshirt-torso",
+"mat_only_ps3": [
+"objects/characters/hero/head:default",
+"objects/characters/hero/main/hero-arms:default",
+"objects/characters/ngp/ngp-drake/mp-ngp-drake-acc:default",
+"objects/characters/ngp/ngp-drake/mp-ngp-drake-clothes:default"
+],
+"mat_only_ret": [
+"objects/characters/u2-mp-characters/drake-red-shirt/mp-drake-red-shirt:default"
+],
+"tex_only_ps3": [
+"drake-body-color.tga",
+"drake-body-normal.tga",
+"drake-body-tint-mask.tga",
+"drake-head-detail-normal.tga",
+"drake-head-normal.tga",
+"drake-holster-color.tga",
+"drake-holster-normal.tga",
+"drake-holster-spec-mask.tga",
+"drake-normal-wrinkle.tga"
+],
+"tex_only_ret": [
+"drake-eyeoverlay-spec-mask.tga",
+"drake-head-spec-exp.tga",
+"hero-arms-spec-mask.tga",
+"mp-hero-red-color.tga",
+"mp-hero-red-normal.tga",
+"mp-hero-red-tint-mask.tga"
+]
+},
+"mp-hero-ramses-equip-legs": {
+"src": "disc",
+"nverts": 1449,
+"top": [
+[
+0.486,
+0.373,
+"mp-hero-ramses-legs",
+"mp-hero-ramses-legs",
+true,
+3
+],
+[
+0.117,
+0.123,
+"mp-hero-london-legs",
+"mp-hero-london-legs",
+true,
+3
+],
+[
+0.123,
+0.1,
+"mp-hero-talbot-legs",
+"mp-hero-talbot-legs",
+true,
+3
+]
+],
+"union": [
+[
+"mp-hero-ramses-legs",
+0.486,
+0.373
+]
+],
+"union_cov": 0.486,
+"mats": {
+"objects/weapons/machete/machete-handle/default-pirate-leader": [
+"pirate-leader-weapon-machete-a-00-color.tga",
+"pirate-leader-weapon-machete-a-00-normal.tga",
+"pirate-leader-weapon-machete-a-00-spec-mask.tga"
+],
+"objects/weapons/machete/machete-blade/default": [
+"machete-blade-color.tga",
+"machete-blade-normal.tga",
+"machete-blade-spec-mask.tga"
+],
+"objects/characters/pirate-leader/mp/mp-pirate-leader-feet-boots-a-00/default": [
+"mp-pirate-leader-feet-boots-a-00-color.tga",
+"mp-pirate-leader-feet-boots-a-00-normal.tga"
+],
+"objects/characters/pirate-leader/mp/mp-pirate-leader-legs-pants-a-00/default": [
+"mp-kit-pirate-torso-in-shirt-a-00-tint-mask.tga",
+"mp-pirate-leader-legs-pants-a-00-color.tga",
+"mp-pirate-leader-legs-pants-a-00-normal.tga"
+],
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00/default": [
+"mp-kit-holster-a-00-color.tga",
+"mp-kit-holster-a-00-normal.tga"
+]
+},
+"best": "mp-hero-ramses-legs",
+"mat_only_ps3": [
+"objects/weapons/machete/machete-blade:default",
+"objects/weapons/machete/machete-handle:default-pirate-leader"
+],
+"mat_only_ret": [],
+"tex_only_ps3": [
+"machete-blade-color.tga",
+"machete-blade-normal.tga",
+"machete-blade-spec-mask.tga",
+"pirate-leader-weapon-machete-a-00-color.tga",
+"pirate-leader-weapon-machete-a-00-normal.tga",
+"pirate-leader-weapon-machete-a-00-spec-mask.tga"
+],
+"tex_only_ret": [
+"mp-kit-holster-a-00-spec-mask.tga",
+"mp-pirate-leader-feet-boots-a-00-spec-mask.tga",
+"mp-pirate-leader-legs-pants-a-00-spec-mask.tga"
+]
+},
+"mp-hero-ramses-equip-torso": {
+"src": "disc",
+"nverts": 3936,
+"top": [
+[
+0.411,
+0.366,
+"mp-hero-ramses-torso",
+"mp-hero-ramses-torso",
+true,
+3
+],
+[
+0.35,
+0.266,
+"mp-hero-fat-torso-extra-4",
+"mp-hero-fat-torso-extra-4",
+true,
+3
+],
+[
+0.508,
+0.173,
+"pirate-leader",
+"pirate-leader",
+false,
+3
+]
+],
+"union": [
+[
+"mp-hero-ramses-torso",
+0.411,
+0.366
+],
+[
+"mp-hero-fat-torso-extra-4",
+0.139,
+0.266
+]
+],
+"union_cov": 0.55,
+"mats": {
+"objects/characters/hero/mouth/default": [
+"drake-mouth-color.tga",
+"drake-mouth-normal.tga"
+],
+"objects/characters/pirate-leader/mp/mp-pirate-leader-head-skin-a-00/default": [
+"default-neutral-env-reflection.dds",
+"mp-pirate-leader-head-skin-a-00-color.tga",
+"mp-pirate-leader-head-skin-a-00-detail-normal.tga",
+"mp-pirate-leader-head-skin-a-00-normal.tga"
+],
+"objects/characters/pirate-leader/mp/mp-pirate-leader-body-skin-a-00/default": [
+"default-neutral-env-reflection.dds",
+"mp-pirate-leader-body-skin-a-00-color.tga",
+"mp-pirate-leader-body-skin-a-00-detail-normal.tga",
+"mp-pirate-leader-body-skin-a-00-normal.tga"
+],
+"objects/weapons/shotgun-pistol/shotgun-pistol/default": [
+"default-env-reflection.dds",
+"shotgunpistole-color.tga",
+"shotgunpistole-normal.tga"
+],
+"objects/characters/pirate-leader/mp/mp-pirate-leader-eyes-a-00/default": [
+"chloe-eyes-normal.tga",
+"eyes-env-reflection.dds",
+"mp-pirate-leader-eyes-a-00-color.tga"
+],
+"objects/characters/pirate-leader/mp/mp-pirate-leader-torso-out-jacket-a-00/default": [
+"default-neutral-env-reflection.dds",
+"mp-pirate-leader-torso-out-jacket-a-00-color.tga",
+"mp-pirate-leader-torso-out-jacket-a-00-normal.tga"
+],
+"objects/characters/pirate-leader/mp/mp-pirate-leader-torso-in-shirt-a-00/default": [
+"mp-kit-pirate-torso-in-shirt-a-00-tint-mask.tga",
+"mp-pirate-leader-torso-in-shirt-a-00-color.tga",
+"mp-pirate-leader-torso-in-shirt-a-00-normal.tga"
+],
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/pirate-leader/mp/mp-pirate-leader-accs-bandolier-a-00/default": [
+"default-neutral-env-reflection.dds",
+"mp-pirate-leader-accs-bandolier-color-a-00-color.tga",
+"mp-pirate-leader-accs-bandolier-color-a-00-normal.tga"
+]
+},
+"best": "mp-hero-ramses-torso",
+"mat_only_ps3": [
+"objects/characters/pirate-leader/mp/mp-pirate-leader-accs-bandolier-a-00:default",
+"objects/weapons/shotgun-pistol/shotgun-pistol:default"
+],
+"mat_only_ret": [],
+"tex_only_ps3": [
+"chloe-eyes-normal.tga",
+"default-env-reflection.dds",
+"mp-pirate-leader-accs-bandolier-color-a-00-color.tga",
+"mp-pirate-leader-accs-bandolier-color-a-00-normal.tga",
+"shotgunpistole-color.tga",
+"shotgunpistole-normal.tga"
+],
+"tex_only_ret": [
+"default-cornea.tga",
+"mp-pirate-leader-body-skin-a-00-spec-mask.tga",
+"mp-pirate-leader-head-skin-a-00-spec-mask.tga",
+"mp-pirate-leader-torso-in-shirt-a-00-spec-mask.tga",
+"mp-pirate-leader-torso-out-jacket-a-00-spec-mask.tga"
+]
+},
+"mp-hero-sol-med-b-1a": {
+"src": "disc",
+"nverts": 6084,
+"top": [
+[
+0.157,
+0.46,
+"mp-hero-sol-b1a-torso",
+"mp-hero-sol-b1a-torso",
+true,
+3
+],
+[
+0.041,
+0.95,
+"sol-armor-part-attachments-v2",
+"sol-attachment-l-lowerleg-v2",
+false,
+14
+],
+[
+0.041,
+0.95,
+"sol-armor-part-attachments",
+"sol-attachment-l-lowerleg",
+false,
+14
+]
+],
+"union": [
+[
+"mp-hero-sol-b1a-torso",
+0.157,
+0.46
+],
+[
+"mp-hero-sol-b1a-legs",
+0.07,
+0.386
+],
+[
+"hero-london-dirt-01",
+0.036,
+0.026
+]
+],
+"union_cov": 0.264,
+"mats": {
+"objects/characters/npc-normal/soldier-armor/body/armor-body": [
+"armored-soldier-body-color.tga",
+"armored-soldier-body-normal.tga",
+"foam-01-normal.tga"
+],
+"objects/characters/npc-normal/soldier-armor/acc/acc-20": [
+"ar-sol-acc-20-color.tga",
+"ar-sol-acc-20-normal.tga",
+"ar-sol-acc-20-spec-mask.tga",
+"foam-01-normal.tga"
+],
+"objects/characters/npc-normal/soldier-armor/acc/acc-25": [
+"ar-sol-accessory-25-color.tga",
+"ar-sol-accessory-25-normal.tga",
+"ar-sol-accessory-25-spec-mask.tga",
+"foam-01-normal.tga"
+],
+"objects/characters/npc-normal/soldier-armor/acc/acc-24": [
+"ar-sol-acc-24-color.tga",
+"ar-sol-acc-24-normal.tga",
+"ar-sol-acc-24-spec-mask.tga",
+"foam-01-normal.tga"
+],
+"objects/characters/npc-normal/soldier-armor/acc/acc-23": [
+"ar-sol-acc-23-color.tga",
+"ar-sol-acc-23-normal.tga",
+"ar-sol-acc-23-spec-mask.tga",
+"foam-01-normal.tga"
+],
+"objects/characters/npc-normal/soldier-armor/skin/sec-guard-01": [
+"armored-soldier-head-color.tga",
+"armored-soldier-head-normal.tga",
+"armored-soldier-head-spec-mask.tga"
+],
+"objects/characters/npc-normal/soldier-armor/acc/armor-helmet": [
+"armored-soldier-helmet-color.tga",
+"armored-soldier-helmet-normal.tga",
+"armored-soldier-helmet-spec-mask.tga",
+"foam-01-normal.tga"
+],
+"objects/characters/npc-normal/soldier-armor/acc/armor-limbs-acc": [
+"armored-soldier-acc-color.tga",
+"armored-soldier-acc-normal.tga",
+"armored-soldier-acc-spec-mask.tga",
+"foam-01-normal.tga"
+],
+"objects/characters/npc-normal/soldier/soldier-med-acc/armor-goggles-eyes/default": [
+"armored-soldier-helmet-color.tga",
+"armored-soldier-helmet-normal.tga",
+"armored-soldier-helmet-spec-mask.tga",
+"default-env-reflection.dds"
+],
+"objects/characters/npc-normal/soldier/soldier-med-acc/acc/leg-holster": [
+"foam-01-normal.tga",
+"leg-holster-color.tga",
+"leg-holster-normal.tga"
+]
+},
+"best": "mp-hero-sol-b1a-torso",
+"mat_only_ps3": [
+"objects/characters/npc-normal/soldier-armor/acc:acc-20",
+"objects/characters/npc-normal/soldier-armor/acc:acc-23",
+"objects/characters/npc-normal/soldier-armor/acc:acc-24",
+"objects/characters/npc-normal/soldier-armor/acc:acc-25",
+"objects/characters/npc-normal/soldier-armor/acc:armor-helmet",
+"objects/characters/npc-normal/soldier-armor/acc:armor-limbs-acc",
+"objects/characters/npc-normal/soldier-armor/body:armor-body",
+"objects/characters/npc-normal/soldier-armor/skin:sec-guard-01",
+"objects/characters/npc-normal/soldier/soldier-med-acc/acc:leg-holster",
+"objects/characters/npc-normal/soldier/soldier-med-acc/armor-goggles-eyes:default"
+],
+"mat_only_ret": [
+"objects/characters/u2-mp-characters/soldier-b-1a/mp-soldier-b-1a-hands:default",
+"objects/characters/u2-mp-characters/soldier-b-1a/mp-soldier-b-1a-head:default",
+"objects/characters/u2-mp-characters/soldier-b-1a/mp-soldier-b-1a-torso:default"
+],
+"tex_only_ps3": [
+"ar-sol-acc-20-color.tga",
+"ar-sol-acc-20-normal.tga",
+"ar-sol-acc-20-spec-mask.tga",
+"ar-sol-acc-23-color.tga",
+"ar-sol-acc-23-normal.tga",
+"ar-sol-acc-23-spec-mask.tga",
+"ar-sol-acc-24-color.tga",
+"ar-sol-acc-24-normal.tga",
+"ar-sol-acc-24-spec-mask.tga",
+"ar-sol-accessory-25-color.tga",
+"ar-sol-accessory-25-normal.tga",
+"ar-sol-accessory-25-spec-mask.tga",
+"armored-soldier-acc-color.tga",
+"armored-soldier-acc-normal.tga",
+"armored-soldier-acc-spec-mask.tga",
+"armored-soldier-body-color.tga",
+"armored-soldier-body-normal.tga",
+"armored-soldier-head-color.tga",
+"armored-soldier-head-normal.tga",
+"armored-soldier-head-spec-mask.tga",
+"armored-soldier-helmet-color.tga",
+"armored-soldier-helmet-normal.tga",
+"armored-soldier-helmet-spec-mask.tga",
+"default-env-reflection.dds",
+"foam-01-normal.tga",
+"leg-holster-color.tga",
+"leg-holster-normal.tga"
+],
+"tex_only_ret": [
+"hands-color.tga",
+"hands-normal.tga",
+"hands-spec-mask.tga",
+"head-color.tga",
+"head-normal.tga",
+"head-spec-mask.tga",
+"torso-color.tga",
+"torso-normal.tga",
+"torso-spec-mask.tga",
+"torso-tint-mask.tga"
+]
+},
+"mp-hero-subway-torso": {
+"src": "disc",
+"nverts": 3145,
+"top": [
+[
+0.938,
+0.93,
+"mp-hero-redshirt-torso",
+"mp-hero-redshirt-torso",
+true,
+3
+],
+[
+0.632,
+0.592,
+"mp-hero-udf-torso",
+"mp-hero-udf-torso",
+true,
+3
+],
+[
+0.583,
+0.578,
+"mp-hero-london-torso",
+"mp-hero-london-torso",
+true,
+3
+]
+],
+"union": [
+[
+"mp-hero-redshirt-torso",
+0.938,
+0.93
+],
+[
+"mp-hero-winter-torso",
+0.054,
+0.493
+]
+],
+"union_cov": 0.992,
+"mats": {
+"objects/characters/hero/mouth/default": [
+"drake-mouth-color.tga",
+"drake-mouth-normal.tga"
+],
+"objects/characters/hero/eyes/default": [
+"default-cornea.tga",
+"drake-eyes-color.tga",
+"eyes-env-reflection.dds"
+],
+"objects/characters/hero/eyeoverlay/default": [
+"drake-eyeoverlay-color.tga",
+"drake-eyeoverlay-normal.tga",
+"drake-eyeoverlay-trans.tga",
+"eyes-env-reflection.dds"
+],
+"objects/characters/hero/eyelashes/default": [
+"drake-eyelashes-normal.tga",
+"drake-eyelashes-trans.tga",
+"eyeslash-color.tga"
+],
+"objects/characters/hero/french/mp/brows-mp/default": [
+"default-noise.tga",
+"drake-brows-color.tga",
+"drake-brows-normal.tga",
+"drake-brows-spec-mask.tga",
+"drake-brows-trans.tga"
+],
+"objects/characters/hero/french/mp/hero-arms-mp/default": [
+"hero-arms-color.tga",
+"hero-arms-normal.tga"
+],
+"objects/characters/hero/french/mp/mp-head/default": [
+"drake-head-spec-mask.tga",
+"mp-drake-head-color.tga",
+"mp-drake-head-normal.tga"
+],
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/u2-mp-characters/drake-red-shirt/mp-drake-subway-shirt/default": [
+"mp-hero-red-normal.tga",
+"mp-hero-subway-color.tga"
+]
+},
+"best": "mp-hero-redshirt-torso",
+"mat_only_ps3": [
+"objects/characters/u2-mp-characters/drake-red-shirt/mp-drake-subway-shirt:default"
+],
+"mat_only_ret": [
+"objects/characters/u2-mp-characters/drake-red-shirt/mp-drake-red-shirt:default"
+],
+"tex_only_ps3": [
+"mp-hero-subway-color.tga"
+],
+"tex_only_ret": [
+"drake-eyeoverlay-spec-mask.tga",
+"drake-head-spec-exp.tga",
+"hero-arms-spec-mask.tga",
+"mp-hero-red-color.tga",
+"mp-hero-red-tint-mask.tga"
+]
+},
+"mp-hero-thug-e-torso": {
+"src": "patch13",
+"nverts": 2848,
+"top": [
+[
+0.62,
+0.432,
+"mp-hero-thug-c-torso",
+"mp-hero-thug-c-torso",
+true,
+3
+],
+[
+0.356,
+0.437,
+"eurothug-body-full-all",
+"eurothug-body-j",
+false,
+37
+],
+[
+0.296,
+0.401,
+"eurothug-heads-all",
+"eurothug-head-c",
+false,
+20
+]
+],
+"union": [
+[
+"mp-hero-thug-c-torso",
+0.62,
+0.432
+]
+],
+"union_cov": 0.62,
+"mats": {
+"objects/characters/hero/mouth/default": [
+"drake-mouth-color.tga",
+"drake-mouth-normal.tga"
+],
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/npc-sp/euro-thug/heads/mp/euro-thug-head-skin-c-mp/default-mp": [
+"default-neutral-env-reflection.dds",
+"mp-kit-euro-thug-head-skin-a-00-color.tga",
+"mp-kit-euro-thug-head-skin-a-00-normal.tga"
+],
+"objects/characters/hero/eyes/default": [
+"default-cornea.tga",
+"drake-eyes-color.tga",
+"eyes-env-reflection.dds"
+],
+"objects/characters/npc-sp/euro-thug/heads/mp/euro-thug-head-skin-c-mp/neck-mp": [
+"default-neutral-env-reflection.dds",
+"mp-kit-euro-thug-head-skin-neck-a-00-color.tga",
+"mp-kit-euro-thug-head-skin-neck-a-00-normal.tga"
+],
+"objects/characters/npc-sp/euro-thug/torso/mp/euro-thug-torso-in-shirt-f-mp/default": [
+"mp-kit-euro-thug-torso-in-shirt-f-00-normal.tga",
+"mp-kit-euro-thug-torso-in-shirt-f-mp-color.tga",
+"mp-kit-euro-thug-torso-in-shirt-f-mp-tint-mask.tga"
+]
+},
+"best": "mp-hero-thug-c-torso",
+"mat_only_ps3": [
+"objects/characters/npc-sp/euro-thug/torso/mp/euro-thug-torso-in-shirt-f-mp:default"
+],
+"mat_only_ret": [
+"objects/characters/npc-sp/euro-thug/torso/mp/euro-thug-torso-vest-c-mp:default",
+"objects/characters/npc-sp/euro-thug/torso/mp/thug-c-mp:default"
+],
+"tex_only_ps3": [
+"mp-kit-euro-thug-torso-in-shirt-f-00-normal.tga",
+"mp-kit-euro-thug-torso-in-shirt-f-mp-color.tga",
+"mp-kit-euro-thug-torso-in-shirt-f-mp-tint-mask.tga"
+],
+"tex_only_ret": [
+"euro-thug-legs-pants-c-mp-color.tga",
+"euro-thug-legs-pants-c-mp-tint-mask.tga",
+"euro-thug-torso-vast-c-mp-color.tga",
+"euro-thug-torso-vast-c-mp-tint-mask.tga",
+"mp-kit-euro-thug-head-skin-a-00-spec-mask.tga",
+"mp-kit-euro-thug-head-skin-neck-a-00-spec-mask.tga",
+"mp-kit-euro-thug-torso-out-vest-c-00-normal.tga",
+"mp-kit-euro-thug-torso-out-vest-c-00-spec-mask.tga",
+"thug-c-normal.tga",
+"thug-c-spec-mask.tga"
+]
+},
+"mp-kit-killzone-helmet-a": {
+"src": "disc",
+"nverts": 918,
+"top": [
+[
+0.012,
+0.049,
+"sol-part-attachments",
+"sol-attach-med-headgear-06",
+false,
+2
+],
+[
+0.01,
+0.05,
+"sol-armor-goggles-v2",
+"sol-armor-goggles-v2",
+false,
+1
+],
+[
+0.01,
+0.05,
+"sol-armor-goggles",
+"sol-armor-goggles",
+false,
+1
+]
+],
+"union": [],
+"union_cov": 0.0,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/guerilla/ice/mp-ice-head/default": [
+"ice-color.tga",
+"ice-normal.tga",
+"ice-tint-mask.tga"
+]
+},
+"best": "mp-hero-sol-b1a-torso",
+"mat_only_ps3": [
+"objects/characters/guerilla/ice/mp-ice-head:default"
+],
+"mat_only_ret": [
+"objects/characters/u2-mp-characters/soldier-b-1a/mp-soldier-b-1a-hands:default",
+"objects/characters/u2-mp-characters/soldier-b-1a/mp-soldier-b-1a-head:default",
+"objects/characters/u2-mp-characters/soldier-b-1a/mp-soldier-b-1a-torso:default"
+],
+"tex_only_ps3": [
+"ice-color.tga",
+"ice-normal.tga",
+"ice-tint-mask.tga"
+],
+"tex_only_ret": [
+"hands-color.tga",
+"hands-normal.tga",
+"hands-spec-mask.tga",
+"head-color.tga",
+"head-normal.tga",
+"head-spec-mask.tga",
+"torso-color.tga",
+"torso-normal.tga",
+"torso-spec-mask.tga",
+"torso-tint-mask.tga"
+]
+},
+"mp-kit-merc-arms-gloves-b": {
+"src": "disc",
+"nverts": 356,
+"top": [
+[
+0.062,
+0.006,
+"mp-hero-des-oss-b-torso",
+"mp-hero-des-oss-b-torso",
+true,
+3
+],
+[
+0.048,
+0.007,
+"mp-hero-lazarevic-fat-torso",
+"mp-hero-lazarevic-fat-torso",
+true,
+3
+],
+[
+0.045,
+0.007,
+"agent-armor-all",
+"agent-armor-body",
+false,
+30
+]
+],
+"union": [
+[
+"mp-hero-des-oss-b-torso",
+0.062,
+0.006
+],
+[
+"mp-hero-lazarevic-fat-torso",
+0.045,
+0.007
+],
+[
+"mp-hero-talbot-torso",
+0.031,
+0.006
+]
+],
+"union_cov": 0.138,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-b-00/default": [
+"mp-kit-mercenary-arms-gloves-b-00-color.tga",
+"mp-kit-mercenary-arms-gloves-b-00-normal.tga",
+"mp-kit-mercenary-arms-gloves-b-00-tint-mask.tga"
+]
+},
+"best": "mp-hero-des-oss-b-torso",
+"mat_only_ps3": [
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-b-00:default"
+],
+"mat_only_ret": [
+"objects/characters/hero/mouth:default-mp",
+"objects/characters/npc-sp/deset-oss/arms/desert-oss-arms-gloves-a-00:default",
+"objects/characters/npc-sp/deset-oss/head/mp/desert-oss-head-skin-a-mp:default",
+"objects/characters/npc-sp/deset-oss/helmet/mp/desert-oss-helmet-wrap-b-mp:default",
+"objects/characters/npc-sp/deset-oss/torso/mp/desert-oss-torso-out-jacket-b-mp:default"
+],
+"tex_only_ps3": [
+"mp-kit-mercenary-arms-gloves-b-00-color.tga",
+"mp-kit-mercenary-arms-gloves-b-00-normal.tga",
+"mp-kit-mercenary-arms-gloves-b-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"desert-oss-torso-out-jacket-b-00-normal.tga",
+"desert-oss-torso-out-jacket-b-00-spec-mask.tga",
+"desert-oss-torso-out-jacket-b-mp-color.tga",
+"desert-oss-torso-out-jacket-b-mp-tint-mask.tga",
+"drake-mouth-color.tga",
+"drake-mouth-normal.tga",
+"mp-kit-desert-oss-arms-gloves-a-00-color.tga",
+"mp-kit-desert-oss-arms-gloves-a-00-normal.tga",
+"mp-kit-desert-oss-arms-gloves-a-00-spec-mask.tga",
+"mp-kit-desert-oss-head-skin-a-00-color.tga",
+"mp-kit-desert-oss-head-skin-a-00-normal.tga",
+"mp-kit-desert-oss-head-skin-a-00-spec-mask.tga",
+"mp-kit-desert-oss-helmet-wrap-a-00-normal.tga",
+"mp-kit-desert-oss-helmet-wrap-a-00-spec-mask.tga",
+"mp-kit-desert-oss-helmet-wrap-b-00-color.tga"
+]
+},
+"mp-kit-merc-arms-gloves-d": {
+"src": "disc",
+"nverts": 506,
+"top": [
+[
+0.028,
+0.03,
+"pirate-torso-all",
+"pirate-glovesa",
+false,
+49
+],
+[
+0.057,
+0.009,
+"mp-hero-fat-torso-extra-5",
+"mp-hero-fat-torso-extra-5",
+true,
+3
+],
+[
+0.024,
+0.01,
+"yem-civ-female-body-all",
+"yem-civ-female-body-a",
+false,
+10
+]
+],
+"union": [
+[
+"mp-hero-fat-torso-extra-5",
+0.057,
+0.009
+]
+],
+"union_cov": 0.057,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-d-00/default": [
+"mp-kit-mercenary-arms-gloves-d-00-color.tga",
+"mp-kit-mercenary-arms-gloves-d-00-normal.tga",
+"mp-kit-mercenary-arms-gloves-d-00-tint-mask.tga"
+]
+},
+"best": "mp-hero-fat-torso-extra-5",
+"mat_only_ps3": [
+"objects/characters/mp-kit/arms/mercenary/mp-kit-mercenary-arms-gloves-d-00:default"
+],
+"mat_only_ret": [
+"objects/characters/hero/mouth:default",
+"objects/characters/sullivan/eyes:default",
+"objects/characters/sullivan/mp/head-mp:default",
+"objects/characters/sullivan/mp/shirt-mp-french:mp",
+"objects/characters/sullivan/skin-lorez:mp",
+"objects/characters/sullivan/watch:mp"
+],
+"tex_only_ps3": [
+"mp-kit-mercenary-arms-gloves-d-00-color.tga",
+"mp-kit-mercenary-arms-gloves-d-00-normal.tga",
+"mp-kit-mercenary-arms-gloves-d-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"body-mp-french-color.tga",
+"body-mp-french-shirt-tint-mask.tga",
+"body-normal.tga",
+"default-cornea.tga",
+"default-env-reflection.dds",
+"default-flat-normal.tga",
+"default-neutral-env-reflection.dds",
+"drake-mouth-color.tga",
+"drake-mouth-normal.tga",
+"eyes-env-reflection.dds",
+"head-ao.tga",
+"head-color.tga",
+"head-detail-normal.tga",
+"head-normal.tga",
+"head-spec-mask.tga",
+"sullivan-skin-ao-color.tga",
+"sullivan-skin-color.tga",
+"sullivan-skin-normal.tga",
+"sullivan-skin-spec-mask.tga",
+"sullivan-watch-color.tga",
+"sullivan-watch-normal.tga",
+"sullivan-watch-spec-mask.tga",
+"sully-eyes-color.tga"
+]
+},
+"mp-kit-merc-head-helmet-b": {
+"src": "disc",
+"nverts": 365,
+"top": [
+[
+0.153,
+0.381,
+"desoss-armor-all",
+"desoss-armor-det-helmet",
+false,
+13
+],
+[
+0.118,
+0.117,
+"pirate-head-all",
+"pirate-wrapa-head",
+false,
+15
+],
+[
+0.066,
+0.036,
+"agent-armor-all",
+"agent-armor-head-wrap-a",
+false,
+30
+]
+],
+"union": [],
+"union_cov": 0.0,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-b-00/default": [
+"mp-kit-mercenary-helmet-helmet-b-00-color.tga",
+"mp-kit-mercenary-helmet-helmet-b-00-normal.tga",
+"mp-kit-mercenary-helmet-helmet-b-00-spec-mask.tga",
+"mp-kit-mercenary-helmet-helmet-b-00-tint-mask.tga"
+]
+},
+"best": "mp-hero-talbot-hair",
+"mat_only_ps3": [
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-b-00:default"
+],
+"mat_only_ret": [
+"objects/characters/talbot/talbot-hair:default"
+],
+"tex_only_ps3": [
+"mp-kit-mercenary-helmet-helmet-b-00-color.tga",
+"mp-kit-mercenary-helmet-helmet-b-00-normal.tga",
+"mp-kit-mercenary-helmet-helmet-b-00-spec-mask.tga",
+"mp-kit-mercenary-helmet-helmet-b-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"default-noise-strand.tga",
+"talbot-hair-color.tga",
+"talbot-hair-normal.tga",
+"talbot-hair-trans.tga"
+]
+},
+"mp-kit-merc-head-helmet-c": {
+"src": "disc",
+"nverts": 798,
+"top": [
+[
+0.001,
+0.059,
+"pirate-brute-all",
+"l-pibrute-detach-spined",
+false,
+17
+],
+[
+0.004,
+0.015,
+"yem-civ-male-head-all",
+"yem-civ-male-hat-c",
+false,
+5
+],
+[
+0.009,
+0.005,
+"mp-hero-agent-a-hair",
+"mp-hero-agent-a-hair",
+true,
+3
+]
+],
+"union": [],
+"union_cov": 0.0,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-f-00/default": [
+"mp-kit-mercenary-helmet-helmet-f-00-color.tga",
+"mp-kit-mercenary-helmet-helmet-f-00-normal.tga",
+"mp-kit-mercenary-helmet-helmet-f-00-tint-mask.tga"
+]
+},
+"best": "mp-hero-agent-a-hair",
+"mat_only_ps3": [
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-f-00:default"
+],
+"mat_only_ret": [
+"objects/characters/npc-sp/agent/heads/mp/agent-head-hair-a-mp:default"
+],
+"tex_only_ps3": [
+"mp-kit-mercenary-helmet-helmet-f-00-color.tga",
+"mp-kit-mercenary-helmet-helmet-f-00-normal.tga",
+"mp-kit-mercenary-helmet-helmet-f-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"agent-head-hair-a-01-normal.tga",
+"agent-head-hair-a-01-trans.tga",
+"agent-head-hair-c-01-color.tga",
+"default-noise-strand.tga"
+]
+},
+"mp-kit-merc-head-helmet-e": {
+"src": "disc",
+"nverts": 564,
+"top": [
+[
+0.012,
+0.031,
+"sol-part-attachments",
+"sol-attach-med-headgear-06",
+false,
+2
+],
+[
+0.009,
+0.032,
+"sol-part-extras",
+"sol-extra-med-headgear-01",
+false,
+34
+],
+[
+0.011,
+0.022,
+"sol-part-attachments",
+"sol-attach-med-headgear-05",
+false,
+2
+]
+],
+"union": [],
+"union_cov": 0.0,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-e-00/default": [
+"mp-kit-mercenary-helmet-helmet-e-00-color.tga",
+"mp-kit-mercenary-helmet-helmet-e-00-normal.tga",
+"mp-kit-mercenary-helmet-helmet-e-00-tint-mask.tga"
+]
+},
+"best": "mp-hero-rescuer-hair",
+"mat_only_ps3": [
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-helmet-e-00:default"
+],
+"mat_only_ret": [
+"objects/characters/u2-mp-characters/rescuer/mp-rescuer-hair:default",
+"objects/characters/u2-mp-characters/rescuer/mp-rescuer-hat:default"
+],
+"tex_only_ps3": [
+"mp-kit-mercenary-helmet-helmet-e-00-color.tga",
+"mp-kit-mercenary-helmet-helmet-e-00-normal.tga",
+"mp-kit-mercenary-helmet-helmet-e-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"default-noise.tga",
+"hair-color.tga",
+"hair-normal.tga",
+"hair1-spec-mask.tga",
+"hat-color.tga",
+"hat-normal.tga",
+"hat-spec-mask.tga",
+"mp-hero-rescuer-hair2-trans.tga"
+]
+},
+"mp-kit-merc-head-helmet-k": {
+"src": "disc",
+"nverts": 1294,
+"top": [
+[
+0.007,
+0.064,
+"agent-misc-all",
+"agent-glasses-b",
+false,
+3
+],
+[
+0.006,
+0.044,
+"sol-armor-goggles-v2",
+"sol-armor-goggles-v2",
+false,
+1
+],
+[
+0.006,
+0.044,
+"sol-armor-goggles",
+"sol-armor-goggles",
+false,
+1
+]
+],
+"union": [],
+"union_cov": 0.0,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/helmet/dlc/mp-kit-hgh-helmet-a-00/default": [
+"hg_shortcoat_clr.tga",
+"hg_shortcoat_nmt.tga"
+]
+},
+"best": "mp-hero-sol-b3b-torso",
+"mat_only_ps3": [
+"objects/characters/mp-kit/helmet/dlc/mp-kit-hgh-helmet-a-00:default"
+],
+"mat_only_ret": [
+"objects/characters/u2-mp-characters/soldier-b-3b/mp-soldier-b-3b-eyes:default",
+"objects/characters/u2-mp-characters/soldier-b-3b/mp-soldier-b-3b-hands:default",
+"objects/characters/u2-mp-characters/soldier-b-3b/mp-soldier-b-3b-head:default",
+"objects/characters/u2-mp-characters/soldier-b-3b/mp-soldier-b-3b-helmet:default",
+"objects/characters/u2-mp-characters/soldier-b-3b/mp-soldier-b-3b-torso:default"
+],
+"tex_only_ps3": [
+"hg_shortcoat_clr.tga",
+"hg_shortcoat_nmt.tga"
+],
+"tex_only_ret": [
+"default-cornea.tga",
+"eyes-env-reflection.dds",
+"head-acc-01-color.tga",
+"head-acc-01-normal.tga",
+"head-acc-01-spec-mask.tga",
+"sol-med-b-hand-b-color.tga",
+"sol-med-b-hand-b-normal.tga",
+"sol-med-b-hand-b-spec-mask.tga",
+"sol-med-b-head-b-color.tga",
+"sol-med-b-head-b-normal.tga",
+"sol-med-b-head-b-spec-mask.tga",
+"vest-black-new-color.tga",
+"vest-black-new-normal.tga",
+"vest-black-new-spec-mask.tga",
+"vest-black-new-tint-mask.tga"
+]
+},
+"mp-kit-merc-head-mask-a": {
+"src": "disc",
+"nverts": 559,
+"top": [
+[
+0.996,
+0.995,
+"pirate-head-all",
+"pirate-maskc-grap-head",
+false,
+15
+],
+[
+0.989,
+0.984,
+"misc-gas-mask-a",
+"misc-gas-mask-a",
+false,
+2
+],
+[
+0.018,
+0.019,
+"desoss-all",
+"desoss-wrapb",
+false,
+32
+]
+],
+"union": [
+[
+"hero-desert-head-dust",
+0.043,
+0.004
+]
+],
+"union_cov": 0.043,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-mask-a-00/default": [
+"mp-kit-mercenary-helmet-mask-a-00-color.tga",
+"mp-kit-mercenary-helmet-mask-a-00-normal.tga",
+"mp-kit-mercenary-helmet-mask-a-00-spec-mask.tga",
+"mp-kit-mercenary-helmet-mask-a-00-tint-mask.tga"
+]
+},
+"best": "hero-desert-head-dust",
+"mat_only_ps3": [
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-mask-a-00:default"
+],
+"mat_only_ret": [
+"objects/characters/hero/brows:default",
+"objects/characters/hero/eyelashes:default",
+"objects/characters/hero/eyeoverlay:default",
+"objects/characters/hero/eyes:default",
+"objects/characters/hero/hair-dust:default",
+"objects/characters/hero/hair-solid-dust:default",
+"objects/characters/hero/head-dust:default-tan-01",
+"objects/characters/hero/mouth:default"
+],
+"tex_only_ps3": [
+"mp-kit-mercenary-helmet-mask-a-00-color.tga",
+"mp-kit-mercenary-helmet-mask-a-00-normal.tga",
+"mp-kit-mercenary-helmet-mask-a-00-spec-mask.tga",
+"mp-kit-mercenary-helmet-mask-a-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"default-cornea.tga",
+"default-neutral-env-reflection.dds",
+"default-noise.tga",
+"drake-ao-wrinkle.tga",
+"drake-brows-color.tga",
+"drake-brows-normal.tga",
+"drake-brows-spec-mask.tga",
+"drake-brows-trans.tga",
+"drake-desert-dust-color.tga",
+"drake-desert-dust-normal.tga",
+"drake-eyelashes-normal.tga",
+"drake-eyelashes-trans.tga",
+"drake-eyeoverlay-color.tga",
+"drake-eyeoverlay-normal.tga",
+"drake-eyeoverlay-spec-mask.tga",
+"drake-eyeoverlay-trans.tga",
+"drake-eyes-color.tga",
+"drake-head-desert-ao.tga",
+"drake-head-detail-normal.tga",
+"drake-head-dust-slope-mask.tga",
+"drake-head-hair-color.tga",
+"drake-head-hair-dust-color.tga",
+"drake-head-hair-dust-normal.tga",
+"drake-head-hair-dust-slope-mask.tga",
+"drake-head-hair-dust-sss.tga",
+"drake-head-hair-shift.tga",
+"drake-head-hair-trans.tga",
+"drake-head-normal.tga",
+"drake-head-spec-exp.tga",
+"drake-head-spec-mask.tga",
+"drake-head-tan-01-color.tga",
+"drake-mouth-color.tga",
+"drake-mouth-normal.tga",
+"drake-normal-wrinkle.tga",
+"eyes-env-reflection.dds",
+"eyeslash-color.tga"
+]
+},
+"mp-kit-merc-head-wrap-a": {
+"src": "disc",
+"nverts": 367,
+"top": [
+[
+0.973,
+0.975,
+"pirate-head-all",
+"pirate-wrapa-head",
+false,
+15
+],
+[
+0.529,
+0.289,
+"agent-armor-all",
+"agent-armor-head-wrap-a",
+false,
+30
+],
+[
+0.714,
+0.087,
+"desoss-armor-all",
+"desoss-armor-body",
+false,
+13
+]
+],
+"union": [
+[
+"hero-london-dirt-01",
+0.044,
+0.001
+]
+],
+"union_cov": 0.044,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-wrap-a-00/default": [
+"mp-kit-mercenary-helmet-wrap-a-00-color.tga",
+"mp-kit-mercenary-helmet-wrap-a-00-normal.tga",
+"mp-kit-mercenary-helmet-wrap-a-00-tint-mask.tga"
+]
+},
+"best": "mp-hero-fat-sullivan-hair",
+"mat_only_ps3": [
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-wrap-a-00:default"
+],
+"mat_only_ret": [
+"objects/characters/sullivan/mp/hair-mp:default"
+],
+"tex_only_ps3": [
+"mp-kit-mercenary-helmet-wrap-a-00-color.tga",
+"mp-kit-mercenary-helmet-wrap-a-00-normal.tga",
+"mp-kit-mercenary-helmet-wrap-a-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"default-noise.tga",
+"hair-color.tga",
+"hair-normal.tga",
+"hair-trans.tga"
+]
+},
+"mp-kit-merc-head-wrap-b": {
+"src": "disc",
+"nverts": 393,
+"top": [
+[
+0.015,
+0.011,
+"desoss-all",
+"desoss-wrapa",
+false,
+32
+],
+[
+0.008,
+0.018,
+"yem-civ-male-head-all",
+"yem-civ-male-hat-a",
+false,
+5
+],
+[
+0.043,
+0.003,
+"hero-desert-head-dust",
+"hero-desert-head-dust",
+true,
+3
+]
+],
+"union": [
+[
+"hero-desert-head-dust",
+0.043,
+0.003
+]
+],
+"union_cov": 0.043,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-wrap-b-00/default": [
+"mp-kit-mercenary-helmet-wrap-b-00-color.tga",
+"mp-kit-mercenary-helmet-wrap-b-00-normal.tga",
+"mp-kit-mercenary-helmet-wrap-b-00-tint-mask.tga"
+]
+},
+"best": "hero-desert-head-dust",
+"mat_only_ps3": [
+"objects/characters/mp-kit/helmet/mercenary/mp-kit-mercenary-helmet-wrap-b-00:default"
+],
+"mat_only_ret": [
+"objects/characters/hero/brows:default",
+"objects/characters/hero/eyelashes:default",
+"objects/characters/hero/eyeoverlay:default",
+"objects/characters/hero/eyes:default",
+"objects/characters/hero/hair-dust:default",
+"objects/characters/hero/hair-solid-dust:default",
+"objects/characters/hero/head-dust:default-tan-01",
+"objects/characters/hero/mouth:default"
+],
+"tex_only_ps3": [
+"mp-kit-mercenary-helmet-wrap-b-00-color.tga",
+"mp-kit-mercenary-helmet-wrap-b-00-normal.tga",
+"mp-kit-mercenary-helmet-wrap-b-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"default-cornea.tga",
+"default-neutral-env-reflection.dds",
+"default-noise.tga",
+"drake-ao-wrinkle.tga",
+"drake-brows-color.tga",
+"drake-brows-normal.tga",
+"drake-brows-spec-mask.tga",
+"drake-brows-trans.tga",
+"drake-desert-dust-color.tga",
+"drake-desert-dust-normal.tga",
+"drake-eyelashes-normal.tga",
+"drake-eyelashes-trans.tga",
+"drake-eyeoverlay-color.tga",
+"drake-eyeoverlay-normal.tga",
+"drake-eyeoverlay-spec-mask.tga",
+"drake-eyeoverlay-trans.tga",
+"drake-eyes-color.tga",
+"drake-head-desert-ao.tga",
+"drake-head-detail-normal.tga",
+"drake-head-dust-slope-mask.tga",
+"drake-head-hair-color.tga",
+"drake-head-hair-dust-color.tga",
+"drake-head-hair-dust-normal.tga",
+"drake-head-hair-dust-slope-mask.tga",
+"drake-head-hair-dust-sss.tga",
+"drake-head-hair-shift.tga",
+"drake-head-hair-trans.tga",
+"drake-head-normal.tga",
+"drake-head-spec-exp.tga",
+"drake-head-spec-mask.tga",
+"drake-head-tan-01-color.tga",
+"drake-mouth-color.tga",
+"drake-mouth-normal.tga",
+"drake-normal-wrinkle.tga",
+"eyes-env-reflection.dds",
+"eyeslash-color.tga"
+]
+},
+"mp-kit-pirate-arms-gloves-b-00": {
+"src": "disc",
+"nverts": 470,
+"top": [
+[
+0.991,
+0.991,
+"pirate-torso-all",
+"pirate-glovesa",
+false,
+49
+],
+[
+0.964,
+0.203,
+"pirate-armor-all",
+"pirate-armor-a",
+false,
+15
+],
+[
+0.06,
+0.037,
+"mp-kit-base-arms-hands-skin-a-00",
+"mp-kit-base-arms-hands-skin-a-00",
+true,
+3
+]
+],
+"union": [
+[
+"mp-hero-agent-med-b-torso",
+0.074,
+0.01
+],
+[
+"mp-hero-fat-torso-extra-5",
+0.051,
+0.007
+],
+[
+"hero-london-dirt-01",
+0.043,
+0.002
+],
+[
+"mp-hero-thug-d-torso",
+0.034,
+0.009
+]
+],
+"union_cov": 0.202,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/arms/mp-kit-pirate-arms-gloves-b-00/default": [
+"mp-kit-pirate-arms-gloves-b-00-color.tga",
+"mp-kit-pirate-arms-gloves-b-00-normal.tga",
+"mp-kit-pirate-arms-gloves-b-00-tint-mask.tga"
+]
+},
+"best": "mp-kit-base-arms-hands-skin-a-00",
+"mat_only_ps3": [
+"objects/characters/mp-kit/arms/mp-kit-pirate-arms-gloves-b-00:default"
+],
+"mat_only_ret": [
+"objects/characters/mp-kit/torso-inner/mp-kit-base-skin-a-00:arms"
+],
+"tex_only_ps3": [
+"mp-kit-pirate-arms-gloves-b-00-color.tga",
+"mp-kit-pirate-arms-gloves-b-00-normal.tga",
+"mp-kit-pirate-arms-gloves-b-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"mp-kit-base-arms-skin-a-00-color.tga",
+"mp-kit-base-arms-skin-a-00-spec-mask.tga",
+"mp-kit-base-arms-skin-b-00-normal.tga"
+]
+},
+"mp-kit-pirate-feet-boots-b-00": {
+"src": "disc",
+"nverts": 332,
+"top": [
+[
+0.298,
+0.112,
+"pirate-pants-com-all",
+"pirate-pantsh-com",
+false,
+32
+],
+[
+0.295,
+0.094,
+"pirate-pants-com-all",
+"pirate-pantsi-com",
+false,
+32
+],
+[
+0.295,
+0.09,
+"pirate-pants-com-all",
+"pirate-pantsa-com",
+false,
+32
+]
+],
+"union": [],
+"union_cov": 0.0,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-boots-b-00/body-fma": [
+"mp-kit-pirate-feet-boots-b-00-color.tga",
+"mp-kit-pirate-feet-boots-b-00-normal.tga",
+"mp-kit-pirate-feet-boots-b-00-tint-mask.tga"
+]
+},
+"best": "mp-hero-thug-a-legs",
+"mat_only_ps3": [
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-boots-b-00:body-fma"
+],
+"mat_only_ret": [
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default",
+"objects/characters/npc-sp/euro-thug/feet/mp/euro-thug-feet-boots-a-mp:default",
+"objects/characters/npc-sp/euro-thug/torso/mp/thug-a-mp:default"
+],
+"tex_only_ps3": [
+"mp-kit-pirate-feet-boots-b-00-color.tga",
+"mp-kit-pirate-feet-boots-b-00-normal.tga",
+"mp-kit-pirate-feet-boots-b-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"default-neutral-env-reflection.dds",
+"mp-kit-euro-thug-feet-boots-a-00-color.tga",
+"mp-kit-euro-thug-feet-boots-a-00-normal.tga",
+"mp-kit-euro-thug-feet-boots-a-00-spec-mask.tga",
+"mp-kit-holster-a-00-color.tga",
+"mp-kit-holster-a-00-normal.tga",
+"mp-kit-holster-a-00-spec-mask.tga",
+"thug-a-legs-mp-color.tga",
+"thug-a-legs-mp-tint-mask.tga",
+"thug-a-normal.tga",
+"thug-a-spec-mask.tga"
+]
+},
+"mp-kit-pirate-feet-boots-c-00": {
+"src": "disc",
+"nverts": 452,
+"top": [
+[
+0.85,
+0.029,
+"pir-parts-temp-d",
+"pir-parts-temp-d",
+false,
+1
+],
+[
+0.009,
+0.02,
+"yem-civ-male-shoes-all",
+"yem-civ-male-shoes-a",
+false,
+2
+],
+[
+0.013,
+0.011,
+"yem-civ-male-pants-all",
+"yem-civ-male-pants-a",
+false,
+7
+]
+],
+"union": [],
+"union_cov": 0.0,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-boots-c-00/body-fma": [
+"mp-kit-pirate-feet-boots-c-00-color.tga",
+"mp-kit-pirate-feet-boots-c-00-normal.tga",
+"mp-kit-pirate-feet-boots-c-00-tint-mask.tga"
+]
+},
+"best": "mp-hero-lazarevic-fat-legs",
+"mat_only_ps3": [
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-boots-c-00:body-fma"
+],
+"mat_only_ret": [
+"objects/characters/mp-kit/legs/mp-kit-holster-a-00:default",
+"objects/characters/u2-mp-characters/fat-lazarevic/mp-lazarevic-fat-legs:default"
+],
+"tex_only_ps3": [
+"mp-kit-pirate-feet-boots-c-00-color.tga",
+"mp-kit-pirate-feet-boots-c-00-normal.tga",
+"mp-kit-pirate-feet-boots-c-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"legs-color.tga",
+"legs-normal.tga",
+"legs-spec-mask.tga",
+"legs-tint-mask.tga",
+"mp-kit-holster-a-00-color.tga",
+"mp-kit-holster-a-00-normal.tga",
+"mp-kit-holster-a-00-spec-mask.tga"
+]
+},
+"mp-kit-pirate-feet-sandles-a-00": {
+"src": "disc",
+"nverts": 337,
+"top": [
+[
+0.964,
+0.213,
+"pirate-pants-com-all",
+"pirate-pantsd-com-leg",
+false,
+32
+],
+[
+0.018,
+0.007,
+"mp-kit-base-legs-feet-skin-a",
+"mp-kit-base-legs-feet-skin-a",
+true,
+3
+],
+[
+0.018,
+0.005,
+"cartaciv-female-b-all",
+"cartaciv-female-body-c",
+false,
+18
+]
+],
+"union": [],
+"union_cov": 0.0,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-sandals-a-00/body-fma": [
+"mp-kit-pirate-feet-sandles-a-00-color.tga",
+"mp-kit-pirate-feet-sandles-a-00-normal.tga",
+"mp-kit-pirate-feet-sandles-a-00-tint-mask.tga"
+]
+},
+"best": "mp-kit-base-legs-feet-skin-a",
+"mat_only_ps3": [
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-sandals-a-00:body-fma"
+],
+"mat_only_ret": [
+"objects/characters/mp-kit/torso-inner/mp-kit-base-skin-a-00:legs"
+],
+"tex_only_ps3": [
+"mp-kit-pirate-feet-sandles-a-00-color.tga",
+"mp-kit-pirate-feet-sandles-a-00-normal.tga",
+"mp-kit-pirate-feet-sandles-a-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"mp-kit-base-legs-skin-a-00-color.tga",
+"mp-kit-base-legs-skin-a-00-normal.tga",
+"mp-kit-base-legs-skin-a-00-spec-mask.tga"
+]
+},
+"mp-kit-pirate-feet-sandles-b-00": {
+"src": "disc",
+"nverts": 331,
+"top": [
+[
+0.964,
+0.25,
+"pirate-pants-com-all",
+"pirate-pantsc-com-leg",
+false,
+32
+],
+[
+0.018,
+0.036,
+"yem-civ-male-shoes-all",
+"yem-civ-male-shoes-c",
+false,
+2
+],
+[
+0.012,
+0.017,
+"bedouin-all",
+"bedouin-boots-b",
+false,
+40
+]
+],
+"union": [],
+"union_cov": 0.0,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-sandals-b-00/body-fma": [
+"mp-kit-pirate-feet-sandles-b-00-color.tga",
+"mp-kit-pirate-feet-sandles-b-00-normal.tga",
+"mp-kit-pirate-feet-sandles-b-00-tint-mask.tga"
+]
+},
+"best": "mp-hero-u2-legs",
+"mat_only_ps3": [
+"objects/characters/mp-kit/feet/mp-kit-pirate-feet-sandals-b-00:body-fma"
+],
+"mat_only_ret": [
+"objects/characters/hero/main/hero-main-outfit-cloth:default",
+"objects/characters/hero/main/hero-other-pieces-metal:default",
+"objects/characters/hero/main/hero-other-pieces:default",
+"objects/characters/u2-mp-characters/drake-u2/hero-main-outfit-pants-u2-mp:default",
+"objects/characters/u2-mp-characters/drake-u2/hero-other-pieces-u2-mp:default"
+],
+"tex_only_ps3": [
+"mp-kit-pirate-feet-sandles-b-00-color.tga",
+"mp-kit-pirate-feet-sandles-b-00-normal.tga",
+"mp-kit-pirate-feet-sandles-b-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"default-normal-flat.tga",
+"hero-cloth-ao.tga",
+"hero-cloth-color.tga",
+"hero-cloth-spec-mask.tga",
+"hero-other-pieces-color.tga",
+"hero-other-pieces-normal.tga",
+"hero-pants-u2-color.tga",
+"hero-pants-u2-normal.tga",
+"hero-pants-u2-spec-mask.tga",
+"hero-pants-u2-tint-mask.tga"
+]
+},
+"mp-kit-pirate-helmet-wrap-a-00": {
+"src": "disc",
+"nverts": 779,
+"top": [
+[
+0.306,
+0.472,
+"pirate-head-all",
+"pirate-wrapb-head",
+false,
+15
+],
+[
+0.623,
+0.036,
+"pir-parts-temp-d",
+"pir-parts-temp-d",
+false,
+1
+],
+[
+0.022,
+0.032,
+"desoss-all",
+"desoss-wrape",
+false,
+32
+]
+],
+"union": [
+[
+"hero-london-dirt-01",
+0.047,
+0.003
+]
+],
+"union_cov": 0.047,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-00/default": [
+"default-neutral-env-reflection.dds",
+"loading-menu-cloth-decay-color.tga",
+"mp-kit-pirate-helmet-wrap-a-00-color.tga",
+"mp-kit-pirate-helmet-wrap-a-00-normal.tga",
+"mp-kit-pirate-helmet-wrap-a-00-tint-mask.tga"
+]
+},
+"best": "mp-hero-sol-b2a-torso",
+"mat_only_ps3": [
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-00:default"
+],
+"mat_only_ret": [
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-eyes:default",
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-hands:default",
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-head:default",
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-torso:default"
+],
+"tex_only_ps3": [
+"default-neutral-env-reflection.dds",
+"loading-menu-cloth-decay-color.tga",
+"mp-kit-pirate-helmet-wrap-a-00-color.tga",
+"mp-kit-pirate-helmet-wrap-a-00-normal.tga",
+"mp-kit-pirate-helmet-wrap-a-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"b-2a-gloves-color.tga",
+"b-2a-gloves-normal.tga",
+"b-2a-gloves-spec-mask.tga",
+"b-2a-head-color.tga",
+"b-2a-head-normal.tga",
+"b-2a-head-spec-mask.tga",
+"b-2a-vest-color.tga",
+"b-2a-vest-normal.tga",
+"b-2a-vest-spec-mask.tga",
+"b-2a-vest-tint-mask.tga",
+"default-cornea.tga",
+"eyes-env-reflection.dds"
+]
+},
+"mp-kit-pirate-helmet-wrap-a-03": {
+"src": "disc",
+"nverts": 779,
+"top": [
+[
+0.306,
+0.472,
+"pirate-head-all",
+"pirate-wrapb-head",
+false,
+15
+],
+[
+0.623,
+0.036,
+"pir-parts-temp-d",
+"pir-parts-temp-d",
+false,
+1
+],
+[
+0.022,
+0.032,
+"desoss-all",
+"desoss-wrape",
+false,
+32
+]
+],
+"union": [
+[
+"hero-london-dirt-01",
+0.047,
+0.003
+]
+],
+"union_cov": 0.047,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-03/default": [
+"default-neutral-env-reflection.dds",
+"mp-kit-pirate-helmet-wrap-a-00-normal.tga",
+"mp-kit-pirate-helmet-wrap-a-03-color.tga",
+"mp-kit-pirate-helmet-wrap-a-03-tint-mask.tga"
+]
+},
+"best": "mp-hero-sol-b2a-torso",
+"mat_only_ps3": [
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-03:default"
+],
+"mat_only_ret": [
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-eyes:default",
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-hands:default",
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-head:default",
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-torso:default"
+],
+"tex_only_ps3": [
+"default-neutral-env-reflection.dds",
+"mp-kit-pirate-helmet-wrap-a-00-normal.tga",
+"mp-kit-pirate-helmet-wrap-a-03-color.tga",
+"mp-kit-pirate-helmet-wrap-a-03-tint-mask.tga"
+],
+"tex_only_ret": [
+"b-2a-gloves-color.tga",
+"b-2a-gloves-normal.tga",
+"b-2a-gloves-spec-mask.tga",
+"b-2a-head-color.tga",
+"b-2a-head-normal.tga",
+"b-2a-head-spec-mask.tga",
+"b-2a-vest-color.tga",
+"b-2a-vest-normal.tga",
+"b-2a-vest-spec-mask.tga",
+"b-2a-vest-tint-mask.tga",
+"default-cornea.tga",
+"eyes-env-reflection.dds"
+]
+},
+"mp-kit-pirate-helmet-wrap-a-04": {
+"src": "disc",
+"nverts": 779,
+"top": [
+[
+0.306,
+0.472,
+"pirate-head-all",
+"pirate-wrapb-head",
+false,
+15
+],
+[
+0.623,
+0.036,
+"pir-parts-temp-d",
+"pir-parts-temp-d",
+false,
+1
+],
+[
+0.022,
+0.032,
+"desoss-all",
+"desoss-wrape",
+false,
+32
+]
+],
+"union": [
+[
+"hero-london-dirt-01",
+0.047,
+0.003
+]
+],
+"union_cov": 0.047,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-04/default": [
+"default-neutral-env-reflection.dds",
+"mp-kit-pirate-helmet-wrap-a-00-normal.tga",
+"mp-kit-pirate-helmet-wrap-a-04-color.tga",
+"mp-kit-pirate-helmet-wrap-a-04-tint-mask.tga"
+]
+},
+"best": "mp-hero-sol-b2a-torso",
+"mat_only_ps3": [
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-04:default"
+],
+"mat_only_ret": [
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-eyes:default",
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-hands:default",
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-head:default",
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-torso:default"
+],
+"tex_only_ps3": [
+"default-neutral-env-reflection.dds",
+"mp-kit-pirate-helmet-wrap-a-00-normal.tga",
+"mp-kit-pirate-helmet-wrap-a-04-color.tga",
+"mp-kit-pirate-helmet-wrap-a-04-tint-mask.tga"
+],
+"tex_only_ret": [
+"b-2a-gloves-color.tga",
+"b-2a-gloves-normal.tga",
+"b-2a-gloves-spec-mask.tga",
+"b-2a-head-color.tga",
+"b-2a-head-normal.tga",
+"b-2a-head-spec-mask.tga",
+"b-2a-vest-color.tga",
+"b-2a-vest-normal.tga",
+"b-2a-vest-spec-mask.tga",
+"b-2a-vest-tint-mask.tga",
+"default-cornea.tga",
+"eyes-env-reflection.dds"
+]
+},
+"mp-kit-pirate-helmet-wrap-a-06": {
+"src": "disc",
+"nverts": 779,
+"top": [
+[
+0.306,
+0.472,
+"pirate-head-all",
+"pirate-wrapb-head",
+false,
+15
+],
+[
+0.623,
+0.036,
+"pir-parts-temp-d",
+"pir-parts-temp-d",
+false,
+1
+],
+[
+0.022,
+0.032,
+"desoss-all",
+"desoss-wrape",
+false,
+32
+]
+],
+"union": [
+[
+"hero-london-dirt-01",
+0.047,
+0.003
+]
+],
+"union_cov": 0.047,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-06/default": [
+"default-neutral-env-reflection.dds",
+"mp-kit-pirate-helmet-wrap-a-00-normal.tga",
+"mp-kit-pirate-helmet-wrap-a-05-spec-mask.tga",
+"mp-kit-pirate-helmet-wrap-a-06-color.tga",
+"mp-kit-pirate-helmet-wrap-a-06-tint-mask.tga"
+]
+},
+"best": "mp-hero-sol-b2a-torso",
+"mat_only_ps3": [
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-a-06:default"
+],
+"mat_only_ret": [
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-eyes:default",
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-hands:default",
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-head:default",
+"objects/characters/u2-mp-characters/soldier-b-2a/mp-soldier-b-2a-torso:default"
+],
+"tex_only_ps3": [
+"default-neutral-env-reflection.dds",
+"mp-kit-pirate-helmet-wrap-a-00-normal.tga",
+"mp-kit-pirate-helmet-wrap-a-05-spec-mask.tga",
+"mp-kit-pirate-helmet-wrap-a-06-color.tga",
+"mp-kit-pirate-helmet-wrap-a-06-tint-mask.tga"
+],
+"tex_only_ret": [
+"b-2a-gloves-color.tga",
+"b-2a-gloves-normal.tga",
+"b-2a-gloves-spec-mask.tga",
+"b-2a-head-color.tga",
+"b-2a-head-normal.tga",
+"b-2a-head-spec-mask.tga",
+"b-2a-vest-color.tga",
+"b-2a-vest-normal.tga",
+"b-2a-vest-spec-mask.tga",
+"b-2a-vest-tint-mask.tga",
+"default-cornea.tga",
+"eyes-env-reflection.dds"
+]
+},
+"mp-kit-pirate-helmet-wrap-b-00": {
+"src": "disc",
+"nverts": 521,
+"top": [
+[
+0.008,
+0.029,
+"agent-misc-all",
+"agent-glasses-b",
+false,
+3
+],
+[
+0.017,
+0.005,
+"pirate-clown-mask-all",
+"pirate-clown-mask-d",
+false,
+12
+],
+[
+0.017,
+0.005,
+"pirate-clown-mask-all",
+"pirate-clown-mask-a",
+false,
+12
+]
+],
+"union": [],
+"union_cov": 0.0,
+"mats": {
+"library/utilities/lib-shadowblocker/shadowblocker": [],
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-b-00/default": [
+"default-neutral-env-reflection.dds",
+"loading-menu-cloth-decay-color.tga",
+"mp-kit-pirate-helmet-wrap-b-00-color.tga",
+"mp-kit-pirate-helmet-wrap-b-00-normal.tga",
+"mp-kit-pirate-helmet-wrap-b-00-spec-mask.tga",
+"mp-kit-pirate-helmet-wrap-b-00-tint-mask.tga"
+]
+},
+"best": "mp-hero-rescuer-hair",
+"mat_only_ps3": [
+"objects/characters/mp-kit/helmet/mp-kit-pirate-legs-helmet-wrap-b-00:default"
+],
+"mat_only_ret": [
+"objects/characters/u2-mp-characters/rescuer/mp-rescuer-hair:default",
+"objects/characters/u2-mp-characters/rescuer/mp-rescuer-hat:default"
+],
+"tex_only_ps3": [
+"default-neutral-env-reflection.dds",
+"loading-menu-cloth-decay-color.tga",
+"mp-kit-pirate-helmet-wrap-b-00-color.tga",
+"mp-kit-pirate-helmet-wrap-b-00-normal.tga",
+"mp-kit-pirate-helmet-wrap-b-00-spec-mask.tga",
+"mp-kit-pirate-helmet-wrap-b-00-tint-mask.tga"
+],
+"tex_only_ret": [
+"default-noise.tga",
+"hair-color.tga",
+"hair-normal.tga",
+"hair1-spec-mask.tga",
+"hat-color.tga",
+"hat-normal.tga",
+"hat-spec-mask.tga",
+"mp-hero-rescuer-hair2-trans.tga"
+]
+}
+}

@@ -1,0 +1,28 @@
+{
+ "id": "airport-igc3",
+ "title": "skel-retargets.bin: npc-normal-base proto retarget enabled (airport-igc3/make_retargets.py + apply_igc3.py)",
+ "kind": "script",
+ "job": "airport-igc3",
+ "family": "overlay-r3/dc1",
+ "needs": [
+  "ps4"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/make_retargets.py"
+  ],
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/apply_igc3.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/dc1/ps4/skel-retargets.bin"
+ ],
+ "status": "reproducible",
+ "applied": "2026-11-03 00:40",
+ "notes": "built from the retail skel-retargets.bin only.",
+ "recipe_version_added": "1.0.0"
+}

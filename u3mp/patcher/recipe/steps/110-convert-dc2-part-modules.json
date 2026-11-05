@@ -1,0 +1,12 @@
+{
+ "id": "convert-dc2-part-modules",
+ "title": "overlay-r3: 3 dc2 particle modules (part-cave/gompa/shambhala-multi.bin)",
+ "kind": "unavailable",
+ "family": "overlay-r3/dc2",
+ "needs": [
+  "ps3_update"
+ ],
+ "status": "not-reproducible-locally",
+ "reason": "stage-assets batch45/batch48 (1.19 emitters) from the cloud sandbox; converter not on this PC.",
+ "recipe_version_added": "1.0.0"
+}

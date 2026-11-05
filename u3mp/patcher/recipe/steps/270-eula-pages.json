@@ -1,0 +1,26 @@
+{
+ "id": "eula-pages",
+ "title": "Online User Agreement pages p1-p7 as vtex1 DDS from the PS3 http-cache (eula-batch/make_eula.py)",
+ "kind": "script",
+ "job": "eula-batch",
+ "family": "overlay-r3/vtex1",
+ "needs": [
+  "ps3_data2",
+  "python:PIL"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/make_eula.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/vtex1/ps4/eula/*.dds"
+ ],
+ "status": "reproducible",
+ "applied": "2026-11-01 22:21",
+ "notes": "The 7 pages are the JPEGs BCES-EN-1..7 the PS3 game cached in DATA2/USRDIR/http-cache (recognised by content sha256): Pillow flip + JPEG q95 re-save, ffmpeg lanczos mips, DXT5. Verified 2026-11-05: 7/7 byte-identical with Pillow 13.0.0 + ffmpeg 8.1.1 (msys2 clang64). Without ffmpeg the Pillow resize gives equivalent pages (75-88 % identical DXT blocks). The helper-side EULA page code (eula_port.c.txt / apply_eula.py) is a helper build change, not part of this step.",
+ "recipe_version_added": "1.0.0",
+ "recipe_version_changed": "1.1.0"
+}

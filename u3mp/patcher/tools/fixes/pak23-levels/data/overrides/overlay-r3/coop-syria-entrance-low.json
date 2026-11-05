@@ -1,0 +1,8 @@
+{
+ "templates": {
+  "levels/syria/entrancedoors/syria-drawbridge-wood-01/default": [
+   "yem-intro-rock-building-low.pak",
+   "levels/yemen/wood/yem-woodstripped-02:default,758c9fa8-faf3-42a3-ada7-bfd5bd853705,prime-shader.fx"
+  ]
+ }
+}
