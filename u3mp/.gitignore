@@ -3,3 +3,4 @@ work/
 user/
 __pycache__/
 *.pyc
+patcher/bin/

@@ -7,3 +7,5 @@
 *.ico binary
 *.png binary
 *.bmp binary
+*.bin binary
+*.gz binary
