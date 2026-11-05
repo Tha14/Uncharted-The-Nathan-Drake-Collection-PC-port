@@ -3188,6 +3188,8 @@ class Launcher:
             python = python.with_name("python.exe")
         command = [str(python), "-u", str(U3MP_DIR / "u3mp_import.py"), "--ps4", str(game),
                    "--data", str(data), "--port", str(ROOT)]
+        if self.update_dir():
+            command += ["--ps4-update", str(self.update_dir())]
         for folder in folders:
             command += ["--ps3-u3", folder]
         if self.config.get("u3mp_ps3_u2"):

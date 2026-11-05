@@ -78,11 +78,12 @@ def parse(raw):
 
 
 # ----------------------------------------------------------------------------- 1. base image
-def find_retail_self(game, info):
+def find_retail_self(game, info, update=None):
     """The retail executable: the game folder's, or a backup the player kept (a modified one is reported)."""
     want = info['self_sha256']
     seen = []
-    for candidate in (game / EXECUTABLE, game / 'backup' / EXECUTABLE, game / 'uroot' / EXECUTABLE):
+    folders = ([update, update / 'backup'] if update else []) + [game, game / 'backup', game / 'uroot']
+    for candidate in (folder / EXECUTABLE for folder in folders):
         if candidate.is_file():
             digest = sha256_file(candidate)
             if digest == want:
@@ -95,18 +96,21 @@ def find_retail_self(game, info):
                                                    info['game'], EXECUTABLE))
 
 
-def prepare_base(game, port, work, info, log=print):
+def prepare_base(game, port, work, info, log=print, update=None):
     """Run the port's own prepare scripts on the retail executable; return the prepared image bytes."""
     scripts = port / 'gow3_pc' / 'scripts'
     if not (scripts / 'prepare.py').is_file():
         raise ImageError('the port\'s gow3_pc/scripts/prepare.py was not found in ' + str(port))
-    source = find_retail_self(game, info)
+    source = find_retail_self(game, info, update)
     view = work / 'game-view'
     if view.exists():
         shutil.rmtree(view)
     (view / 'sce_sys').mkdir(parents=True)
     shutil.copyfile(source, view / EXECUTABLE)
-    shutil.copytree(game / 'sce_module', view / 'sce_module')
+    modules = next((f / 'sce_module' for f in (source.parent, update, game) if f and (f / 'sce_module').is_dir()), None)
+    if modules is None:
+        raise ImageError('no sce_module folder in the PS4 game folder ' + str(game))
+    shutil.copytree(modules, view / 'sce_module')
     if (game / 'sce_sys' / 'param.sfo').is_file():
         shutil.copyfile(game / 'sce_sys' / 'param.sfo', view / 'sce_sys' / 'param.sfo')
     out = work / 'prepared'
@@ -188,7 +192,7 @@ def link(shell, info, env_extra=None):
     return out[0] if isinstance(out, tuple) else out
 
 
-def build_image(game, port, out, version=None, log=print, elf_out=None):
+def build_image(game, port, out, version=None, log=print, elf_out=None, update=None):
     """Steps 1-3; writes <out>/boot-linked.bin and returns its sha256 (checked against the release).
     elf_out: also write the recipe's PS4 ELF (ps4_elf) there."""
     version = version or latest_version()
@@ -198,7 +202,7 @@ def build_image(game, port, out, version=None, log=print, elf_out=None):
     work = out / '_work'
     work.mkdir(exist_ok=True)
     log('Preparing the retail Uncharted 3 image with the port\'s own scripts ...')
-    raw = prepare_base(game, port, work, info, log)
+    raw = prepare_base(game, port, work, info, log, update)
     log('  base image ok (sha256 %s...)' % info['base_sha256'][:12])
     if elf_out:
         Path(elf_out).parent.mkdir(parents=True, exist_ok=True)

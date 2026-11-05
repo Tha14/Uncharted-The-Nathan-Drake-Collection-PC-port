@@ -177,6 +177,7 @@ def run_recipe(a, data, ps4_elf, ps3_elf):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--ps4', required=True)
+    ap.add_argument('--ps4-update', help='the PS4 update 1.02 folder, when it is not merged into --ps4')
     ap.add_argument('--ps3-u3', action='append', default=[])
     ap.add_argument('--ps3-u2')
     ap.add_argument('--ps3-elf')
@@ -208,7 +209,8 @@ def main():
     event(phase='image', status='running')
     ps4_elf = data / 'tools' / 'u3_ps4.elf'
     try:
-        image = mpimage.build_image(Path(a.ps4), a.port, data / 'image', log=log, elf_out=ps4_elf)
+        image = mpimage.build_image(Path(a.ps4), a.port, data / 'image', log=log, elf_out=ps4_elf,
+                                    update=Path(a.ps4_update) if a.ps4_update else None)
     except (mpimage.ImageError, OSError) as e:
         log('ERROR: ' + str(e))
         return finish('failed', error='Multiplayer image: %s' % e, failed_at='image')
