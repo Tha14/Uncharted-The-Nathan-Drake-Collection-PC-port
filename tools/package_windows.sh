@@ -33,7 +33,39 @@ done
 
 cp gow3_pc/scripts/*.py "$stage/gow3_pc/scripts/"
 cp tools/probe_uncharted.py tools/hang_report.py tools/apply_update.py tools/install_update.py \
-    tools/net_overlay.py tools/check_game_files.py tools/game_files_102.json.gz "$stage/tools/"
+    tools/net_overlay.py tools/check_game_files.py tools/game_files_102.json.gz tools/u3mp_process.py "$stage/tools/"
+# Uncharted 3 multiplayer (launcher -> Multiplayer): the import (u3mp/patcher/u3mp_import.py), the overlay
+# recipe and its tools (scripts and tables only), and the helper builds (our compiled code). The player's PC
+# makes every game-derived file from the player's own copies.
+mkdir -p "$stage/u3mp"
+cp -r u3mp/patcher "$stage/u3mp/patcher"
+cp gow3_pc/LICENSE "$stage/u3mp/patcher/LICENSE.txt"
+# The programs the import runs, from this PC's MSYS2 with their DLLs, when installed: ffmpeg (EULA pages,
+# sound banks with MP3 samples; package mingw-w64-clang-x86_64-ffmpeg, whose DLLs the runtime ships) and GNU
+# objdump (the Havok tables of the character conversion; mingw-w64-ucrt-x86_64-binutils). Without them the
+# import still runs: the recipe skips or simplifies those steps and says so.
+u3mp_bin=()
+copy_program() {  # copy_program <exe> <folder>: the program and its DLLs from the same MSYS2 tree
+    local exe=$1 dest=$2 tree
+    tree=$(cygpath -u "$(dirname -- "$exe")")
+    mkdir -p "$dest"
+    cp "$exe" "$dest/"
+    u3mp_bin+=("$exe")
+    ldd "$exe" | awk -v t="$tree" 'index($3, t) == 1 {print $3}' | sort -u | while read -r dll; do
+        cp "$dll" "$dest/"
+    done
+}
+if [[ -f $msys/clang64/bin/ffmpeg.exe ]]; then
+    copy_program "$msys/clang64/bin/ffmpeg.exe" "$stage/u3mp/bin"
+else
+    echo "Note: no ffmpeg.exe in $msys/clang64/bin: the multiplayer import runs without it" >&2
+fi
+if [[ -f $msys/ucrt64/bin/objdump.exe ]]; then
+    copy_program "$msys/ucrt64/bin/objdump.exe" "$stage/u3mp/bin/binutils"
+else
+    echo "Note: no GNU objdump in $msys/ucrt64/bin (pacman -S mingw-w64-ucrt-x86_64-binutils): the" \
+         "multiplayer import skips the Havok tables" >&2
+fi
 # PkgTool (LibOrbisPkg, LGPL-3.0): Advanced -> Install game update unpacks the player's own update PKG.
 mkdir -p "$stage/tools/pkgtool"
 cp tools/pkgtool/PkgTool.exe tools/pkgtool/LibOrbisPkg.dll "$stage/tools/pkgtool/"
@@ -71,6 +103,16 @@ pacman=$(command -v pacman || echo "$msys/usr/bin/pacman")
 dlls=()
 for dll in "$stage"/gow3_pc/out/*.dll; do
     dlls+=("$(cygpath -m "$msys/clang64/bin/$(basename -- "$dll")")")
+done
+# The multiplayer import's programs and their DLLs (u3mp/bin).
+for file in "${u3mp_bin[@]}"; do
+    dlls+=("$(cygpath -m "$file")")
+done
+for dll in "$stage"/u3mp/bin/*.dll; do
+    [[ -f $dll ]] && dlls+=("$(cygpath -m "$msys/clang64/bin/$(basename -- "$dll")")")
+done
+for dll in "$stage"/u3mp/bin/binutils/*.dll; do
+    [[ -f $dll ]] && dlls+=("$(cygpath -m "$msys/ucrt64/bin/$(basename -- "$dll")")")
 done
 mapfile -t packages < <({ "$pacman" -Qqo "${dlls[@]}" 2>/dev/null || true; } | sort -u)
 { "$pacman" -Qlq "${packages[@]}" | grep '/share/licenses/.*[^/]$' || true; } | while read -r file; do
@@ -113,6 +155,11 @@ for file in "$python_home"/Lib/site-packages/pillow-*.dist-info/licenses/* \
     "$python_home"/Lib/site-packages/pillow-*.dist-info/LICENSE*; do
     [[ -f $file ]] && { mkdir -p "$licenses/pillow"; cp "$file" "$licenses/pillow/"; }
 done
+# numpy (the multiplayer import's map and character steps), when copy_python.py found it.
+for file in "$python_home"/Lib/site-packages/numpy-*.dist-info/licenses/* \
+    "$python_home"/Lib/site-packages/numpy-*.dist-info/LICENSE*; do
+    [[ -f $file && -d $stage/python/Lib/site-packages/numpy ]] && { mkdir -p "$licenses/numpy"; cp "$file" "$licenses/numpy/"; }
+done
 
 windres tools/windows_starter/starter.rc -O coff -o dist/stage/starter.res.o
 clang -O2 -municode -mwindows tools/windows_starter/starter.c dist/stage/starter.res.o \
@@ -122,7 +169,7 @@ find "$stage" -name __pycache__ -prune -exec rm -rf {} +
 # Nothing from the game or a player (game executables, saves, shader caches, logs) may ship.
 forbidden=$(find "$stage" \( -iname eboot.bin -o -iname '*.elf' -o -iname sce_sys -o -iname savedata \
     -o -iname cache -o -iname '*.log' -o -iname 'probe*.ini' -o -iname '*.pkg' -o -iname '*.psarc' \
-    -o -iname '*.pak' -o -iname 'boot*.bin' \) -print)
+    -o -iname '*.pak' -o -iname 'boot*.bin' -o -iname 'overlay-*' -o -iname '*.dds' -o -iname '*.at9' \) -print)
 if [[ -n $forbidden ]]; then
     echo "Package holds files that must not ship:" >&2
     echo "$forbidden" >&2

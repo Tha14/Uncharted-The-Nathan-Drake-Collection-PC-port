@@ -1,5 +1,6 @@
 """Copies a Windows Python installation into the package (python/): the interpreter, the standard
-library without tests and tools, Tkinter (DLLs, tcl) and Pillow. Players need no Python installed.
+library without tests and tools, Tkinter (DLLs, tcl), Pillow and, when installed, numpy (the Uncharted 3
+multiplayer import's map and character steps). Players need no Python installed.
 
 usage: copy_python.py <python home> <destination>
 """
@@ -10,6 +11,7 @@ from pathlib import Path
 SKIP_LIB = {"site-packages", "test", "tests", "idlelib", "ensurepip", "turtledemo", "__pycache__",
             "lib2to3", "venv", "pydoc_data"}
 SITE_PACKAGES = ("PIL",)
+OPTIONAL_PACKAGES = ("numpy", "numpy.libs")  # pip install numpy (for the Python that is packaged)
 
 
 def main():
@@ -34,6 +36,13 @@ def main():
             sys.exit(f"{package} is not installed in {home} (pip install pillow)")
         shutil.copytree(site / package, dest / "Lib" / "site-packages" / package, dirs_exist_ok=True,
                         ignore=shutil.ignore_patterns("__pycache__"))
+    for package in OPTIONAL_PACKAGES:
+        if (site / package).exists():
+            shutil.copytree(site / package, dest / "Lib" / "site-packages" / package, dirs_exist_ok=True,
+                            ignore=shutil.ignore_patterns("__pycache__", "tests"))
+        elif package == "numpy":
+            print("Note: numpy is not installed in this Python: the Uncharted 3 multiplayer import will skip "
+                  "the steps that need it (pip install numpy)")
     print(f"Python copied from {home}")
 
 

@@ -13,6 +13,11 @@ Bluepoint stubbed out rather than inventing replacements.
 > (U3 1.02). The README of this repository targets CUSA02344; the offsets have not been checked
 > against that build yet.
 
+**For players:** the launcher's MULTIPLAYER tab imports the current build (v7.55) from your own
+copies; see "Uncharted 3 multiplayer (beta)" in the [main README](../README.md). It uses
+`patcher/` (the import, the overlay recipe and our compiled helper builds). The rest of this
+folder is the research source; the status table below is the October snapshot.
+
 ## Status (October 2026)
 
 | Area | State |

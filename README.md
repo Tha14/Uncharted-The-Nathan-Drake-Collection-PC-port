@@ -6,14 +6,11 @@ This repository is **João Fidalgo's fork** of
 [BilalReloaded's original PC port](https://github.com/bc160201983/Uncharted-The-Nathan-Drake-Collection-PC-port).
 The original port and its authors retain their credits and licensing below.
 
-This fork is intended to integrate experimental Uncharted 3 multiplayer restoration.
-The planned launcher workflow prepares multiplayer locally from the user's own PS3 and
-PS4 game copies. **That automatic preparation workflow is not implemented or ready for use yet.**
-The current conversion recipes do not reproduce the complete multiplayer asset set;
-missing converters and build recipes must be recovered or rebuilt and verified first.
-Game assets, converted overlays and patched game images must not be distributed in this
-repository. See [u3mp/README.md](u3mp/README.md) for the existing research source and its
-version-specific limitations; its status describes an earlier research snapshot.
+This fork adds the experimental **Uncharted 3 multiplayer restoration** (build v7.55, beta) to the
+launcher: the **MULTIPLAYER** tab imports it from your own PS3 and PS4 game copies, on your PC (see
+[Uncharted 3 multiplayer](#uncharted-3-multiplayer-beta) below). Game assets, converted overlays and
+patched game images are never distributed: the import makes them on the player's PC. The multiplayer
+research source is in [u3mp/](u3mp/README.md).
 
 Run the PS4 **Uncharted: The Nathan Drake Collection** (CUSA02344: *Drake's Fortune*, *Among
 Thieves* and *Drake's Deception*) natively on Windows. The game's own x86-64 code runs directly
@@ -166,6 +163,48 @@ the release, replaces the program files (saves, settings and the shader cache st
 again; if anything fails, the installed version is put back. Advanced tab: turn the check off, or
 check now.
 
+## Uncharted 3 multiplayer (beta)
+
+Drake's Deception's multiplayer (competitive, co-op, LAN party) restored on top of this port. Nothing
+game-derived ships with the launcher: the **MULTIPLAYER** tab converts the files from your own copies.
+
+**What you need**
+
+- The PS4 Collection as the launcher's game folder: **CUSA02320 (EU), version 1.02** (the multiplayer build
+  is made for its Uncharted 3 executable; the import checks it by SHA-256 and says so when yours differs.
+  A replaced `big3-ps4_Shipping.elf` is fine when the retail one is kept as `backup/big3-ps4_Shipping.elf`).
+- Your PS3 **Uncharted 3** (BCES01670): the game folder (disc `PS3_GAME/USRDIR` or an extracted ISO) and
+  RPCS3's `dev_hdd0/game` folder with update **1.19**, the game data install (`BCES01670DATA2`) and the DLC
+  map packs. Add both folders.
+- The **decrypted 1.19 EBOOT**, for the characters' collision data: in RPCS3, *Utilities -> Decrypt PS3
+  Binaries*, choose `dev_hdd0/game/BCES01670/USRDIR/EBOOT.BIN`; the `EBOOT.elf` it writes there is found by
+  the import (or choose it on the tab). Without it that step is skipped.
+- PS3 **Uncharted 2** is optional: no multiplayer file comes from it today.
+- About 12 GB free for the multiplayer data folder (default
+  `%LOCALAPPDATA%\Uncharted Launcher\U3 Multiplayer`, changeable on the tab).
+
+**How to import**
+
+1. Launcher -> **MULTIPLAYER** -> add your PS3 Uncharted 3 folders -> **IMPORT**. The tab shows the step
+   (n/50) and the log (`import.log` in the data folder). The import first builds the multiplayer image from
+   your Uncharted 3 executable with the port's own scripts and checks every stage by SHA-256 (seconds), then
+   runs the overlay recipe (hours: maps and characters are converted). It keeps running if the launcher is
+   closed; **RE-IMPORT / UPDATE** continues it or, after a launcher update, redoes only what changed.
+2. Turn on **Start Uncharted 3 with multiplayer** and play Uncharted 3 as usual: display, controls, language
+   and the other settings apply. Title screen: Right = Multiplayer, Right Right = Co-op; LAN Party: press
+   Cross on your profile. Turned off, Uncharted 3 is the normal game again.
+
+**Status**
+
+| Part | State |
+|---|---|
+| Multiplayer image (helper v7.55) | Verified: the import reproduces the tested image byte for byte (SHA-256 `4ce34f24...`). |
+| Overlay recipe | Runs whatever `u3mp/patcher/recipe/steps/ORDER.txt` holds; a failing step is reported on the tab and in `state.json`, the others go on. The map (pak23) and character (actor33) conversions are still being completed: until then the import reports those steps and the matching maps or characters are missing. |
+
+A step that needs numpy is skipped when the launcher's Python has none; ffmpeg and GNU objdump are used from
+the package's `u3mp\bin` when it carries them. Maintainers: `u3mp/patcher/maintainer/sync_recipe.py` copies a
+new recipe in, `make_release.py` adds a helper build.
+
 ## Building
 
 GitHub Actions builds every push to `main` ([build-windows.yml](.github/workflows/build-windows.yml)).
@@ -204,6 +243,8 @@ tag `v0.1.1`; GitHub Actions then builds the package and publishes the release w
 | `tools/release.sh`, `tools/release-notes/` | Publishes a release (see above). |
 | `gow3_pc/` | The runtime: C runtime (`src/`), GPU library (`gpu/`: shadPS4 video core and shims), preparation scripts (`scripts/`). |
 | `analysis/` | Compatibility notes (`STATUS.md`) and the plan (`PLAN.md`). |
+| `u3mp/patcher/` | Uncharted 3 multiplayer import: `u3mp_import.py`, `mpimage.py` (image link), `recipe/` + `tools/` (overlay recipe), `build/v*/` (our compiled helper builds and their hashes). |
+| `u3mp/` (rest) | The multiplayer research source (helper C code, runner, pak tools, notes). |
 
 ## Credits and license
 
@@ -224,6 +265,11 @@ tag `v0.1.1`; GitHub Actions then builds the package and publishes the release w
 - AMD FSR 4: the v07 INT8 model as built by [Q2RTX](https://github.com/FireBurn/Q2RTX) from AMD's
   MIT-licensed FidelityFX SDK source.
 - Third-party code: FSR (AMD), imgui, magic_enum, miniz, xbyak, LibAtrac9, FFmpeg, SDL3.
+- Uncharted 3 multiplayer restoration (`u3mp/`, the launcher's Multiplayer tab): João Fidalgo's fork. Its pak
+  tools come from the `U3_Multiplayer` branch of
+  [fidalgojoao/Uncharted2-Multiplayer-Dev](https://github.com/fidalgojoao/Uncharted2-Multiplayer-Dev) (GPL v2);
+  the online play talks to RPCN as [RPCS3](https://github.com/RPCS3/rpcs3) does; TLS by
+  [BearSSL](https://bearssl.org) (MIT). Uncharted 3 is Naughty Dog's; this project is not affiliated with them.
 - Licensed under the GNU GPL v2 or later (see `gow3_pc/LICENSE`). The Windows package carries
   `LICENSE.txt` and a `licenses` folder with the license of every bundled library
   (`licenses/THIRD-PARTY.txt` lists each DLL package with its version, license and source).
