@@ -161,6 +161,48 @@ def multiplayer_preview():
     return os.environ.get("UNCHARTED_MULTIPLAYER") == "1" or (USER_DIR / "multiplayer-preview").exists()
 
 
+# Uncharted 3 multiplayer (the Multiplayer tab while Uncharted 1 or 3 is chosen): u3mp/patcher holds the
+# import (u3mp_import.py), the overlay recipe and the helper builds; everything game-derived is made on the
+# player's PC in the multiplayer data folder.
+U3MP_DIR = ROOT / "u3mp" / "patcher"
+
+
+def u3mp_default_data():
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or str(Path.home())
+    return Path(base) / "Uncharted Launcher" / "U3 Multiplayer"
+
+
+def u3mp_release():
+    """The newest multiplayer build shipped with the launcher (u3mp/patcher/build/v<version>/build.json)."""
+    best = None
+    for path in (U3MP_DIR / "build").glob("v*/build.json"):
+        try:
+            info = json.loads(path.read_text(encoding="utf-8"))
+            key = [int(x) for x in str(info["version"]).split(".")]
+        except (OSError, ValueError, KeyError):
+            continue
+        if best is None or key > best[0]:
+            best = (key, info)
+    return best[1] if best else None
+
+
+def pid_alive(pid):
+    """Whether a process with this id still runs (Windows)."""
+    if not pid:
+        return False
+    try:
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x1000, False, int(pid))  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return False
+        code = ctypes.c_ulong()
+        ok = kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+        kernel32.CloseHandle(handle)
+        return bool(ok) and code.value == 259  # STILL_ACTIVE
+    except (AttributeError, OSError, ValueError):
+        return False
+
+
 # The characters a player can pick on the Multiplayer page (actor, label): Uncharted 2's
 # multiplayer skins that ship in the Collection, and Drake's own models. Only those whose actor is
 # in the player's game files are offered (net_characters); "" = the net game's default model.
@@ -1782,8 +1824,23 @@ class Launcher:
             self.set_status(f"Ready to play {self.current_game()['name']}.")
         self.update_multiplayer_tab()
 
+    def u2_net_tab(self):
+        """Uncharted 2's own Multiplayer page (preview) is shown instead of Uncharted 3's."""
+        return "multiplayer" in getattr(self, "tab_cells", {}) and self.config.get("game") == "u2"
+
     def update_multiplayer_tab(self):
-        """The Multiplayer tab shows only while Uncharted 2 is chosen (its net games)."""
+        """The Multiplayer tab shows only while Uncharted 2 is chosen (its net games); Uncharted 3's
+        Multiplayer tab (u3mp) the rest of the time."""
+        u3 = getattr(self, "tab_cells", {}).get("u3mp")
+        if u3 is not None:
+            if self.u2_net_tab():
+                u3.pack_forget()
+                if getattr(self, "current_tab", None) == "u3mp":
+                    self.show_tab("multiplayer", save=False)
+            elif not u3.winfo_manager():
+                u3.pack(side="left", padx=(0, self.px(26)))
+                if getattr(self, "current_tab", None) == "multiplayer":
+                    self.show_tab("u3mp", save=False)
         cell = getattr(self, "tab_cells", {}).get("multiplayer")
         if cell is None:
             return
@@ -1932,7 +1989,8 @@ class Launcher:
         self.tab_buttons = {}
         self.tab_cells = {}
         tabs = [("setup", "QUICK SETUP"), ("display", "DISPLAY"), ("performance", "PERFORMANCE"),
-                ("controls", "CONTROLS"), ("cheats", "CHEATS"), ("advanced", "ADVANCED")]
+                ("controls", "CONTROLS"), ("cheats", "CHEATS"), ("advanced", "ADVANCED"),
+                ("u3mp", "MULTIPLAYER")]
         if multiplayer_preview():
             tabs.append(("multiplayer", "MULTIPLAYER"))
         for name, label in tabs:
@@ -1960,6 +2018,7 @@ class Launcher:
             "controls": self.page_controls(),
             "cheats": self.page_cheats(),
             "advanced": self.page_advanced(),
+            "u3mp": self.page_u3mp(),
         }
         if multiplayer_preview():
             self.pages["multiplayer"] = self.page_multiplayer()
@@ -1967,6 +2026,8 @@ class Launcher:
     def show_tab(self, name, save=True):
         if name == "multiplayer" and self.config.get("game") != "u2":
             name = "setup"
+        if name == "u3mp" and self.u2_net_tab():
+            name = "multiplayer"
         self.current_tab = name
         if name == "multiplayer" and not getattr(self, "net_searched", False):
             self.net_searched = True
@@ -2852,6 +2913,370 @@ class Launcher:
         button.bind("<Leave>", lambda e: button.config(bg=PANEL))
         return button
 
+    # -- Uncharted 3 multiplayer (u3mp/patcher) ---------------------------------------------
+
+    def u3mp_data(self):
+        return Path(self.config.get("u3mp_data") or u3mp_default_data())
+
+    def u3mp_state(self):
+        try:
+            return json.loads((self.u3mp_data() / "state.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def u3mp_ready(self, state=None):
+        """(ready, why not): an imported multiplayer image of the shipped release, and its overlays."""
+        state = self.u3mp_state() if state is None else state
+        release = u3mp_release()
+        image = state.get("image") or {}
+        if state.get("status") not in ("imported", "partial"):
+            return False, "not imported"
+        if not release or image.get("sha256") != release.get("image_sha256"):
+            return False, "imported for another multiplayer build: import again"
+        if not Path(image.get("path", "")).is_file():
+            return False, "the multiplayer image is missing: import again"
+        if not [p for p in state.get("overlays", []) if Path(p).is_dir()]:
+            return False, "the overlays are missing: import again"
+        return True, ""
+
+    def u3mp_env(self, env):
+        """play(): Uncharted 3 starts with the multiplayer image and overlays (tools/probe_uncharted.py
+        u3mp_image) when the toggle is on and the import is complete."""
+        for key in ("UNCHARTED_U3MP_IMAGE", "UNCHARTED_U3MP_IMAGE_SHA256", "UNCHARTED_U3MP_OVERLAYS",
+                    "UNCHARTED_U3MP_VERSION"):
+            env.pop(key, None)
+        if not self.config.get("u3mp_enabled", False):
+            return
+        state = self.u3mp_state()
+        ready, why = self.u3mp_ready(state)
+        if not ready:
+            print(f"Uncharted 3 multiplayer is on but {why}: Uncharted 3 starts without it")
+            return
+        env["UNCHARTED_U3MP_IMAGE"] = state["image"]["path"]
+        env["UNCHARTED_U3MP_IMAGE_SHA256"] = state["image"]["sha256"]
+        env["UNCHARTED_U3MP_VERSION"] = state["image"].get("version", "")
+        env["UNCHARTED_U3MP_OVERLAYS"] = os.pathsep.join(p for p in state.get("overlays", []) if Path(p).is_dir())
+
+    def page_u3mp(self):
+        """Uncharted 3 multiplayer: import from the player's own PS3 and PS4 copies (u3mp/patcher/u3mp_import.py),
+        then Uncharted 3 starts with the restored multiplayer."""
+        page = self.page()
+        banner = tk.Frame(page, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
+        banner.pack(side="top", fill="x", pady=(0, self.px(12)))
+        tk.Frame(banner, bg=GOLD, width=self.px(4)).pack(side="left", fill="y")
+        about = tk.Frame(banner, bg=PANEL)
+        about.pack(side="left", fill="both", expand=True, padx=self.px(18), pady=self.px(14))
+        head = tk.Frame(about, bg=PANEL)
+        head.pack(side="top", fill="x")
+        tk.Label(head, text="Uncharted 3 Multiplayer", font=self.f_card_title, bg=PANEL, fg=TEXT).pack(side="left")
+        tk.Label(head, text="BETA", font=self.f_caps, bg=GOLD, fg=INK, padx=self.px(7),
+                 pady=self.px(1)).pack(side="left", padx=(self.px(12), 0))
+        release = u3mp_release()
+        tk.Label(about, text="Drake's Deception's competitive, co-op and LAN party modes, restored. The import "
+                             "converts the multiplayer files from your own PS3 Uncharted 3 and this PS4 Collection, "
+                             "on this PC: nothing is downloaded and no game file comes with the launcher. "
+                             f"Build v{release['version'] if release else '?'}; supported PS4 game: "
+                             f"{release['game'] if release else '?'}.",
+                 font=self.f_small, bg=PANEL, fg=MUTED, anchor="w", justify="left",
+                 wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(5), 0))
+        self.u3mp_status = tk.Label(about, text="", font=self.f_body_bold, bg=PANEL, fg=TEXT, anchor="w",
+                                    justify="left", wraplength=self.px(760))
+        self.u3mp_status.pack(side="top", fill="x", pady=(self.px(8), 0))
+
+        def enabled(parent):
+            self.u3mp_toggle = Toggle(parent, self.s, self.config.get("u3mp_enabled", False), self.u3mp_set_enabled)
+            return self.u3mp_toggle
+        self.row(page, "Start Uncharted 3 with multiplayer",
+                 "On: Uncharted 3 starts with the multiplayer build and the imported files (story mode too). "
+                 "Off: the normal Uncharted 3. Your display, controls and language settings apply either way.",
+                 enabled)
+
+        def folder_row(title, hint, label_key, actions):
+            def factory(parent):
+                box = tk.Frame(parent, bg=BG)
+                for label, action in actions:
+                    self.flat_button(box, label, action).pack(side="left", padx=(self.px(8), 0))
+                return box
+            self.row(page, title, hint, factory)
+            label = tk.Label(page, text="", font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
+                             wraplength=self.px(760))
+            label.pack(side="top", fill="x", pady=(0, self.px(10)))
+            self.u3mp_labels[label_key] = label
+
+        self.u3mp_labels = {}
+        folder_row("PS3 Uncharted 3 folders",
+                   "Your PS3 game folder (the disc's PS3_GAME/USRDIR or an extracted ISO) and RPCS3's dev_hdd0/game "
+                   "folder (update 1.19, the game data install and the DLC map packs). Add both.",
+                   "ps3_u3", (("Add folder", self.u3mp_add_folder), ("Clear", self.u3mp_clear_folders)))
+        folder_row("PS3 Uncharted 2 folder (optional)",
+                   "Not needed today: no multiplayer file comes from Uncharted 2. Kept for later builds.",
+                   "ps3_u2", (("Choose", self.u3mp_choose_u2), ("Clear", lambda: self.u3mp_set("u3mp_ps3_u2", ""))))
+        folder_row("Decrypted PS3 EBOOT (update 1.19)",
+                   "For the characters' collision data. In RPCS3: Utilities -> Decrypt PS3 Binaries, pick "
+                   "dev_hdd0/game/BCES01670/USRDIR/EBOOT.BIN; the EBOOT.elf it writes there is found by itself.",
+                   "ps3_elf", (("Choose file", self.u3mp_choose_elf),
+                               ("Clear", lambda: self.u3mp_set("u3mp_ps3_elf", ""))))
+        folder_row("Multiplayer data folder",
+                   "Where the import writes the converted files (about 9 GB) and the multiplayer image.",
+                   "data", (("Change", self.u3mp_choose_data), ("Open", lambda: self.u3mp_open(self.u3mp_data()))))
+
+        actions = tk.Frame(page, bg=BG)
+        actions.pack(side="top", fill="x", pady=(self.px(6), self.px(8)))
+        self.u3mp_button = self.gold_button(actions, "IMPORT", self.u3mp_import)
+        self.u3mp_button.pack(side="left")
+        self.u3mp_cancel_button = self.flat_button(actions, "Cancel", self.u3mp_cancel)
+        self.flat_button(actions, "Open import log", lambda: self.u3mp_open(self.u3mp_data() / "import.log")).pack(
+            side="left", padx=(self.px(10), 0))
+        self.u3mp_step = tk.Label(actions, text="", font=self.f_small, bg=BG, fg=MUTED, anchor="w")
+        self.u3mp_step.pack(side="left", fill="x", expand=True, padx=(self.px(14), 0))
+        self.u3mp_bar = tk.Canvas(page, height=self.px(6), bg=PANEL, highlightthickness=0)
+        self.u3mp_bar.pack(side="top", fill="x")
+        self.u3mp_log = tk.Text(page, height=9, font=("Consolas", 8), bg=PANEL, fg=MUTED, relief="flat",
+                                highlightthickness=1, highlightbackground=LINE, wrap="none", state="disabled")
+        self.u3mp_log.pack(side="top", fill="x", pady=(self.px(8), 0))
+        tk.Label(page, text="The PS4 game is the launcher's game folder (Advanced -> Folders). The import takes "
+                            "a long time (hours for the map and character conversions) and can run while you play "
+                            "other games; closing the launcher does not stop it. Re-import after a launcher update "
+                            "to get the newest multiplayer files: finished steps are not redone.",
+                 font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
+                 wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(8), 0))
+        self.u3mp_proc = None
+        self.u3mp_log_pos = 0
+        self.u3mp_progress = (0, 0, "")
+        self.u3mp_refresh()
+        self.root.after(1000, self.u3mp_poll)
+        return page
+
+    def u3mp_set(self, key, value):
+        self.change_config(key, value)
+        self.u3mp_refresh()
+
+    def u3mp_set_enabled(self, value):
+        if value and not self.u3mp_ready()[0]:
+            messagebox.showinfo(APP_TITLE, "Import the multiplayer files first (the Import button on this page).")
+            self.u3mp_toggle.set(False)
+            return
+        self.change_config("u3mp_enabled", bool(value))
+        self.u3mp_refresh()
+
+    def u3mp_add_folder(self):
+        from tkinter import filedialog
+        folder = filedialog.askdirectory(title="Choose a PS3 Uncharted 3 folder (game disc or RPCS3 dev_hdd0/game)",
+                                         parent=self.root, mustexist=True)
+        if folder:
+            folders = [f for f in self.config.get("u3mp_ps3_u3", []) if f != folder] + [folder]
+            self.u3mp_set("u3mp_ps3_u3", folders)
+
+    def u3mp_clear_folders(self):
+        self.u3mp_set("u3mp_ps3_u3", [])
+
+    def u3mp_choose_u2(self):
+        from tkinter import filedialog
+        folder = filedialog.askdirectory(title="Choose the PS3 Uncharted 2 folder", parent=self.root, mustexist=True)
+        if folder:
+            self.u3mp_set("u3mp_ps3_u2", folder)
+
+    def u3mp_choose_elf(self):
+        from tkinter import filedialog
+        path = filedialog.askopenfilename(title="Choose the decrypted EBOOT.elf (Uncharted 3 update 1.19)",
+                                          parent=self.root, filetypes=[("Decrypted PS3 executable", "*.elf"),
+                                                                       ("All files", "*.*")])
+        if path:
+            self.u3mp_set("u3mp_ps3_elf", path)
+
+    def u3mp_choose_data(self):
+        from tkinter import filedialog
+        folder = filedialog.askdirectory(title="Choose the folder for the multiplayer files (about 9 GB)",
+                                         parent=self.root)
+        if folder:
+            self.u3mp_set("u3mp_data", str(Path(folder) / "U3 Multiplayer"))
+
+    def u3mp_open(self, path):
+        path = Path(path)
+        target = path if path.exists() else path.parent
+        if target.exists():
+            os.startfile(target)
+
+    def u3mp_running(self):
+        if self.u3mp_proc is not None and self.u3mp_proc.poll() is None:
+            return True
+        state = self.u3mp_state()
+        return state.get("status") == "running" and pid_alive(state.get("pid"))
+
+    def u3mp_refresh(self):
+        if not hasattr(self, "u3mp_status"):
+            return
+        state = self.u3mp_state()
+        running = self.u3mp_running()
+        ready, why = self.u3mp_ready(state)
+        status = state.get("status")
+        image = state.get("image") or {}
+        if running:
+            text, colour = "Importing...", GOLD
+        elif ready and status == "imported":
+            text, colour = f"Imported v{image.get('version', '?')} (recipe {state.get('recipe_version', '?')}).", TEXT
+        elif ready:
+            failed = state.get("failed", [])
+            text = (f"Imported v{image.get('version', '?')} with problems: {len(failed)} step(s) failed "
+                    f"({', '.join(failed[:4])}{'...' if len(failed) > 4 else ''}). Multiplayer can start, but "
+                    "the files those steps make are missing.")
+            colour = GOLD
+        elif status == "failed":
+            text, colour = f"Failed at {state.get('failed_at', '?')}: {state.get('error', '')}", STOP_RED
+        elif status == "running":
+            text, colour = "The last import was interrupted. Press Import to continue it.", GOLD
+        elif status == "image-only":
+            text, colour = "Multiplayer image made; the files are not imported yet.", MUTED
+        elif state and not ready and why:
+            text, colour = f"Not ready: {why}.", GOLD
+        else:
+            text, colour = "Not imported.", MUTED
+        self.u3mp_status.config(text=text, fg=colour)
+        if self.config.get("u3mp_enabled") and not ready and not running:
+            self.u3mp_status.config(text=text + " Uncharted 3 starts without multiplayer until then.")
+        folders = self.config.get("u3mp_ps3_u3", [])
+        self.u3mp_labels["ps3_u3"].config(text="\n".join(folders) if folders else "None chosen yet.")
+        self.u3mp_labels["ps3_u2"].config(text=self.config.get("u3mp_ps3_u2") or "Not used.")
+        self.u3mp_labels["ps3_elf"].config(text=self.config.get("u3mp_ps3_elf") or
+                                           state.get("ps3_elf") or "Looked for in the PS3 folders when importing.")
+        self.u3mp_labels["data"].config(text=str(self.u3mp_data()))
+        self.u3mp_button.config(text="RE-IMPORT / UPDATE" if status in ("imported", "partial", "failed", "running",
+                                                                        "image-only") else "IMPORT")
+        if running and not self.u3mp_cancel_button.winfo_manager():
+            self.u3mp_cancel_button.pack(side="left", padx=(self.px(10), 0), after=self.u3mp_button)
+        elif not running and self.u3mp_cancel_button.winfo_manager():
+            self.u3mp_cancel_button.pack_forget()
+        if self.u3mp_toggle.value != bool(self.config.get("u3mp_enabled", False)):
+            self.u3mp_toggle.set(bool(self.config.get("u3mp_enabled", False)))
+        self.u3mp_draw_bar()
+
+    def u3mp_draw_bar(self):
+        n, total, _ = self.u3mp_progress
+        bar = self.u3mp_bar
+        bar.delete("all")
+        width = bar.winfo_width()
+        if total and width > 1:
+            bar.create_rectangle(0, 0, int(width * min(1.0, n / total)), self.px(6), fill=GOLD, outline=GOLD)
+
+    def u3mp_import(self):
+        if self.u3mp_running():
+            messagebox.showinfo(APP_TITLE, "The import is already running.")
+            return
+        game = self.game_dir()
+        if not is_game_dir(game):
+            messagebox.showinfo(APP_TITLE, "Choose your PS4 Uncharted: The Nathan Drake Collection folder first "
+                                           "(Advanced -> Folders -> Change game folder).")
+            return
+        folders = [f for f in self.config.get("u3mp_ps3_u3", []) if Path(f).is_dir()]
+        if not folders:
+            messagebox.showinfo(APP_TITLE, "Add your PS3 Uncharted 3 folder(s) first: the game disc's folder and "
+                                           "RPCS3's dev_hdd0/game.")
+            return
+        data = self.u3mp_data()
+        try:
+            data.mkdir(parents=True, exist_ok=True)
+            free = shutil.disk_usage(data).free
+        except OSError as error:
+            messagebox.showerror(APP_TITLE, f"The multiplayer data folder can't be used:\n{error}")
+            return
+        if free < 12 * 1024 ** 3 and not messagebox.askyesno(
+                APP_TITLE, f"{data.anchor} has {free / 1024 ** 3:.0f} GB free; the import needs about 12 GB. "
+                           "Start anyway?"):
+            return
+        python = Path(sys.executable)
+        if python.name.lower() == "pythonw.exe" and python.with_name("python.exe").exists():
+            python = python.with_name("python.exe")
+        command = [str(python), "-u", str(U3MP_DIR / "u3mp_import.py"), "--ps4", str(game),
+                   "--data", str(data), "--port", str(ROOT)]
+        for folder in folders:
+            command += ["--ps3-u3", folder]
+        if self.config.get("u3mp_ps3_u2"):
+            command += ["--ps3-u2", self.config["u3mp_ps3_u2"]]
+        if self.config.get("u3mp_ps3_elf"):
+            command += ["--ps3-elf", self.config["u3mp_ps3_elf"]]
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        try:
+            log = open(data / "import.log", "w", encoding="utf-8")
+            self.u3mp_proc = subprocess.Popen(command, cwd=str(U3MP_DIR), env=env, stdout=log, stderr=subprocess.STDOUT,
+                                              stdin=subprocess.DEVNULL, creationflags=NO_WINDOW)
+            log.close()
+        except OSError as error:
+            messagebox.showerror(APP_TITLE, f"Could not start the import:\n{error}")
+            self.u3mp_proc = None
+            return
+        self.u3mp_log_pos = 0
+        self.u3mp_progress = (0, 0, "")
+        self.u3mp_log.config(state="normal")
+        self.u3mp_log.delete("1.0", "end")
+        self.u3mp_log.config(state="disabled")
+        self.u3mp_step.config(text="Starting the import...")
+        self.u3mp_refresh()
+
+    def u3mp_cancel(self):
+        pid = self.u3mp_proc.pid if self.u3mp_proc is not None and self.u3mp_proc.poll() is None else \
+            self.u3mp_state().get("pid")
+        if pid and messagebox.askyesno(APP_TITLE, "Stop the import? Finished steps are kept; Import continues it."):
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], creationflags=NO_WINDOW,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.u3mp_step.config(text="Import stopped.")
+            self.root.after(500, self.u3mp_refresh)
+
+    def u3mp_poll(self):
+        """Every second: new lines of the import log, its progress events (@U3MP ...), the status."""
+        try:
+            path = self.u3mp_data() / "import.log"
+            if path.exists():
+                with open(path, "rb") as f:
+                    f.seek(self.u3mp_log_pos)
+                    chunk = f.read()
+                cut = chunk.rfind(b"\n") + 1
+                if cut:
+                    self.u3mp_log_pos += cut
+                    self.u3mp_lines(chunk[:cut].decode("utf-8", "replace").splitlines())
+            if self.u3mp_proc is not None and self.u3mp_proc.poll() is not None:
+                self.u3mp_proc = None
+                self.u3mp_refresh()
+            elif self.u3mp_running() != (self.u3mp_status.cget("text") == "Importing..."):
+                self.u3mp_refresh()
+        except (OSError, tk.TclError):
+            pass
+        self.root.after(1000, self.u3mp_poll)
+
+    def u3mp_lines(self, lines):
+        shown = []
+        for line in lines:
+            if line.startswith("@U3MP "):
+                try:
+                    ev = json.loads(line[6:])
+                except ValueError:
+                    continue
+                if ev.get("phase") == "image":
+                    self.u3mp_step.config(text="Multiplayer image: " + ev.get("status", ""))
+                elif ev.get("phase") == "recipe" and ev.get("step"):
+                    self.u3mp_progress = (ev["step"] - (0 if ev.get("status") != "running" else 1), ev["total"],
+                                          ev.get("id", ""))
+                    self.u3mp_step.config(text=f"Step {ev['step']}/{ev['total']}: {ev.get('title', '')[:90]}")
+                elif ev.get("phase") == "recipe" and ev.get("status") == "failed":
+                    shown.append(f"!! step {ev.get('id')} failed: {ev.get('note', '')}")
+                elif ev.get("phase") == "done":
+                    n, total, _ = self.u3mp_progress
+                    self.u3mp_progress = (total, total, "")
+                    self.u3mp_step.config(text="Import finished." if ev.get("status") in ("imported", "partial")
+                                          else "Import failed: " + ev.get("error", ""))
+                    self.root.after(200, self.u3mp_refresh)
+                continue
+            shown.append(line)
+        if shown:
+            self.u3mp_log.config(state="normal")
+            self.u3mp_log.insert("end", "\n".join(shown) + "\n")
+            excess = int(self.u3mp_log.index("end-1c").split(".")[0]) - 400
+            if excess > 0:
+                self.u3mp_log.delete("1.0", f"{excess}.0")
+            self.u3mp_log.see("end")
+            self.u3mp_log.config(state="disabled")
+        self.u3mp_draw_bar()
+
     # -- multiplayer (preview) --------------------------------------------------------------
 
     def text_entry(self, parent, key, default, width=18):
@@ -3376,6 +3801,7 @@ class Launcher:
         env["GOW3_MOVIE_STRETCH"] = "1" if self.config.get("movie_stretch", False) else "0"
         env["UNCHARTED_UNLOCK"] = "1" if self.config.get("unlock", False) else "0"
         env["UNCHARTED_UNLOCK_REWARDS"] = "1" if self.config.get("unlock_rewards", False) else "0"
+        self.u3mp_env(env)  # Uncharted 3 multiplayer (Multiplayer tab)
         if self.chosen_update():
             env["UNCHARTED_UPDATE"] = str(self.chosen_update())  # tools/probe_uncharted.py find_update
         env["UNCHARTED_CHEATS"] = ",".join(name for name, *_ in CHEATS if self.config.get("cheat_" + name, False))
