@@ -4,6 +4,89 @@ Uncharted: The Nathan Drake Collection PC port, by **BilalReloaded**
 ([YouTube](https://www.youtube.com/@BilalReloaded/videos), [GitHub](https://github.com/bc160201983)).
 Technical details of every item: [analysis/STATUS.md](analysis/STATUS.md).
 
+## 6 November 2026 (0.8.3)
+
+- **Workgroup split for the skinning shaders** (#350 #362 #353): cs 8f067540 and 7d7e7206 run
+  1024-thread workgroups (no LDS, barriers or atomics; thread index WorkgroupId.x * 1024 +
+  LocalInvocationId.x). On NVIDIA's driver each guest workgroup runs as 4 host workgroups of 256
+  (`Shader::WorkgroupSplit`, runtime_info.h): LocalSize X / 4, the guest WorkgroupId.x and
+  LocalInvocationId / Index rebuilt in the SPIR-V, the dispatch with 4 times the groups in X. The
+  split shaders have their own cache name (`_ws256`), so only they recompile. An indirect dispatch
+  of them is named in the log (none seen in 48 frame captures). GOW3_WORKGROUP_SPLIT=0: off, =1: on
+  for every driver.
+- **Uncharted 3 museum exit device lost** (#292 #295 #354 #328): pixel shader 689d1af9 (a
+  soft-shadow filter of all three games) loops over a tap count read from a constant buffer; its
+  integer compares with a loop counter now use min(count, 256) (effect_loop_clamp_pass.cpp, same
+  switch GOW3_EFFECT_LOOP_CLAMP).
+- **GPU breadcrumbs** (GOW3_GPU_BREADCRUMBS=1, or GOW3_GPU_CHECKPOINTS on cards without NVIDIA's
+  diagnostic checkpoints): a barrier and a 4-byte write of the checkpoint number to a host-visible
+  buffer after every dispatch and at every render pass end; a lost device prints the checkpoints
+  that did not finish with their shader hashes (vk_scheduler.cpp).
+- **Deadlock in the memory region lock:** VirtualQuery, the direct memory type query and
+  query_protection wrote their results to guest memory while holding the read lock; a store into a
+  GPU-tracked page faulted into runtime_memory_gpu_protect, which took the lock again, and
+  winpthreads' rwlock let a waiting writer go first. The results are written after unlocking.
+- **Partial unmaps:** carve_host maps the untouched pages of a view back; another thread touching
+  them meanwhile faulted fatally. Faults inside the window wait for the carve and retry, and for
+  about 1 ms after it a fault there retries once if the page is back; each side's saved
+  protections are restored right after it is mapped. GOW3_CARVE_WAIT=0: off.
+- **SRT walker buffer:** the fixed 32 MB code buffer only grew (every cached walker and every
+  translation appended bytes, duplicates too) until Xbyak's "code is too big"; identical walkers
+  now share one copy. GOW3_SRT_SHARE=0: off.
+- **Smaller crash guards:** a dynamically indexed storage image with last_level < base_level
+  bound about 4e9 null descriptors (now 1); surface_metas is guarded by its own SRW lock (erased on
+  guest threads during unmaps while the GPU thread probes it); WAIT_ON_CE_COUNTER no longer calls
+  done() on a missing CE task; image barriers clamp a garbage T#'s level and layer range to the
+  image; assertions on draw-preparation workers drop the guess instead of exit 23.
+- **Uncharted 2 leg IK NaN** (character-leg-ik.cpp:391): the assert path, reached only when a
+  lane is not finite, zeroes the root delta for that frame (1.02 and 1.00). UNCHARTED_LEG_IK_RESET=0:
+  not applied.
+
+## 5 November 2026 (0.8.2)
+
+- **Uncharted 1 jeep gun with the mouse** (#250, the-best-is-best, PR #349): a mouse-look hook at the
+  turret's stick read (0x2a9690, 24 bytes checked; GOW3_MOUSE_LOOK_U1_RAIL=0: off), with the
+  game's invert settings (0x95ca28).
+- **Save list** (the-best-is-best, PR #349): labels cut at whole UTF-8 characters and Arabic `_` shown
+  as spaces; Delete / Triangle twice deletes an entry (`runtime_savedata_trash`: the save folder is
+  moved to `<user dir>/savedata-deleted/<user>/<title>/<dir>-<time>`, never a mounted one); a 456x256
+  PNG of the last frame in play (`gow3_thumbnail.cpp`, read back after the frame's present fence;
+  GOW3_SAVE_PICTURE=0: off) written as `thumb.png` in the save's `.sce_sys` folder on unmount, shown
+  in the list before the game's icon. Also: fault_count clamped below MaxPageFaults, image descriptor
+  capacity from NUM_IMAGES/NUM_SAMPLERS, the LAN outbox capped at 16 MB with header and body queued
+  together, player ids 1..NET_MAX_PLAYERS, the updater's rollback continues past a failed item and
+  keeps files it could not replace (`update-kept-*`), a damaged param.sfo is an UpdateError.
+- **Uncharted 1 physics above 60 FPS**: the rigid-body world step (1.02 0x2358c0, dt in xmm0) gets an
+  entry stub that scales the sticky-contact speed/omega thresholds (0.1, 0.1) by min(1, 60 dt), the
+  settle step counts (10 / 30) by its inverse and the artificial damping (0.9998 per step) to
+  0.9998^(60 dt). At 120 FPS objects no longer stick in mid-air and bodies no longer settle after
+  half the time. All six operands found by unique patterns (US and EU); GOW3_U1_STICKY=0,
+  GOW3_U1_SETTLE=0, GOW3_U1_DAMPING=0 turn the parts off, GOW3_U1_PHYSICS_TRACE=1 prints the steps.
+- **Uncharted 2 convoy** (chapter 21): adding an animation node copies a params bool (+0x11) as
+  `flag << 2` into the previous node's flags; the convoy's bump animation never writes that bool, so
+  stack garbage (0x64) also set bit 4, "reference frame follows the object", and the truck sank 2-4 m
+  for half a second after each bump. The 20 bytes now take bit 0 only (UNCHARTED_CONVOY_SINK=0: off).
+- **Upscaler jitter**: draws of up to 6 indices that write depth or test it for equality are scene
+  geometry, not full-screen passes, and get the jitter (Uncharted 3's chateau wall panels: rows of
+  blue dots, the scene colour's clear, through the seams; GOW3_JITTER_SMALL=0: off). GOW3_JITTER_PS
+  adds b2a42acf (Uncharted 1 boat details) and 1a08df2d (Uncharted 3 London bar surfaces).
+- **Constant ring stall** (#356): with multithreaded rendering, stage B stamps each packet's ring end
+  per submission tick and publishes the previous end when a later tick records. A full ring stops
+  moving (allocations fail, the end repeats), so the last region was never published and the ring
+  stayed full for the rest of the session: every constant fell back to stage B binding and each try
+  queried the GPU semaphore. The repeated end is now published once its tick has passed
+  (GOW3_RING_STALL_FIX=0: off); Retire checks the oldest stamp against the known GPU tick first and
+  queries the driver at most every 20 us (GOW3_RING_RETIRE_THROTTLE=0: off). A "Constant ring:" line
+  with the frame stats shows allocations, failed allocations and GPU queries per second.
+- **Pipeline cache lock**: `PipelineCache::programs_mutex` is a Windows SRW lock
+  (`common/srw_shared_mutex.h`). libc++'s std::shared_mutex takes an inner mutex on every shared
+  lock, so the GPU command thread and the draw-preparation workers queued behind each other on each
+  program lookup. GOW3_SRW_LOCKS=0: std::shared_mutex.
+- **Crash guards**: `TextureCache::FindImage` copies the merged ImageInfo (a reference into
+  slot_images went stale when ResolveOverlap inserted an image); `WaitOnDeCounterDiff` no longer
+  waits forever when the DE counter is ahead of the CE (the unsigned difference never shrank); an
+  Ajm instance for an unsupported codec (AAC) returns ERR_INVALID_PARAMETER instead of exit(21).
+
 ## 1 November 2026, night (0.8.1)
 
 - **Mouse in cover** (#250 #291 #275 #190 #158): the Uncharted 2 and 3 cover cameras take the mouse

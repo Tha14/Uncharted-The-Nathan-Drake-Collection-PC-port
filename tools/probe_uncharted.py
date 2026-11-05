@@ -259,7 +259,45 @@ FOCUS_NAN_PATCHES = {
 MOVE_ACTION_POOL_PATCH = ("player move action pool: 256 slots (#293)", [
     ("ba06000000 b940000000 41b820000000", 5, bytes.fromhex("b940000000"), bytes.fromhex("b900010000")),
 ])
+# 4 Nov 2026, Uncharted 2 chapter 21 (the convoy): Elena's truck sinks 2-4 m into the snow for about
+# half a second after a bump. The bump plays an animation on the truck by adding a node to its
+# animation blend (1.02 0x399700: node, anim, params); adding a node copies the params' bool at +0x11
+# into bit 2 of the previous node's flags as (flag << 2). The play-animation call the convoy uses
+# never writes that bool, so it holds whatever was on the stack: 0x64 << 2 also sets bit 4 ("the
+# reference frame follows the object"), the rail animation then takes the truck's own last position
+# as its base every frame and the bump's offsets pile up. On the PS4 the stack held other values.
+# Only bit 0 of the bool is used now: and cl, 1; shl cl, 2; and byte [rax+0x80], 0xfb;
+# or [rax+0x80], cl; nop (the same 20 bytes; dl and the flags are not read after them).
+# UNCHARTED_CONVOY_SINK=0: not applied.
+CONVOY_SINK_PATCH = ("Uncharted 2 convoy: animation node flag from bit 0 of its bool", [
+    ("11 8a9080000000 c0e102 80e2fb 08ca 889080000000", 1,
+     bytes.fromhex("8a9080000000c0e10280e2fb08ca889080000000"),
+     bytes.fromhex("80e101c0e10280a080000000fb08888000000090")),
+])
 
+
+# gow3 5 Nov 2026: Uncharted 2's leg IK (character-leg-ik.cpp:391, IsFinite(deltaTransform)) asserts
+# on a NaN root delta (upstream #88/#253, the chapter 1 train wreck). The assert path is taken only
+# when the vector compare found a non-finite lane (vmovmskps; test; jz over it); it now zeroes the
+# delta ([r15]) for that frame and goes on where the finite path goes on. 1.02: 58 bytes (the
+# handler from a global, then the reload of [r15]); 1.00: 51 bytes (the handler from a call; the
+# reload follows). Each occurs once in its executable. UNCHARTED_LEG_IK_RESET=0: not applied.
+LEG_IK_NAN_PATCHES = {
+    "big2-ps4_Shipping.elf": [
+        ("Uncharted 2 leg IK: a NaN delta is zeroed instead of asserting", [
+            ("488b05b8cb0f01 4885c0 7427 488d3df8a2a000 488d35c3a1a000 488d15d486a500 488d0d932f9800"
+             " 41b887010000 4531c9 ffd0 cd41 c4c1782807", 0,
+             bytes.fromhex("488b05b8cb0f014885c07427488d3df8a2a000488d35c3a1a000488d15d486a500"
+                           "488d0d932f980041b8870100004531c9ffd0cd41c4c1782807"),
+             bytes.fromhex("c5f857c0c4c1782907eb2f") + b"\xcc" * 47),
+            ("e8a3cbbfff 4885c0 7427 488d3d1bfe2500 488d3592fc2500 488d1506fe2500 488d0dd1fc2500"
+             " 41b887010000 4531c9 ffd0 cd41", 0,
+             bytes.fromhex("e8a3cbbfff4885c07427488d3d1bfe2500488d3592fc2500488d1506fe2500"
+                           "488d0dd1fc250041b8870100004531c9ffd0cd41"),
+             bytes.fromhex("c5f857c0c4c1782907eb2d") + b"\xcc" * 40),
+        ]),
+    ],
+}
 
 JOB_PARAMS_GUARD = {  # executable: (pattern start, the two loads, exit landing, cave)
     "eboot.bin": ("49c7424800000000488b05a4b6b80049894210498b4208488b482049894a18488b4818",
@@ -1444,10 +1482,14 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
         patches.extend(REWARD_PATCHES.get(executable, []))
     if os.environ.get("UNCHARTED_FOCUS_RESET", "1") != "0":
         patches.extend(FOCUS_NAN_PATCHES.get(executable, []))
+    if os.environ.get("UNCHARTED_LEG_IK_RESET", "1") != "0":
+        patches.extend(LEG_IK_NAN_PATCHES.get(executable, []))
     if executable in JOB_PARAMS_GUARD and os.environ.get("UNCHARTED_JOB_PARAMS_GUARD", "1") != "0":
         patches.append(job_params_guard_patch(executable))
     if executable in ("eboot.bin", "big2-ps4_Shipping.elf") and os.environ.get("UNCHARTED_MOVE_POOL", "1") != "0":
         patches.append(MOVE_ACTION_POOL_PATCH)
+    if executable == "big2-ps4_Shipping.elf" and os.environ.get("UNCHARTED_CONVOY_SINK", "1") != "0":
+        patches.append(CONVOY_SINK_PATCH)
     # Test knob for that guard (never in the launcher): Uncharted 3's creator at 0xf6da01 stores a
     # null descriptor (mov rcx, [rax+0x78] becomes xor ecx, ecx), so every such job gets the null
     # the players' crash had.
@@ -1671,7 +1713,10 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
         # Full-screen passes that rebuild positions from the jittered scene depth get the jitter
         # too: the sun shadow pass, shared by the three games (its shadows flickered under TAA,
         # FSR and DLAA; Supermedo/uncharted_pc #261).
-        env.setdefault("GOW3_JITTER_PS", "f614041e")
+        # 4 Nov 2026: also Uncharted 1's boat details (b2a42acf) and Uncharted 3's London bar
+        # surfaces (1a08df2d), drawn against a secondary scene depth: unjittered they flickered
+        # under DLSS, FSR, XeSS and TAA.
+        env.setdefault("GOW3_JITTER_PS", "f614041e,b2a42acf,1a08df2d")
         env["GOW3_SCENE_SIZE"] = f"{render_size[0]}x{render_size[1]}"
         # FSR 4's model files (gow3_pc/tools/fetch_fsr4_assets.sh), when installed; DLAA needs
         # gow3_dlss.dll and nvngx_dlss.dll beside Uncharted.exe.
