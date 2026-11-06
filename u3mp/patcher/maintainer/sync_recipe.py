@@ -11,6 +11,7 @@ a known table.  The copy refuses files with game-data extensions (paks, archives
 """
 import fnmatch
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -74,6 +75,10 @@ def main():
                     sys.exit('refusing %s: game data or a binary in the recipe' % (rel / f))
                 if ext not in ALLOWED and f != 'VERSION':
                     sys.exit('unexpected file type %s (add it to ALLOWED after checking it)' % (rel / f))
+                # texture data in a text table (e.g. a "texels" hex string copied from a game pak) is game data too
+                if ext in ('.json', '.tsv', '.txt') and re.search(rb'"texels"\s*:\s*"[0-9a-fA-F]{256,}',
+                                                                  (Path(dp) / f).read_bytes()):
+                    sys.exit('refusing %s: it holds texture data from the game (make it on the player\'s PC)' % (rel / f))
                 key = (Path(part) / rel / f).as_posix()
                 if key in private:
                     out = extra / 'launcher-files' / 'u3mp' / 'patcher' / key

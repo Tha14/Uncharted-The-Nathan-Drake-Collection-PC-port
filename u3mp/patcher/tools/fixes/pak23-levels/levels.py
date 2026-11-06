@@ -91,7 +91,20 @@ def _pt_sources(ver):
                 m[os.path.relpath(s, r).replace(os.sep, '/')] = s
     m['data/conv_anim_actors.json'] = os.path.join(HERE, 'data', 'conv_anim_actors.json')
     m['data/ps4_anim_actors.json'] = anim_list()
+    ps4stage = m.get('stage/ps4stage.py')
+    if ps4stage and 'default_lightmaps.json' in open(ps4stage, encoding='utf-8', errors='replace').read():
+        m['stage/default_lightmaps.json'] = default_lightmaps()     # made from the player's PS4 copy, never shipped
     return sorted(m.items())
+
+
+def default_lightmaps():
+    """stage/default_lightmaps.json (the two retail default lightmap textures ps4stage binds to unlit props), extracted
+    from the user's retail PS4 pak23 by paktools/stage/make_default_lightmaps.py."""
+    out = os.path.join(TMP, 'default_lightmaps.json')
+    if not os.path.exists(out):
+        os.makedirs(TMP, exist_ok=True)
+        run([PY, os.path.join(PAKTOOLS, 'stage', 'make_default_lightmaps.py'), os.path.join(PS4MAIN, 'pak23', 'ps4'), out])
+    return out
 
 
 def _pt_manifest(files):
