@@ -11,7 +11,7 @@ State of 2026-11-05 (recipe 1.1.0; banks, text1, EULA, map-colors restored 11-05
 | overlay-r3 dc1 (281) + dc2 (3), overlay-r2 dc1 (16), overlay-port dc1 (3) | 303 | 6.4 | 303 (by recipe test) | (2026-11-05) All reproducible: `convert-dc1` converts 72 whole-file conversions exactly (+69 .dci; tools/dcconv/dcconv.py, layouts learned from the PS3/PS4 pairs); `dc-recipes` rebuilds the other 161 files byte for byte (the merged modules net.bin / menu.bin / modules.bin / medals / looks / scenes / vox* / weapon-* / net-always-loaded(.dci) / ss-coop-adv-fort / the 3 dc2 part modules, overlay-r2 and overlay-port net / medals / modules / render-settings, and the 80 conversions the converter misses, with their .dci) from provenance recipes (`tools/dcconv/dc-recipes.json.gz`, 1.25 MB): copy ops over the user's PS4 retail and PS3 1.19 modules (raw, 32-bit-swapped, 16-bit-swapped, opcode-renumbered) + the retail weapon actor paks for the skin material names, the pointer slots, and 5947 literal bytes in all (short string-id fragments). Sources are sha256-checked, outputs must hit the reference sha256; a different-region game copy whose modules differ would make a recipe refuse (it then reports which source). `skel-retargets.bin` = airport-igc3. The cloud merge scripts themselves (dcsynth/dcgraft2/dcmod4/ngconv2/netfix.py) remain lost: only fragments are in the 10-27 transcripts. dctools (common/dcedit/dcsyms, originals) and every session dctools step are verified 29/29 from their backups. |
 | overlay-r3 text1 | 66 | 12 | 66 | Merge rewritten 2026-11-05: `tools/fixes/text1-merge/merge_text1.py` (step `convert-text1`). Source of the PS3 strings is the disc `goty-patch.psarc` (`build/main/text1/`), not `text1.psarc`/`dlc-patch18`: 47 fixed keys replaced/added where they differ, in hash order, plus the helper message 0x4a93e6b9 "Your party does not have enough players..." appended to every `.common`. |
 | overlay-r3 vtex1 (eula) | 7 | 10 | 7 | 7 pages p1..p7 (not 6 + emblem). Source: the JPEGs BCES-EN-1..7 in the user's `DATA2/USRDIR/http-cache` (matched by sha256); Pillow flip + JPEG q95, ffmpeg lanczos mips, DXT5: `eula-batch/make_eula.py` (step `eula-pages`) reproduces all 7 byte for byte with Pillow 13.0.0 + ffmpeg 8.1.1; without ffmpeg equivalent. A user without the cached pages (never online in RPCS3) cannot build them. |
-| overlay-r3 pak23 | 328 | 3 864 | 1 + 200 rebuilt (+32 base, +85 equivalent; + 10 fix-step side files) | (2026-11-06, recipe 1.7.0) **identical** 130 rows + **base** 32 (= a recorded pre-batch or pre-session state; `cloud-batches-r3` and the session steps make the reference) + **equivalent** 85. New: the cloud batches 102 / h017c / 103 / h017co / h028 are replayed by step `cloud-batches-r3` from their original scripts (PC inbox), their PS3 textures regenerated from the user's PS3 paks; replayed on the 66 recorded pre-batch states every pak reaches its pre-session state. 15 more rows exact this session (templates/params/texsrc/<=64 flag bytes recovered against the earliest recorded state; h018 paks = option set U3_STAGE_LEVELINFO_PS3=1). Remaining 85: per-pak table below (lost batches 99..101m / n014, Borneo water code, 8 sky paks, and 59 large paks whose search did not run). |
+| overlay-r3 pak23 | 328 | 3 864 | 1 + 200 rebuilt (+36 base, +81 equivalent; + 10 fix-step side files) | (2026-11-06, recipe 1.7.0) **identical** 130 rows + **base** 36 (= a recorded pre-batch or pre-session state; `cloud-batches-r3` and the session steps make the reference) + **equivalent** 81. New: the cloud batches 102 / h017c / 103 / h017co / h028 are replayed by step `cloud-batches-r3` from their original scripts (PC inbox), their PS3 textures regenerated from the user's PS3 paks; replayed on the 66 recorded pre-batch states every pak reaches its pre-session state. 19 more rows exact this session (templates/params/texsrc/<=64 flag bytes recovered against the earliest recorded state; h018 paks = option set U3_STAGE_LEVELINFO_PS3=1). Remaining 81: per-pak table below (lost batches 99..101m / n014, Borneo water code, 8 sky paks, and 27 large paks whose search hit the 2 h limit). |
 | overlay-r2 pak23 / dc1 / actor33 | 476 | 2 277 | 295 pak23 (+131 equivalent) + 33 actor33 | pak23 (step `convert-levels-r2`): identical 173 -ingame12 (f525859 or git 003b433 / 7d45c1f), 88 empty, 22 killvis (vischeat), 12 BG (ldn-train-multi-tc01..06, sky paks: git 003b433). Equivalent: 121 BG + 10 ingame12 of the 10-27 04:50 pass, made by a converter between git 003b433 and f525859 (other geometry layout: e.g. ldn-streets-multi-wide 618 vs 679/734 RAW_DATA items, caps 256); every one of them is shadowed by an overlay-r3 file of the same name, so the game never loads them. actor33 (step `convert-actors-r3`, 2026-11-06): 33 of 33 identical. dc1: other agents. |
 | overlay-port pak23 / actor33 / dc1 | 843 | 1 096 | 138 pak23 (+1 base, +21 equivalent) + 680 actor33 | pak23 (step `convert-levels-port`): identical 76 -ingame12, 36 empty, 1 killvis, 24 BG (git 003b433 / 7d45c1f, first pass 10-26). 1.7.0: world-grave-mp-ingame12 identical with converter `tt1026` (the 10-26 _claude_transfer/tools ps4ingame/ps4writer/ndpak); gompa-multi-shade-npc-ingame12 = base (the backup-coop-audit state; shade-npc-paks makes the final). Equivalent: the 21 BG paks (all shadowed by r2/r3). actor33 (step `convert-actors-r3`, 2026-11-06): 680 of 680 identical (recipe test `--only actors-hk-tables,convert-actors-r3` + verify_output.py). dc1: other agents. |
 | overlay-r3 actor33 | 538 | 284 | 538 (284 by convert-actors-r3 alone, the rest with the later actor steps) | (2026-11-06) step `convert-actors-r3` (`tools/fixes/actor33/build_actors.py`, jobs.tsv 1092 rows, section actor33 below): 284 byte-identical directly + 91 pre-session states (status base) that the later steps `wall-emblem-actors`, `actor-materials` (37), `hat-colour` (81 installed), `airport-igc2` (2) and `emblem-cap3` replace with the reference files; the 2026-11-06 recipe test of those steps gave 536 of 538 with the last two (pirate-armor-a-full-mp, ruby-garuda) missing, both now identical too. Needs numpy, the Havok tables (step `actors-hk-tables`) and runs about 7 minutes. |
@@ -90,86 +90,86 @@ Cause classes of the remaining rows:
 
 | pak | status 2026-11-06 | rebuilt against | remaining cause |
 |---|---|---|---|
-| air-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| air-multi-shade | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| air-multi | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| air-multi-shade | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | air-multi-stage | base | backup-mapcolor2 | - |
 | air-multi-strip | equivalent | backup-excess | items differing RAW_DATA:1440,VRAM_DESC:90,EFFECT:35,EFFECT_TABLE:1 |
 | air-multi-wide | base | b103 | - |
-| cave-multi | equivalent | backup-london | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| cave-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| cha-multi | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| cha-multi-shade | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| cave-multi | equivalent | backup-london | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| cave-multi-stage | equivalent | h028-backup | searched, no output kept |
+| cha-multi | equivalent | h017co-backup | searched, no output kept |
+| cha-multi-shade | equivalent | h017co-backup | searched, no output kept |
 | cha-multi-stage | base | backup-mapcolor2 | - |
-| coop-airport-2 | equivalent | backup-london | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| coop-airport-3a | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| coop-airport-2 | equivalent | backup-london | searched, no output kept |
+| coop-airport-3a | equivalent | h028-backup | searched, no output kept |
 | coop-airport-3b-low | identical | final | - |
 | coop-airport-stage | equivalent | h028-backup | size+26128 / pages 11/12 (appended page) / ref-only tex 1 (flat-white.tga) / bindings differ: 1 (ceiling-b-multi:default) |
-| coop-ldn-library-inner | equivalent | backup-london | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| coop-ldn-station-entrance-outside | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| coop-syria-area1 | equivalent | backup-london | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| coop-syria-area2 | equivalent | backup-london | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| coop-ldn-library-inner | equivalent | backup-london | searched, no output kept |
+| coop-ldn-station-entrance-outside | equivalent | h028-backup | searched, no output kept |
+| coop-syria-area1 | equivalent | backup-london | searched, no output kept |
+| coop-syria-area2 | equivalent | backup-london | searched, no output kept |
 | coop-syria-area2-top | identical | final | - |
 | coop-syria-turret2 | base | b103 | - |
-| desert-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| dig-coop-approach | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| desert-multi | equivalent | b102 | searched, no output kept |
+| dig-coop-approach | equivalent | b102 | searched, no output kept |
 | dig-coop-approach-water | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost): size+634080 / ref-only tex 6 (dig-algea-01-color.tga, dig-algea-01-mask.tga, dig-ship-water-01-normal.tga, horse-chase-c |
 | dig-coop-approach-water-ss | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
-| dig-coop-dropdown | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| dig-coop-dropdown | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | dig-coop-dropdown-water | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
 | dig-coop-dropdown-water-ss | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
-| dig-coop-ship | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| dig-coop-ship | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | dig-coop-ship-water | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
 | dig-coop-ship-water-ss | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
 | dig-coop-stage | equivalent | b102 | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost): size+242136 / ref-only tex 3 (dig-ship-water-01-normal.tga, horse-chase-canyon-env-reflection.dds, waterbump-ripplesB-no |
-| facility-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| facility-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| facility-multi | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| facility-multi-stage | equivalent | h028-backup | searched, no output kept |
 | facility-multi-wide | equivalent | b103 | size-64 |
-| fort-coop-cistern | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| fort-coop-courtyard | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| fort-coop-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| fort-coop-tower | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| fort-coop-cistern | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| fort-coop-courtyard | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| fort-coop-stage | equivalent | h028-backup | searched, no output kept |
+| fort-coop-tower | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | fort-coop-tower-wide | equivalent | h028-backup | size+96 |
-| fort-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| fort-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| fort-multi | equivalent | b102 | searched, no output kept |
+| fort-multi-stage | equivalent | h028-backup | searched, no output kept |
 | fort-multi-wide | equivalent | final | size-64 |
-| gompa-multi | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| gompa-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| gompa-multi | equivalent | h028-backup | searched, no output kept |
+| gompa-multi-stage | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | gompa-multi-wide | identical | - | - |
-| grave-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| grave-multi-moving | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| grave-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| grave-multi-moving | equivalent | h028-backup | searched, no output kept |
 | grave-multi-stage | equivalent | final | items differing RAW_DATA:409,VRAM_DESC:59,EFFECT:13,EFFECT_TABLE:1 |
-| grave-multi-wide | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| graveyard-drydock-anniversary | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| grave-multi-wide | equivalent | b103 | searched, no output kept |
+| graveyard-drydock-anniversary | base | h017co-backup | - |
 | graveyard-drydock-wide | identical | final | - |
-| highrise-multi | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| highrise-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| highrise-multi | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| highrise-multi-stage | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | highrise-multi-wide | equivalent | final | items differing RAW_DATA:582,VRAM_DESC:44,EFFECT:13,EFFECT_TABLE:1 |
-| ldn-streets-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| ldn-streets-multi-stage | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| ldn-streets-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| ldn-streets-multi-stage | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | ldn-streets-multi-wide | base | - | - |
-| ldn-train-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| ldn-train-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | ldn-train-multi-tunnel | base | backup-london | - |
 | ldn-train-multi-tunnel-2 | base | backup-london | - |
-| mon-coop-church | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| mon-coop-cloister | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| mon-coop-courtyard | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| mon-coop-front | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| mon-coop-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| museum-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| museum-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| mon-coop-church | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| mon-coop-cloister | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| mon-coop-courtyard | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| mon-coop-front | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| mon-coop-stage | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| museum-multi | equivalent | b103 | searched, no output kept |
+| museum-multi-stage | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | museum-multi-wide | equivalent | h028-backup | size-80 |
-| oasis-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| oasis-multi-stage | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| oasis-multi | equivalent | b103 | searched, no output kept |
+| oasis-multi-stage | equivalent | b103 | searched, no output kept |
 | oasis-multi-wide | equivalent | b102 | searched, no output kept |
-| old-quarter-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| old-quarter-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | old-quarter-multi-stage | base | backup-london | - |
-| ruins-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| ruins-multi-stage | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| ruins-multi | equivalent | b102 | searched, no output kept |
+| ruins-multi-stage | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | ruins-multi-wide | base | - | - |
 | san-upper-multi-stage | equivalent | final | size+2379952 / ref-only tex 6 (ammobox-2-brownpaint-wood-spec-mask.tga, ammobox-3-blue-02-spec-mask.tga, detail-normal.tga, missingtexture, table-top-d-env-refeletion.dds, wt-spec-mask.tga) / template |
 | sham-multi-wide | identical | - | - |
-| shambhala-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| shambhala-multi-stage | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| shambhala-multi | equivalent | b103 | searched, no output kept |
+| shambhala-multi-stage | base | b103 | - |
 | sky-drydock | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+6072 / ref-only tex 1 (sky-grave-03-docks-reflection-color.tga) / bindings differ: 1 (sky-drydock-special:default)) |
 | sky-fort-coop-b | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+84136 / ref-only tex 1 (sky-fort-multi-reflection.tga) / our-only tex 4 / template/features differ: 1 (sky-fort-coop-b:default)) |
 | sky-fort-multi | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+138352 / ref-only tex 5 (default-mask.tga, sky-fort-multi-reflection.tga, sky-grave-cloud-fade-mask.tga, sky-syria-cloud-a-mask.tga, sky-village-) |
@@ -178,17 +178,17 @@ Cause classes of the remaining rows:
 | sky-ldn-streets-multi | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+61440) |
 | sky-oasis-multi | equivalent | final | sky template bindings of a sky converter not in any recorded version (size-1435952 / ref-only tex 4 (sky-horse-chase-color-reflection.tga, sky-horse-chase-flow-mask.tga, sky-horse-chase-flow.tga, sky-horse-chase-mask.tga) |
 | sky-yemen-mp | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+453248 / ref-only tex 4 (sky-village-pre-cloud-a-color.tga, sky-village-pre-old-cloud-a-fade-mask.tga, sky-village-pre-old-cloud-a-mask.tga, sky-) |
-| syria-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| temple-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| temple-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| train-wreck-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| train-wreck-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| village-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| village-multi-stage | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| warzone-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| warzone-multi-stage | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| yemen-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
-| yemen-multi-stage | equivalent | b102 | items differing RAW_DATA:15,EFFECT:3,EFFECT_TABLE:1 |
+| syria-multi | equivalent | b103 | searched, no output kept |
+| temple-multi | equivalent | b103 | searched, no output kept |
+| temple-multi-stage | base | h028-backup | - |
+| train-wreck-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| train-wreck-multi-stage | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| village-multi | equivalent | b102 | searched, no output kept |
+| village-multi-stage | equivalent | b102 | searched, no output kept |
+| warzone-multi | equivalent | b102 | searched, no output kept |
+| warzone-multi-stage | equivalent | b102 | searched, no output kept |
+| yemen-multi | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| yemen-multi-stage | base | b102 | - |
 | yemen-multi-wide | base | b102 | - |
 
 ### Session steps on level paks (1.7.0)

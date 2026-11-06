@@ -1,0 +1,136 @@
+{
+ "bytes": {
+  "4773681": [
+   1,
+   0
+  ]
+ },
+ "params": {
+  "levels/multiplayer/temple/basket/straw/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/temple/ground/tmp-pavestones-to-dirt-lm/tmp-trap-floor": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/temple/metal/tmp-metal-gold-dish-03/war-metal-bronz": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/temple/metal/tmp-metal-gold-dish-alt/war-metal-bronz": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/multiplayer/temple/basket/straw/default": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/courtyard/war-c-big-rubble-low/gravel": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/crates/crate-wood/long": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/debris/monastery-candle/default": [
+   "airport-3a-low.pak",
+   "levels/airport/windows/air-yem-windows-hangar-inc:default,e79cd27b-e02c-e290-aad2-e2d0458291c6,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/fabric/war-rug001/rug02": [
+   "syria-comp-wide.pak",
+   "levels/syria/trees/syria-deadtrees:default,a76b953f-59a4-4c5e-a4e2-7707df4c60d0,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/metal/chintimani-stone-metal/conch-symbol-metal": [
+   "col-rooftops-interior.pak",
+   "levels/warzone/metal/war-metal-bronz-copper-gold-dish:war-metal-bronz,404d0cc1-b631-4a3e-b1cf-5b74ace21230,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/metal/chintimani-stone-metal/fishes-metal-symbol": [
+   "ldn-pub.pak",
+   "levels/london/pub/ldn-pub-bar-parts:rename,3b047d84-ffb8-470a-a3fc-8c1ad5bc9549,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/metal/tmp-chain-curtain/default": [
+   "syria-comp-wide.pak",
+   "levels/syria/trees/syria-deadtrees:default,a76b953f-59a4-4c5e-a4e2-7707df4c60d0,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/metal/tmp-metal-gold-dish-03/war-metal-bronz": [
+   "grave-01-firstyard-yard-1.pak",
+   "levels/ship-graveyard/edgegrab/grave-hull-blue-tugboa:panels000-grey,96c8831b-b095-4134-9f52-f4c0336b124d,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/metal/tmp-metal-gold-dish-alt/war-metal-bronz": [
+   "grave-01-firstyard-yard-1.pak",
+   "levels/ship-graveyard/edgegrab/grave-hull-blue-tugboa:panels000-grey,96c8831b-b095-4134-9f52-f4c0336b124d,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/metal/tmp-metal-gold-dish/war-metal-bronz": [
+   "ldn-pub.pak",
+   "levels/london/metal/ldn-metal-silver:rename,e5138a7c-30ad-4f42-8f39-a9b0060111d1,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/stone/tmp-stone-column-to-drk/tmp-pillar-stone": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/stone/tmp-stone-column-to-drk/tmp-pillar-stone-creature": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/walls/tmp-stonewall-blend/tmp-brick-long": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/wood/tmp-lattice/default": [
+   "col-museum-interior.pak",
+   "levels/columbia/museum/col-ornate-objects:yem-ornate-objects-01,9c18e539-3fc1-4d03-bfc5-3a95da39823b,prime-shader.fx"
+  ],
+  "levels/multiplayer/temple/wood/tmp-woodfloor-lm/default-copy": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/syria/wood/syria-stage-green-wood-paint/default": [
+   "yem-intro-rock-building-low.pak",
+   "levels/yemen/test/yem-darkwood:gompa-wood-blend-01,c736677c-1889-4997-bc13-07e7fe8bff22,prime-shader.fx"
+  ],
+  "objects/weapons/hk416/hk416/default": [
+   "yem-intro-temple-entrance-2.pak",
+   "levels/yemen/window/yem-lattice-a:default,ca0adc88-efcd-4bd4-a5d9-8b793814a4ef,prime-shader.fx"
+  ],
+  "objects/weapons/hk416/hk416/fma": [
+   "yem-intro-temple-entrance-2.pak",
+   "levels/yemen/window/yem-lattice-a:default,ca0adc88-efcd-4bd4-a5d9-8b793814a4ef,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/general/textures/default/default-flat-normal.tga": "ldn-train-stage.pak",
+  "art/general/textures/default/detail-normal.tga": "ldn-train-stage.pak",
+  "art/levels/ship-graveyard/textures/hull/grave-wet-128dxt1-env-reflection.dds": "grave-01-firstyard-yard-1.pak",
+  "art/objects/weapons/galil/texture/galil-body-color.tga": "ldn-train-stage.pak",
+  "art/objects/weapons/galil/texture/galil-body-normal.tga": "ldn-train-stage.pak",
+  "art/objects/weapons/galil/texture/galil-body-spec-mask.tga": "ldn-train-stage.pak"
+ }
+}

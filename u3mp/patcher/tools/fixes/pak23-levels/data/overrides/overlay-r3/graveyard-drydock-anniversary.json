@@ -1,0 +1,72 @@
+{
+ "params": {
+  "general/rainblocker/shadowblocker": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_detailStrength1": [
+    0.15000000596046448
+   ],
+   "g_specularBrightness": [
+    5.0
+   ],
+   "g_specularEnvironmentStrength": [
+    4.0
+   ],
+   "g_specularExponentMax": [
+    216.0
+   ],
+   "g_specularMetalness": [
+    0.699999988079071
+   ],
+   "g_uvScale2": [
+    1.0
+   ]
+  },
+  "levels/ship-graveyard/multiplayer/floor/grave-panels-ripples-multi-handrail/frame": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/ship-graveyard/multiplayer/machine/grave-roof-multi/red-crane-base": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "general/rainblocker/shadowblocker": [
+   "grave-01-freighter-section-2.pak",
+   "levels/ship-graveyard/cargohold/grave-cornerplate:default,3dac8400-f5ca-48a0-ab34-9401c7d89eee,prime-shader.fx"
+  ],
+  "levels/ship-graveyard/multiplayer/floor/grave-floor-paw-grip-scroll-multi/paw-grip": [
+   "grave-pirate-ship-e-low.pak",
+   "levels/ship-graveyard/pirate-ship/grave-panels-yellow-a-scroll:cabinwall2rust-a,7b298aa9-a53f-4672-80b7-44be28328c16,prime-shader.fx"
+  ],
+  "levels/ship-graveyard/multiplayer/floor/grave-panels-multi-2/pawgrip": [
+   "grave-02-hollowhulk-hold-1.pak",
+   "levels/ship-graveyard/multiplayer/wreck/grave-panels-wet-multi2:metal-hull-wet-faded-white,300efdb1-63ed-4f58-a6b3-3b58f570fb68,prime-shader.fx"
+  ],
+  "levels/ship-graveyard/multiplayer/floor/grave-panels-ripples-multi-handrail/frame": [
+   "grave-02-hollowhulk-hold-1.pak",
+   "levels/ship-graveyard/multiplayer/wreck/grave-panels-wet-multi2:metal-hull-wet-faded-white,300efdb1-63ed-4f58-a6b3-3b58f570fb68,prime-shader.fx"
+  ],
+  "levels/ship-graveyard/multiplayer/machine/grave-roof-multi/red-crane-base": [
+   "grave-02-hollowhulk-hold-1.pak",
+   "levels/ship-graveyard/multiplayer/wreck/grave-panels-wet-multi2:metal-hull-wet-faded-white,300efdb1-63ed-4f58-a6b3-3b58f570fb68,prime-shader.fx"
+  ],
+  "levels/ship-graveyard/multiplayer/machine/grave-tower-ctrl-panels/panels-4": [
+   "grave-01-freighter-section-2.pak",
+   "levels/ship-graveyard/cargohold/grave-ibeam-darker:default,b437d7ba-db30-4abe-aecc-7d636bca2eb8,prime-shader.fx"
+  ]
+ }
+}

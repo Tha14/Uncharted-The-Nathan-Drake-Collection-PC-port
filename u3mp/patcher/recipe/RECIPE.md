@@ -54,7 +54,7 @@ the steps that say so (`--list`, `needs`).
 | overlay-mp `vtex1/ps4` | 882 | 124 | byte copies of PS3 UI textures: 710 loose `build/main/vtex1`, 134 `dlc-patch13`, 11 `dlc-patch18`, 25 `goty-patch`, 2 `lab-trench-v1-7` | 882 match |
 | overlay-r3 `sound1/streams` | 11 980 | 379 | byte copies: 11 637 `english-mp.psarc`, 79 `goty-speech-english.psarc`, 65 `goty-dlc.psarc`, 199 PS4 `u2data` streams | 11 980 match |
 | overlay-r3 `sound1/banks` | 128 | 167 | 4 retail copies; 124 PS3 banks converted by `sound-banks/convert_banks.py` | 128 match |
-| overlay-r3 `pak23/ps4` | 328 | 3 864 | stage pipeline conversions (cloud) + 10 session fixes; rebuilt by `pak23-levels` (plan.tsv) | 1 + 200 match, 32 base (= recorded pre-batch / pre-session state; step cloud-batches-r3 replays the 10-30 cloud batches), 85 equivalent |
+| overlay-r3 `pak23/ps4` | 328 | 3 864 | stage pipeline conversions (cloud) + 10 session fixes; rebuilt by `pak23-levels` (plan.tsv) | 1 + 200 match, 36 base (= recorded pre-batch / pre-session state; step cloud-batches-r3 replays the 10-30 cloud batches), 81 equivalent |
 | overlay-r3 `actor33/ps4` | 538 | 284 | ps4actor conversions (cloud) + 5 session rebuild batches | 0 |
 | overlay-r3 `dc1/ps4` | 281 | 6 | DC conversions (cloud) + 9 session edits; `skel-retargets.bin` from retail | 1 match + 72 by `convert-dc1` (tools/dcconv); the dctools edit steps reproduce every checkpoint exactly once the converted net.bin / menu.bin / modules.bin base exists (that base, the cloud "netfix" merge, is still missing) |
 | overlay-r3 `text1/ps4` | 66 | 12 | PS4 text banks + goty-patch MP strings, `text1-merge/merge_text1.py` | 66 match |
