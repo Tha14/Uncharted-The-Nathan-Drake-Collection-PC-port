@@ -1,0 +1,78 @@
+{
+ "params": {
+  "levels/multiplayer/ruins/wide/ruins-black-plaster2eroded-brick-wide/ruins-black-plaster2eroded-brick": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/wide/ruins-m-wide-mountain-range/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/wide/ruins-m-wide-mountains/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/wide/ruins-moss-waterline-fade2plaster-wide/ruins-moss-waterline-fade2plaster": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/wide/ruins-wood-pannel-wide/ruins-wood-pannel": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/multiplayer/ruins/ground/ruins-m-lava-flow-new/surface_rivermtl": [
+   "cruise-ship-upright-deck-cargo-lod.pak",
+   "levels/cruise-ship/metal/ship-walkway-metal-walls-dark2:default,002a971c-bd23-4d45-91c8-731e7a4d6fe4,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/wide/ruins-m-wide-mountain-range/default": [
+   "col-museum-low.pak",
+   "levels/test/teagan/col-plaster-edge-grab:default,71020d61-c18c-4f1a-9154-146511d0d6ed,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/wide/ruins-roof-tiles-wide/ruins-roof-tiles-no-offset": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/wide/ruins-wood-pannel-wide/ruins-wood-pannel": [
+   "col-museum-low.pak",
+   "levels/test/teagan/col-plaster-edge-grab:default,71020d61-c18c-4f1a-9154-146511d0d6ed,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/general/textures/default/default-lightmap0.tga": "cha-forest-start-low.pak",
+  "art/general/textures/default/default-lightmap1.tga": "cha-forest-crawl.pak"
+ }
+}

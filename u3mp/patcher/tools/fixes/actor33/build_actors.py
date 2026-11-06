@@ -73,7 +73,14 @@ def extract(src, name, cache={}):
         cache['open'][p] = (a, {os.path.basename(x): i for i, x in enumerate(a.names)})
     a, ix = cache['open'][p]
     os.makedirs(d, exist_ok=True)
-    open(f + '.tmp', 'wb').write(a.read(ix[nm] + 1)); os.replace(f + '.tmp', f)
+    tmp = '%s.%d.tmp' % (f, os.getpid())
+    open(tmp, 'wb').write(a.read(ix[nm] + 1))
+    try:
+        os.replace(tmp, f)
+    except OSError:                     # another --jobs process installed the same extract first
+        if not os.path.exists(f):
+            raise
+        os.remove(tmp)
     return f
 
 
@@ -206,6 +213,8 @@ def build(r, workers):
             env[k] = v
         if '_rename' in env:                    # ps4actor --rename (art group renamed to the overlay name)
             kw['rename'] = env.pop('_rename')
+        if '_skel' in env:                      # ps4actor --skel-template (assetbatch opt skel=): skeleton from that retail pak
+            kw['skel_tmpl'] = os.path.join(RET, env.pop('_skel') + '.pak')
         job.update(tmpl=template(r['template'], '|solo' in r['post']), kw=kw, env=env,
                    post=[p for p in r['post'].split('|')[0].split('+') if p])
     res = w.run(job)
@@ -228,12 +237,26 @@ def stm_dir():
     return d
 
 
+_WORKERS = {}
+
+
+def _build_job(k_r):
+    """process-pool entry (--jobs): one row, with this process's own per-toolset Workers"""
+    k, r = k_r
+    try:
+        return k, build(r, _WORKERS), None
+    except Exception as ex:
+        return k, None, str(ex)[:200]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--apply', action='store_true')
     ap.add_argument('--overlays', default='port,r2,r3,mp')
     ap.add_argument('--only', default='')
     ap.add_argument('--allow-equivalent', action='store_true')
+    ap.add_argument('--jobs', type=int, default=os.cpu_count() or 1,
+                    help='parallel build processes (default: all cores); installs stay in jobs.tsv order')
     a = ap.parse_args()
     ovs = {OVL[x] for x in a.overlays.split(',')}
     only = {x if x.endswith('.pak') else x + '.pak' for x in a.only.split(',') if x}
@@ -253,6 +276,7 @@ def main():
                     open(os.path.join(td, 'data', k), 'w').write('{}')   # stub: own-skeleton props with collision fail
     workers = {}
     t0 = time.time(); c = dict(same=0, installed=0, built_diff=0, fail=0, skipped=0)
+    todo = []                       # (index, row, dst) still to build
     for r in rows:
         sub = 'pak23' if r['method'] == 'convert_net' else 'actor33'
         dst = os.path.join(WORK, r['overlay'], 'u3data', 'build', 'main', sub, 'ps4', r['name'])
@@ -262,10 +286,37 @@ def main():
             c['same'] += 1; continue          # a later recipe step owns this file now
         if r['status'] not in ('identical', 'base') and not a.allow_equivalent:
             c['skipped'] += 1; print('skip (%s)' % r['status'], r['overlay'], r['name']); continue
-        try:
-            out = build(r, workers)
-        except Exception as ex:
-            c['fail'] += 1; print('FAIL', r['overlay'], r['name'], str(ex)[:200], flush=True); continue
+        todo.append((len(todo), r, dst))
+    # build: ps4actor / anim / rename rows in a process pool (each process keeps its own Workers; rows grouped by
+    # toolset so a process mostly needs one); wpnmods / convert_net / lab rows (own subprocesses, shared temp dirs)
+    # and the one-time setups (animstream extract, Lab sources) run here first. Results are installed below in
+    # jobs.tsv order, so the output does not depend on --jobs.
+    results = {}
+    par = [(k, r) for k, r, _d in todo if r['method'] not in ('wpnmods', 'convert_net', 'lab')]
+    if any('stm' in r['mode'] for _k, r in par if r['method'] == 'anim'):
+        stm_dir()
+    for k, r, _d in todo:
+        if (k, r) not in par:
+            try:
+                results[k] = (build(r, workers), None)
+            except Exception as ex:
+                results[k] = (None, str(ex)[:200])
+    if a.jobs > 1 and len(par) > 1:
+        from concurrent.futures import ProcessPoolExecutor
+        par.sort(key=lambda kr: (kr[1]['toolset'], kr[0]))
+        with ProcessPoolExecutor(max_workers=min(a.jobs, len(par))) as ex:
+            for k, out, err in ex.map(_build_job, par, chunksize=max(1, min(16, len(par) // (4 * a.jobs) or 1))):
+                results[k] = (out, err)
+    else:
+        for k, r in par:
+            try:
+                results[k] = (build(r, workers), None)
+            except Exception as ex:
+                results[k] = (None, str(ex)[:200])
+    for k, r, dst in todo:
+        out, err = results[k]
+        if err is not None:
+            c['fail'] += 1; print('FAIL', r['overlay'], r['name'], err, flush=True); continue
         h = sha(out)
         if h != r['sha256'] and r['status'] in ('identical', 'base'):
             c['built_diff'] += 1; print('DIFF', r['overlay'], r['name'], h[:16], '!=', r['sha256'][:16], flush=True); continue

@@ -1,0 +1,96 @@
+{
+ "bytes": {
+  "7858209": [
+   1,
+   0
+  ],
+  "7858449": [
+   1,
+   0
+  ],
+  "7859489": [
+   1,
+   0
+  ],
+  "7859809": [
+   1,
+   0
+  ],
+  "7860369": [
+   1,
+   0
+  ],
+  "7863009": [
+   1,
+   0
+  ],
+  "7863169": [
+   1,
+   0
+  ],
+  "7863329": [
+   1,
+   0
+  ],
+  "7863649": [
+   1,
+   0
+  ],
+  "7864209": [
+   1,
+   0
+  ],
+  "7865089": [
+   1,
+   0
+  ],
+  "7867810": [
+   0,
+   1
+  ],
+  "7867812": [
+   0,
+   1
+  ],
+  "7867813": [
+   0,
+   1
+  ]
+ },
+ "templates": {
+  "levels/cruise-ship/misc/ship-banner-upright/default": [
+   "cruise-ship-90-walkway.pak",
+   "levels/cruise-ship/metal/ship-walkway-metal-walls-rings:default,b301ea3e-b879-48ac-bbb5-8618e9be35ce,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/levels/cruise-ship/textures/glass/ship-glass-distortion-detail-normal.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/glass/ship-walkway-glass-inside-color.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/glass/ship-walkway-glass-inside-height.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/glass/ship-walkway-glass-inside-trans.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/glass/ship-walkway-glass-outside-color.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/ground/ship-ballroom-carpet-floorpattern-color.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/ground/ship-ballroom-carpet-floorpattern-normal.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/ground/ship-deck-floor-color.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/metal/ship-metal-brass-color.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/metal/ship-rust-deep-color.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/metal/ship-walkway-railing-color.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/misc/ship-ballroom-128.dds": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/misc/ship-barnacles-color.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/misc/ship-barnacles-normal.tga": "cruise-ship-180-bow-bg.pak",
+  "art/levels/cruise-ship/textures/misc/ship-default-128-env-reflection.dds": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/misc/ship-hull-goldstripe-color.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/misc/ship-light-tall-card-color.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/misc/ship-light-tall-card-mask.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/misc/ship-light-tall-card-trans.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/misc/ship-misc-detail.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/misc/ship-spec-med.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/misc/ship-walkway-scratch-color.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/misc/ship-walkway-scratch-control-mask.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/misc/ship-walkway-scratch-normal.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/object/ship-hull-windows-color.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/object/ship-hull-windows-incandescent.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/wood/ship-ballroom-wood-base-mold-color.tga": "cruise-ship-hull.pak",
+  "art/levels/cruise-ship/textures/wood/ship-ballroom-wood-base2-color.tga": "cruise-ship-hull.pak"
+ }
+}

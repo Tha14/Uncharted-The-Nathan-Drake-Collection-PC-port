@@ -1,0 +1,139 @@
+{
+ "params": {
+  "levels/multiplayer/london-multi/wide/ldn-thames-water-reflection-multi/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/london-multi/wide/ldn-wide-building-med-multi/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/london-multi/wide/ldn-wide-building-short-multi/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness4": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint4": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintFalloff4": [
+    0.15000000596046448
+   ],
+   "g_facingTintOut4": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_flowTimeIntervalInSecs": [
+    5.809999942779541
+   ],
+   "g_flowUvScrollDistance": [
+    0.6000000238418579
+   ],
+   "g_fresnelExponent": [
+    3.065000057220459
+   ],
+   "g_fresnelIncidenceAng0Amt": [
+    0.3230000138282776
+   ],
+   "g_fresnelIncidenceAng90Amt": [
+    0.4410000145435333
+   ],
+   "g_specularEnvironmentStrength": [
+    1.350000023841858
+   ],
+   "g_timeScrollU1": [
+    0.0
+   ],
+   "g_timeScrollU3": [
+    0.0
+   ],
+   "g_timeScrollV1": [
+    0.0
+   ],
+   "g_timeScrollV3": [
+    0.0
+   ],
+   "g_uvScale1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/london-multi/wide/ldn-wide-building-tall-multi/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/london-multi/wide/ldn-wide-house-row-multi/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/london-multi/wide/ldn-wide-tower-bridge-multi/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/london-multi/wide/ldn-wide-tower-bridge-solid-multi/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/multiplayer/london-multi/wide/ldn-thames-water-multi/default": [
+   "ldn-wide-city.pak",
+   "levels/london/wide/ldn-thames-water:default,5ff9e0fd-f872-477b-83bd-10bbd8492c62,prime-shader.fx"
+  ],
+  "levels/multiplayer/london-multi/wide/ldn-wide-building-iconic-multi/default": [
+   "menu-default.pak",
+   "general/layout-textures/gen-gray-03:default,c0dc61df-6543-0033-356a-08fdc611,prime-shader.fx"
+  ],
+  "levels/multiplayer/london-multi/wide/ldn-wide-building-med-multi/default": [
+   "yem-chase-alleys.pak",
+   "levels/yemen/test/interiors/yem-int-wall-stucco:default,8c312927-802a-495f-a1b1-0591e89c04ec,prime-shader.fx"
+  ],
+  "levels/multiplayer/london-multi/wide/ldn-wide-building-short-multi/default": [
+   "ldn-wide-city.pak",
+   "levels/london/wide/ldn-thames-water:default,5ff9e0fd-f872-477b-83bd-10bbd8492c62,prime-shader.fx"
+  ],
+  "levels/multiplayer/london-multi/wide/ldn-wide-building-tall-multi/default": [
+   "yem-chase-alleys.pak",
+   "levels/yemen/test/interiors/yem-int-wall-stucco:default,8c312927-802a-495f-a1b1-0591e89c04ec,prime-shader.fx"
+  ],
+  "levels/multiplayer/london-multi/wide/ldn-wide-house-row-multi/default": [
+   "yem-chase-alleys.pak",
+   "levels/yemen/test/interiors/yem-int-wall-stucco:default,8c312927-802a-495f-a1b1-0591e89c04ec,prime-shader.fx"
+  ],
+  "levels/multiplayer/london-multi/wide/ldn-wide-tower-bridge-multi/default": [
+   "yem-chase-alleys.pak",
+   "levels/yemen/test/interiors/yem-int-wall-stucco:default,8c312927-802a-495f-a1b1-0591e89c04ec,prime-shader.fx"
+  ],
+  "levels/multiplayer/london-multi/wide/ldn-wide-trees-multi/default": [
+   "yem-chase-alleys.pak",
+   "levels/yemen/test/interiors/yem-int-wall-stucco:default,8c312927-802a-495f-a1b1-0591e89c04ec,prime-shader.fx"
+  ]
+ }
+}

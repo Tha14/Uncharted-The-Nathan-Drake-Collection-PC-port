@@ -1,0 +1,187 @@
+{
+ "bytes": {
+  "10248433": [
+   1,
+   0
+  ],
+  "10248513": [
+   1,
+   0
+  ],
+  "10248593": [
+   1,
+   0
+  ],
+  "10248673": [
+   1,
+   0
+  ],
+  "10248753": [
+   1,
+   0
+  ],
+  "10248833": [
+   1,
+   0
+  ],
+  "10248913": [
+   1,
+   0
+  ],
+  "10248993": [
+   1,
+   0
+  ],
+  "10249073": [
+   1,
+   0
+  ],
+  "10249153": [
+   1,
+   0
+  ],
+  "10249233": [
+   1,
+   0
+  ],
+  "10249313": [
+   1,
+   0
+  ],
+  "10249393": [
+   1,
+   0
+  ]
+ },
+ "params": {
+  "levels/yemen/wide/yem-wide-car-orange-pickup/default": {
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/yemen/wide/yem-wide-car-white/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/yemen/wide/yem-wide-markets/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/yemen/wide/yem-wide-wall/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/yemen/wide/yem-wide-wood/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/yemen/wide/yem-wide-buildings/new-texture-set": [
+   "yem-intro-rock-building-low.pak",
+   "levels/yemen/wood/yem-woodstripped-02:default,758c9fa8-faf3-42a3-ada7-bfd5bd853705,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-car-orange-pickup/default": [
+   "ldn-pub-office.pak",
+   "levels/london/pub/ldn-pub-ceiling-bar:default,d7113565-0cc7-4883-961b-6362ec5aecaf,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-car-white/default": [
+   "ldn-pub-office.pak",
+   "levels/london/pub/ldn-pub-ceiling-bar:default,d7113565-0cc7-4883-961b-6362ec5aecaf,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-ground/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/walls/concrete/ug-concrete-cracked-dark:default,b7c5201d-f58c-455f-a27c-723bdfbef575,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-markets/default": [
+   "ldn-pub-office.pak",
+   "levels/london/pub/ldn-pub-ceiling-bar:default,d7113565-0cc7-4883-961b-6362ec5aecaf,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-mountain-close/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-mountain-distant-grass/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-mountain-hires-grass/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-mountain-hires/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-mountain/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-sand/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/walls/concrete/ug-concrete-cracked-dark:default,b7c5201d-f58c-455f-a27c-723bdfbef575,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-tree-leafy-greener/default": [
+   "airport-wide.pak",
+   "levels/airport/plants/air-shrubs-med-dead-2:default,09ecab14-eace-4f67-865a-d04bd1d0429d,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-tree-leafy/default": [
+   "syria-area2-low.pak",
+   "levels/dig/plants/dig-plant-leaf-no-normal:type-bush,8b01f63b-2f02-43fb-809e-5bb2bb764ef3,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-wall-2/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-wall/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-wood/default": [
+   "ldn-pub-office.pak",
+   "levels/london/pub/ldn-pub-ceiling-bar:default,d7113565-0cc7-4883-961b-6362ec5aecaf,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/levels/yemen/textures/ground/yem-asphalt01-blend.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/ground/yem-asphalt01-color.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/ground/yem-asphalt01-normal.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/ground/yem-dirt-01-color.tga": "yem-chase-alleys.pak",
+  "art/levels/yemen/textures/ground/yem-dirt-01-normal.tga": "yem-chase-alleys.pak",
+  "art/levels/yemen/textures/ground/yem-dirtfloor-01-blend.tga": "yem-chase-alley-roofs.pak",
+  "art/levels/yemen/textures/ground/yem-dirtfloor-01-normal.tga": "san-streets-tripout.pak",
+  "art/levels/yemen/textures/walls/yem-stucco-05-color.tga": "yem-chase-alleys.pak"
+ }
+}

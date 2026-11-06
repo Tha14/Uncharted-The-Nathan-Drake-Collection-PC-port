@@ -7,9 +7,22 @@
  "needs": [
   "ps3_disc",
   "ps4",
-  "python:numpy"
+  "python:numpy",
+  "ps3_update"
  ],
  "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/mk_p3idx.py"
+  ],
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/survey_ov.py"
+  ],
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/detect.py"
+  ],
   [
    "{{PYTHON}}",
    "{{JOB}}/apply_mapcolor2.py",
@@ -21,5 +34,7 @@
  ],
  "status": "needs-converted-base",
  "applied": "2026-11-01 23:31 / 11-02 00:11 (backup-mapcolor2)",
- "recipe_version_added": "1.0.0"
+ "recipe_version_added": "1.0.0",
+ "notes": "1.7.0: mk_p3idx.py builds the PS3 archive index p3idx.pkl (the session cached it in scratch). survey_ov.py + detect.py regenerate ov.jsonl.gz / rows.jsonl (the session inputs) from the overlay state before this step and the PS3 paks.",
+ "recipe_version_changed": "1.7.0"
 }

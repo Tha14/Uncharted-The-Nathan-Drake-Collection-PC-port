@@ -1,0 +1,302 @@
+{
+ "bytes": {
+  "6414976": [
+   143,
+   106
+  ],
+  "6414977": [
+   129,
+   153
+  ],
+  "6414978": [
+   1,
+   102
+  ],
+  "6414979": [
+   64,
+   60
+  ],
+  "6414980": [
+   67,
+   127
+  ],
+  "6414981": [
+   45,
+   93
+  ],
+  "6414982": [
+   20,
+   52
+  ],
+  "6414983": [
+   81,
+   168
+  ],
+  "6414984": [
+   54,
+   202
+  ],
+  "6414985": [
+   24,
+   233
+  ],
+  "6414986": [
+   79,
+   28
+  ],
+  "6414987": [
+   53,
+   243
+  ],
+  "6414988": [
+   23,
+   222
+  ],
+  "6414989": [
+   253,
+   250
+  ],
+  "6414992": [
+   251,
+   0
+  ],
+  "6414993": [
+   253,
+   0
+  ],
+  "6414994": [
+   255,
+   0
+  ],
+  "6414995": [
+   127,
+   6
+  ],
+  "6414996": [
+   85,
+   16
+  ],
+  "6414997": [
+   38,
+   17
+  ],
+  "6414998": [
+   33,
+   27
+  ],
+  "6414999": [
+   22,
+   58
+  ],
+  "6415000": [
+   10,
+   61
+  ],
+  "6415001": [
+   252,
+   0
+  ],
+  "6415002": [
+   253,
+   3
+  ],
+  "6415003": [
+   255,
+   3
+  ],
+  "6415004": [
+   192,
+   216
+  ],
+  "6415005": [
+   213,
+   233
+  ],
+  "6415006": [
+   237,
+   248
+  ],
+  "6415008": [
+   148,
+   106
+  ],
+  "6415009": [
+   97,
+   153
+  ],
+  "6415010": [
+   182,
+   102
+  ],
+  "6415011": [
+   63,
+   60
+  ],
+  "6415012": [
+   74,
+   127
+  ],
+  "6415013": [
+   50,
+   93
+  ],
+  "6415014": [
+   22,
+   52
+  ],
+  "6415015": [
+   46,
+   168
+  ],
+  "6415016": [
+   31,
+   202
+  ],
+  "6415017": [
+   14,
+   233
+  ],
+  "6415018": [
+   116,
+   28
+  ],
+  "6415019": [
+   77,
+   243
+  ],
+  "6415020": [
+   35,
+   222
+  ],
+  "6415021": [
+   1,
+   250
+  ],
+  "6415022": [
+   0,
+   254
+  ],
+  "6415023": [
+   0,
+   255
+  ],
+  "6415027": [
+   96,
+   6
+  ],
+  "6415028": [
+   65,
+   16
+  ],
+  "6415029": [
+   29,
+   17
+  ],
+  "6415030": [
+   127,
+   27
+  ],
+  "6415031": [
+   85,
+   58
+  ],
+  "6415032": [
+   39,
+   61
+  ],
+  "6415033": [
+   2,
+   0
+  ],
+  "6415034": [
+   1,
+   3
+  ],
+  "6415035": [
+   0,
+   3
+  ],
+  "6415036": [
+   238,
+   216
+  ],
+  "6415037": [
+   244,
+   233
+  ],
+  "6415038": [
+   251,
+   248
+  ]
+ },
+ "params": {
+  "levels/london-underground/lights/ug-tunnellight-mp/default": {
+   "g_facingTintIn2": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintOut2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/london-underground/walls/brick/ug-tunnel-brick-2-stained-mp/default": {
+   "g_uvScale2": [
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/london-underground/lights/ug-tunnellight-mp/default": [
+   "ldn-stations-connection.pak",
+   "levels/london-underground/lights/ug-utility-multi-02:default,89ad14de-3954-405c-8f06-54c5ecc5aaba,prime-shader.fx"
+  ],
+  "levels/london-underground/lights/ug-utility-induction-lamp-mp/default": [
+   "ldn-stations-connection.pak",
+   "levels/london-underground/lights/ug-utility-multi-02:default,89ad14de-3954-405c-8f06-54c5ecc5aaba,prime-shader.fx"
+  ],
+  "levels/london-underground/metals/ug-rusted-i-beam-2-dirty/grave-sidebeams": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/london-underground/trains/multi-tunnel/trn-lights-glowing/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-marble-blue-to-nuetral-01:default,18f7dcc9-7437-46f1-bff5-d07cb7260058,prime-shader.fx"
+  ],
+  "levels/london-underground/walls/brick/ug-service-brick-clinker-corrode-2-mp/default": [
+   "yem-chase-alley-roofs.pak",
+   "levels/yemen/walls/stucco/yem-newyelstucco-oldconcrete-01:default,0f93b531-22a7-4dd7-9978-834d58aea4b0,prime-shader.fx"
+  ],
+  "levels/london-underground/walls/brick/ug-tunnel-brick-2-stained-mp/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/walls/rock/ug-rockwall-01:default,3bf23162-6219-4e35-9873-476e9c859951,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/general/textures/default/default-mask.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/envi-maps/ug-shaft-256-env-reflection.dds": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/ground/ug-dust-color-01.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/ground/ug-dust-normal-01.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/ground/ug-gravel-blend.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/ground/ug-track-plank-color.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/ground/ug-track-plank-normal.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/ground/ug-tunnel-ground-normal.tga": "ldn-stations-connection.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-01-color.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-01-normal.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-blend-mask-01.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-blend-mask-02.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-blend-mask-03.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/metals/ug-rusty-01-color.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/metals/ug-rusty-01-normal.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/metals/ug-rusty-beam-color.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/metals/ug-rusty-beam-normal.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/metals/ug-rusty-beam-spec-mask.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/walls/block/ug-vic-wall-grit-blend-01.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/walls/brick/ug-clinker-normal-01.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-foundation-concrete-color.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-foundation-concrete-normal.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/walls/tile/ug-tile-wall-b-blend.tga": "ldn-elevator-room.pak"
+ }
+}

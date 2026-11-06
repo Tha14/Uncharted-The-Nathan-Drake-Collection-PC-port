@@ -11,11 +11,11 @@ State of 2026-11-05 (recipe 1.1.0; banks, text1, EULA, map-colors restored 11-05
 | overlay-r3 dc1 (281) + dc2 (3), overlay-r2 dc1 (16), overlay-port dc1 (3) | 303 | 6.4 | 303 (by recipe test) | (2026-11-05) All reproducible: `convert-dc1` converts 72 whole-file conversions exactly (+69 .dci; tools/dcconv/dcconv.py, layouts learned from the PS3/PS4 pairs); `dc-recipes` rebuilds the other 161 files byte for byte (the merged modules net.bin / menu.bin / modules.bin / medals / looks / scenes / vox* / weapon-* / net-always-loaded(.dci) / ss-coop-adv-fort / the 3 dc2 part modules, overlay-r2 and overlay-port net / medals / modules / render-settings, and the 80 conversions the converter misses, with their .dci) from provenance recipes (`tools/dcconv/dc-recipes.json.gz`, 1.25 MB): copy ops over the user's PS4 retail and PS3 1.19 modules (raw, 32-bit-swapped, 16-bit-swapped, opcode-renumbered) + the retail weapon actor paks for the skin material names, the pointer slots, and 5947 literal bytes in all (short string-id fragments). Sources are sha256-checked, outputs must hit the reference sha256; a different-region game copy whose modules differ would make a recipe refuse (it then reports which source). `skel-retargets.bin` = airport-igc3. The cloud merge scripts themselves (dcsynth/dcgraft2/dcmod4/ngconv2/netfix.py) remain lost: only fragments are in the 10-27 transcripts. dctools (common/dcedit/dcsyms, originals) and every session dctools step are verified 29/29 from their backups. |
 | overlay-r3 text1 | 66 | 12 | 66 | Merge rewritten 2026-11-05: `tools/fixes/text1-merge/merge_text1.py` (step `convert-text1`). Source of the PS3 strings is the disc `goty-patch.psarc` (`build/main/text1/`), not `text1.psarc`/`dlc-patch18`: 47 fixed keys replaced/added where they differ, in hash order, plus the helper message 0x4a93e6b9 "Your party does not have enough players..." appended to every `.common`. |
 | overlay-r3 vtex1 (eula) | 7 | 10 | 7 | 7 pages p1..p7 (not 6 + emblem). Source: the JPEGs BCES-EN-1..7 in the user's `DATA2/USRDIR/http-cache` (matched by sha256); Pillow flip + JPEG q95, ffmpeg lanczos mips, DXT5: `eula-batch/make_eula.py` (step `eula-pages`) reproduces all 7 byte for byte with Pillow 13.0.0 + ffmpeg 8.1.1; without ffmpeg equivalent. A user without the cached pages (never online in RPCS3) cannot build them. |
-| overlay-r3 pak23 | 328 | 3 864 | 1 + 195 rebuilt (+22 base, +100 equivalent; + 10 fix-step side files) | (2026-11-05, `tools/fixes/pak23-levels`, steps `convert-levels-r3`, `levels-lab`, `levels-maps-batch`; per-file `plan.tsv`) **identical**: all 63 Lab files (the 10-31 stagepipe run replayed: xl.py, mkres.py, f525859 converter), the 7 maps-batch level paks, 93 -ingame12 (f525859 ps4ingame; the 15 h017 worlds included), 12 BG paks direct (v30 option set or plain f525859), hud.pak (retail + 2 PS3 HUD textures), and 19 BG paks whose template choices / constants / texture source paks / caps / <=16 flag bytes were recovered from the installed pak (`data/overrides`; 11 more of these are among the base rows); 8 of them re-checked through the shipped job (levels.py) byte for byte; **base**: 22 (21 BG + air-multi-ingame12) equal the recorded pre-session state (backup-london, -mapcolor, -mapcolor2, -sun, -excess, -wall-emblem); the session steps then make the final (london-fade checked end to end on coop-syria-area1-hallway). **Equivalent** (100 BG, built with f525859 + v30 options, installed only when missing): paks the cloud batches 99..101m / 102 / 103 / h017c / h028 / b40 / cube1 / pf1 patched in place (appended pages; the batch scripts 99..101m are lost, the others lock on md5s of those states), the 6 Borneo water paks + 3 h018 placeholders (h018 water converter newer than f525859), 5 sky paks with other template records, and big stage paks whose search did not finish. Evidence per file: plan.tsv, scratch/pak23-recovery/ts/*.log. |
-| overlay-r2 pak23 / dc1 / actor33 | 476 | 2 277 | 295 pak23 (+131 equivalent) | pak23 (step `convert-levels-r2`): identical 173 -ingame12 (f525859 or git 003b433 / 7d45c1f), 88 empty, 22 killvis (vischeat), 12 BG (ldn-train-multi-tc01..06, sky paks: git 003b433). Equivalent: 121 BG + 10 ingame12 of the 10-27 04:50 pass, made by a converter between git 003b433 and f525859 (other geometry layout: e.g. ldn-streets-multi-wide 618 vs 679/734 RAW_DATA items, caps 256); every one of them is shadowed by an overlay-r3 file of the same name, so the game never loads them. dc1/actor33: other agents. |
-| overlay-port pak23 / actor33 / dc1 | 843 | 1 096 | 137 pak23 (+23 equivalent) | pak23 (step `convert-levels-port`): identical 76 -ingame12, 36 empty, 1 killvis, 24 BG (git 003b433 / 7d45c1f, first pass 10-26). Equivalent 21 BG (shadowed by r2/r3) + gompa-multi-shade-npc-ingame12 (overwritten by shade-npc-paks) + world-grave-mp-ingame12. actor33/dc1: other agents. |
-| overlay-r3 actor33 | 538 | 284 | 0 | re-conversions (cloud `as1` batches) + the session rebuilds: `actor-materials/build.py` (37 paks), `hat-colour/batch_hats.py` (81 installed of 249), `airport-igc2` (2), `wall-emblem/mkemblem.py` (7), `skin-batch` (weapon skins). The build scripts are shipped; they need numpy, the PS3 actor extracts and run for hours; their outputs (`out/`) are derived data and are not shipped. Not verified in this session. |
-| overlay-mp actor33 / pak23 / registry | 6 | 13 | 1 | 3 actor paks and `net.pak` (`convert_net.py` from the PS3 `net.pak` texture package: shipped, runnable, not verified), `net-ingame12.pak` = retail `cha-wide-roof-ingame12.pak` (matched). |
+| overlay-r3 pak23 | 328 | 3 864 | 1 + 200 rebuilt (+32 base, +85 equivalent; + 10 fix-step side files) | (2026-11-06, recipe 1.7.0) **identical** 130 rows + **base** 32 (= a recorded pre-batch or pre-session state; `cloud-batches-r3` and the session steps make the reference) + **equivalent** 85. New: the cloud batches 102 / h017c / 103 / h017co / h028 are replayed by step `cloud-batches-r3` from their original scripts (PC inbox), their PS3 textures regenerated from the user's PS3 paks; replayed on the 66 recorded pre-batch states every pak reaches its pre-session state. 15 more rows exact this session (templates/params/texsrc/<=64 flag bytes recovered against the earliest recorded state; h018 paks = option set U3_STAGE_LEVELINFO_PS3=1). Remaining 85: per-pak table below (lost batches 99..101m / n014, Borneo water code, 8 sky paks, and 59 large paks whose search did not run). |
+| overlay-r2 pak23 / dc1 / actor33 | 476 | 2 277 | 295 pak23 (+131 equivalent) + 33 actor33 | pak23 (step `convert-levels-r2`): identical 173 -ingame12 (f525859 or git 003b433 / 7d45c1f), 88 empty, 22 killvis (vischeat), 12 BG (ldn-train-multi-tc01..06, sky paks: git 003b433). Equivalent: 121 BG + 10 ingame12 of the 10-27 04:50 pass, made by a converter between git 003b433 and f525859 (other geometry layout: e.g. ldn-streets-multi-wide 618 vs 679/734 RAW_DATA items, caps 256); every one of them is shadowed by an overlay-r3 file of the same name, so the game never loads them. actor33 (step `convert-actors-r3`, 2026-11-06): 33 of 33 identical. dc1: other agents. |
+| overlay-port pak23 / actor33 / dc1 | 843 | 1 096 | 138 pak23 (+1 base, +21 equivalent) + 680 actor33 | pak23 (step `convert-levels-port`): identical 76 -ingame12, 36 empty, 1 killvis, 24 BG (git 003b433 / 7d45c1f, first pass 10-26). 1.7.0: world-grave-mp-ingame12 identical with converter `tt1026` (the 10-26 _claude_transfer/tools ps4ingame/ps4writer/ndpak); gompa-multi-shade-npc-ingame12 = base (the backup-coop-audit state; shade-npc-paks makes the final). Equivalent: the 21 BG paks (all shadowed by r2/r3). actor33 (step `convert-actors-r3`, 2026-11-06): 680 of 680 identical (recipe test `--only actors-hk-tables,convert-actors-r3` + verify_output.py). dc1: other agents. |
+| overlay-r3 actor33 | 538 | 284 | 538 (284 by convert-actors-r3 alone, the rest with the later actor steps) | (2026-11-06) step `convert-actors-r3` (`tools/fixes/actor33/build_actors.py`, jobs.tsv 1092 rows, section actor33 below): 284 byte-identical directly + 91 pre-session states (status base) that the later steps `wall-emblem-actors`, `actor-materials` (37), `hat-colour` (81 installed), `airport-igc2` (2) and `emblem-cap3` replace with the reference files; the 2026-11-06 recipe test of those steps gave 536 of 538 with the last two (pirate-armor-a-full-mp, ruby-garuda) missing, both now identical too. Needs numpy, the Havok tables (step `actors-hk-tables`) and runs about 7 minutes. |
+| overlay-mp actor33 / pak23 / registry | 6 | 13 | 5 | 3 actor paks and `net.pak` byte-identical by step `convert-actors-r3` (2026-11-06; net.pak = `convert_net.py` of toolset 7d45c1f from the PS3 `net.pak` texture package), `net-ingame12.pak` = retail `cha-wide-roof-ingame12.pak` (matched); pak23_ps4.txt: row below. |
 | pak23_ps4.txt (4) | 4 | 3 | 4 | (2026-11-05) step `registry-final` (`tools/fixes/pak23-registry`): each registry is replayed from line-provenance recipes over the user's retail pak23_ps4.txt, PS3 1.19 pak23.txt and two DLC/Lab level .txt files; the only literal lines are our own (emblem actors, lab34-*, san-multi-hunter-pak header). 4/4 sha256-identical. Runs last, so earlier registry edits do not matter. |
 
 ## Lost or unavailable tools
@@ -58,10 +58,157 @@ State of 2026-11-05 (recipe 1.1.0; banks, text1, EULA, map-colors restored 11-05
   `rebuild_overlays.py --only copy-ps3-vtex1,copy-ps3-speech,copy-ps3-sfx,copy-ps4-retail` and `verify_output.py`.
   The PKG (phase 2) must be built for the user's own `TITLE_ID` from `sce_sys/param.sfo` (`Inputs.ps4_title_id`).
 
-## actor33 (2026-11-05, recipe 1.4.0)
+## actor33 (2026-11-06, all reproduced)
 
-Recovered by reconverting every manifest actor pak with the git history of the converter (github fidalgojoao/Uncharted2-Multiplayer-Dev, 10 snapshots + 3 recovered cloud variants in `tools/fixes/actor33/toolsets`), every PS3 source, retail template, mode, texture cap, env (spread/notmpl/donors), post pass (cubefix/cb3fix) and template folder, comparing sha256 (`scratch/actor-rebuild/search.py`, results `found-all.tsv`). `tools/fixes/actor33/jobs.tsv` lists every byte-identical job; step `convert-actors-r3` rebuilds them (`build_actors.py`).
-* byte-identical builds: overlay-port 574 of 680, overlay-r2 25 of 33, overlay-mp 2 actor paks + net.pak of 4, overlay-r3 207 + 48 Lab boxes/art groups + 7 weapon packs (wpnmods) directly, and the session steps (actor-materials 37/37, hat-colour 249/249 with 229 installed, airport-igc2 1/1, wall-emblem-actors 8/8 + emblem-cap3) give the rest: a recipe test produced 254/254 reference r3 files from these steps alone.
-* not reproduced yet (`scratch/actor-rebuild/gaps-actor33.tsv`, 192 at hand-back; the search was still running): mostly props with their own skeleton + Havok collision (fort gates, rails, vehicles, breakables), some anim packs whose clips used an older anim.py (anim-soldier-mp, anim-npc-medium-mp), a few kits with donor textures, overlay-mp mp-hero-ramses-bandana (an ps4actor state between c6b291a and de13aa1). build_actors.py never installs these (status not identical).
+Recovered by reconverting every manifest actor pak with the git history of the converter (github fidalgojoao/Uncharted2-Multiplayer-Dev, 10 snapshots + recovered cloud variants in `tools/fixes/actor33/toolsets`, see `SOURCES.txt`), every PS3 source, retail template, mode, texture cap, env, post pass and template folder, comparing sha256 (`scratch/actor-rebuild/search.py`, `search2.py` (best-first), `probe_*.py`; results `scratch/actor-rebuild/found-all.tsv` + `found-2026-11-06/`). `tools/fixes/actor33/jobs.tsv` (1092 rows) lists every byte-identical job; step `convert-actors-r3` rebuilds them (`build_actors.py`).
+* byte-identical builds: overlay-port 680 of 680, overlay-r2 33 of 33, overlay-mp 3 actor paks + net.pak, overlay-r3 284 directly + 91 pre-session states (status base) + Lab boxes/weapon packs, and the session steps (actor-materials, hat-colour, airport-igc2, wall-emblem-actors + emblem-cap3) give the rest of overlay-r3.
+* causes found 2026-11-06 (all now reproduced): (1) the 10-27 assets-agent post pass `flatfix` (batch30-flatcolor: generated flat-color.tga VRAM_DESC 0x47 -> sRGB 0x48, +0x20 0x010f0000) on most r3 own-skeleton props -> `worker.py` post `flatfix` (+ `cubetype` = cubefix.fix_retail_types alone); (2) LOD paks without a PS3 skeleton use the base pak's (`PS4ACTOR_SKEL3`, assetbatch opt skel3=): mp-wrk-explode-tanker-lod1, t62-tank-mg-turret-lod1 -> jobs env `PS4ACTOR_SKEL3` `<source>/<name>.pak`; (3) overlay-port anim-soldier-mp / anim-npc-medium-mp: an older anim.py that writes the event key/value pointer also for empty lists -> toolset `animkv`; (4) **donor textures never worked on Windows**: ps4actor splits `PS4ACTOR_DONORS` on ':' so `D:/...` paths only resolved when the current directory was on that drive -> `worker.py` passes drive-less paths and changes to that drive (11 overlay-port hero parts then matched with donors such as mp-hero-french-hair); (5) mp-chloe-skel: kit with `skel_tmpl` mp-chloe-elena-hair (assetbatch opt skel=) -> jobs env `_skel`; (6) rename jobs: propane-tank-mp r3 = rename(propane-tank) + cb3fix (rename jobs now run post passes), all-pistols-mp / all-rifles-mp port = rename of retail teaser-yemen; (7) the rest were search-budget artefacts (wrong template/cap order). The PS3 DLC map psarcs (BCES01176 dlc-map1..4) hold no actor pak that differs from the disc/patch copies.
+* the last 12 (2026-11-06 evening; were `scratch/actor-rebuild/gaps-actor33.tsv`), all byte-identical now (jobs.tsv rows at the end):
+  * **no exact-match sort** (toolsets `pv1-nosort` = port-v1, `0a2-nosort` = 0a20361, each without the `users.sort(...)` line of the material loop): the earlier converter gave a template slot used by several PS3 materials the binds and name of the first one in `used_mats` order, not of the exact match. PS3 materials without an exact template material fall back onto the first template slot (the mouth of mp-hero-london-torso), so that slot binds the PS3 mouth / head textures by path (DXT1 normal -> 0x47) and takes that material's name, where the sorted converter copies the template's BC5 mouth textures. The "two textures with the same name" theory was wrong (the duplicates are only there because `tmpl_texture` caches by the .ndb path). overlay-port mp-hero-ngp-torso (disc), mp-hero-thug-e-torso (dlc-patch13 or goty-patch, same bytes), mp-hero-ramses-equip-torso (disc, `|solo`: md5 GUID for the bandolier material): pv1-nosort, mp-hero-london-torso, mp, cap 64; mp-kit-base-torso-in-skin-a-00: pv1-nosort, disc, mp-kit-base-neck-skin-a, mp, cap 256.
+  * overlay-port mp-chloe-marlowe-jak-goggles, mp-chloe-marlowe-phantom-mask, mp-chloe-young-marlowe-jak-goggles: 0a2-nosort, dlc-patch13, mp-chloe-u2-legs, kit-spread (PS4ACTOR_SPREAD_MATS; mp + spread gives the same bytes), cap 128, donor mp-chloe-elena-hair (its marlowe-hair-spec-mask; the copies in mp-chloe-marlowe-hair / -young-marlowe-hair have other bytes). The drake-jak-goggles textures are the PS3 pak's own (first slot, no sort); marlowe-hair goes to the free chloe-pants slot (spread). Not a hat-colour / build_hat product.
+  * overlay-port mp-hero-sullivan-part-sideburns: 0a20361, dlc-patch13, mp-hero-fat-sullivan-hair (or mp-hero-sullivan-hair), mp, cap 256, donor mp-hero-young-sullivan-hair, `|solo` (the reference has the md5 GUID of objects/characters/sullivan/mp-hair-young:default, not the retail one).
+  * overlay-r3 + overlay-port ruby-garuda: the EFFECT / EFFECT_TABLE bytes are those of retail ruby-treasure-aa (= ruby-treasure-ab = emerald-treasure-aa, all at the same page offsets 0x1410 / 0x5e60); the 648 earlier variants used templates whose effect spans sit 0x10..0x60 later. 0a20361, dlc-patch13, ruby-treasure-aa, graft, cap 256; r3 + cubefix.
+  * overlay-r3 + overlay-port pirate-armor-a-full-mp: 7d45c1f, disc, pirate-armor-all, mp + PS4ACTOR_SPREAD_MATS, cap 64, skeleton template pirate-torso-all (`_skel`; any retail pak with the same 124-joint table, e.g. agent-all, gives the same joint names: the reference's debugMeshJointNameLoc is 496 bytes, pirate-armor-all's own skeleton 12); r3 + cb3fix. The mp-kit-base-head-skin-b-00 material goes to the free acc-29 slot (spread, md5 GUID).
 * Havok reflection tables (`hk2010_ps3.json`/`hk2011_ps4.json`) are rebuilt from the decrypted PS3 1.19 EBOOT and the decrypted PS4 eboot by step `actors-hk-tables` (byte-identical to the 11-01 tables); needs `RECIPE_PS3_ELF`, `RECIPE_PS4_ELF` and GNU objdump.
+* wall-emblem-actors needs overlay-r3 pak23/ps4/air-multi.pak in the output (any state), i.e. convert-levels-r3 before it; emblem-cap3 then gives the reference hashes.
 * skin-textures (11-01 skin-batch) was never installed: the r3 weapon paks are the 10-29 wpnmods builds (rebuilt identically).
+
+
+## overlay-r3 level paks: per-pak status of the 100 former "equivalent" rows (2026-11-06)
+
+"rebuilt against" = the state the template search compared with: the earliest recorded state (inbox b102 / b103 / h017co-backup /
+h028-backup = before that batch; backup-* = before the first session step; final = the overlay file; .bak-jitter = the manifest's
+pre-borneo-water-jitter state). Rule for every row: levels.py must reproduce that state; `cloud-batches-r3` then replays the
+batches recorded after it (verified), and the session steps do the rest.
+
+Cause classes of the remaining rows:
+* **lost batches 99 (lmuv), 100 A/C + revertB (blockers), 101 / 101m (Mask3 detail / flat-white appends), n012, n014 (London probe records), n015/n015b**: ran before batch102; their scripts are lost. Seen in the diffs: instance flag byte +0x21 (own-lightmap 0x100) cleared on 25 instances of yemen-multi-stage (batch99 or 100); an appended page with flat-white bound to Mask3 (coop-airport-stage, batch101 rule "white flat where PS3 has no -detail map"; re-implemented with the batch102 appender the page is 3 152 bytes longer than batch101's, so its page layout differs); LIGHT_TABLE_1 probe records (ldn-train-multi-tunnel: 57 bytes, recorded as fix bytes, exact).
+* **effect order / donor**: EFFECT_TABLE + EFFECT string indices differ (yemen-multi-stage, grave-multi-stage, highrise-multi-wide, air-multi-strip): the same effects from other donor paks than our mkplan picks; the search's refine step did not find them within 6..12 candidates. Size differences of 64..96 bytes (facility/fort/museum-multi-wide, fort-coop-tower-wide) are EFFECT items placed with their donor's 0x100 phase (ps4stage.py:725) = also a donor choice.
+* **Borneo water**: dig-coop-*-water(-ss) and the water material in dig-coop-stage use water.fx with the PS3 dig water textures bound (dig-ship-water-01-normal, dig-algea-01 colour/mask + retail waterbump / horse-chase env maps). f525859 plans these materials without bindings and writes no VRAM (43 KB vs 677 KB); the binding code is fixer H's h018 / batch98-water work (build98.py), never on the PC or GitHub. Not reconstructible without that code.
+* **sky paks (8)**: the sky template's own reflection map is kept in the ref (e.g. sky-drydock binds sky-grave-03-docks-reflection-color where we bind the PS3 flow map), other skies use sky-clouds.fx templates whose records our converter does not produce ("no candidate gives the record"): a sky conversion between 003b433 and f525859 (10-27 sky fix) that is not recorded.
+* **not run**: the template search (1-3 h per large pak) did not run for 59 paks: the machine was at 100 % CPU (full build + actor agent). Method is ready: `scratch/pak23-recovery/RESUME.md`.
+
+| pak | status 2026-11-06 | rebuilt against | remaining cause |
+|---|---|---|---|
+| air-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| air-multi-shade | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| air-multi-stage | base | backup-mapcolor2 | - |
+| air-multi-strip | equivalent | backup-excess | items differing RAW_DATA:1440,VRAM_DESC:90,EFFECT:35,EFFECT_TABLE:1 |
+| air-multi-wide | base | b103 | - |
+| cave-multi | equivalent | backup-london | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| cave-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| cha-multi | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| cha-multi-shade | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| cha-multi-stage | base | backup-mapcolor2 | - |
+| coop-airport-2 | equivalent | backup-london | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| coop-airport-3a | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| coop-airport-3b-low | identical | final | - |
+| coop-airport-stage | equivalent | h028-backup | size+26128 / pages 11/12 (appended page) / ref-only tex 1 (flat-white.tga) / bindings differ: 1 (ceiling-b-multi:default) |
+| coop-ldn-library-inner | equivalent | backup-london | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| coop-ldn-station-entrance-outside | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| coop-syria-area1 | equivalent | backup-london | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| coop-syria-area2 | equivalent | backup-london | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| coop-syria-area2-top | identical | final | - |
+| coop-syria-turret2 | base | b103 | - |
+| desert-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| dig-coop-approach | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| dig-coop-approach-water | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost): size+634080 / ref-only tex 6 (dig-algea-01-color.tga, dig-algea-01-mask.tga, dig-ship-water-01-normal.tga, horse-chase-c |
+| dig-coop-approach-water-ss | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
+| dig-coop-dropdown | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| dig-coop-dropdown-water | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
+| dig-coop-dropdown-water-ss | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
+| dig-coop-ship | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| dig-coop-ship-water | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
+| dig-coop-ship-water-ss | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
+| dig-coop-stage | equivalent | b102 | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost): size+242136 / ref-only tex 3 (dig-ship-water-01-normal.tga, horse-chase-canyon-env-reflection.dds, waterbump-ripplesB-no |
+| facility-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| facility-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| facility-multi-wide | equivalent | b103 | size-64 |
+| fort-coop-cistern | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| fort-coop-courtyard | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| fort-coop-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| fort-coop-tower | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| fort-coop-tower-wide | equivalent | h028-backup | size+96 |
+| fort-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| fort-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| fort-multi-wide | equivalent | final | size-64 |
+| gompa-multi | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| gompa-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| gompa-multi-wide | identical | - | - |
+| grave-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| grave-multi-moving | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| grave-multi-stage | equivalent | final | items differing RAW_DATA:409,VRAM_DESC:59,EFFECT:13,EFFECT_TABLE:1 |
+| grave-multi-wide | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| graveyard-drydock-anniversary | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| graveyard-drydock-wide | identical | final | - |
+| highrise-multi | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| highrise-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| highrise-multi-wide | equivalent | final | items differing RAW_DATA:582,VRAM_DESC:44,EFFECT:13,EFFECT_TABLE:1 |
+| ldn-streets-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| ldn-streets-multi-stage | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| ldn-streets-multi-wide | base | - | - |
+| ldn-train-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| ldn-train-multi-tunnel | base | backup-london | - |
+| ldn-train-multi-tunnel-2 | base | backup-london | - |
+| mon-coop-church | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| mon-coop-cloister | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| mon-coop-courtyard | equivalent | h017co-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| mon-coop-front | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| mon-coop-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| museum-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| museum-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| museum-multi-wide | equivalent | h028-backup | size-80 |
+| oasis-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| oasis-multi-stage | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| oasis-multi-wide | equivalent | b102 | searched, no output kept |
+| old-quarter-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| old-quarter-multi-stage | base | backup-london | - |
+| ruins-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| ruins-multi-stage | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| ruins-multi-wide | base | - | - |
+| san-upper-multi-stage | equivalent | final | size+2379952 / ref-only tex 6 (ammobox-2-brownpaint-wood-spec-mask.tga, ammobox-3-blue-02-spec-mask.tga, detail-normal.tga, missingtexture, table-top-d-env-refeletion.dds, wt-spec-mask.tga) / template |
+| sham-multi-wide | identical | - | - |
+| shambhala-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| shambhala-multi-stage | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| sky-drydock | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+6072 / ref-only tex 1 (sky-grave-03-docks-reflection-color.tga) / bindings differ: 1 (sky-drydock-special:default)) |
+| sky-fort-coop-b | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+84136 / ref-only tex 1 (sky-fort-multi-reflection.tga) / our-only tex 4 / template/features differ: 1 (sky-fort-coop-b:default)) |
+| sky-fort-multi | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+138352 / ref-only tex 5 (default-mask.tga, sky-fort-multi-reflection.tga, sky-grave-cloud-fade-mask.tga, sky-syria-cloud-a-mask.tga, sky-village-) |
+| sky-gompa-mp | equivalent | final | sky template bindings of a sky converter not in any recorded version (size-1468976 / our-only tex 2 / template/features differ: 1 (sky-gompa-multi-3:default)) |
+| sky-grave-multi | equivalent | final | sky template bindings of a sky converter not in any recorded version (size-146480 / ref-only tex 1 (sky-grave-03-docks-reflection-color.tga) / our-only tex 3 / template/features differ: 1 (sky-grave-multi-undersky:defaul) |
+| sky-ldn-streets-multi | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+61440) |
+| sky-oasis-multi | equivalent | final | sky template bindings of a sky converter not in any recorded version (size-1435952 / ref-only tex 4 (sky-horse-chase-color-reflection.tga, sky-horse-chase-flow-mask.tga, sky-horse-chase-flow.tga, sky-horse-chase-mask.tga) |
+| sky-yemen-mp | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+453248 / ref-only tex 4 (sky-village-pre-cloud-a-color.tga, sky-village-pre-old-cloud-a-fade-mask.tga, sky-village-pre-old-cloud-a-mask.tga, sky-) |
+| syria-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| temple-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| temple-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| train-wreck-multi | equivalent | b103 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| train-wreck-multi-stage | equivalent | h028-backup | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| village-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| village-multi-stage | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| warzone-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| warzone-multi-stage | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| yemen-multi | equivalent | b102 | template search not run (machine at 100 % CPU; ~1-3 h per large pak) |
+| yemen-multi-stage | equivalent | b102 | items differing RAW_DATA:15,EFFECT:3,EFFECT_TABLE:1 |
+| yemen-multi-wide | base | b102 | - |
+
+### Session steps on level paks (1.7.0)
+* wall-emblem: `prep_p3.py` extracts PS3 air-multi(-ingame12).pak from the disc pak23.psarc into ./p3 and creates ./out; lib.py loads
+  ps4ingame/navmesh from the f525859 tree (`scratch/pak23-levels-work/pt-f525859`) and ps4actor from the actor33 toolset 4c36373, as the
+  11-01 run (gh2 paktools); `base-md5.json` (the two md5 locks = backup-wall-emblem state) is shipped. Checked on the recorded base: the
+  ingame12 rebuild equals the overlay and the new air-multi.pak = backup-mapcolor state (6f8471a8). Needs convert-levels-r3 and the
+  rendered actor33 job (convert-actors-r3 / actors-hk-tables) in the same output.
+* map-colors2: `mk_p3idx.py` builds p3idx.pkl (identical to the session's x3.py index: 3 809 names, pak23 / goty-dlc / dlc-patch13 / dlc-patch18); `survey_ov.py` + the shipped `detect.py` regenerate ov.jsonl.gz / rows.jsonl (the session's material survey of the overlay before this step); a pak whose lightmap-flag lock fails (base not at the recorded state) is now skipped instead of aborting the step. Test: cha-multi-stage reaches the reference; air-multi-shade (still equivalent) is skipped.
+* shade-npc-paks: the PS3 spawner comparison (pakcmp.py -> unshipped scratch/recovered/coop-regions/detect.py) is skipped when missing
+  (verification only; source and targets are md5-checked). Needs overlay-r2 (convert-levels-r2) for its source pak.
+* excess-wall: needs air-multi-strip.pak at the backup-excess state; air-multi-strip is still "equivalent" (effect donor), so the step
+  stops there ("pak changed since the plan was built").
+
+### Recipe test 2026-11-06 (1.7.0, fresh folder)
+`rebuild_overlays.py --only convert-levels-port,convert-levels-r3,cloud-batches-r3,facility-collapse,wall-emblem,borneo-water-jitter,
+map-colors-lightmap,borneo-grass-leaf,map-colors2,excess-wall,shade-npc-paks,london-fade,vram-gap` + `verify_output.py`
+(report: test-results/verify-1.7.0-pak23-levels.tsv): overlay-r3 pak23 161 match / 87 differ / 80 not built (Lab, maps-batch and
+r2-sourced files outside the selection); overlay-port pak23 139 / 21 / 0. All 15 r3 rows changed this session match the reference
+end to end (13 directly, air-multi-stage and cha-multi-stage after map-colors2), and port world-grave-mp-ingame12. Expected
+failures in this selection: wall-emblem (needs the rendered actor33 job of convert-actors-r3; verified separately on the recorded
+base: air-multi.pak -> backup-mapcolor state, ingame12 = overlay), shade-npc-paks (needs overlay-r2), excess-wall (air-multi-strip
+still equivalent). r3 run time 54 min with the machine at 100 % CPU.

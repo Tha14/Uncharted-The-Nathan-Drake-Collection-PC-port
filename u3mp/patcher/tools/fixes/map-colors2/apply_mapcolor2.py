@@ -282,7 +282,8 @@ def main():
             print(pak, *l)
         if not data:
             continue
-        assert lm_locked(pak, data), pak
+        if not lm_locked(pak, data):             # recipe 1.7.0: a pak whose base is not the recorded state is skipped, not fatal
+            print(pak, 'SKIP: lightmap-flag lock fails (base pak differs from the recorded state)'); continue
         orig = open(OV + pak, 'rb').read()
         res[pak] = dict(md5_before=md5b(orig), md5_after=md5b(data), edits=[l for l in log if l[0] != 'skip'], grew=len(data) - len(orig))
         print(pak, 'OK +%d bytes' % res[pak]['grew'])

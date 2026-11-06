@@ -96,3 +96,7 @@ search still differs, GAPS.md names the record (e.g. instance flag +0x21, LIGHT_
 
 Converter `tt1026`: `paktools-tt1026/` (the 10-26 `_claude_transfer/tools` ps4ingame / ps4writer / ndpak, put over the
 f525859 tree; `OVERLAY_ON`) reproduces overlay-port world-grave-mp-ingame12 (REGION_TREE opcodes 0x3f, 8-byte tail).
+
+levels.py (1.7.0): converter trees `scratch/pak23-levels-work/pt-<ver>` are set up before the worker threads, built in a temp
+folder and renamed into place; the `.ready` stamp holds a manifest (size + path of every copied file) and a tree whose stamp is
+old-format or differs from the current sources is rebuilt (a 1.6.0 import had left pt-003b433 half-copied with a stamp).

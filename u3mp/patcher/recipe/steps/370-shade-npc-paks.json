@@ -19,5 +19,7 @@
  ],
  "status": "needs-converted-base",
  "applied": "2026-11-02 02:20",
- "recipe_version_added": "1.0.0"
+ "recipe_version_added": "1.0.0",
+ "notes": "1.7.0: the PS3 spawner comparison (coop-audit/pakcmp.py -> scratch/recovered/coop-regions/detect.py, not shipped) is a verification only and is skipped when those helpers are missing; source (overlay-r2 yemen-multi-shade-npc-ingame12, from convert-levels-r2) and the five targets are md5-checked.",
+ "recipe_version_changed": "1.7.0"
 }

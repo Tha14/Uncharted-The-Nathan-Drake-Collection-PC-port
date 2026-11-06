@@ -1,0 +1,32 @@
+{
+ "templates": {
+  "levels/multiplayer/gompa-multi/ground/gompa-zero-cliff-to-floor/rock": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/gompa-multi/new-gompa-rock/gompa-gompa-rock-snow-slope-large-snow-at-top/default": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/multiplayer/gompa-multi/new-gompa-rock/gompa-gompa-rock-snow-slope-large/default": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/gompa-multi/wide/gompa-wide-mountains-snow-slope-2/rock-to-snow": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/multiplayer/gompa-multi/wide/gompa-wide-mountains-snow/rock-to-snow": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/multiplayer/gompa-multi/wide/gompa-zero-to-wide/rock": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/general/textures/default/default-lightmap0.tga": "grave-03-docks-barges-destroyed.pak",
+  "art/general/textures/default/default-lightmap1.tga": "grave-03-docks-barges-destroyed.pak"
+ }
+}

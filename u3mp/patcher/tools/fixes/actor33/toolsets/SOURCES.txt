@@ -30,3 +30,10 @@ animkv    1323bad with anim.py writing the event key/value pointer for     overl
           'if not kv'); recovered from the paks 2026-11-05                 null-for-empty rule)
 Post passes 'flatfix' / 'cubetype' (worker.py): the 2026-10-27 assets-agent passes (batch30-flatcolor flatfix.py: generated
 flat-color.tga VRAM_DESC 0x47 -> sRGB 0x48 + 0x010f0000; cubefix.fix_retail_types alone), recovered from that transcript.
+pv1-nosort  port-v1 without the exact-match sort of the template-slot     overlay-port mp-hero-ngp-torso, -thug-e-torso,
+            users ('users.sort(...)' in the material loop): several PS3    -ramses-equip-torso, mp-kit-base-torso-in-
+            materials on one template slot take the binds and name of      skin-a-00 (the PS3 materials that fall back
+            the first in used_mats order (PS3 textures by path) instead    onto the first template slot bind their own
+            of the exact match's template textures; recovered 2026-11-06   PS3 mouth / head textures)
+0a2-nosort  0a20361 without that sort (donors + PS4ACTOR_SPREAD_MATS)      overlay-port mp-chloe-marlowe-jak-goggles,
+                                                                          -phantom-mask, mp-chloe-young-marlowe-jak-goggles

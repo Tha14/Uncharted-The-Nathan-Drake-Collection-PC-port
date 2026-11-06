@@ -1,0 +1,66 @@
+{
+ "bytes": {
+  "5499377": [
+   1,
+   0
+  ],
+  "5499697": [
+   1,
+   0
+  ]
+ },
+ "params": {
+  "levels/airport/wide/air-mountains/air-yem-wide-far-smooth-01/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/airport/wide/air-yem-metal-corrugated-wide/default": {
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/airport/wide/air-mountains/air-yem-wide-far-smooth-01/default": [
+   "grave-01-freighter-section-2.pak",
+   "levels/ship-graveyard/deck-objects/grave-trashbin-dry:locked-junk,37571fca-5e73-46c8-8e73-5062c3cc2e8e,prime-shader.fx"
+  ],
+  "levels/airport/wide/air-yem-metal-corrugated-wide/default": [
+   "yem-intro-rock-building-low.pak",
+   "levels/yemen/wood/yem-woodstripped-02:default,758c9fa8-faf3-42a3-ada7-bfd5bd853705,prime-shader.fx"
+  ],
+  "levels/airport/wide/air-yem-wide-mountain-02-sand-rocky/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-concrete-cracked-dark:default,b7c5201d-f58c-455f-a27c-723bdfbef575,prime-shader.fx"
+  ],
+  "levels/airport/wide/air-yem-wide-mountain-02-sand/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-concrete-cracked-dark:default,b7c5201d-f58c-455f-a27c-723bdfbef575,prime-shader.fx"
+  ],
+  "levels/airport/wide/air-yem-wide-mountain-mid-sand/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/airport/wide/air-yem-wide-mountain-mid/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-buildings-03/default": [
+   "col-museum-low.pak",
+   "levels/columbia/other/col-umbrella-awnings:default,50372cc7-0bd3-4f91-9d57-1de0d067f60b,prime-shader.fx"
+  ],
+  "levels/yemen/wide/yem-wide-buildings/new-texture-set": [
+   "ldn-library-inner.pak",
+   "levels/london-underground/library/ug-lib-trims-no-overlay:default,7f9b8028-290c-4c62-a0ba-2af77dd0e2b5,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/levels/airport/textures/multi/metal/air-yem-m-corrugated-wall-color.tga": "airport-3a.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-corrugated-wall-normal.tga": "airport-3a.pak"
+ }
+}

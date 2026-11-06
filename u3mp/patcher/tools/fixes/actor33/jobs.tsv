@@ -234,15 +234,20 @@ overlay-r3	mp-kit-hunter-torso-jacket-e.pak	e6e19b9b229f003790a5e866bb0d859f68be
 overlay-r3	mp-kit-hunter-torso-jacket-f.pak	bc751e3793c32549e5fb8cf2f4f6e6f1e7b824122d5c522a0975351a6b1cc282	base	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-r3	mp-kit-hunter-torso-shirt-a.pak	5f8c9f8922655f0015d97bef71f86dfbed9dda2de8cab0d88cdbfb3074427063	base	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-r3	mp-kit-hunter-torso-shirt-b.pak	d29ee2c79cb732178dfde2c80d222428a7d4b1d9244acc52d6e2d331d03e543e	identical	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{"PS4ACTOR_DONORS": "mp-kit-misc-torso-shirt-amc-2-b"}	
+overlay-r3	mp-kit-hunter-torso-shirt-c.pak	b90bbbea3eb1b88a8bf3daa799f8bed19baf27e1b77c64b7d76f8a496b7f5e3e	base	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
+overlay-r3	mp-kit-hunter-torso-shirt-d-00.pak	c1b44a1e4bd67c90d528e83e052f1dd1033c0dca3170a8360ebc6e4ce56630df	base	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
+overlay-r3	mp-kit-hunter-torso-shirt-d.pak	793f777c2cfb92c7b486aabd3d66b295e9e8aa852c06cafa8b8293b99d7f84cf	base	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-r3	mp-kit-hunter-torso-shirt-e.pak	6d22517326fba8fe27cbe3c62b28c777242128f5eaf7666ac69b2c0195d03537	identical	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-r3	mp-kit-hunter-torso-shirt-f.pak	9f1d18945c5e91ebf5dc8d5ccf72cced7b85958259d5cfe0c46c38a0f6ab5494	base	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-r3	mp-kit-hunter-torso-vest-c.pak	caf41661f36e9e9c2c2864d15084605590a12f2622fba8329d002b8fe4de2a65	identical	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-r3	mp-kit-hunter-torso-vest-d.pak	dcc7051fd5fc96127a9f1260e7dd3329a1cabfa670ae8baaae80532a66498dc1	base	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-r3	mp-kit-killzone-full-a.pak	4b628085b2db1b54594c78c39dece0153a16fe1aefdb5ddd3917d5b9b769c4ee	base	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-r3	mp-kit-killzone-full-helmet-a.pak	211e752c063d8e4002a7263138f5dae65cbfe4cb303e2bdf5bd16ad7d989d732	identical	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
+overlay-r3	mp-kit-killzone-helmet-a.pak	9f5d9ef270d86340935b374414f89376c13dc9e42a352f28abc09ffdc1d06c91	base	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-r3	mp-kit-merc-arms-gloves-b.pak	adf52cba16a6316b34582bdaac9a4c08b8a7f4f391b1b20a1fc50c9c966fce60	base	ps4actor	7d45c1f	disc	mp-kit-base-arms-hands-skin-a-00	kit	256	{"PS4ACTOR_DONORS": "mp-hero-agent-med-a-torso"}	
 overlay-r3	mp-kit-merc-arms-gloves-f.pak	7359bca3aa03d1980458665ef46504232e8fb3b4228c02bd775778bb1a15f219	base	ps4actor	7d45c1f	disc	mp-kit-base-arms-hands-skin-a-00	mp	256	{"PS4ACTOR_DONORS": "mp-hero-agent-med-a-torso"}	
 overlay-r3	mp-kit-merc-arms-gloves-g.pak	41332a8e88090b6cb1c5d11eeb27278e8741cf88f83f79e9492b2cd329469415	base	ps4actor	7d45c1f	disc	mp-kit-base-arms-hands-skin-a-00	mp	256	{}	
+overlay-r3	mp-kit-merc-arms-gloves-h.pak	b8621dc9a8d056aa5433fc6b655a115ca075fb99daa3a78b018f0c303bd55856	base	ps4actor	7d45c1f	disc	mp-kit-base-arms-hands-skin-a-00	mp	256	{"PS4ACTOR_DONORS": "mp-hero-agent-med-a-torso"}	
 overlay-r3	mp-kit-merc-arms-gloves-i.pak	b55d412ebfde41e56bde9dff527bb7e2d2c58582d9443859f83311b7477c153f	base	ps4actor	7d45c1f	disc	mp-kit-base-arms-hands-skin-a-00	mp	256	{"PS4ACTOR_DONORS": "mp-hero-agent-med-a-torso"}	
 overlay-r3	mp-kit-merc-feet-boots-b.pak	ab1e94506a6b252860f22cbef7bbd083d0353d1ca9e0e5fd24f225be2de1b043	base	ps4actor	7d45c1f	disc	mp-kit-hunter-feet-boots-a	mp	256	{}	
 overlay-r3	mp-kit-merc-feet-boots-c.pak	17ac473b6213314d0e1474b1f084831097df273592c3b357dcf45b28251bbeaa	identical	ps4actor	7d45c1f	disc	mp-kit-hunter-feet-boots-a	mp	128	{}	
@@ -253,6 +258,8 @@ overlay-r3	mp-kit-merc-head-hat-c.pak	290d3334f276e0e93ca5bee830643e7a8452c8d5e0
 overlay-r3	mp-kit-merc-head-hat-d.pak	a1c1e8fd26007878c79e40d41e6316bcdbac66a64c921104fca7da23579bd0d6	identical	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-r3	mp-kit-merc-head-hat-e.pak	e4d9befb2b4377d9249e2436e5480a27dc77940fc23041c0baaafc4e00556a59	base	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	256	{}	
 overlay-r3	mp-kit-merc-head-helmet-a.pak	3c408ba5871993a21f73c069179547618058f2f5fae256c18842634488b68fa1	identical	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
+overlay-r3	mp-kit-merc-head-helmet-b.pak	0689dd626e51a65c0e9d3b9cd06120c535f5f48b3b7a27245ffc610805ab0092	base	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
+overlay-r3	mp-kit-merc-head-helmet-c.pak	054b614157f420ef7e3afbaede090d1e468b8fef0a8a98b59960185077afff48	base	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-r3	mp-kit-merc-head-helmet-d.pak	363db8e8be83a89eb4c81845acb466796c37ec11f84144fbbfb2b06b9bbddda1	identical	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-r3	mp-kit-merc-head-helmet-e.pak	716bd28c915df79c215aafb431d425b8d55e1c2928ad9e352159cc877d3a2ec0	base	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-r3	mp-kit-merc-head-helmet-g.pak	2c4eb8335946fd5e548f72b4d7e051a8661d6322d9ba375f4685b09ce2bd738d	identical	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
@@ -264,20 +271,29 @@ overlay-r3	mp-kit-merc-head-wrap-a.pak	0f947681dc15fe5653d748df71ce726118ecb34b1
 overlay-r3	mp-kit-merc-head-wrap-b.pak	4e001a3816b587a7a838dc196eff3fa713f6e0396da086de88548b6dc60c617b	base	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-r3	mp-kit-merc-legs-pants-a.pak	d311fad2b64b137afcf9c8c958bb32b1856b4320d71e62f7f6260c3e619f091a	identical	ps4actor	7d45c1f	disc	mp-kit-hunter-legs-pants-j	mp	128	{}	
 overlay-r3	mp-kit-merc-legs-pants-b.pak	92481ebe1af02a649e477f73691456dbd794937cd667653b95d88909fc6e8a59	identical	ps4actor	7d45c1f	disc	mp-kit-hunter-legs-pants-j	mp	128	{}	
+overlay-r3	mp-kit-merc-legs-pants-f.pak	76d7b87472cd334516d9e6067bea15063973d76d0fdb23f7dafeced01630ff62	base	ps4actor	7d45c1f	disc	mp-kit-hunter-legs-pants-j	mp	256	{}	
 overlay-r3	mp-kit-merc-legs-pants-h.pak	5ba9dae3c0d6cfdd24963b4dede797de67ff191c27d91c4543f61feb8881da63	base	ps4actor	7d45c1f	disc	mp-kit-hunter-legs-pants-j	mp	256	{}	
 overlay-r3	mp-kit-merc-torso-armor-a.pak	ed56c4efbc8148bd09e218105c544ef3159bc431ec1818aa2eb70d8143c468c6	base	ps4actor	7d45c1f	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
+overlay-r3	mp-kit-merc-torso-armor-b.pak	7dea8569f766190d01f98576e8101a0d9e6b88a087673fb7f5b7d09ffef3e05c	base	ps4actor	7d45c1f	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-r3	mp-kit-merc-torso-armor-e.pak	413e59589c1118119386a0a576d49331b30f01a5485e85a09981ef72e111aab5	base	ps4actor	7d45c1f	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-r3	mp-kit-merc-torso-jacket-b.pak	fd464512ac0265377fdec13c76e6288962eba915d93bb362bc13d01a7462e1f3	base	ps4actor	7d45c1f	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-r3	mp-kit-merc-torso-shirt-a.pak	001d44bd1c6cd920a7c97cceddcc291757ba2de1ee0b70ea2945ae5db596cac6	base	ps4actor	7d45c1f	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
+overlay-r3	mp-kit-merc-torso-shirt-b.pak	37df26521db2e5c7e26e0a6b12bce0f2af016cc2cf240ac59973f204e766bfb0	base	ps4actor	7d45c1f	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
+overlay-r3	mp-kit-merc-torso-shirt-c.pak	47cc0881da8722839a6bced42b7531cd0dc84c878b1fc2d69630f893ef849504	base	ps4actor	7d45c1f	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-r3	mp-kit-merc-torso-suit-a.pak	671287e66569a2af7f3536a74a2246e6102f29d1428683b0383cc4c4fc7245d0	identical	ps4actor	7d45c1f	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-r3	mp-kit-merc-torso-suit-b.pak	d84cee84dc6f270cc112f3e25a8699f8d943445a9759a4a1100e0cdcd6c8476e	identical	ps4actor	7d45c1f	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
+overlay-r3	mp-kit-merc-torso-vest-b.pak	e29b80d51258ed09ba84e63a34833591dc9bbb2a93abb37a95fc91c61c67415c	base	ps4actor	7d45c1f	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-r3	mp-kit-misc-torso-shirt-balls-1.pak	7f9f9f3d34e37f46ea976f927634a31035dabf68ad8c67702db05206e08afa29	identical	ps4actor	7d45c1f	dlc-patch13	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-r3	mp-kit-misc-torso-shirt-balls-2.pak	ac9805b5ab31c816edef55cf3cb7300a433ec558115d9406b15be7abb5a7fcff	identical	ps4actor	7d45c1f	dlc-patch13	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-r3	mp-kit-misc-torso-shirt-esc-toy.pak	3c82cafb811dafa7146d4514270a2fa3267b9a9452c3fe4c739342b6dbf08b89	identical	ps4actor	7d45c1f	dlc-patch13	mp-kit-hunter-torso-shirt-h	mp	256	{}	
+overlay-r3	mp-kit-pirate-arms-gloves-b-00.pak	a77fa055fc4bc42dd546e43176313217f8699437763c9e3fb3c3e48bf9dcbbe7	base	ps4actor	7d45c1f	disc	mp-kit-base-arms-hands-skin-a-00	kit-spread	256	{"PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-r3	mp-kit-pirate-feet-boots-c-00.pak	cd9a2b65135ad39d9f37f83b483de82061c78bd2c23254b4fd1c2542877478fc	base	ps4actor	7d45c1f	disc	mp-kit-hunter-feet-boots-a	kit	128	{}	
+overlay-r3	mp-kit-pirate-feet-sandles-a-00.pak	dbf8c0f8412af87751e435745935dda0db6777327b1c190b2d3858a7e4862295	base	ps4actor	7d45c1f	disc	mp-kit-hunter-feet-boots-a	kit-spread	256	{"PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-r3	mp-kit-pirate-feet-sandles-b-00.pak	4c09a47a83aed1c1d3edf72e44585d1cac443885bfba74c64d02137f3bff4209	base	ps4actor	7d45c1f	disc	mp-kit-hunter-feet-boots-a	kit	256	{}	
 overlay-r3	mp-kit-pirate-helmet-hat-a-00.pak	a9680e250b7882f561977e96496ac80aebce4daa8c8f3b7a4d6578b2a7e452e8	base	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	256	{}	
+overlay-r3	mp-kit-pirate-helmet-wrap-a-00.pak	c10b107f2018ff8b5ef2bfb034c0f753a07b1b1d31f4da81a9424429ac8d57e2	base	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	256	{}	
 overlay-r3	mp-kit-pirate-helmet-wrap-a-03.pak	3d3e2e4666b453de9bba4359e2f5c8d6d3e82e4f485132e5127d3444fc89a51c	base	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
+overlay-r3	mp-kit-pirate-helmet-wrap-a-04.pak	d227f5445f0878625c0fd729ac53e981594939662543909b4e09eb71b7b90097	base	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-r3	mp-kit-pirate-helmet-wrap-a-06.pak	80ec41f0b0ad58dbcb0b5d4a49b5ef703c2083eb21e151b707a23dea00a86e4a	base	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	256	{}	
 overlay-r3	mp-kit-pirate-helmet-wrap-b-00.pak	b4b115a5b6b2e814042f6515db80d31a73a6b7b2e88c8ad8d51348460fafe0bf	base	ps4actor	7d45c1f	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-r3	mp-kit-pirate-legs-pants-a-00.pak	3c6303f164c9219d963593ab9036df22909debed4d045f7660b29c871ca41b75	base	ps4actor	7d45c1f	disc	mp-kit-hunter-legs-pants-j	mp	256	{}	
@@ -286,13 +302,17 @@ overlay-r3	mp-kit-pirate-legs-pants-c-00.pak	79817b33983309cfd7d3f6b6cf0f863a619
 overlay-r3	mp-kit-pirate-legs-pants-c-01.pak	10e1a56dcf0a49e951be64243471876e14377e8b665f49487c45f66c84f5555b	base	ps4actor	7d45c1f	disc	mp-kit-hunter-legs-pants-j	mp	128	{}	
 overlay-r3	mp-kit-pirate-legs-pants-c-03.pak	950eacc24667166612d9219c5f1e07bdad7b1673e8738002a459b9baf100da38	base	ps4actor	7d45c1f	disc	mp-kit-hunter-legs-pants-j	mp	256	{}	
 overlay-r3	mp-kit-pirate-legs-pants-d-00.pak	db7c82744b9ebfdf75e7a4cd87f101111b446438fcb29d8120a4dd77fcd27bff	base	ps4actor	7d45c1f	disc	mp-kit-hunter-legs-pants-j	mp	256	{}	
+overlay-r3	mp-kit-pirate-torso-in-shirt-a-00.pak	40783236fadd3667ba508d49ba9784917e129208853645829554ef5c1983da2e	base	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-r3	mp-kit-pirate-torso-in-shirt-a-03.pak	e7d63e1c603b932077a4e9a3d66b3157f262542260fdefbb5d1a940f8f86d6d6	identical	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{"PS4ACTOR_DONORS": "mp-kit-misc-torso-shirt-amc-2-b"}	
 overlay-r3	mp-kit-pirate-torso-in-shirt-a-04.pak	5a1a7ffcc225317d0bdd591a0f99ce0c591add3def6a49a521511cfc6e78f239	base	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{"PS4ACTOR_DONORS": "mp-kit-misc-torso-shirt-amc-2-b"}	
+overlay-r3	mp-kit-pirate-torso-in-shirt-c-00.pak	1e954e1ad01dbe887b7e5f195cd0897bd5883a10da645179e0976cfb1d73dc46	base	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-r3	mp-kit-pirate-torso-out-jacket-d-00.pak	4c1486c5a3dcad3cfa1479613893646eccc46c381790e8b25656ab5370383efd	identical	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-r3	mp-kit-pirate-torso-out-jacket-e-00.pak	c1ce01d5f073385a67e9d0ae78f475a1b8f93c1c3d1a4bcad46dcc23d9bbcf8c	base	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
+overlay-r3	mp-kit-shared-monster-mask.pak	aa4c2301eb035a18b59f2e4aedb21cb898e7cbb304a4581600bb7852b5b8193d	base	ps4actor	7d45c1f	dlc-patch13	mp-hero-london-torso	kit-spread	64	{"PS4ACTOR_SPREAD_MATS": "1"}	cubefix+cb3fix
 overlay-r3	mp-kit-shirt-nd-a.pak	d07bff1e59dde0940af025b7ba41c23baa635b9d361fc40bcd7b4b7bf7db9dce	identical	ps4actor	7d45c1f	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-r3	mp-ruins-heli-blade.pak	5a12e544b4186bc9fe6f28628128745761c6a099bdeb026fa0be90dc0d236cab	identical	ps4actor	003b433	disc	rover-2d-civ-hvk	own-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1"}	cubefix+flatfix
 overlay-r3	mp-wrk-crash-boxcar.pak	11d0d0f3fba63c94e0aa5a074f8d45030070ebd79957f63d47ce27edf835f449	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+cb3fix
+overlay-r3	mp-wrk-explode-tanker-lod1.pak	aa5837ce449158d0c412c81100c6f454eb242793129ad8a4f193d059ee5e8ba1	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SKEL3": "goty-dlc/mp-wrk-explode-tanker.pak", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+cb3fix+flatfix
 overlay-r3	mp-wrk-explode-tanker.pak	4643f07a21402e3e95fb399e583d34a9e00accd5a444dfb52caf5734bb4379ad	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+cb3fix
 overlay-r3	oasis-4x2x2-contnair.pak	0edc00e403291bb170996952bcbc71c011c5ad3425404ea236f2551e0e5a6da9	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+cb3fix+flatfix
 overlay-r3	p99-mp.pak	5e1e72387e79b87e648c32c3fd8bc693e2a347da14a7ee1d08a779eea96828c8	identical	wpnmods	7d45c1f	disc	p99-mp.pak|pax|snake,nd	-	256	{}	cb3fix
@@ -324,21 +344,33 @@ overlay-r3	sd22-tbase.pak	50e4f144375a43958c38f81aa78e5e499130068f2fbeaef666ffcc
 overlay-r3	sd23-flags.pak	5c326ed9ae7a0b726f79596dedc103ccda66f6901df2d5f907c430658f233040	identical	lab	f525859	labsrc	crate-wood-1x1x1-a	own	256	{}	cubefix+cb3fix
 overlay-r3	sd9-tower.pak	fbe59abed642573c97872e0d0f40129a1d4f5132fe9df07559e97ebb016bb3f8	identical	lab	f525859	labsrc	crate-wood-1x1x1-a	own	256	{}	cubefix+cb3fix
 overlay-r3	sd9-var.pak	121f66376f737f1cd66ee0064d94e02ddc3033518f74d4b66a5346e22049c5f0	identical	lab	f525859	labsrc	crate-wood-1x1x1-a	own	256	{}	cubefix+cb3fix
+overlay-r3	shark-mako.pak	0c0fd3f898f92a6fc9f7590c797396f717ad7afcd3e7cd6f48e707cddcc358b0	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+flatfix
 overlay-r3	silver-treasure-ab.pak	7a36c336815599d67d01aad584554b15ee4ff4a6f065574a8f10186b4ccd747d	identical	ps4actor	7d45c1f	dlc-patch13	gold-treasure-ac	graft	128	{}	cubefix
 overlay-r3	silver-treasure-ad.pak	b70fdf0c23041049827bc92f2c29983cf127c001aed1e54acb96100e80e6828a	identical	ps4actor	7d45c1f	dlc-patch13	gold-treasure-ac	graft	128	{}	cubefix
 overlay-r3	silver-treasure-aj.pak	f043a548fdd5f9d35f083a0e4a26bc859e5760245c9719d9d9439723b4757c4b	identical	ps4actor	7d45c1f	dlc-patch13	gold-treasure-ac	graft	128	{}	cubefix
 overlay-r3	t62-drum-scrap.pak	574eebe409be014f2302ce96248c560a55e94a811237e2604517f11584ff0094	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1"}	cubefix+flatfix
+overlay-r3	t62-scrap.pak	4a86fd792703d08c4f65e6c2651fbd95af34cc5831313db669f5aab4bdd38f0e	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1"}	cubefix+flatfix
 overlay-r3	t62-tank-lod0.pak	791e7109fdbd7c3f75f1dcb576c8bff352f39226620d4e0960d8e49b51d9fd86	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+cb3fix+flatfix
+overlay-r3	t62-tank-mg-turret-lod1.pak	8c51803fd8e23eb7e672e9143ad3b394c16d390188739f68f8661378edd3c26f	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SKEL3": "goty-dlc/t62-tank-mg-turret.pak", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+flatfix
 overlay-r3	t62-tank-mg-turret.pak	79bea1f8bbe6c8e244fd52b03b1380dcc69321fcf2368019a11163dabd91a7e5	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1"}	cubefix+flatfix
+overlay-r3	t62-tank-mp.pak	d42edeb429cb4c9be23fc21b9e6258f66c9703ca957aa1c04d388a8a0b5bfc9f	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+cb3fix+flatfix
 overlay-r3	turret-gatling-tripod-mp.pak	31b7e4a5a026a865a028b57472d09ec463c9aabbc19e715a6b6cf3584cc7353b	identical	ps4actor	0a20361	disc	turret-gatling-tripod	graft	64	{}	cubefix+cb3fix
 overlay-r3	vil-m-cover-low-col.pak	dbb5ee003f7f3b18be8cb34e7468079e90a41f3b02f48a48e22a4d56632163ca	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	flatfix
+overlay-r3	vil-m-cover-low.pak	2b93a02169f349566074a86515e085033d331e8a61745b883469bceb6b1c881f	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	flatfix
 overlay-r3	vil-m-cover-tall-col.pak	1c52c402ebda9505d064a9946f7e25a0e0b30001a107dcf205709e41ad864b31	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	flatfix
+overlay-r3	vil-m-cover-tall.pak	780c7d981109d91b4454b5c37c1fb884dddfe64fd56d55ff010d3a6f83a2f855	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	flatfix
 overlay-r3	vil-multi-gateway-door.pak	650344a373891d957b8e4cccadb42a2f2abdb79a324aa6b8079be0bc11503e6c	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+cb3fix+flatfix
+overlay-r3	vil4-break-bldng-a-multi.pak	dcce1727cff55fddf75e0f6a3de73892053fd4381b7caff6cdcdef9f3b570e64	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+cb3fix+flatfix
 overlay-r3	vil4-break-bldng-a.pak	4ab71b908897d6672893b0735ab35c58605f84da99584f94e43ccdbaaf06e95b	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+cb3fix+flatfix
+overlay-r3	vil4-gateway-destruct.pak	7cc12b04239339b166f2c33462014921e95350cd89d5a8037b8da1b5359a8e97	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+cb3fix+flatfix
 overlay-r3	vulture-fma.pak	2051e1a7b9c500016eadecae8d391a13e94a969b9be1fb02c2cf329a41b7e837	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+flatfix
+overlay-r3	vulture.pak	2fbf225af00592d0fd7b0b06837b4b46d62e864bf578f2835a9cc2cdf2921378	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+flatfix
 overlay-r3	wz-blowup-fiat-a.pak	5de7e513c667c1bfe070a4ea17e68cc765420c99efa71778861df6e89e1dc16d	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+cb3fix+flatfix
+overlay-r3	yem-luggage-a.pak	14368f67d927aa19eac2e6689281a332c476dadd1e48b5f620bd61f4df8b3ab2	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+flatfix
 overlay-r3	yem-luggage-b.pak	9d3bc5758213e0c7fa4eb54fe06d6f0cb657a2dfb8df4311b8ddb08c768f6ff2	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+flatfix
+overlay-r3	yem-luggage-c.pak	57e53137d7a51d168121163bfc48536cad4c379a1159ce8674b7c6e1b9b9fec5	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+flatfix
 overlay-r3	yem-luggage-d.pak	6baf5199a9f7a4557be153e1ff8509c338007bfa211001b7d7c95c6e2ffa62bb	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+flatfix
+overlay-r3	yem-luggage-e.pak	42c22ec5cbb5df0ad4a18d360cd400525e0cdd3ddb05180ee15f3b2e59d2508e	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	cubefix+flatfix
 overlay-r3	yem-luggage-rack-1.pak	1f0744aaeed8fdcf91c3bf7ddfb81182cfd552e6e77020358fc42fed17df640a	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1"}	cubefix+flatfix
 overlay-r2	alouhette-helicopter-pirate-mp.pak	0d6d0896433d9ce2a718c8d90df72fa6d0589096b46a03a66d0812d704e1d6b4	identical	ps4actor	7d45c1f	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-r2	anim-mp-london-spawners.pak	23a2a2e3252e04df169873101bc5398b5c56153caa6b40b4899b819b867ec5ba	identical	anim	1323bad	goty-dlc	-	anim	0	{}	
@@ -351,13 +383,17 @@ overlay-r2	anim-mp-old-quarter-taps.pak	646376ca2c7232de1e6faf8388c52eb20a6df258
 overlay-r2	anim-mp-old-quarter.pak	c8d1eaabe3c5e31f571e5a16d349a7991aa41618defa3ec91f252e15f22e1171	identical	anim	1323bad	goty-dlc	-	anim	0	{}	
 overlay-r2	anim-mp-ship-drydock.pak	58be73ca86058917ad83a2ab5f64ebf23518e307e49954c2a0fdde1f2a3d4f50	identical	anim	1323bad	dlc-patch18	-	anim-stm	0	{}	
 overlay-r2	cargo-plane-mp.pak	7698f3723b26d27ca42aea6eae63fd0795dbc7b76a9e02e84b180409a51b7589	identical	ps4actor	7d45c1f	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-r2	gaz-van-grenade-launcher.pak	d706700747e038fc6402b5e9090bcd0e91e6f5e275b4b496adafef5c1ba8c81b	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-r2	gaz-van-lod0.pak	3fa10d10763b799b2a5349e1b6baef788f4d2e2f2918690af7d4830a253c8f66	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-r2	grave-moving-big.pak	18fcef306ef510c43669b6d32274c74081de7eed1aadc9d54720435945e47ab1	identical	ps4actor	7d45c1f	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-r2	graveyard-container.pak	bd19b7b80c5183293482121983688a7b04924fddac9e47a87e598923e460a775	identical	ps4actor	7d45c1f	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-r2	grv-col-multi-buoy-tall.pak	937b0650dfb3d85e45acb3713143103481855b8a30442fa610f34958b29c93c7	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-r2	grv-col-multi-tugboat-busted-rail.pak	948da88d7aaefb0145f18623f04e79d8e5620654cabbb082169a478c4a419240	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-r2	grv-col-multi-wide-ships-a.pak	219030deabcbb15c41410d15081e64c4ffa3fea8afa0578d29cfa882f4b795b4	identical	ps4actor	7d45c1f	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-r2	grv-col-multi-wide-ships-b.pak	3febf5543113ad41c0fb6afa4f241e5ce2dd5a8b153a3102982c70ae9ae255a9	identical	ps4actor	7d45c1f	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-r2	grv-col-multi-wreck-tugboat.pak	e7d1611bf723841593dfafc7117678f4aaaa8e3fc514a75c7daab23380145e31	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-r2	ldn-arch-break.pak	9823abf44121ef6c6139b8405cd22332ed62d233c21db93f49a067d6f764ee49	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-r2	ldn-fence-break.pak	30250d078ad65cf68206e22fc403a00206c474caf82f4cd8242fb127bf99aee0	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-r2	ldn-street-garage-door.pak	a7685da3c30308f91d1a4316b221ba824b4744267ef74389dc22c265ddbd1d84	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-r2	oasis-4x2x2-contnair.pak	0d7074899a966b9071e94a814eee7eef371049c79ca88a9ce525886cb0accb9b	identical	ps4actor	7d45c1f	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-r2	pirate-boat-multi.pak	cb9cf9388d51eb57693d84ac7037ef63e98983434b606f33eea016d10e9ab97f	identical	ps4actor	7d45c1f	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
@@ -398,15 +434,24 @@ overlay-port	anim-proto-multiplayer--patch.pak	c7359fa3db577bdab229efe79466bc063
 overlay-port	anim-shade-mp.pak	83939c86fe906fe3267e0847ae96d9792de8a9fcd2dcd565faa92711a299ddd1	identical	anim	anim32	goty-dlc	-	anim	0	{}	
 overlay-port	anim-soldier-mp.pak	843e14b92946f52953199dd0a9fe864f0f687488ad8d96e029f25011b4f354f0	identical	anim	animkv	disc	-	anim	0	{}	
 overlay-port	capture-idol-silver.pak	47a397e111b9dec27ebdc116ea34d10c728f96e68df8cbb62fb4aedc26d6319d	identical	ps4actor	de13aa1	goty-dlc	capture-idol-gold	graft	128	{}	
+overlay-port	cha-wall-burn-doorway-mp.pak	c320686002c35d86771b228a536dfe762924cb58def3fc004f730f1c94d33566	identical	ps4actor	003b433	disc	cha-wall-burn-doorway	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	crate-wood-1x1x1-a-break-des.pak	548dfc0aa87133c599ebec8e6ea19e9da08efb34405487aa4d75735ad3c45221	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1-break-ship	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	crate-wood-1x1x1-a-break.pak	678dc3e932b053044abdd6aacc539389fe03aedce99387f8e37a625eb7640cd8	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1-break-ship	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-port	crate-wood-2x1x1-a.pak	db294f799da0553095d930bf952fbb855e6c5745962bb1faefad67d7fc413139	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	cruise-ship-rear-lod.pak	bba2c741075c39d68986e43754529bfb1cd8904906237c71a1a32eab874b4fd0	identical	ps4actor	003b433	dlc-patch18	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-port	crystal-yamataka-head.pak	b9b95860b3b890b84e857dee42e5236776348faf82d26b9d00355875629bd9d4	identical	ps4actor	de13aa1	dlc-patch13	emerald-treasure-aa	graft	256	{}	
 overlay-port	fort-arch-door.pak	997aff483351831c796f2ab8b83ba3d749d7b4e37fb2a58bae53da58262cb057	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	fort-coop-antenna-wire.pak	14e97390152aa1afea018a0367e7cdfa37a5d40e2dd99655c507eeac63b66c40	identical	ps4actor	003b433	goty-dlc	cloth-frontgate-b	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-port	fort-coop-gate-1.pak	5af4c84544c5f2a8503347232d506239b2b46d45b4f52ce7dce385b4a6656240	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	fort-coop-gate-2.pak	39e68efbe351d023d4ee28643d93083ab8ba0c4620ca67abcb4f6fecbd30ce4e	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-port	fort-coop-gate-3.pak	c739d7140d67f457640cbe7c75843072e816bb1564e1aff5d50512863576d180	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	fort-coop-gate-4.pak	a534084603805b0789c77a3a460ae51421af334ba35455058bbdba4babbeffe2	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-port	fort-coop-gate-5.pak	bf2b75be96d873efff5fd46932178779dd0a71cef25efd1c2679ea39fa14e5da	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-spread-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	fort-coop-idol-holder.pak	6f05ae7302f56d31af8e74bb2b2f6e54a8acf91bc49421251026f1ae561e89c3	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-port	fort-coop-wall-switch-1.pak	604d656960f9c316b8edd953ed24e95c8e8a75da39fde26e8ea998e3104280f6	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	fort-gate-break.pak	2149f7e175b3b2b255f73a71745ce31d285378a93e8c418de4bfbb03f20530a1	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-port	fort-gate-courtyard.pak	f102de4675a60f26ba218e37350409c9965845e43b3fd5a6e2dad687b389a82b	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	fort-grate.pak	7ba031bd07023d26e6bb64060f5ba8981952e807bd7b91aa9515f8d924a229ad	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-port	gold-ankhora-water-pot.pak	f20fdca0c777d6ca4c3b68d7a0af27d05c3ef8f15b4a89643f7f3af59cbb4d1d	identical	ps4actor	de13aa1	dlc-patch13	gold-treasure-ac	graft	128	{}	
 overlay-port	gold-apron.pak	a50943f7d84c3b13551707bb51ea5437a8e60de7cab0cf2efc0b46ba367d22c9	identical	ps4actor	de13aa1	dlc-patch13	gold-treasure-ac	graft	128	{}	
 overlay-port	gold-belt-slide.pak	1253a8968684b4494ecc3c2d4fff3fb976e43b54e633ef87aaf88ec9ee571a7d	identical	ps4actor	de13aa1	dlc-patch13	gold-treasure-ac	graft	128	{}	
@@ -437,10 +482,14 @@ overlay-port	gold-treasure-bd.pak	c602b7ab50add471d682e48701f3be1fa9e51d462d95ff
 overlay-port	gold-tzongkhapa-statue.pak	4a8ead6057563da0d452f769682c814cc7ee9a50c0b79b69dfa99d3d6a1af32e	identical	ps4actor	de13aa1	dlc-patch13	gold-treasure-ac	graft	128	{}	
 overlay-port	gold-varaha-statue.pak	99232f62eb36a733a9b6d26112ba90fda6dd1eb75d3abc179b5d836ac7ea11fe	identical	ps4actor	de13aa1	dlc-patch13	gold-treasure-ac	graft	128	{}	
 overlay-port	gompa-banner-c.pak	0f29da39168414bc6ffdaffd03e3341de5373a0282bd4b4977bb45a30a72655c	identical	ps4actor	003b433	goty-dlc	cloth-frontgate-b	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	gompa-destruct-rail-1x1.pak	2c111ec8bdfb1fb19a78631943e1aecefe1d50a3c605448ce45b14e72a86e868	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-port	gompa-destruct-rail-2x1.pak	f5ec150de5162bfee41fc8ec5ecb4d1652042d9251dfd98fe6495c3d6ddaa8a2	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	gompa-destruct-rail-endcap-a.pak	512d46720e4fa9fd41192cfbdf0e867e41900ec44a2609bccf20c47743d1a625	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-port	gompa-flag-vert-a.pak	83f81e672c90a884091887d79eae176eff57d8ccb5b547e8689f3d874a899ed0	identical	ps4actor	7d45c1f	goty-dlc	cloth-frontgate-b	own	256	{}	
 overlay-port	gompa-lantern-a.pak	fd291d5090cb49c9fc2a942dad68d62ce99b20e48e1a48f6783fe96a08ad30ac	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	gompa-lantern-b.pak	37adcfc2f29517045f049d5d02febb2bdea037f5c97ac8e3f336bd4a43d2fb66	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-port	gompa-lantern-c.pak	dc5fd0e4d23a7ffb6bfa72fc646a56eac6f71fa21d183d0f4fbb34ec8388c0e3	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	gompa-prayerbanner-a.pak	261c154697d710524c0e1561ce7453c8f70961f8bd38aad813be7053b2ac55fc	identical	ps4actor	003b433	goty-dlc	cloth-frontgate-b	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-port	gompa-prayerbanner-b.pak	60643cee2dc1f070a5bff1ffb60b04c6b3ca37d4d3440762fb8b918121b26f85	identical	ps4actor	003b433	goty-dlc	cloth-frontgate-b	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-port	gompa-streamer-a.pak	0bc489dd5f04254e5640e268b6c4b79b8f7dad8f716581abcee5127cd2dd1c3d	identical	ps4actor	7d45c1f	goty-dlc	cloth-frontgate-b	own	256	{}	
 overlay-port	hematite-17th-18thc-lion.pak	6970b5bfaf06014433764f9649a19352a56b34f0b93c9a37eda261c79bcacf01	identical	ps4actor	de13aa1	dlc-patch13	silver-treasure-cg	graft	256	{}	
@@ -468,6 +517,7 @@ overlay-port	lapis-garuda.pak	a755742741945c46a722fe3e03558aaa7b2bf65ec260ad046b
 overlay-port	lapis-lotus-jar.pak	8cc9429aeba35f9b543f70671006fe68fcecfdc9cd8e50a6744ef076439a55d2	identical	ps4actor	de13aa1	dlc-patch13	lapis-treasure-aa	graft	128	{}	
 overlay-port	lapis-toad-censer.pak	3ed05e3daf2aa264027f2bfda3dff9727750036e854eeddb9fe70a96936d7174	identical	ps4actor	de13aa1	dlc-patch13	lapis-treasure-aa	graft	128	{}	
 overlay-port	lapis-tzongkhapa-statue.pak	3a70908e59e6cea2bfd926b1a73d209f340e7aa77cdbef83d981e88ad891debc	identical	ps4actor	de13aa1	dlc-patch13	lapis-treasure-aa	graft	128	{}	
+overlay-port	m715-fort.pak	6e584c8339448cccae37a4f32617b5bf03fe95e76b29349e6dba601fed4e24b3	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	machinegun-mp.pak	0dff857010b4ec706a292f2661cdcaa5e1e5ac7af9bdd45365eeacf9caa84f14	identical	wpnmods	7d45c1f	dlc-patch18	machinegun-mp.pak|navarro|snake,nd	-	256	{}	
 overlay-port	mi-24-heli-lod0.pak	e82ac1dd1ca369c0d72292d22c26df38536e58ad8b4738afdd19e9c58c288248	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-chloe-artifact-mask.pak	8df78c16c583f689b4d254a5c094d395921e9c6b01fa020cb15ee9c5513e24b5	identical	ps4actor	7d45c1f	dlc-patch18	mp-chloe-u2-legs	kit-spread	128	{"PS4ACTOR_SPREAD_MATS": "1"}	
@@ -500,6 +550,7 @@ overlay-port	mp-chloe-marlowe-royal-necklace.pak	1e3a44361336becfaf45d9e42b8fed2
 overlay-port	mp-chloe-marlowe-sunglasses.pak	66d0a6cc752a6349d6ad66dd4ea428151b9d37441c3222018e6aeaee7ecc9555	identical	ps4actor	7d45c1f	dlc-patch13	mp-chloe-elena-hair	mp	256	{}	
 overlay-port	mp-chloe-navy-hat.pak	54b08fb4b1312ba47fd8f4dbec6cdef7d6f135b45f7c2f45ca2291e60a062306	identical	ps4actor	0a20361	dlc-patch13	mp-chloe-u2-legs	kit-spread	128	{"PS4ACTOR_DONORS": "mp-chloe-elena-u1-legs", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-chloe-nurse-hat.pak	65e8faeab1524fb1912dd4d5009ac83aa9b71f0c1cd9b90169552c3ae15f5326	identical	ps4actor	7d45c1f	dlc-patch13	mp-chloe-elena-hair	mp	256	{}	
+overlay-port	mp-chloe-skel.pak	dfb560992bfdeb3c3be8e4dd20516ea70638aaaff036e047f51c7bb7cc1d35c7	identical	ps4actor	0a20361	disc	mp-hero-skel-bones	kit	256	{"_skel": "mp-chloe-elena-hair"}	
 overlay-port	mp-chloe-skull-mask.pak	5a6b97a0e54a7dd6ba2babf798c4c0379481594c6ab4db573ede8ef1367e3b84	identical	ps4actor	7d45c1f	dlc-patch18	mp-chloe-elena-hair	mp	256	{}	
 overlay-port	mp-chloe-snake-mask.pak	d159167534e9a2797aba1b801de693f79d257b9230e4e5f3a997504b72c5d4ad	identical	ps4actor	7d45c1f	dlc-patch18	mp-chloe-u2-legs	kit-spread	128	{"PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-chloe-teddy-bear-mask.pak	2aa029c1339895ce0d317c2def729647931555dc392fa4eab0b74cc61fca9d41	identical	ps4actor	7d45c1f	dlc-patch13	mp-chloe-elena-hair	mp	256	{}	
@@ -537,6 +588,7 @@ overlay-port	mp-hero-bed-leader-mexcian-mask.pak	b739fad4fd09144a1b7a075d74239df
 overlay-port	mp-hero-bedouin-a-jak-goggles.pak	643000d76db72ad4d0696db77d5c2b08ffebe4ff55c5c023cab02d1be3db52d0	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-bedouin-b-jak-goggles.pak	787194cf556a1b1a5370c00112a3a2e66613912915858c377d7517bf601486b7	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-bedouin-c-jak-goggles.pak	6ddb3a1ef32cdc5d6fd91b699bc88bf7f410603f461ce97b7b2cc4659feeeeea	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
+overlay-port	mp-hero-crown.pak	ae96b0c682c6ecd915fb80d3161037dc63529a606c5b631dafa3be0030505ed7	identical	ps4actor	0a20361	dlc-patch13	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_DONORS": "mp-hero-french-hair", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-hero-cutter-backwards-hat.pak	15d9a139ffe55f7073c0ef265e1ebd5769d02bebba98e99e8e84bc02d98633e6	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-cutter-brain.pak	e6cc3357adfd26ee24f4354edc343b003c0af8cb49b851cfde52997610235e2e	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-cutter-cap.pak	f9771f2150e0d26332da936f8bf2f295d3695fe936a7605fbe15934a65fd6db1	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
@@ -583,6 +635,8 @@ overlay-port	mp-hero-fat-cutter-party-hat.pak	73b9dca6978a044bea7e3c1610151bfb21
 overlay-port	mp-hero-fat-eddie-jak-goggles.pak	7040fcfa76697e283d8afc51bba64048acea1717e308f2ca9e02b76661d56135	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-fat-eddie-mask.pak	66d65b4d1f77abcd969203239b2b8a9aa5b61b6e5eaa777cef63b71166e01d53	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-fat-eddie-party-hat.pak	621bd2ebf2e420c3cb2db688586915b47967f4c32f419edd4d079c4853b0a53e	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
+overlay-port	mp-hero-fat-hair.pak	f82adc6e36fb57d1055d2c64b0fa232052fc2c4abb92f2f5381690fc5a640383	identical	ps4actor	0a20361	dlc-patch13	mp-hero-fat-sullivan-hair	mp	256	{"PS4ACTOR_DONORS": "mp-hero-french-hair"}	
+overlay-port	mp-hero-fat-jak-goggles.pak	47f37064fdb290d4b6c3f96975e3515c9c502524f8bee6664a1cc85cb773ae51	identical	ps4actor	0a20361	dlc-patch13	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_DONORS": "mp-hero-french-hair", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-hero-fat-lazarevic-jak-goggles.pak	e7b15b13a14f1d69d4913c8371a853634558ccd24ad9ada2c4b165f52d2f2e6c	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-fat-lazarevic-mask.pak	0695c11d8733130b1348cef920e128ad0a386b29023999c35159c3ee199df367	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-fat-lazarevic-party-hat.pak	0cd58dffec3493c2bff6c95f90f3987e907d5193bd49868cb82b2e10b464c345	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
@@ -611,6 +665,7 @@ overlay-port	mp-hero-french-torso-coop.pak	bb9aca95d11bd8fe6cec175efa441fbf152bc
 overlay-port	mp-hero-guerro-jak-goggles.pak	e11f9c661703edde139339dd539bfd21c412da6e535eff611842459be5287c73	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-guerro-legs.pak	da2c578630bc049ce1a52ccdcdc097891039129393ae26329229eb3bac843925	identical	ps4actor	port-v1	dlc-patch13	mp-hero-london-legs	mp	64	{"PS4ACTOR_DONORS": "mp-chloe-elena-u1-legs"}	
 overlay-port	mp-hero-guerro-torso.pak	d8b0d688df9e948a34df52cddafde4389c85026613f8f67345aa58ffe990cf31	identical	ps4actor	port-v1	dlc-patch13	mp-hero-london-torso	mp	64	{"PS4ACTOR_DONORS": "hero-desert-head-dust"}	
+overlay-port	mp-hero-jak-goggles.pak	96c130cfa9e97b1eef11acc873a441aafe48cf25aef17b140929f7e5272f1d1e	identical	ps4actor	0a20361	dlc-patch13	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_DONORS": "mp-hero-french-hair", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-hero-jeff-glasses.pak	9114a33142e493fa47b18593ae839e0d47a79eb6e7857c58da601f6176f95c3f	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-jeff-jak-goggles.pak	ae466c25cbde086db38e360c071620519a914e73d79dd13526a88152b225aed9	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_SPREAD_MATS": "1"}	|solo
 overlay-port	mp-hero-lazarevic-coop.pak	15abd4e46fb16178c4b21cb1506fef0dbc86316c2d3d55a63ffd29f84bbe4deb	identical	ps4actor	de13aa1	disc	mp-hero-london-torso	mp	64	{"PS4ACTOR_DONORS": "hero-desert-head-dust"}	|solo
@@ -628,11 +683,16 @@ overlay-port	mp-hero-navarro-goggles.pak	6b29937e7d9edd9579873b5bc7f155864ce3e63
 overlay-port	mp-hero-navarro-jak-goggles.pak	041222fd799e2de31a06ab0d8da44dc4a01144724b68094ac1644971dedb603c	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-hero-ngp-legs.pak	640b54fba0f3e2c83623875b3603771873e3b2392577e142575701e34120663f	identical	ps4actor	port-v1	disc	mp-hero-london-legs	mp	256	{"PS4ACTOR_DONORS": "mp-chloe-elena-u1-legs"}	
 overlay-port	mp-hero-part-bag-mask.pak	c1c9b170753a666fca5bf9e1f7a53804cb5c0ea382f46b0da955c5f2b645acc2	identical	ps4actor	7d45c1f	dlc-patch18	mp-hero-ramses-bandana	mp	256	{}	
+overlay-port	mp-hero-part-bronze-mask.pak	607b7b058f1069a5b633620a823283bea640811a5b3aa4161ed4437a25a63ae8	identical	ps4actor	0a20361	dlc-patch18	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_DONORS": "mp-hero-french-hair", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-hero-part-horse-mask.pak	7a7625392156299b3e6bd7c9efe55b9b7157bfdc85f28dbbc96e3020d327603c	identical	ps4actor	7d45c1f	dlc-patch18	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-part-lion-mask.pak	a4103721275ca3a03a26a05588766ac3461cedec3b4d56d7571e787f6de85963	identical	ps4actor	7d45c1f	dlc-patch18	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-part-present-mask.pak	79e2ed96becadb6c68aeae7dd5c54dd37a20d96f5e26257aba747321530cca0d	identical	ps4actor	7d45c1f	dlc-patch18	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-part-pumpkin-mask.pak	48cd8a8119248b7ec2b0ab3ec3f439498bb3b38364ce33c98b851a8764f6b630	identical	ps4actor	7d45c1f	dlc-patch18	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-part-raptor-mask.pak	bdafa5983ab1c1de9442aebb3ccb7ce7d1b1714fe68235d42da9b394d6236ba6	identical	ps4actor	7d45c1f	dlc-patch18	mp-hero-ramses-bandana	mp	256	{}	
+overlay-port	mp-hero-part-spartan-mask.pak	3ad4cad56940773e7fedf1a518b3e29f74c5e6139b534ec7c32772aeda18d6b7	identical	ps4actor	0a20361	dlc-patch18	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_DONORS": "mp-hero-french-hair", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	mp-hero-part-suit-mask.pak	1cb0478a32806acd2d07e3c0fedbd039fdac8694dbf830b70a8ec8dc73911769	identical	ps4actor	0a20361	dlc-patch13	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_DONORS": "mp-hero-french-hair", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	mp-hero-part-wetsuit-goggles.pak	f724604c45536e07cfe9a90ceeaeae4c305b5df8954d7865fa12cc13064b539e	identical	ps4actor	0a20361	dlc-patch13	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_DONORS": "mp-hero-french-hair", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	mp-hero-part-winter-hat.pak	ba1aeb84b9acd8c208adea1b93ece271896576e8e139829edb93fe216c10f548	identical	ps4actor	0a20361	dlc-patch13	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_DONORS": "mp-hero-french-hair", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-hero-pirate-football-pads.pak	cabcb279d9d8fef9d0c6289ee8eb611ec3de84a97dc3c4c4e73d420d8f291e98	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-pirate-jak-goggles.pak	3271622ce9cea9e4bb51e74857e2bff4359fdc77cd2ceeb3dbf56b4a21ba4cd7	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-pirate-skull-necklace.pak	fc41308200cb44ca9d88b238b0943ee9620ca2a743bbcc58051588e09bfff874	identical	ps4actor	de13aa1	dlc-patch13	mp-hero-ramses-bandana	mp	256	{"PS4ACTOR_DONORS": "mp-hero-fat-torso-extra-4"}	
@@ -641,6 +701,7 @@ overlay-port	mp-hero-ramses-eye-patch.pak	493ad9b8c1eff655850c9942d0f5bcecffbe62
 overlay-port	mp-hero-ramses-hat.pak	af99594db7596acb20f038d61b6911c16bb5d8a3f7a13b46851ca095fbd2358f	identical	ps4actor	port-v1	disc	mp-hero-ramses-bandana	mp	64	{"PS4ACTOR_DONORS": "mp-hero-fat-torso-extra-4"}	
 overlay-port	mp-hero-ramses-jak-goggles.pak	9b310a602b442f0bed55e499ad0a54844e1ac029582ab196c8522b33645a3d47	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-london-legs	kit-spread	128	{"PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-hero-ramses-parrot-hat.pak	3f686cc38e2f3d5496eb9659fedc3a06566337e684a4d03b74dba120279b2201	identical	ps4actor	de13aa1	dlc-patch13	mp-hero-ramses-bandana	mp	256	{"PS4ACTOR_DONORS": "mp-hero-fat-torso-extra-4"}	
+overlay-port	mp-hero-rescuer-bandana.pak	c51b2202658e6afab49b0c1cd0dc2388e2853403a99a98e1cc8d380764a2862f	identical	ps4actor	0a20361	dlc-patch13	mp-hero-rescuer-hair	kit-spread	256	{"PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-hero-rescuer-jak-goggles.pak	092da1a05b66faf815e2815df83ec1dc1b70bd0bff4433c8ee700d8a34175978	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-rescuer-hair	kit-spread	64	{"PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-hero-rescuer-yak-hat.pak	1710e1b49d2ecc7a7022722b1aa06a60ed8793f4e35f97bf18934828f2882afa	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-roman-axe-hat.pak	3339fca9948df80cecdeab8a2f36acb185900b7f3471947bb10d7d25f6916b6f	identical	ps4actor	7d45c1f	dlc-patch13	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_SPREAD_MATS": "1"}	|solo
@@ -688,6 +749,7 @@ overlay-port	mp-hero-sullivan-part-ring-06.pak	5016297cc1a877b00f7fbeab684c82627
 overlay-port	mp-hero-sullivan-part-roundglasses.pak	dd5172ae77bb1c0fb20551e04f6ccce98b43bddabae3ac1b7872eb51cd08fb3d	identical	ps4actor	port-v1	disc	mp-hero-ramses-bandana	mp	256	{"PS4ACTOR_DONORS": "mp-hero-fat-torso-extra-4"}	
 overlay-port	mp-hero-sullivan-part-straw-hat.pak	6358fd9c657264e19a2e00ecc45e9427b492f9ba814b911903bf10782bdbffeb	identical	ps4actor	0a20361	dlc-patch18	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-hero-sullivan-part-tengu-mask.pak	a18e0b3379626dbf21d33e420181731efa5ec149a12e76be999fcf4a4c0adbfa	identical	ps4actor	de13aa1	dlc-patch18	mp-hero-ramses-bandana	mp	128	{}	
+overlay-port	mp-hero-sullivan-young-jak-goggles.pak	b3f9900fb1b844077fef25ceb88037fcbd9db212cce2791132fd9acdbeb6118f	identical	ps4actor	0a20361	dlc-patch13	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_DONORS": "mp-hero-young-sullivan-hair", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-hero-talbot-aztec-mask.pak	fe77d1498d686d20c7078f96ac21cfe35123c39b6dcded7695354c54d228161f	identical	ps4actor	0a20361	dlc-patch18	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_DONORS": "hero-desert-head-dust", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-hero-talbot-burlap-mask.pak	2c8dca3f03136b338bf52243cd27c4ce2ddaa3a9a5e4e2cb059f105fbdd51991	identical	ps4actor	7d45c1f	dlc-patch18	mp-hero-ramses-bandana	mp	256	{}	
 overlay-port	mp-hero-talbot-dive-helmet.pak	39f069a5038e8825b4949fa80abb9a459b68367a0079f353769f4c4c749dcc77	identical	ps4actor	7d45c1f	dlc-patch18	mp-hero-ramses-bandana	mp	128	{}	
@@ -711,6 +773,7 @@ overlay-port	mp-kit-base-arms-hands-skin-b-00.pak	24e3995c25d42a9b8a14008341fb55
 overlay-port	mp-kit-base-arms-hands-skin-c-00.pak	fa9295718ce8a9773f2d4042ff74b3f1e1ae1de19d6b17cd7981215b400cb0eb	identical	ps4actor	port-v1	disc	mp-kit-base-arms-hands-skin-a-00	mp	256	{"PS4ACTOR_DONORS": "mp-hero-agent-med-a-torso"}	
 overlay-port	mp-kit-base-arms-low-arm-skin-b-00.pak	dd2d1035db98474d80bcbd9fd2c97124d0993dbc295ed19bc0807377c8dcec33	identical	ps4actor	port-v1	disc	mp-kit-base-arms-low-arm-skin-a-00	mp	256	{"PS4ACTOR_DONORS": "mp-hero-agent-med-a-torso"}	
 overlay-port	mp-kit-base-arms-low-arm-skin-c-00.pak	da5221201da7a5ff449a0bdb9868d368623ef648aa8a570bc9e5947e549498fd	identical	ps4actor	port-v1	disc	mp-kit-base-arms-low-arm-skin-a-00	mp	256	{"PS4ACTOR_DONORS": "mp-hero-agent-med-a-torso"}	
+overlay-port	mp-kit-base-arms-should-skin-b-00.pak	4cfdcfd21d6eb327b423787bb16f42117abbad25a599f18401f1e1c3a1aef45a	identical	ps4actor	port-v1	disc	mp-kit-base-arms-should-skin-a-00	mp	256	{}	
 overlay-port	mp-kit-base-arms-should-skin-c-00.pak	9bf8118bed0ff48fac249ba8428cddeb84875c70f7fac2ba99985e0574b7332c	identical	ps4actor	port-v1	disc	mp-kit-base-arms-should-skin-a-00	mp	256	{"PS4ACTOR_DONORS": "mp-hero-agent-med-a-torso"}	
 overlay-port	mp-kit-base-arms-up-arm-skin-b-00.pak	2f0b16349eff35e75bb648acc14f8d6803ed49ff90f822c5cd730c004a172906	identical	ps4actor	port-v1	disc	mp-kit-base-arms-up-arm-skin-a-00	mp	256	{"PS4ACTOR_DONORS": "mp-hero-agent-med-a-torso"}	
 overlay-port	mp-kit-base-arms-up-arm-skin-c-00.pak	6680fad62bb2a0380d8445f67ee3460d8375675fda1268d94702c303867f647e	identical	ps4actor	port-v1	disc	mp-kit-base-arms-up-arm-skin-a-00	mp	256	{"PS4ACTOR_DONORS": "mp-hero-agent-med-a-torso"}	
@@ -770,6 +833,7 @@ overlay-port	mp-kit-hunter-torso-shirt-b.pak	6dd09de51994b726f55c292480f4c5d7dce
 overlay-port	mp-kit-hunter-torso-shirt-c.pak	4068f2e00cc2ec986ad1d060065bc68ac70968a796a14c28aa674a88625402f6	identical	ps4actor	port-v1	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-port	mp-kit-hunter-torso-shirt-d-00.pak	1de803c5e53d8642cb88be1cdd63c504ce6c80a40f5dfc9fcef3d5ee2de16ef7	identical	ps4actor	port-v1	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-port	mp-kit-hunter-torso-shirt-d.pak	0778d9e05af2f1b47fbca7cb11fdb69dbb6bd0ad4e4487bd6d1f869900d63a13	identical	ps4actor	port-v1	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
+overlay-port	mp-kit-hunter-torso-shirt-e.pak	206fce53e8230ce6ae9277d54049d590a02061e6afc0f0bd6804cd03289fa2b7	identical	ps4actor	port-v1	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-port	mp-kit-hunter-torso-shirt-f.pak	dfe32d70854c14000b71ac12437db0f166b256300b4cb55e0805be9ede174504	identical	ps4actor	port-v1	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-port	mp-kit-hunter-torso-shirt-g.pak	23500cf0d37652de2e92200520ab60cb141a95c20d9829fcc2f2a9eae7fdc12a	identical	ps4actor	de13aa1	dlc-patch18	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-port	mp-kit-hunter-torso-shirt-gas.pak	797f759e61060039851a12680d084c4a03c724a8565818aff9fee54ab1adb4b9	identical	ps4actor	de13aa1	dlc-patch18	mp-kit-hunter-torso-shirt-h	mp	256	{}	
@@ -791,6 +855,8 @@ overlay-port	mp-kit-hunter-torso-shirt-t.pak	66661f8350f075a67910a02589df735eb3b
 overlay-port	mp-kit-hunter-torso-shirt-u.pak	ad51d3dd3a15aa16932a023d016bbf12b4aa1d7b52d132f4ed73a2ebc29792af	identical	ps4actor	de13aa1	dlc-patch18	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-port	mp-kit-hunter-torso-shirt-v.pak	de5bed82ecbbc69bf1d0f4091a5713ae034fe0e30451b37175665e28b4d0d048	identical	ps4actor	de13aa1	dlc-patch18	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-port	mp-kit-hunter-torso-shirt-w.pak	91bd7ee568ad4f34d4e0c86fba43171e6f0b8d7f860fa934f026d4cdc7de19b9	identical	ps4actor	de13aa1	dlc-patch18	mp-kit-hunter-torso-shirt-h	mp	256	{}	
+overlay-port	mp-kit-hunter-torso-shirt-x.pak	3155d9e7bce8eddf1d10c4951cbbb3cef6d25776d43ed7dce48a07b261d734ee	identical	ps4actor	de13aa1	dlc-patch18	mp-kit-hunter-torso-shirt-h	mp	256	{}	
+overlay-port	mp-kit-hunter-torso-shirt-y.pak	3f46e1b3b03c82535ab8b8627c4dbe64694e5d47aae205c3547eea70383b73be	identical	ps4actor	de13aa1	dlc-patch18	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-port	mp-kit-hunter-torso-shirt-z.pak	4abc25c77898382496560860a4e3134878a0c94a66adf44c8149095adf16da27	identical	ps4actor	7d45c1f	dlc-patch18	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-port	mp-kit-hunter-torso-vest-c.pak	ac07ffab0f83cf767e1cbbe60f2491ca119d31b4c9db3d8fb346a2ae2319dca1	identical	ps4actor	port-v1	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-port	mp-kit-hunter-torso-vest-d.pak	389dc69f3350aa83383baa12d04ef2e516a38144c9e402f456085a5f3746e101	identical	ps4actor	port-v1	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
@@ -807,6 +873,7 @@ overlay-port	mp-kit-merc-arms-gloves-g.pak	4fe3f5c8cfd7d8a6259e30c8d559c41b38a92
 overlay-port	mp-kit-merc-arms-gloves-h.pak	194218fb744e52b552a4bfb528a64accd755c3d3acb9a9be8b9719f833c813ac	identical	ps4actor	port-v1	disc	mp-kit-base-arms-hands-skin-a-00	mp	256	{"PS4ACTOR_DONORS": "mp-hero-agent-med-a-torso"}	
 overlay-port	mp-kit-merc-arms-gloves-i.pak	b6f751400c68a97f76ac4d3f1cdc08a1b8a27bb9879a065db43f7df0e1d27307	identical	ps4actor	port-v1	disc	mp-kit-base-arms-hands-skin-a-00	mp	256	{"PS4ACTOR_DONORS": "mp-hero-agent-med-a-torso"}	
 overlay-port	mp-kit-merc-feet-boots-b.pak	3117a4ccad63609a45aeac4ee6879d8f9be6289171f8c1fc224843e3562a2ee5	identical	ps4actor	port-v1	disc	mp-kit-hunter-feet-boots-a	mp	256	{}	
+overlay-port	mp-kit-merc-feet-boots-c.pak	eb204c8b223c6f04de44a3f64941dda56802db19378cf2599d58a34ee145f635	identical	ps4actor	port-v1	disc	mp-kit-hunter-feet-boots-a	mp	128	{}	
 overlay-port	mp-kit-merc-feet-boots-f.pak	9a021794f42df244080410efda88bdff955e7614c784ec54ef30f318915b1bac	identical	ps4actor	port-v1	disc	mp-kit-hunter-feet-boots-a	mp	128	{}	
 overlay-port	mp-kit-merc-feet-boots-g.pak	f084a473ae5771371503d0c3738c30e803ec2ecaa484b1a7ebaf83967fbf9388	identical	ps4actor	port-v1	disc	mp-kit-hunter-feet-boots-a	mp	128	{}	
 overlay-port	mp-kit-merc-feet-cowboy-c.pak	b942c1d692926762a6a43ed38ca55c2840a36d42dce14f9a29619e91bdd5dd41	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-feet-boots-a	mp	256	{}	
@@ -821,7 +888,9 @@ overlay-port	mp-kit-merc-head-helmet-a.pak	49e71d0c121aba1e015f703c831da03cac2dd
 overlay-port	mp-kit-merc-head-helmet-b.pak	e99c1f1e68b3e36318d3993c9a54da3c0847a5042ea24ed91e74b31d5c6e84fa	identical	ps4actor	port-v1	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-port	mp-kit-merc-head-helmet-c.pak	d2889ccedac6a4eefa265a5b73ab8e12dfae0497bff009d3654a1905616b9dc5	identical	ps4actor	port-v1	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-port	mp-kit-merc-head-helmet-d.pak	644edff41cb71da6d5fa2c1306d55aa06bd8eb8eaa4e06e9152c9bd619c06f9e	identical	ps4actor	port-v1	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
+overlay-port	mp-kit-merc-head-helmet-e.pak	a83187f58203debbc6fb82817a7077858935d89c2d6354cf8f387a6cc39daab1	identical	ps4actor	port-v1	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-port	mp-kit-merc-head-helmet-g.pak	539d9bccb7554a4fc1270a0d181f23b7c595637715ecb3d82cc9da887ae8e671	identical	ps4actor	port-v1	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
+overlay-port	mp-kit-merc-head-helmet-j.pak	42111bcfa2a4bf82bfeea93a54e01b02f41b8aaf53ab1d6932b4276cb82d49e2	identical	ps4actor	port-v1	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-port	mp-kit-merc-head-helmet-k.pak	08cbad2b4c7a64e37cba4dc6bcb1ae5adacd411ad49565d036a271d1a2977353	identical	ps4actor	port-v1	disc	mp-kit-hunter-head-hat-d	mp	256	{}	
 overlay-port	mp-kit-merc-head-mask-a.pak	c2fa74affde75f114ada863f6f785966c878cf4f174edecf7b9d01fc4b09531f	identical	ps4actor	port-v1	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-port	mp-kit-merc-head-mask-d.pak	df4454255e7d6dd72953ce6feb3f14a8238acbee6dd9ee46e828e0db772bc780	identical	ps4actor	port-v1	disc	mp-kit-hunter-head-hat-d	mp	128	{}	
@@ -832,6 +901,7 @@ overlay-port	mp-kit-merc-legs-pants-b.pak	170ab7ad1b27eab9d120cb156cef1f885fc19e
 overlay-port	mp-kit-merc-legs-pants-f.pak	85d23c0c02c92dfe6b4d4f128a67359163848e28b4180aadf70260d0e129e92c	identical	ps4actor	port-v1	disc	mp-kit-hunter-legs-pants-j	mp	256	{}	
 overlay-port	mp-kit-merc-legs-pants-h.pak	3c33cdef932e2fd8077fcba746ba3a00db08c518a91db5c9c6dc7373d98879cc	identical	ps4actor	port-v1	disc	mp-kit-hunter-legs-pants-j	mp	256	{}	
 overlay-port	mp-kit-merc-pants-cowboy-c.pak	886994ac4d6d62b0b78befbe38f6a589262991e7482f4d7393d76789d9d45a94	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-legs-pants-j	mp	128	{}	
+overlay-port	mp-kit-merc-pants-cowboy-d.pak	27c6084320925ca2407d1600a6e327923f6d1c6d8b24407b1fd7abd3f4315387	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-legs-pants-j	mp	128	{}	
 overlay-port	mp-kit-merc-torso-armor-a.pak	1bf0f261a403f77ec3bf1aad05a36c4ea6fcebf172f40be3c743f7b34f3f4888	identical	ps4actor	port-v1	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-port	mp-kit-merc-torso-armor-b.pak	58834e64bf00da11a4eb4d3261386cb6b141c34f177938c59a06a76a3c25e9b9	identical	ps4actor	port-v1	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-port	mp-kit-merc-torso-armor-e.pak	bcca92aa13f55a558298707d9abc6a412a05f426bc18616faa07ec74a0fa3c24	identical	ps4actor	port-v1	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
@@ -840,9 +910,11 @@ overlay-port	mp-kit-merc-torso-cowboy-d.pak	8f22e3e4b4d4b3d3f0985448f59fa07f75cc
 overlay-port	mp-kit-merc-torso-jacket-b.pak	1cc38a0167ae0f3466f70caf59361ef54d2ccfe0847f1c24e9e62db160ff8646	identical	ps4actor	port-v1	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-port	mp-kit-merc-torso-shirt-a.pak	ba6ce5e61f8a08eabeb74aaf6317898ebea5f469d786e8e842cfb7185b100d81	identical	ps4actor	port-v1	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-port	mp-kit-merc-torso-shirt-b.pak	17b44d8e7013e789476f4349db67eee89c395034a64d71debdb0b3e8c1657142	identical	ps4actor	port-v1	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
+overlay-port	mp-kit-merc-torso-shirt-c.pak	869c57eb8412f89d2b0fc21e5300fd5ea36ad69006f75f397e962135e7616443	identical	ps4actor	port-v1	disc	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-port	mp-kit-merc-torso-shirt-e.pak	f2589b8d1303fb5b31e40ee034b54342785afe6002e1ae680ad491f7f7a7d613	identical	ps4actor	7d45c1f	dlc-patch18	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-port	mp-kit-merc-torso-shirt-f.pak	4ad883d616bbc9d02dce4e0462733f7faa16d1d8c7b000c2ae9ddd4df5fc5dab	identical	ps4actor	de13aa1	dlc-patch18	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-port	mp-kit-merc-torso-shirt-g.pak	ada997c9afe2470af59523ca589d34db46fd23a5866a689fc8017d080f89012d	identical	ps4actor	de13aa1	dlc-patch18	mp-kit-merc-torso-shirt-w	mp	256	{}	
+overlay-port	mp-kit-merc-torso-shirt-h.pak	b6c59b03f4ffee8aa32ae1fe8ae361f76b558f84acaa432115bfba5bf72b47dd	identical	ps4actor	de13aa1	dlc-patch18	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-port	mp-kit-merc-torso-shirt-i.pak	2307c11892b1b5a6cdda8e58b7ab511d12d7a7aea0f1b7088bfc5ed36dcd05ac	identical	ps4actor	de13aa1	dlc-patch18	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-port	mp-kit-merc-torso-shirt-j.pak	f1ec6f5b8cb3ca7174fa71921f04c998d46b02958d860c319ee8aa69476282d5	identical	ps4actor	de13aa1	dlc-patch18	mp-kit-merc-torso-shirt-w	mp	256	{}	
 overlay-port	mp-kit-merc-torso-shirt-k.pak	a343e92732eec4e8df6bd365c49208162edf6e14fa838186270f60e66f0fbfcc	identical	ps4actor	7d45c1f	dlc-patch18	mp-kit-merc-torso-shirt-w	mp	256	{}	
@@ -875,8 +947,10 @@ overlay-port	mp-kit-misc-torso-shirt-balls-2.pak	3dd4ae82d29986303759c5eed3360f3
 overlay-port	mp-kit-misc-torso-shirt-esc-toy.pak	fbc3686fae7e9521c11a391756f71db7baf637bc99e13c73ecf1315b8f990dcc	identical	ps4actor	port-v1	dlc-patch13	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-port	mp-kit-misc-torso-shirt-tlou-a.pak	4a0ca3c449124ce9094bee065ef99e1bce98afe7cf3011ff79a30f4ea8d58886	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-port	mp-kit-misc-torso-shirt-tlou-b.pak	21df251787ca8c9df98bb20e58f1eb696b618079cb248176fc29e66bf187cf92	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-torso-shirt-h	mp	256	{}	
+overlay-port	mp-kit-pirate-arms-gloves-b-00.pak	ac04f4c9a55dc25204c44a64fc2cc53e256594a9a97d900452424c422058a8a9	identical	ps4actor	port-v1	disc	mp-kit-base-arms-hands-skin-a-00	mp	256	{}	
 overlay-port	mp-kit-pirate-feet-boots-b-00.pak	0cf42b590bf77a418a36c2f076ea18fe2965f877cef292d2d0189b5c61c5d464	identical	ps4actor	port-v1	disc	mp-kit-hunter-feet-boots-a	mp	128	{}	
 overlay-port	mp-kit-pirate-feet-boots-c-00.pak	fda425736e8510c211ef812ef951f3e149db2be7e1a378508c0447df383ceeb0	identical	ps4actor	port-v1	disc	mp-kit-hunter-feet-boots-a	mp	128	{}	
+overlay-port	mp-kit-pirate-feet-sandles-a-00.pak	686fe1e3c84acb8c3baff357601f40676fcb7817f922af0906e58b5e21e01bb3	identical	ps4actor	port-v1	disc	mp-kit-hunter-feet-boots-a	mp	256	{}	
 overlay-port	mp-kit-pirate-feet-sandles-b-00.pak	d048e0088f8dc843ffa842c829f71f136459572fc06693e21ff46b55ddad25cd	identical	ps4actor	port-v1	disc	mp-kit-hunter-feet-boots-a	mp	256	{}	
 overlay-port	mp-kit-pirate-helmet-hat-a-00.pak	d8f64ba296d8ad3a07f947e7a64997d25db65192e4d7a7ff8bad6a4ee2b3f760	identical	ps4actor	port-v1	disc	mp-kit-hunter-head-hat-d	mp	256	{}	
 overlay-port	mp-kit-pirate-helmet-wrap-a-00.pak	51723a2ed900a437cf3285b3e970cf47b7494f08d22740625b2e45aaedde6f59	identical	ps4actor	port-v1	disc	mp-kit-hunter-head-hat-d	mp	256	{}	
@@ -889,7 +963,9 @@ overlay-port	mp-kit-pirate-legs-pants-b-00.pak	35a22751d47901c6dca51971a3fe52548
 overlay-port	mp-kit-pirate-legs-pants-c-00.pak	3b8f315f3d004dfa39c81b67adebcd3961ff181d7bbba9cec8183f52b11be617	identical	ps4actor	port-v1	disc	mp-kit-hunter-legs-pants-j	mp	256	{}	
 overlay-port	mp-kit-pirate-legs-pants-c-01.pak	436663aa84bc123806cbd4075b274c5346b4570bd664ea97b77f5780765aca07	identical	ps4actor	port-v1	disc	mp-kit-hunter-legs-pants-j	mp	128	{}	
 overlay-port	mp-kit-pirate-legs-pants-c-03.pak	4b5c1d23d646ba7a917157476f0af264ea92998d7b4a21ffce28ae699d48fb13	identical	ps4actor	port-v1	disc	mp-kit-hunter-legs-pants-j	mp	256	{}	
+overlay-port	mp-kit-pirate-legs-pants-d-00.pak	f8c20ca3971483f7e61f34884053aa67b757888b2e81b8f62abfb161ff5eed05	identical	ps4actor	port-v1	disc	mp-kit-hunter-legs-pants-j	mp	256	{}	
 overlay-port	mp-kit-pirate-torso-in-shirt-a-00.pak	fcdb77ae505dd16896e1878512f4a1810dd49d70f782588577fe64ca71b6c722	identical	ps4actor	port-v1	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
+overlay-port	mp-kit-pirate-torso-in-shirt-a-03.pak	627a2bdb9e0b2546c4a707a4dafdcb67f4860d23631843a37659974668119e95	identical	ps4actor	port-v1	disc	mp-kit-hunter-torso-shirt-h	mp	256	{"PS4ACTOR_DONORS": "mp-kit-misc-torso-shirt-amc-2-b"}	
 overlay-port	mp-kit-pirate-torso-in-shirt-a-04.pak	d3beb7b59d8fdf5cb9f3dd364e81e71bde7884fdb71002c5b6976b714a8dd82a	identical	ps4actor	port-v1	disc	mp-kit-hunter-torso-shirt-h	mp	256	{"PS4ACTOR_DONORS": "mp-kit-misc-torso-shirt-amc-2-b"}	
 overlay-port	mp-kit-pirate-torso-in-shirt-c-00.pak	e98a9d217932c71c51c6734831348cd3d175583abe302e7141f628e7b94b853e	identical	ps4actor	port-v1	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
 overlay-port	mp-kit-pirate-torso-out-jacket-d-00.pak	7ec88cba589f0422e16639ef0ff7f177efda7f08e89f08486ac5735d2ca6a347	identical	ps4actor	port-v1	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
@@ -900,11 +976,15 @@ overlay-port	mp-kit-shared-bucket-helmet.pak	c7772ca27030a5ee4316a7ddf5dff6a97ab
 overlay-port	mp-kit-shared-captain-hat.pak	fc303e242e10c61bafb699f99e47e2108731c2b426ab0e4f48d9849b53dd4bd5	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-port	mp-kit-shared-descendent-mask.pak	3c6d6ca03bff2df669e2881dcd8cdfdf24e43bab5b80a624a2cab8ca94214555	identical	ps4actor	0a20361	dlc-patch13	mp-hero-london-legs	kit-spread	256	{"PS4ACTOR_DONORS": "mp-chloe-elena-u1-legs", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-kit-shared-desert-hat.pak	92fd6d4d19339ee11b71738929499da143d280ba24c25bb845cf309b4622b58b	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	256	{}	
+overlay-port	mp-kit-shared-drink-hat.pak	b71e987517566501b1d33a7b46ddb6dc9029b2137b9857eece983cdabebbe797	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-port	mp-kit-shared-explorer-hat.pak	fc5dfa6083ee36bc7a03726a269e14e296ad66c8626569f6f9f2dfc14f95f66c	identical	ps4actor	0a20361	dlc-patch13	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-kit-shared-eye-mask.pak	44ad6a9953a501677ed4e440e55b20a507c5f30eb2c6e4f0ddcd29e938c7a3b3	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	256	{}	
 overlay-port	mp-kit-shared-gas-mask.pak	a30f46abbbcaea44713dc1e9f5dbc9667cf9a91cac1cfa70af4a050ce144d7e1	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-port	mp-kit-shared-jak-goggles.pak	b1e28107122bc8a7cd383b04c66c1df5167c86274bfdbe5a4ceebfe45822b718	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-port	mp-kit-shared-knight-helmet.pak	4872744e05f1af545fa281f1c521dff22c63110924a7567d3cb7bbe116ceb40f	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	256	{}	
+overlay-port	mp-kit-shared-monster-mask.pak	5ace9615cd75511b065acdf63f887212cf85c6ebf137a892c492f51b8cb0587f	identical	ps4actor	0a20361	dlc-patch13	mp-hero-london-torso	kit-spread	64	{"PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	mp-kit-shared-night-vision-helmet.pak	3e92ba2181598d12f9886322ab87870187b080623f62a66e8623240df315515d	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	128	{}	
+overlay-port	mp-kit-shared-old-scholar-hat.pak	eee58f77d5dbfd3eeeba67c652eb56485287ec906f95efc425eb622cb5cd99f0	identical	ps4actor	0a20361	dlc-patch13	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_DONORS": "mp-hero-french-hair", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	mp-kit-shared-panda-mask.pak	81b9ed61b96e5a8bd84d4e956cbd43ac3d360f9d4a958c77cdfdabe0e31025d9	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	256	{}	
 overlay-port	mp-kit-shared-pirate-hat.pak	7dd681727f3219b3be2a09a49d2d6c0af0b7f936d4211f28e258aad809051bbc	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	256	{}	
 overlay-port	mp-kit-shared-reporter-glasses.pak	ea5a41484a0b7b95e49e5a97c9e26b2e36b06c6158dd308a48994f921e345714	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	128	{}	
@@ -914,11 +994,16 @@ overlay-port	mp-kit-shared-samurai-helmet.pak	f8837e170297fdf38a76f6918e09707c3c
 overlay-port	mp-kit-shared-ski-mask.pak	944aab009773971ff5431eaccb1333ea9a9d3d9007cbef97d6f622edf4034195	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	256	{}	
 overlay-port	mp-kit-shared-space-helmet.pak	10e7af5a218ad6b7c9773e60534e024c7b54cae4e6c83cc4b430c7263b977672	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-port	mp-kit-shared-star-glasses.pak	8d3a5b38c155175b006407f1ad7d1e4b92b8b5259f47bac40ff51b6a7ba68ee7	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	256	{}	
+overlay-port	mp-kit-shared-straw-hat.pak	750189bb422e04d7576490ee74d8de86b30b5039bbb262f624ba9c6612b74134	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	256	{}	
 overlay-port	mp-kit-shared-stylish-sunglasses.pak	d211be5c37068a083c04690ed2c0715f3afd708933006505203453153c08cd43	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-port	mp-kit-shared-tiger-mask.pak	12ab98d4c8c9c6791067822bafc86b7dffbafc3ea5146d505374bee7bca30750	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	128	{}	
 overlay-port	mp-kit-shared-wing-helmet.pak	bdd17ef057033e1ba5d4c77e1320d062c0d8d035e4a6c856c04c4294d87a83d8	identical	ps4actor	0a20361	dlc-patch13	mp-hero-rescuer-hair	kit-spread	128	{"PS4ACTOR_SPREAD_MATS": "1"}	|solo
 overlay-port	mp-kit-shared-wizard-hat.pak	d0abc0e05d241ed9af46871dcfa8805793d2fbf18f7deed97f39c31b8b1e41b2	identical	ps4actor	de13aa1	dlc-patch13	mp-kit-hunter-head-hat-d	mp	256	{}	
 overlay-port	mp-kit-shirt-nd-a.pak	1eab89257e34aee69785bc85351eb69603897abeb03e02c129528bb7c4fea560	identical	ps4actor	port-v1	disc	mp-kit-hunter-torso-shirt-h	mp	256	{}	
+overlay-port	mp-ruins-heli-blade.pak	eaded0cfd669c316d2cea21513418eb0bf3526d55e0624093c44f554d8a5f514	identical	ps4actor	003b433	disc	rover-2d-civ-hvk	own-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	mp-wrk-crash-boxcar.pak	3d75fe15ac3352d4360773c0398a75912c47380414e93a9ef809150e3254d886	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	mp-wrk-explode-tanker-lod1.pak	3a599d510d247e7d8f0a64bd9aa30838c6d237c955b444702a5017af5ae2e82e	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SKEL3": "goty-dlc/mp-wrk-explode-tanker.pak", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	mp-wrk-explode-tanker.pak	35e2f281ef2e4b95545888538b571410160898978ced67760598aab81702fc38	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	multi-celebrate-air-guitar.pak	d0c704aed94f5eaa654de3c50c026babbd52b1bccd332d62775450b8ef2a191e	identical	anim	1323bad	dlc-patch18	-	anim	0	{}	
 overlay-port	multi-celebrate-arm-wave.pak	58c58527c306bb810cb421dd90cb7cabd28e2404a43a3732f2a952ba313fe037	identical	anim	1323bad	dlc-patch18	-	anim	0	{}	
 overlay-port	multi-celebrate-backflip-squat.pak	d1a1ed280c66dbd3037be69ebab2b645d51526ce64cfe0930d6e6347aa130516	identical	anim	1323bad	dlc-patch18	-	anim	0	{}	
@@ -966,11 +1051,43 @@ overlay-port	multi-celebrate-uppercut.pak	b80c3fa6eb447a78323f612f885700e892a82a
 overlay-port	multi-celebrate-yessss.pak	4e767fe64f4c57e54fd1f865fc0ce29239ca580847344c8d9063b687f6f9c3d0	identical	anim	1323bad	dlc-patch18	-	anim	0	{}	
 overlay-port	p99-mp.pak	3ffe26e0746943ba1047cdcf7de1c9078b6fdf2884be6d5e776217b9b0172382	identical	wpnmods	7d45c1f	disc	p99-mp.pak|pax|snake,nd	-	256	{}	
 overlay-port	propane-tank-mp.pak	51ed89a4b02916cba712da320f6cef2c6815fa3340ef8ccddb918cb4c56a7e76	identical	rename	0a20361	-	propane-tank	rename	0	{}	
+overlay-port	rover-4d-agent-hvk-fort.pak	007d5f84f38d81f8d51914d2c6ccd044b2a70f9c27c3590e9523e8f367d391c7	identical	ps4actor	003b433	goty-dlc	rover-4d-agent-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	san-elevator-mp.pak	feaebeb23da4f28ebdba88ef07209f59fcd385fe5a62c66c12c39a01630bb60c	identical	ps4actor	003b433	disc	san-elevator-main	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	sand-storm-mp.pak	156fe84994ce6e07be650f9beb33d877ddd2be7a84270457bbfe142203ab6308	identical	ps4actor	003b433	disc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
 overlay-port	silver-treasure-ab.pak	0672daa8a2d5eabc6c1986e86fbcb471b17fd027aaac3145c29f08ecc9c1c837	identical	ps4actor	de13aa1	dlc-patch13	silver-treasure-av	graft	128	{}	
 overlay-port	silver-treasure-ad.pak	ec806c081f6f8cfbad3c3ab89f776d41c984ad27f2e6694c9c827c5b4098b896	identical	ps4actor	de13aa1	dlc-patch13	silver-treasure-ax-1	graft	128	{}	
 overlay-port	silver-treasure-aj.pak	e623a263f185fe520c13e16e32d4433d98ee76080eb30761f44de370b676a8ae	identical	ps4actor	de13aa1	dlc-patch13	silver-treasure-ax-1	graft	128	{}	
+overlay-port	t62-drum-scrap.pak	95da8f2e0cab06112eafbe718fd87725480eaecd0e610594c3301964158a67e0	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	t62-scrap.pak	dade6eb37143c6e6b357909a6ba0e67b7b503534460579317f8896d604533018	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	t62-tank-lod0.pak	f263b7e42cb40827c02af8a98fc2c8d4aa9a6fd0091fba653346db6c6b7d1d27	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	t62-tank-mg-turret-lod1.pak	bc2e9aa8aaf1ffcf10843b9f6666106017207271fe6f9089df2f99bfb787b171	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SKEL3": "goty-dlc/t62-tank-mg-turret.pak", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	t62-tank-mg-turret.pak	3b2a66ca78ad4a69b0e4f82ac3740cfb05dccacd9478bfc4eee307d8237a321c	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	t62-tank-mp.pak	bb682d2624a404a1aa8b45f11f6b2985bd8cb92038743ec83ccd510c07012f9a	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-port	turret-gatling-tripod-mp.pak	7422996e1e8fba56c45cdadb77d1870f07ba9812e357f52a6f05fa5af5446ee5	identical	ps4actor	de13aa1	disc	turret-gatling-tripod	graft	64	{}	
+overlay-port	vil-flag-long-a.pak	336887683f01a83685d776eed437513eef564a7fe71f58e435e0bfee0e0b8358	identical	ps4actor	003b433	goty-dlc	cloth-frontgate-b	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	vil-flag-tall-a.pak	8d7a20f303836e02fff1025b3a8e050749a970230d4da585265d1071d33bfa45	identical	ps4actor	003b433	goty-dlc	cloth-frontgate-b	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	vil-m-cover-low-col.pak	d112ec5a87be71b8a93e18320373782123d0936705875d6ba981d694526e47e2	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	vil-m-cover-low.pak	eb0f5e44b35edd41fbd9b0daa570a24ff7cb27c8dd3ddf6cc71b7d6fd6d1a8a5	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	vil-m-cover-tall-col.pak	9a1c3ff8c08b42fd23433b857a745ba930dabbd65cfa14acd8975268717dc5e2	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	vil-m-cover-tall.pak	abb3c93ab81fb9da007607d03ec9082c16a6041a68a7d3d10761c3f191ec88db	identical	ps4actor	003b433	goty-dlc	crate-wood-1x1x1-a	own-notmpl	256	{"PS4ACTOR_NO_TMPL_TEX": "1"}	
+overlay-port	vil-multi-gateway-door.pak	bb816375f728dda644b9b14b7d1ae23340b7d9efb2ef255562395735f2586707	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	vil4-break-bldng-a-multi.pak	2078a03edc118b93b6dadab743ee04279f562874cf04dd0e85c853ff80133106	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	vil4-break-bldng-a.pak	d15a3ccf21d0bfd41d24874d944b9daee63d2567040b6b04ed27bf0c13064a4a	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	vil4-gateway-destruct.pak	f6caa47e0e2f6cdf82054feaa9cfa4a7e7e985acc7018cd07615a4ac7ab82ec9	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
+overlay-port	wz-blowup-fiat-a.pak	4a8cef7d505de026524a05ed13987ec3a0bdab6513b5401be63f9ab112a81802	identical	ps4actor	003b433	goty-dlc	rover-2d-civ-hvk	own-spread-notmpl	64	{"PS4ACTOR_NO_TMPL_TEX": "1", "PS4ACTOR_SPREAD_MATS": "1"}	
 overlay-mp	hero-london-ring.pak	4dcd36eef07eae7befc288f5399d65a715ba95f86c7bc3a0f842f660d5d7a3e3	identical	ps4actor	c6b291a	disc	hero-london-ring	mp-sf3	0	{}	
 overlay-mp	hero-london.pak	5f53444a0cff76eabd254fb38f36b65aed1a062eead6b7dc11dbd21d2896d898	identical	ps4actor	c6b291a	disc	hero-london	mp-sf3	0	{}	
 overlay-mp	mp-hero-ramses-bandana.pak	829f39bb1d6fa58a5210823101b2b522b09fec6ac7c3040c8f328bcf35bdb1aa	identical	ps4actor	v0618	dlc-patch18/mp-hero-part-lion-mask.pak	mp-hero-ramses-bandana	mp-sf0	0	{"_rename": "mp-hero-ramses-bandana"}	
 overlay-mp	net.pak	15cf61b7fecc60b743f1bcd2f54c232d5233f2b1f3a8520c3aff0db5fac72a66	identical	convert_net	7d45c1f	pak23:	menu	-	0	{}	
+overlay-r3	pirate-armor-a-full-mp.pak	d8fa7018e736b3510e619da30af51d37e37ac1527dc24c018b1c0b100517bbab	identical	ps4actor	7d45c1f	disc	pirate-armor-all	mp	64	{"PS4ACTOR_SPREAD_MATS": "1", "_skel": "pirate-torso-all"}	cb3fix
+overlay-port	pirate-armor-a-full-mp.pak	d7795ff6721b3b4162efa1e868352575d0e5e798a6a11dab1ff0cbcc54c3c30e	identical	ps4actor	7d45c1f	disc	pirate-armor-all	mp	64	{"PS4ACTOR_SPREAD_MATS": "1", "_skel": "pirate-torso-all"}	
+overlay-r3	ruby-garuda.pak	07081e5a1b29bfce69c4f4b5b20f1a4f7e5e698c05d84ae16f1022e5fb46f3b9	identical	ps4actor	0a20361	dlc-patch13	ruby-treasure-aa	graft	256	{}	cubefix
+overlay-port	ruby-garuda.pak	2954572114cf2d49c32b68ea07c5bf0110216c535cd3774cdccada0718d6df12	identical	ps4actor	0a20361	dlc-patch13	ruby-treasure-aa	graft	256	{}	
+overlay-port	mp-chloe-marlowe-jak-goggles.pak	bb02c955d14cab71eb2d22b18aba5ada640a62742bcdf08018f1d48e5270f0c2	identical	ps4actor	0a2-nosort	dlc-patch13	mp-chloe-u2-legs	kit-spread	128	{"PS4ACTOR_DONORS": "mp-chloe-elena-hair"}	
+overlay-port	mp-chloe-marlowe-phantom-mask.pak	28d61ff3b1ce7c56275db31e9b6f679e7d8098a7cb047488d20c133724abd9b3	identical	ps4actor	0a2-nosort	dlc-patch13	mp-chloe-u2-legs	kit-spread	128	{"PS4ACTOR_DONORS": "mp-chloe-elena-hair"}	
+overlay-port	mp-chloe-young-marlowe-jak-goggles.pak	967eb7f2909e73303cb277c602f95ec0baf1b897523ce5fe80a1bed41b82ecda	identical	ps4actor	0a2-nosort	dlc-patch13	mp-chloe-u2-legs	kit-spread	128	{"PS4ACTOR_DONORS": "mp-chloe-elena-hair"}	
+overlay-port	mp-hero-ngp-torso.pak	7bcb6bc0e7be2d5233913e76779134b3063f1b1cfde8351acf47c4229df2c0b2	identical	ps4actor	pv1-nosort	disc	mp-hero-london-torso	mp	64	{}	
+overlay-port	mp-hero-ramses-equip-torso.pak	5c5514d870f542bd33cf158e6cf18c89d3937bd647533546c9dc7e2cf4911766	identical	ps4actor	pv1-nosort	disc	mp-hero-london-torso	mp	64	{}	|solo
+overlay-port	mp-hero-thug-e-torso.pak	f3fbbc3185f0d899828536f6dca3b0d0d8ee7fde34102cc4bdb8e2cb0c043dc1	identical	ps4actor	pv1-nosort	dlc-patch13	mp-hero-london-torso	mp	64	{}	
+overlay-port	mp-kit-base-torso-in-skin-a-00.pak	0583bf1985d48dc146166ff40a1276ae8d5046f531d56cc04eabec0ae9583df2	identical	ps4actor	pv1-nosort	disc	mp-kit-base-neck-skin-a	mp	256	{}	
+overlay-port	mp-hero-sullivan-part-sideburns.pak	e98c4d0433b0a25c45a983e7c1b07588962650d456e6786d2b8651daddba4a52	identical	ps4actor	0a20361	dlc-patch13	mp-hero-fat-sullivan-hair	mp	256	{"PS4ACTOR_DONORS": "mp-hero-young-sullivan-hair"}	|solo
