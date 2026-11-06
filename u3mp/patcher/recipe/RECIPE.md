@@ -34,6 +34,24 @@ same `--out` skips steps whose recorded outputs are unchanged and steps whose fi
 the reference manifest, so updates are incremental. Python 3.11+; numpy (and Pillow, ffmpeg) for
 the steps that say so (`--list`, `needs`).
 
+Hidden files (1.8.0): the game loads the overlays first-wins (r3, r2, port, mp), so a level or actor pak of a
+lower overlay with the same path as one in a higher overlay is never read. 740 manifest files are hidden that way
+(r2 pak23 179, port pak23 85, port actor33 452, r2 actor33 24; `recipe_lib.shadowed_files()`). The driver writes
+them to `<out>/_recipe/shadowed.tsv` and passes it as `RECIPE_SHADOWED`; `levels.py` and `build_actors.py` skip
+them (a hidden pak that a visible `copy` row needs is still built), the manifest-state check ignores them, and
+`verify_output.py` counts them as `hidden` instead of `missing` and gives the match rate over the files the game
+loads. `--all-files` builds them as well (only for comparing every file with the manifest). No later step reads or
+patches a hidden pak (checked 2026-11-06: the only writers of those paths are the two builders).
+Worker processes: `--jobs N`, default logical cores - 2 (`RECIPE_JOBS` for levels.py, build_actors.py,
+convert_banks.py). The sound-bank encoder uses `sound-banks/native/vagenc.dll` (the original vagenc.c compiled,
+byte-identical to vagenc.py, ~30x faster) when it loads, else the Python port.
+Level converter fast paths (`pak23-levels/lib/fastpaths.py`, installed by convert_one.py): a py-spy profile of the
+r3 stage conversions (2026-11-06) put 37 % of the time in `collision._enc_box` (per-scalar float32 loops) and 27 %
+in `ps3geom._bits_be` (bit fields read through one big Python int, quadratic). Both are replaced by vectorised
+numpy versions with the same float32 operations in the same order and the same integer results, only where the
+loaded converter's function is the known original (source sha256); `lib/check_fastpaths.py` compares them on random
+inputs, and the r3 paks were rebuilt byte-identical with them. `U3_LEVELS_FAST=0` turns them off.
+
 ## Files in this folder
 
 | file | what |
@@ -91,6 +109,14 @@ excess -> london -> vram_gap. `facility-multi.pak`: collapse -> london. `ss-mult
 option_defaults -> option_defaults_2. `vox*.bin`: apply_vo -> coop_vox.
 
 ## Timing (this PC, Python 3.15, NVMe)
+
+* **Fresh import 1.8.0 (2026-11-06, through u3mp_import.py like a player, 12 threads, 10 workers): 56 min** for the
+  recipe (3 337 s), about 99.3 % of the 14 801 files the game loads byte-identical (verify_output; 740 hidden files
+  not built). Per step: convert-levels-r3 2 120 s (before the level fast paths: 247 paks), convert-banks 280 s (Python
+  encoder; ~30x less with vagenc.dll), convert-actors-r3 153 s, convert-dc1 120 s, london-fade 111 s, hat-colour
+  ~105 s, map-colors2 79 s, levels-lab 69 s, cloud-batches 42 s, port 27 s and r2 20 s (were 529 s and 6 146 s in
+  the 1.7.0 full build, which built the hidden paks), every other step under 30 s.
+* Level fast paths: 11 large/medium r3 paks in 43 s instead of 90 s (same machine, 10 workers), all identical.
 
 * Clean rebuild of everything that can run: **96 s** (copy steps 13 s for 12 868 files / 495 MB; the rest is
   script steps failing fast for lack of converted bases). A second run on the same output: 37 s (copies

@@ -21,7 +21,7 @@ F2 = (0.0, 0.0, -52 / 64.0, -55 / 64.0, -60 / 64.0)
 LIM = [float((7 << (12 - sh)) - 1) for sh in range(13)]
 
 
-def encode(pcm, loop=None):
+def encode_py(pcm, loop=None):
     n = len(pcm)
     nblk = (n + 27) // 28 if n > 0 else 1
     s1 = s2 = 0.0
@@ -81,3 +81,38 @@ def encode(pcm, loop=None):
         for k in range(0, 28, 2):
             out[o + 2 + k // 2] = (bn[k] & 15) | ((bn[k + 1] & 15) << 4)
     return bytes(out)
+
+
+def _load_native():
+    """native/vagenc.dll = the original vagenc.c compiled (native/build.sh); about 100x faster than encode_py and
+    byte-identical to it (native/check_native.py).  U3_VAGENC=py forces the Python encoder."""
+    import os
+    import sys
+    if os.environ.get('U3_VAGENC') == 'py' or sys.platform != 'win32':
+        return None
+    import ctypes
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'native', 'vagenc.dll')
+    if not os.path.isfile(p):
+        return None
+    try:
+        lib = ctypes.CDLL(p)
+    except OSError:
+        return None
+    f = lib.vag_encode
+    f.restype = ctypes.c_int
+    f.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int, ctypes.c_int)
+    import array
+
+    def encode_native(pcm, loop=None):
+        a = array.array('h', pcm)
+        n = len(a)
+        nblk = (n + 27) // 28 if n > 0 else 1
+        out = ctypes.create_string_buffer(16 * nblk)
+        ls, le = (loop[0], loop[1]) if loop is not None and loop[0] >= 0 else (-1, 0)
+        buf = (ctypes.c_int16 * max(n, 1)).from_buffer(a) if n else (ctypes.c_int16 * 1)()
+        f(ctypes.addressof(buf), n, ctypes.addressof(out), ls, le)
+        return out.raw
+    return encode_native
+
+
+encode = _load_native() or encode_py

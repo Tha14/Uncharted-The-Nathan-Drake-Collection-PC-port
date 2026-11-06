@@ -28,6 +28,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.dont_write_bytecode = True
 import mpimage  # noqa: E402
+import u3mp_version  # noqa: E402
 
 RECIPE = HERE / 'recipe'
 OVERLAYS = ('overlay-r3', 'overlay-r2', 'overlay-port', 'overlay-mp')   # first wins (as uncharted3_mp.cmd passes them)
@@ -230,6 +231,7 @@ def main():
         log('No decrypted PS3 1.19 EBOOT.elf found: decrypt it with RPCS3 (Utilities -> Decrypt PS3 Binaries, '
             'dev_hdd0/game/BCES01670/USRDIR/EBOOT.BIN); the Havok tables step is skipped without it')
     event(phase='recipe', status='running')
+    recipe_id = u3mp_version.shipped_id()   # the recipe this run applies (the launcher updates when it changes)
     r = run_recipe(a, data, ps4_elf, ps3_elf)
     failed = [sid for sid, s in r['steps'].items() if s['status'] == 'failed']
     # steps that could not run here (an input or a Python package missing, or not reproducible yet): their files
@@ -238,6 +240,8 @@ def main():
     failed += unavailable if not a.only else []
     state.update(recipe_version=r['recipe_version'], steps=r['steps'], overlays=r['overlays'], failed=failed,
                  unavailable=unavailable, ps3_elf=ps3_elf or '')
+    if not a.only:
+        state['recipe_id'] = recipe_id
     if r['exit'] == 2 or not r['steps']:
         return finish('failed', error='The overlay recipe could not start (see the log: input folders)',
                       failed_at='inputs')

@@ -257,19 +257,41 @@ def maps_batch(rows, idx, built):
         built[(r['overlay'], r['name'])] = os.path.join(od, r['name'] + '.pak')
 
 
+
+def shadowed():
+    """(overlay, path) pairs a higher overlay hides (the game never loads them): rebuild_overlays writes them to
+    $RECIPE_SHADOWED unless it runs with --all-files.  Empty set = build everything."""
+    f = os.environ.get('RECIPE_SHADOWED')
+    if not f or not os.path.exists(f):
+        return set()
+    return {tuple(l.rstrip('\r\n').split('\t', 1)) for l in open(f, encoding='utf-8') if '\t' in l}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('family')
     ap.add_argument('--apply', action='store_true')
     ap.add_argument('--only')
     ap.add_argument('--strict', action='store_true')
-    ap.add_argument('--jobs', type=int, default=max(1, (os.cpu_count() or 2) // 2))
+    ap.add_argument('--jobs', type=int, default=int(os.environ.get('RECIPE_JOBS') or max(1, (os.cpu_count() or 2) // 2)))
     ap.add_argument('--keep-work', action='store_true')
     a = ap.parse_args()
     rows = [r for r in plan_rows() if r['family'] == a.family and (not a.only or re.search(a.only, r['name']))]
     if not rows:
         print('no plan rows for', a.family)
         return 0
+    hidden = shadowed()
+    if hidden:
+        def rel(r):
+            return (r['overlay'], 'u3data/build/main/pak23/ps4/%s.pak' % r['name'])
+        need = {(r['overlay'], r['src']) for r in rows if r['method'] == 'copy' and rel(r) not in hidden}
+        keep = [r for r in rows if rel(r) not in hidden or (r['overlay'], r['name']) in need]
+        if len(keep) != len(rows):
+            print('%s: %d rows skipped (hidden by a higher overlay, the game never loads them)' % (a.family, len(rows) - len(keep)))
+        rows = keep
+        if not rows:
+            print('already applied')
+            return 0
     os.makedirs(TMP, exist_ok=True)
     t0 = time.time()
     todo, done = [], 0

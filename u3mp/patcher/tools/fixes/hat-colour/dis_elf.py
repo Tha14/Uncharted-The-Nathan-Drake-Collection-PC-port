@@ -1,4 +1,4 @@
-"""disassemble VMA ranges of the PS4 ELF (u3_ps4.elf, vaddr 0 = file +0x10000), read-only: dis.py START-END ..."""
+"""disassemble VMA ranges of the PS4 ELF (u3_ps4.elf, vaddr 0 = file +0x10000), read-only: dis_elf.py START-END ..."""
 import struct,sys,subprocess,os,re
 E="D:/1. PC Games/Uncharted-windows/_claude_transfer/u3_ps4.elf"
 d=open(E,'rb').read()

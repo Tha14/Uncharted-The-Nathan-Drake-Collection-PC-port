@@ -1,4 +1,4 @@
-"""dis.py fn ADDR [n] | xref ADDR | grep REGEX  -- query the PS4 disassembly pickle"""
+"""dis_elf.py fn ADDR [n] | xref ADDR | grep REGEX  -- query the PS4 disassembly pickle"""
 import pickle,sys,re,bisect
 P='{{PROJECT}}'
 A,T=pickle.load(open(P+'/scratch/live/instance-mat/_dis.pkl','rb'))

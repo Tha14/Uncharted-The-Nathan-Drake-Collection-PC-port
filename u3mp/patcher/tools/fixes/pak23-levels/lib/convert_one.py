@@ -13,6 +13,9 @@ PT, M, SP, OP, RES, PS4, PD = sys.argv[1:8]
 MB = '--mapbuild' in sys.argv
 sys.path[:0] = [PT, os.path.join(PT, 'stage')]
 os.makedirs(os.path.dirname(OP), exist_ok=True)
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import fastpaths   # noqa: E402  exact faster _enc_box / _bits_be for the converter versions that have the originals
+fastpaths.install()
 if M == 'ingame':
     import ps4ingame
     ps4ingame.IGNORE_OTHERS = True

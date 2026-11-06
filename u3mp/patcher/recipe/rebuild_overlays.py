@@ -23,6 +23,9 @@ options:
   --speech-langs LIST    speech languages to copy from the PS3 disc (default: english; 'all' = every <lang>-mp.psarc found)
   --dry-run              show what would run, write nothing
   --continue-on-error    keep going after a failing step (default: stop)
+  --all-files            also build the level/actor paks a higher overlay hides (the game never loads them; skipped
+                         by default to save time; only needed to compare every file with the manifest)
+  --jobs N               worker processes for the parallel steps (default: logical cores - 2)
 
 Every step is a file in steps/ (see ADDING-A-FIX.md).  Progress goes to stdout and <out>/_recipe/log.txt.
 """
@@ -52,6 +55,8 @@ def main():
     ap.add_argument('--speech-langs', default='english')
     ap.add_argument('--dry-run', action='store_true')
     ap.add_argument('--continue-on-error', action='store_true')
+    ap.add_argument('--all-files', action='store_true')
+    ap.add_argument('--jobs', type=int, default=0)
     ap.add_argument('--allow-missing-u2', action='store_true', help=argparse.SUPPRESS)
     a = ap.parse_args()
 
@@ -89,7 +94,20 @@ def main():
     langs = inp.speech_langs() if a.speech_langs == 'all' else [l.strip() for l in a.speech_langs.split(',') if l.strip()]
     values['SPEECH_LANGS'] = ','.join(langs)
     state = R.State(out)
-    manifest = {('work/%s/%s' % (m['overlay'], m['path'])): m['sha256'] for m in R.read_tsv(os.path.join(R.HERE, 'manifest.tsv'))}
+    man_rows = list(R.read_tsv(os.path.join(R.HERE, 'manifest.tsv')))
+    manifest = {('work/%s/%s' % (m['overlay'], m['path'])): m['sha256'] for m in man_rows}
+    # level/actor paks a higher overlay hides: never loaded by the game, so the builders skip them (RECIPE_SHADOWED)
+    hidden = set() if a.all_files else R.shadowed_files(man_rows)
+    sf = os.path.join(out, '_recipe', 'shadowed.tsv')
+    with open(sf, 'w', encoding='utf-8', newline='\n') as f:
+        f.writelines('%s\t%s\n' % x for x in sorted(hidden))
+    os.environ['RECIPE_SHADOWED'] = sf
+    if hidden:
+        log('%d level/actor paks hidden by a higher overlay are not built (--all-files builds them too)' % len(hidden))
+    hidden_rel = {'work/%s/%s' % x for x in hidden}
+    # worker processes of the parallel steps (levels, actors, sound banks): all logical cores but 2 unless --jobs
+    os.environ['RECIPE_JOBS'] = str(a.jobs if a.jobs > 0 else max(1, (os.cpu_count() or 3) - 2))
+    log('parallel steps use %s worker processes' % os.environ['RECIPE_JOBS'])
     hcache = {}
     only = set(a.only.split(',')) if a.only else None
     skip = set(a.skip.split(',')) if a.skip else set()
@@ -116,12 +134,21 @@ def main():
             log(head + ': NOT REPRODUCIBLE HERE - %s' % s.get('reason', '')); counts['unavailable'] += 1
             continue
         rec = state.done(sid)
-        if rec and not a.force and rec.get('status') == 'ok' and R.outputs_unchanged(out, rec):
+        fp = R.step_fingerprint(s)
+        # a step is done when it ran with the same code (fingerprint) and its files are unchanged; a launcher update
+        # that changes a step, its tool folder or list therefore reruns just that step (and the steps whose files it
+        # changes again, as their recorded outputs no longer match)
+        if rec and 'fp' not in rec and rec.get('status') == 'ok':
+            rec['fp'] = fp      # recorded by recipe <= 1.7.0 (no fingerprints): 1.8.0 changed no step's output
+            state.save()
+        if rec and not a.force and rec.get('status') == 'ok' and rec.get('fp') == fp and R.outputs_unchanged(out, rec):
             log(head + ': already applied (%s)' % rec['when']); counts['already'] += 1
             continue
-        if s['kind'] == 'script' and not a.force and at_reference_state(s, out, manifest, hcache):
+        if rec and rec.get('status') == 'ok' and rec.get('fp') != fp:
+            log(head + ': updated since it last ran, running it again')
+        if s['kind'] == 'script' and not a.force and at_reference_state(s, out, manifest, hcache, hidden_rel):
             # every file this step may write already equals the reference build: nothing to do
-            state.mark(sid, {}, 'ok', 'files already at the reference state')
+            state.mark(sid, {}, 'ok', 'files already at the reference state', fp)
             log(head + ': already at the reference state (manifest hashes match)'); counts['already'] += 1
             continue
         if a.dry_run:
@@ -130,7 +157,7 @@ def main():
         log(head + ' ...')
         try:
             outputs = run_step(s, inp, out, values, langs, log)
-            state.mark(sid, outputs, 'ok')
+            state.mark(sid, outputs, 'ok', fp=fp)
             log('        ok  %d file(s)  %.1f s' % (len(outputs), time.time() - t0)); counts['ok'] += 1
         except Exception as e:
             state.mark(sid, {}, 'failed', str(e)[:500])
@@ -142,13 +169,13 @@ def main():
     return 1 if counts['failed'] else 0
 
 
-def at_reference_state(s, out, manifest, hcache):
+def at_reference_state(s, out, manifest, hcache, hidden=frozenset()):
     """True when every manifest file covered by the step's 'writes' globs exists and has the reference hash."""
     import fnmatch
     pats = s.get('writes', [])
     if not pats:
         return False
-    covered = [rel for rel in manifest if any(fnmatch.fnmatch(rel, pat) for pat in pats)]
+    covered = [rel for rel in manifest if rel not in hidden and any(fnmatch.fnmatch(rel, pat) for pat in pats)]
     if not covered:
         return False
     for rel in covered:

@@ -249,13 +249,23 @@ def _build_job(k_r):
         return k, None, str(ex)[:200]
 
 
+
+def shadowed():
+    """(overlay, path) pairs a higher overlay hides (the game never loads them): rebuild_overlays writes them to
+    $RECIPE_SHADOWED unless it runs with --all-files.  Empty set = build everything."""
+    f = os.environ.get('RECIPE_SHADOWED')
+    if not f or not os.path.exists(f):
+        return set()
+    return {tuple(l.rstrip('\r\n').split('\t', 1)) for l in open(f, encoding='utf-8') if '\t' in l}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--apply', action='store_true')
     ap.add_argument('--overlays', default='port,r2,r3,mp')
     ap.add_argument('--only', default='')
     ap.add_argument('--allow-equivalent', action='store_true')
-    ap.add_argument('--jobs', type=int, default=os.cpu_count() or 1,
+    ap.add_argument('--jobs', type=int, default=int(os.environ.get('RECIPE_JOBS') or os.cpu_count() or 1),
                     help='parallel build processes (default: all cores); installs stay in jobs.tsv order')
     a = ap.parse_args()
     ovs = {OVL[x] for x in a.overlays.split(',')}
@@ -263,6 +273,12 @@ def main():
     cols = 'overlay name sha256 status method toolset source template mode cap env post'.split()
     rows = [dict(zip(cols, l.rstrip('\n').split('\t'))) for l in open(os.path.join(HERE, 'jobs.tsv')) if l.strip() and not l.startswith('#')]
     rows = [r for r in rows if r['overlay'] in ovs and (not only or r['name'] in only)]
+    hidden = shadowed()
+    if hidden:
+        n0 = len(rows)
+        rows = [r for r in rows if (r['overlay'], 'u3data/build/main/%s/ps4/%s' % ('pak23' if r['method'] == 'convert_net' else 'actor33', r['name'])) not in hidden]
+        if n0 != len(rows):
+            print('%d jobs skipped (hidden by a higher overlay, the game never loads them)' % (n0 - len(rows)), flush=True)
     # Havok reflection tables (step actors-hk-tables keeps them in TMP/hk: the job folder is re-rendered per step)
     for t in os.listdir(os.path.join(HERE, 'toolsets')):
         td = os.path.join(HERE, 'toolsets', t)

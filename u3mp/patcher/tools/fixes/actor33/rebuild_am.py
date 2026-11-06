@@ -74,7 +74,7 @@ def main():
             if p.returncode:
                 print('FAIL', name, (p.stdout + p.stderr).strip()[-300:]); bad += 1; continue
         else:
-            # -I as batch_hats.py ran it: hat-colour/dis.py must not shadow the standard library, so the job
+            # -I as batch_hats.py ran it: hat-colour/dis_elf.py must not shadow the standard library, so the job
             # folder goes at the END of sys.path
             code = ('import sys; sys.path.append(%r); sys.argv = ["build_hat.py"]; import build_hat; '
                     'build_hat.build(%r, %r, %d, verbose=False)' % (HCK, name, tmpl, int(cap)))

@@ -93,7 +93,7 @@ def main():
     ap.add_argument('--backup', default=r"{{PROJECT}}/work/backup-sound-banks")
     ap.add_argument('--only', default='')
     ap.add_argument('--ffmpeg', default='')
-    ap.add_argument('--jobs', type=int, default=max(1, min(6, (os.cpu_count() or 2) - 1)))
+    ap.add_argument('--jobs', type=int, default=int(os.environ.get('RECIPE_JOBS') or max(1, min(6, (os.cpu_count() or 2) - 1))))
     ap.add_argument('--force', action='store_true')
     ap.add_argument('--apply', action='store_true')
     A = ap.parse_args()

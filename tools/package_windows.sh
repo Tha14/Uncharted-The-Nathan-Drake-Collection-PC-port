@@ -40,6 +40,16 @@ cp tools/probe_uncharted.py tools/hang_report.py tools/apply_update.py tools/ins
 mkdir -p "$stage/u3mp"
 cp -r u3mp/patcher "$stage/u3mp/patcher"
 cp gow3_pc/LICENSE "$stage/u3mp/patcher/LICENSE.txt"
+# The sound-bank encoder in C (sound-banks/native: the original vagenc.c; ~30x faster than vagenc.py), built
+# here and checked byte-identical against vagenc.py; if either fails the import uses the Python encoder.
+nat="$stage/u3mp/patcher/tools/fixes/sound-banks/native"
+if clang -O2 -ffp-contract=off -fno-fast-math -shared -o "$nat/vagenc.dll" "$nat/vagenc.c" &&
+        "$python_home/python.exe" "$nat/check_native.py"; then
+    rm -f "$nat"/*.lib "$nat"/*.exp
+else
+    echo "Note: vagenc.dll not built or not identical: the multiplayer import uses the Python encoder" >&2
+    rm -f "$nat/vagenc.dll"
+fi
 # The programs the import runs, from this PC's MSYS2 with their DLLs, when installed: ffmpeg (EULA pages,
 # sound banks with MP3 samples; package mingw-w64-clang-x86_64-ffmpeg, whose DLLs the runtime ships) and GNU
 # objdump (the Havok tables of the character conversion; mingw-w64-ucrt-x86_64-binutils). Without them the

@@ -56,7 +56,7 @@ Same fault elsewhere (scan_tint.py -> scan_tint.tsv, all converted paks vs their
   mp-hero-schafer-torso, mp-hero-roman-torso, ... (out/<name>.json 'template'). Hair under a hat now gets a real hair
   template where the template pak has one (alpha from the PS3 hair-trans map) instead of a cloth material.
 
-Who gets a tint (dis.py, dis_690100.txt / dis_600000.txt from u3_ps4.elf, vaddr 0 = file +0x10000):
+Who gets a tint (dis_elf.py, dis_690100.txt / dis_600000.txt from u3_ps4.elf, vaddr 0 = file +0x10000):
   NetCharacter ctor 0x68fbe0: args+0x20 = look record; if present, 0x48 bytes are copied to ch+0x2cc8 (so ch+0x2cdc =
   default colour, ch+0x2ce0[5] = per-slot colours, ch+0x2d00 bit0 = look flag); if absent, bit0 is cleared (0x68fce9).
   NetCharacter::Init 0x690100: bit0 clear -> no tint at all (0x690150). Else per body slot 0..4 the part entry from

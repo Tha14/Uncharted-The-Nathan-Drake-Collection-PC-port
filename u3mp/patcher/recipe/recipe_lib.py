@@ -49,6 +49,25 @@ def sha256_bytes(b):
     return hashlib.sha256(b).hexdigest()
 
 
+def shadowed_files(manifest_rows=None):
+    """(overlay, path) of the manifest level/actor paks a higher overlay hides: the game loads the overlays first-wins
+    in OVERLAYS order, so these are never read.  The level and actor builders skip them (faster import) unless
+    rebuild_overlays runs with --all-files; verify_output reports them as 'hidden'."""
+    rows = manifest_rows if manifest_rows is not None else list(read_tsv(os.path.join(HERE, 'manifest.tsv')))
+    have = {}
+    for m in rows:
+        have.setdefault(m['overlay'], set()).add(m['path'].lower())
+    out = set()
+    for m in rows:
+        p = m['path']
+        if not (p.startswith('u3data/build/main/pak23/ps4/') or p.startswith('u3data/build/main/actor33/ps4/')):
+            continue
+        hi = OVERLAYS[:OVERLAYS.index(m['overlay'])] if m['overlay'] in OVERLAYS else ()
+        if any(p.lower() in have.get(o, ()) for o in hi):
+            out.add((m['overlay'], p))
+    return out
+
+
 def read_tsv(path):
     with open(path, encoding='utf-8') as f:
         head = f.readline().rstrip('\n').split('\t')
@@ -310,10 +329,52 @@ class State:
     def done(self, step_id):
         return self.d['steps'].get(step_id)
 
-    def mark(self, step_id, outputs, status='ok', note=''):
+    def mark(self, step_id, outputs, status='ok', note='', fp=''):
         self.d['steps'][step_id] = {'status': status, 'when': time.strftime('%Y-%m-%d %H:%M:%S'), 'recipe_version': VERSION,
-                                    'outputs': outputs, 'note': note}
+                                    'outputs': outputs, 'note': note, 'fp': fp}
         self.save()
+
+
+_TREE_FP = {}
+
+
+def _tree_fp(folder):
+    """sha256 of a tool folder's files (relative path + content; text files with \\n line ends, so a CRLF checkout
+    gives the same value)."""
+    if folder in _TREE_FP:
+        return _TREE_FP[folder]
+    h = hashlib.sha256()
+    if os.path.isdir(folder):
+        for dp, dn, fn in os.walk(folder):
+            dn[:] = sorted(d for d in dn if d != '__pycache__')
+            for f in sorted(fn):
+                if f.endswith(('.pyc', '.orig')):
+                    continue
+                p = os.path.join(dp, f)
+                b = open(p, 'rb').read()
+                if f.endswith(('.py', '.sh', '.txt', '.json', '.tsv', '.md', '.cmd', '.c')):
+                    b = b.replace(b'\r\n', b'\n')
+                h.update(os.path.relpath(p, folder).replace('\\', '/').encode() + b'\0' + hashlib.sha256(b).digest())
+    _TREE_FP[folder] = h.hexdigest()
+    return _TREE_FP[folder]
+
+
+def step_fingerprint(s):
+    """What a step runs: its step file and, for script steps, its fix job folder(s) and the shared helper modules of
+    tools/fixes; for copy steps, its list.  A recorded step whose fingerprint differs runs again (an update)."""
+    h = hashlib.sha256(json.dumps({k: v for k, v in s.items() if not k.startswith('_')}, sort_keys=True).encode())
+    if s.get('kind') == 'script':
+        for j in [s['job']] + list(s.get('with_jobs', [])):
+            h.update(_tree_fp(os.path.join(TOOLS, 'fixes', j)).encode())
+        fx = os.path.join(TOOLS, 'fixes')
+        for f in sorted(os.listdir(fx)) if os.path.isdir(fx) else []:
+            if f.endswith('.py') and os.path.isfile(os.path.join(fx, f)):
+                h.update(hashlib.sha256(open(os.path.join(fx, f), 'rb').read().replace(b'\r\n', b'\n')).digest())
+    elif s.get('list'):
+        p = os.path.join(LISTS, s['list'])
+        if os.path.exists(p):
+            h.update(hashlib.sha256(open(p, 'rb').read().replace(b'\r\n', b'\n')).digest())
+    return h.hexdigest()
 
 
 def outputs_unchanged(out, rec):

@@ -16,7 +16,9 @@ DEST = Path(__file__).resolve().parent.parent
 SKIP_DIRS = {'__pycache__', 'transcript-mining', 'test-results', 'ps3-hashes', 'pylib'}
 SKIP_FILES = ('*.pyc', '*.orig', '*.log', '*.tmp', 'backup-hashes-*.tsv', 'retail-ps4-*.tsv', 'transfer-hashes.tsv',
               'stage-assets-hashes.tsv')
-ALLOWED = ('.py', '.pyi', '.txt', '.json', '.tsv', '.md', '.sh', '.cmd', '.gz', '.typed', '')
+ALLOWED = ('.py', '.pyi', '.txt', '.json', '.tsv', '.md', '.sh', '.cmd', '.gz', '.typed', '.c', '')
+# our own compiled helpers are built from their .c source by tools/package_windows.sh, never committed
+BUILT_HERE = ('vagenc.dll',)
 FORBIDDEN = ('.pak', '.psarc', '.bin', '.dds', '.png', '.jpg', '.wav', '.mp3', '.at9', '.elf', '.self', '.exe', '.dll',
              '.pyd', '.pkg', '.sfo', '.dc', '.dci', '.bnk', '.vtex')
 
@@ -37,6 +39,13 @@ def main():
                 if any(fnmatch.fnmatch(f, pat) for pat in SKIP_FILES):
                     continue
                 ext = os.path.splitext(f)[1].lower()
+                if f in BUILT_HERE:
+                    continue
+                # a fix job folder is on the steps' PYTHONPATH: a script named like a standard module (dis.py,
+                # stat.py) replaces it for every import (hat-colour failed so with Python 3.14's argparse)
+                if part == 'tools' and f.endswith('.py') and f[:-3] in sys.stdlib_module_names and \
+                        '__init__.py' not in fn:
+                    sys.exit('refusing %s: named like the standard module %s (rename it)' % (rel / f, f[:-3]))
                 if ext in FORBIDDEN:
                     sys.exit('refusing %s: game data or a binary in the recipe' % (rel / f))
                 if ext not in ALLOWED and f != 'VERSION':
@@ -47,6 +56,11 @@ def main():
                 size += (Path(dp) / f).stat().st_size
         print('%s: %d files, %.1f MB' % (part, n, size / 1e6))
     print('recipe', (DEST / 'recipe' / 'VERSION').read_text().strip())
+    sys.path.insert(0, str(DEST))
+    import u3mp_version
+    cid = u3mp_version.recipe_fingerprint(DEST)
+    (DEST / 'recipe' / 'CONTENT_ID').write_text(cid + '\n', encoding='ascii')
+    print('CONTENT_ID', cid[:16], '(the launcher compares it with state.json to update an import by itself)')
 
 
 if __name__ == '__main__':

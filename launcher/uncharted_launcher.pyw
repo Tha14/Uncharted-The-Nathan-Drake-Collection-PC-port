@@ -2943,6 +2943,76 @@ class Launcher:
             return False, "the overlays are missing: import again"
         return True, ""
 
+    def u3mp_pending(self, state=None):
+        """What a launcher update changed in an existing import: "image" (a new multiplayer build: the image is
+        relinked, seconds), "recipe" (new or changed conversion steps: rebuild_overlays.py reruns only those), both
+        ("image+recipe") or "" (up to date / never imported)."""
+        state = self.u3mp_state() if state is None else state
+        if state.get("status") not in ("imported", "partial"):
+            return ""
+        parts = []
+        release = u3mp_release()
+        if release and (state.get("image") or {}).get("sha256") != release.get("image_sha256"):
+            parts.append("image")
+        try:
+            sys.path.insert(0, str(U3MP_DIR))
+            import u3mp_version
+            shipped = u3mp_version.shipped_id(U3MP_DIR)
+        except Exception:  # noqa: BLE001 - an incomplete patcher folder: nothing to compare
+            shipped = ""
+        finally:
+            if sys.path and sys.path[0] == str(U3MP_DIR):
+                sys.path.pop(0)
+        recorded = state.get("recipe_id")
+        if shipped and (recorded != shipped if recorded else
+                        state.get("recipe_version") != self.u3mp_recipe_version()):
+            parts.append("recipe")
+        return "+".join(parts)
+
+    def u3mp_recipe_version(self):
+        try:
+            return (U3MP_DIR / "recipe" / "VERSION").read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
+
+    def u3mp_auto_update(self):
+        """After a launcher update: bring an existing import up to date in the background, with the folders it was
+        imported from (no dialogs; the status line and log show it)."""
+        try:
+            if self.u3mp_running():
+                return
+            pending = self.u3mp_pending()
+            if pending:
+                self.u3mp_import(silent=True, image_only=(pending == "image"),
+                                 reason="the launcher update brought a new multiplayer "
+                                        + ("build" if pending == "image" else "version"))
+        except (OSError, tk.TclError):
+            pass
+
+    def u3mp_confirm_play(self, net=None):
+        """play(): with multiplayer on, a pending update starts now (if it did not yet) and, while the multiplayer
+        image is not up to date, the player chooses between waiting and starting without multiplayer."""
+        if net or not self.config.get("u3mp_enabled", False) or not hasattr(self, "u3mp_status"):
+            return True
+        try:
+            pending = self.u3mp_pending()
+            if pending and not self.u3mp_running():
+                self.u3mp_import(silent=True, image_only=(pending == "image"),
+                                 reason="the launcher update brought a new multiplayer "
+                                        + ("build" if pending == "image" else "version"))
+            if not self.u3mp_running():
+                return True
+        except (OSError, tk.TclError):
+            return True
+        # the import rewrites overlay files: the game must not read them meanwhile, so it starts without them
+        if not messagebox.askyesno(
+                APP_TITLE, "The multiplayer files are being updated (Multiplayer tab: a new multiplayer build takes "
+                           "about a minute, new conversion steps longer).\n\nStart Uncharted 3 now without "
+                           "multiplayer? (No = wait for the update)"):
+            return False
+        self.u3mp_skip_once = True
+        return True
+
     def u3mp_env(self, env):
         """play(): Uncharted 3 starts with the multiplayer image and overlays (tools/probe_uncharted.py
         u3mp_image) when the toggle is on and the import is complete."""
@@ -2950,6 +3020,10 @@ class Launcher:
                     "UNCHARTED_U3MP_VERSION"):
             env.pop(key, None)
         if not self.config.get("u3mp_enabled", False):
+            return
+        if getattr(self, "u3mp_skip_once", False) or self.u3mp_running():
+            self.u3mp_skip_once = False
+            print("Uncharted 3 multiplayer files are being imported or updated: Uncharted 3 starts without them")
             return
         state = self.u3mp_state()
         ready, why = self.u3mp_ready(state)
@@ -3040,15 +3114,17 @@ class Launcher:
         self.u3mp_log.pack(side="top", fill="x", pady=(self.px(8), 0))
         tk.Label(page, text="The PS4 game is the launcher's game folder (Advanced -> Folders). The import takes "
                             "a long time (hours for the map and character conversions) and can run while you play "
-                            "other games; closing the launcher does not stop it. Re-import after a launcher update "
-                            "to get the newest multiplayer files: finished steps are not redone.",
+                            "other games; closing the launcher does not stop it. After a launcher update the import "
+                            "updates itself in the background: only what changed is redone.",
                  font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
                  wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(8), 0))
         self.u3mp_proc = None
+        self.u3mp_auto = ""  # why the running import was started by the launcher (an update), else ""
         self.u3mp_log_pos = 0
         self.u3mp_progress = (0, 0, "")
         self.u3mp_refresh()
         self.root.after(1000, self.u3mp_poll)
+        self.root.after(4000, self.u3mp_auto_update)
         return page
 
     def u3mp_set(self, key, value):
@@ -3116,7 +3192,8 @@ class Launcher:
         status = state.get("status")
         image = state.get("image") or {}
         if running:
-            text, colour = "Importing...", GOLD
+            text, colour = ("Updating the multiplayer files (launcher update; only what changed is redone)..."
+                            if getattr(self, "u3mp_auto", "") else "Importing..."), GOLD
         elif ready and status == "imported":
             text, colour = f"Imported v{image.get('version', '?')} (recipe {state.get('recipe_version', '?')}).", TEXT
         elif ready:
@@ -3162,31 +3239,39 @@ class Launcher:
         if total and width > 1:
             bar.create_rectangle(0, 0, int(width * min(1.0, n / total)), self.px(6), fill=GOLD, outline=GOLD)
 
-    def u3mp_import(self):
+    def u3mp_import(self, silent=False, image_only=False, reason=""):
+        """IMPORT / RE-IMPORT, or (silent) the automatic update after a launcher update: the same import with the
+        saved folders, no dialogs; image_only relinks just the multiplayer image."""
         if self.u3mp_running():
-            messagebox.showinfo(APP_TITLE, "The import is already running.")
-            return
+            if not silent:
+                messagebox.showinfo(APP_TITLE, "The import is already running.")
+            return False
         game = self.game_dir()
         if not is_game_dir(game):
-            messagebox.showinfo(APP_TITLE, "Choose your PS4 Uncharted: The Nathan Drake Collection folder first "
-                                           "(Advanced -> Folders -> Change game folder).")
-            return
+            if not silent:
+                messagebox.showinfo(APP_TITLE, "Choose your PS4 Uncharted: The Nathan Drake Collection folder first "
+                                               "(Advanced -> Folders -> Change game folder).")
+            return False
         folders = [f for f in self.config.get("u3mp_ps3_u3", []) if Path(f).is_dir()]
-        if not folders:
-            messagebox.showinfo(APP_TITLE, "Add your PS3 Uncharted 3 folder(s) first: the game disc's folder and "
-                                           "RPCS3's dev_hdd0/game.")
-            return
+        if not folders and not image_only:
+            if not silent:
+                messagebox.showinfo(APP_TITLE, "Add your PS3 Uncharted 3 folder(s) first: the game disc's folder and "
+                                               "RPCS3's dev_hdd0/game.")
+            return False
         data = self.u3mp_data()
         try:
             data.mkdir(parents=True, exist_ok=True)
             free = shutil.disk_usage(data).free
         except OSError as error:
-            messagebox.showerror(APP_TITLE, f"The multiplayer data folder can't be used:\n{error}")
-            return
-        if free < 12 * 1024 ** 3 and not messagebox.askyesno(
+            if not silent:
+                messagebox.showerror(APP_TITLE, f"The multiplayer data folder can't be used:\n{error}")
+            return False
+        if free < 12 * 1024 ** 3 and not image_only and (silent or not messagebox.askyesno(
                 APP_TITLE, f"{data.anchor} has {free / 1024 ** 3:.0f} GB free; the import needs about 12 GB. "
-                           "Start anyway?"):
-            return
+                           "Start anyway?")):
+            if silent:
+                print(f"Multiplayer update not started: {data.anchor} has {free / 1024 ** 3:.0f} GB free")
+            return False
         python = Path(sys.executable)
         if python.name.lower() == "pythonw.exe" and python.with_name("python.exe").exists():
             python = python.with_name("python.exe")
@@ -3200,24 +3285,34 @@ class Launcher:
             command += ["--ps3-u2", self.config["u3mp_ps3_u2"]]
         if self.config.get("u3mp_ps3_elf"):
             command += ["--ps3-elf", self.config["u3mp_ps3_elf"]]
+        if image_only:
+            command += ["--image-only"]
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
+        # below normal priority: an import or update never slows a running game down
+        flags = NO_WINDOW | getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)
         try:
             log = open(data / "import.log", "w", encoding="utf-8")
             self.u3mp_proc = subprocess.Popen(command, cwd=str(U3MP_DIR), env=env, stdout=log, stderr=subprocess.STDOUT,
-                                              stdin=subprocess.DEVNULL, creationflags=NO_WINDOW)
+                                              stdin=subprocess.DEVNULL, creationflags=flags)
             log.close()
         except OSError as error:
-            messagebox.showerror(APP_TITLE, f"Could not start the import:\n{error}")
+            if not silent:
+                messagebox.showerror(APP_TITLE, f"Could not start the import:\n{error}")
+            else:
+                print(f"Could not start the multiplayer update: {error}")
             self.u3mp_proc = None
-            return
+            return False
+        self.u3mp_auto = reason if silent else ""
         self.u3mp_log_pos = 0
         self.u3mp_progress = (0, 0, "")
         self.u3mp_log.config(state="normal")
         self.u3mp_log.delete("1.0", "end")
         self.u3mp_log.config(state="disabled")
-        self.u3mp_step.config(text="Starting the import...")
+        self.u3mp_step.config(text=("Updating the multiplayer files: " + reason + "...") if silent else
+                              "Starting the import...")
         self.u3mp_refresh()
+        return True
 
     def u3mp_cancel(self):
         pid = self.u3mp_proc.pid if self.u3mp_proc is not None and self.u3mp_proc.poll() is None else \
@@ -3242,8 +3337,9 @@ class Launcher:
                     self.u3mp_lines(chunk[:cut].decode("utf-8", "replace").splitlines())
             if self.u3mp_proc is not None and self.u3mp_proc.poll() is not None:
                 self.u3mp_proc = None
+                self.u3mp_auto = ""
                 self.u3mp_refresh()
-            elif self.u3mp_running() != (self.u3mp_status.cget("text") == "Importing..."):
+            elif self.u3mp_running() != self.u3mp_status.cget("text").startswith(("Importing...", "Updating the")):
                 self.u3mp_refresh()
         except (OSError, tk.TclError):
             pass
@@ -3773,7 +3869,7 @@ class Launcher:
             if not self.choose_game_dir():
                 return
         if not self.confirm_without_update() or not self.confirm_update_files() or \
-                not self.confirm_slow_drive():
+                not self.confirm_slow_drive() or not self.u3mp_confirm_play(net):
             return
         self.follow_ini()  # the in-game menu's last changes, not older values kept here
         self.save_ini({k: self.ini.get(k, v) for k, v in INI_DEFAULTS.items()})
