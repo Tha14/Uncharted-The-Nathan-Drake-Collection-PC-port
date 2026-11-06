@@ -39,6 +39,9 @@ cp tools/probe_uncharted.py tools/hang_report.py tools/apply_update.py tools/ins
 # makes every game-derived file from the player's own copies.
 mkdir -p "$stage/u3mp"
 cp -r u3mp/patcher "$stage/u3mp/patcher"
+# maintainer tools (recipe sync, release notes) are not needed by players
+rm -rf "$stage/u3mp/patcher/maintainer"
+find "$stage/u3mp/patcher" -name '__pycache__' -prune -exec rm -rf {} +
 cp gow3_pc/LICENSE "$stage/u3mp/patcher/LICENSE.txt"
 # The sound-bank encoder in C (sound-banks/native: the original vagenc.c; ~30x faster than vagenc.py), built
 # here and checked byte-identical against vagenc.py; if either fails the import uses the Python encoder.

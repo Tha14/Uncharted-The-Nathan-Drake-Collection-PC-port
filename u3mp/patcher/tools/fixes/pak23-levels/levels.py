@@ -215,6 +215,14 @@ def build(row, idx, built):
         return op
     if m in ('slice', 'havok'):
         return built[(row['overlay'], row['name'])]          # produced by the maps-batch builder (see main)
+    if m == 'sky':                                  # the cloud's batch57 sky converter (lib/build_skies.py, paktools-sky)
+        ps3_source(row, idx)
+        sd = os.path.join(TMP, 'sky', row['overlay'], row['name'])
+        shutil.rmtree(sd, ignore_errors=True)
+        run([PY, os.path.join(HERE, 'lib', 'build_skies.py'), paktools(row['version']), os.path.join(TMP, 'ps3'),
+             os.path.join(PS4MAIN, 'pak23', 'ps4'), res_dir(), sd, row['name']], env=dict(os.environ, U3_TEXDICT=TEXDICT))
+        shutil.copyfile(os.path.join(sd, row['name'] + '.pak'), op)
+        return op
     pt = paktools(row['version'])
     env = dict(os.environ, PYTHONPATH=pt + os.pathsep + os.path.join(pt, 'stage'), U3_TEXDICT=TEXDICT)
     env.update(opts)
@@ -312,9 +320,9 @@ def main():
     built = {}
     maps_batch(todo, idx, built)
     for r in todo:                                   # PS3 sources first (serial: one reader per archive)
-        if r['method'] in ('stage', 'ingame', 'vischeat', 'hud'):
+        if r['method'] in ('stage', 'ingame', 'vischeat', 'hud', 'sky'):
             ps3_source(r, idx)
-    if any(r['method'] == 'stage' for r in todo):
+    if any(r['method'] in ('stage', 'sky') for r in todo):
         res_dir()
     for v in sorted(set(r['version'] for r in todo if r['version'] not in ('', '-'))):
         paktools(v)                         # set up every converter tree before the worker threads (copytree race)

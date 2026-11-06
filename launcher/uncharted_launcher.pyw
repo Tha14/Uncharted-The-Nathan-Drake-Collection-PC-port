@@ -2927,7 +2927,10 @@ class Launcher:
         recorded = state.get("recipe_id")
         if shipped and (recorded != shipped if recorded else
                         state.get("recipe_version") != self.u3mp_recipe_version()):
-            parts.append("recipe")
+            # an update build of this recipe that ended worse than the import is not retried at every start
+            # (Import retries it); a finished one waiting to be swapped in always counts
+            if state.get("update_failed_for") != shipped or (state.get("next") or {}).get("recipe_id") == shipped:
+                parts.append("recipe")
         return "+".join(parts)
 
     def u3mp_recipe_version(self):
@@ -2961,8 +2964,8 @@ class Launcher:
                 self.u3mp_import(silent=True, image_only=(pending == "image"),
                                  reason="the launcher update brought a new multiplayer "
                                         + ("build" if pending == "image" else "version"))
-            if not self.u3mp_running():
-                return True
+            if not self.u3mp_running() or self.u3mp_state().get("staging"):
+                return True     # an update that builds into a second folder leaves the current files playable
         except (OSError, tk.TclError):
             return True
         # the import rewrites overlay files: the game must not read them meanwhile, so it starts without them
@@ -2982,7 +2985,7 @@ class Launcher:
             env.pop(key, None)
         if not self.config.get("u3mp_enabled", False):
             return
-        if getattr(self, "u3mp_skip_once", False) or self.u3mp_running():
+        if getattr(self, "u3mp_skip_once", False) or (self.u3mp_running() and not self.u3mp_state().get("staging")):
             self.u3mp_skip_once = False
             print("Uncharted 3 multiplayer files are being imported or updated: Uncharted 3 starts without them")
             return

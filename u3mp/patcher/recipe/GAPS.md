@@ -82,7 +82,9 @@ pre-borneo-water-jitter state). Rule for every row: levels.py must reproduce tha
 batches recorded after it (verified), and the session steps do the rest.
 
 Cause classes of the remaining rows:
+* **2026-11-06, recipe 1.9.0:** the 8 r3 sky paks and the 7 Borneo water paks reproduce exactly (scratch/pak23-recovery/sky/REPORT.md, water/REPORT.md). The lost batches 97-101m / n012 / n014 / n015 were recovered (lost-scripts.zip, n015-batches.zip); replaying them needs the cloud pre-batch states (work in scratch/pak23-recovery/chain/).
 * **lost batches 99 (lmuv), 100 A/C + revertB (blockers), 101 / 101m (Mask3 detail / flat-white appends), n012, n014 (London probe records), n015/n015b**: ran before batch102; their scripts are lost. Seen in the diffs: instance flag byte +0x21 (own-lightmap 0x100) cleared on 25 instances of yemen-multi-stage (batch99 or 100); an appended page with flat-white bound to Mask3 (coop-airport-stage, batch101 rule "white flat where PS3 has no -detail map"; re-implemented with the batch102 appender the page is 3 152 bytes longer than batch101's, so its page layout differs); LIGHT_TABLE_1 probe records (ldn-train-multi-tunnel: 57 bytes, recorded as fix bytes, exact).
+  * 2026-11-06: n015b found complete (scratch/pak23-recovery/found/n015b: 5 one-dword patches, LEVEL_INFO_1 = the PS3 pak's flags, little endian). It shows n015's rule; no pak in this table differs in LEVEL_INFO_1, so n015/n015b are already reproduced and are not a gap. The other lost scripts were written by the claude.ai cloud teammates and never reached this PC as text (scratch/pak23-recovery/lost-sources-search.md).
 * **effect order / donor**: EFFECT_TABLE + EFFECT string indices differ (yemen-multi-stage, grave-multi-stage, highrise-multi-wide, air-multi-strip): the same effects from other donor paks than our mkplan picks; the search's refine step did not find them within 6..12 candidates. Size differences of 64..96 bytes (facility/fort/museum-multi-wide, fort-coop-tower-wide) are EFFECT items placed with their donor's 0x100 phase (ps4stage.py:725) = also a donor choice.
 * **Borneo water**: dig-coop-*-water(-ss) and the water material in dig-coop-stage use water.fx with the PS3 dig water textures bound (dig-ship-water-01-normal, dig-algea-01 colour/mask + retail waterbump / horse-chase env maps). f525859 plans these materials without bindings and writes no VRAM (43 KB vs 677 KB); the binding code is fixer H's h018 / batch98-water work (build98.py), never on the PC or GitHub. Not reconstructible without that code.
 * **sky paks (8)**: the sky template's own reflection map is kept in the ref (e.g. sky-drydock binds sky-grave-03-docks-reflection-color where we bind the PS3 flow map), other skies use sky-clouds.fx templates whose records our converter does not produce ("no candidate gives the record"): a sky conversion between 003b433 and f525859 (10-27 sky fix) that is not recorded.
@@ -112,15 +114,15 @@ Cause classes of the remaining rows:
 | coop-syria-turret2 | base | b103 | - |
 | desert-multi | equivalent | b102 | searched, no output kept |
 | dig-coop-approach | equivalent | b102 | searched, no output kept |
-| dig-coop-approach-water | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost): size+634080 / ref-only tex 6 (dig-algea-01-color.tga, dig-algea-01-mask.tga, dig-ship-water-01-normal.tga, horse-chase-c |
-| dig-coop-approach-water-ss | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
+| dig-coop-approach-water | base | .bak-jitter | rebuilt exact 2026-11-06 (converter f525859w = f525859 + stage/water_templates.json; dig-coop-stage + override templates/bytes): the recorded pre-step state |
+| dig-coop-approach-water-ss | base | .bak-jitter | rebuilt exact 2026-11-06 (converter f525859w = f525859 + stage/water_templates.json; dig-coop-stage + override templates/bytes): the recorded pre-step state |
 | dig-coop-dropdown | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
-| dig-coop-dropdown-water | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
-| dig-coop-dropdown-water-ss | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
+| dig-coop-dropdown-water | base | .bak-jitter | rebuilt exact 2026-11-06 (converter f525859w = f525859 + stage/water_templates.json; dig-coop-stage + override templates/bytes): the recorded pre-step state |
+| dig-coop-dropdown-water-ss | base | .bak-jitter | rebuilt exact 2026-11-06 (converter f525859w = f525859 + stage/water_templates.json; dig-coop-stage + override templates/bytes): the recorded pre-step state |
 | dig-coop-ship | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
-| dig-coop-ship-water | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
-| dig-coop-ship-water-ss | equivalent | .bak-jitter | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost):  |
-| dig-coop-stage | equivalent | b102 | Borneo water materials (water.fx: PS3 dig water textures bound, h018 / batch98 water code lost): size+242136 / ref-only tex 3 (dig-ship-water-01-normal.tga, horse-chase-canyon-env-reflection.dds, waterbump-ripplesB-no |
+| dig-coop-ship-water | base | .bak-jitter | rebuilt exact 2026-11-06 (converter f525859w = f525859 + stage/water_templates.json; dig-coop-stage + override templates/bytes): the recorded pre-step state |
+| dig-coop-ship-water-ss | base | .bak-jitter | rebuilt exact 2026-11-06 (converter f525859w = f525859 + stage/water_templates.json; dig-coop-stage + override templates/bytes): the recorded pre-step state |
+| dig-coop-stage | base | b102 | rebuilt exact 2026-11-06 (converter f525859w = f525859 + stage/water_templates.json; dig-coop-stage + override templates/bytes): the recorded pre-step state |
 | facility-multi | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | facility-multi-stage | equivalent | h028-backup | searched, no output kept |
 | facility-multi-wide | equivalent | b103 | size-64 |
@@ -170,14 +172,14 @@ Cause classes of the remaining rows:
 | sham-multi-wide | identical | - | - |
 | shambhala-multi | equivalent | b103 | searched, no output kept |
 | shambhala-multi-stage | base | b103 | - |
-| sky-drydock | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+6072 / ref-only tex 1 (sky-grave-03-docks-reflection-color.tga) / bindings differ: 1 (sky-drydock-special:default)) |
-| sky-fort-coop-b | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+84136 / ref-only tex 1 (sky-fort-multi-reflection.tga) / our-only tex 4 / template/features differ: 1 (sky-fort-coop-b:default)) |
-| sky-fort-multi | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+138352 / ref-only tex 5 (default-mask.tga, sky-fort-multi-reflection.tga, sky-grave-cloud-fade-mask.tga, sky-syria-cloud-a-mask.tga, sky-village-) |
-| sky-gompa-mp | equivalent | final | sky template bindings of a sky converter not in any recorded version (size-1468976 / our-only tex 2 / template/features differ: 1 (sky-gompa-multi-3:default)) |
-| sky-grave-multi | equivalent | final | sky template bindings of a sky converter not in any recorded version (size-146480 / ref-only tex 1 (sky-grave-03-docks-reflection-color.tga) / our-only tex 3 / template/features differ: 1 (sky-grave-multi-undersky:defaul) |
-| sky-ldn-streets-multi | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+61440) |
-| sky-oasis-multi | equivalent | final | sky template bindings of a sky converter not in any recorded version (size-1435952 / ref-only tex 4 (sky-horse-chase-color-reflection.tga, sky-horse-chase-flow-mask.tga, sky-horse-chase-flow.tga, sky-horse-chase-mask.tga) |
-| sky-yemen-mp | equivalent | final | sky template bindings of a sky converter not in any recorded version (size+453248 / ref-only tex 4 (sky-village-pre-cloud-a-color.tga, sky-village-pre-old-cloud-a-fade-mask.tga, sky-village-pre-old-cloud-a-mask.tga, sky-) |
+| sky-drydock | identical | final | rebuilt byte-identical 2026-11-06: recovered batch57 sky converter (method sky, lib/build_skies.py, paktools-sky) |
+| sky-fort-coop-b | identical | final | rebuilt byte-identical 2026-11-06: recovered batch57 sky converter (method sky, lib/build_skies.py, paktools-sky) |
+| sky-fort-multi | identical | final | rebuilt byte-identical 2026-11-06: recovered batch57 sky converter (method sky, lib/build_skies.py, paktools-sky) |
+| sky-gompa-mp | identical | final | rebuilt byte-identical 2026-11-06: recovered batch57 sky converter (method sky, lib/build_skies.py, paktools-sky) |
+| sky-grave-multi | identical | final | rebuilt byte-identical 2026-11-06: recovered batch57 sky converter (method sky, lib/build_skies.py, paktools-sky) |
+| sky-ldn-streets-multi | identical | final | rebuilt byte-identical 2026-11-06: recovered batch57 sky converter (method sky, lib/build_skies.py, paktools-sky) |
+| sky-oasis-multi | identical | final | rebuilt byte-identical 2026-11-06: recovered batch57 sky converter (method sky, lib/build_skies.py, paktools-sky) |
+| sky-yemen-mp | identical | final | rebuilt byte-identical 2026-11-06: recovered batch57 sky converter (method sky, lib/build_skies.py, paktools-sky) |
 | syria-multi | equivalent | b103 | searched, no output kept |
 | temple-multi | equivalent | b103 | searched, no output kept |
 | temple-multi-stage | base | h028-backup | - |

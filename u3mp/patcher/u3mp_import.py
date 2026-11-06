@@ -11,6 +11,13 @@ Run by the launcher (MULTIPLAYER tab -> Import) in the background; can also be r
      continuing after a failing step                                 -> <data>/recipe/work/overlay-{r3,r2,port,mp}
   3. <data>/state.json: what was made, which steps failed; the launcher starts Uncharted 3 with it.
 
+Updates: when the shipped recipe differs from the one an import was made with (state.json recipe_id), the whole recipe
+runs again into <data>/recipe-next (the caches in recipe/scratch move along), so every file a newer recipe makes
+differently is replaced, while <data>/recipe stays playable.  When it ends no worse than the import it replaces, the
+two folders are swapped (if the game holds the files open, the swap waits for the next run: <data>/recipe-next/.ready).
+Without room for a second work folder, or with --in-place, the recipe runs on <data>/recipe as before (it then only adds
+missing files and reruns changed steps).
+
 Progress for the launcher: lines starting with "@U3MP " followed by a JSON object.  Nothing is written outside --data.
 """
 import argparse
@@ -91,8 +98,43 @@ def find_ps3_elf(folders, explicit):
     return best
 
 
-def run_recipe(a, data, ps4_elf, ps3_elf):
-    out = data / 'recipe'
+def tree_size(folder):
+    n = 0
+    for dp, dn, fn in os.walk(folder):
+        for f in fn:
+            try:
+                n += os.path.getsize(os.path.join(dp, f))
+            except OSError:
+                pass
+    return n
+
+
+def try_swap(data):
+    """Put a finished <data>/recipe-next in place of <data>/recipe; False while the files are in use (game running)."""
+    nxt, cur = data / 'recipe-next', data / 'recipe'
+    if not (nxt / '.ready').exists():
+        return False
+    old = data / ('recipe-old-%d' % int(time.time()))
+    try:
+        if cur.exists():
+            os.replace(cur, old)
+    except OSError as e:
+        log('update ready, waiting to swap it in (files in use: %s)' % e)
+        return False
+    try:
+        os.replace(nxt, cur)
+    except OSError as e:
+        os.replace(old, cur)                       # put the playable import back
+        log('update ready, waiting to swap it in (%s)' % e)
+        return False
+    (cur / '.ready').unlink(missing_ok=True)
+    shutil.rmtree(old, ignore_errors=True)
+    log('update swapped in: %s' % cur)
+    return True
+
+
+def run_recipe(a, data, ps4_elf, ps3_elf, out=None):
+    out = out or data / 'recipe'
     out.mkdir(parents=True, exist_ok=True)
     python = os.environ.get('U3MP_PYTHON') or sys.executable
     cmd = [python, '-u', str(RECIPE / 'rebuild_overlays.py'), '--ps4', a.ps4, '--out', str(out), '--continue-on-error',
@@ -187,6 +229,7 @@ def main():
     ap.add_argument('--speech-langs', default='english')
     ap.add_argument('--image-only', action='store_true', help='only (re)build the multiplayer image')
     ap.add_argument('--only', help='run only these recipe steps (tests; passed to rebuild_overlays.py --only)')
+    ap.add_argument('--in-place', action='store_true', help='update an import in its own folder (no second work folder)')
     a = ap.parse_args()
     data = a.data.resolve()
     data.mkdir(parents=True, exist_ok=True)
@@ -232,12 +275,57 @@ def main():
             'dev_hdd0/game/BCES01670/USRDIR/EBOOT.BIN); the Havok tables step is skipped without it')
     event(phase='recipe', status='running')
     recipe_id = u3mp_version.shipped_id()   # the recipe this run applies (the launcher updates when it changes)
-    r = run_recipe(a, data, ps4_elf, ps3_elf)
+    nxt = data / 'recipe-next'
+    pending = state.pop('next', None)
+    if pending and (nxt / '.ready').exists():
+        # an update finished earlier but could not be swapped in (the game had the files open)
+        if pending.get('recipe_id') == recipe_id and try_swap(data):
+            state.update(pending)
+            return finish(pending.get('status', 'imported'))
+        if pending.get('recipe_id') != recipe_id:
+            (nxt / '.ready').unlink(missing_ok=True)       # a newer recipe: build again
+    staged = (not a.only and not a.in_place and old.get('status') in ('imported', 'partial')
+              and old.get('recipe_id') and old.get('recipe_id') != recipe_id and (data / 'recipe' / 'work').is_dir())
+    if staged:
+        free = shutil.disk_usage(str(data)).free
+        need = tree_size(data / 'recipe' / 'work') * 1.1 + 2e9
+        if not nxt.exists() and free < need:
+            log('update: %.1f GB free, %.1f GB needed for a second work folder: updating in place'
+                % (free / 1e9, need / 1e9))
+            staged = False
+    if staged:
+        log('update: the recipe changed since this import (%s -> %s): rebuilding into %s; the current files stay '
+            'playable until it is swapped in' % (str(old.get('recipe_id'))[:12], recipe_id[:12], nxt))
+        nxt.mkdir(parents=True, exist_ok=True)
+        if (data / 'recipe' / 'scratch').is_dir() and not (nxt / 'scratch').exists():
+            os.replace(data / 'recipe' / 'scratch', nxt / 'scratch')     # caches: PS3 extracts, converter trees
+        state['staging'] = recipe_id      # the launcher lets the game run on the current files meanwhile
+        state_file.write_text(json.dumps(state, indent=1), encoding='utf-8')
+    state.pop('update_failed_for', None)
+    r = run_recipe(a, data, ps4_elf, ps3_elf, out=nxt if staged else None)
     failed = [sid for sid, s in r['steps'].items() if s['status'] == 'failed']
     # steps that could not run here (an input or a Python package missing, or not reproducible yet): their files
     # are missing too
     unavailable = [sid for sid, s in r['steps'].items() if s['status'] == 'unavailable']
     failed += unavailable if not a.only else []
+    if staged:
+        state.pop('staging', None)
+        if r['exit'] == 2 or not r['overlays'] or len(failed) > len(old.get('failed') or []):
+            state['update_failed_for'] = recipe_id     # the launcher does not retry it at every start
+            log('update: the new build has more failed steps (%d) than the current import (%d); the current files '
+                'are kept, %s stays for the next try' % (len(failed), len(old.get('failed') or []), nxt))
+            return finish(old['status'], error='Update not applied: %d step(s) failed' % len(failed),
+                          failed_at=(min(failed, key=lambda s: r['steps'][s]['n']) if failed else 'recipe'))
+        r['overlays'] = [str(data / 'recipe' / 'work' / name) for name in OVERLAYS if (nxt / 'work' / name).is_dir()]
+        (nxt / '.ready').write_text(recipe_id, encoding='ascii')
+        done = dict(recipe_version=r['recipe_version'], steps=r['steps'], overlays=r['overlays'], failed=failed,
+                    unavailable=unavailable, ps3_elf=ps3_elf or '', recipe_id=recipe_id,
+                    status='partial' if failed else 'imported')
+        if not try_swap(data):
+            state['next'] = done
+            return finish(old['status'], error='Update ready: it is applied the next time the launcher starts')
+        state.update(done)
+        return finish(done['status'])
     state.update(recipe_version=r['recipe_version'], steps=r['steps'], overlays=r['overlays'], failed=failed,
                  unavailable=unavailable, ps3_elf=ps3_elf or '')
     if not a.only:
