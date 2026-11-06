@@ -42,7 +42,10 @@ if restore:
     print('restored' if apply_ else 'dry run: nothing written (use --apply)')
     sys.exit(0)
 txt = open(MAIN + 'pak23_ps4.txt', 'rb').read()
-if b'air-multi-emblem' in txt:
+# A clean recipe run (2026-11-06): registry-pak23 already wrote the emblem actor lines, but no emblem pak is installed
+# yet; that is not "installed": install the paks and keep the registry as it is.
+lines_only = b'air-multi-emblem' in txt and not any(os.path.exists(MAIN + 'actor33/ps4/%s.pak' % a) for a in arts)
+if b'air-multi-emblem' in txt and not lines_only:
     # The spawners and actors need no correction; the fix is the helper bucket (helper_paste.inc).
     ok = all(os.path.exists(MAIN + 'actor33/ps4/%s.pak' % a) and md5(MAIN + 'actor33/ps4/%s.pak' % a) == md5(OUT + 'actor33/ps4/%s.pak' % a) for a in arts)
     ig = md5(MAIN + files[1]) == md5(OUT + files[1])
@@ -63,13 +66,14 @@ nxt = txt.find(b'level-name ', i + len(head))
 if i < 0 or j < 0 or (0 <= nxt < j):
     sys.exit('air-multi level block not found')
 j += len(anchor)
-new = txt[:j] + b''.join(b'actor ' + a.encode() + nl for a in arts) + txt[j:]
+new = txt if lines_only else txt[:j] + b''.join(b'actor ' + a.encode() + nl for a in arts) + txt[j:]
 for a in arts:
     src, dst = OUT + 'actor33/ps4/%s.pak' % a, MAIN + 'actor33/ps4/%s.pak' % a
     print('install', os.path.basename(dst), os.path.getsize(src))
     if os.path.exists(dst):
         sys.exit('actor exists: ' + dst)
-print('install 2 level paks, add %d actor lines to the air-multi block' % len(arts))
+print('install 2 level paks, ' + ('the %d actor lines are already in pak23_ps4.txt' if lines_only else
+                                  'add %d actor lines to the air-multi block') % len(arts))
 if not apply_:
     print('dry run: nothing written (use --apply)')
     sys.exit(0)

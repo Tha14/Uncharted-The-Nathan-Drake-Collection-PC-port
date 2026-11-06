@@ -1,7 +1,10 @@
 """sync_recipe.py - (maintainers) copy the overlay recipe and its tools into u3mp/patcher/{recipe,tools}.
 
-  python sync_recipe.py "<...>/PKG Converter"
+  python sync_recipe.py "<...>/PKG Converter" --private "<extra files checkout>"
 
+The extra files checkout lists, in private-files.txt, the files that are packaged from it and never committed here
+("file <path under u3mp/patcher>") and the steps left out of this steps/ORDER.txt ("order <id> after <id>"): they are
+copied into its launcher-files/ instead.  The release build adds them back before packaging.
 The launcher runs whatever recipe is copied here (steps/ORDER.txt).  Left out: the maintainers' research files
 (transcript mining, test results, the hash tables only provenance.py reads), caches, and anything that is not text or
 a known table.  The copy refuses files with game-data extensions (paks, archives, textures, sound, executables).
@@ -23,10 +26,31 @@ FORBIDDEN = ('.pak', '.psarc', '.bin', '.dds', '.png', '.jpg', '.wav', '.mp3', '
              '.pyd', '.pkg', '.sfo', '.dc', '.dci', '.bnk', '.vtex')
 
 
+def read_private(extra):
+    files, steps = set(), set()
+    for line in (extra / 'private-files.txt').read_text(encoding='utf-8').splitlines():
+        line = line.split('#', 1)[0].strip()
+        kind, _, rest = line.partition(' ')
+        if kind == 'file':
+            files.add(rest.strip())
+        elif kind == 'order':
+            steps.add(rest.partition(' after ')[0].strip())
+    return files, steps
+
+
 def main():
-    src = Path(sys.argv[1])
+    args = sys.argv[1:]
+    if '--private' not in args or args.index('--private') + 1 >= len(args) or len(args) != 3:
+        sys.exit(__doc__)
+    i = args.index('--private')
+    extra = Path(args[i + 1])
+    src = Path(next(a for j, a in enumerate(args) if j not in (i, i + 1)))
+    if not (extra / 'private-files.txt').is_file():
+        sys.exit('not the extra files checkout (no private-files.txt): ' + str(extra))
+    private, private_steps = read_private(extra)
     if not (src / 'recipe' / 'rebuild_overlays.py').is_file():
         sys.exit('not a PKG Converter folder: ' + str(src))
+    n_private = 0
     for part in ('recipe', 'tools'):
         dest = DEST / part
         if dest.exists():
@@ -50,11 +74,22 @@ def main():
                     sys.exit('refusing %s: game data or a binary in the recipe' % (rel / f))
                 if ext not in ALLOWED and f != 'VERSION':
                     sys.exit('unexpected file type %s (add it to ALLOWED after checking it)' % (rel / f))
+                key = (Path(part) / rel / f).as_posix()
+                if key in private:
+                    out = extra / 'launcher-files' / 'u3mp' / 'patcher' / key
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(Path(dp) / f, out)
+                    n_private += 1
+                    continue
                 (dest / rel).mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(Path(dp) / f, dest / rel / f)
                 n += 1
                 size += (Path(dp) / f).stat().st_size
         print('%s: %d files, %.1f MB' % (part, n, size / 1e6))
+    order = DEST / 'recipe' / 'steps' / 'ORDER.txt'
+    kept = [l for l in order.read_text(encoding='utf-8').splitlines() if l.split('#', 1)[0].strip() not in private_steps]
+    order.write_text('\n'.join(kept) + '\n', encoding='utf-8', newline='\n')
+    print('extra files checkout: %d files, %d steps left out of ORDER.txt' % (n_private, len(private_steps)))
     print('recipe', (DEST / 'recipe' / 'VERSION').read_text().strip())
     sys.path.insert(0, str(DEST))
     import u3mp_version

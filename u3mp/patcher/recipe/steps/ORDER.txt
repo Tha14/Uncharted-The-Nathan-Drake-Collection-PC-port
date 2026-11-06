@@ -24,7 +24,6 @@ skins-net-names
 maps-batch-dc
 maps-batch-files
 levels-maps-batch
-rpcn-menu-page
 eula-menu-box
 skin-textures
 wall-emblem

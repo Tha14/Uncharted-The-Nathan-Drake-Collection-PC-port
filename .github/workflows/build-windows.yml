@@ -69,6 +69,25 @@ jobs:
           export MSYS2_ROOT=$(cygpath -u '${{ steps.msys2.outputs.msys2-location }}')
           tools/fetch_aa_files.sh
 
+      # Files kept outside this repository (two repository secrets). A release cannot be built
+      # without them; other builds go on without them.
+      - name: Extra package files
+        shell: bash
+        env:
+          EXTRA_REPO: ${{ secrets.PACKAGE_EXTRA_REPO }}
+          EXTRA_TOKEN: ${{ secrets.PACKAGE_EXTRA_TOKEN }}
+          IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          if [ -z "$EXTRA_REPO" ] || [ -z "$EXTRA_TOKEN" ]; then
+            if [ "$IS_RELEASE" = "true" ]; then echo "::error::extra package files are not configured"; exit 1; fi
+            echo "extra package files not configured: building without them"; exit 0
+          fi
+          extra="$RUNNER_TEMP/extra"
+          git clone -q --depth 1 "https://x-access-token:${EXTRA_TOKEN}@github.com/${EXTRA_REPO}.git" "$extra" > /dev/null 2>&1 \
+            || { echo "::error::extra package files could not be fetched"; exit 1; }
+          python "$extra/apply.py" "$GITHUB_WORKSPACE"
+          rm -rf "$extra"
+
       - name: Package
         run: |
           export MSYS2_ROOT=$(cygpath -u '${{ steps.msys2.outputs.msys2-location }}')
