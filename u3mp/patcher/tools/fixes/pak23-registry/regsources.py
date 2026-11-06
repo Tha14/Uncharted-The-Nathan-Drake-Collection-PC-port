@@ -21,7 +21,8 @@ def main():
     if os.path.exists(os.path.join(disc, 'build', 'main', 'pak23.txt')):
         w('ps3-disc.txt', open(os.path.join(disc, 'build', 'main', 'pak23.txt'), 'rb').read())
     arcs = [(os.path.join(upd, 'dlc-patch18.psarc'), 'p18'), (os.path.join(upd, 'dlc-patch13.psarc'), 'p13')]
-    arcs += [(f, os.path.basename(f)[:-6]) for f in sorted(glob.glob(glob.escape(dlc) + '/dlc-map[0-9].psarc'))]
+    dlcmaps = sorted(glob.glob(glob.escape(dlc) + '/dlc-map[0-9].psarc')) if dlc else []
+    arcs += [(f, os.path.basename(f)[:-6]) for f in dlcmaps]
     arcs += [(os.path.join(disc, n), n[:-6]) for n in ('goty-patch.psarc', 'goty-dlc.psarc')]
     arcs += [(f, os.path.basename(f)[:-6]) for f in sorted(glob.glob(glob.escape(d2) + '/build/main/*.psarc') +
                                                            glob.glob(glob.escape(d2) + '/build/main/pak23/*.psarc'))]
@@ -37,6 +38,11 @@ def main():
                 w('ps3-%s.txt' % k, p.read(i + 1)); n += 1
             elif '/pak23/' in nm or '/' not in nm or nm.split('/')[-1].startswith('lab'):
                 w('txt__%s__%s' % (k, nm.lstrip('/').replace('/', '__')), p.read(i + 1)); n += 1
+                if k == 'goty-dlc' and not dlcmaps:
+                    # GOTY disc without the separate DLC map packs: goty-dlc.psarc carries the same files; the
+                    # recipes name them after the pack (apply_registry checks every source by sha256)
+                    for m in range(1, 5):
+                        w('txt__dlc-map%d__%s' % (m, nm.lstrip('/').replace('/', '__')), p.read(i + 1))
     print('sources', n + 2)
 
 

@@ -198,6 +198,10 @@ def ps3_source(row, idx):
     p = os.path.join(d, row['src'] + '.pak')
     if not os.path.exists(p):
         e = idx.get((row['src'], row['archive']))
+        if e is None and row['archive'].startswith('dlc-map'):
+            # Game of the Year disc without the separate DLC map packs: goty-dlc.psarc has the same level paks
+            # (byte-identical for 109 of 110; the plan's sha256 check still decides identical / equivalent)
+            e = idx.get((row['src'], 'goty-dlc'))
         if e is None:
             raise RuntimeError('PS3 source %s not in %s' % (row['src'], row['archive']))
         os.makedirs(d, exist_ok=True)

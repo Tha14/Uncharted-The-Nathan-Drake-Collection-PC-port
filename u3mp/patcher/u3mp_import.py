@@ -180,9 +180,12 @@ def run_recipe(a, data, ps4_elf, ps3_elf, out=None):
     t0 = time.time()
     p = subprocess.Popen(cmd, cwd=str(RECIPE), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          stdin=subprocess.DEVNULL, text=True, encoding='utf-8', errors='replace', creationflags=NO_WINDOW)
+    problems = []
     for line in p.stdout:
         line = line.rstrip('\n')
         print(line, flush=True)
+        if line.startswith('  PROBLEM: '):          # input check (rebuild_overlays.py, before anything is written)
+            problems.append(line[11:])
         m = step_re.match(line)
         if m:
             n, total, sid, rest = int(m.group(1)), int(m.group(2)), m.group(3), m.group(4)
@@ -215,7 +218,7 @@ def run_recipe(a, data, ps4_elf, ps3_elf, out=None):
     code = p.wait()
     log('recipe finished in %.0f s (exit %d)' % (time.time() - t0, code))
     overlays = [str(out / 'work' / name) for name in OVERLAYS if (out / 'work' / name).is_dir()]
-    return dict(exit=code, steps=steps, overlays=overlays,
+    return dict(exit=code, steps=steps, overlays=overlays, problems=problems,
                 recipe_version=(RECIPE / 'VERSION').read_text(encoding='utf-8').strip() if (RECIPE / 'VERSION').exists() else '?')
 
 
@@ -334,6 +337,8 @@ def main():
     if not a.only:
         state['recipe_id'] = recipe_id
     if r['exit'] == 2 or not r['steps']:
+        if r.get('problems'):
+            return finish('failed', error='Nothing was imported: ' + ' / '.join(r['problems']), failed_at='inputs')
         return finish('failed', error='The overlay recipe could not start (see the log: input folders)',
                       failed_at='inputs')
     if not r['overlays']:

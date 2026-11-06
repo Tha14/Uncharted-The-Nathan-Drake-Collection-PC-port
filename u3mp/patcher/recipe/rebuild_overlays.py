@@ -58,6 +58,8 @@ def main():
     ap.add_argument('--all-files', action='store_true')
     ap.add_argument('--jobs', type=int, default=0)
     ap.add_argument('--allow-missing-u2', action='store_true', help=argparse.SUPPRESS)
+    ap.add_argument('--allow-partial-inputs', action='store_true',
+                    help='run although DLC maps / game data are missing or differ (maintainers; the result is incomplete)')
     a = ap.parse_args()
 
     steps = R.load_steps()
@@ -76,6 +78,14 @@ def main():
     elif not a.allow_missing_u2:
         inp.problems.append('--ps3-u2 is required: point it at your PS3 Uncharted 2 game data')
     print(inp.describe())
+    if not a.only and not a.allow_partial_inputs:
+        # A full import needs every PS3 source: without them the map conversions are skipped and the DC recipes fail,
+        # and the half-made overlays do not start (2026-11-06: a converted player-settings.bin with the retail
+        # modules.bin stopped the game at boot). Checked here, before anything is written.
+        extra = R.full_import_problems(inp)
+        for p in extra:
+            print('  PROBLEM: ' + p)
+        inp.problems += extra
     if inp.problems:
         print('\nCannot start: fix the problems above.')
         return 2

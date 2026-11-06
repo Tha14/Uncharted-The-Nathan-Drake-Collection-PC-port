@@ -139,6 +139,48 @@ def classify_ps3_u3(folder):
     return kinds
 
 
+def expected_net18_sha256():
+    """sha256 of the game-data net18.bin the DC recipes were made from (dcconv/dc-recipes.json.gz sources)."""
+    import gzip
+    p = os.path.join(TOOLS, 'dcconv', 'dc-recipes.json.gz')
+    try:
+        recipes = json.load(gzip.open(p, 'rt', encoding='utf-8'))
+    except (OSError, ValueError):
+        return None
+    for rec in recipes.values():
+        h = (rec.get('sources') or {}).get('ps3/data2:dc1/ps4/net.bin')
+        if h:
+            return h
+    return None
+
+
+def full_import_problems(inp):
+    """What a full import needs beyond the disc and the update, in the player's words (empty = all there)."""
+    out = []
+    if 'dlcmaps' not in inp.ps3:
+        out.append('the Uncharted 3 DLC map packs are not installed (no dlc-map1..4.psarc found in the folders given). '
+                   'Install the DLC map packs in RPCS3 (they go to dev_hdd0/game/<the DLC title id>, e.g. BCES01176) '
+                   'and add RPCS3\'s dev_hdd0/game folder.')
+    d2 = inp.ps3.get('data2')
+    if not d2:
+        out.append('the Uncharted 3 game data folder (dev_hdd0/game/BCES01670DATA2) was not found: start Uncharted 3 '
+                   'in RPCS3 with update 1.19 and go online once, so the game writes it, then add dev_hdd0/game.')
+        return out
+    missing = [r for r in ('net18.bin', 'build/main/lab-trench-v1-7.psarc') if not os.path.exists(os.path.join(d2, r))]
+    if missing:
+        out.append('the game data folder %s is incomplete (missing %s): it is written by Uncharted 3 when it goes '
+                   'online in RPCS3 (net tables and the Lab maps it downloads); go online in Uncharted 3 multiplayer '
+                   'once in RPCS3 with update 1.19, then import again.' % (d2, ', '.join(missing)))
+        return out
+    want = expected_net18_sha256()
+    if want and sha256_file(os.path.join(d2, 'net18.bin')) != want:
+        out.append('the game data folder %s holds a different net18.bin (the network table the game downloads) than '
+                   'the one this recipe was made from, so the menus and modes cannot be converted. Go online in '
+                   'Uncharted 3 multiplayer once in RPCS3 with update 1.19 so the game downloads the current one, '
+                   'then import again.' % d2)
+    return out
+
+
 def scan_dirs(roots, max_depth=4):
     """Yield every directory under roots up to max_depth (roots themselves included)."""
     for r in roots:
@@ -220,6 +262,13 @@ class Inputs:
                     continue
                 self.ps3[kind] = d
                 self.ps3_sfo[kind] = {'TITLE_ID': tid, 'TITLE': info.get('TITLE', ''), 'APP_VER': info.get('APP_VER', ''), 'sfo': sfo}
+        if 'dlcmaps' not in self.ps3 and 'disc' in self.ps3 and \
+                os.path.exists(os.path.join(self.ps3['disc'], 'goty-dlc.psarc')):
+            # Game of the Year disc: goty-dlc.psarc carries the DLC map packs' level paks (109 of the 110 the plan
+            # uses are byte-identical; checked 2026-11-06), so the disc stands in for dlc-map1..4.psarc
+            self.ps3['dlcmaps'] = self.ps3['disc']
+            self.ps3_sfo['dlcmaps'] = dict(self.ps3_sfo.get('disc', {}))
+            self.notes.append('DLC map packs: not installed separately; using the Game of the Year disc (goty-dlc.psarc)')
         for kind in ('disc', 'update'):
             if kind not in self.ps3:
                 self.problems.append('no PS3 Uncharted 3 %s found (%s)' % (kind, PS3_U3_KINDS[kind][0]))
