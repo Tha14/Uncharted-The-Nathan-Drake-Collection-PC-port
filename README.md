@@ -4,7 +4,20 @@
 
 This repository is **João Fidalgo's fork** of
 [BilalReloaded's original PC port](https://github.com/bc160201983/Uncharted-The-Nathan-Drake-Collection-PC-port).
-The original port and its authors retain their credits and licensing below.
+The original port and its authors retain their credits and licensing below. A big thank you to
+BilalReloaded: without his port, none of this would exist.
+
+This fork will grow into a project of its own, step by step. The launcher and the code around it
+will change over time, so that it slowly stops being a copy of the original and becomes our own
+take, with our own look and features, built for the multiplayer. BilalReloaded's work stays
+credited wherever it is still used.
+
+**Fork date and license.** This repository was created on **5 November 2026**. It was forked from
+the original at commit `e0c99f9` (*Release 0.8.3*). The original was then published under the
+**GNU GPL v2 or later** (`gow3_pc/LICENSE`), which allows anyone to copy, modify and redistribute
+it, provided the result stays under the same license with its source available. This fork follows
+those terms. A license grant covers the code that was published under it, so a later change to the
+original's license does not apply to this fork's copy.
 
 This fork adds the experimental **Uncharted 3 multiplayer restoration** (build v7.55, beta) to the
 launcher: the **MULTIPLAYER** tab imports it from your own PS3 and PS4 game copies, on your PC (see
@@ -243,8 +256,61 @@ tag `v0.1.1`; GitHub Actions then builds the package and publishes the release w
 | `tools/release.sh`, `tools/release-notes/` | Publishes a release (see above). |
 | `gow3_pc/` | The runtime: C runtime (`src/`), GPU library (`gpu/`: shadPS4 video core and shims), preparation scripts (`scripts/`). |
 | `analysis/` | Compatibility notes (`STATUS.md`) and the plan (`PLAN.md`). |
-| `u3mp/patcher/` | Uncharted 3 multiplayer import: `u3mp_import.py`, `mpimage.py` (image link), `recipe/` + `tools/` (overlay recipe), `build/v*/` (our compiled helper builds and their hashes). |
+| `u3mp/patcher/` | Uncharted 3 multiplayer import: `u3mp_import.py`, `mpimage.py` (image link), `recipe/` + `tools/` (overlay recipe), `build/v*/` (each multiplayer build's files and hashes; the online part is added by the release build, so a build from this source alone has no online play). |
 | `u3mp/` (rest) | The multiplayer research source (helper C code, runner, pak tools, notes). |
+
+## Contributing
+
+Help is welcome. To keep the work organised, the project takes a small number of regular
+contributors (one or two to start), and every change arrives as a pull request from a fork.
+
+### What to work on
+
+Contributions are limited to two areas:
+
+- **Game-breaking glitches:** crashes, freezes, soft-locks, broken progression, missing or
+  broken audio, controls that stop working.
+- **Visual issues:** wrong colours, brightness or textures, missing geometry, broken effects,
+  HUD and menu drawing problems.
+
+Out of scope, and pull requests that touch these areas will be closed:
+
+- **Online play, RPCN and matchmaking:** the sign-in, the online menus and any networking code.
+  This part is maintained privately and is not open to contributions.
+- **The build and release setup:** `.github/workflows/`, `tools/release.sh`, `tools/VERSION`,
+  `launcher/updater.py` and `u3mp/patcher/maintainer/`.
+- **Game files:** no game files, extracted assets, converted paks or patched game images, in any
+  form. Changes ship as code and recipes that run on the player's PC.
+
+If you are unsure whether something is in scope, open an issue and ask first.
+
+### How to contribute
+
+1. **Pick or open an issue** and comment that you are working on it. Wait for a reply before you
+   start, so that two people never fix the same thing.
+2. **Fork** this repository and create a branch for that one issue, for example
+   `fix/airport-tpose`. Keep one fix per branch and one branch per pull request.
+3. **Stay in sync.** Before you start, and again before you open the pull request, update your
+   branch from this repository's `main`:
+   ```bash
+   git remote add upstream https://github.com/fidalgojoao/Uncharted-The-Nathan-Drake-Collection-PC-port.git
+   git fetch upstream
+   git rebase upstream/main
+   ```
+   Resolve conflicts on your side, keeping the changes already on `main`. Never force-push to this
+   repository or rewrite its history; your own fork's branch is yours to rebase.
+4. **Keep the change small and focused.** Don't reformat, rename or move code you are not fixing,
+   so that changes from different people don't collide.
+5. **Open the pull request against `main`** and describe:
+   - the problem, with screenshots or a short clip;
+   - the game, the map or chapter, and the steps to reproduce it;
+   - what you changed and why;
+   - how you tested it (your GPU and settings).
+6. **Review:** the maintainer reviews, tests in game and merges. Please don't merge your own pull
+   requests or push straight to `main`.
+
+By contributing you agree that your contribution is licensed under the GNU GPL v2 or later, like
+the rest of the project.
 
 ## Credits and license
 
