@@ -218,34 +218,6 @@ A step that needs numpy is skipped when the launcher's Python has none; ffmpeg a
 the package's `u3mp\bin` when it carries them. Maintainers: `u3mp/patcher/maintainer/sync_recipe.py` copies a
 new recipe in, `make_release.py` adds a helper build.
 
-## Building
-
-GitHub Actions builds every push to `main` ([build-windows.yml](.github/workflows/build-windows.yml)).
-To build locally, from an MSYS2 **CLANG64** shell:
-
-```bash
-pacman -S --needed git patch \
-  mingw-w64-clang-x86_64-{toolchain,cmake,ninja,pkgconf,python} \
-  mingw-w64-clang-x86_64-{vulkan-headers,vulkan-loader,vulkan-memory-allocator,glslang} \
-  mingw-w64-clang-x86_64-{sdl3,fmt,boost,robin-map,xxhash,ffmpeg,zydis} \
-  mingw-w64-clang-x86_64-{spirv-tools,spirv-headers,spirv-cross}
-git clone --recursive https://github.com/bc160201983/Uncharted-The-Nathan-Drake-Collection-PC-port.git
-cd Uncharted-The-Nathan-Drake-Collection-PC-port
-gow3_pc/build.sh                 # the runtime: gow3_pc/out/gow3-probe.exe
-tools/package_windows.sh         # dist/Uncharted-windows(.zip); needs a Windows Python 3.10+
-                                 # with Pillow (PYTHON_HOME)
-```
-
-To run from the source tree: `Start-Uncharted.cmd` (launcher), or
-`python tools/probe_uncharted.py --boot --seconds 0 --game <game folder>`.
-
-### Releases
-
-`tools/release.sh 0.1.1` publishes version 0.1.1: write its text in
-`tools/release-notes/v0.1.1.md` first. The script sets `tools/VERSION`, pushes the source and the
-tag `v0.1.1`; GitHub Actions then builds the package and publishes the release with
-`Uncharted-windows.zip` (about 20 minutes). The launcher offers newer releases as updates.
-
 ## Repository layout
 
 | Path | Contents |
@@ -253,7 +225,7 @@ tag `v0.1.1`; GitHub Actions then builds the package and publishes the release w
 | `launcher/` | The Uncharted launcher (Tkinter + Pillow). |
 | `tools/probe_uncharted.py` | Prepares a game executable (patches, render resolution, update) and starts the runtime. |
 | `tools/package_windows.sh` | Builds the Windows package; `tools/windows_starter/` its `.exe`. |
-| `tools/release.sh`, `tools/release-notes/` | Publishes a release (see above). |
+| `tools/release.sh`, `tools/release-notes/` | Publishes a release. |
 | `gow3_pc/` | The runtime: C runtime (`src/`), GPU library (`gpu/`: shadPS4 video core and shims), preparation scripts (`scripts/`). |
 | `analysis/` | Compatibility notes (`STATUS.md`) and the plan (`PLAN.md`). |
 | `u3mp/patcher/` | Uncharted 3 multiplayer import: `u3mp_import.py`, `mpimage.py` (image link), `recipe/` + `tools/` (overlay recipe), `build/v*/` (each multiplayer build's files and hashes; the online part is added by the release build, so a build from this source alone has no online play). |
