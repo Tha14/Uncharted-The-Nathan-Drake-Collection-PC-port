@@ -1,0 +1,3592 @@
+{
+ "targets": {
+  "air-multi-shade.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-emblem:polished-dust",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.34151,
+     "old": 0.8999999761581421
+    },
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-emblem:polished-dust",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.05692,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-hazard:polished-dust",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.3415,
+     "old": 0.8999999761581421
+    },
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-hazard:polished-dust",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.05692,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-red:polished-dust",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.3415,
+     "old": 0.8999999761581421
+    },
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-red:polished-dust",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.05692,
+     "old": 0.15000000596046448
+    }
+   ]
+  },
+  "air-multi.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-emblem:polished-dust",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.34151,
+     "old": 0.8999999761581421
+    },
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-emblem:polished-dust",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.05692,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-hazard:polished-dust",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.3415,
+     "old": 0.8999999761581421
+    },
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-hazard:polished-dust",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.05692,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-red:polished-dust",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.3415,
+     "old": 0.8999999761581421
+    },
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-red:polished-dust",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.05692,
+     "old": 0.15000000596046448
+    }
+   ]
+  },
+  "cave-multi-stage.pak": {
+   "tex": [
+    {
+     "mat": "levels/multiplayer/cave/ice-cave/cave-snow-rock-blend-to-rock02:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/cave-rock-far-spec-mask.tga"
+    }
+   ],
+   "param": []
+  },
+  "coop-airport-3a.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-hazard:polished-dust",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.3415,
+     "old": 0.8999999761581421
+    },
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-hazard:polished-dust",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.05692,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-red:polished-dust",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.3415,
+     "old": 0.8999999761581421
+    },
+    {
+     "mat": "levels/airport/ground/air-yem-ground-concrete-multi-red:polished-dust",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.05692,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "objects/vehicles/cargo-plane/temp-plane/landing-gear-multi:shiny-metal",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.42071,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "objects/vehicles/cargo-plane/temp-plane/tire-anim:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.13719,
+     "old": 0.4000000059604645
+    },
+    {
+     "mat": "objects/vehicles/cargo-plane/interior/rail-multi:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.68965,
+     "old": 2.009999990463257
+    }
+   ]
+  },
+  "coop-airport-stage.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "objects/vehicles/cargo-plane/temp-plane/landing-gear-multi:shiny-metal",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.42071,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "objects/vehicles/cargo-plane/temp-plane/tire-anim:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.13719,
+     "old": 0.4000000059604645
+    },
+    {
+     "mat": "objects/vehicles/cargo-plane/interior/rail-multi:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.68965,
+     "old": 2.009999990463257
+    }
+   ]
+  },
+  "coop-ldn-station-entrance-outside.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/london/streets/ldn-ground-concrete-2-flagstone:flag-dirt",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.27937,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/london/streets/ldn-ground-concrete-2-flagstone:flag-dirt",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.13968,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/london/streets/ldn-st-phone-box:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.19458,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/london/streets/ldn-st-post-box:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.13204,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/london/streets/ldn-streets-barrel:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.21903,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/london/streets/ldn-streets-barrel:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.05476,
+     "old": 0.25
+    }
+   ]
+  },
+  "desert-multi-wide.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/desert-village/outsource/des-crashed-plane-b:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 23.13383,
+     "old": 100.0
+    },
+    {
+     "mat": "levels/desert-village/outsource/des-crashed-plane-b:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 4.62677,
+     "old": 20.0
+    },
+    {
+     "mat": "levels/desert-village/outsource/des-crashed-plane-a:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 3.13134,
+     "old": 10.0
+    },
+    {
+     "mat": "levels/desert-village/outsource/des-crashed-plane-a:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 1.56567,
+     "old": 5.0
+    }
+   ]
+  },
+  "desert-multi.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/desert-village/ground/des-vil-mud-clumps2gravel-emblem:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01291,
+     "old": 0.10000000149011612
+    }
+   ]
+  },
+  "dig-coop-approach.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/dig/ground/dig-grass-main:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05768,
+     "old": 0.9100000262260437
+    },
+    {
+     "mat": "levels/dig/dig-military-crate:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.01033,
+     "old": 0.6600000262260437
+    },
+    {
+     "mat": "levels/dig/objects/dig-tires:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.19305,
+     "old": 1.5199999809265137
+    }
+   ]
+  },
+  "dig-coop-dropdown.pak": {
+   "tex": [
+    {
+     "mat": "levels/dig/objects/dig-bottles-etc:bottles-02",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/dig-bottles-01-spec-mask-02.tga"
+    },
+    {
+     "mat": "levels/dig/metal/oil-barrel:clean",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/oil-barrel-clean-spec-mask.tga"
+    },
+    {
+     "mat": "levels/dig/metal/dig-iron-porus:bluish",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/dig-red-rust-spec-mask.tga"
+    },
+    {
+     "mat": "levels/dig/metal/dig-iron-porus:rusty",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/dig-red-rust-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/dig/metal/dig-iron-porus:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.19695,
+     "old": 0.4000000059604645
+    }
+   ]
+  },
+  "dig-coop-ship.pak": {
+   "tex": [
+    {
+     "mat": "levels/dig/objects/dig-bottles-etc:bottles-02",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/dig-bottles-01-spec-mask-02.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/dig/ground/dig-grass-main:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05768,
+     "old": 0.9100000262260437
+    }
+   ]
+  },
+  "dig-coop-stage.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/dig/ground/dig-grass-main:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05768,
+     "old": 0.9100000262260437
+    }
+   ]
+  },
+  "facility-multi-stage.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/multiplayer/facility-multi/metal/fac-uboat-greymetal-02-dl:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.11477,
+     "old": 0.30000001192092896
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/ice/fac-cracked-floor:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 8.08443,
+     "old": 15.0
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/ice/fac-cracked-floor:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 8.08443,
+     "old": 15.0
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/metal/fac-mum-metal-sewer:mum-metal-sewer-red",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.44652,
+     "old": 2.0999999046325684
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/metal/fac-mum-metal-sewer:mum-metal-sewer-red",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03189,
+     "old": 0.15000000596046448
+    }
+   ]
+  },
+  "facility-multi.pak": {
+   "tex": [
+    {
+     "mat": "levels/multiplayer/facility-multi/windows/fac-trn-windows-01:gompa-windows-broken",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fac-trn-window-01-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/multiplayer/facility-multi/ground/fac-facility-mtl-grate:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.04053,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "objects/levels/multiplayer/bluegreen-painted-panel:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.4145,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/facility-multi/fac-trn-windows-01-copy-copy:gompa-windows-broken",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.87149,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/facility-multi/fac-trn-windows-01-copy-copy:gompa-windows-broken",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01743,
+     "old": 0.10000000149011612
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/metal/fac-mum-metal-sewer:mum-metal-sewer-yelow",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.44652,
+     "old": 2.0999999046325684
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/metal/fac-mum-metal-sewer:mum-metal-sewer-yelow",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03189,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/facility-multi/fac-steel-panel-fade-copy:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.09208,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/metal/fac-mum-metal-sewer:mum-sewer-machine",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.37219,
+     "old": 2.0999999046325684
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/metal/fac-mum-metal-sewer:mum-sewer-machine",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.02659,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/metal/fac-mum-metal-sewer:mum-metal-sewer-red",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.44652,
+     "old": 2.0999999046325684
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/metal/fac-mum-metal-sewer:mum-metal-sewer-red",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03189,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/ground/fac-facility-mtl-grate:welded-grate-copy",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05149,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/metal/fac-uboat-greymetal-01-dl:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.11761,
+     "old": 0.30000001192092896
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/metal/fac-uboat-greymetal-02-dl:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.11477,
+     "old": 0.30000001192092896
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/ice/fac-cracked-floor:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 8.08443,
+     "old": 15.0
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/ice/fac-cracked-floor:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 8.08443,
+     "old": 15.0
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/office/fac-wires:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.04394,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/windows/fac-trn-windows-01-copy:gompa-windows-broken",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.52289,
+     "old": 3.0
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/windows/fac-trn-windows-01-copy:gompa-windows-broken",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01743,
+     "old": 0.10000000149011612
+    },
+    {
+     "mat": "levels/multiplayer/facility-multi/bathroom/fac-bathroom-mirror-env-reflect:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 6.47209,
+     "old": 10.0
+    }
+   ]
+  },
+  "fort-coop-cistern.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/coop/fort/crates/fort-crate-wood:nostrap-1x1x1",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.08289,
+     "old": 2.700000047683716
+    },
+    {
+     "mat": "levels/coop/fort/crates/fort-crate-wood:2mflat",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.07851,
+     "old": 2.700000047683716
+    },
+    {
+     "mat": "levels/coop/fort/junk/fort-metal-black:metal-black",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.4587,
+     "old": 1.5
+    },
+    {
+     "mat": "levels/coop/fort/junk/fort-jar-gunk:jar-gunk",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.36748,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/coop/fort/fort/fort-doortemp:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 1.7,
+     "old": 1.7000000476837158
+    },
+    {
+     "mat": "levels/coop/fort/fort/fort-doors:regular",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.28898,
+     "old": 1.0
+    }
+   ]
+  },
+  "fort-coop-courtyard.pak": {
+   "tex": [
+    {
+     "mat": "levels/coop/fort/machine/fort-skeleton:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fort-skele-spec-mask.tga"
+    },
+    {
+     "mat": "levels/coop/fort/cistern/fort-paralax-wall:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fort-darkyellowmix-spec-mask.tga"
+    },
+    {
+     "mat": "levels/coop/fort/general/fort-general-rusty:doorroundback",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fort-darkrust-spec-mask.tga"
+    },
+    {
+     "mat": "levels/coop/fort/crates/fort-crate-wood:2mflat",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fort-crate2mflat-spec-mask.tga"
+    },
+    {
+     "mat": "levels/coop/fort/cistern/fort-wood-plank:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fort-wood-planks02-spec-mask.tga"
+    },
+    {
+     "mat": "levels/coop/fort/junk/fort-metal-black:metal-black",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fort-a-metal-spec-mask.tga"
+    },
+    {
+     "mat": "levels/coop/fort/crates/fort-crate-wood:2x1x1",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fort-crate2x1x1-spec-mask.tga"
+    },
+    {
+     "mat": "levels/coop/fort/fort-b-plus/fort-paralaxsandbag:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fort-sandbag512-spec-mask.tga"
+    },
+    {
+     "mat": "levels/coop/fort/crates/fort-crate-wood:nostrap-1x1x1",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fort-crate1x1x1-nostrap-spec-mask.tga"
+    },
+    {
+     "mat": "levels/coop/fort/walls/fort-metal-simple:metal-simple",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fort-metal-rust-spec-mask.tga"
+    },
+    {
+     "mat": "levels/coop/fort/fort/fort-doors:regular",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fort-door-tilable-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/coop/fort/ground/fort-pstone2moss:paralax-stone2moss",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05605,
+     "old": 0.4000000059604645
+    },
+    {
+     "mat": "levels/coop/fort/ground/fort-pstone2moss:paralax-stone2moss",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0014,
+     "old": 0.009999999776482582
+    },
+    {
+     "mat": "levels/gompa/objects/gompa-radio:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.49351,
+     "old": 0.75
+    },
+    {
+     "mat": "levels/coop/fort/canopy/fort-forttree-canopy-nobump:forttree-canopy-nobump",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.06654,
+     "old": 0.2800000011920929
+    },
+    {
+     "mat": "levels/coop/fort/leaves/fort-copy_of_multibranch_small_leaves:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.08843,
+     "old": 0.800000011920929
+    },
+    {
+     "mat": "levels/coop/fort/plants/fort-cananga:copy_of_chase-plants-wedding-cananga",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.0848,
+     "old": 0.30000001192092896
+    }
+   ]
+  },
+  "fort-coop-stage.pak": {
+   "tex": [
+    {
+     "mat": "levels/coop/fort/crates/fort-crate-wood:2mflat",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fort-crate2mflat-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/coop/fort/ground/fort-pstone2moss:paralax-stone2moss",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05605,
+     "old": 0.4000000059604645
+    },
+    {
+     "mat": "levels/coop/fort/ground/fort-pstone2moss:paralax-stone2moss",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0014,
+     "old": 0.009999999776482582
+    },
+    {
+     "mat": "levels/coop/fort/plants/fort-cananga:copy_of_chase-plants-wedding-cananga",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.0848,
+     "old": 0.30000001192092896
+    }
+   ]
+  },
+  "fort-coop-tower-wide.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/coop/fort/wide/fort-grass:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.12454,
+     "old": 0.6000000238418579
+    }
+   ]
+  },
+  "fort-coop-tower.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/coop/fort/cisold/fort-brickwplaster:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.13802,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/coop/fort/fort/fort-doors:regular",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.28898,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/coop/fort/fj40/fort-fj40-camo:camo-main-icon",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.28796,
+     "old": 1.2000000476837158
+    },
+    {
+     "mat": "levels/coop/fort/fj40/fort-fj40-camo:addons-icon",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.43947,
+     "old": 1.2000000476837158
+    },
+    {
+     "mat": "levels/coop/fort/fj40/fort-fj40-camo-tires:tires",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.5429,
+     "old": 1.2000000476837158
+    },
+    {
+     "mat": "levels/coop/fort/fj40/fort-_fj40-shinybits-new:shinybits-camo",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.70124,
+     "old": 1.5499999523162842
+    },
+    {
+     "mat": "levels/coop/fort/fj40/fort-_fj40-shinybits-new:shinybits-camo",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.31669,
+     "old": 0.699999988079071
+    },
+    {
+     "mat": "levels/coop/fort/plants/fort-cananga:copy_of_chase-plants-wedding-cananga",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.0848,
+     "old": 0.30000001192092896
+    },
+    {
+     "mat": "levels/coop/fort/leaves/fort-copy_of_multibranch_small_leaves:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.08843,
+     "old": 0.800000011920929
+    },
+    {
+     "mat": "levels/coop/fort/crates/fort-crate-wood:nostrap-1x1x1",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.08289,
+     "old": 2.700000047683716
+    },
+    {
+     "mat": "levels/coop/fort/crates/fort-crate-wood:2mflat",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.07851,
+     "old": 2.700000047683716
+    },
+    {
+     "mat": "levels/coop/fort/ground/fort-pstone2moss:paralax-stone2moss",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05605,
+     "old": 0.4000000059604645
+    },
+    {
+     "mat": "levels/coop/fort/ground/fort-pstone2moss:paralax-stone2moss",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0014,
+     "old": 0.009999999776482582
+    },
+    {
+     "mat": "levels/coop/fort/crates/fort-end-cap-metal:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.85024,
+     "old": 2.1500000953674316
+    },
+    {
+     "mat": "levels/coop/fort/crates/fort-crate-wood:1x1x1",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.2918,
+     "old": 2.700000047683716
+    },
+    {
+     "mat": "levels/coop/fort/junk/fort-metal-black:metal-black",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.4587,
+     "old": 1.5
+    }
+   ]
+  },
+  "fort-multi-stage.pak": {
+   "tex": [
+    {
+     "mat": "levels/multiplayer/fort-multi/walls/crumbled-plaster-warm-low:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/rainr-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/multiplayer/fort-multi/objects/fort-mlti-metal-crates2:crate-cube",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.11047,
+     "old": 0.699999988079071
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/plants/dig-plant-leaf-no-normal:ground-cover-01",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.13454,
+     "old": 1.309999942779541
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/plants/dig-plant-leaf-no-normal:ground-cover-01",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.2054,
+     "old": 2.0
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/objects/fort-mlti-metal-crates2:crate-locker",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.08363,
+     "old": 0.699999988079071
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/fort/fort-mlti-wall-plaster-cream-emblem:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.10634,
+     "old": 0.30000001192092896
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/fort/fort-mlti-wall-plaster-cream-emblem:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.21267,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/plants/dig-plant-leaf-no-normal:wallcover-03",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.10821,
+     "old": 1.309999942779541
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/plants/dig-plant-leaf-no-normal:wallcover-03",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.1652,
+     "old": 2.0
+    }
+   ]
+  },
+  "fort-multi.pak": {
+   "tex": [
+    {
+     "mat": "levels/multiplayer/fort-multi/walls/crumbled-plaster-warm-low:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/rainr-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/metal/fort-mlti-metal-urn:brass",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fort-mlti-metal-pot-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/metal/fort-mlti-metal-urn:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/fort-mlti-metal-pot-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/multiplayer/fort-multi/walls/eroded-brick2crackedplaster-copy-detail:eroded-brick2crackedplaster",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.42129,
+     "old": 0.699999988079071
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/plants/dig-plant-leaf-no-normal:wallcover-03",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.10821,
+     "old": 1.309999942779541
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/plants/dig-plant-leaf-no-normal:wallcover-03",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.1652,
+     "old": 2.0
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/objects/fort-mlti-sandbags-high:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05994,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/objects/fort-mlti-metal-crates2:crate-cube",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.11047,
+     "old": 0.699999988079071
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/objects/fort-mlti-metal-crates2:crate-locker",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.08363,
+     "old": 0.699999988079071
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/basment/fort-basement-skeleton:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.14873,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/basment/fort-basement-skeleton:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.29745,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/plants/dig-plant-leaf-no-normal:ground-cover-01",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.13454,
+     "old": 1.309999942779541
+    },
+    {
+     "mat": "levels/multiplayer/fort-multi/plants/dig-plant-leaf-no-normal:ground-cover-01",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.2054,
+     "old": 2.0
+    }
+   ]
+  },
+  "gompa-multi-stage.pak": {
+   "tex": [
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-cave-torch:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/gompa-tnl-pillar-spec-mask-03.tga"
+    }
+   ],
+   "param": []
+  },
+  "gompa-multi.pak": {
+   "tex": [
+    {
+     "mat": "levels/multiplayer/gompa-multi/object/gompa-yack-candle:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/gompa-yak-candle-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa/gompa-roof-spire-01:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/gompa-roof-spire-01-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-wet-pillar:wet-wood",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.07392,
+     "old": 0.12999999523162842
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-wet-pillar:wet-wood",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.05686,
+     "old": 0.10000000149011612
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-wet-pillar:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.07392,
+     "old": 0.12999999523162842
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-wet-pillar:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.05686,
+     "old": 0.10000000149011612
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-wet-cave-wall:wet-wood-copy",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.04497,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-wet-cave-ceiling:wet-wood-copy",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05621,
+     "old": 0.25
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-ground-cave-wet-2-rockside-rough:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.04549,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-ground-cave-wet-2-rockside-rough:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.05686,
+     "old": 0.25
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-ground-cave-wet:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.04497,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-ground-cave-wet:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.05621,
+     "old": 0.25
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-ground-cave-wet-2-slate:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.0,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-ground-cave-wet-2-slate:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0,
+     "old": 0.05000000074505806
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-ground-cave-glow:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.00225,
+     "old": 0.009999999776482582
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-cave-stonetile:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.05377,
+     "old": 0.25
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-cave-torch:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.08342,
+     "old": 0.8999999761581421
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/gompa-multi/gompa-cave-torch:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.04634,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/basket/gompa-straw:new-texture-set-2",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.34353,
+     "old": 0.8999999761581421
+    },
+    {
+     "mat": "levels/multiplayer/gompa-multi/basket/gompa-straw:new-texture-set-2",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.22902,
+     "old": 0.6000000238418579
+    }
+   ]
+  },
+  "grave-multi-moving.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/multiplayer/graveyard/metal/grv-iron-porus:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.04924,
+     "old": 0.10000000149011612
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/sealife/grv-barnacles-2:grave-barnacles-shells",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 1.61526,
+     "old": 50.0
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/sealife/grv-barnacles-2:grave-barnacles-shells",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01938,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/glass/grv-glass-lamp:war-metal-lamp-post",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0819,
+     "old": 0.10000000149011612
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/blend-trans/grv-rust-trans-blend-nmask-wet:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.2472,
+     "old": 2.0
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/blend-trans/grv-rust-trans-blend-nmask-wet:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.07416,
+     "old": 0.6000000238418579
+    }
+   ]
+  },
+  "grave-multi.pak": {
+   "tex": [
+    {
+     "mat": "levels/multiplayer/graveyard/noscroll/grv-container-colortint-orange-noscroll:misc",
+     "slot": "g_tNdFetchMask4Map",
+     "key": "art/generated/u3mp/h028/grv-container-misc-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/noscroll/grv-container-colortint-orange-noscroll:default",
+     "slot": "g_tNdFetchMask4Map",
+     "key": "art/generated/u3mp/h028/grv-container-side-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/multiplayer/graveyard/cargo-container/grv-container-colortint-grey-dry:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.03937,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/cargo-container/grv-container-colortint-grey-dry:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03937,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/fabrics/grv-cable-incand:cable",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.02462,
+     "old": 0.05000000074505806
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/fabrics/grv-cable-incand:cable",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.24619,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/sealife/grv-iron-baracles:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.15502,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/sealife/grv-iron-baracles:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.00403,
+     "old": 0.026000000536441803
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/cargo-container/grv-container-colortint-grey-dry-blend:misc",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.08628,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/cargo-container/grv-container-colortint-grey-dry-blend:misc",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.08628,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/cargo-container/grv-container-colortint-grey-dry-blend:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.03937,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/cargo-container/grv-container-colortint-grey-dry-blend:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03937,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/cargo-container/grv-container-colortint-grey-dry:misc",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.08628,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/cargo-container/grv-container-colortint-grey-dry:misc",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.08628,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/sealife/grv-barnacles-2:grave-barnacles-shells",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 1.61526,
+     "old": 50.0
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/sealife/grv-barnacles-2:grave-barnacles-shells",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01938,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/metal/grv-iron-porus:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.19695,
+     "old": 0.4000000059604645
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/noscroll/grv-container-colortint-orange-noscroll-nodecal:misc",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.69024,
+     "old": 4.0
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/noscroll/grv-container-colortint-orange-noscroll-nodecal:misc",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.00863,
+     "old": 0.05000000074505806
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/noscroll/grv-container-colortint-orange-noscroll-nodecal:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.31496,
+     "old": 4.0
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/noscroll/grv-container-colortint-orange-noscroll-nodecal:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.00394,
+     "old": 0.05000000074505806
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/cargo-container/grv-container-colortint-grey-dry-no-decal:misc",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.08628,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/cargo-container/grv-container-colortint-grey-dry-no-decal:misc",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.08628,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/cargo-container/grv-container-colortint-grey-dry-no-decal:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.03937,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/cargo-container/grv-container-colortint-grey-dry-no-decal:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03937,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/glass/grv-glass-lamp:war-metal-lamp-post",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 2.45709,
+     "old": 3.0
+    },
+    {
+     "mat": "levels/multiplayer/graveyard/glass/grv-glass-lamp:war-metal-lamp-post",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.81903,
+     "old": 1.0
+    }
+   ]
+  },
+  "highrise-multi-stage.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/multiplayer/highrise/metal/hrs-highrise-metal-hotel-climbable:war-metal-hotel",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.21263,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/highrise/metal/hrs-highrise-metal-hotel-climbable:war-metal-hotel",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.21263,
+     "old": 1.0
+    }
+   ]
+  },
+  "highrise-multi.pak": {
+   "tex": [
+    {
+     "mat": "levels/multiplayer/highrise/walls/hrs-war-hotel-wall-basic:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/hrs-war-m-hotel-wall-marble-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/highrise/walls/hrs-war-hotel-wall-basic-multi:trim",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/hrs-war-m-hotel-wall-marble-trim-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/highrise/walls/hrs-war-hotel-wall-basic:trim",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/hrs-war-m-hotel-wall-marble-trim-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/highrise/roof/hrs-war-hotel-copper-roof:hotel",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/hrs-war-roof-copper-006-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/highrise/metal/hrs-war-metal-electricbox:war-metal-green-box",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/hrs-war-electricbox-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/highrise/small-objects/hrs-war-books:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/hrs-war-books-individual-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/highrise/hotel/hrs-highrise-hotel-couch:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/hrs-highrise-hotel-couch-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/highrise/ornate/hrs-war-pointarch-hotel-multi:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/hrs-war-m-hotel-arch-entrance-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/highrise/objects/hrs-dig-tires-rubberdecal:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/hrs-dig-tire-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/highrise/metal/hrs-dig-iron-porus:bluish",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/hrs-dig-red-rust-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/highrise/objects/hrs-dig-tires:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/hrs-dig-tire-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/multiplayer/highrise/construction/hrs-highrise-crane-cargo:yellow",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.49201,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/highrise/metal/hrs-highrise-metal-hotel-climbable:war-metal-hotel",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.21263,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/highrise/metal/hrs-highrise-metal-hotel-climbable:war-metal-hotel",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.21263,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/highrise/metal/hrs-war-metal-hotel002:gold02",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 1.69589,
+     "old": 3.5299999713897705
+    },
+    {
+     "mat": "levels/multiplayer/highrise/metal/hrs-war-metal-hotel002:gold02",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.28825,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/multiplayer/highrise/metal/hrs-war-metal-hotel002:gold",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 1.63409,
+     "old": 3.5299999713897705
+    },
+    {
+     "mat": "levels/multiplayer/highrise/metal/hrs-war-metal-hotel002:gold",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.27775,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/multiplayer/highrise/metal/hrs-highrise-metal-vent:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.16825,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/highrise/misc/hrs-faciltity-window:facility-glass",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 2.23972,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/highrise/floors/hrs-highrise-floors-concrete-wet:concrete-wet",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/multiplayer/highrise/floors/hrs-highrise-floors-wood-wet:wood-wet",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.0,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/highrise/floors/hrs-highrise-floors-wood-wet:wood-wet",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0,
+     "old": 0.05000000074505806
+    },
+    {
+     "mat": "levels/multiplayer/highrise/ground/hrs-highrise-cement-wet:mud-cement",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.0,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/highrise/ground/hrs-highrise-cement-wet:mud-cement",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0,
+     "old": 0.05000000074505806
+    },
+    {
+     "mat": "levels/multiplayer/highrise/small-objects/hrs-war-books-row:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.63162,
+     "old": 5.0
+    }
+   ]
+  },
+  "ldn-streets-multi-stage.pak": {
+   "tex": [
+    {
+     "mat": "levels/multiplayer/london-multi/windows/ldn-warehouse-window-small-multi:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/ldn-warehouse-window-smashed-a-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/multiplayer/london-multi/windows/ldn-warehouse-window-solid-multi:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.41171,
+     "old": 1.5
+    },
+    {
+     "mat": "levels/multiplayer/london-multi/windows/ldn-warehouse-window-solid-multi:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 1.37237,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/london-multi/metal/ldn-metal-shutter-multi:war-metal-bronz",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 1.22902,
+     "old": 3.0
+    },
+    {
+     "mat": "levels/multiplayer/london-multi/metal/ldn-metal-shutter-multi:war-metal-bronz",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.08193,
+     "old": 0.20000000298023224
+    }
+   ]
+  },
+  "ldn-streets-multi-wide.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/multiplayer/london-multi/wide/ldn-wide-building-short-multi:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 1.32669,
+     "old": 9.0
+    },
+    {
+     "mat": "levels/multiplayer/london-multi/wide/ldn-wide-building-short-multi:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.199,
+     "old": 1.350000023841858
+    }
+   ]
+  },
+  "ldn-streets-multi.pak": {
+   "tex": [
+    {
+     "mat": "levels/multiplayer/london-multi/windows/ldn-warehouse-window-small-multi:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/ldn-warehouse-window-smashed-a-spec-mask.tga"
+    },
+    {
+     "mat": "levels/london/metal/ldn-metal-cargo-car-box:cargo3",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/ldn-cargo-cars-03-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/multiplayer/london-multi/windows/ldn-warehouse-window-solid-multi:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.41171,
+     "old": 1.5
+    },
+    {
+     "mat": "levels/multiplayer/london-multi/windows/ldn-warehouse-window-solid-multi:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 1.37237,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/london-multi/metal/ldn-metal-shutter-multi:war-metal-bronz",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 1.22902,
+     "old": 3.0
+    },
+    {
+     "mat": "levels/multiplayer/london-multi/metal/ldn-metal-shutter-multi:war-metal-bronz",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.08193,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/multiplayer/london-multi/metal/ldn-cargo-container-white-multi:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.15313,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/london-multi/metal/ldn-cargo-container-blue-multi:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.15313,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/london-multi/kitchen/ldn-kitchen-metal-stainless-multi:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.31229,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/london-multi/kitchen/ldn-kitchen-metal-stainless-multi:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.09369,
+     "old": 0.30000001192092896
+    },
+    {
+     "mat": "levels/london/walls-ext/ldn-pub-pelican-statue:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.04731,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/london/walls-ext/ldn-pub-pelican-statue:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.07886,
+     "old": 0.25
+    }
+   ]
+  },
+  "ldn-train-multi.pak": {
+   "tex": [
+    {
+     "mat": "levels/london-underground/floors/ug-lib-stone-floor-2-crumbled:new-texture-set",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/ug-lib-tile-stone-spec-mask.tga"
+    },
+    {
+     "mat": "levels/london-underground/floors/ug-lib-stone-floor-2-crumbled:new-texture-set",
+     "slot": "g_tNdFetchColor5Map",
+     "key": "art/generated/u3mp/h028/ug-lib-tile-stone-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/london-underground/metals/ug-rusted-i-beam-2-dirty:grave-sidebeams",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.00445,
+     "old": 0.009999999776482582
+    },
+    {
+     "mat": "levels/london-underground/metals/ug-rusted-i-beam-2-dirty:grave-sidebeams",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01334,
+     "old": 0.029999999329447746
+    },
+    {
+     "mat": "levels/london-underground/victorian/trims/ug-vic-trim-01-edge:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 1.35323,
+     "old": 10.0
+    },
+    {
+     "mat": "levels/london-underground/victorian/trims/ug-vic-trim-01-edge:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 1.08258,
+     "old": 8.0
+    },
+    {
+     "mat": "levels/london-underground/floors/ug-lib-stone-floor-2-mp:new-texture-set",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.17392,
+     "old": 0.699999988079071
+    },
+    {
+     "mat": "levels/london-underground/floors/ug-lib-stone-floor-2-mp:new-texture-set",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.12423,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/london-underground/walls/tile/ug-wall-tile-green-broken-concrete:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.28822,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/london-underground/ground/ug-service-concrete-2-sludge-mp:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.17624,
+     "old": 0.8999999761581421
+    },
+    {
+     "mat": "levels/london-underground/ground/ug-service-concrete-2-sludge-mp:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03916,
+     "old": 0.20000000298023224
+    }
+   ]
+  },
+  "mon-coop-church.pak": {
+   "tex": [
+    {
+     "mat": "levels/coop/monastery/windows/mon-stained-glass-long:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/mon-stained-glass-long-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/coop/monastery/windows/mon-stained-glass:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.27554,
+     "old": 3.0
+    },
+    {
+     "mat": "levels/coop/monastery/windows/mon-stained-glass:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01837,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/coop/monastery/metal/mon-bell:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 1.29364,
+     "old": 4.0
+    },
+    {
+     "mat": "levels/coop/monastery/metal/mon-bell:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.1617,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/coop/monastery/lair/mon-knick-knacks:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.73995,
+     "old": 1.850000023841858
+    },
+    {
+     "mat": "levels/coop/monastery/leaves/mon-copy_of_dangling_vines_b_long_leaves_leaf_small_blade:copy_of_dangling_vines_b_long_leaves_leaf_small_blade",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.06816,
+     "old": 1.0
+    }
+   ]
+  },
+  "mon-coop-cloister.pak": {
+   "tex": [
+    {
+     "mat": "levels/coop/monastery/lair/mon-knick-knacks:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/mon-lair-stuff-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/coop/monastery/walls/mon-brick-generic:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05301,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/coop/monastery/walls/mon-brick-generic:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0053,
+     "old": 0.10000000149011612
+    },
+    {
+     "mat": "levels/coop/monastery/windows/mon-stained-glass:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.27554,
+     "old": 3.0
+    },
+    {
+     "mat": "levels/coop/monastery/windows/mon-stained-glass:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01837,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/coop/monastery/vine/mon-vine:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.17648,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/coop/monastery/fort/mon-doors:regular",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.28898,
+     "old": 1.0
+    },
+    {
+     "mat": "objects/breakables/destruct-fence/destruct-wood-red-paint-fence:vill-wood-white2splinter-copy",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.96376,
+     "old": 2.0
+    },
+    {
+     "mat": "objects/breakables/destruct-fence/destruct-wood-red-paint-fence:vill-wood-white2splinter-copy",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.28913,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/coop/monastery/crates/mon-crate-wood:2x1x1",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.25714,
+     "old": 2.700000047683716
+    }
+   ]
+  },
+  "mon-coop-courtyard.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/coop/monastery/windows/mon-stained-glass:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.27554,
+     "old": 3.0
+    },
+    {
+     "mat": "levels/coop/monastery/windows/mon-stained-glass:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01837,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/coop/monastery/walls/mon-brick-generic:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05301,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/coop/monastery/walls/mon-brick-generic:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0053,
+     "old": 0.10000000149011612
+    },
+    {
+     "mat": "levels/coop/monastery/fort/mon-doors:regular",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.28898,
+     "old": 1.0
+    }
+   ]
+  },
+  "mon-coop-front.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/coop/monastery/walls/mon-brick-generic-drip:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05301,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/coop/monastery/walls/mon-brick-generic-drip:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0053,
+     "old": 0.10000000149011612
+    },
+    {
+     "mat": "levels/coop/monastery/ground/mon-mon-ground-2k:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.1238,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/coop/monastery/ground/mon-mon-ground-2k:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.10316,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/coop/monastery/walls/mon-brick-generic:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05301,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/coop/monastery/walls/mon-brick-generic:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0053,
+     "old": 0.10000000149011612
+    }
+   ]
+  },
+  "mon-coop-stage.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/coop/monastery/ground/mon-mon-ground-2k:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.1238,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/coop/monastery/ground/mon-mon-ground-2k:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.10316,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/coop/monastery/walls/mon-brick-generic:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05301,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/coop/monastery/walls/mon-brick-generic:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0053,
+     "old": 0.10000000149011612
+    },
+    {
+     "mat": "levels/coop/monastery/windows/mon-stained-glass-long:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.15349,
+     "old": 3.0
+    },
+    {
+     "mat": "levels/coop/monastery/windows/mon-stained-glass-long:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01023,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/coop/monastery/plants/mon-cananga:copy_of_chase-plants-wedding-cananga",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.16959,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/coop/monastery/windows/mon-stained-glass:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.27554,
+     "old": 3.0
+    },
+    {
+     "mat": "levels/coop/monastery/windows/mon-stained-glass:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01837,
+     "old": 0.20000000298023224
+    }
+   ]
+  },
+  "museum-multi-stage.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi:roof-combo-3",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 2.46373,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi:roof-combo-3",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.24637,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/museum/metal/mum-dtail-loose-blend-multi:mum-metal-sewer-bluegrey",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.87177,
+     "old": 4.099999904632568
+    },
+    {
+     "mat": "levels/multiplayer/museum/metal/mum-dtail-loose-blend-multi:mum-metal-sewer-bluegrey",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03189,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/multiplayer/museum/metal/mum-metal-sewer-multi:mum-metal-sewer",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.44652,
+     "old": 2.0999999046325684
+    },
+    {
+     "mat": "levels/multiplayer/museum/metal/mum-metal-sewer-multi:mum-metal-sewer",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03189,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi:roof002",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 2.46003,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi:roof002",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.246,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi:roof003",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 2.46003,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi:roof003",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.246,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/museum/wood/mum-windowpanel-multi:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.0147,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/multiplayer/museum/wood/mum-windowpanel-multi:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.04411,
+     "old": 0.6000000238418579
+    }
+   ]
+  },
+  "museum-multi-wide.pak": {
+   "tex": [
+    {
+     "mat": "levels/multiplayer/museum/museum/museum-city-wide:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/museum-buildings-spec-mask.tga"
+    }
+   ],
+   "param": []
+  },
+  "museum-multi.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/multiplayer/museum/wood/mum-windowpanel:circular",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.02066,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/multiplayer/museum/wood/mum-windowpanel:circular",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.06197,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi:roof-combo-3",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 2.46373,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi:roof-combo-3",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.24637,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi:roof003",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 2.46003,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi:roof003",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.246,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi:roof002",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 2.46003,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi:roof002",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.246,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/museum/wood/mum-windowpanel-multi:teardrop-outside",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.01198,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/multiplayer/museum/wood/mum-windowpanel-multi:teardrop-outside",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03593,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/multiplayer/museum/wood/mum-windowpanel-multi:circular",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.02066,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/multiplayer/museum/wood/mum-windowpanel-multi:circular",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.06197,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend:roof003",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 2.46003,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend:roof003",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0738,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend:roof002",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 2.46003,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/museum/roof/mum-tile-roof-001-blend:roof002",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0738,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/multiplayer/museum/metal/mum-vent:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.87854,
+     "old": 3.0899999141693115
+    },
+    {
+     "mat": "levels/multiplayer/museum/metal/mum-metal-sewer-multi:mum-metal-sewer",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.44652,
+     "old": 2.0999999046325684
+    },
+    {
+     "mat": "levels/multiplayer/museum/metal/mum-metal-sewer-multi:mum-metal-sewer",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03189,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/multiplayer/museum/wood/mum-windowpanel-multi:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.0147,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/multiplayer/museum/wood/mum-windowpanel-multi:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.04411,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/multiplayer/museum/metal/mum-dtail-loose-blend-multi:mum-metal-sewer-bluegrey",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.87177,
+     "old": 4.099999904632568
+    },
+    {
+     "mat": "levels/multiplayer/museum/metal/mum-dtail-loose-blend-multi:mum-metal-sewer-bluegrey",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03189,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/multiplayer/museum/objects/fire-ext:fire-canister",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 1.75977,
+     "old": 2.5
+    },
+    {
+     "mat": "levels/multiplayer/museum/objects/fire-ext:fire-canister",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.14078,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/multiplayer/museum/metal/mum-metal-sewer-multi:mum-metal-sewer-bluegrey",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.44652,
+     "old": 2.0999999046325684
+    },
+    {
+     "mat": "levels/multiplayer/museum/metal/mum-metal-sewer-multi:mum-metal-sewer-bluegrey",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03189,
+     "old": 0.15000000596046448
+    }
+   ]
+  },
+  "oasis-multi.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/multiplayer/oasis/emblems/oas-wall-drymud-to-stucco-01-emblem:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01076,
+     "old": 0.026000000536441803
+    },
+    {
+     "mat": "levels/multiplayer/oasis/walls/oas-wall-stucco-thick-to-thin-02:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.0867,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/oasis/walls/oas-wall-stucco-thick-to-rockwall-01-tint:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.0867,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-waterfall-07:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.86882,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-waterfall-07:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.21721,
+     "old": 0.25
+    },
+    {
+     "mat": "levels/multiplayer/oasis/ground/oas-ground-waterfall-base-01:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.86882,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/oasis/ground/oas-ground-waterfall-base-01:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.13032,
+     "old": 0.15000000596046448
+    }
+   ]
+  },
+  "old-quarter-multi.pak": {
+   "tex": [
+    {
+     "mat": "levels/yemen/walls/brickwalls/yem--mdrnbrick-redcream-algae2:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/yem-mdrnbricks-redcream-01-spec-mask.tga"
+    },
+    {
+     "mat": "levels/yemen/walls/brickwalls/yem--mdrnbrick-redcream-algae2:default",
+     "slot": "g_tNdFetchColor5Map",
+     "key": "art/generated/u3mp/h028/yem-mdrnbricks-redcream-01-spec-mask.tga"
+    }
+   ],
+   "param": []
+  },
+  "ruins-multi.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/multiplayer/ruins/ground/ruins-m-wet-tile2fire-copy:vill-wood-white2splinter-copy",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.02,
+     "old": 0.019999999552965164
+    },
+    {
+     "mat": "levels/multiplayer/ruins/floor/ruins-customs-tile-circle:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.08087,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/ruins/floor/ruins-customs-tile-circle:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03235,
+     "old": 0.4000000059604645
+    },
+    {
+     "mat": "levels/multiplayer/ruins/glass/ruins-customs-glass-tall-incan:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01868,
+     "old": 0.10000000149011612
+    },
+    {
+     "mat": "levels/multiplayer/ruins/metal/ruins-monastery-gate-bar:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.5499,
+     "old": 4.0
+    },
+    {
+     "mat": "levels/multiplayer/ruins/metal/ruins-monastery-gate-bar:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.06874,
+     "old": 0.5
+    },
+    {
+     "mat": "levels/multiplayer/ruins/helicopter-crashed/ruins-carg-helicopter-window-multicopy:base-cracked",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.02251,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/multiplayer/ruins/floors/ruins-m-customs-tile-border:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.00379,
+     "old": 0.009999999776482582
+    },
+    {
+     "mat": "levels/multiplayer/ruins/fountain/ruins-m-angel-statue:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.0032,
+     "old": 0.10000000149011612
+    },
+    {
+     "mat": "levels/multiplayer/ruins/fountain/ruins-m-fountain-structure:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01028,
+     "old": 0.10000000149011612
+    },
+    {
+     "mat": "levels/multiplayer/ruins/fort/ruins-doors:regular",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.28898,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/ruins/fort/ruins-doors:regular",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.14449,
+     "old": 0.5
+    }
+   ]
+  },
+  "temple-multi-stage.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/multiplayer/temple/basket/straw:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.34353,
+     "old": 0.8999999761581421
+    },
+    {
+     "mat": "levels/multiplayer/temple/basket/straw:default",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.3817,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-dish-alt:war-metal-bronz",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.35105,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-dish-alt:war-metal-bronz",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.10882,
+     "old": 1.5499999523162842
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-dish-03:war-metal-bronz",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.54602,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-dish-03:war-metal-bronz",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.16927,
+     "old": 1.5499999523162842
+    },
+    {
+     "mat": "levels/multiplayer/temple/crates/crate-wood:long",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.05971,
+     "old": 2.700000047683716
+    }
+   ]
+  },
+  "temple-multi.pak": {
+   "tex": [
+    {
+     "mat": "levels/multiplayer/temple/object/tmp-prayerscroll:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/tmp-prayerscrolls-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/temple/object/tmp-wax1:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/tmp-wax1-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/temple/object/tmp-yack-candle:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/tmp-yak-candle-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/temple/mausolleum/mausolleum-skull:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/mausolleum-skull-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/temple/outsourced/tmp-dharma-wheel-1:deer",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/dharma-wheel-spec-02.tga"
+    },
+    {
+     "mat": "levels/multiplayer/temple/outsourced/tmp-dharma-wheel-1:wheel",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/dharma-wheel-spec-01.tga"
+    },
+    {
+     "mat": "levels/multiplayer/temple/detail/tmp-grating-trans:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/tmp-grating-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/temple/outsourced/tmp-lion-makara:lion",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/lion-makara-spec-01.tga"
+    },
+    {
+     "mat": "levels/multiplayer/temple/crates/crate-wood:long",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/cratelong-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/temple/outsourced/tmp-entry-statue-cheaper:04",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/entry-statue-spec-04.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-dish-cracked:war-metal-bronz",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.37891,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-dish-cracked:war-metal-bronz",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.11746,
+     "old": 1.5499999523162842
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-dish-2-worn:war-metal-bronz",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.3774,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-dish-2-worn:war-metal-bronz",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.11699,
+     "old": 1.5499999523162842
+    },
+    {
+     "mat": "levels/multiplayer/temple/basket/straw:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.34353,
+     "old": 0.8999999761581421
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-dish-alt:war-metal-bronz",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.35105,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-dish-alt:war-metal-bronz",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.10882,
+     "old": 1.5499999523162842
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-plain-badge:war-metal-bronz",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.3992,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-plain-badge:war-metal-bronz",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.12375,
+     "old": 1.5499999523162842
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-dish02-cracked-badge:war-metal-bronz",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.33457,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-dish02-cracked-badge:war-metal-bronz",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.10372,
+     "old": 1.5499999523162842
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-dish02-cracked:war-metal-bronz",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.33532,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/multiplayer/temple/metal/tmp-metal-gold-dish02-cracked:war-metal-bronz",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.10395,
+     "old": 1.5499999523162842
+    }
+   ]
+  },
+  "train-wreck-multi-stage.pak": {
+   "tex": [
+    {
+     "mat": "levels/multiplayer/train-wreck/trnwrk-cars/passenger/trnwrk-metal-panel-cheap:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/trnwrk-panel-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/train-wreck/trnwrk-cars/undercarriage/trnwrk-tank1-cheap:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/trnwrk-tank1-spec-mask.tga"
+    },
+    {
+     "mat": "levels/train-wreck/trnwrk-cars/undercarriage/trnwrk-wheel-cheap:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/trnwrk-wheel-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/multiplayer/train-wreck/trnwrk-cars/passenger/trnwrk-metal-panel:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.07184,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/multiplayer/train-wreck/trnwrk-cars/train-wheels:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.02993,
+     "old": 0.23999999463558197
+    }
+   ]
+  },
+  "train-wreck-multi.pak": {
+   "tex": [
+    {
+     "mat": "objects/vehicles/t62-tank/lod0/light-out:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/light-damage-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/train-wreck/trnwrk-cars/train-wheels:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/war-es-wheels-shop-spec.tga"
+    },
+    {
+     "mat": "levels/multiplayer/train-wreck/trnwrk-cars/passenger/trnwrk-metal-panel-cheap:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/trnwrk-panel-spec-mask.tga"
+    },
+    {
+     "mat": "levels/train-wreck/trnwrk-cars/undercarriage/trnwrk-wheel-cheap:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/trnwrk-wheel-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/train-wreck/trnwrk-cars/undercarriage/trnwrk-tank1-cheap:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/trnwrk-tank1-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/train-wreck/trnwrk-cars/container/trnwrk-grating-trans:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/trnwrk-grating-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/train-wreck/trnwrk-cars/passenger/trnwrk-metal-panel:default",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/trnwrk-panel-spec-mask.tga"
+    },
+    {
+     "mat": "levels/multiplayer/train-wreck/trnwrk-cars/container/trnwrk-undercables-cheap:trnwrk-undercable2",
+     "slot": "g_tNdFetchColor4Map",
+     "key": "art/generated/u3mp/h028/trnwrk-undercables2-spec-mask.tga"
+    }
+   ],
+   "param": [
+    {
+     "mat": "levels/multiplayer/train-wreck/other/trnwrk-jeep-body:blue-main",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.46079,
+     "old": 2.0999999046325684
+    },
+    {
+     "mat": "levels/multiplayer/train-wreck/other/trnwrk-jeep-body:blue-main",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.21943,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/multiplayer/train-wreck/trnwrk-cars/boxcar/trnwrk-boxcar-greyrivets-snow:2x1x1",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.08495,
+     "old": 0.4699999988079071
+    },
+    {
+     "mat": "levels/multiplayer/train-wreck/trnwrk-cars/boxcar/trnwrk-boxcar-greyrivets-snow:2x1x1",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.01807,
+     "old": 0.10000000149011612
+    }
+   ]
+  },
+  "village-multi-stage.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/village/village-multi/vil-1-ground-rocks2foundation-multi:rocks2dirt",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.02198,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/village/village-multi/vil-1-ground-rocks2foundation-multi:rocks2dirt",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03663,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/village/ground/vil-bl-ground-mud-roof-01-cheap:wetdirt-drydirt-invert",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.03296,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/village/village-multi/vill-boulder-wall-copy-3:vill-stone-boulder-plaster2boulder",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.35206,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/village/village-multi/vill-boulder-wall-copy-2:vill-stone-boulder-plaster2boulder",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.35206,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/village/village-multi/vil-1-ground-rocks2dirt-multi:rocks2dirt",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.36633,
+     "old": 10.0
+    },
+    {
+     "mat": "levels/village/village-multi/vil-1-ground-rocks2dirt-multi:rocks2dirt",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03663,
+     "old": 1.0
+    }
+   ]
+  },
+  "village-multi.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/village/other/vil-kraz-trans:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.04703,
+     "old": 0.6000000238418579
+    },
+    {
+     "mat": "levels/village/village-multi/vil-1-ground-rocks2boulder-multi:rocks2dirt",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.36633,
+     "old": 10.0
+    },
+    {
+     "mat": "levels/village/village-multi/vil-1-ground-rocks2boulder-multi:rocks2dirt",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.03663,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/village/village-multi/vill-boulder-wall-copy-2:vill-stone-boulder-plaster2boulder",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.35206,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/village/other/vil-vase:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 2.64272,
+     "old": 4.0
+    },
+    {
+     "mat": "levels/village/village-multi/vill-boulder-wall-copy-3:vill-stone-boulder-plaster2boulder",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.35206,
+     "old": 1.0
+    }
+   ]
+  },
+  "warzone-multi-stage.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/warzone/metal/war-metal-shutter:war-metal-shutter02",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.22121,
+     "old": 1.75
+    }
+   ]
+  },
+  "warzone-multi.pak": {
+   "tex": [],
+   "param": [
+    {
+     "mat": "levels/warzone/metal/war-metal-shutter:war-metal-shutter03",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.34048,
+     "old": 1.75
+    },
+    {
+     "mat": "levels/warzone/walls/war-hotel-wall-basic-multi:trim",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.31408,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/warzone/walls/war-hotel-wall-basic-multi:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.15933,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/warzone/walls/war-hotel-wall-basic-multi:detail",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.25479,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/warzone/metal/war-glass-lamppost-moretrans:war-metal-lamp-post",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 1.44114,
+     "old": 5.0
+    },
+    {
+     "mat": "levels/warzone/metal/war-glass-lamppost-moretrans:war-metal-lamp-post",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.02882,
+     "old": 0.10000000149011612
+    },
+    {
+     "mat": "levels/warzone/vehicles/war-wood:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.03985,
+     "old": 0.15000000596046448
+    },
+    {
+     "mat": "levels/warzone/metal/war-metal-shutter-emblem:war-metal-shutter02",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.22061,
+     "old": 1.75
+    },
+    {
+     "mat": "levels/warzone/small-objects/war-radio:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.49361,
+     "old": 0.75
+    },
+    {
+     "mat": "levels/warzone/metal/war-metal-hotel:war-metal-hotel",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.21263,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/warzone/metal/war-metal-hotel:war-metal-hotel",
+     "pname": "g_specularEnvironmentStrength",
+     "comp": 0,
+     "value": 0.21263,
+     "old": 1.0
+    },
+    {
+     "mat": "levels/temple/detail/tmp-grating-trans:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.0251,
+     "old": 0.20000000298023224
+    },
+    {
+     "mat": "levels/warzone/metal/war-metal-shutter:war-metal-shutter02",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.22121,
+     "old": 1.75
+    },
+    {
+     "mat": "levels/warzone/ornate/war-pointarch-hotel-multi:default",
+     "pname": "g_specularBrightness",
+     "comp": 0,
+     "value": 0.13538,
+     "old": 0.6000000238418579
+    }
+   ]
+  }
+ },
+ "textures": {
+  "art/generated/u3mp/h028/cave-rock-far-spec-mask.tga": {
+   "file": "770c4dd9c09115b57e63bc6370d6d79c.bin",
+   "md5": "770c4dd9c09115b57e63bc6370d6d79c",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/cave-rock-far-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/dig-bottles-01-spec-mask-02.tga": {
+   "file": "0986373874f69d244eb2bff1673f6e58.bin",
+   "md5": "0986373874f69d244eb2bff1673f6e58",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/dig-bottles-01-spec-mask-02.tga"
+  },
+  "art/generated/u3mp/h028/oil-barrel-clean-spec-mask.tga": {
+   "file": "b6bd0bcb9914193f1bebeb3dc8ae15a0.bin",
+   "md5": "b6bd0bcb9914193f1bebeb3dc8ae15a0",
+   "w": 256,
+   "h": 128,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/oil-barrel-clean-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/dig-red-rust-spec-mask.tga": {
+   "file": "85faacb34437462c82e98cb96baf572a.bin",
+   "md5": "85faacb34437462c82e98cb96baf572a",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/dig-red-rust-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/fac-trn-window-01-spec-mask.tga": {
+   "file": "64d2d7f772e1452fbbde8dedfb563d40.bin",
+   "md5": "64d2d7f772e1452fbbde8dedfb563d40",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/fac-trn-window-01-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/fort-skele-spec-mask.tga": {
+   "file": "da893a72e793bef8213e136904775889.bin",
+   "md5": "da893a72e793bef8213e136904775889",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/fort-skele-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/fort-darkyellowmix-spec-mask.tga": {
+   "file": "d1dc25073649b5c2b6eb0e45abc61bee.bin",
+   "md5": "d1dc25073649b5c2b6eb0e45abc61bee",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/fort-darkyellowmix-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/fort-darkrust-spec-mask.tga": {
+   "file": "099bc266bf18b14c551b609ac871ac50.bin",
+   "md5": "099bc266bf18b14c551b609ac871ac50",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/fort-darkrust-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/fort-crate2mflat-spec-mask.tga": {
+   "file": "5ced6615a66bffdaa683713679219e46.bin",
+   "md5": "5ced6615a66bffdaa683713679219e46",
+   "w": 64,
+   "h": 64,
+   "mips": 7,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/fort-crate2mflat-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/fort-wood-planks02-spec-mask.tga": {
+   "file": "840b1023551a4a402c99b1e718587883.bin",
+   "md5": "840b1023551a4a402c99b1e718587883",
+   "w": 128,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/fort-wood-planks02-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/fort-a-metal-spec-mask.tga": {
+   "file": "25918a13c1a7764df581d21953c8ee8f.bin",
+   "md5": "25918a13c1a7764df581d21953c8ee8f",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/fort-a-metal-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/fort-crate2x1x1-spec-mask.tga": {
+   "file": "8f3fb93b112bf9eb68eb862eedf96980.bin",
+   "md5": "8f3fb93b112bf9eb68eb862eedf96980",
+   "w": 128,
+   "h": 128,
+   "mips": 8,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/fort-crate2x1x1-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/fort-sandbag512-spec-mask.tga": {
+   "file": "80113617d402d4a4b87221044c5f9a1d.bin",
+   "md5": "80113617d402d4a4b87221044c5f9a1d",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/fort-sandbag512-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/fort-crate1x1x1-nostrap-spec-mask.tga": {
+   "file": "44d5b1287c19f89075ebad5ed3d212c4.bin",
+   "md5": "44d5b1287c19f89075ebad5ed3d212c4",
+   "w": 64,
+   "h": 64,
+   "mips": 7,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/fort-crate1x1x1-nostrap-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/fort-metal-rust-spec-mask.tga": {
+   "file": "1aa711fe1e44f952f757c98ae00b7e45.bin",
+   "md5": "1aa711fe1e44f952f757c98ae00b7e45",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/fort-metal-rust-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/fort-door-tilable-spec-mask.tga": {
+   "file": "df237d29ee0156a500b0859ed355b6f7.bin",
+   "md5": "df237d29ee0156a500b0859ed355b6f7",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/fort-door-tilable-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/rainr-spec-mask.tga": {
+   "file": "bd51905dd9eeb3c9b2fccf703245cf2a.bin",
+   "md5": "bd51905dd9eeb3c9b2fccf703245cf2a",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/rainr-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/fort-mlti-metal-pot-spec-mask.tga": {
+   "file": "515214fdeed9876beded6ade600ce8cb.bin",
+   "md5": "515214fdeed9876beded6ade600ce8cb",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/fort-mlti-metal-pot-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/gompa-tnl-pillar-spec-mask-03.tga": {
+   "file": "748cf083f57eff129e8bf43a3d1a0f15.bin",
+   "md5": "748cf083f57eff129e8bf43a3d1a0f15",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/gompa-tnl-pillar-spec-mask-03.tga"
+  },
+  "art/generated/u3mp/h028/gompa-yak-candle-spec-mask.tga": {
+   "file": "59f08ab3fdec6b41690b9c068e68c5b5.bin",
+   "md5": "59f08ab3fdec6b41690b9c068e68c5b5",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/gompa-yak-candle-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/gompa-roof-spire-01-spec-mask.tga": {
+   "file": "effdd4b307acd81ea92478da4969a52e.bin",
+   "md5": "effdd4b307acd81ea92478da4969a52e",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/gompa-roof-spire-01-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/grv-container-misc-spec-mask.tga": {
+   "file": "f5ce32d0569228907b01f471cce580c6.bin",
+   "md5": "f5ce32d0569228907b01f471cce580c6",
+   "w": 256,
+   "h": 64,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/grv-container-misc-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/grv-container-side-spec-mask.tga": {
+   "file": "a5d85c2e4355f1c70fc5fa63e5a21a8d.bin",
+   "md5": "a5d85c2e4355f1c70fc5fa63e5a21a8d",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/grv-container-side-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/hrs-war-m-hotel-wall-marble-spec-mask.tga": {
+   "file": "1043e1c475d70626bf0db5333f36d9e7.bin",
+   "md5": "1043e1c475d70626bf0db5333f36d9e7",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/hrs-war-m-hotel-wall-marble-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/hrs-war-m-hotel-wall-marble-trim-spec-mask.tga": {
+   "file": "e1d949ca45a20b1eb8dbab4a30548026.bin",
+   "md5": "e1d949ca45a20b1eb8dbab4a30548026",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/hrs-war-m-hotel-wall-marble-trim-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/hrs-war-roof-copper-006-spec-mask.tga": {
+   "file": "e118710b5e183661a57a543dccb94eb5.bin",
+   "md5": "e118710b5e183661a57a543dccb94eb5",
+   "w": 128,
+   "h": 128,
+   "mips": 8,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/hrs-war-roof-copper-006-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/hrs-war-electricbox-spec-mask.tga": {
+   "file": "c93802c59eba74ffb0b9497bf24009f9.bin",
+   "md5": "c93802c59eba74ffb0b9497bf24009f9",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/hrs-war-electricbox-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/hrs-war-books-individual-spec-mask.tga": {
+   "file": "2cb9a4cca39f6d76b9131c1499e1a0f0.bin",
+   "md5": "2cb9a4cca39f6d76b9131c1499e1a0f0",
+   "w": 128,
+   "h": 128,
+   "mips": 8,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/hrs-war-books-individual-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/hrs-highrise-hotel-couch-spec-mask.tga": {
+   "file": "c5073a99e881d63652fb2c63867f4e8c.bin",
+   "md5": "c5073a99e881d63652fb2c63867f4e8c",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/hrs-highrise-hotel-couch-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/hrs-war-m-hotel-arch-entrance-spec-mask.tga": {
+   "file": "c7d92061b4db4fc87109fe2e7264e254.bin",
+   "md5": "c7d92061b4db4fc87109fe2e7264e254",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/hrs-war-m-hotel-arch-entrance-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/hrs-dig-tire-spec-mask.tga": {
+   "file": "e565f30e3912aa88c97c3b7e19b0ee83.bin",
+   "md5": "e565f30e3912aa88c97c3b7e19b0ee83",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/hrs-dig-tire-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/hrs-dig-red-rust-spec-mask.tga": {
+   "file": "85faacb34437462c82e98cb96baf572a.bin",
+   "md5": "85faacb34437462c82e98cb96baf572a",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/hrs-dig-red-rust-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/ldn-warehouse-window-smashed-a-spec-mask.tga": {
+   "file": "d6259dfba77d41d8bb53dc92db9cc6f5.bin",
+   "md5": "d6259dfba77d41d8bb53dc92db9cc6f5",
+   "w": 128,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/ldn-warehouse-window-smashed-a-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/ldn-cargo-cars-03-spec-mask.tga": {
+   "file": "d9322607f43d419d644be5f47a10ed55.bin",
+   "md5": "d9322607f43d419d644be5f47a10ed55",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/ldn-cargo-cars-03-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/ug-lib-tile-stone-spec-mask.tga": {
+   "file": "b902027206ce013a8311b681499021f0.bin",
+   "md5": "b902027206ce013a8311b681499021f0",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/ug-lib-tile-stone-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/mon-stained-glass-long-spec-mask.tga": {
+   "file": "8ecb8e37b6abb8d7358bf7f9b8675121.bin",
+   "md5": "8ecb8e37b6abb8d7358bf7f9b8675121",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/mon-stained-glass-long-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/mon-lair-stuff-spec-mask.tga": {
+   "file": "26277020549d413772983ea101a9fc81.bin",
+   "md5": "26277020549d413772983ea101a9fc81",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/mon-lair-stuff-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/museum-buildings-spec-mask.tga": {
+   "file": "b5b265c1cbb5b38af067a35f6564aead.bin",
+   "md5": "b5b265c1cbb5b38af067a35f6564aead",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/museum-buildings-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/yem-mdrnbricks-redcream-01-spec-mask.tga": {
+   "file": "7e0feeed040fb92ac07d2633a3728eb1.bin",
+   "md5": "7e0feeed040fb92ac07d2633a3728eb1",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/yem-mdrnbricks-redcream-01-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/tmp-prayerscrolls-spec-mask.tga": {
+   "file": "a3d0dd964997e63387d55ceb85897772.bin",
+   "md5": "a3d0dd964997e63387d55ceb85897772",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/tmp-prayerscrolls-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/tmp-wax1-spec-mask.tga": {
+   "file": "8b51debef894aab4ad2dbe6d9705f2c8.bin",
+   "md5": "8b51debef894aab4ad2dbe6d9705f2c8",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/tmp-wax1-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/tmp-yak-candle-spec-mask.tga": {
+   "file": "59f08ab3fdec6b41690b9c068e68c5b5.bin",
+   "md5": "59f08ab3fdec6b41690b9c068e68c5b5",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/tmp-yak-candle-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/mausolleum-skull-spec-mask.tga": {
+   "file": "2077cbc16c476d9c62eb47608e224a01.bin",
+   "md5": "2077cbc16c476d9c62eb47608e224a01",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/mausolleum-skull-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/dharma-wheel-spec-02.tga": {
+   "file": "e4d40eb44dbf9dcac0aac40fbc7bb102.bin",
+   "md5": "e4d40eb44dbf9dcac0aac40fbc7bb102",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/dharma-wheel-spec-02.tga"
+  },
+  "art/generated/u3mp/h028/dharma-wheel-spec-01.tga": {
+   "file": "5bc45b3cb069908d886d4931d7514d8e.bin",
+   "md5": "5bc45b3cb069908d886d4931d7514d8e",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/dharma-wheel-spec-01.tga"
+  },
+  "art/generated/u3mp/h028/tmp-grating-spec-mask.tga": {
+   "file": "9b0746187d114851b504513900b36d7d.bin",
+   "md5": "9b0746187d114851b504513900b36d7d",
+   "w": 64,
+   "h": 64,
+   "mips": 7,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/tmp-grating-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/lion-makara-spec-01.tga": {
+   "file": "223551197e6af8e6c4fcf0f01c709743.bin",
+   "md5": "223551197e6af8e6c4fcf0f01c709743",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/lion-makara-spec-01.tga"
+  },
+  "art/generated/u3mp/h028/cratelong-spec-mask.tga": {
+   "file": "1f0bb2b1b074966bdfaaa5b7a31d050d.bin",
+   "md5": "1f0bb2b1b074966bdfaaa5b7a31d050d",
+   "w": 64,
+   "h": 64,
+   "mips": 7,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/cratelong-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/entry-statue-spec-04.tga": {
+   "file": "4cb2c5265b316b7c0229dfb4a76cc994.bin",
+   "md5": "4cb2c5265b316b7c0229dfb4a76cc994",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/entry-statue-spec-04.tga"
+  },
+  "art/generated/u3mp/h028/trnwrk-panel-spec-mask.tga": {
+   "file": "ad6bfd903e2fdd7a998c1c62778b0ae8.bin",
+   "md5": "ad6bfd903e2fdd7a998c1c62778b0ae8",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/trnwrk-panel-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/trnwrk-tank1-spec-mask.tga": {
+   "file": "f56a984fca18b545ecd7a3c246fdbfb5.bin",
+   "md5": "f56a984fca18b545ecd7a3c246fdbfb5",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/trnwrk-tank1-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/trnwrk-wheel-spec-mask.tga": {
+   "file": "a122a83b43d74a9beeb4e33f601eee2a.bin",
+   "md5": "a122a83b43d74a9beeb4e33f601eee2a",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/trnwrk-wheel-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/light-damage-spec-mask.tga": {
+   "file": "80ea6bba6430b24c7b83ad87b503fbcd.bin",
+   "md5": "80ea6bba6430b24c7b83ad87b503fbcd",
+   "w": 128,
+   "h": 128,
+   "mips": 8,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/light-damage-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/war-es-wheels-shop-spec.tga": {
+   "file": "e4bdd258636246afff4c0cf9c8665689.bin",
+   "md5": "e4bdd258636246afff4c0cf9c8665689",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/war-es-wheels-shop-spec.tga"
+  },
+  "art/generated/u3mp/h028/trnwrk-grating-spec-mask.tga": {
+   "file": "445b89c48a8bd881eb69bb552173081c.bin",
+   "md5": "445b89c48a8bd881eb69bb552173081c",
+   "w": 256,
+   "h": 256,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/trnwrk-grating-spec-mask.tga"
+  },
+  "art/generated/u3mp/h028/trnwrk-undercables2-spec-mask.tga": {
+   "file": "5706b2c3e868cbe7e77846f2c7f0015d.bin",
+   "md5": "5706b2c3e868cbe7e77846f2c7f0015d",
+   "w": 256,
+   "h": 128,
+   "mips": 9,
+   "fmt": 71,
+   "short": "art/generated/u3mp/h028/trnwrk-undercables2-spec-mask.tga"
+  }
+ }
+}

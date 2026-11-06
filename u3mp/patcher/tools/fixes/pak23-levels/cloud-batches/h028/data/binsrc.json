@@ -1,0 +1,542 @@
+{
+ "0986373874f69d244eb2bff1673f6e58.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "dig-coop-dropdown",
+  "md5": "0986373874f69d244eb2bff1673f6e58",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/dig/textures/objects/dig-bottles-01-spec-mask-02.tga/966B1F4776385A6F.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "099bc266bf18b14c551b609ac871ac50.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "fort-coop-courtyard",
+  "md5": "099bc266bf18b14c551b609ac871ac50",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/coop/fort/textures/machinerie/rusty/fort-darkrust-spec-mask.tga/8EEF7E6C04AFBC9F.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "1043e1c475d70626bf0db5333f36d9e7.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "highrise-multi",
+  "md5": "1043e1c475d70626bf0db5333f36d9e7",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/highrise/textures/wall/hrs-war-m-hotel-wall-marble-spec-mask.tga/034B26C3F13D3783.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "1aa711fe1e44f952f757c98ae00b7e45.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "fort-coop-courtyard",
+  "md5": "1aa711fe1e44f952f757c98ae00b7e45",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/coop/fort/textures/new/fort-metal-rust-spec-mask.tga/8602E12E93384942.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "1f0bb2b1b074966bdfaaa5b7a31d050d.bin": {
+  "bpb": 8,
+  "h": 64,
+  "level": "temple-multi",
+  "md5": "1f0bb2b1b074966bdfaaa5b7a31d050d",
+  "mips": 7,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/temple/textures/cratelong-spec-mask.tga/D9631A188F45891F.ndb",
+  "skip": 0,
+  "w": 64
+ },
+ "2077cbc16c476d9c62eb47608e224a01.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "temple-multi",
+  "md5": "2077cbc16c476d9c62eb47608e224a01",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/temple/textures/mausolleum-skull-spec-mask.tga/CBC0EC5D06A9A513.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "223551197e6af8e6c4fcf0f01c709743.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "temple-multi",
+  "md5": "223551197e6af8e6c4fcf0f01c709743",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/temple/textures/outsourced/lion-makara-spec-01.tga/C3E3C4897FB42763.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "25918a13c1a7764df581d21953c8ee8f.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "fort-coop-courtyard",
+  "md5": "25918a13c1a7764df581d21953c8ee8f",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/coop/fort/textures/work-taylor/fort-a-metal-spec-mask.tga/79F92A6CF8BF3433.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "26277020549d413772983ea101a9fc81.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "mon-coop-cloister",
+  "md5": "26277020549d413772983ea101a9fc81",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/coop/monastery/textures/texture/mon-lair-stuff-spec-mask.tga/F2EDBBF24F2EFE8A.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "2cb9a4cca39f6d76b9131c1499e1a0f0.bin": {
+  "bpb": 8,
+  "h": 128,
+  "level": "highrise-multi",
+  "md5": "2cb9a4cca39f6d76b9131c1499e1a0f0",
+  "mips": 8,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/highrise/textures/books/hrs-war-books-individual-spec-mask.tga/B8DB16723201906E.ndb",
+  "skip": 0,
+  "w": 128
+ },
+ "445b89c48a8bd881eb69bb552173081c.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "train-wreck-multi",
+  "md5": "445b89c48a8bd881eb69bb552173081c",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/train-wreck-multi/textures/trnwrk-cars/container/trnwrk-grating-spec-mask.tga/1B6BD408F8131B4A.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "44d5b1287c19f89075ebad5ed3d212c4.bin": {
+  "bpb": 8,
+  "h": 64,
+  "level": "fort-coop-courtyard",
+  "md5": "44d5b1287c19f89075ebad5ed3d212c4",
+  "mips": 7,
+  "ps3": "z:/big3/build/main/texture1/art/levels/coop/fort/textures/fort-crate1x1x1-nostrap-spec-mask.tga/F0BE43898890B021.ndb",
+  "skip": 0,
+  "w": 64
+ },
+ "4cb2c5265b316b7c0229dfb4a76cc994.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "temple-multi",
+  "md5": "4cb2c5265b316b7c0229dfb4a76cc994",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/temple/textures/outsourced/entry-statue-spec-04.tga/8CE67ECC69212EF1.ndb",
+  "skip": 2,
+  "w": 256
+ },
+ "515214fdeed9876beded6ade600ce8cb.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "fort-multi",
+  "md5": "515214fdeed9876beded6ade600ce8cb",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/fort-multi/textures/fort/fort-mlti-metal-pot-spec-mask.tga/56DB829BDF37D027.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "5706b2c3e868cbe7e77846f2c7f0015d.bin": {
+  "bpb": 8,
+  "h": 128,
+  "level": "train-wreck-multi",
+  "md5": "5706b2c3e868cbe7e77846f2c7f0015d",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/train-wreck-multi/textures/trnwrk-cars/container/trnwrk-undercables2-spec-mask.tga/AC3F371752C8EDEA.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "59f08ab3fdec6b41690b9c068e68c5b5.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "temple-multi",
+  "md5": "59f08ab3fdec6b41690b9c068e68c5b5",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/temple/textures/objects/tmp-yak-candle-spec-mask.tga/C622CD5A36B50F61.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "5bc45b3cb069908d886d4931d7514d8e.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "temple-multi",
+  "md5": "5bc45b3cb069908d886d4931d7514d8e",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/temple/textures/outsourced/dharma-wheel-spec-01.tga/38BCC07C8EA12B78.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "5ced6615a66bffdaa683713679219e46.bin": {
+  "bpb": 8,
+  "h": 64,
+  "level": "fort-coop-courtyard",
+  "md5": "5ced6615a66bffdaa683713679219e46",
+  "mips": 7,
+  "ps3": "z:/big3/build/main/texture1/art/levels/coop/fort/textures/fort-crate2mflat-spec-mask.tga/3B1A8913F5F175C4.ndb",
+  "skip": 0,
+  "w": 64
+ },
+ "64d2d7f772e1452fbbde8dedfb563d40.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "facility-multi",
+  "md5": "64d2d7f772e1452fbbde8dedfb563d40",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/facility-multi/textures/huts/fac-trn-window-01-spec-mask.tga/89B9AEE180B9A889.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "748cf083f57eff129e8bf43a3d1a0f15.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "gompa-multi-stage",
+  "md5": "748cf083f57eff129e8bf43a3d1a0f15",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/gompa-multi/textures/ornate/gompa-tnl-pillar-spec-mask-03.tga/55273C1D6223B62D.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "770c4dd9c09115b57e63bc6370d6d79c.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "cave-multi-stage",
+  "md5": "770c4dd9c09115b57e63bc6370d6d79c",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/cave/textures/rocks/cave-rock-far-spec-mask.tga/A114F94D0507E256.ndb",
+  "skip": 2,
+  "w": 256
+ },
+ "7e0feeed040fb92ac07d2633a3728eb1.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "old-quarter-multi",
+  "md5": "7e0feeed040fb92ac07d2633a3728eb1",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/yemen/textures/walls/brickwalls/yem-mdrnbricks-redcream-01-spec-mask.tga/0042F383CE40C8F6.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "80113617d402d4a4b87221044c5f9a1d.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "fort-coop-courtyard",
+  "md5": "80113617d402d4a4b87221044c5f9a1d",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/coop/fort/textures/fabric/fort-sandbag512-spec-mask.tga/C4F6DE0B5EEDF6AF.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "80ea6bba6430b24c7b83ad87b503fbcd.bin": {
+  "bpb": 8,
+  "h": 128,
+  "level": "train-wreck-multi",
+  "md5": "80ea6bba6430b24c7b83ad87b503fbcd",
+  "mips": 8,
+  "ps3": "z:/big3/build/main/texture1/art/objects/vehicles/t62-tank/texture/texture-fma/painter-file/light-damage-spec-mask.tga/5E1C6D85229464E5.ndb",
+  "skip": 0,
+  "w": 128
+ },
+ "840b1023551a4a402c99b1e718587883.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "fort-coop-courtyard",
+  "md5": "840b1023551a4a402c99b1e718587883",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/coop/fort/textures/wood/fort-wood-planks02-spec-mask.tga/A65C774042353BE6.ndb",
+  "skip": 1,
+  "w": 128
+ },
+ "85faacb34437462c82e98cb96baf572a.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "highrise-multi",
+  "md5": "85faacb34437462c82e98cb96baf572a",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/highrise/textures/manmade/hrs-dig-red-rust-spec-mask.tga/1AEFC0098A062CFC.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "8b51debef894aab4ad2dbe6d9705f2c8.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "temple-multi",
+  "md5": "8b51debef894aab4ad2dbe6d9705f2c8",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/temple/textures/details/tmp-wax1-spec-mask.tga/3D572E84495B1413.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "8ecb8e37b6abb8d7358bf7f9b8675121.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "mon-coop-church",
+  "md5": "8ecb8e37b6abb8d7358bf7f9b8675121",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/coop/monastery/textures/windows/mon-stained-glass-long-spec-mask.tga/E049AF35E5095B61.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "8f3fb93b112bf9eb68eb862eedf96980.bin": {
+  "bpb": 8,
+  "h": 128,
+  "level": "fort-coop-courtyard",
+  "md5": "8f3fb93b112bf9eb68eb862eedf96980",
+  "mips": 8,
+  "ps3": "z:/big3/build/main/texture1/art/levels/coop/fort/textures/fort-crate2x1x1-spec-mask.tga/53AC9FA2FBC06FD2.ndb",
+  "skip": 0,
+  "w": 128
+ },
+ "9b0746187d114851b504513900b36d7d.bin": {
+  "bpb": 8,
+  "h": 64,
+  "level": "temple-multi",
+  "md5": "9b0746187d114851b504513900b36d7d",
+  "mips": 7,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/temple/textures/details/tmp-grating-spec-mask.tga/48BED361A20DC91B.ndb",
+  "skip": 0,
+  "w": 64
+ },
+ "a122a83b43d74a9beeb4e33f601eee2a.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "train-wreck-multi-stage",
+  "md5": "a122a83b43d74a9beeb4e33f601eee2a",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/train-wreck-multi/textures/trnwrk-cars/undercarriage/trnwrk-wheel-spec-mask.tga/CC1D38C6DF9D909C.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "a3d0dd964997e63387d55ceb85897772.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "temple-multi",
+  "md5": "a3d0dd964997e63387d55ceb85897772",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/temple/textures/objects/tmp-prayerscrolls-spec-mask.tga/0E897CE4347CB4C5.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "a5d85c2e4355f1c70fc5fa63e5a21a8d.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "grave-multi",
+  "md5": "a5d85c2e4355f1c70fc5fa63e5a21a8d",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/graveyard/textures/deck-objects/grv-container-side-spec-mask.tga/E697041ABD29210C.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "ad6bfd903e2fdd7a998c1c62778b0ae8.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "train-wreck-multi-stage",
+  "md5": "ad6bfd903e2fdd7a998c1c62778b0ae8",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/train-wreck-multi/textures/trnwrk-cars/passenger/trnwrk-panel-spec-mask.tga/B63A30767E4174A1.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "b5b265c1cbb5b38af067a35f6564aead.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "museum-multi-wide",
+  "md5": "b5b265c1cbb5b38af067a35f6564aead",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/museum/textures/wide/museum-buildings-spec-mask.tga/F3345588D6567AAF.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "b6bd0bcb9914193f1bebeb3dc8ae15a0.bin": {
+  "bpb": 8,
+  "h": 128,
+  "level": "dig-coop-dropdown",
+  "md5": "b6bd0bcb9914193f1bebeb3dc8ae15a0",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/dig/textures/objects/oil-barrel-clean-spec-mask.tga/AE710647E3FD5A6F.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "b902027206ce013a8311b681499021f0.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "ldn-train-multi",
+  "md5": "b902027206ce013a8311b681499021f0",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/london/textures/underground/floors/ug-lib-tile-stone-spec-mask.tga/7E0973BAA998FE83.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "bd51905dd9eeb3c9b2fccf703245cf2a.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "fort-multi-stage",
+  "md5": "bd51905dd9eeb3c9b2fccf703245cf2a",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/fort-multi/textures/new/rainr-spec-mask.tga/85A7A16AF8DB486C.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "c5073a99e881d63652fb2c63867f4e8c.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "highrise-multi",
+  "md5": "c5073a99e881d63652fb2c63867f4e8c",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/highrise/textures/hotel/hrs-highrise-hotel-couch-spec-mask.tga/CC776007BF9354FB.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "c7d92061b4db4fc87109fe2e7264e254.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "highrise-multi",
+  "md5": "c7d92061b4db4fc87109fe2e7264e254",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/highrise/textures/wall/hrs-war-m-hotel-arch-entrance-spec-mask.tga/1ACD36890BB7A301.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "c93802c59eba74ffb0b9497bf24009f9.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "highrise-multi",
+  "md5": "c93802c59eba74ffb0b9497bf24009f9",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/highrise/textures/metal/hrs-war-electricbox-spec-mask.tga/033A4922B18CA0C0.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "d1dc25073649b5c2b6eb0e45abc61bee.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "fort-coop-courtyard",
+  "md5": "d1dc25073649b5c2b6eb0e45abc61bee",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/coop/fort/textures/yeollowwall/fort-darkyellowmix-spec-mask.tga/397A756A7765DB07.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "d6259dfba77d41d8bb53dc92db9cc6f5.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "ldn-streets-multi-stage",
+  "md5": "d6259dfba77d41d8bb53dc92db9cc6f5",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/london/textures/streets/warehouse/ldn-warehouse-window-smashed-a-spec-mask.tga/2287979B9D4DAFD9.ndb",
+  "skip": 1,
+  "w": 128
+ },
+ "d9322607f43d419d644be5f47a10ed55.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "ldn-streets-multi",
+  "md5": "d9322607f43d419d644be5f47a10ed55",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/ldn-streets-multi/textures/metal/ldn-cargo-cars-03-spec-mask.tga/8DB39BDE0A816F0B.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "da893a72e793bef8213e136904775889.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "fort-coop-courtyard",
+  "md5": "da893a72e793bef8213e136904775889",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/coop/fort/textures/machinerie/skeleton/fort-skele-spec-mask.tga/B2D85DC1F1417C79.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "df237d29ee0156a500b0859ed355b6f7.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "fort-coop-courtyard",
+  "md5": "df237d29ee0156a500b0859ed355b6f7",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/coop/fort/textures/fort-door-tilable-spec-mask.tga/A23EFABC265231A7.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "e118710b5e183661a57a543dccb94eb5.bin": {
+  "bpb": 8,
+  "h": 128,
+  "level": "highrise-multi",
+  "md5": "e118710b5e183661a57a543dccb94eb5",
+  "mips": 8,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/highrise/textures/roof/hrs-war-roof-copper-006-spec-mask.tga/E05361B7E49A8D4F.ndb",
+  "skip": 0,
+  "w": 128
+ },
+ "e1d949ca45a20b1eb8dbab4a30548026.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "highrise-multi",
+  "md5": "e1d949ca45a20b1eb8dbab4a30548026",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/highrise/textures/wall/hrs-war-m-hotel-wall-marble-trim-spec-mask.tga/8178C3A92CB010EC.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "e4bdd258636246afff4c0cf9c8665689.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "train-wreck-multi",
+  "md5": "e4bdd258636246afff4c0cf9c8665689",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/train-wreck-multi/textures/trnwrk-cars/undercarriage/war-es-wheels-shop-spec.tga/884DA0B379640D8C.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "e4d40eb44dbf9dcac0aac40fbc7bb102.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "temple-multi",
+  "md5": "e4d40eb44dbf9dcac0aac40fbc7bb102",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/temple/textures/outsourced/dharma-wheel-spec-02.tga/5118E23D6FBF1BD9.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "e565f30e3912aa88c97c3b7e19b0ee83.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "highrise-multi",
+  "md5": "e565f30e3912aa88c97c3b7e19b0ee83",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/highrise/textures/objects/hrs-dig-tire-spec-mask.tga/CE40ECC1BCDFBA95.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "effdd4b307acd81ea92478da4969a52e.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "gompa-multi",
+  "md5": "effdd4b307acd81ea92478da4969a52e",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/gompa-multi/textures/gompa-roof-spire-01-spec-mask.tga/E406244D47DCD58B.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "f56a984fca18b545ecd7a3c246fdbfb5.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "train-wreck-multi-stage",
+  "md5": "f56a984fca18b545ecd7a3c246fdbfb5",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/train-wreck-multi/textures/trnwrk-cars/undercarriage/trnwrk-tank1-spec-mask.tga/F69A841181EE3A84.ndb",
+  "skip": 1,
+  "w": 256
+ },
+ "f5ce32d0569228907b01f471cce580c6.bin": {
+  "bpb": 8,
+  "h": 64,
+  "level": "grave-multi",
+  "md5": "f5ce32d0569228907b01f471cce580c6",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/graveyard/textures/deck-objects/grv-container-misc-spec-mask.tga/99EA0B159CE51C6B.ndb",
+  "skip": 1,
+  "w": 256
+ }
+}

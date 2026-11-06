@@ -201,6 +201,8 @@ def build(r, workers):
         for k, v in (json.loads(r['env']) if r['env'] not in ('', '-', '{}') else {}).items():
             if k == 'PS4ACTOR_DONORS':          # retail donor paks by name
                 v = ':'.join(os.path.join(RET, x + '.pak') for x in v.split(':'))
+            elif k == 'PS4ACTOR_SKEL3':         # '<source>/<name>.pak': the PS3 pak whose skeleton a LOD pak uses
+                v = extract(*v.split('/', 1))
             env[k] = v
         if '_rename' in env:                    # ps4actor --rename (art group renamed to the overlay name)
             kw['rename'] = env.pop('_rename')

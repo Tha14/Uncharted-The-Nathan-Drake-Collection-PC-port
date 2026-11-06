@@ -1,0 +1,19 @@
+pak	overlay	md5_before	md5_after	primitives_fixed	state
+cha-multi-shade.pak	overlay-r3	4299b1ba3be86d4d9d64beb157d99a8d	b5392ae887827972d1d97cd314b1db7a	2	v6.47
+cha-multi.pak	overlay-r3	51f6f6d9ac0104ccd6af04ff2389b8a1	c312fb18b83490dd1a771decad112bce	2	v6.47
+coop-syria-hub-low.pak	overlay-r3	0b0bd6e9a601cc7d8a2e992c00c5ff47	e836a2f1795130135ca213ba5a3752b6	4	v6.47
+fort-coop-cistern.pak	overlay-r3	b0d88d2ab40ffd84f8812fad94ad72b4	dea4a1f85f292822d2dd028f7bb461a8	1	v6.47
+fort-coop-courtyard.pak	overlay-r3	9153a183efe99e2f600bef863b108311	07c318b7739fb3dd76c22f8dba377a18	2	v6.47
+fort-coop-tower.pak	overlay-r3	33f183998688fcbc28f0f717f4d272b4	0cbfc7dc9678137cb7b64a37e2deb9d0	16	v6.47
+graveyard-drydock-anniversary.pak	overlay-r3	268dbd4b4d81e1c1bc81a74bab74822d	320b1079938b28ec1540c3e03e69394b	28	v6.47
+mon-coop-church.pak	overlay-r3	b79ce47793f609b38548969f4551a97e	0b83958f987e9ad8e543c710dbf6e24b	11	v6.47
+mon-coop-cloister.pak	overlay-r3	d4126f0b20681d029f2cc8e391ac02e0	0b8928f564310b3c563250eb45810524	33	v6.47
+mon-coop-courtyard.pak	overlay-r3	7844fbae9e1df3b1e95c3e3830a239ed	d74828cf6659e500c3ead0f991261b28	1	v6.47
+museum-multi.pak	overlay-r3	9d5fe9970ca3cd6b215b2aa21b17b392	43ebb613f300bdd94b960c0ef28a21ef	31	v6.47 (before batch103)
+museum-multi.pak	overlay-r3	6aa58837f4b8e361d830aafdbe436667	04646d5746549fc74d65eb915166aea0	31	after batch103
+shambhala-multi.pak	overlay-r3	65b7b2ef2a271cfaa60a7ae336391a9c	3ce209dd20ced67bba20179d0e2bce0f	1	v6.47 (before batch103)
+shambhala-multi.pak	overlay-r3	b000d1e0fc289a6ce7a07f790d4b983a	7484fdbc8f954d44e2bd6de8b6a8996f	1	after batch103
+temple-multi.pak	overlay-r3	7bcdb5329b66b77991e245fcc11d3ebe	ecdbbbd33841f61287938999b4105ab8	2	v6.47 (before batch103)
+temple-multi.pak	overlay-r3	e6cee59a93e93d0588a2c39ef8d877cd	6bf9bfcfd3dda094235cd00b34aaa380	2	after batch103
+train-wreck-multi.pak	overlay-r3	c744598c6e8e8bd2273dcb60b92f2cc7	e953986d9eeda4087921d9bb28594196	2	v6.47 (before batch103)
+train-wreck-multi.pak	overlay-r3	12a0dd14e9fb9b556ba228a8c5960ff3	f0efae665ef99aaf8189205ee11e809b	2	after batch103

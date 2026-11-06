@@ -22,6 +22,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -68,33 +69,73 @@ def plan_rows():
 
 
 # ------------------------------------------------------------------ converters
-def paktools(ver):
-    """A ready paktools tree for converter version `ver` (with data/ anim actor lists)."""
-    dst = os.path.join(TMP, 'pt-' + ver)
-    stamp = os.path.join(dst, '.ready')
-    if os.path.exists(stamp):
-        return dst
-    if os.path.isdir(dst):
-        shutil.rmtree(dst)
-    if ver == 'f525859':
-        shutil.copytree(PAKTOOLS, dst, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
-        ov = os.path.join(HERE, 'paktools-f525859')
-        for dp, dn, fn in os.walk(ov):
-            for f in fn:
-                s = os.path.join(dp, f)
-                d = os.path.join(dst, os.path.relpath(s, ov))
-                os.makedirs(os.path.dirname(d), exist_ok=True)
-                shutil.copyfile(s, d)
+_PT_LOCK = threading.Lock()
+
+
+def _pt_sources(ver):
+    """[(relative path in the tree, source file)] of converter version `ver`, later entries overriding earlier ones.
+    f525859 = tools/paktools + paktools-f525859/; an OVERLAY_ON version (tt1026 = the 10-26 _claude_transfer/tools
+    ps4ingame / ps4writer / ndpak) = the f525859 tree with that version's files on top; others = paktools-<ver>/."""
+    if ver == 'f525859' or os.path.exists(os.path.join(HERE, 'paktools-' + ver, 'OVERLAY_ON')):
+        roots = [PAKTOOLS, os.path.join(HERE, 'paktools-f525859')] + ([] if ver == 'f525859' else [os.path.join(HERE, 'paktools-' + ver)])
     else:
-        shutil.copytree(os.path.join(HERE, 'paktools-' + ver), dst, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
-    data = os.path.join(dst, 'data')
-    os.makedirs(data, exist_ok=True)
-    for f in ('hk2010_ps3.json', 'hk2011_ps4.json'):      # FG collision tables: empty, as in every recorded run
-        open(os.path.join(data, f), 'w').write('{}\n')
-    shutil.copyfile(os.path.join(HERE, 'data', 'conv_anim_actors.json'), os.path.join(data, 'conv_anim_actors.json'))
-    shutil.copyfile(anim_list(), os.path.join(data, 'ps4_anim_actors.json'))
-    open(stamp, 'w').write(ver)
-    return dst
+        roots = [os.path.join(HERE, 'paktools-' + ver)]
+    m = {}
+    for r in roots:
+        for dp, dn, fn in os.walk(r):
+            dn[:] = [d for d in dn if d != '__pycache__']
+            for f in fn:
+                if f == 'OVERLAY_ON' or f.endswith('.pyc'):
+                    continue
+                s = os.path.join(dp, f)
+                m[os.path.relpath(s, r).replace(os.sep, '/')] = s
+    m['data/conv_anim_actors.json'] = os.path.join(HERE, 'data', 'conv_anim_actors.json')
+    m['data/ps4_anim_actors.json'] = anim_list()
+    return sorted(m.items())
+
+
+def _pt_manifest(files):
+    """Stamp text: format line, then 'size<TAB>relpath' per file (the tree is reused only if this matches exactly)."""
+    return 'paktools-tree v2\n' + ''.join('%d\t%s\n' % (os.path.getsize(s), r) for r, s in files)
+
+
+def paktools(ver):
+    """A ready paktools tree for converter version `ver` (with data/ anim actor lists).
+    The .ready stamp holds a manifest of the copied files (sizes + paths); a tree whose stamp is old-format or differs
+    from the current sources, or whose files no longer match it, is rebuilt.  Built in a temp dir, renamed into place."""
+    dst = os.path.join(TMP, 'pt-' + ver)
+    with _PT_LOCK:
+        files = _pt_sources(ver)
+        want = _pt_manifest(files)
+        stamp = os.path.join(dst, '.ready')
+        if os.path.exists(stamp):
+            ok = open(stamp, encoding='utf-8', errors='replace').read() == want
+            if ok:
+                for r, s in files:
+                    p = os.path.join(dst, r)
+                    if not os.path.isfile(p) or os.path.getsize(p) != os.path.getsize(s):
+                        ok = False
+                        break
+            if ok:
+                return dst
+        tmp = '%s.tmp-%d' % (dst, os.getpid())
+        if os.path.isdir(tmp):
+            shutil.rmtree(tmp)
+        for r, s in files:
+            d = os.path.join(tmp, r)
+            os.makedirs(os.path.dirname(d), exist_ok=True)
+            shutil.copyfile(s, d)
+        data = os.path.join(tmp, 'data')
+        os.makedirs(data, exist_ok=True)
+        for f in ('hk2010_ps3.json', 'hk2011_ps4.json'):      # FG collision tables: empty, as in every recorded run
+            open(os.path.join(data, f), 'w').write('{}\n')
+        open(os.path.join(tmp, '.ready'), 'w', encoding='utf-8').write(want)
+        if os.path.isdir(dst):
+            old = '%s.old-%d' % (dst, os.getpid())
+            os.replace(dst, old)
+            shutil.rmtree(old, ignore_errors=True)
+        os.replace(tmp, dst)
+        return dst
 
 
 def anim_list():
@@ -253,6 +294,8 @@ def main():
             ps3_source(r, idx)
     if any(r['method'] == 'stage' for r in todo):
         res_dir()
+    for v in sorted(set(r['version'] for r in todo if r['version'] not in ('', '-'))):
+        paktools(v)                         # set up every converter tree before the worker threads (copytree race)
     res = {}
     order = [r for r in todo if r['method'] != 'copy'] + [r for r in todo if r['method'] == 'copy']
     first = [r for r in order if r['method'] != 'copy']

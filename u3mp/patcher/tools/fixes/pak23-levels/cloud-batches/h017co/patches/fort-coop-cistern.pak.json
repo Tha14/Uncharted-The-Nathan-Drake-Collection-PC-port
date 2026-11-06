@@ -1,0 +1,1 @@
+{"pak": "fort-coop-cistern.pak", "items": [[0, 95, 0], [1, 8853, 1]], "variants": [{"md5_before": "b0d88d2ab40ffd84f8812fad94ad72b4", "md5_after": "dea4a1f85f292822d2dd028f7bb461a8", "size": 41240552, "writes": [[8127132, "00000300"]], "base": "overlay-r3 (v6.47 state)"}]}

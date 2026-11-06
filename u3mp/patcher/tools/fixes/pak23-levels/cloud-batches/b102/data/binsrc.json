@@ -1,0 +1,322 @@
+{
+ "air-yem-m-corrugated-wall-painted-blend-4EB4C0586E54A0AE.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "air-multi-shade",
+  "md5": "a5e2f179526e57f2af9e91c968995d70",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/airport/textures/multi/metal/air-yem-m-corrugated-wall-painted-blend.tga/4EB4C0586E54A0AE.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "des-vil-brick-shift-mix-001-height-1FC5C34DD03C8A1D.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "desert-multi",
+  "md5": "5338288a6432b87c639e6d8bad553590",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/desert-village/textures/walls/des-vil-brick-shift-mix-001-height.tga/1FC5C34DD03C8A1D.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "des-vil-mud-tiles-001-height-8A790BA303D58CEA.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "desert-multi",
+  "md5": "899d285b5713879bec71fba51b95fdfe",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/desert-village/textures/ground/des-vil-mud-tiles-001-height.tga/8A790BA303D58CEA.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "des-vil-zigzag-brick-height-4966AE3BB5E0356E.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "desert-multi",
+  "md5": "ac1b8cde8d4707ffcee29589cba2ef67",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/desert-village/textures/walls/des-vil-zigzag-brick-height.tga/4966AE3BB5E0356E.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "dig-lantern-incan-B302115F63DFA0B7.bin": {
+  "bpb": 8,
+  "h": 64,
+  "level": "dig-coop-dropdown",
+  "md5": "98ed7bba61bdfe1f2ab0548b9ffddb18",
+  "mips": 7,
+  "ps3": "z:/big3/build/main/texture1/art/levels/dig/textures/objects/dig-lantern-incan.tga/B302115F63DFA0B7.ndb",
+  "skip": 0,
+  "w": 64
+ },
+ "dig-lightbulb-incand-B2D22125E5F4648F.bin": {
+  "bpb": 8,
+  "h": 64,
+  "level": "dig-coop-dropdown",
+  "md5": "5e77e77efb91d2e106709d53e759fb4e",
+  "mips": 7,
+  "ps3": "z:/big3/build/main/texture1/art/levels/dig/textures/manmade/dig-lightbulb-incand.tga/B2D22125E5F4648F.ndb",
+  "skip": 0,
+  "w": 32
+ },
+ "dig-wood-stripped-001-height-71FF63DF0C034269.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "dig-coop-ship",
+  "md5": "4bb3c1e3411fbaebcca46bc538496c4a",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/dig/textures/manmade/dig-wood-stripped-001-height.tga/71FF63DF0C034269.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "fac-circular-light-incan-B1F206D1DDA98BDD.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "facility-multi",
+  "md5": "bf2ea7de7b72505c033e454cbf62c543",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/facility-multi/textures/misc/fac-circular-light-incan.tga/B1F206D1DDA98BDD.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "flood-light-inc-color-C2495E6F9E4CA631.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "dig-coop-approach",
+  "md5": "c46f2b1c09228014e60fd6350dc1cb47",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/dig/textures/objects/flood-light-inc-color.tga/C2495E6F9E4CA631.ndb",
+  "skip": 0,
+  "w": 128
+ },
+ "fort-basement-long-mud-bricks-blend2-163F66272CF45ACB.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "fort-multi",
+  "md5": "8414daf5beed19c7036a106cd530cbde",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/fort-multi/textures/basement/fort-basement-long-mud-bricks-blend2.tga/163F66272CF45ACB.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "ldn-wide-distant-lights-multi-inc-568BE97AC4B6166C.bin": {
+  "bpb": 8,
+  "h": 8,
+  "level": "ldn-streets-multi-wide",
+  "md5": "58ffb1d73b0afd407909eded0a59876f",
+  "mips": 4,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/ldn-streets-multi/textures/wide/ldn-wide-distant-lights-multi-inc.tga/568BE97AC4B6166C.ndb",
+  "skip": 0,
+  "w": 8
+ },
+ "oas-date-palms-trunk-02-height-0FA7A3B275024DBD.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "oasis-multi-wide",
+  "md5": "539901e69785f6d1d1bcbb03f2c4441a",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/oasis-multi/textures/plants/oas-date-palms-trunk-02-height.tga/0FA7A3B275024DBD.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "ruins-customs-plaster-cracked-height-00806D5787016DF2.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "ruins-multi-stage",
+  "md5": "cbf6a3f5de2ef32e5b8efb458c3f3f4b",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/ruins/textures/building/ruins-customs-plaster-cracked-height.tga/00806D5787016DF2.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "ruins-piller-slabs-001-height-9B4C5FCBE9C58B58.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "ruins-multi-stage",
+  "md5": "7297caa14261a5b9b7ac33cae5de43f5",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/ruins/textures/building/ruins-piller-slabs-001-height.tga/9B4C5FCBE9C58B58.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "ruins-ruinsbrick001-height-89BDDF99D28021A2.bin": {
+  "bpb": 8,
+  "h": 256,
+  "level": "ruins-multi-wide",
+  "md5": "68efc0b95d359e2a4f3d21fac502c7ea",
+  "mips": 9,
+  "ps3": "z:/big3/build/main/texture1/art/levels/multiplayer/ruins/textures/building/ruins-ruinsbrick001-height.tga/89BDDF99D28021A2.ndb",
+  "skip": 0,
+  "w": 256
+ },
+ "vil-metal-rust-001-height-E4DA118F4674F5CA.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "village-multi",
+  "md5": "2c4bae708737200a9cef12794cf57215",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/village/textures/structures/vil-metal-rust-001-height.tga/E4DA118F4674F5CA.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "vil-slate-flat-001-height-B927FDD1799A9F87.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "village-multi-stage",
+  "md5": "646b63edc72647ac90ced2bca0465c10",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/village/textures/structures/vil-slate-flat-001-height.tga/B927FDD1799A9F87.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "vil-stone-mix-001-blend-27BEB19093C4C90E.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "village-multi",
+  "md5": "87a7ea58ec3b3c65c730df546b626fda",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/village/textures/structures/vil-stone-mix-001-blend.tga/27BEB19093C4C90E.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "vil-stone-mix-all-plaster-001-blend-73431AD5572A1732.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "village-multi-stage",
+  "md5": "3029ac3a574ad821c57f26532c6f53e4",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/village/textures/structures/vil-stone-mix-all-plaster-001-blend.tga/73431AD5572A1732.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "vil-stone-mix-large-001-height-D43F3086DFBFDA22.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "village-multi-stage",
+  "md5": "f052adb0162b3acbce3871678e81f849",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/village/textures/structures/vil-stone-mix-large-001-height.tga/D43F3086DFBFDA22.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "vil-stone-wall-morter-001-blend-26422D5C1947FAC2.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "village-multi-stage",
+  "md5": "b1289ca023c41caf82177d7db6e0b97e",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/village/textures/structures/vil-stone-wall-morter-001-blend.tga/26422D5C1947FAC2.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "vil-stone-wall-morter-crumble-001-blend-85854E8E96117A13.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "village-multi",
+  "md5": "4b632dad9a17026370c65d882bd96690",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/village/textures/structures/vil-stone-wall-morter-crumble-001-blend.tga/85854E8E96117A13.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "vil-stone-wall-morter-crumble-001-height-AA134283F8738BFB.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "village-multi",
+  "md5": "1bb4348c7be88e8222e1b856d28b4267",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/village/textures/structures/vil-stone-wall-morter-crumble-001-height.tga/AA134283F8738BFB.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "vil-streaks-002-h-blend-50E5B2543BA31577.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "village-multi-stage",
+  "md5": "afa6c8929a4e0656542d7d7be316f687",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/village/textures/structures/vil-streaks-002-h-blend.tga/50E5B2543BA31577.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "vil-wood-bark-001-height-C3C69C6AEDE19429.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "village-multi-stage",
+  "md5": "6e0b06be688b3e3427cc5395bd15d099",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/village/textures/wood/vil-wood-bark-001-height.tga/C3C69C6AEDE19429.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "vil-wood-pine-001-height-B30E12E69CA0B969.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "village-multi",
+  "md5": "bb8e623b2f9d8ae7826496965e11c702",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/village/textures/wood/vil-wood-pine-001-height.tga/B30E12E69CA0B969.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "vil-wood-stripped-001-height-83C95D18AA057E0E.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "village-multi-stage",
+  "md5": "4bb3c1e3411fbaebcca46bc538496c4a",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/village/textures/wood/vil-wood-stripped-001-height.tga/83C95D18AA057E0E.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "yem-brickpattern-02-whitewash-height-96C212E9051655ED.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "yemen-multi",
+  "md5": "0cecfa7617e8f8cdf9992bff05ec43b7",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/yemen/textures/walls/brickwalls/yem-brickpattern-02-whitewash-height.tga/96C212E9051655ED.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "yem-concrete-wall-01-height-AF65266DC5E6BD6F.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "yemen-multi",
+  "md5": "eff3abdb2b83a0007460438a43501afb",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/yemen/textures/walls/yem-concrete-wall-01-height.tga/AF65266DC5E6BD6F.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "yem-richbrickwall-02-dec01-height-3AE4E2412861A734.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "yemen-multi",
+  "md5": "03dcd12a08c68df4c8d539e1eec9430e",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/yemen/textures/walls/brickwalls/yem-richbrickwall-02-dec01-height.tga/3AE4E2412861A734.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "yem-richbrickwall-03-height-40A59B262E0B561B.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "yemen-multi",
+  "md5": "cc3e7ec3564c250346ff694f35f14231",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/yemen/textures/walls/brickwalls/yem-richbrickwall-03-height.tga/40A59B262E0B561B.ndb",
+  "skip": 0,
+  "w": 512
+ },
+ "yem-stonefloor-03-height-CC132AB32139E9F8.bin": {
+  "bpb": 8,
+  "h": 512,
+  "level": "yemen-multi-stage",
+  "md5": "01ac6e13f02610db602c91dff1871584",
+  "mips": 10,
+  "ps3": "z:/big3/build/main/texture1/art/levels/yemen/textures/ground/yem-stonefloor-03-height.tga/CC132AB32139E9F8.ndb",
+  "skip": 0,
+  "w": 512
+ }
+}

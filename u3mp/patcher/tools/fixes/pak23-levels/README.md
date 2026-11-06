@@ -68,3 +68,31 @@ Methods: `stage` (mkplan -> fxextract -> ps4stage), `ingame` (ps4ingame, IGNORE_
 | `paktools-003b433/`, `paktools-7d45c1f/` | git snapshots (GPL v2, as tools/paktools); 7d45c1f gets f525859's stage/fxextract.py |
 | `data/conv_anim_actors.json` | the 167 converted animated actor names of the 10-31 overlays (ps4ingame anim_arts) |
 | `lib/` | mkres.py, ps3index.py, xl.py (Lab sources), convert_one.py, extract_one.py, empty_level.py, anim_actors.py, build_level_paks.py, slicepak.py (with patch7 slice_pages) |
+
+## The cloud in-place batches of 2026-10-30 (step `cloud-batches-r3`, `cloud_batches.py`) - added 2026-11-06
+
+The overlay-r3 BG paks were patched in place after the conversion. The batch folders were found intact in the PC inbox
+(`D:/1. PC Games/Uncharted-windows/_claude_transfer/inbox/`): batch102-flatslots, h017c-bv-custom-fix, batch103-blendpolarity,
+h017co, h028-spec-masks (h028sub = the same rows in chunks), each with the pak states it backed up before patching
+(`b102/`, `b103/`, `h017c-backup/`, `h017co-backup/`, `h028-backup/`). `cloud-batches/<batch>/` holds the original scripts,
+SWAP.tsv md5 locks and targets.json (material / slot / texture names and numbers); `cloud_batches.py` runs them in install
+order (b102, h017c, b103, h017co, h028) on `work/overlay-r3`.
+
+* The PS3 textures the batches appended (their data/*.bin) are not shipped: `data/binsrc.json` names the PS3 level pak and
+  texture, the top mips dropped (h028 capped spec masks at 256) and the block size; the bytes are
+  `texcodec.ps3_to_ps4_texels` of the user's PS3 texels and are md5-checked (b102 32/32, h028 54/54 identical).
+  batch103 inverts the pak's own blend maps (tools/bc1inv.py), h017c/h017co write collision index words (rule: a
+  degenerate (a,b,b,b) primitive becomes (b,a,b,b)); h028's scale constants (mean of the PS3 mask channel, 5 digits) are
+  kept as written by the batch.
+* Verified 2026-11-06 on the 66 recorded pre-batch states: every pak reaches its recorded pre-session state (backup-*,
+  the manifest's .bak-leaf / .bak-jitter, or the final file).
+* So a plan row of these paks is `base` with sha256 = the recorded pre-batch state (or the first session backup when no
+  batch touched it); the template search (`scratch/pak23-recovery/RESUME.md`) recovers the converter choices against that
+  state, not against the final file.
+
+The batches 99 (lmuv), 100 A/C (blockers) + revertB, 101 (detail), 101m (museum), n012, n014 (London probes) and n015/n015b
+(LEVEL_INFO) ran before batch102; their scripts are lost. Their effect is in the recorded pre-batch states; where the
+search still differs, GAPS.md names the record (e.g. instance flag +0x21, LIGHT_TABLE_1 probe records).
+
+Converter `tt1026`: `paktools-tt1026/` (the 10-26 `_claude_transfer/tools` ps4ingame / ps4writer / ndpak, put over the
+f525859 tree; `OVERLAY_ON`) reproduces overlay-port world-grave-mp-ingame12 (REGION_TREE opcodes 0x3f, 8-byte tail).

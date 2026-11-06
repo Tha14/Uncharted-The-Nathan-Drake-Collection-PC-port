@@ -39,6 +39,12 @@ for line in sys.stdin:
         continue
     j = json.loads(line)
     env = {k: v for k, v in j.get('env', {}).items()}
+    if os.name == 'nt' and env.get('PS4ACTOR_DONORS'):
+        # ps4actor splits PS4ACTOR_DONORS on ':' (written on Linux): pass drive-less paths and work from that drive
+        import re
+        ds = re.findall(r'(?:[A-Za-z]:)?[^:]+', env['PS4ACTOR_DONORS'])
+        os.chdir(os.path.splitdrive(os.path.abspath(ds[0]))[0] + os.sep)
+        env['PS4ACTOR_DONORS'] = ':'.join(os.path.splitdrive(os.path.abspath(x))[1].replace(os.sep, '/') for x in ds)
     if env != cur_env:
         for k in ENVK:
             os.environ.pop(k, None)
