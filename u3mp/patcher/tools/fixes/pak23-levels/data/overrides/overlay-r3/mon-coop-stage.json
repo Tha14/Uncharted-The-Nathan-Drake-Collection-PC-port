@@ -1,0 +1,300 @@
+{
+ "bytes": {
+  "5928625": [
+   1,
+   0
+  ],
+  "5932385": [
+   1,
+   0
+  ],
+  "5932465": [
+   1,
+   0
+  ],
+  "5932625": [
+   1,
+   0
+  ],
+  "5932785": [
+   1,
+   0
+  ],
+  "5932865": [
+   1,
+   0
+  ],
+  "5932945": [
+   1,
+   0
+  ],
+  "5933025": [
+   1,
+   0
+  ],
+  "5933105": [
+   1,
+   0
+  ],
+  "5933185": [
+   1,
+   0
+  ],
+  "5933265": [
+   1,
+   0
+  ],
+  "5933345": [
+   1,
+   0
+  ],
+  "5933425": [
+   1,
+   0
+  ],
+  "5933505": [
+   1,
+   0
+  ]
+ },
+ "params": {
+  "levels/coop/monastery/floor/mon-cloister-tile-broken-blend-dirt/default": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/monastery/floor/mon-cloister-tile/default": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/monastery/floor/mon-large-slab-ground/default": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/monastery/floor/mon-large-slab-leaves/default": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/monastery/floor/mon-large-slab/default": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/monastery/roofs/mon-ruins-roof-tiles-no-offset/ruins-roof-tiles-no-offset": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/monastery/ruin/mon-brick-ruin-to-mortar/default": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/monastery/ruin/mon-brick-to-generic-ruin/default": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/monastery/ruin/mon-brick-to-ruin-end/default": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/monastery/ruin/mon-stone-ruin/default": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/monastery/trimmings/mon-trimming-sheet-a-dmg-edge/default": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/monastery/trimmings/mon-trimming-sheet-a-dmg/default": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/monastery/windows/mon-stained-glass-long/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/monastery/windows/mon-stained-glass/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/coop/monastery/floor/mon-cloister-tile-broken-blend-dirt/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/monastery/floor/mon-cloister-tile/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/monastery/floor/mon-large-slab-ground/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/monastery/floor/mon-large-slab-leaves/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/monastery/floor/mon-large-slab/default": [
+   "yem-intro-alleys-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/monastery/ground/mon-mon-ground-2k/default": [
+   "grave-02-hollowhulk-rear-house-front.pak",
+   "levels/ship-graveyard/hollow-hulk/grave-wooddeck:debris,1c77a03d-b1e2-42bf-a34e-8581ca0beb23,prime-shader.fx"
+  ],
+  "levels/coop/monastery/lair/mon-knick-knacks/default": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/outsourcing/col-fan:default,d9f4d453-3886-9fd7-0019-041748fd7130,prime-shader.fx"
+  ],
+  "levels/coop/monastery/plants/mon-cananga/copy_of_chase-plants-wedding-cananga": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/plants/col-office-plant:type-b,41ddd431-3c9f-4317-8cc9-4a6ebc715452,prime-shader.fx"
+  ],
+  "levels/coop/monastery/plants/mon-cinnamon-vine/default": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/plants/col-office-plant:type-b,41ddd431-3c9f-4317-8cc9-4a6ebc715452,prime-shader.fx"
+  ],
+  "levels/coop/monastery/plants/mon-weeds/default": [
+   "san-elevator.pak",
+   "levels/coop/shambhala/foliage/sham-willow:default,9b84l550-4rkn-hiyy-7qf7-ect7akl54w45,prime-shader.fx"
+  ],
+  "levels/coop/monastery/roofs/mon-ruins-roof-tiles-no-offset/ruins-roof-tiles-no-offset": [
+   "yem-intro-rock-building-low.pak",
+   "levels/yemen/wood/yem-woodstripped-02:default,758c9fa8-faf3-42a3-ada7-bfd5bd853705,prime-shader.fx"
+  ],
+  "levels/coop/monastery/ruin/mon-brick-ruin-to-mortar/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/monastery/ruin/mon-brick-to-generic-ruin/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/monastery/ruin/mon-brick-to-ruin-end/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/monastery/ruin/mon-stone-ruin/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/monastery/statues/mon-statues/angel_sword": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/outsourcing/col-office-desk-fg:default,cfe4f4c1-fc98-3b42-0b26-15a1d91c186f,prime-shader.fx"
+  ],
+  "levels/coop/monastery/trees/mon-tree-gnarly/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/coop/monastery/trees/mon-tree-thinroot/default": [
+   "syria-comp-wide.pak",
+   "levels/syria/trees/syria-deadtrees:default,a76b953f-59a4-4c5e-a4e2-7707df4c60d0,prime-shader.fx"
+  ],
+  "levels/coop/monastery/trimmings/mon-low-wall-trim/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/coop/monastery/trimmings/mon-trimming-sheet-a-dmg-edge/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/monastery/trimmings/mon-trimming-sheet-a-dmg/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/monastery/walls/mon-brick-generic-dmg/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/coop/monastery/walls/mon-brick-generic/default": [
+   "ldn-pub-streets.pak",
+   "levels/london/streets/ldn-streets-door-a:default,971cb433-d680-4bf9-8347-84639ab38dae,prime-shader.fx"
+  ],
+  "levels/coop/monastery/walls/mon-external-brick-dmg/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/coop/monastery/windows/mon-stained-glass-long/default": [
+   "airport-1.pak",
+   "levels/airport/windows/air-windows-skylight-glass-trans:default,0a6dd9ef-e2b7-4f2d-9f75-06e1347cdc99,prime-shader.fx"
+  ],
+  "levels/coop/monastery/windows/mon-stained-glass/default": [
+   "airport-1.pak",
+   "levels/airport/windows/air-windows-skylight-glass-trans:default,0a6dd9ef-e2b7-4f2d-9f75-06e1347cdc99,prime-shader.fx"
+  ],
+  "levels/coop/monastery/wood/mon-church-wood-alternate-dmg/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "objects/weapons/hk416/hk416/default": [
+   "cruise-ship-180-bow-bg.pak",
+   "levels/cruise-ship/cabin/ship-cabin-door-utility:default,3ed51ca5-3119-49b9-a5bd-b0171f345739,prime-shader.fx"
+  ],
+  "objects/weapons/hk416/hk416/fma": [
+   "cruise-ship-180-bow-bg.pak",
+   "levels/cruise-ship/cabin/ship-cabin-door-utility:default,3ed51ca5-3119-49b9-a5bd-b0171f345739,prime-shader.fx"
+  ],
+  "objects/weapons/rpg/rpg_main/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/general/textures/default/default-flat-normal.tga": "ldn-train-stage.pak",
+  "art/general/textures/default/detail-normal.tga": "ldn-train-stage.pak",
+  "art/objects/weapons/galil/texture/galil-body-color.tga": "ldn-train-stage.pak",
+  "art/objects/weapons/galil/texture/galil-body-normal.tga": "ldn-train-stage.pak",
+  "art/objects/weapons/galil/texture/galil-body-spec-mask.tga": "ldn-train-stage.pak"
+ }
+}

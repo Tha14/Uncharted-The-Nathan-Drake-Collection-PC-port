@@ -126,7 +126,7 @@ Cause classes of the remaining rows:
 | facility-multi | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | facility-multi-stage | equivalent | h028-backup | searched, no output kept |
 | facility-multi-wide | equivalent | b103 | size-64 |
-| fort-coop-cistern | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| fort-coop-cistern | base | h017co-backup | template search exact 2026-11-06 (RUN 2): the recorded pre-batch state; cloud-batches-r3 and the session steps make the reference |
 | fort-coop-courtyard | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | fort-coop-stage | equivalent | h028-backup | searched, no output kept |
 | fort-coop-tower | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
@@ -156,7 +156,7 @@ Cause classes of the remaining rows:
 | mon-coop-cloister | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | mon-coop-courtyard | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | mon-coop-front | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
-| mon-coop-stage | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| mon-coop-stage | base | h028-backup | template search exact 2026-11-06 (RUN 2): the recorded pre-batch state; cloud-batches-r3 and the session steps make the reference |
 | museum-multi | equivalent | b103 | searched, no output kept |
 | museum-multi-stage | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | museum-multi-wide | equivalent | h028-backup | size-80 |
@@ -166,7 +166,7 @@ Cause classes of the remaining rows:
 | old-quarter-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | old-quarter-multi-stage | base | backup-london | - |
 | ruins-multi | equivalent | b102 | searched, no output kept |
-| ruins-multi-stage | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| ruins-multi-stage | base | b102 | template search exact 2026-11-06 (RUN 2): the recorded pre-batch state; cloud-batches-r3 and the session steps make the reference |
 | ruins-multi-wide | base | - | - |
 | san-upper-multi-stage | equivalent | final | size+2379952 / ref-only tex 6 (ammobox-2-brownpaint-wood-spec-mask.tga, ammobox-3-blue-02-spec-mask.tga, detail-normal.tga, missingtexture, table-top-d-env-refeletion.dds, wt-spec-mask.tga) / template |
 | sham-multi-wide | identical | - | - |
@@ -184,7 +184,7 @@ Cause classes of the remaining rows:
 | temple-multi | equivalent | b103 | searched, no output kept |
 | temple-multi-stage | base | h028-backup | - |
 | train-wreck-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
-| train-wreck-multi-stage | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| train-wreck-multi-stage | base | h028-backup | template search exact 2026-11-06 (RUN 2): the recorded pre-batch state; cloud-batches-r3 and the session steps make the reference |
 | village-multi | equivalent | b102 | searched, no output kept |
 | village-multi-stage | equivalent | b102 | searched, no output kept |
 | warzone-multi | equivalent | b102 | searched, no output kept |
