@@ -182,7 +182,14 @@ find "$stage" -name __pycache__ -prune -exec rm -rf {} +
 # Nothing from the game or a player (game executables, saves, shader caches, logs) may ship.
 forbidden=$(find "$stage" \( -iname eboot.bin -o -iname '*.elf' -o -iname sce_sys -o -iname savedata \
     -o -iname cache -o -iname '*.log' -o -iname 'probe*.ini' -o -iname '*.pkg' -o -iname '*.psarc' \
-    -o -iname '*.pak' -o -iname 'boot*.bin' -o -iname 'overlay-*' -o -iname '*.dds' -o -iname '*.at9' \) -print)
+    -o -iname '*.pak' -o -iname 'boot*.bin' -o -iname '*.dds' -o -iname '*.at9' \) -print)
+# Converted overlay folders (overlay-r3 ...) must not ship either; the multiplayer recipe's own text files and
+# folders are named after the overlays they describe (recipes/overlay-r3.json, data/overrides/overlay-r3/: names,
+# hashes, options; sync_recipe.py refuses game data in them), so only folders holding game files count.
+forbidden+=$(find "$stage" -type d -iname 'overlay-*' -not -path "*/u3mp/patcher/tools/*" \
+    -not -path "*/u3mp/patcher/recipe/*" -print)
+forbidden+=$(find "$stage/u3mp/patcher" -type d -iname 'overlay-*' -exec find {} -type f \
+    \( -iname '*.pak' -o -iname '*.bin' -o -iname '*.psarc' -o -iname '*.dds' \) \; 2>/dev/null)
 if [[ -n $forbidden ]]; then
     echo "Package holds files that must not ship:" >&2
     echo "$forbidden" >&2
