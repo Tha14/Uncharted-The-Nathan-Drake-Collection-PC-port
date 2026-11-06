@@ -22,7 +22,6 @@ import threading
 import time
 import tkinter as tk
 import tkinter.font as tkfont
-import webbrowser
 from tkinter import messagebox
 
 from PIL import Image, ImageDraw, ImageTk
@@ -149,11 +148,6 @@ APP_TITLE = "Uncharted: The Nathan Drake Collection"
 CREDITS = ("Credits: DLSS and DLAA use NVIDIA DLSS technology. NVIDIA, RTX and DLSS are trademarks of "
            "NVIDIA Corporation. AMD FidelityFX Super Resolution (FSR 3.1, FSR 4) by AMD. Uncharted camera "
            "motion for anti-aliasing after SuperMedo's Uncharted port.")
-# The author's links in the launcher header: label, address, color, hover color.
-LINKS = (("Patreon", "https://www.patreon.com/c/bilalreloaded", "#f96854", "#ff7f6e"),
-         ("YouTube", "https://www.youtube.com/@BilalReloaded/videos", "#d6302a", "#ef4038"),
-         ("GitHub", "https://github.com/bc160201983", "#24292f", "#3a4048"))
-
 def multiplayer_preview():
     """The Multiplayer page (Uncharted 2 over the network, 25 Oct 2026) is hidden until it
     works: UNCHARTED_MULTIPLAYER=1 or a file named multiplayer-preview in analysis\\uncharted-user
@@ -1610,7 +1604,7 @@ class Launcher:
         self.gpu_name = self.config.get("gpu")
         self.recommended = gpu_recommendation(self.gpu_name)
         self.fonts()
-        root.title(f"{APP_TITLE} - Launcher by BilalReloaded")
+        root.title(APP_TITLE)
         root.configure(bg=BG)
         root.resizable(True, True)
         self.width = self.px(1180)
@@ -1744,39 +1738,6 @@ class Launcher:
         canvas.create_text(x + self.px(3), y + self.px(44), text="T H E   N A T H A N   D R A K E   C O L L E C T I O N",
                            font=self.f_subtitle, fill="#8a6326", anchor="w")
         canvas.create_line(x + self.px(3), y + self.px(66), x + self.px(330), y + self.px(66), fill="#b98d45", width=2)
-        self.draw_links(canvas, w)
-
-    def draw_links(self, canvas, width):
-        """The author's Patreon, YouTube channel and GitHub as badges in the top right of the hero."""
-        right, top, height = width - self.px(22), self.px(18), self.px(30)
-        for label, url, color, hover in reversed(LINKS):
-            tag = f"link-{label}"
-            text = canvas.create_text(0, 0, text=label, font=self.f_body_bold, fill="white", anchor="w", tags=tag)
-            x1, _, x2, _ = canvas.bbox(text)
-            badge_w = (x2 - x1) + self.px(46)
-            left = right - badge_w
-            mid = top + height // 2
-            canvas.coords(text, left + self.px(34), mid)
-            badge = round_rect(canvas, left, top, right, top + height, height // 2, fill=color, outline=color, tags=tag)
-            canvas.tag_lower(badge, text)
-            # Icon: YouTube's play triangle on white, a heart for Patreon, GitHub's code brackets.
-            icon_x = left + self.px(12)
-            if label == "Patreon":
-                canvas.create_text(icon_x + self.px(8), mid, text="♥", font=self.f_body_bold, fill="white",
-                                   tags=tag)
-            elif label == "YouTube":
-                round_rect(canvas, icon_x, mid - self.px(7), icon_x + self.px(16), mid + self.px(7), self.px(4),
-                           fill="white", outline="white", tags=tag)
-                canvas.create_polygon(icon_x + self.px(6), mid - self.px(4), icon_x + self.px(6), mid + self.px(4),
-                                      icon_x + self.px(12), mid, fill=color, outline=color, tags=tag)
-            else:
-                canvas.create_text(icon_x + self.px(8), mid, text="</>", font=self.f_small, fill="white", tags=tag)
-            canvas.tag_bind(tag, "<Button-1>", lambda e, u=url: webbrowser.open(u))
-            canvas.tag_bind(tag, "<Enter>", lambda e, b=badge, c=hover: (canvas.itemconfig(b, fill=c, outline=c),
-                                                                       canvas.config(cursor="hand2")))
-            canvas.tag_bind(tag, "<Leave>", lambda e, b=badge, c=color: (canvas.itemconfig(b, fill=c, outline=c),
-                                                                       canvas.config(cursor="")))
-            right = left - self.px(10)
 
     def build_cards(self):
         frame = tk.Frame(self.root, bg=BG)
