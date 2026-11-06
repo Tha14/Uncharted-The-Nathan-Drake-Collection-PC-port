@@ -2896,6 +2896,10 @@ class Launcher:
         image = state.get("image") or {}
         if state.get("status") not in ("imported", "partial"):
             return False, "not imported"
+        # dc1 modules without their modules.bin crash Uncharted 3 at boot (u3mp_import.py CRITICAL_STEPS)
+        broken = [s for s in ("convert-dc1", "dc-recipes") if s in (state.get("failed") or [])]
+        if broken:
+            return False, "the import step %s failed: press RE-IMPORT / UPDATE" % ", ".join(broken)
         if not release or image.get("sha256") != release.get("image_sha256"):
             return False, "imported for another multiplayer build: import again"
         if not Path(image.get("path", "")).is_file():

@@ -42,6 +42,8 @@ OVERLAYS = ('overlay-r3', 'overlay-r2', 'overlay-port', 'overlay-mp')   # first 
 # The decrypted PS3 1.19 EBOOT the reference tables were made from (RPCS3: Utilities -> Decrypt PS3 Binaries).
 PS3_ELF_SHA256 = 'aac4faa63ab1387e8aaa0b8e9e80ee87ac4ae61e0b40292f7aa7401df7b3f50a'
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+# steps without which the overlays crash Uncharted 3 at boot (dc1 modules and their reserved sizes in modules.bin)
+CRITICAL_STEPS = ('convert-dc1', 'dc-recipes')
 
 
 def event(**kw):
@@ -310,7 +312,8 @@ def main():
     failed += unavailable if not a.only else []
     if staged:
         state.pop('staging', None)
-        if r['exit'] == 2 or not r['overlays'] or len(failed) > len(old.get('failed') or []):
+        if (r['exit'] == 2 or not r['overlays'] or len(failed) > len(old.get('failed') or [])
+                or any(s in failed for s in CRITICAL_STEPS)):
             state['update_failed_for'] = recipe_id     # the launcher does not retry it at every start
             log('update: the new build has more failed steps (%d) than the current import (%d); the current files '
                 'are kept, %s stays for the next try' % (len(failed), len(old.get('failed') or []), nxt))
@@ -335,6 +338,14 @@ def main():
                       failed_at='inputs')
     if not r['overlays']:
         return finish('failed', error='The overlay recipe produced no overlay', failed_at='recipe')
+    # dc1/modules.bin holds the reserved size of every dc1 module: a converted module (convert-dc1) without the matching
+    # modules.bin (dc-recipes) stops Uncharted 3 at boot ("Module file ... size exceeds the reserved memory size").
+    # Such an import is not playable: the launcher then starts Uncharted 3 without multiplayer.
+    critical = [s for s in CRITICAL_STEPS if s in failed]
+    if critical:
+        return finish('failed', error='Step %s failed: the multiplayer files would not start. Open the import log, '
+                      'check the PS3 folders (Uncharted 3 BCES01670 with update 1.19) and press RE-IMPORT / UPDATE'
+                      % ', '.join(critical), failed_at=critical[0])
     if failed:
         first = min(failed, key=lambda s: r['steps'][s]['n'])
         return finish('partial', error='%d step(s) failed, first: %s' % (len(failed), first), failed_at=first)
