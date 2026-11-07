@@ -371,6 +371,10 @@ def main():
         if (r['exit'] == 2 or not r['overlays'] or len(failed) > len(old.get('failed') or [])
                 or any(s in failed for s in CRITICAL_STEPS)):
             state['update_failed_for'] = recipe_id     # the launcher does not retry it at every start
+            if r['exit'] == 2 or not r['steps']:
+                why = ' / '.join(r.get('problems') or []) or 'the input folders (see the log)'
+                log('update: not started: %s; the current files are kept' % why)
+                return finish(old['status'], error='Update not applied: ' + why, failed_at='inputs')
             log('update: the new build has more failed steps (%d) than the current import (%d); the current files '
                 'are kept, %s stays for the next try' % (len(failed), len(old.get('failed') or []), nxt))
             return finish(old['status'], error='Update not applied: %d step(s) failed' % len(failed),
