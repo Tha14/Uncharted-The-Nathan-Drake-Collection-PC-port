@@ -209,6 +209,9 @@ if (WIN32)
     add_executable(u2mp-net-test EXCLUDE_FROM_ALL ../tests/test_u2mp_net.cpp ../src/u2mp/net.cpp)
     target_compile_options(u2mp-net-test PRIVATE -Wall -Wextra -Werror)
     target_link_libraries(u2mp-net-test PRIVATE ws2_32)
+    # u2mp net-event serializer test (no game needed): ninja -C out/gpu u2mp-events-test
+    add_executable(u2mp-events-test EXCLUDE_FROM_ALL ../tests/test_u2mp_events.cpp ../src/u2mp/events.cpp)
+    target_compile_options(u2mp-events-test PRIVATE -Wall -Wextra -Werror)
     target_link_options(gow3-probe PRIVATE -Wl,--disable-high-entropy-va "SHELL:-Xlinker --stack -Xlinker 16777216,16777216")
     # gow3: runtime unit tests (ninja -C out/gpu mp3-test videodec-test services-test).
     add_executable(mp3-test EXCLUDE_FROM_ALL ../tests/test_mp3.c ../src/runtime_mp3.c ../src/compat_win.c)

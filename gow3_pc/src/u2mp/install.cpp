@@ -1,5 +1,6 @@
 // u2mp: identity checks and the function-replacement mechanism.
 #include "u2mp.h"
+#include "events.h"
 #include "u2mp_internal.h"
 
 #include <cstdarg>
@@ -132,6 +133,7 @@ extern "C" int u2mp_install(unsigned char *base, uint64_t size, const uint64_t *
     }
     int installed = 0;
     install_frontend(installed);
+    install_events(installed);
     log("%d functions restored", installed);
     return installed;
 }

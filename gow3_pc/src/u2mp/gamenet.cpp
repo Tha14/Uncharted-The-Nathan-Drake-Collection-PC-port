@@ -7,6 +7,7 @@
 #include <cstring>
 #include <vector>
 
+#include "bitstream.h"
 #include "u2mp_internal.h"
 
 namespace u2mp::gamenet {
@@ -46,33 +47,7 @@ struct Fns {
 
 template <typename T> T &field(uint64_t object, uint64_t offset) { return *reinterpret_cast<T *>(object + offset); }
 
-// ---- the game's BitStream: {u32 *data; u32 numBits (cursor); u32 maxBits; u32 pad} -------------
-// bit n lives in data[n >> 5] under mask 0x80000000 >> (n & 31).
-struct BitStream {
-    uint32_t *data;
-    uint32_t bits;
-    uint32_t max_bits;
-    uint32_t pad;
-};
-static_assert(offsetof(BitStream, bits) == 0x08 && offsetof(BitStream, max_bits) == 0x0c, "game BitStream layout");
-
-void write_bits(BitStream &bs, uint32_t value, unsigned count) {
-    for (unsigned i = 0; i < count; ++i) {
-        const uint32_t bit = (value >> (count - 1 - i)) & 1;
-        const uint32_t n = bs.bits++;
-        if (bit) bs.data[n >> 5] |= 0x80000000u >> (n & 31);
-    }
-}
-
-bool read_bits(BitStream &bs, uint32_t &value, unsigned count) {
-    if (bs.bits + count > bs.max_bits) return false;
-    value = 0;
-    for (unsigned i = 0; i < count; ++i) {
-        const uint32_t n = bs.bits++;
-        value = (value << 1) | ((bs.data[n >> 5] >> (31 - (n & 31))) & 1);
-    }
-    return true;
-}
+// The game's BitStream and its bit functions: bitstream.h.
 
 // ---- peers ----------------------------------------------------------------------------------
 struct Peer {
@@ -117,7 +92,9 @@ void send_peer(uint8_t slot, Peer &peer, double now) {
         write_bits(bs, seq & 0x7ff, 11);
         write_bits(bs, field<uint32_t>(M, M_RECV_SEQ) & 0x3ff, 10);
         write_bits(bs, field<uint32_t>(M, M_RECV_BITS), 32);
-        bs.max_bits = kMaxBits;
+        // The pack's own soft limit is kMaxBits; the message it starts just under it still has to fit,
+        // or the game's inline writes assert: room for 1024 more bits (still within kMaxPacket).
+        bs.max_bits = kMaxBits + 1024;
         fn.write(reinterpret_cast<void *>(M), &bs, record);
     }
     field<float>(M, M_LAST_SEND) = float(now);
@@ -132,7 +109,7 @@ void send_peer(uint8_t slot, Peer &peer, double now) {
 
 // The PS3 header reader and ack processing (0x465218 / 0x464cb8), then unpack (M vtable[1]).
 void receive_peer(Peer &peer, const uint8_t *data, size_t size, double now) {
-    if (size < 8 || size > kMaxBits / 8 + 64 || size % 4) return;
+    if (size < 8 || size > (kMaxBits + 1024) / 8 + 64 || size % 4) return;
     std::vector<uint32_t> words(size / 4 + 2, 0);   // one spare word: the game reads ahead
     std::memcpy(words.data(), data, size);
     BitStream bs{words.data(), 0, uint32_t(size * 8), 0};
