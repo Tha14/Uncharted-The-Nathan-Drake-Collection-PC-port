@@ -508,6 +508,24 @@ void log_load_levels(void *state) {
     }
     log("load levels: packages loaded %d, busy %d, task level %08x, second level %08x; levels%s", packages, busy,
         task_level, second, list);
+    // 0x56ce50: two request lists of the package table ({count +0x5a98, entries +0x5aa0} and {+0x5aa8,
+    // +0x5ab0}, 0x10 bytes: +8 package id, +0xc flags; flag 1 = skip in the first list): each package
+    // must exist with state 7 and flags & 0x80. Logs the ones that fail (id = sid of the package name).
+    const uint64_t table = uint64_t(uintptr_t(image.at<uint8_t>(0x1130390)));
+    for (int l = 0; l < 2 && !packages; ++l) {
+        const uint32_t count = *reinterpret_cast<const uint32_t *>(uintptr_t(table + (l ? 0x5aa8 : 0x5a98)));
+        const auto *e = *reinterpret_cast<const uint8_t *const *>(uintptr_t(table + (l ? 0x5ab0 : 0x5aa0)));
+        for (uint32_t i = 0; e && i < count && i < 256; ++i, e += 0x10) {
+            const uint32_t id = *reinterpret_cast<const uint32_t *>(e + 8), fl = *reinterpret_cast<const uint32_t *>(e + 0xc);
+            if (l == 0 && (fl & 1)) continue;
+            const uint8_t *p = find_package(id);
+            const int32_t st = p ? *reinterpret_cast<const int32_t *>(p + PKG_STATE) : -1;
+            const uint32_t pf = p ? *reinterpret_cast<const uint16_t *>(p + PKG_FLAGS) : 0;
+            if (!p || st != 7 || !(pf & 0x80))
+                log("load levels: list %d package %08x (flags %x): %s, state %d, package flags 0x%x", l, id, fl,
+                    p ? "present" : "missing", st, pf);
+        }
+    }
 }
 template <size_t I> U2MP_GUEST uint64_t state_update(void *state) {
     const uint64_t now_ms = uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
