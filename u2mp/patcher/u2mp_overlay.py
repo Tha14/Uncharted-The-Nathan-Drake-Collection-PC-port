@@ -5,18 +5,27 @@ Made on the player's PC from their own PS4 game; nothing game-derived ships with
   u2data/build/main/dc1/ps4/menu.bin   the main menu with a Multiplayer button
 
 The Collection's menu script still holds the multiplayer pages (PAGE_MULTIPLAYER and the rest) and
-the MENU_MULTIPLAYER text, but no button leads there. The main menu keeps a hidden button for the
-multiplayer medals page (BUTTON_MULTIMEDALS, a go-to-page button with a visibility condition); this
-turns it into Multiplayer: label MENU_MULTIPLAYER, target PAGE_MULTIPLAYER, always visible.
+the MENU_MULTIPLAYER text, but no button leads there. Two main menus need one:
+  PAGE_NEWPROFILE  (no save yet)  keeps a hidden button for the multiplayer medals page
+                                  (BUTTON_MULTIMEDALS, go-to-page with a visibility condition): it
+                                  becomes Multiplayer (label MENU_MULTIPLAYER, target PAGE_MULTIPLAYER,
+                                  always visible). PAGE_NEWPROFILE_BETA's copy is changed the same way.
+  PAGE_PROFILE     (with saves)   Continue, Chapters (hidden), a spacer, New Game, Load Game, Options,
+                                  Bonuses: the spacer (kind 1, no name) becomes the same Multiplayer
+                                  button, in the left column under Continue, and the columns take the
+                                  original layout: Continue, Multiplayer, Options, Bonuses on the left,
+                                  New Game and Load Game on the right.
 
-menu.bin is Naughty Dog DC data: 64-bit little-endian pointers are offsets into the file, names
-are NUL-terminated strings, and every name has a 32-bit id, the CRC-32 of the name (MSB first,
-polynomial 0x04C11DB7, no initial value, no final xor). A menu control record starts with a
-pointer to its name:
-  +0x00 name           +0x08 name id
+menu.bin is Naughty Dog DC data ("00CD", version 1): u32 data end at +0x08; 64-bit little-endian
+pointers are offsets into the file; after the data, a u32 byte count and a bitmap with one bit per
+8-byte slot of the file (least significant bit first), set where the slot holds a pointer (the
+loader relocates those). Names are NUL-terminated strings with a 32-bit id, the CRC-32 of the name
+(MSB first, polynomial 0x04C11DB7, no initial value, no final xor). Page record: +0x00 name,
++0x08 id, +0x38 pointer to {u64 count, u64 base} of 0x70-byte control records:
+  +0x00 name           +0x08 name id         +0x10 kind (u32: 2 button, 1 spacer)  +0x14 flags
   +0x20 label          +0x28 label id
-  +0x30 action (u32)   +0x34 visibility condition (u32, 0 = always)
-  +0x48 target page    +0x50 target page id
+  +0x30 action (u32: 20 go to page)          +0x34 visibility condition (u32, 0 = always)
+  +0x48 target page    +0x50 target page id  +0x58 column (u32, 0xffffffff for the spacer)
 Every value is checked before anything is changed; the source file is only read.
 
 Rebuilt only when the source changed (state.json). The launcher passes the overlay as
@@ -31,7 +40,8 @@ import sys
 from pathlib import Path
 
 MENU = Path("u2data/build/main/dc1/ps4/menu.bin")
-VERSION = 1  # bump when the overlay changes for the same sources
+VERSION = 4  # bump when the overlay changes for the same sources (4: PAGE_PROFILE gets its own 8-control list)
+RECORD = 0x70
 
 
 def name_id(name):
@@ -97,7 +107,114 @@ def patch_menu(data):
         done.append(record)
     if not done:
         raise ValueError("menu.bin has no hidden medals button (not the Uncharted 2 1.02 menu?)")
+    done.append(patch_profile_page(data, done[0]))
     return done
+
+
+def pointer_bitmap(data):
+    """(offset of the bitmap, its byte count): one bit per 8-byte slot, set for pointers."""
+    if data[:4] != b"00CD":
+        raise ValueError("menu.bin is not DC data")
+    end, = struct.unpack_from("<I", data, 8)
+    size, = struct.unpack_from("<I", data, end)
+    if end + 4 + size != len(data) or size * 8 < end // 8:
+        raise ValueError("menu.bin's pointer bitmap is not where expected")
+    return end + 4, size
+
+
+def set_pointer_bit(data, bitmap, offset):
+    slot = offset // 8
+    data[bitmap + slot // 8] |= 1 << (slot % 8)
+
+
+def is_pointer(data, bitmap, offset):
+    slot = offset // 8
+    return bool(data[bitmap + slot // 8] >> (slot % 8) & 1)
+
+
+def page_controls(data, page_name):
+    """(count, base) of the one page record named page_name."""
+    found = []
+    for record in records_named(data, page_name):
+        if struct.unpack_from("<I", data, record + 0x08)[0] != name_id(page_name):
+            continue
+        array, = struct.unpack_from("<Q", data, record + 0x38)
+        if 0 < array < len(data) - 16:
+            found.append(struct.unpack_from("<QQ", data, array))
+    if len(found) != 1:
+        raise ValueError(f"expected one {page_name} page, found {len(found)}")
+    return found[0]
+
+
+def patch_profile_page(data, button):
+    """PAGE_PROFILE (the main menu once there are saves) gets a new control list, appended after the
+    data: Continue, Chapters, Multiplayer (a copy of the patched button `button` from PAGE_NEWPROFILE,
+    with this page's button flags), the spacer (column 0xffffffff: a row break, the columns start again
+    below it), then Options and Bonuses in the left column and New Game and Load Game in the right one,
+    as in the original game (the Collection had New Game / Load Game left, Options / Bonuses right).
+    The page's list pointer moves to the new list; the old list stays, unused. The pointer bitmap is
+    rebuilt for the longer file. Returns the offset of the new list."""
+    bitmap, _ = pointer_bitmap(data)
+    end, = struct.unpack_from("<I", data, 8)
+    pages = [r for r in records_named(data, "PAGE_PROFILE")
+             if struct.unpack_from("<I", data, r + 0x08)[0] == name_id("PAGE_PROFILE")]
+    if len(pages) != 1:
+        raise ValueError(f"expected one PAGE_PROFILE page, found {len(pages)}")
+    page = pages[0]
+    if not is_pointer(data, bitmap, page + 0x38):
+        raise ValueError("PAGE_PROFILE's control list pointer is not a pointer")
+    count, base = page_controls(data, "PAGE_PROFILE")
+    if count != 7:
+        raise ValueError(f"PAGE_PROFILE has {count} controls, expected 7")
+    names = [cstring(data, struct.unpack_from("<Q", data, base + i * RECORD)[0]) for i in range(count)]
+    if names != ["BUTTON_CONTINUE", "BUTTON_PROFILE_CHAPTERS", None, "BUTTON_NEWGAME", "BUTTON_LOADGAME",
+                 "BUTTON_OPTIONS", "BUTTON_BONUSES"]:
+        raise ValueError(f"unexpected PAGE_PROFILE controls {names}")
+    spacer = base + 2 * RECORD
+    kind, flags = struct.unpack_from("<II", data, spacer + 0x10)
+    column, = struct.unpack_from("<I", data, spacer + 0x58)
+    if (kind, flags, column) != (1, 0, 0xFFFFFFFF) or \
+            any(is_pointer(data, bitmap, spacer + f) for f in range(0, RECORD, 8)):
+        raise ValueError("PAGE_PROFILE's spacer is not as expected")
+    for index, column in ((3, 0), (4, 0), (5, 1), (6, 1)):
+        if struct.unpack_from("<I", data, base + index * RECORD + 0x58)[0] != column:
+            raise ValueError("PAGE_PROFILE's columns are not as expected")
+
+    def old(index, new_column=None):
+        """(record bytes, pointer fields) of the old list's record `index`."""
+        at = base + index * RECORD
+        rec = bytearray(data[at:at + RECORD])
+        if new_column is not None:
+            struct.pack_into("<I", rec, 0x58, new_column)
+        return rec, [f for f in range(0, RECORD, 8) if is_pointer(data, bitmap, at + f)]
+
+    multiplayer = bytearray(data[button:button + RECORD])
+    struct.pack_into("<I", multiplayer, 0x14, struct.unpack_from("<I", data, base + 3 * RECORD + 0x14)[0])
+    struct.pack_into("<I", multiplayer, 0x58, 0)
+    records = [old(0), old(1), (multiplayer, [0x00, 0x20, 0x48]), old(2),
+               old(5, 0), old(6, 0), old(3, 1), old(4, 1)]
+    # The new list: {u64 count, u64 base} then the records, 16-byte aligned after the old data.
+    start = (end + 15) & ~15
+    header = start
+    first = header + 16
+    blob = bytearray(start - end) + struct.pack("<QQ", len(records), first)
+    pointers = [header + 8]
+    for i, (rec, fields) in enumerate(records):
+        blob += rec
+        pointers += [first + i * RECORD + f for f in fields]
+    new_end = end + len(blob)
+    slots = (new_end + 7) // 8
+    bits = bytearray((slots + 7) // 8)
+    old_bits = data[bitmap:]
+    bits[:len(old_bits)] = old_bits
+    for offset in pointers:
+        bits[offset // 64] |= 1 << (offset // 8 % 8)
+    rebuilt = bytearray(data[:end]) + blob
+    struct.pack_into("<I", rebuilt, 8, new_end)
+    struct.pack_into("<Q", rebuilt, page + 0x38, header)
+    rebuilt += struct.pack("<I", len(bits)) + bits
+    data[:] = rebuilt
+    return header
 
 
 def find(roots, rel):
