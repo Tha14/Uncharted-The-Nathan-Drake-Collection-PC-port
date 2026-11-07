@@ -15,6 +15,8 @@
 // still has code but lacks data is wrapped by pointing its table entry at C++ that sets the data up and
 // calls the original (the entry must still hold the original function).
 #include <algorithm>
+#include <array>
+#include <utility>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -406,6 +408,26 @@ struct QueryEntry {
 };
 static_assert(sizeof(QueryEntry) == 0x18, "query table entry");
 
+// Profile page query trace (diagnostics, see install_menus).
+constexpr uint32_t kTraceConds[] = {105, 77, 78, 134, 40, 41, 80, 82, 135, 108, 109, 110};
+constexpr size_t kTraceCount = sizeof(kTraceConds) / sizeof(*kTraceConds);
+QueryFn traced_fn[kTraceCount] = {};
+int trace_budget[kTraceCount] = {};
+template <size_t I> U2MP_GUEST void trace_query(uint8_t *q) {
+    const uint32_t op = Q<uint32_t>(q, 0), row = Q<uint32_t>(q, 4);
+    traced_fn[I](q);
+    if (trace_budget[I] < 12) {
+        ++trace_budget[I];
+        log("profile query cond %u: op %u row %u -> +4 %d +8 %u +0x40 %p +0x54 %u", kTraceConds[I], op, row,
+            Q<int32_t>(q, 4), Q<uint32_t>(q, 8), reinterpret_cast<void *>(uintptr_t(Q<uint64_t>(q, 0x40))),
+            Q<uint32_t>(q, 0x54));
+    }
+}
+template <size_t... I> constexpr std::array<QueryFn, sizeof...(I)> make_traces(std::index_sequence<I...>) {
+    return {&trace_query<I>...};
+}
+const std::array<QueryFn, kTraceCount> trace_fns = make_traces(std::make_index_sequence<kTraceCount>{});
+
 QueryEntry *find_entry(uint32_t cond, uint64_t expected_fn) {
     const uint64_t base = uint64_t(uintptr_t(image.base));
     for (int i = 0; i < kQueryEntries; ++i) {
@@ -473,6 +495,19 @@ void install_menus(int &installed) {
     };
     for (const Wrap &w : wraps)
         if (wrap_query(w.cond, w.fn, w.host, w.orig, w.name)) ++installed;
+
+    // Diagnostics: the Profile page (PAGE_MULTIPLAYER_PLAYER_OPTIONS) draws only its Level widget.
+    // Log the first calls of each of its queries (op, row, and what they answer).
+    for (size_t i = 0; i < kTraceCount; ++i) {
+        QueryEntry *e = nullptr;
+        for (uint32_t k = 0; k < kQueryEntries && !e; ++k) {
+            auto *x = image.at<QueryEntry>(kQueryTable + uint64_t(k) * sizeof(QueryEntry));
+            if (x->cond == kTraceConds[i] && x->fn) e = x;
+        }
+        if (!e) continue;
+        traced_fn[i] = reinterpret_cast<QueryFn>(uintptr_t(e->fn));
+        e->fn = uint64_t(uintptr_t(trace_fns[i]));
+    }
 
     // Stubbed queries (ret), replaced whole; their table entries must still point at them.
     struct Stub { uint32_t cond; uint64_t at; void *fn; const char *name; } stubs[] = {
