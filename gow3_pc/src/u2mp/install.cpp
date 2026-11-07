@@ -134,6 +134,7 @@ extern "C" int u2mp_install(unsigned char *base, uint64_t size, const uint64_t *
         return 0;
     }
     int installed = 0;
+    install_crashlog();
     install_frontend(installed);
     install_events(installed);
     install_natives(installed);

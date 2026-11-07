@@ -77,7 +77,7 @@ template <int... S> constexpr auto make_vtable(std::integer_sequence<int, S...>)
 struct Heap {
     void **vtable;
 } heap{};
-std::array<void *, 32> vtable = make_vtable(std::make_integer_sequence<int, 32>{});
+std::array<void *, 128> vtable = make_vtable(std::make_integer_sequence<int, 128>{});   // wide: an unknown slot logs instead of jumping into the void
 
 }  // namespace
 

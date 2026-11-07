@@ -361,6 +361,7 @@ bool start_transport() {
 // ---- per frame ----------------------------------------------------------------------------------
 void tick();
 void host_create();
+void log_match_choice();
 
 // Page-event handler for every page (page id 0): event 6 every frame while a menu page is up.
 U2MP_GUEST void page_event(uint32_t *event) {
@@ -507,6 +508,7 @@ U2MP_GUEST void start_match(void *, void *, void *) {
         }
     }
     log("Start Match: creating the match");
+    log_match_choice();
     netinit_match();
     netinit_dump("before create");
     host_create();
@@ -518,6 +520,35 @@ U2MP_GUEST void start_match(void *, void *, void *) {
     G<uint8_t>(kMatch + M_CREATED) = 1;   // 0x6093f0: 3 -> 10 -> 16 -> PlayTask("deathmatch")
     in_match_setup = true;
     send_session(-1, {kFollow});
+}
+
+// Diagnostics: what Start Match is about to start (mode, the custom choice list, the net game and its level).
+void log_match_choice() {
+    struct Table { int32_t count; int32_t pad; uint8_t *records; };
+    auto lookup = fn<Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70);
+    const int32_t mode = G<int32_t>(kNetInfo + NI_MODE);
+    const int32_t choices = G<int32_t>(0x113ddb0);
+    const int16_t game = G<int16_t>(kNgm + NGM_GAME);
+    log("match choice: mode %d, custom choice list %d entries, net game %d", mode, choices, game);
+    Table *games = lookup(0x3b9a067d);   // *net-games*
+    if (!games || game < 0 || game >= games->count || !games->records) {
+        log("match choice: net game %d is not in *net-games* (%d records)", game, games ? games->count : -1);
+        return;
+    }
+    const uint8_t *rec = games->records + 0x90 * game;
+    const uint32_t level_id = *reinterpret_cast<const uint32_t *>(rec + 4);
+    const int32_t type = *reinterpret_cast<const int32_t *>(rec + 0x0c);
+    const char *level = "?";
+    if (Table *levels = lookup(0x0dec97a4))
+        for (int32_t i = 0; levels->records && i < levels->count; ++i) {
+            const uint8_t *l = levels->records + 0x38 * i;
+            if (*reinterpret_cast<const uint32_t *>(l) == level_id) {
+                const char *name = *reinterpret_cast<const char *const *>(l + 0x18);
+                if (name) level = name;
+                break;
+            }
+        }
+    log("match choice: game type %d, level id %08x, package %s", type, level_id, level);
 }
 
 // The custom game create path (PS3 0x444bb0 = PS4 0x5eb830) without its room-attribute pick: that
