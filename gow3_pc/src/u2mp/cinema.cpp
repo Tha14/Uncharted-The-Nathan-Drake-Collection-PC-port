@@ -423,20 +423,7 @@ U2MP_GUEST void query_set(int32_t value, uint32_t local) {
 }
 
 // ---- patching helpers -----------------------------------------------------------------------
-unsigned char *near_code(size_t bytes) {
-    static unsigned char *pool = nullptr;
-    static size_t used = 0;
-    constexpr size_t kPool = 0x1000;
-    bytes = (bytes + 15) & ~size_t(15);
-    if (!pool || used + bytes > kPool) {
-        pool = runtime_near_image_alloc(kPool, 1);
-        used = 0;
-        if (!pool) return nullptr;
-    }
-    unsigned char *p = pool + used;
-    used += bytes;
-    return p;
-}
+unsigned char *near_code(size_t bytes) { return near_stub(bytes); }   // the shared pool (install.cpp)
 
 bool rel32(const unsigned char *from_next, const void *to, int32_t &out) {
     const int64_t d = int64_t(uintptr_t(to)) - int64_t(uintptr_t(from_next));

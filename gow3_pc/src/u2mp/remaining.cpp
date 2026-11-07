@@ -220,7 +220,7 @@ bool detour(uint64_t offset, const unsigned char *expect, unsigned length, void 
         return false;
     }
     unsigned char *code = image.base + offset;
-    unsigned char *tramp = runtime_near_image_alloc(0x1000, 1);
+    unsigned char *tramp = near_stub(0x100);
     if (!tramp) return false;
     unsigned char *stub = tramp + 0x80;
     std::memcpy(tramp, code, length);
@@ -448,7 +448,7 @@ void install_remaining(int &installed) {
         // a copy that treats an empty table as "tag not found" (0x4bf510).
         constexpr uint64_t site = 0x4bf44c, loop = 0x4bf460, not_found = 0x4bf510;
         static const unsigned char expect[] = {0x48, 0x8b, 0x02, 0x8b, 0x4a, 0x08, 0x31, 0xd2, 0xeb, 0x0a};
-        unsigned char *stub = image.matches(site, expect, sizeof expect) ? runtime_near_image_alloc(64, 1) : nullptr;
+        unsigned char *stub = image.matches(site, expect, sizeof expect) ? near_stub(64) : nullptr;
         const int64_t delta = stub ? int64_t(uintptr_t(stub)) - int64_t(uintptr_t(image.base + site + 5)) : 0;
         if (stub && delta >= INT32_MIN && delta <= INT32_MAX) {
             static const unsigned char code[] = {

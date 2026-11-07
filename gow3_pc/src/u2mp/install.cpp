@@ -36,30 +36,41 @@ bool Image::matches(uint64_t offset, const unsigned char *bytes, size_t length) 
     return offset <= size && length <= size - offset && std::memcmp(base + offset, bytes, length) == 0;
 }
 
+// Executable memory within rel32 range of the image, carved from shared 64 KiB blocks. The
+// near-image space is small (test run 23: one 64 KiB block per redirected call used it up and
+// 63 functions, the Multiplayer button among them, were not installed).
+unsigned char *near_stub(size_t bytes) {
+    static unsigned char *pool = nullptr;
+    static size_t used = 0;
+    constexpr size_t pool_size = 0x10000;
+    bytes = (bytes + 15) & ~size_t(15);
+    if (bytes > pool_size) return nullptr;
+    if (!pool || used + bytes > pool_size) {
+        pool = runtime_near_image_alloc(pool_size, 1);
+        used = 0;
+        if (!pool) return nullptr;
+    }
+    unsigned char *p = pool + used;
+    used += bytes;
+    return p;
+}
+
 bool replace_function(uint64_t offset, unsigned length, void *host, const char *name) {
     if (length < 5 || !image.executable(offset, length)) {
         log("%s at 0x%llx: not in the executable segments, left alone", name, (unsigned long long)offset);
         return false;
     }
     // A stub next to the image (a rel32 jump reaches it): mov rax, host; jmp rax.
-    static unsigned char *pool = nullptr;
-    static size_t used = 0;
-    constexpr size_t pool_size = 0x10000, stub_size = 16;
-    if (!pool || used + stub_size > pool_size) {
-        pool = runtime_near_image_alloc(pool_size, 1);
-        used = 0;
-        if (!pool) {
-            log("%s: no stub memory near the image", name);
-            return false;
-        }
+    unsigned char *stub = near_stub(16);
+    if (!stub) {
+        log("%s: no stub memory near the image", name);
+        return false;
     }
-    unsigned char *stub = pool + used;
     const int64_t delta = int64_t(uintptr_t(stub)) - int64_t(uintptr_t(image.base + offset + 5));
     if (delta < INT32_MIN || delta > INT32_MAX) {
         log("%s: stub out of jump range", name);
         return false;
     }
-    used += stub_size;
     const uint64_t target = uint64_t(uintptr_t(host));
     stub[0] = 0x48;
     stub[1] = 0xb8;
@@ -88,8 +99,11 @@ bool retarget_call(uint64_t offset, uint64_t expected_target, void *host, const 
     }
     // Reuse the function-replacement stub: a jump stub to `host` written at a scratch location is
     // not needed; build one directly.
-    unsigned char *stub = runtime_near_image_alloc(0x10000, 1);
-    if (!stub) return false;
+    unsigned char *stub = near_stub(16);
+    if (!stub) {
+        log("%s: no stub memory near the image", name);
+        return false;
+    }
     const uint64_t target = uint64_t(uintptr_t(host));
     stub[0] = 0x48;
     stub[1] = 0xb8;

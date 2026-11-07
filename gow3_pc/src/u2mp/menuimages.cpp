@@ -359,7 +359,7 @@ void install_menuimages(int &installed) {
             return;
         }
     }
-    unsigned char *stub = runtime_near_image_alloc(64, 1);
+    unsigned char *stub = near_stub(64);
     if (!stub) {
         log("menu images: no stub memory near the image");
         return;

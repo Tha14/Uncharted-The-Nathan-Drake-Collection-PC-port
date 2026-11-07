@@ -25,6 +25,8 @@ struct Image {
 
 extern Image image;
 
+// Executable bytes within rel32 range of the image (shared 64 KiB blocks); NULL when none is left.
+unsigned char *near_stub(size_t bytes);
 // Replaces the guest function at `offset` (its first `length` bytes, at least 5) with a jump to
 // `host`, a U2MP_GUEST function. The original code is not kept: only for functions we port whole.
 bool replace_function(uint64_t offset, unsigned length, void *host, const char *name);
