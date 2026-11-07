@@ -11,3 +11,6 @@
 /Uncharted.lnk
 __pycache__/
 *.pyc
+
+# Research output derived from the game (disassembly, extracted files): never committed.
+/work/
