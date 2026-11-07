@@ -149,6 +149,26 @@ void fill_net_players() {
         if (members[slot].used) add_net_player(members[slot].net_id, members[slot].name, members[slot].net_id == my_id);
 }
 
+void release_event(uint8_t *ev) {
+    if (--ev[0x0a] == 0) {   // refcount; vtable slot 1 = deleting destructor
+        auto vt = *reinterpret_cast<uint64_t **>(ev);
+        reinterpret_cast<void(U2MP_GUEST *)(void *)>(vt[1])(ev);
+    }
+}
+
+// PS3 member-left handler 0x43d9e0 sent NetEventPlayerLeft (type 79; PS4 Apply 0x619db0 frees the
+// player's tracker). Nothing on PS4 sends it: the host does, to everyone, and applies it itself.
+void player_left(uint32_t net_id) {
+    if (!net_id) return;
+    auto *ev = fn<uint8_t *(U2MP_GUEST *)(int)>(fCreateEvent)(79);
+    if (!ev) return;
+    *reinterpret_cast<uint32_t *>(ev + 0x0c) = net_id;
+    fn<void(U2MP_GUEST *)(void *, void *, uint32_t)>(0x644ab0)(image.at<void>(kNgm), ev, 0xffffffffu);
+    auto vt = *reinterpret_cast<uint64_t **>(ev);
+    reinterpret_cast<void(U2MP_GUEST *)(void *, void *)>(vt[4])(ev, nullptr);   // Apply locally
+    release_event(ev);
+}
+
 // Delivers a mailbox message as if a peer had sent a NetEventMessage (type 46; Apply 0x62dc50
 // copies the payload and records the sender from the connection's +0x160).
 void mailbox_post(uint32_t code, uint32_t sender, const void *data, uint32_t size) {
@@ -163,10 +183,7 @@ void mailbox_post(uint32_t code, uint32_t sender, const void *data, uint32_t siz
     fn<void(U2MP_GUEST *)(void *, void *)>(fMessageApply)(ev, connection);
     *reinterpret_cast<uint64_t *>(ev + 0x10) = 0;   // the payload was ours
     *reinterpret_cast<uint32_t *>(ev + 0x18) = 0;
-    if (--ev[0x0a] == 0) {                           // refcount; slot 1 = deleting destructor
-        auto vt = *reinterpret_cast<uint64_t **>(ev);
-        reinterpret_cast<void(U2MP_GUEST *)(void *)>(vt[1])(ev);
-    }
+    release_event(ev);
 }
 
 // ---- our session messages (transport tag kSessionMessage) ------------------------------------
@@ -252,6 +269,7 @@ void on_peer(uint8_t slot, bool joined) {
             log("party: peer in slot %u joined", slot);
         } else {
             log("party: %s left", members[slot].name.c_str());
+            player_left(members[slot].net_id);
             members[slot] = Member{};
             gamenet::detach(slot);
         }
