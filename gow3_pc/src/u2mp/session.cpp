@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "gamenet.h"
+#include "progression.h"
 #include "net.h"
 #include "u2mp_internal.h"
 
@@ -419,6 +420,7 @@ U2MP_GUEST void leave_multiplayer(void *, void *, void *) {
     G<int32_t>(kNetInfo + NI_MODE) = 0;
     G<int16_t>(kNgm + NGM_GAME) = -1;
     fn<void(U2MP_GUEST *)(void *)>(fClearNetPlayers)(image.at<void>(kNgm));
+    progression_publish();   // unlocks bought in the menus since the last match
     set_state(kStateOff);
     for (auto &m : members) m = Member{};
     fn<void(U2MP_GUEST *)(void *)>(fPopPage)(image.at<void>(addr::menu_manager));

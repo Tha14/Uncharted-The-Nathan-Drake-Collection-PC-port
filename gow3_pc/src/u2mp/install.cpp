@@ -2,6 +2,7 @@
 #include "u2mp.h"
 #include "events.h"
 #include "u2mp_internal.h"
+#include "progression.h"
 
 #include <cstdarg>
 #include <cstdio>
@@ -135,6 +136,7 @@ extern "C" int u2mp_install(unsigned char *base, uint64_t size, const uint64_t *
     install_frontend(installed);
     install_events(installed);
     install_natives(installed);
+    install_progression(installed);
     log("%d functions restored", installed);
     return installed;
 }
