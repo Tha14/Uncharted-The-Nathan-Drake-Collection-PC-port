@@ -14,37 +14,70 @@ was removed from this repository (tag `backup/before-sparks-removal` keeps the s
 SHA-256 `5047b693…`). PS3 reference: **NPUA80698** (PSN, 1.10, EBOOT SHA-256 `fdac6628…`); the DLC map
 packs come from a BCUS98123 install (see docs/ASSET-INVENTORY.md).
 
-## Status
+## Status (8 November 2026)
 
-| Step | State |
+Every multiplayer function the PS4 build left as a stub is restored in C++ (77 of 85; the other 8
+are empty on PS3 too, or were the PSN connection handshake, which the session layer replaces), and
+the removed layers (transport, packet layer, sessions, NetInit) are rebuilt. **None of it has run in
+the game yet**; the host unit tests pass.
+
+| Part | Where | State |
+|---|---|---|
+| Multiplayer in the main menu (with and without saves) | `patcher/u2mp_overlay.py` | checked in game (layout) |
+| Module: build check, hooks | `gow3_pc/src/u2mp/install.cpp` | built |
+| Network core: UDP, acks, reliable/unreliable, 10 peers | `net.cpp` | unit test passes |
+| Game packet layer (PS3 header/acks, the game's own pack/unpack) | `gamenet.cpp` | built |
+| Sessions: party, lobby roster, start match, follow, leave, kick, NET_SM | `session.cpp` | built |
+| 14 net event types PS4 emptied (Read/Write, NpcSpawn Apply) | `events.cpp` | unit test passes |
+| Co-op / net script natives | `natives.cpp` | built |
+| Progression (money, rank, stats, leaderboards) kept on the PC | `progression*.cpp` | unit test passes |
+| Cinema (recording, list, playback) | `cinema*.cpp` | unit test passes |
+| NPC damage in co-op, player/party options, PSN-only buttons | `remaining.cpp` | built |
+| Asset import from the PS3 copy (skins, the Fort, DLC maps) | not started | [docs/ASSET-INVENTORY.md](docs/ASSET-INVENTORY.md) |
+| Voice chat | not started | the PS4 build imports no voice library |
+
+## How it runs
+
+- Launcher, Multiplayer tab while Uncharted 2 is chosen: "Multiplayer in the Uncharted 2 menu" (on by
+  default), "Your name", "Join a host" (empty: this PC hosts on UDP port 27210). `u2mp_env` makes the
+  menu overlay into `analysis/uncharted-user/u2mp/overlay` and sets `UNCHARTED_U2MP_OVERLAY`,
+  `UNCHARTED_U2MP=1`, `UNCHARTED_U2MP_NAME`, `UNCHARTED_U2MP_JOIN`.
+- `tools/probe_uncharted.py` lays the overlay over /app0 for Uncharted 2; the runtime calls
+  `u2mp_install` after linking the image, before protecting it.
+- In game: Multiplayer starts the party (host, or join the address). The party leader picks
+  Custom Game or Matchmaking (a random game of the chosen type), then Start Match: the members
+  follow the leader into the match. Results return everyone to the lobby.
+- Files on the PC: `<user>/u2mp/progression.bin`, `<user>/u2mp/cinema/*.u2cinema`.
+- Switches: `UNCHARTED_U2MP_PORT`, `UNCHARTED_U2MP_CINEMA=0`, `UNCHARTED_U2MP_PROGRESSION=<file>`.
+- The release package ships `u2mp/patcher` and this README (`tools/package_windows.sh`); the C++ is in
+  the runtime executable.
+
+## Docs
+
+| File | What |
 |---|---|
-| Multiplayer button in Uncharted 2's main menu | `patcher/u2mp_overlay.py` makes the menu from the player's game; the launcher lays it over Uncharted 2 (Multiplayer tab while Uncharted 2 is chosen, "Multiplayer in the Uncharted 2 menu", on by default). **Not yet checked in game.** |
-| Asset inventory, PS4 vs PS3 | [docs/ASSET-INVENTORY.md](docs/ASSET-INVENTORY.md), every file in `docs/import-list.tsv` |
-| PS3 1.10 function map | in progress |
-
-## How the launcher uses it
-
-- `launcher/uncharted_launcher.pyw` `u2mp_env`: builds the overlay into `analysis/uncharted-user/u2mp/overlay`
-  (only when the game's menu changed) and sets `UNCHARTED_U2MP_OVERLAY`.
-- `tools/probe_uncharted.py`: lays `UNCHARTED_U2MP_OVERLAY` over /app0 when Uncharted 2 starts.
-- The release package ships `u2mp/patcher` and this README (`tools/package_windows.sh`).
+| `docs/PS3-110-MAP.md` | The PS3 1.10 multiplayer code |
+| `docs/FUNCTIONS-FRONTEND-NET.md`, `docs/FUNCTIONS-MATCH-GAMEPLAY.md` (+ .tsv) | Every function, PS3 1.10 against PS4 1.02 |
+| `docs/TRANSPORT-INTERFACE.md` | Where the transport plugs in (message layers, events, BitStream) |
+| `docs/SESSION-INTERFACE.md` | Sessions, NET_SM, pages, match start |
+| `docs/CINEMA.md` | Cinema |
+| `docs/ASSET-INVENTORY.md` | Multiplayer assets on PS4 and PS3 |
 
 ## Layout
 
 | Folder | What |
 |---|---|
 | `patcher/` | What the launcher runs on the player's PC (`u2mp_overlay.py`). |
-| `tools/` | Research scripts: inventories and comparisons of the PS3 and PS4 files. |
+| `tools/` | Research scripts (PS3/PS4 disassembly, function matching, inventories). |
 | `docs/` | Findings. |
+| `../gow3_pc/src/u2mp/` | The C++ module; tests in `../gow3_pc/tests/test_u2mp_*.cpp` (`ninja -C out/gpu u2mp-net-test u2mp-events-test u2mp-progression-test u2mp-cinema-test`). |
 
-Code that runs inside the game (hooks, lobby, session, match logic) is written in **C++** and built into
-the runtime (`gow3_pc`); the C runtime calls it through `extern "C"` entry points. Python is used only
-for the launcher-side steps that run once before the game starts.
+Code that runs inside the game is **C++**, built into the runtime (`gow3_pc`); the C runtime calls it
+through `extern "C"` entry points. Python only for the launcher-side steps before the game starts.
 
 ## Next
 
-1. Check the Multiplayer button in game.
-2. PS3 1.10 map of the multiplayer code (button callback, NetInit, session, lobby, match flow).
-3. The Multiplayer button's callback, from the PS3 original.
-4. Lobby and match flow, then the network transport.
-5. The import of the missing assets from the player's PS3 copy (skins, the Fort's pieces, DLC maps).
+1. First in-game tests: the frame hook rate (log "frame hook: N calls in 10 s"), the Multiplayer
+   button, two PCs (or two instances) in one party, a custom match start.
+2. Asset import from the player's PS3 copy (skins, the Fort's pieces, DLC maps).
+3. Voice chat (a PC implementation), LAN game browser, host migration.
