@@ -514,7 +514,24 @@ void skip_missing_level_pak() {
         }
     }
 }
+constexpr uint64_t kAbortSlot = 0x103fa40 + 0x30, kAbortByte = 0x113a270;
+using AbortFn = U2MP_GUEST void (*)(void *);
+AbortFn original_abort = nullptr;
+U2MP_GUEST void abort_logged(void *self) {
+    const uint64_t ra = uint64_t(uintptr_t(__builtin_return_address(0))), base = uint64_t(uintptr_t(image.base));
+    log("match abort (0x113a270 = 1) from %s0x%llx, session %p", ra >= base && ra < base + image.size ? "guest " : "",
+        (unsigned long long)(ra >= base && ra < base + image.size ? ra - base : ra), self);
+    original_abort(self);
+}
+// What LoadLevels / WaitReady test before going to Leave: the abort byte, the host tracker (ngm+8)
+// and its excluded flag (+0x26c).
+void log_leave_reason(const char *when) {
+    const uint64_t host = G<uint64_t>(kNgm + NGM_HOST);
+    log("%s: abort byte %u, host tracker %s, host excluded %u", when, unsigned(G<uint8_t>(kAbortByte)),
+        host ? "set" : "NULL", host ? unsigned(*reinterpret_cast<const uint8_t *>(uintptr_t(host) + 0x26c)) : 0u);
+}
 void log_load_levels(void *state) {
+    log_leave_reason("load levels");
     auto *task = *reinterpret_cast<uint8_t **>(static_cast<uint8_t *>(state) + 8);
     uint32_t task_level = 0;
     if (task) {
@@ -569,6 +586,7 @@ template <size_t I> U2MP_GUEST uint64_t state_update(void *state) {
         log("online state: update 0x%llx (vtable slot 0x%llx)", (unsigned long long)kStateUpdates[I].update,
             (unsigned long long)(kStateUpdates[I].slot - 0x18));
         if (kStateUpdates[I].update == 0x5f2dc0) log_load_levels(state);
+        if (kStateUpdates[I].update == 0x5eff30) log_leave_reason("leave");
     }
     if (kStateUpdates[I].update == 0x5f2dc0) skip_missing_level_pak();
     const uint64_t result = original_update[I](state);
@@ -899,6 +917,12 @@ void install(int &installed) {
     }
     log("match state updates wrapped (%zu states)", kStateCount);
     ++installed;
+    // Diagnostics (test run 22: LoadLevels -> Leave): the match session's slot 6 (vtable 0x103fa40
+    // +0x30 = 0x5e9f10) sets the abort byte 0x113a270; log who calls it.
+    if (G<uint64_t>(kAbortSlot) == base + 0x5e9f10) {
+        original_abort = reinterpret_cast<AbortFn>(base + 0x5e9f10);
+        G<uint64_t>(kAbortSlot) = uint64_t(uintptr_t(&abort_logged));
+    }
 }
 
 }  // namespace u2mp::session
