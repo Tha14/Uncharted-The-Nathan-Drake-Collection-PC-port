@@ -589,6 +589,16 @@ template <size_t I> U2MP_GUEST uint64_t state_update(void *state) {
         if (kStateUpdates[I].update == 0x5eff30) log_leave_reason("leave");
     }
     if (kStateUpdates[I].update == 0x5f2dc0) skip_missing_level_pak();
+    // Test run 24: LoadLevels::Enter (0x5f2e50 -> 0x640fc0) resets the NetGameManager, so the players
+    // Start Match registered are gone (ngm+8, the host tracker, NULL) and LoadLevels / WaitReady go to
+    // Leave. PS3's session layer registered them again; here the party's members are put back while
+    // the match is being set up (EstablishConnection, LoadLevels, WaitReady).
+    if (active && (kStateUpdates[I].update == 0x5f2ea0 || kStateUpdates[I].update == 0x5f2dc0 ||
+                   kStateUpdates[I].update == 0x5f26d0) &&
+        !G<uint64_t>(kNgm + NGM_HOST)) {
+        log("match setup: the net players were cleared, registering the party again");
+        fill_net_players();
+    }
     const uint64_t result = original_update[I](state);
     tick();
     return result;
