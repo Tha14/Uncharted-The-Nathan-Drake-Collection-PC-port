@@ -529,6 +529,29 @@ static LONG CALLBACK vectored_fault(EXCEPTION_POINTERS *info) {
             return EXCEPTION_CONTINUE_EXECUTION;
         }
     }
+    /* gow3 7 Nov 2026: a debug break (int3) in guest code. The PS4 build kept a few ND debug traps that PS3's
+     * retail build compiled out (Uncharted 3 co-op Monastery chapter 3 ended with exit code 0x80000003 and no
+     * report: guest frames have no unwind data, so only this first-chance handler sees it). A lone int3 is
+     * stepped over and logged once per address; an int3 inside padding (code that jumped to a wrong place)
+     * still ends the process, now with the usual report. */
+    if (code==EXCEPTION_BREAKPOINT && image && (uintptr_t)info->ContextRecord->Rip-(uintptr_t)image<0x20000000) {
+        static uintptr_t seen[64]; static int seen_count;
+        const uint8_t *p=(const uint8_t *)(uintptr_t)info->ContextRecord->Rip;
+        if (p[0]==0xCC && p[1]!=0xCC && p[-1]!=0xCC) {
+            uintptr_t at=(uintptr_t)p-(uintptr_t)image; int known=0;
+            for (int k=0;k<seen_count;k++) if (seen[k]==at) known=1;
+            if (!known) {
+                if (seen_count<64) seen[seen_count++]=at;
+                const uint64_t *sp=(const uint64_t *)(uintptr_t)info->ContextRecord->Rsp;
+                fprintf(stderr,"Runtime: guest debug break at guest offset 0x%" PRIxPTR " (thread %lu, return 0x%" PRIxPTR "), stepped over\n",
+                        at,GetCurrentThreadId(),(uintptr_t)sp[0]-(uintptr_t)image);
+                fflush(stderr);
+            }
+            info->ContextRecord->Rip+=1;
+            return EXCEPTION_CONTINUE_EXECUTION;
+        }
+        return fatal_exception(info);
+    }
     if (code==EXCEPTION_ACCESS_VIOLATION || code==EXCEPTION_ILLEGAL_INSTRUCTION || code==EXCEPTION_PRIV_INSTRUCTION ||
         code==EXCEPTION_STACK_OVERFLOW || code==EXCEPTION_INT_DIVIDE_BY_ZERO || code==EXCEPTION_DATATYPE_MISALIGNMENT) {
         /* Faults in guest code, the loader or the runtime end the process with a report; drivers
