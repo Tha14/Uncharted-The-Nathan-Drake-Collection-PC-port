@@ -1886,9 +1886,11 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
                "--app0", str(app0 or game), "--user", str(user)]
     # Uncharted 2 multiplayer (u2mp, set by the launcher): UNCHARTED_U2MP_OVERLAY, a folder made from the
     # player's own game (u2mp/patcher/u2mp_overlay.py), laid over /app0 ahead of the update.
-    u2mp = os.environ.get("UNCHARTED_U2MP_OVERLAY", "")
-    if executable == "big2-ps4_Shipping.elf" and u2mp and Path(u2mp).is_dir():
-        command += ["--app0-overlay", u2mp]
+    # os.pathsep between folders (the menu overlay, then the PS3 import); the first holding a file wins.
+    if executable == "big2-ps4_Shipping.elf":
+        for u2mp in os.environ.get("UNCHARTED_U2MP_OVERLAY", "").split(os.pathsep):
+            if u2mp and Path(u2mp).is_dir():
+                command += ["--app0-overlay", u2mp]
     # Uncharted 3 multiplayer: its four overlays (the first wins) ahead of the update.
     for overlay in [*(mp["overlays"] if mp else ()), *overlays]:
         command += ["--app0-overlay", str(overlay)]

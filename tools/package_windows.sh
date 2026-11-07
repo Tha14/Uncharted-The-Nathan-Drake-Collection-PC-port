@@ -39,6 +39,8 @@ cp tools/probe_uncharted.py tools/hang_report.py tools/apply_update.py tools/ins
 mkdir -p "$stage/u2mp"
 cp -r u2mp/patcher "$stage/u2mp/patcher"
 cp u2mp/README.md "$stage/u2mp/README.md"
+mkdir -p "$stage/u2mp/docs"
+cp u2mp/docs/import-list.tsv "$stage/u2mp/docs/import-list.tsv"   # the import's list (names, sizes, hashes)
 find "$stage/u2mp" -name '__pycache__' -prune -exec rm -rf {} +
 # Uncharted 3 multiplayer (launcher -> Multiplayer): the import (u3mp/patcher/u3mp_import.py), the overlay
 # recipe and its tools (scripts and tables only), and the helper builds (our compiled code). The player's PC
