@@ -60,6 +60,21 @@ if b'air-multi-emblem' in txt and not lines_only:
     print('nothing to write; air-multi.pak is left alone (it carries a later edit). Paste helper_paste.inc and rebuild.')
     # the actor paks are replaced later (wall-emblem-actors: second version, emblem-cap3), so they decide nothing here
     sys.exit(0 if ig and hid else 1)
+# Installed by an earlier run, then registry-pak23 wrote pak23_ps4.txt again without the actor lines (it reruns when a
+# later step changed that file): the level paks carry the emblem edit, the actor paks are there. Put the lines back and
+# leave everything else (registry-final writes the final pak23_ps4.txt after this anyway).
+if not at_base and b'air-multi-emblem' not in txt and all(os.path.exists(MAIN + 'actor33/ps4/%s.pak' % a) for a in arts):
+    mp = open(MAIN + files[0], 'rb').read()
+    if md5(MAIN + files[1]) == md5(OUT + files[1]) and all(not any(mp[h['off']:h['off'] + 2 * h['ni']]) for h in plan['hide']):
+        nl = b'\r\n' if b'\r\n' in txt else b'\n'
+        i = txt.find(b'level-name air-multi' + nl); j = txt.find(b'actor air-multi-wind-socks' + nl, i)
+        if i < 0 or j < 0:
+            sys.exit('air-multi level block not found')
+        j += len(b'actor air-multi-wind-socks' + nl)
+        print('already installed (level paks and actors); the %d actor lines put back into pak23_ps4.txt' % len(arts))
+        if apply_:
+            open(MAIN + 'pak23_ps4.txt', 'wb').write(txt[:j] + b''.join(b'actor ' + a.encode() + nl for a in arts) + txt[j:])
+        sys.exit(0)
 for rel in files[:2]:
     if md5(MAIN + rel) != base[rel] and not (at_base and rel == files[1]):
         sys.exit('changed since build, rebuild the prototype first: ' + rel)

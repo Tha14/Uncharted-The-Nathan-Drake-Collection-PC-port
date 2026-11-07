@@ -28,13 +28,17 @@ def main():
     for l in open(os.path.join(HERE, 'recipes', 'sha256.tsv')):
         o, n, h = l.split()
         ref[o] = h
-    if not os.path.exists(os.path.join(SRC, 'retail.txt')):
+    # sources-v2: the extraction that also writes the Game of the Year aliases (txt__dlc-mapN__ from goty-dlc.psarc);
+    # a cache made by an older recipe lacks them, so it is extracted again once
+    mark = os.path.join(SRC, 'sources-v2')
+    if not os.path.exists(os.path.join(SRC, 'retail.txt')) or not os.path.exists(mark):
         env = dict(os.environ, PYTHONPATH="{{TRANSFER_TOOLS}}")
         p = subprocess.run([PY, os.path.join(HERE, 'regsources.py'), "{{PS4}}", "{{PS3_UPDATE}}", "{{PS3_DLCMAPS}}",
                             "{{PS3_DISC}}", "{{PS3_DATA2}}", SRC], env=env, capture_output=True, text=True)
         print(p.stdout.strip(), p.stderr[-1500:])
         if p.returncode:
             return 1
+        open(mark, 'w').write('regsources with GOTY aliases\n')
     rc = 0
     for o in want:
         dst = os.path.join(WORK, o, 'u3data', 'build', 'main', 'pak23_ps4.txt')
