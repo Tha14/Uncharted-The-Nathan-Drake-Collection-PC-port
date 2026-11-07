@@ -229,9 +229,8 @@ Three causes cover most of the gaps:
    `0x1e` (booster pair of the profile panel), `0x22..0x25` (0x25 = playlist picture, 0x22 = cinema list)
    and `0x27` (rank badge: profile panel, k19 widget, PS3 party rows): they go to its default
    (`0x5c1ab1`, draw nothing). The queries are intact; the drawing code went with the PS4 multiplayer.
-   The PS4 net.pak has the textures (`badges/rank-badges-*`, `boosters/*`) but no material for the rank
-   badge sheet. Playlist pictures are converted to type 3 (below); the others need the PS3 draw cases
-   ported and, for the badge, a material in net.pak: not done.
+   The PS4 net.pak has the materials (`general/net/rank-badges:default`, `general/net/boosters:*`,
+   `map-photos:*`, `playlists:*`). Now ported (section 7) except 0x23.
 
 | page (reference) | PS3 | before | now |
 |---|---|---|---|
@@ -246,3 +245,46 @@ Three causes cover most of the gaps:
 Check in game (log `u2mp`): `texts: N strings from 2 imported bank(s) for language 2` (N about 2,700),
 the `net package:` lines (state 7 and "set, N images" on the Multiplayer page), mode icons, custom game
 rows on separate lines with icon and map card, party leader on the custom game page, the playlist card.
+
+## 7. Why no net image drew, and the lost image types (menuimages.cpp, 2026-11-07)
+
+Run 13 had the net table set (251 images) and still no menu image. Cause: **id naming**. The net
+table is the `net` package's material table (package+0x940; entry 0x28 bytes, `+8` id, name via
+`+0 -> +0x10 -> [0] -> [0]`). ConstructFromBoundMaterialTable (`0xbe81f0`) sets each id to the string
+id (`[0x10666c8]` = `0xb26fc0`, the CRC sid) of the material name up to `,`. PS4 names them
+`general/net/<set>:<name>`; the menu data and code ask for the PS3 ids `sid("general/net/<set>/<name>")`
+(mode table `0xdef390+8`, map records `+0xc`, booster records `+8`, the playlists). No id matched, the
+lookup returned NULL, the image size stayed 0 (`0x5bcc1a`), nothing drew and rich rows collapsed.
+Fix: `0x5558c0` is ported whole; an id not in the table is looked up again among the names with `:`
+read as `/` (cached per table). The queries that search inline (`0x655ec0`, `0x656a22`) get -1 and
+then go through that lookup. Other checks of the type 3 path, all fine: selector 1 fades in over 300
+frames from the package's login frame (`+0x924`, `0x5bca18`); size = the largest texture of
+technique 0 (`0x5bbd90`).
+
+Renderer `0x5bcd70`: jump table `0x5c2ec4` (types 4..0x29) entries for 0x1e, 0x22..0x25, 0x27 now
+point at a stub (r11 descriptor, `[rbp-0x1fe0]` draw list, `[rbp-0x1ff0]` x, y, w, h, colour bytes in
+ebx/r14d/r12d/r13d) that calls C++ and jumps to the exit `0x5c1ab1`. Quads are drawn with
+`0xbdce90(ctx {list, 0...}, {material, 0, 0, 0}, 4 vertices of 0x40: x y z u v, colour at +0x20)`
+as the type 3 case does. Descriptor value = `+0x10` (query `+0x18`). From PS3 `0x41a790`:
+
+| type | PS3 case | drawn |
+|---|---|---|
+| 0x27 rank badge | `0x41aa48` | `general/net/rank-badges/default` (index > 63: `.../default2`, absent in both games), cell `index & 7`, `(index & 63) / 8` of 1/8 |
+| 0x1e booster pair | `0x41c2d8` | low / high 16 bits = boosters (table `916e03b0`, rec `+8` image, ids 05454b23 / 01845694 none), each w x w/2, centred at 28 % / 72 % height |
+| 0x22 map picture | `0x41eb50` | map table `0dec97a4` (0x38 bytes, `+0` id, `+0xc` image), u 0.0898..0.9102 |
+| 0x24, 0x25 playlist | `0x41f418` | ngm playlist with that id, image `+0x10` (menus.cpp sets it), u 0.0703..0.9297 |
+| 0x23 | `0x41cd34` | not ported (several materials and text); draws nothing as before |
+
+Not ported details: the PS3 overlay drawn when descriptor `+0x20` is set (0x22, 0x24/0x25) and the
+0x25 bottom-edge adjustment.
+
+Profile page empty: all its controls are k0 headers, k19 (cond 105, rank badge 0x27), k8 rich rows
+(boosters, hero / villain portraits: type 3) and k13 settings; the queries are intact and the page
+handler matches PS3 `0x4443f8` (clan tag keyboard, pop when not connected). Not explained statically:
+if the page stays empty with the id fix, the log tells whether images are looked up / drawn on it.
+
+Log (`u2mp: menu images:`): the first 6 entries of each net / menu table (id, PS3 id, name), the first
+48 id lookups that miss the table (`found by PS3 name` or `missing`), the first 24 draws of the ported
+types (type, value, image id, found, box). Check in game: mode icons, game type / map cards and
+separate rows on the custom game page, playlist card, rank badge 28 and the booster pair on the
+Multiplayer panel, Profile page contents, store skin pictures.

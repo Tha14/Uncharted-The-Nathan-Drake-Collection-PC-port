@@ -55,6 +55,7 @@ void install_frontend(int &installed);
 void install_natives(int &installed);   // natives.cpp: the co-op / net script natives
 void install_remaining(int &installed); // remaining.cpp: the last stubbed callbacks and Applies
 void install_menus(int &installed);     // menus.cpp: the multiplayer menu queries (u2mp/docs/MENUS.md)
+void install_menuimages(int &installed); // menuimages.cpp: net image ids, lost menu image types (MENUS.md 7)
 void install_dlc(int &installed);       // dlc.cpp: DLC maps offered only when imported (u2mp/docs/DLC.md)
 // False when the *net-games* record `index` plays on a DLC map whose map pack was not imported.
 bool dlc_net_game_available(int32_t index);

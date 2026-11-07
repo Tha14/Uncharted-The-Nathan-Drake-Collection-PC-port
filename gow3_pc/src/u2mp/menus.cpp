@@ -201,6 +201,7 @@ void build_playlists() {
         pl.skill = -1;
         pl.type = type;
         pl.image = playlist_image(pl.name);
+        pl.pad0[1] = pl.image;   // +0x10: the picture the renderer's type 0x24/0x25 reads (menuimages.cpp)
         ++playlist_count;
     }
     // Deathmatch first, as PS3 listed it (stable: the others keep the *net-games* order).
