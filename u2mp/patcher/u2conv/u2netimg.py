@@ -22,6 +22,12 @@ u2paktools.setup()
 from ndpak import Pak, sid  # noqa: E402
 
 OUT_NAME = 'net-u2mp.pak'
+VERSION = 2      # bump when the choice of materials changes: the import converts again
+# PS3 images taken even though PS4 has its own: the PS4 Collection redrew the Multiplayer page's mode
+# buttons (other style, larger); next to the PS3-only Leaderboards / Trophies buttons the set looked
+# mixed. The user asked for the PS3 look there. The runtime looks net-u2mp up first, so these win.
+PREFER_PS3 = {'general/net/mode-buttons/matchmaking', 'general/net/mode-buttons/customgame',
+              'general/net/mode-buttons/cinema'}
 
 
 def read_materials_u2(p):
@@ -80,7 +86,8 @@ def ps4_material_ids(ps4_net):
 def missing(ps3_net, ps4_net):
     mats, tex = read_materials_u2(Pak(ps3_net))
     have = ps4_material_ids(ps4_net)
-    return [m for m in mats if m['sid'] not in have and any(t is not None for t in m['textures'])], tex
+    return [m for m in mats if (m['sid'] not in have or m['name'] in PREFER_PS3) and
+            any(t is not None for t in m['textures'])], tex
 
 
 # The U3 converter takes one effect for every material (from the PS4 menu.pak). U2's net materials use

@@ -407,6 +407,19 @@ const uint8_t *find_package(uint32_t id) {
 }
 // Keeps the package while the multiplayer menus are up (in a match the level owns memory; there it
 // is only looked at), and logs what the test needs to tell why menu images are missing.
+void skip_net_fade() {
+    // Net images fade in over 300 frames from the package's login frame (0x5bca18: frame counter
+    // 0x1116180+0x144 minus package +0x924). PS3 kept the package loaded, so the Multiplayer page
+    // showed its icons at once; here the package loads when Multiplayer is entered, and the icons
+    // faded in seconds later. Once logged in, the fade counts as done.
+    for (const char *name : {"net", "net-u2mp"}) {
+        auto *p = const_cast<uint8_t *>(find_package(sid(name)));
+        if (!p || *reinterpret_cast<const int32_t *>(p + PKG_STATE) != 7) continue;
+        const int32_t now = G<int32_t>(0x1116180 + 0x144);
+        auto &login = *reinterpret_cast<int32_t *>(p + 0x924);
+        if (now - login < 300) login = now - 300;
+    }
+}
 void check_net_package(bool menus) {
     static int32_t last_state = -100;
     static uint64_t last_table = ~0ull;
@@ -552,7 +565,9 @@ U2MP_GUEST void start_match(void *, void *, void *) {
         auto *table = fn<Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70)(0x3b9a067d);
         const int16_t current = G<int16_t>(kNgm + NGM_GAME);
         if (table && table->count > 0 && table->records) {
-            const int32_t type = *reinterpret_cast<int32_t *>(table->records + 0x90 * (current >= 0 ? current : 0) + 0x0c);
+            const int32_t chosen = playlist_pick_type();   // the playlist's game types (menus.cpp)
+            const int32_t type = chosen >= 0 ? chosen
+                                             : *reinterpret_cast<int32_t *>(table->records + 0x90 * (current >= 0 ? current : 0) + 0x0c);
             std::vector<int16_t> same;
             for (int32_t i = 0; i < table->count; ++i)
                 if (*reinterpret_cast<int32_t *>(table->records + 0x90 * i + 0x0c) == type && dlc_net_game_available(i))
@@ -674,6 +689,7 @@ void tick() {
         return;
     }
     ++frames;
+    skip_net_fade();
     if (frames % 60 == 1) {
         const int32_t st = state();
         check_net_package(st == kChooseHostJoin || st == kCreateGameWait || st == kClientWaitPartyHost);

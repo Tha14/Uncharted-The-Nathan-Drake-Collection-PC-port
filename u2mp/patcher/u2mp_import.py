@@ -427,7 +427,7 @@ class Importer:
         data = c[0].read()
         src_sha = sha1(data)
         out = self.out_path('pak22/ps4/' + u2netimg.OUT_NAME)
-        if not self.done_before(key, src_sha):
+        if not self.done_before(key, src_sha) or self.items[key].get('netimg') != u2netimg.VERSION:
             src = os.path.join(self.work, 'ps3-net.pak')
             with open(src, 'wb') as f:
                 f.write(data)
@@ -444,7 +444,8 @@ class Importer:
             if not names:
                 return
             self.record(key, 'ok', dict(group='A'), out=os.path.join(OUT_MAIN, 'pak22', 'ps4', u2netimg.OUT_NAME)
-                        .replace('\\', '/'), src=c[0].source, src_sha1=src_sha, note='%d menu images' % len(names))
+                        .replace('\\', '/'), src=c[0].source, src_sha1=src_sha, note='%d menu images' % len(names),
+                        netimg=u2netimg.VERSION)
             log('ok      %s <- %s (%.1fs) %d menu images' % (key, c[0].source, time.time() - t, len(names)))
         if os.path.isfile(out):
             level_txt[u2netimg.OUT_NAME[:-4]] = 'level-id %s\npackage %s\n' % ((u2netimg.OUT_NAME[:-4],) * 2)

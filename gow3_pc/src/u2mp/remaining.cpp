@@ -206,6 +206,7 @@ const char *import_text(const uint8_t *db, uint32_t id) {
 U2MP_GUEST const char *text_find(void *db, uint32_t id) {
     for (const auto &t : kTexts)
         if (t.id == id) return t.text;
+    if (const char *text = extra_text(id)) return text;
     if (const char *text = orig_text_find(db, id)) return text;
     return import_text(static_cast<const uint8_t *>(db), id);
 }
@@ -414,9 +415,42 @@ U2MP_GUEST void twitter_button(void *, void *, void *) { message_box(kTextTwitte
 U2MP_GUEST void cinema_send(void *, void *, void *) { message_box(kTextCinemaSend); }
 U2MP_GUEST void cinema_receive(void *, void *, void *) { message_box(kTextCinemaReceive); }
 
+// NetStatGame match-start init (0x66c600, test run 16 crash): when the match host is a session member
+// it copies the host's name to NetStatGame+0xe (0x40 bytes, up to +0x4e) with
+// memcpy(dst, name, strlen(name) + 1). PS4 stripped the accessor that returned the name and the
+// compiler folded it to NULL: `xor edi,edi; call strlen` (0x66c75d) and `xor esi,esi; ... call memcpy`
+// (0x66c76d) read address 0. Both calls now get the host's name from the session.
+constexpr uint64_t kMatchSession = 0x1065b08, MS_HOST = 0xb04;
+constexpr uint64_t cStatHostLen = 0x66c75f, cStatHostCopy = 0x66c76d, fStrlen = 0xde6490, fMemcpy = 0xde6410;
+constexpr size_t kStatNameSize = 0x40;
+std::string stat_host_name() {
+    std::string n;
+    if (!session::member_name(*image.at<uint32_t>(kMatchSession + MS_HOST), n)) n = session::local_name();
+    if (n.size() >= kStatNameSize) n.resize(kStatNameSize - 1);
+    return n;
+}
+U2MP_GUEST uint64_t stat_host_len(const char *s) { return s ? std::strlen(s) : stat_host_name().size(); }
+U2MP_GUEST void *stat_host_copy(void *dst, const void *src, uint64_t n) {
+    if (src) return std::memcpy(dst, src, n);
+    const std::string name = stat_host_name();
+    std::memcpy(dst, name.c_str(), name.size() + 1);
+    return dst;
+}
+
 }  // namespace
 
 void install_remaining(int &installed) {
+    {
+        // 66c75d: xor edi,edi; call strlen; lea rdx,[rax+1]; xor esi,esi; mov rdi,rbx; call memcpy
+        static const unsigned char site[] = {0x31, 0xff, 0xe8};
+        static const unsigned char site2[] = {0x48, 0x8d, 0x50, 0x01, 0x31, 0xf6, 0x48, 0x89, 0xdf, 0xe8};
+        if (image.matches(cStatHostLen - 2, site, sizeof site) && image.matches(cStatHostLen + 5, site2, sizeof site2) &&
+            retarget_call(cStatHostLen, fStrlen, reinterpret_cast<void *>(&stat_host_len), "NetStatGame host name length") &&
+            retarget_call(cStatHostCopy, fMemcpy, reinterpret_cast<void *>(&stat_host_copy), "NetStatGame host name copy"))
+            ++installed;
+        else
+            log("NetStatGame host name: call sites differ, left alone");
+    }
     // Texts first: the message boxes below need them.
     static const unsigned char find_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x56, 0x53, 0x89, 0xf3, 0x49, 0x89, 0xfe};
     void *orig = nullptr;

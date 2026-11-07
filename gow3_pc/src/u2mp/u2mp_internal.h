@@ -70,6 +70,10 @@ void netinit_dump(const char *when);   // diagnostics: the tables as the game fi
 const uint8_t *package_by_id(uint32_t id);
 // menuimages.cpp: "net-u2mp" when the import wrote pak22/ps4/net-u2mp.pak (PS3 menu images), else NULL.
 const char *extra_net_package();
+// menus.cpp: texts only the PS3 server sent (playlist names / descriptions), NULL for other ids.
+const char *extra_text(uint32_t id);
+// menus.cpp: a random game type of the chosen matchmaking playlist, -1 when none.
+int32_t playlist_pick_type();
 // ShowPage(menu manager, page id, 0) in the guest.
 void show_page(uint32_t page);
 // True when the function at `offset` is a stripped stub: ret, then alignment padding.

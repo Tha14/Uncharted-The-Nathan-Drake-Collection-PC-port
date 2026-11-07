@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -141,8 +142,10 @@ struct Playlist {
     uint32_t ranked;       // +0x30
     int32_t skill;         // +0x34
     uint32_t pad1[2];
-    int32_t type;          // ours: the game type
+    int32_t type;          // ours: the game type the lobby shows (the first available of `types`)
     uint32_t image;        // ours: the playlist picture (net package image table)
+    int32_t types[8];      // ours: the game types a match of this playlist is picked from
+    int32_t type_count;
 };
 static_assert(offsetof(Playlist, games) == 0x28 && offsetof(Playlist, skill) == 0x34, "playlist layout");
 Playlist playlists[kMaxPlaylists];
@@ -170,6 +173,46 @@ uint32_t playlist_image(uint32_t name_text) {
 }
 constexpr uint32_t kTextMachinima = 0x5614c769;   // the cinema game type: not a matchmaking playlist
 
+// The PS3 server playlists (live data of PS3 1.10, from the PS3 reference screenshots): name and
+// description texts (the PS4 networking bank still has most; the four only the server sent are
+// served by extra_text below), picture (general/net/playlists/<name>, in the PS4 net.pak or, for
+// the-lab, net-u2mp.pak) and the game types (by their name texts; two ids where the bank has two).
+namespace text {
+constexpr uint32_t Deathmatch = 0xa30341e7, Deathmatch2 = 0x8dfdede9, Elimination = 0x3b8de400, Plunder = 0x3d9470a5,
+                   TurfWar = 0x0544e6f6, KingOfTheHill = 0x13f76fcc, ChainReaction = 0x71ede2dc,
+                   ChainReaction2 = 0xf625a024, CoopObjective = 0x5136a578, CoopArena = 0x2ee192ab,
+                   GoldRush = 0x00248bb5, GoldRush2 = 0xe9995f4c, Survival = 0x2959eca4, Survival2 = 0xb81a7c18,
+                   Objectives = 0x4bf30e73, Ranked = 0x47b24464;
+}
+constexpr uint32_t kTextAllCompetitive = sid("u2mp/playlist/all-competitive"),
+                   kTextAllCompetitiveDesc = sid("u2mp/playlist/all-competitive/desc"),
+                   kTextTheLab = sid("u2mp/playlist/the-lab"), kTextTheLabDesc = sid("u2mp/playlist/the-lab/desc"),
+                   kTextEliminationDesc = sid("u2mp/playlist/elimination/desc");
+struct PlaylistDef {
+    const char *key;
+    uint32_t name, desc;   // desc 0: the first game type's description
+    const char *picture;
+    uint32_t types[8];     // game type name texts, 0-terminated
+};
+const PlaylistDef kPlaylistDefs[] = {
+    {"all-competitive", kTextAllCompetitive, kTextAllCompetitiveDesc, "grab-bag",
+     {text::Deathmatch, text::Deathmatch2, text::Plunder, text::TurfWar, text::KingOfTheHill, text::ChainReaction,
+      text::ChainReaction2, text::Elimination}},
+    {"ranked", text::Ranked, 0x57fc82aa, "mlg",
+     {text::Deathmatch, text::Deathmatch2, text::Plunder, text::TurfWar, text::KingOfTheHill, text::ChainReaction,
+      text::ChainReaction2, text::Elimination}},
+    {"deathmatch", text::Deathmatch, 0xfc8dd900, "deathmatch", {text::Deathmatch, text::Deathmatch2, text::Elimination}},
+    {"elimination", text::Elimination, kTextEliminationDesc, "elimination", {text::Elimination}},
+    {"objectives", text::Objectives, 0x675ef552, "objective",
+     {text::Plunder, text::TurfWar, text::KingOfTheHill, text::ChainReaction, text::ChainReaction2}},
+    {"plunder", text::Plunder, 0x32cc1acb, "plunder", {text::Plunder}},
+    {"coop-objective", text::CoopObjective, 0xc35e16e8, "coop", {text::CoopObjective}},
+    {"coop-arena", text::CoopArena, 0, "coop", {text::CoopArena}},
+    {"gold-rush", text::GoldRush, 0, "survival", {text::GoldRush, text::GoldRush2}},
+    {"survival", text::Survival, 0, "survival", {text::Survival, text::Survival2}},
+    {"the-lab", kTextTheLab, kTextTheLabDesc, "the-lab", {text::Deathmatch, text::Deathmatch2}},
+};
+
 void build_playlists() {
     uint32_t &count = G<uint32_t>(kNgm + NGM_PLAYLIST_COUNT);
     if (count != 0) return;   // filled (by us, or by anything else that has playlists)
@@ -182,6 +225,42 @@ void build_playlists() {
     auto *games = static_cast<DcTable *>(dc_lookup(kNetGames));
     auto *types = static_cast<DcTable *>(dc_lookup(kGameTypes));
     if (!games || !types || games->count <= 0 || types->count <= 0 || !games->records || !types->records) return;
+    // game types that have a playable net game here (DLC maps only when imported)
+    std::vector<bool> playable(size_t(types->count), false);
+    for (int32_t i = 0; i < games->count; ++i) {
+        const int32_t type = *reinterpret_cast<int32_t *>(games->records + 0x90 * i + 0x0c);
+        if (type >= 0 && type < types->count && dlc_net_game_available(i)) playable[size_t(type)] = true;
+    }
+    for (const PlaylistDef &d : kPlaylistDefs) {
+        if (playlist_count >= kMaxPlaylists) break;
+        Playlist pl{};
+        for (const uint32_t want : d.types) {
+            if (!want) break;
+            for (int32_t t = 0; t < types->count; ++t) {
+                if (!playable[size_t(t)] || *reinterpret_cast<const uint32_t *>(types->records + 0x44 * t) != want) continue;
+                bool dup = false;
+                for (int k = 0; k < pl.type_count; ++k) dup = dup || pl.types[k] == t;
+                if (!dup && pl.type_count < 8) pl.types[pl.type_count++] = t;
+            }
+        }
+        if (pl.type_count == 0) continue;
+        pl.type = pl.types[0];
+        pl.name = d.name;
+        pl.desc = d.desc ? d.desc : *reinterpret_cast<const uint32_t *>(types->records + 0x44 * pl.type + 4);
+        pl.id = sid((std::string("u2mp/playlist/") + d.key).c_str());
+        pl.image = sid((std::string("general/net/playlists/") + d.picture).c_str());
+        pl.pad0[1] = pl.image;   // +0x10: the picture the renderer's type 0x24/0x25 reads (menuimages.cpp)
+        pl.skill = -1;
+        playlists[playlist_count++] = pl;
+    }
+    if (playlist_count > 0) {
+        for (int p = 0; p < playlist_count; ++p)
+            G<uint64_t>(kNgm + NGM_PLAYLISTS + 8 * uint64_t(p)) = uint64_t(uintptr_t(&playlists[p]));
+        count = uint32_t(playlist_count);
+        log("menus: %d PS3 playlists", playlist_count);
+        return;
+    }
+    // Fallback (no game type text matched): one playlist per game type, as before.
     for (int32_t i = 0; i < games->count && playlist_count < kMaxPlaylists; ++i) {
         const int32_t type = *reinterpret_cast<int32_t *>(games->records + 0x90 * i + 0x0c);
         if (type < 0 || type >= types->count || !dlc_net_game_available(i)) continue;
@@ -200,6 +279,8 @@ void build_playlists() {
         if (taken) pl.id = 0x55320000u + uint32_t(type);   // keep ids unique and non-zero
         pl.skill = -1;
         pl.type = type;
+        pl.types[0] = type;
+        pl.type_count = 1;
         pl.image = playlist_image(pl.name);
         pl.pad0[1] = pl.image;   // +0x10: the picture the renderer's type 0x24/0x25 reads (menuimages.cpp)
         ++playlist_count;
@@ -349,6 +430,25 @@ bool wrap_query(uint32_t cond, uint64_t expected_fn, QueryFn host, QueryFn *orig
 }
 
 }  // namespace
+
+// The PS3 playlist texts only the server sent (English; every language shows these).
+const char *extra_text(uint32_t id) {
+    if (id == kTextAllCompetitive) return "All Competitive Modes";
+    if (id == kTextAllCompetitiveDesc) return "An assortment of Deathmatch and Objective based game types";
+    if (id == kTextTheLab) return "The Lab";
+    if (id == kTextTheLabDesc) return "Various Experimental Game Types";
+    if (id == kTextEliminationDesc) return "Elimination Matches Only.";
+    return nullptr;
+}
+
+// Matchmaking Start Match: a random game type of the chosen playlist (-1: none chosen / not ours).
+int32_t playlist_pick_type() {
+    const uint32_t id = G<uint32_t>(kNpd + NPD_PLAYLIST);
+    for (int p = 0; p < playlist_count; ++p)
+        if (playlists[p].id == id && playlists[p].type_count > 0)
+            return playlists[p].types[size_t(std::rand()) % size_t(playlists[p].type_count)];
+    return -1;
+}
 
 void install_menus(int &installed) {
     // The table must look like the 1.02 one: cond 50 first, its STARTMATCH query at 0x655c40.

@@ -162,8 +162,9 @@ U2MP_GUEST uint8_t *image_lookup(uint64_t id_sel, int32_t index) {
         if (sel != 1 && sel != 2) return nullptr;
         for (unsigned i = 0; i < t->count; ++i)
             if (rd<uint32_t>(t->entries + 0x28 * size_t(i), 8) == id) return t->entries + 0x28 * i;
-        index = find_by_slash_id(int(sel), t, id);
-        uint8_t *extra = index < 0 && sel == 1 ? extra_lookup(id) : nullptr;
+        // net-u2mp first: it holds the PS3-only images and the PS3 ones preferred over PS4's (u2netimg)
+        uint8_t *extra = sel == 1 ? extra_lookup(id) : nullptr;
+        index = extra ? -1 : find_by_slash_id(int(sel), t, id);
         if (log_budget.load(std::memory_order_relaxed) > 0) {
             log_budget.fetch_sub(1, std::memory_order_relaxed);
             log("menu images: lookup %s id %08x -> %s (%d)", sel == 1 ? "net" : "menu", id,
