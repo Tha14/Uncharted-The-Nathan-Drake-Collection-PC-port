@@ -172,6 +172,10 @@ int attach(uint8_t slot, uint32_t key, bool direct) {
     for (int i = 0; i < kRecordCount; ++i) {
         const uint64_t rec = record_address(i);
         if (field<uint8_t>(rec, 0x04)) continue;
+        if (field<uint64_t>(layer_of(i), 0) != uint64_t(uintptr_t(image.base)) + kMessageVtable) {
+            log("connection record %d has no message layer yet, slot %u not attached", i, slot);
+            return -1;
+        }
         field<uint32_t>(rec, 0x00) = key;
         field<uint8_t>(rec, 0x04) = 1;
         field<uint8_t>(rec, 0x06) = direct ? 1 : 0;
@@ -220,11 +224,8 @@ void receive(uint8_t slot, const uint8_t *data, size_t size) {
 
 bool install() {
     const uint64_t base = uint64_t(uintptr_t(image.base));
-    // The message layers the static constructor set up, and the online update's vtable slot.
-    if (field<uint64_t>(record_address(0) + 0x40, 0) != base + kMessageVtable) {
-        log("game transport: unexpected message layer, not installed");
-        return false;
-    }
+    // (The records' message layers get their vtable from a static constructor (0x675570), which runs
+    // after this install: attach() checks it when a peer connects.)
     const uint64_t vt = base + kMessageVtable;
     fn.read = reinterpret_cast<ReadMessagesFn>(field<uint64_t>(vt, 0x08));
     fn.write = reinterpret_cast<WriteMessagesFn>(field<uint64_t>(vt, 0x10));

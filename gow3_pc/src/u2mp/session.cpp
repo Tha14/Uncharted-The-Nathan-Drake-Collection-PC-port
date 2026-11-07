@@ -7,7 +7,9 @@
 // transport: the party leader is the match host.
 //
 // Net ids: host 1, a client in transport slot s has s + 1 (also its connection-record key).
+#include <array>
 #include <cstdio>
+#include <utility>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -44,7 +46,21 @@ constexpr int kTrackers = 10;
 // functions
 constexpr uint64_t fPopPage = 0x5cc6f0, fClearNetPlayers = 0x63db90, fTrackerClear = 0x662a30,
                    fHostCreate = 0x5eb830, fCreateEvent = 0x6180f0, fMessageApply = 0x62dc50,
-                   fMenuUpdate = 0x5c3d40, fMenuUpdateCall = 0x3f8280;
+                   fRequestPackage = 0x56ad90, kPackageTable = 0x1130390;
+// menu page-event handlers (dispatcher 0x5cd5c0): count at menu+0x24f0, entries at menu+0x24f8 (0x18
+// each: u32 page id, 0 = every page; fn at +8; arg at +0x10), at most 32. A handler gets
+// {u32 event, u32 page, u64 arg, ...}; event 6 is the per-frame update.
+constexpr uint64_t MENU_HANDLER_COUNT = 0x24f0, MENU_HANDLERS = 0x24f8, MENU_HANDLER_SIZE = 0x18;
+constexpr uint32_t kMaxPageHandlers = 32, kEventUpdate = 6;
+// TaskManagerOnline states (vtable, Update at +0x18; SESSION-INTERFACE.md 3.2): the match keeps
+// the network going through them while no menu page is updated.
+struct StateUpdate { uint64_t slot, update; };
+constexpr StateUpdate kStateUpdates[] = {
+    {0x100ac40 + 0x18, 0x5f2ea0}, {0x100ac00 + 0x18, 0x5f2dc0}, {0x100abc0 + 0x18, 0x5f26d0},
+    {0x100ab80 + 0x18, 0x5f14d0}, {0x100ab40 + 0x18, 0x5f1390}, {0x100ab00 + 0x18, 0x5f1000},
+    {0x100aa80 + 0x18, 0x5f0ec0}, {0x100aa40 + 0x18, 0x5f0b30}, {0x100aa00 + 0x18, 0x5f0a90},
+    {0x100a9c0 + 0x18, 0x5eff30}};
+constexpr size_t kStateCount = sizeof(kStateUpdates) / sizeof(*kStateUpdates);
 // stubs we replace
 constexpr uint64_t cbMultiplayer = 0x5eb160, qPartyRows = 0x659bb0, qPlayerRows = 0x659bc0,
                    cbStartMatch = 0x5eb780, cbLeaveMultiplayer = 0x5eb180;
@@ -338,12 +354,85 @@ bool start_transport() {
     return true;
 }
 
+// ---- per frame ----------------------------------------------------------------------------------
+void tick();
+void host_create();
+
+// Page-event handler for every page (page id 0): event 6 every frame while a menu page is up.
+U2MP_GUEST void page_event(uint32_t *event) {
+    if (event && event[0] == kEventUpdate) tick();
+}
+
+void register_frame_handler() {
+    const uint64_t menu = addr::menu_manager;
+    uint32_t &count = G<uint32_t>(menu + MENU_HANDLER_COUNT);
+    for (uint32_t i = 0; i < count; ++i)
+        if (G<uint64_t>(menu + MENU_HANDLERS + i * MENU_HANDLER_SIZE + 8) == uint64_t(uintptr_t(&page_event))) return;
+    if (count >= kMaxPageHandlers) {
+        log("menu page handler table full: no per-frame updates in menus");
+        return;
+    }
+    const uint64_t e = menu + MENU_HANDLERS + count * MENU_HANDLER_SIZE;
+    G<uint32_t>(e) = 0;
+    G<uint64_t>(e + 8) = uint64_t(uintptr_t(&page_event));
+    G<uint64_t>(e + 0x10) = 0;
+    ++count;
+    log("per-frame page handler registered (%u handlers)", count);
+}
+
+void unregister_frame_handler() {
+    const uint64_t menu = addr::menu_manager;
+    uint32_t &count = G<uint32_t>(menu + MENU_HANDLER_COUNT);
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint64_t e = menu + MENU_HANDLERS + i * MENU_HANDLER_SIZE;
+        if (G<uint64_t>(e + 8) != uint64_t(uintptr_t(&page_event))) continue;
+        for (uint32_t j = i; j + 1 < count; ++j)
+            std::memcpy(image.at<void>(menu + MENU_HANDLERS + j * MENU_HANDLER_SIZE),
+                        image.at<void>(menu + MENU_HANDLERS + (j + 1) * MENU_HANDLER_SIZE), MENU_HANDLER_SIZE);
+        --count;
+        return;
+    }
+}
+
+// The match states' Update, wrapped: original, then the network.
+using StateUpdateFn = uint64_t(U2MP_GUEST *)(void *state);
+StateUpdateFn original_update[kStateCount];
+template <size_t I> U2MP_GUEST uint64_t state_update(void *state) {
+    const uint64_t result = original_update[I](state);
+    tick();
+    return result;
+}
+template <size_t... I> constexpr std::array<void *, sizeof...(I)> make_state_updates(std::index_sequence<I...>) {
+    return {reinterpret_cast<void *>(&state_update<I>)...};
+}
+const std::array<void *, kStateCount> state_update_fns = make_state_updates(std::make_index_sequence<kStateCount>{});
+
+// The network memory context (0x14): the allocator (0xb332a0) takes context n's heap from the table at
+// [0x104ae00] + n*8. PS3 had a network heap (ALLOCATION_NETWORK_HEAP); PS4 never creates it, so the
+// slot is null and every network allocation (PlayerInfo 0x6144b0 and others) faults. Point it at the
+// default heap (the one context 0x46 resolves to, 0x11c6630+0x198); frees use the same table.
+void ensure_network_heap() {
+    constexpr uint64_t kAllocTablePtr = 0x104ae00, kDefaultHeap = 0x11c6630 + 0x198, kNetContext = 0x14;
+    const uint64_t table = G<uint64_t>(kAllocTablePtr);
+    if (!table) return;
+    auto *slot = reinterpret_cast<uint64_t *>(uintptr_t(table) + kNetContext * 8);
+    if (*slot) return;
+    const uint64_t heap = G<uint64_t>(kDefaultHeap);
+    if (!heap) {
+        log("network heap: no default heap to share");
+        return;
+    }
+    *slot = heap;
+    log("network heap: context 0x14 now uses the default heap");
+}
+
 // ---- restored callbacks and queries ------------------------------------------------------------
 
 // BUTTON_MULTIPLAYER (PS3 0x43b150 -> bootstrap 0x438bc8 -> NetInit 0x447a5c, which ended with
 // SetNetState(18)). PS4 0x5eb160 was a bare ret.
 U2MP_GUEST void multiplayer_button(void *, void *, void *) {
     log("Multiplayer selected");
+    ensure_network_heap();
     if (!active) {
         if (!start_transport()) {
             G<uint8_t>(kNetInfo + NI_ERROR) = 1;
@@ -360,8 +449,12 @@ U2MP_GUEST void multiplayer_button(void *, void *, void *) {
     session_members(kParty);
     sent_mode = -1;
     set_state(kChooseHostJoin);   // IsOnline: state > 1
+    register_frame_handler();
+    // PS3 showed PAGE_MULTIPLAYER_CONNECTING while NetInit ran; its PS4 handler waits for the "net"
+    // package forever (the request never reaches the loader). Request it here and go straight on.
+    static const char net_package[] = "net";
+    fn<void(U2MP_GUEST *)(void *, const char *, int)>(fRequestPackage)(image.at<void>(kPackageTable), net_package, 0);
     show_page(sid("PAGE_MULTIPLAYER"));
-    show_page(sid("PAGE_MULTIPLAYER_CONNECTING"));   // loads the "net" package, then pops itself
 }
 
 // Party rows PARTY_PLAYER0..9 (cond 26..35; PS3 roster query 0x4bc728) and the match/post-game rows
@@ -408,7 +501,7 @@ U2MP_GUEST void start_match(void *, void *, void *) {
         }
     }
     log("Start Match: creating the match");
-    fn<void(U2MP_GUEST *)(void *, void *, void *)>(fHostCreate)(nullptr, nullptr, nullptr);   // state 3, page handler 0x6093f0
+    host_create();   // state 3, page handler 0x6093f0
     session_set(kMatch, kRoomContext, 1, 1);
     session_members(kMatch);
     fill_net_players();
@@ -418,9 +511,36 @@ U2MP_GUEST void start_match(void *, void *, void *) {
     send_session(-1, {kFollow});
 }
 
+// The custom game create path (PS3 0x444bb0 = PS4 0x5eb830) without its room-attribute pick: that
+// part reads a list (0x14ce990 count / 0x14ce9b8 array) the PS3 network init filled; on PS4 it is
+// empty and 0x5eb830 dereferences null. The rest is the same, in the same order.
+void host_create() {
+    G<uint8_t>(kNetInfo + NI_CREATED_BY_ME) = 1;
+    fn<void(U2MP_GUEST *)(void *)>(fClearNetPlayers)(image.at<void>(kNgm));
+    G<int32_t>(kNetInfo + NI_FROM_MATCHMAKING) = 0;
+    const uint64_t menu = addr::menu_manager;
+    fn<void(U2MP_GUEST *)(void *)>(0x5cd1e0)(image.at<void>(menu));        // menu reset
+    G<uint32_t>(G<uint64_t>(menu + 0x1828) - uint64_t(uintptr_t(image.base)) + 8) = 0x69deab50;   // wait text
+    constexpr uint32_t kHostPage = 0x471007a1;
+    uint32_t &count = G<uint32_t>(menu + MENU_HANDLER_COUNT);
+    uint64_t entry = 0;
+    for (uint32_t i = 0; i < count && !entry; ++i)
+        if (G<uint32_t>(menu + MENU_HANDLERS + i * MENU_HANDLER_SIZE) == kHostPage) entry = menu + MENU_HANDLERS + i * MENU_HANDLER_SIZE;
+    if (!entry && count < kMaxPageHandlers) entry = menu + MENU_HANDLERS + (count++) * MENU_HANDLER_SIZE;
+    if (entry) {
+        G<uint32_t>(entry) = kHostPage;
+        G<uint64_t>(entry + 8) = guest(0x6093f0);
+        G<uint64_t>(entry + 0x10) = 0;
+    }
+    register_frame_handler();   // in case the reset cleared it
+    show_page(kHostPage);
+    set_state(kCreateGameWait);
+}
+
 // LEAVE_MULTIPLAYER (PS4 0x5eb180 only popped the page; PS3 teardown 0x4386d0).
 U2MP_GUEST void leave_multiplayer(void *, void *, void *) {
     log("leaving multiplayer");
+    unregister_frame_handler();
     for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) gamenet::detach(slot);
     transport.close();
     active = false;
@@ -435,11 +555,13 @@ U2MP_GUEST void leave_multiplayer(void *, void *, void *) {
     fn<void(U2MP_GUEST *)(void *)>(fPopPage)(image.at<void>(addr::menu_manager));
 }
 
-// Once per frame: the main loop's call to the menu manager update (0x3f8280 -> 0x5c3d40).
-U2MP_GUEST void menu_update(void *menu) {
-    fn<void(U2MP_GUEST *)(void *)>(fMenuUpdate)(menu);
+// Once per game frame (menu page handler or match state update, whichever runs first).
+double last_tick = -1;
+void tick() {
     if (!active) return;
     const double now = gamenet::clock();
+    if (now == last_tick) return;   // already done this frame
+    last_tick = now;
     transport.pump(now);
     gamenet::frame(now);
     transport.pump(now);
@@ -532,8 +654,19 @@ void install(int &installed) {
         }
         if (replace_function(h.at, 5, h.fn, h.name)) ++installed;
     }
-    if (retarget_call(fMenuUpdateCall, fMenuUpdate, reinterpret_cast<void *>(&menu_update), "per-frame menu update"))
-        ++installed;
+    const uint64_t base = uint64_t(uintptr_t(image.base));
+    bool states_ok = true;
+    for (const auto &s : kStateUpdates) states_ok = states_ok && G<uint64_t>(s.slot) == base + s.update;
+    if (!states_ok) {
+        log("match state vtables differ: no per-frame network during matches");
+        return;
+    }
+    for (size_t i = 0; i < kStateCount; ++i) {
+        original_update[i] = reinterpret_cast<StateUpdateFn>(base + kStateUpdates[i].update);
+        G<uint64_t>(kStateUpdates[i].slot) = uint64_t(uintptr_t(state_update_fns[i]));
+    }
+    log("match state updates wrapped (%zu states)", kStateCount);
+    ++installed;
 }
 
 }  // namespace u2mp::session
