@@ -143,10 +143,19 @@ def make(target, sources, log=print):
     return rec
 
 
-def apply(rec, sources):
+def apply(rec, sources, variants=None):
+    """Rebuild the recipe's file. variants: {source name: {sha256: (size)}} of other accepted versions of a source
+    (the server's net18.bin changes over time, in place): their bytes go into the same copied slots, so the result
+    carries the newer values; it then cannot have the reference sha256, only the reference size."""
+    other = False
     for n, h in rec['sources'].items():
         if n not in sources: raise SystemExit('missing source ' + n)
-        if sha(sources[n]) != h: raise SystemExit('source %s differs from the one the recipe was made from' % n)
+        s = sha(sources[n])
+        if s != h:
+            v = (variants or {}).get(n) or {}
+            if s not in v: raise SystemExit('source %s differs from the one the recipe was made from' % n)
+            if v[s] is not None and len(sources[n]) != v[s]: raise SystemExit('source %s: unexpected size' % n)
+            other = True
     cache = {}
     out = bytearray()
     for op in rec['ops']:
@@ -164,7 +173,8 @@ def apply(rec, sources):
             w = s // 8; bm[w // 8] |= 1 << (w % 8)
         out += struct.pack('<I', nb) + bm
     out = bytes(out)
-    if len(out) != rec['size'] or sha(out) != rec['sha256']: raise SystemExit('rebuilt file differs from the recipe target')
+    if len(out) != rec['size'] or (not other and sha(out) != rec['sha256']):
+        raise SystemExit('rebuilt file differs from the recipe target')
     return out
 
 

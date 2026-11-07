@@ -1,0 +1,8 @@
+{
+ "about": "Versions of the PS3 game data net18.bin (BCES01670DATA2, downloaded by the game from the online server) that the DC recipes accept. Hashes only. 'reference' = the version the recipes were made from (outputs byte-identical); the others feed their values into the copied slots (only net.bin reads bytes that differ: checked per version with net18_diff.py).",
+ "reference": "8c8bc870b3733beaece421beaf11fbe1cceb6d65536443535bd54cf126938da8",
+ "accepted": {
+  "8c8bc870b3733beaece421beaf11fbe1cceb6d65536443535bd54cf126938da8": "reference: community server, downloaded 2026-10-27",
+  "cea47307862bc9267518025b3a77da1b3b12909dd545d3b4fe438375b45a6d2e": "community server, 2026-11-07 (same size; 1376 bytes differ, 142 of them copied into overlay-r3 net.bin, all values)"
+ }
+}

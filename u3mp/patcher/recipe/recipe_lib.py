@@ -139,6 +139,17 @@ def classify_ps3_u3(folder):
     return kinds
 
 
+def accepted_net18_sha256():
+    """The net18.bin versions the DC recipes accept (tools/dcconv/net18-versions.json), else the one they were made
+    from. The online server updates net18.bin in place; each new version is checked and added there."""
+    p = os.path.join(TOOLS, 'dcconv', 'net18-versions.json')
+    try:
+        return set(json.load(open(p, encoding='utf-8'))['accepted'])
+    except (OSError, ValueError, KeyError):
+        h = expected_net18_sha256()
+        return {h} if h else set()
+
+
 def expected_net18_sha256():
     """sha256 of the game-data net18.bin the DC recipes were made from (dcconv/dc-recipes.json.gz sources)."""
     import gzip
@@ -172,12 +183,12 @@ def full_import_problems(inp):
                    'online in RPCS3 (net tables and the Lab maps it downloads); go online in Uncharted 3 multiplayer '
                    'once in RPCS3 with update 1.19, then import again.' % (d2, ', '.join(missing)))
         return out
-    want = expected_net18_sha256()
-    if want and sha256_file(os.path.join(d2, 'net18.bin')) != want:
-        out.append('the game data folder %s holds a different net18.bin (the network table the game downloads) than '
-                   'the one this recipe was made from, so the menus and modes cannot be converted. Go online in '
-                   'Uncharted 3 multiplayer once in RPCS3 with update 1.19 so the game downloads the current one, '
-                   'then import again.' % d2)
+    want = accepted_net18_sha256()
+    have = sha256_file(os.path.join(d2, 'net18.bin'))
+    if want and have not in want:
+        out.append('the game data folder %s holds a net18.bin version this recipe does not know yet (sha256 %s): the '
+                   'menus and modes cannot be converted from it. Report this hash so the version can be added; '
+                   'until then Uncharted 3 starts without multiplayer.' % (d2, have))
     return out
 
 

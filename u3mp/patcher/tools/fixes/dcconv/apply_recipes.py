@@ -25,6 +25,10 @@ def main():
     ap = argparse.ArgumentParser(); ap.add_argument('--apply', action='store_true'); ap.add_argument('--only'); a = ap.parse_args()
     R = json.load(gzip.open(os.path.join(DCCONV, 'dc-recipes.json.gz'), 'rt', encoding='utf-8'))
     idx = Index(DISC, UPD, DATA2); cache = {}
+    # other accepted versions of the server's net18.bin (tools/dcconv/net18-versions.json: hashes only)
+    vf = os.path.join(DCCONV, 'net18-versions.json')
+    acc = json.load(open(vf, encoding='utf-8'))['accepted'] if os.path.exists(vf) else {}
+    variants = {'ps3/data2:dc1/ps4/net.bin': {h: None for h in acc}}
 
     def src(name):
         if name not in cache:
@@ -40,10 +44,16 @@ def main():
         if os.path.exists(dst) and hashlib.sha256(open(dst, 'rb').read()).hexdigest() == rec['sha256']:
             tot['already'] += 1; continue
         try:
-            out = dcrecipe.apply(rec, {n: src(n) for n in rec['sources']})
+            out = dcrecipe.apply(rec, {n: src(n) for n in rec['sources']}, variants)
         except (SystemExit, OSError, TypeError) as ex:
             tot['failed'] += 1; print('FAILED', key, ex); continue
-        tot['rebuilt'] += 1
+        if hashlib.sha256(out).hexdigest() != rec['sha256']:
+            # built from another accepted net18.bin version: the reference structure with the server's newer values
+            if os.path.exists(dst) and open(dst, 'rb').read() == out:
+                tot['already'] += 1; continue
+            tot['rebuilt (newer server net18)'] += 1; print('rebuilt from the newer server net18.bin:', key)
+        else:
+            tot['rebuilt'] += 1
         if a.apply:
             os.makedirs(os.path.dirname(dst), exist_ok=True); open(dst, 'wb').write(out)
     print('dc-recipes:', dict(tot), '' if a.apply else '(dry run, nothing written)')
