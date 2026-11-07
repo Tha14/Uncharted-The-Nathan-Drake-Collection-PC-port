@@ -50,12 +50,17 @@ for f in fs:
     for e in L:print('   inst %d %s @%#x %#x->%#x %s zero %.0f lost %.0f'%(e['inst'],e['sub'],e['off'],e['flags'],e['flags']&~0x100,e['mat'],e['zero_m2'],e['lost_lm_m2']))
     if A.apply:
         os.makedirs(A.backup,exist_ok=True);bk=os.path.join(A.backup,n);d=bytearray(open(f,'rb').read())
-        if not os.path.exists(bk):shutil.copyfile(f,bk)
+        # recipe: a backup an earlier import left (another build of this pak) is replaced; the file has edits pending, so it is the pre-fix state
+        if not os.path.exists(bk) or md5(open(bk,'rb').read())!=md5(bytes(d)):shutil.copyfile(f,bk)
         man[n]=dict(md5_before=md5(open(bk,'rb').read()),edits=L)
         for e in L:struct.pack_into('<I',d,e['off'],e['flags']&~0x100)
         tmp=f+'.tmp';open(tmp,'wb').write(d);os.replace(tmp,f);man[n]['md5_after']=md5(bytes(d))
 if A.apply:
     old=json.load(open(MAN)) if os.path.exists(MAN) else {}
-    for k,v in old.items():man.setdefault(k,v)
+    # recipe: keep an earlier entry only while it still describes the overlay file (md5_after); a stale entry of an earlier
+    # import's build made map-colors2's lightmap-flag lock skip cha-multi / cha-multi-shade / ldn-streets-multi (2026-11-07)
+    for k,v in old.items():
+        p=os.path.join(A.root,k)
+        if k not in man and os.path.exists(p) and md5(open(p,'rb').read())==v.get('md5_after'):man[k]=v
     json.dump(man,open(MAN,'w'),indent=1);print('applied; manifest',MAN)
 else:print('DRY RUN: nothing written. Add --apply to write.')

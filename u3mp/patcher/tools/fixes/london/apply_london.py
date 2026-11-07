@@ -58,7 +58,9 @@ def sun_fix(raw, f):
     sun = q.resolve(lt.page, lt.data_off + 0x48)
     at = q.pbase(sun[0]) + sun[1] + 0x38
     v = struct.unpack_from('<f', raw, at)[0]
-    if abs(v - SUN_PS3) < 0.01: return raw, None
+    # compare the stored float32 bits, not |v - 886.71| < 0.01: the converted pak holds 886.7106 (PS3 value); the reference holds
+    # struct.pack('<f', 886.71), which the session wrote over its sun = 5 workaround (inline 011, 11-01 07:45; not a recipe step)
+    if raw[at:at + 4] == struct.pack('<f', SUN_PS3): return raw, None
     b = bytearray(raw); struct.pack_into('<f', b, at, SUN_PS3)
     return bytes(b), v
 

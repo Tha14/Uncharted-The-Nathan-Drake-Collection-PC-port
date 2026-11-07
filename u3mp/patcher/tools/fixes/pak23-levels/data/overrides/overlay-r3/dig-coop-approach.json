@@ -1,0 +1,261 @@
+{
+ "params": {
+  "levels/dig/metal/dig-lantern-incandescent/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/dig/metal/dig-ship-metal/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/dig/plants/dig-plant-vines/leaf02": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/dig/plants/dig-wall-vines-cards/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/dig/tree/dig-tree-long-far-card-coop/approach-01": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/dig/tree/dig-tree-long-far-card-coop/canopy-reflect": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/dig/tree/dig-twigs-cards/dig-twigs-cards": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/dig/water/dig-coop-waterfall-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/dig/dig-glass-new/default": [
+   "col-museum-low.pak",
+   "levels/columbia/transparency/col-window-glass-2:default,b6ac18a1-e351-4449-abb3-7874fc3a4478,prime-shader.fx"
+  ],
+  "levels/dig/dig-lightbulb-new/default": [
+   "cruise-ship-upright-deck-pool-lod.pak",
+   "levels/cruise-ship/misc/ship-light-tall-card:default,6287c0ae-b62e-463f-95b4-cb5cda7f95dd,prime-shader.fx"
+  ],
+  "levels/dig/dig-military-crate/default": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/hotel/war-washing-machine:default,5a2a4989-b3af-4309-bbfe-9fc13cdeb555,prime-shader.fx"
+  ],
+  "levels/dig/dig-rope/default": [
+   "syria-area2-low.pak",
+   "levels/syria/lores/syria-lores-area02-floor-02:default,28a59416-647c-464d-a08e-7b18075fcd28,prime-shader.fx"
+  ],
+  "levels/dig/ground/dig-grass-floor/default": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/dig/ground/dig-side-dirt-no-normal-and-spec/default": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/dig/ground/dig-underwater-dirt/default": [
+   "ldn-pub-office.pak",
+   "levels/london/office/ldn-off-rug:default,883a1450-a338-46d1-83ec-d8e91ab9ac01,prime-shader.fx"
+  ],
+  "levels/dig/metal/dig-iron-plain-rusted/rusty": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/dig/metal/dig-lantern-incandescent/default": [
+   "airport-wide.pak",
+   "levels/airport/windows/air-windows-wide-inc:default,0ba44ee7-70ee-49f4-97f5-6592d1e2de1c,prime-shader.fx"
+  ],
+  "levels/dig/metal/dig-lantern/default": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/outsourcing/col-office-desk-fg:default,cfe4f4c1-fc98-3b42-0b26-15a1d91c186f,prime-shader.fx"
+  ],
+  "levels/dig/objects/dig-metal-crate/default": [
+   "col-museum-low.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/dig/objects/dig-tires/default": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/hotel/war-washing-machine:default,5a2a4989-b3af-4309-bbfe-9fc13cdeb555,prime-shader.fx"
+  ],
+  "levels/dig/plants/dig-banyan-willow-leafs-subsrfce/canopy01": [
+   "airport-wide.pak",
+   "levels/airport/plants/air-shrubs-med-dead-2:default,09ecab14-eace-4f67-865a-d04bd1d0429d,prime-shader.fx"
+  ],
+  "levels/dig/plants/dig-banyan-willow-leafs-subsrfce/default": [
+   "airport-wide.pak",
+   "levels/airport/plants/air-shrubs-med-dead-2:default,09ecab14-eace-4f67-865a-d04bd1d0429d,prime-shader.fx"
+  ],
+  "levels/dig/plants/dig-banyan-willow-leafs-subsrfce/mangrove": [
+   "airport-wide.pak",
+   "levels/airport/plants/air-shrubs-med-dead-2:default,09ecab14-eace-4f67-865a-d04bd1d0429d,prime-shader.fx"
+  ],
+  "levels/dig/plants/dig-banyan-willow-leafs/cheaper-alpha": [
+   "cha-courtyard-low.pak",
+   "levels/dig/plants/dig-plant-cards:bush-cards-01,dac2874e-39aa-443d-a2d9-31872b3659ea,prime-shader.fx"
+  ],
+  "levels/dig/plants/dig-banyan-willow-leafs/default": [
+   "cha-floor-fire.pak",
+   "levels/dig/plants/dig-plant-cards:bush-cards-01,dac2874e-39aa-443d-a2d9-31872b3659ea,prime-shader.fx"
+  ],
+  "levels/dig/plants/dig-grass-tall/default": [
+   "san-collapse-sand-climb.pak",
+   "levels/multiplayer/museum/plants/muse-buganvilia-multi:default,iwslal4s-ed8r-f2gu-kqzf-lnpuutka0rvu,prime-shader.fx"
+  ],
+  "levels/dig/plants/dig-grass-tall/purple-grass": [
+   "san-collapse-sand-climb.pak",
+   "levels/multiplayer/museum/plants/muse-buganvilia-multi:default,iwslal4s-ed8r-f2gu-kqzf-lnpuutka0rvu,prime-shader.fx"
+  ],
+  "levels/dig/plants/dig-plant-leaf-no-bump/broms": [
+   "cha-courtyard-low.pak",
+   "levels/dig/plants/dig-plant-cards:bush-cards-01,dac2874e-39aa-443d-a2d9-31872b3659ea,prime-shader.fx"
+  ],
+  "levels/dig/plants/dig-vines-bump/drappy": [
+   "col-museum-low.pak",
+   "levels/columbia/fabric/col-cutain:default,d7883cfc-17d1-fe47-5941-90deba11c306,prime-shader.fx"
+  ],
+  "levels/dig/plants/dig-vines/drappy": [
+   "cha-courtyard-low.pak",
+   "levels/dig/plants/dig-plant-cards:bush-cards-01,dac2874e-39aa-443d-a2d9-31872b3659ea,prime-shader.fx"
+  ],
+  "levels/dig/plants/dig-vines/viney": [
+   "cha-courtyard-low.pak",
+   "levels/dig/plants/dig-plant-cards:bush-cards-01,dac2874e-39aa-443d-a2d9-31872b3659ea,prime-shader.fx"
+  ],
+  "levels/dig/rock/dig-cliff-rocks/light": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/hotel/war-washing-machine:default,5a2a4989-b3af-4309-bbfe-9fc13cdeb555,prime-shader.fx"
+  ],
+  "levels/dig/rock/dig-rock-base-wet/default": [
+   "col-museum-low.pak",
+   "levels/columbia/wood/col-darkwood:gompa-wood-blend-01,f1592764-bcad-4501-13b2-4c63ba62e0d2,prime-shader.fx"
+  ],
+  "levels/dig/tree/dig-tree-bark-base-no-normal/default": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/dig/tree/dig-tree-bark-base-no-normal/default-copy": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/dig/tree/dig-tree-bark-swaying/default": [
+   "yem-intro-temple-entrance-2.pak",
+   "levels/yemen/objects/yem-newspaper-01:default,c5873e5a-35c6-4132-a45c-6dcda56e3d79,prime-shader.fx"
+  ],
+  "levels/dig/tree/dig-tree-long-far-card-coop/approach-01": [
+   "cha-forest-drop.pak",
+   "levels/chateau/tree/cha-beech-leaves-canopy-shadow:default,6523db72-91fb-46dc-a26f-495992d8e916,prime-shader.fx"
+  ],
+  "levels/dig/tree/dig-tree-long-far-card-coop/canopy-reflect": [
+   "cha-forest-drop.pak",
+   "levels/chateau/tree/cha-beech-leaves-canopy-shadow:default,6523db72-91fb-46dc-a26f-495992d8e916,prime-shader.fx"
+  ],
+  "levels/dig/tree/dig-tree-rot-log-no-spec/default": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/hotel/war-washing-machine:default,5a2a4989-b3af-4309-bbfe-9fc13cdeb555,prime-shader.fx"
+  ],
+  "levels/dig/tree/dig-tree-rot-log/default": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/hotel/war-washing-machine:default,5a2a4989-b3af-4309-bbfe-9fc13cdeb555,prime-shader.fx"
+  ],
+  "levels/dig/tree/dig-tree-rot-log/new-texture-set": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/hotel/war-washing-machine:default,5a2a4989-b3af-4309-bbfe-9fc13cdeb555,prime-shader.fx"
+  ],
+  "levels/dig/water/dig-coop-waterfall-01/default": [
+   "grave-02-hollowhulk-stern.pak",
+   "levels/ship-graveyard/hollow-hulk/grave-metal-catwalk-2:oblong,b19159e3-cb0f-4e3a-9fa6-4cc3df757452,prime-shader.fx"
+  ],
+  "levels/dig/wood/dig-ship-barrel/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/dig/wood/dig-ship-buldge-boards/default": [
+   "syria-area2-low.pak",
+   "levels/syria/lores/syria-lores-area02-floor-02:default,28a59416-647c-464d-a08e-7b18075fcd28,prime-shader.fx"
+  ],
+  "levels/dig/wood/dig-ship-deck/default": [
+   "syria-area2-low.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/dig/wood/dig-wood-dock/default": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/dig/wood/dig-wood-splintered/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/foliage/san-palm-leaves:default,28c9b4e4-7ed6-4d21-ba01-549c7c19792e,prime-shader.fx"
+  ],
+  "levels/wateq/dig/waterfalls/dig-clear-falling-water/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "lighting/master-gobo/default-copy-copy-copy-copy-copy-copy": [
+   "cha-forest-start-low.pak",
+   "levels/chateau/tree/cha-trees-flats:default,84e221a5-b3c6-4813-8e8d-882ffa70f800,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/general/textures/default/default-color-white.tga": "hud.pak",
+  "art/general/textures/default/default-flat-normal.tga": "ldn-atwood-station.pak",
+  "art/general/textures/default/default-lightmap0.tga": "airport-wide.pak",
+  "art/general/textures/default/default-lightmap1.tga": "airport-wide.pak",
+  "art/general/textures/default/default-normal-flat.tga": "col-museum-exterior-night.pak",
+  "art/levels/dig/textures/plants/dig-bush-cards-01-color.tga": "cha-floor-fire.pak",
+  "art/levels/dig/textures/plants/dig-bush-cards-01-trans.tga": "cha-floor-fire.pak",
+  "art/levels/water/textures/waterfalls/horse-ground-sand-sliding-04-normal.tga": "san-cistern-plaza-center-low.pak"
+ }
+}

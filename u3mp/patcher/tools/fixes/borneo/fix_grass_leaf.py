@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Borneo moving floor: dig-grass-main (dominant ground material) was converted with a GLOBAL_LEAF (foliage sway) template in
 dig-coop-approach / -ship / -stage. Dropdown's copy has no GLOBAL_LEAF; PS3 carries no leaf/wind constants.
-Repoints that material's feature list and effect to the same pak's dig-tree-rot-log:default (same features minus GLOBAL_LEAF and
-SPECULAR_LIGHT_APPLY_METALNESS, same texture bind names). Own textures and specular values stay.
-Dry run by default. --apply writes <pak>.bak-leaf once, then patches 20 bytes in place. Undo: copy .bak-leaf back.
+Repoints that material's feature list and effect to the same pak's dig-tree-rot-log:default (a subset of its features without GLOBAL_LEAF,
+same texture bind names; on ship and stage the donor also has no specular). Own textures and specular values stay.
+Dry run by default. --apply writes <pak>.bak-leaf once, then patches 20 bytes per pak in place. Undo: copy .bak-leaf back.
 usage: python -I fix_grass_leaf.py [--apply]"""
 import struct, sys, os
 SCRATCH = r"{{SCRATCH}}"
@@ -39,7 +39,7 @@ for pak in ('dig-coop-approach', 'dig-coop-ship', 'dig-coop-stage'):
         print(pak, 'NO DONOR, needs a reconvert'); bad += 1; continue
     d = info(q, mp, m[DONOR])
     diff = sorted(set(t[2]) ^ set(d[2]))
-    ok = diff == ['GLOBAL_LEAF', 'SPECULAR_LIGHT_APPLY_METALNESS'] and t[1] == d[1] and t[5] == d[5] and t[3][0] == d[3][0] and t[4][0] == d[4][0]
+    ok = 'GLOBAL_LEAF' in diff and not (set(d[2]) - set(t[2])) and t[1] == d[1] and t[5] == d[5] and t[3][0] == d[3][0] and t[4][0] == d[4][0]
     print(pak, 'target @%#x donor @%#x' % (q.pbase(mp) + m[TARGET], q.pbase(mp) + m[DONOR]), 'feature diff', diff, 'slots', t[5], 'same page', t[4][0] == d[4][0], 'OK' if ok else 'REFUSED')
     if not ok:
         bad += 1; continue

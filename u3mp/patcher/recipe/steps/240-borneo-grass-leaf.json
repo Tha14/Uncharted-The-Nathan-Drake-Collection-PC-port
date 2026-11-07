@@ -15,9 +15,12 @@
   ]
  ],
  "writes": [
+  "work/overlay-r3/u3data/build/main/pak23/ps4/dig-coop-approach.pak",
+  "work/overlay-r3/u3data/build/main/pak23/ps4/dig-coop-ship.pak",
   "work/overlay-r3/u3data/build/main/pak23/ps4/dig-coop-stage.pak"
  ],
  "status": "needs-converted-base",
  "applied": "2026-11-01 21:29",
- "recipe_version_added": "1.0.0"
+ "recipe_version_added": "1.0.0",
+ "notes": "2026-11-07: the script is the 21:29 session version (check 'GLOBAL_LEAF in diff and donor features a subset of the target's', the sub-agent's 21:08:33 edit); the earlier strict check refused dig-coop-stage. It patches dig-coop-approach and dig-coop-stage (ship is refused, as in the session), so all three are listed in writes: a rebuilt approach now reruns the step. Verified: approach 6ab50b70 -> d9a1675a (reference), stage a4ce9aa7 -> 1d8a1615 (backup-london)."
 }

@@ -1,0 +1,320 @@
+{
+ "params": {
+  "levels/london-underground/debris/ug-multi-rubble/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/london-underground/floors/ug-lib-stone-floor-2-crumbled/new-texture-set": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/london-underground/floors/ug-lib-stone-floor-2-mp/new-texture-set": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/london-underground/ground/ug-service-concrete-2-sludge-mp/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/london-underground/metals/ug-rusted-i-beam-2-dirty/grave-sidebeams": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/london-underground/walls/block/ug-vic-block-01-emblem-overlay/default": {
+   "g_uvScale2": [
+    1.0
+   ]
+  },
+  "levels/london-underground/walls/brick/ug-service-brick-multi-dusty/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/london-underground/walls/brick/ug-service-brick-multi-emblem-overlay/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_uvScale2": [
+    1.0
+   ]
+  },
+  "levels/london-underground/walls/brick/ug-service-brick-multi/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/london-underground/walls/brick/ug-tunnel-brick-2-stained-mp/default": {
+   "g_uvScale2": [
+    1.0
+   ]
+  },
+  "levels/london-underground/walls/rock/ug-rockwall-2/rock-dirt": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/london-underground/walls/rock/ug-rockwall-2/rock-dirt-2": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/london-underground/wood/ug-wood-dirty-edge/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/london-underground/debris/ug-multi-rubble/default": [
+   "yem-intro-rock-building-low.pak",
+   "levels/yemen/wood/yem-woodstripped-02:default,758c9fa8-faf3-42a3-ada7-bfd5bd853705,prime-shader.fx"
+  ],
+  "levels/london-underground/floors/ug-lib-stone-floor-2-crumbled/new-texture-set": [
+   "yem-chase-alley-roofs.pak",
+   "levels/yemen/wood/yem-wood-06c:default,83474522-ec7f-4478-ae69-42ad847b2f6c,prime-shader.fx"
+  ],
+  "levels/london-underground/ground/ug-service-concrete-2-sludge-mp/default": [
+   "grave-01-firstyard-yard-1.pak",
+   "levels/ship-graveyard/edgegrab/grave-hull-blue-tugboa:panels000-grey,96c8831b-b095-4134-9f52-f4c0336b124d,prime-shader.fx"
+  ],
+  "levels/london-underground/metals/ug-rusted-i-beam-2-dirty/grave-sidebeams": [
+   "grave-01-firstyard-yard-1.pak",
+   "levels/ship-graveyard/edgegrab/grave-hull-blue-tugboa:panels000-grey,96c8831b-b095-4134-9f52-f4c0336b124d,prime-shader.fx"
+  ],
+  "levels/london-underground/metals/ug-rusted-i-beam-2-mp-hack/grave-sidebeams": [
+   "yem-chase-alley-roofs.pak",
+   "levels/yemen/walls/stucco/yem--nwyelstucco-oldyeldestroyed-01:default,1f18cb2e-9d3d-4059-9058-0fbf138d86c1,prime-shader.fx"
+  ],
+  "levels/london-underground/victorian/ceilings/ug-vic-ceiling-print-2-broken/default": [
+   "col-rooftops-wide.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/london-underground/victorian/trims/ug-vic-trim-01-edge/default": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/london-underground/walls/block/ug-lib-block-2-crumble-mp/brick-crumbled": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/london-underground/walls/block/ug-lib-block-2-emblem-overlay/straight": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/walls/rock/ug-rockwall-01:default,3bf23162-6219-4e35-9873-476e9c859951,prime-shader.fx"
+  ],
+  "levels/london-underground/walls/brick/ug-clinker-2-broken/default": [
+   "yem-intro-alleys.pak",
+   "levels/yemen/wood/yem-woodstripped-01:default,a0110b13-8a7a-47f2-9706-3796670d9397,prime-shader.fx"
+  ],
+  "levels/london-underground/walls/brick/ug-service-brick-clinker-corrode-2-mp/default": [
+   "yem-chase-alley-roofs.pak",
+   "levels/yemen/walls/stucco/yem-newyelstucco-oldconcrete-01:default,0f93b531-22a7-4dd7-9978-834d58aea4b0,prime-shader.fx"
+  ],
+  "levels/london-underground/walls/brick/ug-service-brick-multi-dusty/default": [
+   "ldn-stations-connection.pak",
+   "levels/london-underground/walls/brick/ug-service-brick-clinker-corrode:default,4e8be8bc-3400-430b-8545-8c10ee92536d,prime-shader.fx"
+  ],
+  "levels/london-underground/walls/brick/ug-service-brick-multi-emblem-overlay/default": [
+   "ldn-victorian-station-lit.pak",
+   "levels/london-underground/walls/concrete/ug-concrete-cracked-2-grime:default,5a745f69-2b19-4e83-8ffc-4231525370d8,prime-shader.fx"
+  ],
+  "levels/london-underground/walls/brick/ug-service-brick-multi/default": [
+   "ldn-stations-connection.pak",
+   "levels/london-underground/walls/brick/ug-service-brick-clinker-corrode:default,4e8be8bc-3400-430b-8545-8c10ee92536d,prime-shader.fx"
+  ],
+  "levels/london-underground/walls/brick/ug-tunnel-brick-2-stained-mp/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/walls/rock/ug-rockwall-01:default,3bf23162-6219-4e35-9873-476e9c859951,prime-shader.fx"
+  ],
+  "levels/london-underground/walls/rock/ug-rockwall-2/rock-dirt": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/london-underground/walls/rock/ug-rockwall-2/rock-dirt-2": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/london-underground/walls/tile/ug-wall-tile-01-emblem-overlay/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/london-underground/water/ug-vic-puddles-multi/surface-puddlemtl": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/water/ug-valve-room-water:surface-puddlemtl,064876bb-55df-4b66-be5a-32bfdd686169,water.fx"
+  ],
+  "levels/london-underground/wood/ug-wood-dirty-edge/default": [
+   "grave-01-firstyard-yard-1.pak",
+   "levels/ship-graveyard/edgegrab/grave-hull-blue-tugboa:panels000-grey,96c8831b-b095-4134-9f52-f4c0336b124d,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/general/textures/default/default-blend.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/debris/ldn-streets-garbage-bag-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/debris/ldn-streets-garbage-bag-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/debris/ldn-streets-garbage-bag-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/debris/ug-newpaper-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/doors/ug-large-metal-door-color.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/doors/ug-large-metal-door-normal.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/doors/ug-large-metal-door-spec-mask.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/doors/ug-wood-door-01-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/doors/ug-wood-door-01-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/doors/ug-wood-door-01-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/electrical/ug-wires-color-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/electrical/ug-wires-normal-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/electrical/ug-wires-spec-mask-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/envi-maps/ug-envimap-station-256-env-reflection.dds": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/envi-maps/ug-library-dxt1-128-reflection-abstract.dds": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/envi-maps/ug-shaft-256-env-reflection.dds": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/floors/ug-floor-tile-blend-02.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/floors/ug-floor-tile-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/floors/ug-floor-tile-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/floors/ug-floor-tile-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/ground/ug-dust-color-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/ground/ug-dust-debris-color-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/ground/ug-dust-debris-normal-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/ground/ug-dust-normal-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/ground/ug-gravel-blend.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/ground/ug-service-concrete-normal-01.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/ground/ug-service-concrete-spec-mask-01.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/ground/ug-track-plank-blend.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/ground/ug-track-plank-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/ground/ug-track-plank-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/ground/ug-tunnel-ground-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/ground/ug-tunnel-ground-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/lib-objects/ug-lib-lamp-color.tga": "ldn-library-inner.pak",
+  "art/levels/london/textures/underground/lib-objects/ug-lib-lamp-normal.tga": "ldn-library-inner.pak",
+  "art/levels/london/textures/underground/library/lib-cur-display-case-glass-color.tga": "ldn-library-inner.pak",
+  "art/levels/london/textures/underground/library/lib-cur-display-case-glass-normal.tga": "ldn-library-inner.pak",
+  "art/levels/london/textures/underground/library/lib-cur-display-case-glass-refraction.tga": "ldn-library-inner.pak",
+  "art/levels/london/textures/underground/library/lib-cur-display-case-glass-spec-mask.tga": "ldn-library-inner.pak",
+  "art/levels/london/textures/underground/lights/ug-light-bulb-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/lights/ug-light-bulb-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/lights/ug-tunnellight-alpha.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/lights/ug-tunnellight-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/lights/ug-tunnellight-incand-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/lights/ug-tunnellight-normals.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/lights/ug-tunnellight-specular.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/metals/ug-diamond-plate-01-color.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/metals/ug-diamond-plate-01-normal.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/metals/ug-diamond-plate-01-spec-mask.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-01-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-01-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-blend-mask-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-blend-mask-02.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/metals/ug-metal-blend-mask-03.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/metals/ug-rusty-01-blend.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/metals/ug-rusty-01-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/metals/ug-rusty-01-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/metals/ug-rusty-beam-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/metals/ug-rusty-beam-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/metals/ug-rusty-beam-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/misc/ug-vic-filament-trans-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/misc/ug-vic-glass-refraction-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/misc/ug-windows-decal-texture-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/misc/ug-windows-decal-texture-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/misc/ug-windows-decal-texture-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/posters-signs/ug-atwood-posters-01-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ldn-ug-station-clock-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ldn-ug-utility-box-01-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ldn-ug-utility-box-01-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-extinguisher-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-extinguisher-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-extinguisher-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-old-bench-01-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-old-bench-01-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-old-bench-01-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-palette-color.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/props/ug-palette-normal.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/props/ug-station-emergency-signs-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-station-emergency-signs-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-station-lamp-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-station-lamp-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-station-lamp-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-trashbin-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-trashbin-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-trashbin-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-utility-boxes-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-utility-boxes-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-vending-machine-cover-01-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-vending-machine-cover-01-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-vending-machine-cover-01-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-vending-machinecover-02-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-vending-machinecover-02-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/props/ug-vending-machinecover-02-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/vic-props/ldn-vic-lights-hanging-bulb-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/vic-props/ug-vic-crates-color.tga": "ldn-library-inner.pak",
+  "art/levels/london/textures/underground/vic-props/ug-vic-crates-normal.tga": "ldn-library-inner.pak",
+  "art/levels/london/textures/underground/walls/block/ug-vic-wall-grit-blend-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/brick/ug-brick-concrete-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/brick/ug-clinker-blend-02.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/brick/ug-clinker-color-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/brick/ug-clinker-corroded-color-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/brick/ug-clinker-height-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/brick/ug-clinker-normal-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-concrete-normal.tga": "ldn-library-inner.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-foundation-concrete-color.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-foundation-concrete-normal.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-paint-chipped-blend-02.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-paint-chipped-blend.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-paint-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-wall-concrete-blend.tga": "ldn-elevator-room.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-wall-concrete-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-wall-concrete-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/concrete/ug-wall-grunge-mask-thin.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/rock/ug-rock-01-color.tga": "ldn-library-inner.pak",
+  "art/levels/london/textures/underground/walls/tile/tile-wall-a-ao.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/tile/tile-wall-a-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/tile/tile-wall-a-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/tile/tile-wall-a-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/tile/ug-paint-spec-maskr.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/tile/ug-tile-backing-color-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/tile/ug-tile-backing-normal-01.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/tile/ug-tile-wall-a-03-square-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/tile/ug-tile-wall-a-03-square-height.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/tile/ug-tile-wall-a-03-square-normal.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/tile/ug-tile-wall-a-03-square-spec-mask.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/tile/ug-tile-wall-b-blend.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/tile/ug-wall-tile-mm-color.tga": "ldn-atwood-station.pak",
+  "art/levels/london/textures/underground/walls/tile/ug-wall-tile-mm-spec-maskl.tga": "ldn-atwood-station.pak",
+  "art/levels/ship-graveyard/textures/hull/grave-wet-128dxt1-env-reflection.dds": "grave-01-firstyard-yard-1.pak",
+  "art/objects/crates/textures/cratewood-detail.tga": "ldn-atwood-station.pak"
+ }
+}
