@@ -31,8 +31,28 @@ void where(char *out, size_t size, uint64_t address) {
 }
 
 LPTOP_LEVEL_EXCEPTION_FILTER previous = nullptr;
+volatile LONG reported = 0;
+
+void report(EXCEPTION_POINTERS *info);
 
 LONG WINAPI last_chance(EXCEPTION_POINTERS *info) {
+    report(info);
+    return previous ? previous(info) : EXCEPTION_CONTINUE_SEARCH;
+}
+
+// First-chance, called after the runtime's own vectored handler (which resolves the GPU page faults
+// it expects and returns CONTINUE_EXECUTION for them): what reaches us is not one of those. Logs the
+// first few access violations / fatal codes, then lets the search continue unchanged.
+LONG CALLBACK first_chance(EXCEPTION_POINTERS *info) {
+    const DWORD code = info->ExceptionRecord->ExceptionCode;
+    const bool fatal = code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_ILLEGAL_INSTRUCTION ||
+                       code == EXCEPTION_STACK_OVERFLOW || code == EXCEPTION_INT_DIVIDE_BY_ZERO ||
+                       code == 0xc0000409 /* fail fast */ || code == EXCEPTION_PRIV_INSTRUCTION;
+    if (fatal && InterlockedIncrement(&reported) <= 8) report(info);
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+void report(EXCEPTION_POINTERS *info) {
     const EXCEPTION_RECORD *e = info->ExceptionRecord;
     const CONTEXT *c = info->ContextRecord;
     char at[160];
@@ -71,13 +91,13 @@ LONG WINAPI last_chance(EXCEPTION_POINTERS *info) {
         }
     }
     std::fflush(stdout);
-    return previous ? previous(info) : EXCEPTION_CONTINUE_SEARCH;
 }
 
 }  // namespace
 
 void install_crashlog() {
     previous = SetUnhandledExceptionFilter(&last_chance);
+    AddVectoredExceptionHandler(0, &first_chance);   // 0: after the runtime's handler
     log("crash log armed");
 }
 
