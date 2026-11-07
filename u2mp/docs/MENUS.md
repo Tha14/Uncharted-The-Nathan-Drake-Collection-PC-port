@@ -56,11 +56,11 @@ State: **stub** = `ret`; **wrap** / **port** = changed by menus.cpp; otherwise i
 | 44, 87, 88 | PAGE_MULTIPLAYER_SCOREBOARD header, k15 widget | `65b830`, `65cc80`, `65b490` | `4bf4a8`, `4bf218`, `4be434` | intact; NGM trackers, `*net-games*`; text 64370402 added |
 | 45, 46 | (in-game) | `65b1c0`, `65b320` | `4bc600`, `4bacb4` | intact |
 | 48 | BUTTON_MULTIPLAYER_INVITES | `659b50` | `4b8e08` | intact (callback: remaining.cpp) |
-| 49 | status line under the party list (PAGE_MULTIPLAYER, PAGE_LOBBY) | `659a90` | `4bae1c` | **wrap**: count = party size, text 69cbee70 added |
+| 49 | status line under the party list (PAGE_MULTIPLAYER, PAGE_LOBBY) | `659a90` | `4bae1c` | **wrap**: count = party size (text 69cbee70 from the import) |
 | 50 | BUTTON_MULTIPLAYER_STARTMATCH | `655c40` | `4b7d80` | intact (callback: session.cpp) |
 | 51..53, 131, 136 | MATCHMAKING / CUSTOM / CINEMA / LEADERBOARD / NETTROPHIES labels | `655cf0` | `4b9a88` | intact; mode table `0xdef390` (texts 47a936dc, c21027d1, f1b9728c, 067e1f80 added) |
 | 54 | (pause) | `655f90` | `4c1348` | intact |
-| 55 | PAGE_LOBBY: PLAYLIST | `6562d0` | `4bd9c8` | **wrap**: playlists built, choice applied |
+| 55 | PAGE_LOBBY: PLAYLIST | `6562d0` | `4bd9c8` | **wrap**: playlists built, choice applied, picture as type 3 |
 | 57..63, 65, 66 | PAGE_LOBBY custom game carousels and team | `656550`..`657900` | `4bb898`.. | intact; game type name `+0`, description `+4` (column 3), image `+8` of `f985c7b6` |
 | 64 | (none) | `657ae0` | `4b712c` | stub on both |
 | 67..76 | PAGE_CINEMA, cinema list, progress | `659410`.. | `4baef8`.. | intact (cinema.cpp) |
@@ -95,7 +95,7 @@ State: **stub** = `ret`; **wrap** / **port** = changed by menus.cpp; otherwise i
   calls the store "Rewards", text 90354b88).
 - **Restored:** NetPlayerData (progression.cpp, on event 0 through `64e810`), party rows
   (session.cpp), panel name = `UNCHARTED_U2MP_NAME` (written to netInfo+0x298 before the panel
-  query), status line = "[A] players in party" with the party size (netInfo+0x10 set around the
+  query), status line "[A] daily players" (PS3 text, from the import) with the party size (netInfo+0x10 set around the
   call, then restored), the four mode texts.
 
 ### 3.2 PAGE_LOBBY (handler `5ebac0`, PS3 `0x443bc8`)
@@ -167,27 +167,36 @@ Restored: the page title MENU_TITLE_TROPHIES (85ed01cc "TROPHIES") and the butto
 
 Unchanged here; see `CINEMA.md`.
 
-## 4. Texts added (TextDb::Find hook, remaining.cpp)
+## 4. Texts (TextDb::Find hook, remaining.cpp; import u2text.py)
 
-| id | name / use | text |
+The multiplayer code and menu.bin use 26 text ids that no PS4 text bank has. All of them are in the PS3
+1.10 dlc-patch7 networking bank (checked id by id against every PS3 bank: base, all-patches, dlc-patch2..7):
+
+| ids | used by | PS3 text |
 |---|---|---|
-| 47a936dc | mode 4 label (Leaderboard button) | Rankings (the PS3 base text) |
-| c21027d1 | mode 4 description | See how you rank against the players you have met |
-| f1b9728c | MENU_TROPHIES, mode 5 label | Trophies |
-| 067e1f80 | mode 5 description | Your multiplayer trophy progress |
-| 85ed01cc | MENU_TITLE_TROPHIES | TROPHIES |
-| d4143b18 | NET_CLANTAG | Clan Tag |
-| 639e0fa8 | clan tag query, no tag | None |
-| 69cbee70 | status line (cond 49) | [A] players in party |
-| 64370402 | scoreboard countdown (cond 87) | Starting in [A] |
+| f67d9ad2, 70c81d2e, c0cd1b00 | profile panel k23 (`59ddb0`) stat labels | Competitive Wins / Competitive Kills / Money |
+| 47a936dc, c21027d1 | mode 4 label / mode 4 and 5 description (`0xdef390`) | Leaderboards / Check out your stats |
+| f1b9728c, 85ed01cc | mode 5 label, MENU_TITLE_TROPHIES | Trophies / TROPHIES |
+| 780b62e0, e663a74e, b9602dbb, 966fa9ae, 4915c4b7, 7d24a9f9 | stats ticker k24 (`5b3240`) | Time Played, Global, Wins, Losses, Ratio, Rank |
+| 320a6fc8, 8994a031, 5ba2fdfb, d82785e7 | help bar table `0x1041560` (leaderboard footer) | Top of List, Next, Prev, Filter |
+| 69cbee70 | status line, cond 49 | [A] daily players |
+| d4143b18, 639e0fa8 | NET_CLANTAG label, clan tag query `6609e0` | Clan Tag / Enter Clan Tag... |
+| 64370402, 9b0dd3c2, e012d5e3 | scoreboard countdown `65cc80`, leave-game confirm `65e750` | Quit Penalty [A]... / Leaving the game will result in ... |
+| 9811415d, b7e89ee7, 6cff3670, c4c378d1, bde6ab5b | DLC notes and messages | DLC / Requires ... / We noticed ... |
 
-Only 47a936dc and ec7dd02d of the PS3 English tables are missing from PS4; the others above are in
-neither (they came with PS3 title updates, which are not available here), so the wording is ours.
+(`067e1f80`, which earlier versions served as a text, is the Trophies **icon** id of the mode table.)
+
+The import writes `text1/ps4/<lang>.networking` and `.common` = the PS4 bank plus the PS3 ids it lacks
+(u2text.merge; PS4 strings never change). The game reads its banks from `core.psarc` (loader `0xcdd960`,
+path `"%s/%s%i.%s"`), so it does not open those loose files: the TextDb::Find hook answers a miss from
+them (`/app0/u2data/build/main/text1/ps4/<n>.<category>`, `<n>` from the loaded bank: `+0x28` language
+index, table `0x1450d18 + 0x38 * index + 0x14`; English when the language has no merged bank). No game
+text is in the source any more; without the import the ids stay missing (the game prints its fallback).
+Only the PC-only message boxes (store, voice, invites ...) are our own text.
 
 ## 5. Gaps
 
-- "[A] players online" (ec840854) exists in both text tables but nothing references it; the
-  daily/online count was server data. The party size is shown instead (status line, friends title).
+- "[A] daily players" (69cbee70) was a count from Naughty Dog's server; the party size is shown with it.
 - PAGE_FRIENDACTIONS, the matchmaking machine `64e910`, the MOTD/EULA pages and the PSN friend
   card (cond 38) are not restored (no PC counterpart).
 - `dd2d35e7` (a net event's text, `62f250`) is absent from both tables; not a menu text, left.
@@ -196,3 +205,44 @@ neither (they came with PS3 title updates, which are not available here), so the
   get their data from NetPlayerData / NetStatGame / the trackers.
 - Playlist descriptions are the game types' descriptions, not the PS3 server playlists (Deathmatch,
   Objective, Co-op Arena, ...): those were server data.
+
+## 6. Page by page against the PS3 game (2026-11-08)
+
+Reference: RPCS3 screenshots of PS3 1.10. "Before": the PC build tested on 7 November. Not run here
+(static analysis); every "now" needs a check in game.
+
+Three causes cover most of the gaps:
+
+1. **Texts** (section 4): every "UNTRANSLATED STRING!!!" and blank label.
+2. **The net image table** `0x1130008+0x70`. Every type 3 image of the MP menus (mode buttons
+   `0x655f11`, game type `0x656864`, map card `0x656ac8`, boosters `0x65a0e0`) is looked up there
+   (`0x5558c0`; selector 1 = net, 0 = hud `+0x68`, 2 = menu `+0x78`). `0x554090` (every frame, from
+   Draw `0x3fc37a`) sets it from the package `"net"` (sid `4240ef2e`) only while that package is logged in
+   (`+0x30 == 7`), else NULL. Without an entry the image gets size 0 (`0x5bcc1a` -> `0x5bbd90`), and the
+   rich rows (kind 8) of PAGE_LOBBY take their height from it: Game Type / Map / Variation collapse onto
+   one line. The game's own request (`0x5ed839`, PAGE_MULTIPLAYER_CONNECTING) sets package flag `0x40`
+   right after RequestPackage (as the hud request `0x4b8c7f` does); session.cpp requested without it.
+   Now: the flag is set, the package is requested again while the MP menus are up (states 18 / 3 / 12),
+   and the log says `net package: present, state N, flags 0x..; net image table set|NULL, N images`
+   whenever that changes. If the table stays NULL with state 7, the cause is elsewhere (next round).
+3. **Image types PS4 cannot draw.** The menu image renderer (`0x5bd852`, types 4..0x29) has no case for
+   `0x1e` (booster pair of the profile panel), `0x22..0x25` (0x25 = playlist picture, 0x22 = cinema list)
+   and `0x27` (rank badge: profile panel, k19 widget, PS3 party rows): they go to its default
+   (`0x5c1ab1`, draw nothing). The queries are intact; the drawing code went with the PS4 multiplayer.
+   The PS4 net.pak has the textures (`badges/rank-badges-*`, `boosters/*`) but no material for the rank
+   badge sheet. Playlist pictures are converted to type 3 (below); the others need the PS3 draw cases
+   ported and, for the badge, a material in net.pak: not done.
+
+| page (reference) | PS3 | before | now |
+|---|---|---|---|
+| PAGE_MULTIPLAYER (6) | mode icons, labels Leaderboards / Trophies (14%), panel: name, Competitive Wins / Kills / Money / Co-op, rank badge 28, booster icons; party leader with badge; "0 daily players"; ticker "Time Played: name: 10h 5m"; footer Profile / Party Up / R1 Store | no icons, stat labels UNTRANSLATED, no badge, "1 players in party", empty ticker | labels, Leaderboards, Trophies (n%), ticker and status texts from the PS3 bank; "N daily players" = party size; mode icons for Matchmaking / Custom Game / Cinema once the net table is set (the PS4 net.pak has no Leaderboards / Trophies button images: `mode-buttons:` cinema, customgame, matchmaking only). Rank badge and booster pair: cause 3 |
+| PAGE_LOBBY, matchmaking (7) | Find Match, playlist "Deathmatch" with picture card | playlist "Machinima", empty picture box | Machinima (the cinema game type, text 5614c769) is no playlist; Deathmatch first; picture: type 0x25 replaced by the type 3 net image `general/net/playlists/<deathmatch, objective, coop, survival, default>` chosen by game type (the PS4 net.pak has these five) |
+| PAGE_LOBBY, custom game (8, 14-18) | Game Type with mode icon, Map with card + name, Variation, Score / Time Limit, Friendly Fire; party leader with badge; Team | rows on one line ("Variation/Game Type"), party leader and members empty | party rows: cond 26..35 have table args 10..19 and the roster query read them as rows 10..19 (empty); now row = arg % 10 as PS3 `0x4bc780` (and the PARTY_PLAYERn callback likewise). Rows / icons / map cards: cause 2. DLC map cards are not in the PS4 net.pak (IMPORT.md). Leader badge: cause 3 |
+| PAGE_MULTIPLAYER_PLAYER_OPTIONS, Profile (9-11) | rank ring and money, Boosters Slot 1/2 with names and icons, Clan Tag, Hero / Villain portraits, Co-op Difficulty, Taunt, Matchmaking, Golden Guns; booster carousel with descriptions | empty, footer UNTRANSLATED | Clan Tag label and "Enter Clan Tag..."; footer texts; booster and portrait images are type 3 (cause 2). Rank badge in the k19 widget (type 0x27): cause 3. Why the whole page was empty is not explained by the code (all its queries are intact): check with the new build |
+| PAGE_MENU_LEADERBOARD (12) | Rank, Level badge, Players, Kills, Deaths, Ratio; footer Filter / Prev / Next / Top of List | footer UNTRANSLATED | footer texts; rows from progression.cpp; level badge = type 0x27 (cause 3) |
+| PAGE_NET_TROPHIES (13) | list with icons, progress bars, counts, description | title / label only | texts; icons are net images (cause 2) |
+| PAGE_CINEMA (19) | Local Files, map picture, Author / Players / Length / Size / Date | not reported | texts; the list picture uses type 0x22 (cause 3) |
+
+Check in game (log `u2mp`): `texts: N strings from 2 imported bank(s) for language 2` (N about 2,700),
+the `net package:` lines (state 7 and "set, N images" on the Multiplayer page), mode icons, custom game
+rows on separate lines with icon and map card, party leader on the custom game page, the playlist card.

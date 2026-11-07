@@ -1,6 +1,7 @@
 """Text banks (text1/<lang>.<category>): the PS4 banks with the PS3 strings they lack (the DLC map titles
 'The Facility', 'The Highrise', 'The Museum' ... are missing from the PS4 networking bank; the dc map table names
-them by these ids).
+them by these ids; the multiplayer menus use about 25 more ids that only the PS3 dlc-patch7 networking bank has:
+stat labels, leaderboard footer, 'Time Played', '[A] daily players', 'Clan Tag' ...; see u2mp/docs/MENUS.md).
 
 Bank layout (big-endian on PS3 and PS4): u32 count; count x {u32 hash, u32 offset} sorted by hash; the string blob
 (offsets relative to its start, NUL-terminated strings).  PS4 and PS3 use the same language numbers (2..23).

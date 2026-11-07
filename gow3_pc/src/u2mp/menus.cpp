@@ -116,7 +116,8 @@ U2MP_GUEST void panel_query(uint8_t *q) {
 
 // ---- cond 49: the status line under the party list (0x659a90 = PS3 0x4bae1c) ----------------------
 // PS3 formatted a live-data count from Naughty Dog's server (0x4a9d04 = [netInfo+0x10]) with text
-// 69cbee70, which only PS3 title updates carried. Here: the number of players in the party.
+// 69cbee70 "[A] daily players" (PS3 dlc-patch7 bank, served from the import by remaining.cpp). There
+// is no server: the count is the number of players in the party.
 QueryFn orig_status = nullptr;
 U2MP_GUEST void status_query(uint8_t *q) {
     int32_t &live = G<int32_t>(kNetInfo + NI_LIVE_COUNT);
@@ -141,6 +142,7 @@ struct Playlist {
     int32_t skill;         // +0x34
     uint32_t pad1[2];
     int32_t type;          // ours: the game type
+    uint32_t image;        // ours: the playlist picture (net package image table)
 };
 static_assert(offsetof(Playlist, games) == 0x28 && offsetof(Playlist, skill) == 0x34, "playlist layout");
 Playlist playlists[kMaxPlaylists];
@@ -149,6 +151,24 @@ uint32_t applied_playlist = 0;
 QueryFn orig_playlist = nullptr;
 
 struct DcTable { int32_t count; int32_t pad; uint8_t *records; };
+
+// The playlist picture. PS3 drew the row's image as type 0x25 (playlist id -> picture); the PS4 menu
+// renderer has no case for 0x25 (dispatch 0x5bd855 sends 0x1e, 0x22..0x25 and 0x27 to its default),
+// so the box stayed empty. The pictures are in the PS4 net package as images of the net image table
+// (0x1130008+0x70; materials general/net/playlists:<name>, id = sid("general/net/playlists/<name>")),
+// which a type 3 image reads (as the game type and map rows do, 0x656abb). Which picture: by the
+// game type's name text (the ids the PS4 text bank uses), as the PS3 server playlists grouped them.
+uint32_t playlist_image(uint32_t name_text) {
+    switch (name_text) {
+    case 0xa30341e7u: case 0x8dfdede9u: case 0x3b8de400u: return sid("general/net/playlists/deathmatch");
+    case 0x3d9470a5u: case 0x0544e6f6u: case 0x13f76fccu: case 0x8f86cb5fu: case 0x4bf30e73u:
+        return sid("general/net/playlists/objective");
+    case 0x2ee192abu: case 0x5136a578u: case 0x00248bb5u: case 0xe9995f4cu: return sid("general/net/playlists/coop");
+    case 0x2959eca4u: case 0xb81a7c18u: return sid("general/net/playlists/survival");
+    default: return sid("general/net/playlists/default");
+    }
+}
+constexpr uint32_t kTextMachinima = 0x5614c769;   // the cinema game type: not a matchmaking playlist
 
 void build_playlists() {
     uint32_t &count = G<uint32_t>(kNgm + NGM_PLAYLIST_COUNT);
@@ -169,6 +189,7 @@ void build_playlists() {
         for (int p = 0; p < playlist_count; ++p) seen = seen || playlists[p].type == type;
         if (seen) continue;
         const uint8_t *t = types->records + 0x44 * type;
+        if (*reinterpret_cast<const uint32_t *>(t + 0) == kTextMachinima) continue;
         Playlist &pl = playlists[playlist_count];
         pl = Playlist{};
         pl.name = *reinterpret_cast<const uint32_t *>(t + 0);
@@ -179,8 +200,14 @@ void build_playlists() {
         if (taken) pl.id = 0x55320000u + uint32_t(type);   // keep ids unique and non-zero
         pl.skill = -1;
         pl.type = type;
+        pl.image = playlist_image(pl.name);
         ++playlist_count;
     }
+    // Deathmatch first, as PS3 listed it (stable: the others keep the *net-games* order).
+    std::stable_sort(playlists, playlists + playlist_count, [](const Playlist &a, const Playlist &b) {
+        const uint32_t dm = sid("general/net/playlists/deathmatch");
+        return (a.image == dm) > (b.image == dm);
+    });
     for (int p = 0; p < playlist_count; ++p)
         G<uint64_t>(kNgm + NGM_PLAYLISTS + 8 * uint64_t(p)) = uint64_t(uintptr_t(&playlists[p]));
     count = uint32_t(playlist_count);
@@ -214,10 +241,27 @@ void apply_playlist() {
         }
 }
 
+// A type 3 image of the net image table (0x1130008+0x70), index -1 = look the id up (0x5558c0).
+void net_image(uint8_t *q, uint32_t id) {
+    Q<uint32_t>(q, 0x08) = 3;
+    Q<uint64_t>(q, 0x10) = 0;
+    Q<uint32_t>(q, 0x18) = 0;
+    Q<uint64_t>(q, 0x1c) = uint64_t(id) | (uint64_t(1) << 32);
+    Q<int32_t>(q, 0x24) = -1;
+    Q<uint32_t>(q, 0x28) = 0;
+    Q<int32_t>(q, 0x2c) = -1;
+    Q<float>(q, 0x30) = 1.0f;
+}
+
 U2MP_GUEST void playlist_query(uint8_t *q) {
     build_playlists();
     if (G<int16_t>(kNgm + NGM_GAME) < 0) applied_playlist = 0;   // left Multiplayer: apply again
     orig_playlist(q);
+    if (Q<uint32_t>(q, 0) == kImage && Q<uint32_t>(q, 0x08) == 0x25) {   // see playlist_image
+        const uint32_t row = Q<uint32_t>(q, 4);
+        if (row < uint32_t(playlist_count)) net_image(q, playlists[row].image);
+        return;
+    }
     if (Q<uint32_t>(q, 0) != kGetIndex || playlist_count == 0) return;
     if (Q<int32_t>(q, 4) < 0) {   // the saved id is not one of ours: take the first
         G<uint32_t>(kNpd + NPD_PLAYLIST) = playlists[0].id;

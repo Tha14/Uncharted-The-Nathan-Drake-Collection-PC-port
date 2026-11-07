@@ -14,11 +14,15 @@
 // 0x5fb7a0, 0x604e80 and 0x673900 are not stubs: they return constants like their PS3 pairs.
 #include <cstdio>
 #include <cstring>
+#include <mutex>
 #include <string>
+#include <unordered_map>
 
 #include "session_api.h"
 #include "voice.h"
 #include "u2mp_internal.h"
+
+extern "C" int runtime_file_translate(const char *guest, char *out, size_t size);
 
 namespace u2mp {
 namespace {
@@ -86,18 +90,6 @@ const struct { uint32_t id; const char *text; } kTexts[] = {
     {kTextTwitter, "Twitter is not available on PC."},
     {kTextCinemaSend, "Sending cinema files to friends is not available on PC."},
     {kTextCinemaReceive, "Receiving cinema files from friends is not available on PC."},
-    // Multiplayer menu texts the PS4 text tables lack (menus.cpp, u2mp/docs/MENUS.md). The ids are
-    // the game's own: the PS3 1.10 code and data use them, but the texts came with PS3 title updates
-    // (only "Rankings" is in the PS3 base tables, the rest are written here).
-    {0x47a936dcu, "Rankings"},                                        // BUTTON_LEADERBOARD (mode table 0xdef3e0)
-    {0xc21027d1u, "See how you rank against the players you have met"},  // its description
-    {0xf1b9728cu, "Trophies"},                                        // MENU_TROPHIES, BUTTON_NETTROPHIES
-    {0x067e1f80u, "Your multiplayer trophy progress"},                // its description
-    {0x85ed01ccu, "TROPHIES"},                                        // MENU_TITLE_TROPHIES, PAGE_NET_TROPHIES
-    {0xd4143b18u, "Clan Tag"},                                        // NET_CLANTAG, PAGE_MULTIPLAYER_PLAYER_OPTIONS
-    {0x639e0fa8u, "None"},                                            // clan tag query 0x6609e0, no tag set
-    {0x69cbee70u, "[A] players in party"},                            // status line, cond 49 (0x659a90)
-    {0x64370402u, "Starting in [A]"},                                 // scoreboard header countdown (0x65cc80)
 };
 
 template <typename T> T &G(uint64_t offset) { return *image.at<T>(offset); }
@@ -142,10 +134,80 @@ static_assert(sizeof(Popup) == 0x13 * 4, "popup descriptor");
 using TextFindFn = const char *(U2MP_GUEST *)(void *db, uint32_t id);
 TextFindFn orig_text_find = nullptr;
 
+// ---- the strings only PS3 title updates carried (u2mp/docs/MENUS.md section 4) -----------------
+// The multiplayer menus use about 25 text ids that are in no PS4 text bank: the stat labels of the
+// profile panel (f67d9ad2 "Competitive Wins" ...), the leaderboard footer, "Time Played", "[A] daily
+// players", "Clan Tag" ... PS3 1.10 has them in the dlc-patch7 networking bank. The import writes
+// text1/ps4/<lang>.<category> = the PS4 bank plus the PS3 strings it lacks (u2text.py), but the game
+// reads its banks from core.psarc, so a loose bank is never opened. Here: a TextDb::Find miss is
+// answered from those imported banks (the player's own PS3 copy). Nothing is answered without them.
+// Bank object (loader 0xcdd960): +0x20 category name, +0x28 loaded language index (-1 none),
+// +0x58 next bank; language table 0x1450d18 (0x38 per language, +0x14 the file number).
+constexpr uint64_t kLanguageTable = 0x1450d18, TB_LANGUAGE = 0x28, TB_NEXT = 0x58;
+constexpr const char *kTextDir = "/app0/u2data/build/main/text1/ps4/";
+std::mutex import_text_lock;
+int import_text_language = -2;   // -2: not loaded yet
+std::unordered_map<uint32_t, std::string> import_texts;
+
+int bank_language(const uint8_t *bank) {
+    for (int guard = 0; bank && guard < 8; ++guard, bank = *reinterpret_cast<uint8_t *const *>(bank + TB_NEXT)) {
+        const int32_t index = field<int32_t>(bank, TB_LANGUAGE);
+        if (index >= 0 && index < 64) return G<int32_t>(kLanguageTable + uint64_t(index) * 0x38 + 0x14);
+    }
+    return -1;
+}
+
+uint32_t be32(const uint8_t *p) { return uint32_t(p[0]) << 24 | uint32_t(p[1]) << 16 | uint32_t(p[2]) << 8 | p[3]; }
+
+// A bank file (big-endian: u32 count; count x {u32 id, u32 offset}; NUL-terminated strings).
+bool load_bank(const std::string &guest) {
+    char host[1024];
+    if (runtime_file_translate(guest.c_str(), host, sizeof host) != 0) return false;
+    std::FILE *f = std::fopen(host, "rb");
+    if (!f) return false;
+    std::string d;
+    char buffer[65536];
+    for (size_t n; (n = std::fread(buffer, 1, sizeof buffer, f)) > 0;) d.append(buffer, n);
+    std::fclose(f);
+    const auto *p = reinterpret_cast<const uint8_t *>(d.data());
+    if (d.size() < 4) return false;
+    const uint32_t count = be32(p);
+    const uint64_t blob = 4 + 8 * uint64_t(count);
+    if (blob > d.size()) return false;
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t id = be32(p + 4 + 8 * i), off = be32(p + 8 + 8 * i);
+        if (blob + off >= d.size()) continue;
+        const char *s = d.data() + blob + off;
+        import_texts[id].assign(s, strnlen(s, d.size() - size_t(blob + off)));
+    }
+    return true;
+}
+
+const char *import_text(const uint8_t *db, uint32_t id) {
+    const int language = bank_language(db);
+    std::lock_guard<std::mutex> lock(import_text_lock);
+    if (language != import_text_language) {
+        import_text_language = language;
+        import_texts.clear();
+        int files = 0;
+        // common first: the networking bank (dlc-patch7, the newest) wins for ids both have.
+        for (const char *category : {"common", "networking"}) {
+            const std::string number = std::to_string(language >= 0 ? language : 2);
+            if (load_bank(kTextDir + number + "." + category) ||
+                (number != "2" && load_bank(std::string(kTextDir) + "2." + category)))
+                ++files;
+        }
+        log("texts: %zu strings from %d imported bank(s) for language %d", import_texts.size(), files, language);
+    }
+    const auto it = import_texts.find(id);
+    return it == import_texts.end() ? nullptr : it->second.c_str();
+}
+
 U2MP_GUEST const char *text_find(void *db, uint32_t id) {
     for (const auto &t : kTexts)
         if (t.id == id) return t.text;
-    return orig_text_find(db, id);
+    if (const char *text = orig_text_find(db, id)) return text;
+    return import_text(static_cast<const uint8_t *>(db), id);
 }
 
 // Hooks a function whose first `length` bytes are whole position-independent instructions: they
@@ -282,7 +344,8 @@ void player_options(int row) {
 
 uint32_t arg32(const void *arg, uint64_t off) { return arg ? field<uint32_t>(arg, off) : 0; }
 
-U2MP_GUEST void party_player(void *arg, void *, void *) { player_options(int(arg32(arg, 8))); }   // PS3 arg+8 = n
+// PS3 arg+8 = n; PAGE_LOBBY's rows count on from 10 (cond 26..35), PS3 takes n % 10 (0x4417f0).
+U2MP_GUEST void party_player(void *arg, void *, void *) { player_options(int(arg32(arg, 8) % 10)); }
 U2MP_GUEST void match_player(void *arg, void *, void *) { player_options(int(arg32(arg, 8))); }
 U2MP_GUEST void friends_row(void *arg, void *, void *) { player_options(int(arg32(arg, 4))); }   // list row
 

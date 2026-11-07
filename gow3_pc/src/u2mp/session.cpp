@@ -368,6 +368,57 @@ U2MP_GUEST void page_event(uint32_t *event) {
     if (event && event[0] == kEventUpdate) tick();
 }
 
+// ---- the "net" package (MP menu art: mode buttons, game types, map cards, playlists, badges) ----
+// Its images form the net image table 0x1130008+0x70, which 0x554090 (every frame) takes from the
+// package "net" (sid 4240ef2e) once it is logged in (package +0x30 == 7), else NULL: then every type 3
+// image of the multiplayer menus (mode buttons 0x655f11, game type 0x656864, map 0x656ac8) finds
+// nothing, is drawn with size 0, and the rich rows of PAGE_LOBBY collapse onto one line. The game's
+// own request (PAGE_MULTIPLAYER_CONNECTING 0x5ed839) marks the package with flag 0x40 right after
+// RequestPackage (as the hud request 0x4b8c7f does); our request did not (the likely reason the menu
+// images were missing; check_net_package logs what the table holds). Requested on entry and again
+// every second while the menus are up (RequestPackage returns the package when it exists).
+constexpr uint64_t PKG_FLAGS = 0x18, PKG_STATE = 0x30, kNetImageTable = 0x1130008 + 0x70;
+uint8_t *keep_net_package() {
+    static const char net_package[] = "net";
+    auto *pkg = fn<uint8_t *(U2MP_GUEST *)(void *, const char *, int)>(fRequestPackage)(image.at<void>(kPackageTable),
+                                                                                    net_package, 0);
+    if (pkg) pkg[PKG_FLAGS] |= 0x40;
+    return pkg;
+}
+// The package table lookup without a request (as 0x5540b9: FNV-1a over the id's bytes; buckets
+// +0x10, bucket count +0x4c, node {+0 next, +0x10 id, +0x18 package}, buckets[count] = end node).
+const uint8_t *find_package(uint32_t id) {
+    const uint64_t buckets = G<uint64_t>(kPackageTable + 0x10);
+    const int32_t count = G<int32_t>(kPackageTable + 0x4c);
+    if (!buckets || count <= 0) return nullptr;
+    uint32_t h = 0x811c9dc5u;
+    for (int i = 0; i < 4; ++i) h = (h ^ ((id >> (8 * i)) & 0xff)) * 0x1000193u;
+    const auto *table = reinterpret_cast<const uint64_t *>(uintptr_t(buckets));
+    uint64_t node = table[h % uint32_t(count)];
+    while (node && *reinterpret_cast<const uint32_t *>(uintptr_t(node) + 0x10) != id)
+        node = *reinterpret_cast<const uint64_t *>(uintptr_t(node));
+    if (!node || node == table[count]) return nullptr;
+    return reinterpret_cast<const uint8_t *>(uintptr_t(*reinterpret_cast<const uint64_t *>(uintptr_t(node) + 0x18)));
+}
+// Keeps the package while the multiplayer menus are up (in a match the level owns memory; there it
+// is only looked at), and logs what the test needs to tell why menu images are missing.
+void check_net_package(bool menus) {
+    static int32_t last_state = -100;
+    static uint64_t last_table = ~0ull;
+    static uint32_t last_count = ~0u;
+    const uint8_t *pkg = menus ? keep_net_package() : find_package(sid("net"));
+    const int32_t st = pkg ? *reinterpret_cast<const int32_t *>(pkg + PKG_STATE) : -1;
+    const uint64_t table = G<uint64_t>(kNetImageTable);
+    const uint32_t count = table ? *reinterpret_cast<const uint16_t *>(uintptr_t(table) + 2) : 0;
+    if (st != last_state || (table != 0) != (last_table != 0) || count != last_count) {
+        log("net package: %s, state %d, flags 0x%x; net image table %s, %u images", pkg ? "present" : "missing", st,
+            pkg ? unsigned(*reinterpret_cast<const uint16_t *>(pkg + PKG_FLAGS)) : 0u, table ? "set" : "NULL", count);
+        last_state = st;
+        last_table = table;
+        last_count = count;
+    }
+}
+
 void register_frame_handler() {
     const uint64_t menu = addr::menu_manager;
     uint32_t &count = G<uint32_t>(menu + MENU_HANDLER_COUNT);
@@ -458,16 +509,17 @@ U2MP_GUEST void multiplayer_button(void *, void *, void *) {
     register_frame_handler();
     // PS3 showed PAGE_MULTIPLAYER_CONNECTING while NetInit ran; its PS4 handler waits for the "net"
     // package forever (the request never reaches the loader). Request it here and go straight on.
-    static const char net_package[] = "net";
-    fn<void(U2MP_GUEST *)(void *, const char *, int)>(fRequestPackage)(image.at<void>(kPackageTable), net_package, 0);
+    keep_net_package();
     show_page(sid("PAGE_MULTIPLAYER"));
 }
 
-// Party rows PARTY_PLAYER0..9 (cond 26..35; PS3 roster query 0x4bc728) and the match/post-game rows
-// PLAYER0..9 (cond 6..15): the query object is {+0 op, +4 value, +0x40 text, +0x48 row}.
+// Party rows PARTY_PLAYER0..9 (PS3 roster query 0x4bc728) and the match/post-game rows PLAYER0..9
+// (cond 6..15): the query object is {+0 op, +4 value, +0x40 text, +0x48 table arg}. The party rows
+// are two sets: PAGE_MULTIPLAYER cond 16..25 (arg 0..9) and PAGE_LOBBY cond 26..35 (arg 10..19);
+// PS3 takes the row as arg % 10 (0x4bc780), so both pages list the same party.
 void roster_query(uint8_t *query) {
     const uint32_t op = *reinterpret_cast<uint32_t *>(query);
-    const uint64_t row = *reinterpret_cast<uint64_t *>(query + 0x48);
+    const uint64_t row = *reinterpret_cast<uint64_t *>(query + 0x48) % 10;
     int seen = 0;
     const Member *m = nullptr;
     uint8_t mslot = 0;
@@ -617,6 +669,10 @@ void tick() {
         return;
     }
     ++frames;
+    if (frames % 60 == 1) {
+        const int32_t st = state();
+        check_net_package(st == kChooseHostJoin || st == kCreateGameWait || st == kClientWaitPartyHost);
+    }
     if (now >= next_rate_log) {   // proves the hook runs every frame (expect ~60 per second)
         if (next_rate_log > 0) log("frame hook: %u calls in 10 s", frames);
         frames = 0;

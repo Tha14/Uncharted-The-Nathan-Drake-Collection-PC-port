@@ -114,7 +114,7 @@ in the pak, so converted paks are larger than retail.
 | props, anims, Havok actors | `u2actor.convert_prop` (section "Props and animated actors"): props through the skin path plus skeleton, anims, collision, sound banks; animation paks and loose ragdolls on their own | the actor27 reference pairs, below |
 | level background paks | `u2level` stage: mkplan (materials by name from retail U2 paks, otherwise the closest retail background material) -> fxextract -> ps4stage (+ u2light, u2vis, u2coll, u2water) -> stagecheck + U2 login order + u2coll.check_ps4 | sky/wide pairs, collision and water pairs: see Validation |
 | level data paks (`-ingame10`, `-npc-ingame10`, `*-npc`) | `u2ingame` (U3 ps4ingame + U2 scripts / FEATURE_DB_2 + u2nav) | 6 retail pairs block by block; nav meshes: 4 pairs |
-| text banks | `u2text`: `text1/ps4/<lang>.networking` = the PS4 bank (from `core.psarc`) plus the ids only PS3 (newest copy) has; PS4 strings are never changed | |
+| text banks | `u2text`: `text1/ps4/<lang>.networking` and `.common` = the PS4 bank (from `core.psarc`) plus the ids only PS3 (newest copy) has; PS4 strings are never changed. The game reads `core.psarc`; the runtime serves the added ids (remaining.cpp, MENUS.md section 4) | |
 | registry | `pak22_ps4.txt` = retail file + appended levels from the PS3 per-level `.txt` (only for levels whose package converted; package/actor/bank lines kept when the file exists on PS4 or in the overlay; the 8 MP `package-ts texturedict1/...` lines added) | |
 
 ## Props and animated actors (`u2actor` + `u2actorparts`, `u2anim`, `u2skel`, `u2actorcoll`, `u2havok`)

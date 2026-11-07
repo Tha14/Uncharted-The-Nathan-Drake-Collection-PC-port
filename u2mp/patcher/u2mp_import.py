@@ -458,7 +458,10 @@ class Importer:
         self.save()
 
     def texts(self):
-        """text1/ps4/<lang>.networking: the PS4 bank plus the PS3 strings it lacks (DLC map titles), u2text"""
+        """text1/ps4/<lang>.<category>: the PS4 bank plus the PS3 strings it lacks, u2text. networking: the DLC map
+        titles and the ~25 multiplayer menu texts only PS3 title updates carried (stat labels, leaderboard footer,
+        Time Played, daily players, Clan Tag ...); common: the two base-game ids PS4 dropped. The game
+        reads its banks from core.psarc; the runtime answers TextDb misses from these files (remaining.cpp)."""
         import u2text
         from psarc_lib import Psarc
         core = os.path.join(self.ps4.main, 'core.psarc')
@@ -467,7 +470,7 @@ class Importer:
         arc = Psarc(core)
         added = {}
         for i, n in enumerate(arc.names):
-            m = re.match(r'text1/ps4/(\d+)\.(networking)$', n)
+            m = re.match(r'text1/ps4/(\d+)\.(networking|common)$', n)
             if not m:
                 continue
             c = self.ps3.candidates('text1/%s.%s' % m.groups())
