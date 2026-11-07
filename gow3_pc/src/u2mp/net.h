@@ -21,7 +21,7 @@
 
 namespace u2mp::net {
 
-constexpr size_t kMaxPacket = 1200;           // as the PS3 message layer
+constexpr size_t kMaxPacket = 1400;           // the game's 1200-byte packets plus our headers, under the Ethernet MTU
 constexpr size_t kMaxPeers = 10;              // Uncharted 2 multiplayer: 10 players
 constexpr uint32_t kMagic = 0x504d3255;       // "U2MP"
 constexpr uint8_t kVersion = 1;
