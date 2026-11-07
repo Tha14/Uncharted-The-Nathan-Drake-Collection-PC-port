@@ -112,6 +112,11 @@ for dir in gow3_pc/gpu/third_party/* gow3_pc/third_party/*; do
     done
 done
 head -n 24 gow3_pc/gpu/third_party/gcn/include/gcn/si_ci_vi_merged_offset.h > "$licenses/gcn-headers.txt"
+# Opus (BSD), linked statically into the runtime for Uncharted 2 multiplayer voice chat.
+if [[ -d $msys/clang64/share/licenses/opus ]]; then
+    mkdir -p "$licenses/opus"
+    cp "$msys"/clang64/share/licenses/opus/* "$licenses/opus/"
+fi
 mkdir -p "$licenses/liborbispkg"
 cp tools/pkgtool/LICENSE.txt "$licenses/liborbispkg/LICENSE.txt"
 echo "PkgTool and LibOrbisPkg 0.2.231 by Maxton, unchanged; source: https://github.com/maxton/LibOrbisPkg" \

@@ -20,6 +20,7 @@
 #include "net.h"
 #include "session_api.h"
 #include "u2mp_internal.h"
+#include "voice.h"
 
 namespace u2mp::session {
 namespace {
@@ -328,8 +329,10 @@ bool start_transport() {
         if (!n) return;
         if (d[0] == gamenet::kGamePacket) gamenet::receive(slot, d + 1, n - 1);
         else if (d[0] == gamenet::kSessionMessage) on_session_message(slot, d + 1, n - 1);
+        else if (d[0] == gamenet::kVoice) voice::receive(slot, d + 1, n - 1);
     };
     gamenet::set_transport(&transport);
+    voice::set_transport(&transport);
     for (auto &m : members) m = Member{};
     const char *join = std::getenv("UNCHARTED_U2MP_JOIN");
     if (join && *join) {
@@ -542,6 +545,7 @@ U2MP_GUEST void leave_multiplayer(void *, void *, void *) {
     log("leaving multiplayer");
     unregister_frame_handler();
     for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) gamenet::detach(slot);
+    voice::stop();
     transport.close();
     active = false;
     session_clear(kParty);
@@ -564,11 +568,13 @@ void tick() {
     last_tick = now;
     transport.pump(now);
     gamenet::frame(now);
+    voice::frame();
     transport.pump(now);
     if (kicked) {   // not inside the pump: closing resets the connections it walks
         kicked = false;
         for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) gamenet::detach(slot);
-        transport.close();
+        voice::stop();
+    transport.close();
         active = false;
         for (auto &m : members) m = Member{};
         return;

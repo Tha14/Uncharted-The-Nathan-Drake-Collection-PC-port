@@ -202,13 +202,23 @@ if (WIN32)
     set_target_properties(gow3-probe PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
     target_compile_options(gow3-probe PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
     target_include_directories(gow3-probe PRIVATE .. ../src)
-    target_link_libraries(gow3-probe PRIVATE gow3gpu atrac9 onecore bcrypt ws2_32 -pthread)
+    # u2mp voice chat (src/u2mp/voice.cpp): libopus, linked statically (no extra DLL to ship).
+    find_library(OPUS_STATIC NAMES libopus.a REQUIRED)
+    find_path(OPUS_INCLUDE opus/opus.h REQUIRED)
+    target_include_directories(gow3-probe PRIVATE ${OPUS_INCLUDE})
+    target_link_libraries(gow3-probe PRIVATE gow3gpu atrac9 ${OPUS_STATIC} onecore bcrypt ws2_32 -pthread)
     # The PS4 range (64 GiB - 1 TiB) must stay free: no high-entropy ASLR for heaps and stacks.
     # The guest main thread runs on the process stack: 16 MiB, committed (no stack probes).
     # u2mp network core test (no game needed): ninja -C out/gpu u2mp-net-test
     add_executable(u2mp-net-test EXCLUDE_FROM_ALL ../tests/test_u2mp_net.cpp ../src/u2mp/net.cpp)
     target_compile_options(u2mp-net-test PRIVATE -Wall -Wextra -Werror)
     target_link_libraries(u2mp-net-test PRIVATE ws2_32)
+    # u2mp voice codec / jitter buffer test (no game, no audio device): ninja -C out/gpu u2mp-voice-test
+    add_executable(u2mp-voice-test EXCLUDE_FROM_ALL ../tests/test_u2mp_voice.cpp ../src/u2mp/voice.cpp)
+    target_compile_definitions(u2mp-voice-test PRIVATE U2MP_VOICE_CORE_ONLY)
+    target_compile_options(u2mp-voice-test PRIVATE -Wall -Wextra -Werror)
+    target_include_directories(u2mp-voice-test PRIVATE ${OPUS_INCLUDE})
+    target_link_libraries(u2mp-voice-test PRIVATE ${OPUS_STATIC})
     # u2mp progression store test (no game needed): ninja -C out/gpu u2mp-progression-test
     add_executable(u2mp-progression-test EXCLUDE_FROM_ALL ../tests/test_u2mp_progression.cpp ../src/u2mp/progression_store.cpp)
     target_compile_options(u2mp-progression-test PRIVATE -Wall -Wextra -Werror)

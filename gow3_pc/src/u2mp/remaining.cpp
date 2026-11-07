@@ -17,6 +17,7 @@
 #include <string>
 
 #include "session_api.h"
+#include "voice.h"
 #include "u2mp_internal.h"
 
 namespace u2mp {
@@ -77,7 +78,7 @@ char player_text[96];
 const struct { uint32_t id; const char *text; } kTexts[] = {
     {kTextPlayer, player_text},
     {kTextStore, "The PlayStation Store is not available on PC."},
-    {kTextVoice, "Voice chat is not available on PC."},
+    {kTextVoice, "Voice chat is turned off (UNCHARTED_U2MP_VOICE=off)."},
     {kTextLeader, "On PC the player who hosts the party leads it. The leader can't be changed."},
     {kTextInvite, "Invites are not used on PC. To join the party, a friend starts the game with "
                   "UNCHARTED_U2MP_JOIN set to the party leader's address and selects Multiplayer."},
@@ -245,8 +246,8 @@ void set_player_text(const std::string &text) { std::snprintf(player_text, sizeo
 
 // PARTY_PLAYERn (PS3 0x4417f0) / PLAYERn (PS3 0x440620) / LIST_FRIENDS rows (PS3 0x43f830): the
 // options popup of one player, titled with the name. PS3 offered mute / unmute, and to the party
-// leader "Promote To Party Leader" and "Kick From Party". On PC: mute (explains there is no voice
-// chat) and, for the leader, kick. Your own row (PS3: no popup) shows your name.
+// leader "Promote To Party Leader" and "Kick From Party". On PC: mute / unmute (voice.cpp) and,
+// for the leader, kick. Your own row (PS3: no popup) shows your name.
 void player_options(int row) {
     uint32_t id = 0;
     std::string name;
@@ -277,8 +278,18 @@ U2MP_GUEST void friends_row(void *arg, void *, void *) { player_options(int(arg3
 U2MP_GUEST void kick_selected(void *, void *, void *) {
     if (!selected_id || !session::kick(selected_id)) log("Kick From Party: net id %u not kicked", selected_id);
 }
-// 6547d63c (PS3 0x439bf0) and 7273924c (PS3 0x439d60): toggle the voice mute flag (cellVoice).
-U2MP_GUEST void toggle_mute(void *, void *, void *) { message_box(kTextVoice); }
+// 6547d63c (PS3 0x439bf0) and 7273924c (PS3 0x439d60): toggle the voice mute flag (cellVoice; here
+// voice.cpp), then say which way it went.
+U2MP_GUEST void toggle_mute(void *, void *, void *) {
+    std::string name;
+    if (!voice::enabled()) {
+        message_box(kTextVoice);
+        return;
+    }
+    if (!session::member_name(selected_id, name)) return;   // left meanwhile
+    set_player_text(name + (voice::toggle_mute(selected_id) ? ": muted" : ": unmuted"));
+    message_box(kTextPlayer);
+}
 // 2d32c8b0 (PS3 0x439c7c): GrantRoomOwner(party, selected), then PAGE_LOBBY.
 U2MP_GUEST void promote_leader(void *, void *, void *) { message_box(kTextLeader); }
 // 56126d00 (PS3 0x438638): IsHost(party session).

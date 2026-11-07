@@ -36,7 +36,7 @@ void frame(double now);
 // The game clock in seconds (frame counter / 300), the time base of the message layer.
 double clock();
 // First byte of every transport message: which layer it belongs to.
-constexpr uint8_t kGamePacket = 0, kSessionMessage = 1;
+constexpr uint8_t kGamePacket = 0, kSessionMessage = 1, kVoice = 2;   // kVoice: voice.h
 
 // One packet arrived from `slot` (called by the session layer's transport dispatch).
 void receive(uint8_t slot, const uint8_t *data, size_t size);
