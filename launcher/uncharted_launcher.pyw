@@ -2926,7 +2926,7 @@ class Launcher:
     def u3mp_confirm_play(self):
         """play(): with multiplayer on, a pending update starts now (if it did not yet) and, while the multiplayer
         image is not up to date, the player chooses between waiting and starting without multiplayer."""
-        if not self.config.get("u3mp_enabled", False) or not hasattr(self, "u3mp_status"):
+        if not self.u3mp_on() or not hasattr(self, "u3mp_status"):
             return True
         try:
             pending = self.u3mp_pending()
@@ -2953,7 +2953,7 @@ class Launcher:
         for key in ("UNCHARTED_U3MP_IMAGE", "UNCHARTED_U3MP_IMAGE_SHA256", "UNCHARTED_U3MP_OVERLAYS",
                     "UNCHARTED_U3MP_VERSION"):
             env.pop(key, None)
-        if not self.config.get("u3mp_enabled", False):
+        if not self.u3mp_on():
             return
         if getattr(self, "u3mp_skip_once", False) or (self.u3mp_running() and not self.u3mp_state().get("staging")):
             self.u3mp_skip_once = False
@@ -3050,14 +3050,6 @@ class Launcher:
                                     justify="left", wraplength=self.px(760))
         self.u3mp_status.pack(side="top", fill="x", pady=(self.px(8), 0))
 
-        def enabled(parent):
-            self.u3mp_toggle = Toggle(parent, self.s, self.config.get("u3mp_enabled", False), self.u3mp_set_enabled)
-            return self.u3mp_toggle
-        self.row(page, "Start Uncharted 3 with multiplayer",
-                 "On: Uncharted 3 starts with the multiplayer build and the imported files (story mode too). "
-                 "Off: the normal Uncharted 3. Your display, controls and language settings apply either way.",
-                 enabled)
-
         def folder_row(title, hint, label_key, actions):
             def factory(parent):
                 box = tk.Frame(parent, bg=BG)
@@ -3133,13 +3125,10 @@ class Launcher:
         self.change_config(key, value)
         self.u3mp_refresh()
 
-    def u3mp_set_enabled(self, value):
-        if value and not self.u3mp_ready()[0]:
-            messagebox.showinfo(APP_TITLE, "Import the multiplayer files first (the Import button on this page).")
-            self.u3mp_toggle.set(False)
-            return
-        self.change_config("u3mp_enabled", bool(value))
-        self.u3mp_refresh()
+    def u3mp_on(self):
+        """Uncharted 3 starts with multiplayer whenever an import finished (imported, or partial with the
+        multiplayer files usable): there is no switch for it. Never imported: the normal Uncharted 3."""
+        return self.u3mp_state().get("status") in ("imported", "partial")
 
     def u3mp_add_folder(self):
         from tkinter import filedialog
@@ -3215,7 +3204,7 @@ class Launcher:
         else:
             text, colour = "Not imported.", MUTED
         self.u3mp_status.config(text=text, fg=colour)
-        if self.config.get("u3mp_enabled") and not ready and not running:
+        if self.u3mp_on() and not ready and not running:
             self.u3mp_status.config(text=text + " Uncharted 3 starts without multiplayer until then.")
         folders = self.config.get("u3mp_ps3_u3", [])
         self.u3mp_labels["ps3_u3"].config(text="\n".join(folders) if folders else "None chosen yet.")
@@ -3229,8 +3218,6 @@ class Launcher:
             self.u3mp_cancel_button.pack(side="left", padx=(self.px(10), 0), after=self.u3mp_button)
         elif not running and self.u3mp_cancel_button.winfo_manager():
             self.u3mp_cancel_button.pack_forget()
-        if self.u3mp_toggle.value != bool(self.config.get("u3mp_enabled", False)):
-            self.u3mp_toggle.set(bool(self.config.get("u3mp_enabled", False)))
         self.u3mp_draw_bar()
 
     def u3mp_draw_bar(self):
