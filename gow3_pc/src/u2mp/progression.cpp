@@ -31,6 +31,7 @@
 //     read the Data block directly and need only the connect.
 #include "progression.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -344,6 +345,18 @@ void U2MP_GUEST leaderboard_list_update(uint8_t *list) {
 void progression_publish() {
     if (!image.base) return;
     publish_if_changed();
+}
+
+std::vector<std::string> progression_recent_players(size_t max) {
+    load_store();
+    std::vector<const PlayerStats *> by_time;
+    for (const PlayerStats &p : store.recent) by_time.push_back(&p);
+    std::stable_sort(by_time.begin(), by_time.end(),
+                     [](const PlayerStats *a, const PlayerStats *b) { return a->last_seen > b->last_seen; });
+    std::vector<std::string> names;
+    for (const PlayerStats *p : by_time)
+        if (names.size() < max) names.push_back(p->name);
+    return names;
 }
 
 void install_progression(int &installed) {

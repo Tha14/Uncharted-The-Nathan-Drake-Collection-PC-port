@@ -17,5 +17,9 @@ bool is_host();
 // host drops it (NetEventPlayerLeft, roster) when its goodbye arrives. False when not hosting,
 // for the host itself, or for an unknown member.
 bool kick(uint32_t net_id);
+// This PC's player name (UNCHARTED_U2MP_NAME, else "Drake").
+std::string local_name();
+// Players in the party, this PC included; 0 when not in one.
+int member_count();
 
 }  // namespace u2mp::session

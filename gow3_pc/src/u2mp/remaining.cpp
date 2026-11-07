@@ -86,6 +86,18 @@ const struct { uint32_t id; const char *text; } kTexts[] = {
     {kTextTwitter, "Twitter is not available on PC."},
     {kTextCinemaSend, "Sending cinema files to friends is not available on PC."},
     {kTextCinemaReceive, "Receiving cinema files from friends is not available on PC."},
+    // Multiplayer menu texts the PS4 text tables lack (menus.cpp, u2mp/docs/MENUS.md). The ids are
+    // the game's own: the PS3 1.10 code and data use them, but the texts came with PS3 title updates
+    // (only "Rankings" is in the PS3 base tables, the rest are written here).
+    {0x47a936dcu, "Rankings"},                                        // BUTTON_LEADERBOARD (mode table 0xdef3e0)
+    {0xc21027d1u, "See how you rank against the players you have met"},  // its description
+    {0xf1b9728cu, "Trophies"},                                        // MENU_TROPHIES, BUTTON_NETTROPHIES
+    {0x067e1f80u, "Your multiplayer trophy progress"},                // its description
+    {0x85ed01ccu, "TROPHIES"},                                        // MENU_TITLE_TROPHIES, PAGE_NET_TROPHIES
+    {0xd4143b18u, "Clan Tag"},                                        // NET_CLANTAG, PAGE_MULTIPLAYER_PLAYER_OPTIONS
+    {0x639e0fa8u, "None"},                                            // clan tag query 0x6609e0, no tag set
+    {0x69cbee70u, "[A] players in party"},                            // status line, cond 49 (0x659a90)
+    {0x64370402u, "Starting in [A]"},                                 // scoreboard header countdown (0x65cc80)
 };
 
 template <typename T> T &G(uint64_t offset) { return *image.at<T>(offset); }

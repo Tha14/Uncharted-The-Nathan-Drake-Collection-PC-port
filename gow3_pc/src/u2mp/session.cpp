@@ -630,6 +630,18 @@ uint32_t local_id() { return active ? my_id : 0; }
 
 bool is_host() { return active && hosting; }
 
+std::string local_name() {
+    if (const char *n = std::getenv("UNCHARTED_U2MP_NAME"); n && *n) return std::string(n).substr(0, 31);
+    return my_name;
+}
+
+int member_count() {
+    int n = 0;
+    if (active)
+        for (const Member &m : members) n += m.used ? 1 : 0;
+    return n;
+}
+
 bool kick(uint32_t net_id) {
     if (!active || !hosting || net_id < 2 || net_id > net::kMaxPeers + 1) return false;
     const uint8_t slot = uint8_t(net_id - 1);
