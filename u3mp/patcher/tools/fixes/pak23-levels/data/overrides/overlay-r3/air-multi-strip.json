@@ -1,0 +1,111 @@
+{
+ "templates": {
+  "levels/airport/walls/air-yem-wallblocks-02/default": [
+   "col-museum-low.pak",
+   "levels/columbia/wood/col-vdarkwood-lm:default,ed09ffeb-9d6a-bf28-fb30-5bc24f5be5bf,prime-shader.fx"
+  ],
+  "levels/airport/ground/air-yem-rock-small-sand-2/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/airport/ground/air-ground-runway-striped-3/default": [
+   "airport-wide.pak",
+   "levels/airport/windows/air-windows-wide-inc:default,0ba44ee7-70ee-49f4-97f5-6592d1e2de1c,prime-shader.fx"
+  ],
+  "levels/airport/ground/air-ground-runway-striped-2/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/horse-chase/cliff-rock/horse-rock-base-to-sand-01/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/airport/wide/air-mountains/air-yem-wide-far-smooth-01/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ]
+ },
+ "params": {
+  "levels/airport/metal/air-yem-metal-guard-fence/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/airport/ground/air-yem-rock-small-sand-2/default": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/airport/ground/air-ground-runway-striped-3/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_incandescenceStrength": [
+    0.0
+   ]
+  }
+ },
+ "texsrc": {
+  "art/levels/airport/textures/multi/metal/air-multi-radio-tower-radar-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/ground/air-yem-m-ground-tarmac-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/ground/air-yem-m-ground-sand-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/wall/air-yem-stucco-01-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-control-tower-metal-spec-mask.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/wall/air-yem-m-wall-stone-blend.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/wall/air-yem-m-wall-stone-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/ground/air-yem-m-ground-road-broken-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-corrugated-wall-painted-blend.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/ground/air-yem-m-ground-tarmac-blend.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/ground/air-yem-m-ground-concrete-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-multi-radio-tower-radar-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/airport-multi-env-reflection.dds": "airport-1.pak",
+  "art/levels/airport/textures/multi/ground/air-yem-m-ground-sand-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/objects/air-yem-m-hanging-flourescent-inc-mask.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-metal-beams-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-corrugated-wall2-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/ground/air-yem-m-ground-road-broken-blend.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/ground/air-yem-m-ground-tarmac-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-multi-fence-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/wall/air-yem-m-wall-stone-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/ground/air-yem-m-ground-concrete-dirty-blend.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-corrugated-wall-blend.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/wall/air-yem-m-control-tower-wall-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-control-tower-metal-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/roof/air-yem-m-roof-metal-ribbed-color.tga": "airport-1.pak",
+  "art/general/textures/default/default-lightmap1.tga": "airport-rest.pak",
+  "art/levels/airport/textures/multi/wall/air-yem-m-wall-brick-construction-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/wall/air-yem-m-wall-brick-construction-blend.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/ground/air-yem-m-ground-concrete-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/wall/air-yem-m-wall-brick-construction-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-multi-radio-tower-radar-spec-mask.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-corrugated-wall-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/ground/air-yem-m-ground-concrete-dirty-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-fence-trans.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/roof/air-yem-m-roof-metal-ribbed-spec-mask.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-fence-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-control-tower-metal-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-corrugated-wall2-spec-mask.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-metal-trim-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-metal-beams-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-metal-trim-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-metal-beams-spec-mask.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/wall/air-yem-stucco-01-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/objects/air-yem-m-hanging-flourescent-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/ground/air-yem-m-ground-road-broken-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/buildings/air-multi-plane-hangar-house-color.tga": "airport-3a.pak",
+  "art/levels/airport/textures/multi/objects/air-yem-m-hanging-flourescent-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/roof/air-yem-m-roof-metal-ribbed-normal.tga": "airport-1.pak",
+  "art/levels/airport/textures/multi/metal/air-yem-m-corrugated-wall-color.tga": "airport-1.pak",
+  "art/general/textures/default/default-lightmap0.tga": "airport-rest.pak"
+ }
+}

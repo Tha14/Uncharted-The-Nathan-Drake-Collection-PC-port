@@ -38,6 +38,7 @@ eula-pages
 map-colors2
 actor-materials
 coop-desc-fix
+orange-wall
 excess-wall
 hat-colour
 airport-igc2

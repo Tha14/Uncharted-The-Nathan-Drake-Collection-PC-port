@@ -92,10 +92,10 @@ Cause classes of the remaining rows:
 
 | pak | status 2026-11-06 | rebuilt against | remaining cause |
 |---|---|---|---|
-| air-multi | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
-| air-multi-shade | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| air-multi | base | b102 | rebuilt exact 2026-11-07 (scratch/pak23-recovery/airstrip): cloud effect donors + EFFECT phases; air-multi/-shade from their pre-lost-batch state (lost-batches-r3), air-multi-strip at backup-orange (new step orange-wall, then excess-wall); end to end identical incl. the wall-emblem chain |
+| air-multi-shade | base | b102 | rebuilt exact 2026-11-07 (scratch/pak23-recovery/airstrip): cloud effect donors + EFFECT phases; air-multi/-shade from their pre-lost-batch state (lost-batches-r3), air-multi-strip at backup-orange (new step orange-wall, then excess-wall); end to end identical incl. the wall-emblem chain |
 | air-multi-stage | base | backup-mapcolor2 | - |
-| air-multi-strip | equivalent | backup-excess | items differing RAW_DATA:1440,VRAM_DESC:90,EFFECT:35,EFFECT_TABLE:1 |
+| air-multi-strip | base | backup-excess | rebuilt exact 2026-11-07 (scratch/pak23-recovery/airstrip): cloud effect donors + EFFECT phases; air-multi/-shade from their pre-lost-batch state (lost-batches-r3), air-multi-strip at backup-orange (new step orange-wall, then excess-wall); end to end identical incl. the wall-emblem chain |
 | air-multi-wide | base | b103 | - |
 | cave-multi | equivalent | backup-london | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | cave-multi-stage | equivalent | h028-backup | searched, no output kept |

@@ -1,0 +1,23 @@
+{
+ "id": "orange-wall",
+ "title": "Airstrip: the duplicate control tower collapsed in air-multi-strip.pak (4275 triangles a,b,c -> a,a,a; orange-wall/apply_orange.py)",
+ "kind": "script",
+ "job": "orange-wall",
+ "family": "overlay-r3/pak23",
+ "needs": [],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/apply_orange.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/pak23/ps4/air-multi-strip.pak",
+  "work/backup-orange/air-multi-strip.pak"
+ ],
+ "status": "needs-converted-base",
+ "applied": "2026-11-01 18:27",
+ "notes": "Session step that was never recorded in the recipe: work/backup-orange (md5 066ee3e4) -> work/backup-excess (md5 ef03cdb3), the state excess-wall is locked to. Plan rebuilt 2026-11-07 from those two states (offsets and index numbers only). Idempotent: exits 0 when already applied.",
+ "recipe_version_added": "1.9.6"
+}
