@@ -2880,6 +2880,21 @@ class Launcher:
 
     # -- Uncharted 3 multiplayer (u3mp/patcher) ---------------------------------------------
 
+    def u3mp_dns(self):
+        """The community server's DNS (IPv4) for the game-data download: the Multiplayer tab field, else the 'dns='
+        line of the in-game RPCN settings (analysis/uncharted-user/u3-rpcn.cfg, written by the helper). Only that
+        one value is read; it is passed to the import and never written anywhere else."""
+        value = (self.config.get("u3mp_dns") or "").strip()
+        if value:
+            return value
+        try:
+            for line in (USER_DIR / "u3-rpcn.cfg").read_text(encoding="utf-8", errors="replace").splitlines():
+                if line.startswith("dns="):
+                    return line[4:].strip()
+        except OSError:
+            pass
+        return ""
+
     def u3mp_data(self):
         return Path(self.config.get("u3mp_data") or u3mp_default_data())
 
@@ -2954,6 +2969,10 @@ class Launcher:
                 self.u3mp_import(silent=True, image_only=(pending == "image"),
                                  reason="the launcher update brought a new multiplayer "
                                         + ("build" if pending == "image" else "version"))
+            elif self.u3mp_state().get("data2_pending") and self.u3mp_dns():
+                # the game data could not be downloaded last time (server down, not served yet): try again; once it
+                # arrives the import completes (or updates in its second folder) by itself
+                self.u3mp_import(silent=True, reason="downloading the game data again")
         except (OSError, tk.TclError):
             pass
 
@@ -3062,6 +3081,19 @@ class Launcher:
                    "dev_hdd0/game/BCES01670/USRDIR/EBOOT.BIN; the EBOOT.elf it writes there is found by itself.",
                    "ps3_elf", (("Choose file", self.u3mp_choose_elf),
                                ("Clear", lambda: self.u3mp_set("u3mp_ps3_elf", ""))))
+        def dns_entry(parent):
+            var = tk.StringVar(value=self.config.get("u3mp_dns", ""))
+            entry = tk.Entry(parent, textvariable=var, width=18, font=self.f_body, bg=PANEL, fg=TEXT,
+                             insertbackground=TEXT, relief="flat")
+
+            def save(*_):
+                self.change_config("u3mp_dns", var.get().strip())
+            var.trace_add("write", save)
+            return entry
+        self.row(page, "Community server DNS",
+                 "The server's DNS address (IPv4), the same as on the in-game RPCN page. The import uses it to "
+                 "download the game data the PS3 game gets online (network table, Lab maps) when your RPCS3 copy "
+                 "is missing or out of date. Empty: taken from your in-game RPCN settings, if set.", dns_entry)
         folder_row("Multiplayer data folder",
                    "Where the import writes the converted files (about 9 GB) and the multiplayer image.",
                    "data", (("Change", self.u3mp_choose_data), ("Open", lambda: self.u3mp_open(self.u3mp_data()))))
@@ -3253,6 +3285,8 @@ class Launcher:
             command += ["--ps3-u2", self.config["u3mp_ps3_u2"]]
         if self.config.get("u3mp_ps3_elf"):
             command += ["--ps3-elf", self.config["u3mp_ps3_elf"]]
+        if self.u3mp_dns():
+            command += ["--dns", self.u3mp_dns()]
         if image_only:
             command += ["--image-only"]
         env = os.environ.copy()

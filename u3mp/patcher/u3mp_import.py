@@ -100,6 +100,53 @@ def find_ps3_elf(folders, explicit):
     return best
 
 
+def data2_problems(folders):
+    """The recipe's input check for the PS3 game-data folder (BCES01670DATA2): [] when it is complete and current."""
+    if str(RECIPE) not in sys.path:
+        sys.path.insert(0, str(RECIPE))
+    import recipe_lib as R
+    inp = R.Inputs()
+    inp.add_ps3_u3(folders)
+    return [p for p in R.full_import_problems(inp) if 'DLC map packs' not in p]
+
+
+def ensure_data2(a, data, ps3_elf):
+    """Make sure the import has a current game-data folder. The PS3 game downloads it from the online server
+    (net18.bin, the Lab and map packs, text, EULA pages); when the player's own copy is missing or another version,
+    the same files are downloaded here (fetch_data2.py) into <data>/ps3-data2 and used ahead of the player's.
+    Returns '' when the import can go on, else why not (state.json 'data2_pending': the launcher tries again)."""
+    own = data / 'ps3-data2'
+    usrdir = own / 'BCES01670DATA2' / 'USRDIR'
+    if (usrdir / 'net18.bin').exists() and not data2_problems([str(own)]):
+        a.ps3_u3.insert(0, str(own))                 # downloaded by an earlier run
+        log('game data: using the copy downloaded earlier (%s)' % usrdir)
+        return ''
+    problems = data2_problems(a.ps3_u3)
+    if not problems:
+        return ''
+    log('game data: ' + ' / '.join(problems))
+    if not a.dns:
+        return ('the game data (BCES01670DATA2) is missing or another version, and no community server DNS is set '
+                'to download it: enter it on the Multiplayer tab')
+    if not ps3_elf:
+        return 'downloading the game data needs the decrypted PS3 1.19 EBOOT.elf (RPCS3: Decrypt PS3 Binaries)'
+    log('game data: downloading it from the community server, as the PS3 game does')
+    event(phase='data2', status='running')
+    try:
+        import fetch_data2
+        got = fetch_data2.build_data2(str(usrdir), a.dns, ps3_elf, log=log)
+    except Exception as e:                         # network, DNS, server answers: all reported, nothing raised
+        got = ['%s: %s' % (type(e).__name__, e)]
+    if got:
+        event(phase='data2', status='failed', note='; '.join(got)[:300])
+        return 'the game data download is incomplete (%s); it is tried again the next time the launcher starts' \
+            % '; '.join(got)[:400]
+    event(phase='data2', status='ok')
+    a.ps3_u3.insert(0, str(own))
+    log('game data: downloaded to %s' % usrdir)
+    return ''
+
+
 def tree_size(folder):
     n = 0
     for dp, dn, fn in os.walk(folder):
@@ -235,6 +282,8 @@ def main():
     ap.add_argument('--image-only', action='store_true', help='only (re)build the multiplayer image')
     ap.add_argument('--only', help='run only these recipe steps (tests; passed to rebuild_overlays.py --only)')
     ap.add_argument('--in-place', action='store_true', help='update an import in its own folder (no second work folder)')
+    ap.add_argument('--dns', default='', help='IPv4 of the community server DNS (downloads the PS3 game data when the '
+                                              "player's own BCES01670DATA2 is missing or another version)")
     a = ap.parse_args()
     data = a.data.resolve()
     data.mkdir(parents=True, exist_ok=True)
@@ -278,6 +327,10 @@ def main():
     else:
         log('No decrypted PS3 1.19 EBOOT.elf found: decrypt it with RPCS3 (Utilities -> Decrypt PS3 Binaries, '
             'dev_hdd0/game/BCES01670/USRDIR/EBOOT.BIN); the Havok tables step is skipped without it')
+    data2_pending = '' if a.only else ensure_data2(a, data, ps3_elf)
+    if data2_pending:
+        log('game data: ' + data2_pending)
+    state['data2_pending'] = data2_pending      # the launcher retries the import while this is set
     event(phase='recipe', status='running')
     recipe_id = u3mp_version.shipped_id()   # the recipe this run applies (the launcher updates when it changes)
     nxt = data / 'recipe-next'
