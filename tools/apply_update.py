@@ -25,7 +25,7 @@ KEEP = {"analysis", "update"}
 # The files the installed package put there (relative, "/"), written after each update: the next
 # update leaves out the ones its package dropped and carries over everything else.
 MANIFEST = "installed-files.txt"
-TITLE = "Uncharted: The Nathan Drake Collection - Launcher by BilalReloaded"
+TITLE = "Uncharted: The Nathan Drake Collection"
 
 
 def wait_for_exit(pid, seconds):
