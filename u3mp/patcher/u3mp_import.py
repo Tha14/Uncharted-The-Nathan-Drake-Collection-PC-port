@@ -436,7 +436,10 @@ def main():
     # steps that could not run here (an input or a Python package missing, or not reproducible yet): their files
     # are missing too
     unavailable = [sid for sid, s in r['steps'].items() if s['status'] == 'unavailable']
-    failed += unavailable if not a.only else []
+    # steps the recipe marks "NOT REPRODUCIBLE HERE" can run on no PC yet (known gaps, the same for every player):
+    # they are listed, but an import that has only those is complete, not "partial"
+    missing_input = [sid for sid in unavailable if not r['steps'][sid].get('note', '').startswith('NOT REPRODUCIBLE')]
+    failed += missing_input if not a.only else []
     if staged:
         state.pop('staging', None)
         if (r['exit'] == 2 or not r['overlays'] or len(failed) > len(old.get('failed') or [])
