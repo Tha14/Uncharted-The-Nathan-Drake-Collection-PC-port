@@ -152,10 +152,10 @@ Cause classes of the remaining rows:
 | ldn-train-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | ldn-train-multi-tunnel | base | backup-london | - |
 | ldn-train-multi-tunnel-2 | base | backup-london | - |
-| mon-coop-church | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
-| mon-coop-cloister | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
-| mon-coop-courtyard | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
-| mon-coop-front | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| mon-coop-church | base | h017co-backup | rebuilt exact 2026-11-07 (Airstrip procedure: effect donors, effect phases, recorded constants and texture sources); lost-batches-r3 replays it to the recorded end state |
+| mon-coop-cloister | base | h017co-backup | rebuilt exact 2026-11-07 (Airstrip procedure: effect donors, effect phases, recorded constants and texture sources); lost-batches-r3 replays it to the recorded end state |
+| mon-coop-courtyard | base | h017co-backup | rebuilt exact 2026-11-07 (Airstrip procedure: effect donors, effect phases, recorded constants and texture sources); lost-batches-r3 replays it to the recorded end state |
+| mon-coop-front | base | h028-backup | rebuilt exact 2026-11-07 (Airstrip procedure: effect donors, effect phases, recorded constants and texture sources); lost-batches-r3 replays it to the recorded end state |
 | mon-coop-stage | base | h028-backup | template search exact 2026-11-06 (RUN 2): the recorded pre-batch state; cloud-batches-r3 and the session steps make the reference |
 | museum-multi | equivalent | b103 | searched, no output kept |
 | museum-multi-stage | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
