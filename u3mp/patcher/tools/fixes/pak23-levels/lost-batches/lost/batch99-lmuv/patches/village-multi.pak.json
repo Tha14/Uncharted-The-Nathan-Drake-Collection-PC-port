@@ -1,0 +1,28 @@
+{
+"pak": "village-multi.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "e4003798c3f41e0b90d3c83c01a2025f",
+"md5_after": "a5dc5653de4e39f5a8d340ff0606af95",
+"size": 79585616,
+"writes": [
+[
+32629632,
+"00000000"
+]
+],
+"old": [
+"00000100"
+],
+"where": [
+{
+"inst": 1392,
+"sub": 7,
+"mat": "vill-boulder-wall-color-4-2red-brick:vill-stone-cut-large-fad-plaster-copy-copy-copy-copy",
+"uv_max": 5.0
+}
+]
+}
+]
+}

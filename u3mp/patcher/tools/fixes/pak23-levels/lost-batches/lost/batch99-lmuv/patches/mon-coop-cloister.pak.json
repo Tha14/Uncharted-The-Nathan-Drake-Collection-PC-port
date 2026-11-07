@@ -1,0 +1,347 @@
+{
+"pak": "mon-coop-cloister.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "430652a828397505d8a7fa7fea1fecf1",
+"md5_after": "b6e5d3f525087e6b0450dfa8129eaef9",
+"size": 56939272,
+"writes": [
+[
+21904032,
+"00000000"
+],
+[
+21951312,
+"00000000"
+],
+[
+21951472,
+"00000000"
+],
+[
+21951632,
+"00000000"
+],
+[
+21951792,
+"00000000"
+],
+[
+21951952,
+"00000000"
+],
+[
+21974352,
+"00000000"
+],
+[
+21979072,
+"00000000"
+],
+[
+22014432,
+"00000000"
+],
+[
+22014512,
+"00000000"
+],
+[
+22014832,
+"00000000"
+],
+[
+22014912,
+"00000000"
+],
+[
+22014992,
+"00000000"
+],
+[
+22015152,
+"00000000"
+],
+[
+22015232,
+"00000000"
+],
+[
+22015312,
+"00000000"
+],
+[
+22015392,
+"00000000"
+],
+[
+22015552,
+"00000000"
+],
+[
+22015632,
+"00000000"
+],
+[
+22015712,
+"00000000"
+],
+[
+22015792,
+"00000000"
+],
+[
+22015952,
+"00000000"
+],
+[
+22016032,
+"00000000"
+],
+[
+22016112,
+"00000000"
+],
+[
+22016432,
+"00000000"
+],
+[
+22016512,
+"00000000"
+],
+[
+22016912,
+"00000000"
+],
+[
+22017312,
+"00000000"
+],
+[
+22017712,
+"00000000"
+],
+[
+22018112,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 0,
+"sub": 2,
+"mat": "mon-brick-generic-dmg:default",
+"uv_max": 10.0
+},
+{
+"inst": 402,
+"sub": 0,
+"mat": "mon-brick-ruin-to-mortar:default",
+"uv_max": 2.0
+},
+{
+"inst": 403,
+"sub": 0,
+"mat": "mon-brick-ruin-to-mortar:default",
+"uv_max": 2.0
+},
+{
+"inst": 404,
+"sub": 0,
+"mat": "mon-brick-ruin-to-mortar:default",
+"uv_max": 2.0
+},
+{
+"inst": 405,
+"sub": 0,
+"mat": "mon-brick-ruin-to-mortar:default",
+"uv_max": 2.0
+},
+{
+"inst": 406,
+"sub": 0,
+"mat": "mon-brick-ruin-to-mortar:default",
+"uv_max": 2.0
+},
+{
+"inst": 579,
+"sub": 0,
+"mat": "mon-brick-generic:default",
+"uv_max": 2.0
+},
+{
+"inst": 622,
+"sub": 5,
+"mat": "mon-fountain-basin-redux:default",
+"uv_max": 3.0
+},
+{
+"inst": 932,
+"sub": 0,
+"mat": "mon-brick-generic:default",
+"uv_max": 2.0
+},
+{
+"inst": 932,
+"sub": 1,
+"mat": "mon-trimming-sheet-b:default",
+"uv_max": 3.0
+},
+{
+"inst": 933,
+"sub": 0,
+"mat": "mon-brick-generic:default",
+"uv_max": 2.0
+},
+{
+"inst": 933,
+"sub": 1,
+"mat": "mon-trimming-sheet-b:default",
+"uv_max": 3.0
+},
+{
+"inst": 933,
+"sub": 2,
+"mat": "mon-trimming-sheet-a:default",
+"uv_max": 5.0
+},
+{
+"inst": 933,
+"sub": 4,
+"mat": "mon-trimming-mural:default",
+"uv_max": 4.0
+},
+{
+"inst": 934,
+"sub": 0,
+"mat": "mon-brick-generic:default",
+"uv_max": 2.0
+},
+{
+"inst": 934,
+"sub": 1,
+"mat": "mon-trimming-sheet-b:default",
+"uv_max": 3.0
+},
+{
+"inst": 934,
+"sub": 2,
+"mat": "mon-trimming-sheet-a:default",
+"uv_max": 5.0
+},
+{
+"inst": 934,
+"sub": 4,
+"mat": "mon-trimming-mural:default",
+"uv_max": 4.0
+},
+{
+"inst": 935,
+"sub": 0,
+"mat": "mon-brick-generic:default",
+"uv_max": 2.0
+},
+{
+"inst": 935,
+"sub": 1,
+"mat": "mon-trimming-sheet-b:default",
+"uv_max": 3.0
+},
+{
+"inst": 935,
+"sub": 2,
+"mat": "mon-trimming-sheet-a:default",
+"uv_max": 5.0
+},
+{
+"inst": 935,
+"sub": 4,
+"mat": "mon-trimming-mural:default",
+"uv_max": 4.0
+},
+{
+"inst": 936,
+"sub": 0,
+"mat": "mon-brick-generic:default",
+"uv_max": 2.0
+},
+{
+"inst": 936,
+"sub": 1,
+"mat": "mon-trimming-sheet-b:default",
+"uv_max": 3.0
+},
+{
+"inst": 937,
+"sub": 0,
+"mat": "mon-brick-generic:default",
+"uv_max": 2.0
+},
+{
+"inst": 937,
+"sub": 1,
+"mat": "mon-trimming-sheet-b:default",
+"uv_max": 3.0
+},
+{
+"inst": 938,
+"sub": 1,
+"mat": "mon-trimming-sheet-b:default",
+"uv_max": 3.0
+},
+{
+"inst": 939,
+"sub": 1,
+"mat": "mon-trimming-sheet-b:default",
+"uv_max": 3.0
+},
+{
+"inst": 940,
+"sub": 1,
+"mat": "mon-trimming-sheet-b:default",
+"uv_max": 3.0
+},
+{
+"inst": 941,
+"sub": 1,
+"mat": "mon-trimming-sheet-b:default",
+"uv_max": 3.0
+}
+]
+}
+]
+}

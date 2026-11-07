@@ -1,0 +1,39 @@
+{
+"pak": "coop-syria-area2.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "19b834dd8c3d257d186584f7f96c4b06",
+"md5_after": "3dbe48e4bd41903a227120e0954110ee",
+"size": 23859112,
+"writes": [
+[
+12848592,
+"00000000"
+],
+[
+12873072,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 1,
+"sub": 0,
+"mat": "syria-stonetrim-01-rubble:default",
+"uv_max": 3.0
+},
+{
+"inst": 265,
+"sub": 7,
+"mat": "syria-stonefloor-01-2-grass:default",
+"uv_max": 23.0
+}
+]
+}
+]
+}

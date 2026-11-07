@@ -1,0 +1,28 @@
+{
+"pak": "coop-syria-area1.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "5cbd112a62c4dc9b8dcb9d037ce6e7c0",
+"md5_after": "e161ae0aea084d17fe7de86c515d5b75",
+"size": 32941024,
+"writes": [
+[
+21283120,
+"00000000"
+]
+],
+"old": [
+"00000100"
+],
+"where": [
+{
+"inst": 756,
+"sub": 2,
+"mat": "syria-brickwall12-2-rubble:default",
+"uv_max": 3.0
+}
+]
+}
+]
+}

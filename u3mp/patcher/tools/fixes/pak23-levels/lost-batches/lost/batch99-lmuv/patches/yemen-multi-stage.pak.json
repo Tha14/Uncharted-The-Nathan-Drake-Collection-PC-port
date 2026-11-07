@@ -1,0 +1,83 @@
+{
+"pak": "yemen-multi-stage.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "ee6859b9734200463a321cab73934403",
+"md5_after": "2a4500532c6e405c3256bd56f72de889",
+"size": 12871392,
+"writes": [
+[
+7841584,
+"00000000"
+],
+[
+7841744,
+"00000000"
+],
+[
+7841904,
+"00000000"
+],
+[
+7842064,
+"00000000"
+],
+[
+7842224,
+"00000000"
+],
+[
+7842384,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 207,
+"sub": 1,
+"mat": "shield-b:default",
+"uv_max": 2.0
+},
+{
+"inst": 208,
+"sub": 1,
+"mat": "shield-b:default",
+"uv_max": 2.0
+},
+{
+"inst": 209,
+"sub": 1,
+"mat": "main-wood:lod0",
+"uv_max": 2.0
+},
+{
+"inst": 210,
+"sub": 1,
+"mat": "main-wood:lod0",
+"uv_max": 2.0
+},
+{
+"inst": 211,
+"sub": 1,
+"mat": "main-wood:lod0",
+"uv_max": 2.0
+},
+{
+"inst": 212,
+"sub": 1,
+"mat": "main-wood:lod0",
+"uv_max": 2.0
+}
+]
+}
+]
+}

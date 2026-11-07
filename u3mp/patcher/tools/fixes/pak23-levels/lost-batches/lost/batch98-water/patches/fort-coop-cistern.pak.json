@@ -1,0 +1,17 @@
+{
+"pak": "fort-coop-cistern.pak",
+"note": "Havok COLLISION_DATA_HAVOK_BG water mesh: collisionFilterInfoPalette[0] 1 -> retail water layer value",
+"variants": [
+{
+"base": "overlay-r3 as installed 2026-10-29 20:20 UTC",
+"md5_before": "8d82e0dff9aa1f3ba0e708c4d8b168a4",
+"md5_after": "fa3fbe7a3e1ecd3f2cd9f9beaed97417",
+"writes": [
+[
+8006080,
+"00000002"
+]
+]
+}
+]
+}

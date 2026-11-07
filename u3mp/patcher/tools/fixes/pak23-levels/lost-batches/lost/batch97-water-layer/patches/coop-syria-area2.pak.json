@@ -1,0 +1,17 @@
+{
+"pak": "coop-syria-area2.pak",
+"note": "Havok COLLISION_DATA_HAVOK_BG water mesh: collisionFilterInfoPalette[0] 1 -> retail water layer value",
+"variants": [
+{
+"base": "overlay-r3 as installed 2026-10-29 20:20 UTC",
+"md5_before": "b8880c16f580dcc02ec08334f6ca2f1d",
+"md5_after": "19b834dd8c3d257d186584f7f96c4b06",
+"writes": [
+[
+13308000,
+"00000002"
+]
+]
+}
+]
+}

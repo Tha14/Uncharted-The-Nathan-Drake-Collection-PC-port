@@ -1,0 +1,5 @@
+dd111bf9100b46ca1c924ccb172bc120  append101.py
+23e23421c419600cdeba0463f2525d37  tools/ndpak.py
+b6eb77673bb3ebea9df6abbefd358769  tools/ps4writer.py
+7cdd86f3ac51e4ca22fab8eeb868b3eb  data/targets.json
+4aedc0b765f89af94fa4c6a6f2ac7570  data/war-brick-worn-detail-B2AEF3DEC337F4D6.bin

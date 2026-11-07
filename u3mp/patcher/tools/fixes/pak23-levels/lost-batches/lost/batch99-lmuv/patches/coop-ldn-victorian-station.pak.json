@@ -1,0 +1,61 @@
+{
+"pak": "coop-ldn-victorian-station.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "2544a45c4556fa700c00f0aa5fd76310",
+"md5_after": "b76fba40b6d32a1397d8d9baf3919423",
+"size": 54955232,
+"writes": [
+[
+40050784,
+"00000000"
+],
+[
+40050944,
+"00000000"
+],
+[
+40113824,
+"00000000"
+],
+[
+40113904,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 2,
+"sub": 0,
+"mat": "ug-vic-elevator-car:default",
+"uv_max": 2.0
+},
+{
+"inst": 3,
+"sub": 0,
+"mat": "ug-vic-elevator-car:default",
+"uv_max": 2.0
+},
+{
+"inst": 433,
+"sub": 2,
+"mat": "ug-vic-paint-green-dust:default",
+"uv_max": 2.0
+},
+{
+"inst": 433,
+"sub": 3,
+"mat": "ug-vic-capitals:default",
+"uv_max": 4.0
+}
+]
+}
+]
+}

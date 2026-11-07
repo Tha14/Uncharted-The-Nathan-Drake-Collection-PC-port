@@ -1,0 +1,83 @@
+{
+"pak": "coop-airport-3a.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "f7bb704738b0c4371b4adb933e393df9",
+"md5_after": "e37cd0c804bb034079c3a8267a26d78e",
+"size": 34459864,
+"writes": [
+[
+27576512,
+"00000000"
+],
+[
+27578032,
+"00000000"
+],
+[
+27578112,
+"00000000"
+],
+[
+27578272,
+"00000000"
+],
+[
+27599712,
+"00000000"
+],
+[
+27599952,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 69,
+"sub": 11,
+"mat": "hatch-rear-multi:default",
+"uv_max": 39.0
+},
+{
+"inst": 69,
+"sub": 30,
+"mat": "window-ext:default",
+"uv_max": 25.0
+},
+{
+"inst": 69,
+"sub": 31,
+"mat": "body-clean-rs-airport-multi:tile-a",
+"uv_max": 26.0
+},
+{
+"inst": 69,
+"sub": 33,
+"mat": "body-clean-rs-airport-multi:tile-b",
+"uv_max": 27.0
+},
+{
+"inst": 197,
+"sub": 1,
+"mat": "air-yem-metal-beams-chipped:default",
+"uv_max": 3.0
+},
+{
+"inst": 198,
+"sub": 1,
+"mat": "air-yem-metal-beams-chipped:default",
+"uv_max": 3.0
+}
+]
+}
+]
+}

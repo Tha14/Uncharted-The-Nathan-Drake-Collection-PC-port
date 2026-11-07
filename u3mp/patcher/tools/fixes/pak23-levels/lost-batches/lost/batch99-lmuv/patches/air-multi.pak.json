@@ -1,0 +1,72 @@
+{
+"pak": "air-multi.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "5a9e40aa6cff60cd25b802543ac5966b",
+"md5_after": "476d4372c6b608f25101aa09bdbdb6c3",
+"size": 47541304,
+"writes": [
+[
+28880976,
+"00000000"
+],
+[
+28942976,
+"00000000"
+],
+[
+28943296,
+"00000000"
+],
+[
+28943616,
+"00000000"
+],
+[
+29032176,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 107,
+"sub": 0,
+"mat": "air-yem-cargo-car:cargo1",
+"uv_max": 2.0
+},
+{
+"inst": 537,
+"sub": 2,
+"mat": "air-yem--nwyelstucco-oldyelstucco-low:default",
+"uv_max": 3.0
+},
+{
+"inst": 538,
+"sub": 2,
+"mat": "air-yem--nwyelstucco-oldyelstucco-low:default",
+"uv_max": 3.0
+},
+{
+"inst": 539,
+"sub": 2,
+"mat": "air-yem--nwyelstucco-oldyelstucco-low:default",
+"uv_max": 3.0
+},
+{
+"inst": 1226,
+"sub": 0,
+"mat": "air-yem-stuccowhite-01-low:default",
+"uv_max": 2.0
+}
+]
+}
+]
+}

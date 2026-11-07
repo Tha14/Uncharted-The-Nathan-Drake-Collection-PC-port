@@ -1,0 +1,83 @@
+{
+"pak": "shambhala-multi.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "d56160b46a05cb2812f849ca8051656b",
+"md5_after": "aef4471ec1c3d0464801c25dae315bbf",
+"size": 72881992,
+"writes": [
+[
+24804640,
+"00000000"
+],
+[
+24806960,
+"00000000"
+],
+[
+24933760,
+"00000000"
+],
+[
+24953760,
+"00000000"
+],
+[
+24955520,
+"00000000"
+],
+[
+24955600,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 19,
+"sub": 1,
+"mat": "sham-drain-blocks-waterfall:default",
+"uv_max": 2.0
+},
+{
+"inst": 25,
+"sub": 6,
+"mat": "sham-brick-plaster:default",
+"uv_max": 5.0
+},
+{
+"inst": 1284,
+"sub": 1,
+"mat": "sham-ornate-inset-base:default",
+"uv_max": 3.0
+},
+{
+"inst": 1466,
+"sub": 2,
+"mat": "sham-wall-plaster-cream-crumble:default",
+"uv_max": 2.0
+},
+{
+"inst": 1475,
+"sub": 0,
+"mat": "sham-kit-off:default",
+"uv_max": 2.0
+},
+{
+"inst": 1475,
+"sub": 1,
+"mat": "sham-ornate-relief-basic-moss:default",
+"uv_max": 3.0
+}
+]
+}
+]
+}

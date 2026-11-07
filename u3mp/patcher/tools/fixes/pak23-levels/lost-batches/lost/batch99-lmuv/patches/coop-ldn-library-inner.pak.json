@@ -1,0 +1,50 @@
+{
+"pak": "coop-ldn-library-inner.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "a827d217b886835fac2c53d84e628d2b",
+"md5_after": "91977f4af34ba4d1c8287b5e944a1dbc",
+"size": 38794528,
+"writes": [
+[
+25804208,
+"00000000"
+],
+[
+25804928,
+"00000000"
+],
+[
+25805648,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 520,
+"sub": 1,
+"mat": "ug-lib-block-2-no-overlay:default",
+"uv_max": 2.0
+},
+{
+"inst": 521,
+"sub": 1,
+"mat": "ug-lib-block-2-no-overlay:default",
+"uv_max": 2.0
+},
+{
+"inst": 522,
+"sub": 1,
+"mat": "ug-lib-block-2-no-overlay:default",
+"uv_max": 2.0
+}
+]
+}
+]
+}

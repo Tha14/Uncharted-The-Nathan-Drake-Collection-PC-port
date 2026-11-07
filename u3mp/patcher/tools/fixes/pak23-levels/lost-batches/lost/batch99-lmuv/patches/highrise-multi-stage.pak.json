@@ -1,0 +1,28 @@
+{
+"pak": "highrise-multi-stage.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "180f86736d0fdb479677e4ce20058f73",
+"md5_after": "cb2096c92ac1b7d874b28e0267c50ffc",
+"size": 35924544,
+"writes": [
+[
+10569152,
+"00000000"
+]
+],
+"old": [
+"00000100"
+],
+"where": [
+{
+"inst": 90,
+"sub": 23,
+"mat": "hrs-war-hotel-wall-damaged-outerwall:default",
+"uv_max": 6.0
+}
+]
+}
+]
+}

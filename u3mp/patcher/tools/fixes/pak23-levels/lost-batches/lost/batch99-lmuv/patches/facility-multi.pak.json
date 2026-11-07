@@ -1,0 +1,28 @@
+{
+"pak": "facility-multi.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "1badbc1732de5ef67d5720ae9b707197",
+"md5_after": "45c27f57d1ea81789e013ae1f254d0e9",
+"size": 120771656,
+"writes": [
+[
+61462896,
+"00000000"
+]
+],
+"old": [
+"00000100"
+],
+"where": [
+{
+"inst": 1787,
+"sub": 2,
+"mat": "fac-floor-concrete-blend-edge:default",
+"uv_max": 5.0
+}
+]
+}
+]
+}

@@ -1,0 +1,28 @@
+{
+"pak": "cha-multi-stage.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "7cceea726f83099545270306dad87ff9",
+"md5_after": "b8353f90c0328b9346ca58b5aa138a34",
+"size": 15358384,
+"writes": [
+[
+10946976,
+"00000000"
+]
+],
+"old": [
+"00000100"
+],
+"where": [
+{
+"inst": 6,
+"sub": 2,
+"mat": "cha-wood-underplank-to-wood-pile:default",
+"uv_max": 2.0
+}
+]
+}
+]
+}

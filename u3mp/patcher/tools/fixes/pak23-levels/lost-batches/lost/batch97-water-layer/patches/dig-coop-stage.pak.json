@@ -1,0 +1,17 @@
+{
+"pak": "dig-coop-stage.pak",
+"note": "Havok COLLISION_DATA_HAVOK_BG water mesh: collisionFilterInfoPalette[0] 1 -> retail water layer value",
+"variants": [
+{
+"base": "overlay-r3 as installed 2026-10-29 20:20 UTC",
+"md5_before": "633ecf7294336212f9007a0ac4c67ca6",
+"md5_after": "9d914e05f12aa91bac3e7d1329405647",
+"writes": [
+[
+5108832,
+"00000002"
+]
+]
+}
+]
+}

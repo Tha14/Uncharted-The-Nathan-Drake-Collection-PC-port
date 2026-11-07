@@ -1,0 +1,83 @@
+{
+"pak": "museum-multi-stage.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "a8e803b82b6ffa9ae72fe7adc998d227",
+"md5_after": "b8d02b5338b55f8128bafcf4ea198761",
+"size": 43237464,
+"writes": [
+[
+8499504,
+"00000000"
+],
+[
+8500064,
+"00000000"
+],
+[
+8500224,
+"00000000"
+],
+[
+8501984,
+"00000000"
+],
+[
+8502144,
+"00000000"
+],
+[
+8504944,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 0,
+"sub": 26,
+"mat": "mum-tile-roof-001-blend-multi:roof-combo-3",
+"uv_max": 4.0
+},
+{
+"inst": 0,
+"sub": 33,
+"mat": "mum-tile-roof-001-blend-multi:roof-combo-3",
+"uv_max": 4.0
+},
+{
+"inst": 0,
+"sub": 35,
+"mat": "war-stone-divider-multi:tilepanel-03",
+"uv_max": 21.0
+},
+{
+"inst": 0,
+"sub": 57,
+"mat": "museum-vdarkwood:default",
+"uv_max": 49.0
+},
+{
+"inst": 0,
+"sub": 59,
+"mat": "war-walls-courtyard-multi:pillar",
+"uv_max": 23.0
+},
+{
+"inst": 0,
+"sub": 94,
+"mat": "mum-vase-multi:vase-cheap",
+"uv_max": 81.0
+}
+]
+}
+]
+}

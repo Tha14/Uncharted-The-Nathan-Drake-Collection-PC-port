@@ -1,0 +1,83 @@
+{
+"pak": "cha-multi.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "88d9a3f329b956603de02201754df119",
+"md5_after": "471be16d6cd115fb4f6c622c671dc71c",
+"size": 61903208,
+"writes": [
+[
+45791856,
+"00000000"
+],
+[
+45805136,
+"00000000"
+],
+[
+45826416,
+"00000000"
+],
+[
+45861296,
+"00000000"
+],
+[
+45863376,
+"00000000"
+],
+[
+45905776,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 0,
+"sub": 5,
+"mat": "cha-grandgate-trim-to-plaster:default",
+"uv_max": 39.0
+},
+{
+"inst": 2,
+"sub": 15,
+"mat": "cha-grandgate-trim-to-plaster:default",
+"uv_max": 18.0
+},
+{
+"inst": 203,
+"sub": 2,
+"mat": "cha-wood-underplank-to-wood-pile:default",
+"uv_max": 2.0
+},
+{
+"inst": 569,
+"sub": 11,
+"mat": "cha-old-stoneslab-stair-to-grass:default",
+"uv_max": 7.0
+},
+{
+"inst": 590,
+"sub": 0,
+"mat": "cha-chimney-to-broken:default",
+"uv_max": 2.0
+},
+{
+"inst": 966,
+"sub": 12,
+"mat": "cha-brick-broken-to-concrete:default",
+"uv_max": 11.0
+}
+]
+}
+]
+}

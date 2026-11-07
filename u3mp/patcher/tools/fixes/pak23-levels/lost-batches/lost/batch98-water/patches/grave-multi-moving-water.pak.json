@@ -1,0 +1,17 @@
+{
+"pak": "grave-multi-moving-water.pak",
+"note": "Havok COLLISION_DATA_HAVOK_BG water mesh: collisionFilterInfoPalette[0] 1 -> retail water layer value",
+"variants": [
+{
+"base": "overlay-r3 as installed 2026-10-29 20:20 UTC",
+"md5_before": "c316ded0603ebcbf534fc625f029c3bd",
+"md5_after": "fc1e73ab78b32c6d854a079bc33c497c",
+"writes": [
+[
+32848,
+"00000002"
+]
+]
+}
+]
+}

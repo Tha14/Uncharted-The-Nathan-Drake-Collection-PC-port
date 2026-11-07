@@ -1,0 +1,27 @@
+{
+ "textures": {
+  "art/levels/multiplayer/museum/textures/wall/war-brick-worn-detail.tga/B2AEF3DEC337F4D6": {
+   "short": "art/levels/multiplayer/museum/textures/wall/war-brick-worn-detail.tga",
+   "hx": "B2AEF3DEC337F4D6",
+   "w": 128,
+   "h": 128,
+   "mips": 8,
+   "file": "war-brick-worn-detail-B2AEF3DEC337F4D6.bin",
+   "size": 13312
+  }
+ },
+ "targets": {
+  "museum-multi.pak": [
+   {
+    "mat": "war-walls-courtyard-multi-emblem-dark:basic",
+    "ps3mat": "levels/multiplayer/museum/walls/war-walls-courtyard-multi-emblem-dark/basic",
+    "tex": "art/levels/multiplayer/museum/textures/wall/war-brick-worn-detail.tga/B2AEF3DEC337F4D6"
+   },
+   {
+    "mat": "war-walls-courtyard-multi-emblem:basic",
+    "ps3mat": "levels/multiplayer/museum/walls/war-walls-courtyard-multi-emblem/basic",
+    "tex": "art/levels/multiplayer/museum/textures/wall/war-brick-worn-detail.tga/B2AEF3DEC337F4D6"
+   }
+  ]
+ }
+}

@@ -1,0 +1,72 @@
+{
+"pak": "grave-multi-wide.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "1122712a6fc726e638ca47436bd58a04",
+"md5_after": "a32d6c78bc61919043c853965e703529",
+"size": 20426816,
+"writes": [
+[
+3661536,
+"00000000"
+],
+[
+3661696,
+"00000000"
+],
+[
+3662336,
+"00000000"
+],
+[
+3665136,
+"00000000"
+],
+[
+3665216,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 6,
+"sub": 2,
+"mat": "grv-handrail:default",
+"uv_max": 4.0
+},
+{
+"inst": 6,
+"sub": 4,
+"mat": "grv-wide-ships-big:wheelhouse",
+"uv_max": 3.0
+},
+{
+"inst": 7,
+"sub": 1,
+"mat": "grv-handrail:default",
+"uv_max": 4.0
+},
+{
+"inst": 23,
+"sub": 1,
+"mat": "grv-wide-deckobjects:winch",
+"uv_max": 4.0
+},
+{
+"inst": 23,
+"sub": 2,
+"mat": "grv-handrail:railing-antenna",
+"uv_max": 3.0
+}
+]
+}
+]
+}

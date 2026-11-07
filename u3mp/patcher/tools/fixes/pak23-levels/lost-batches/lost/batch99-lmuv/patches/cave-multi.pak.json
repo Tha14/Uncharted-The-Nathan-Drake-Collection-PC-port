@@ -1,0 +1,28 @@
+{
+"pak": "cave-multi.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "7b732c04f39ba1428dfbf9c7616fcd98",
+"md5_after": "8014103557a4265edad6a69c37308bb1",
+"size": 66874488,
+"writes": [
+[
+31696672,
+"00000000"
+]
+],
+"old": [
+"00000100"
+],
+"where": [
+{
+"inst": 655,
+"sub": 4,
+"mat": "cave-snow-ground-to-rubble:default",
+"uv_max": 10.0
+}
+]
+}
+]
+}

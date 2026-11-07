@@ -1,0 +1,94 @@
+{
+"pak": "grave-multi.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "727a6d32089acb2a519776037eb2ee79",
+"md5_after": "75ed616eddbb679264d300428e4ea161",
+"size": 63131824,
+"writes": [
+[
+22930096,
+"00000000"
+],
+[
+22931296,
+"00000000"
+],
+[
+22931376,
+"00000000"
+],
+[
+22932736,
+"00000000"
+],
+[
+22944976,
+"00000000"
+],
+[
+22945136,
+"00000000"
+],
+[
+22947456,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 260,
+"sub": 4,
+"mat": "grv-iron-baracles-no-spec:default-copy",
+"uv_max": 2.0
+},
+{
+"inst": 267,
+"sub": 1,
+"mat": "grv-fbhull-panels:fishingboat-hull-green-rust",
+"uv_max": 12.0
+},
+{
+"inst": 267,
+"sub": 2,
+"mat": "grv-hull-blue-tugboa:panels000-grey",
+"uv_max": 19.0
+},
+{
+"inst": 267,
+"sub": 19,
+"mat": "grv-fbhull-panels:fishingboat-hull-green",
+"uv_max": 11.0
+},
+{
+"inst": 327,
+"sub": 1,
+"mat": "grv-handrailing:handrail-red",
+"uv_max": 6.0
+},
+{
+"inst": 327,
+"sub": 3,
+"mat": "grv-iron-baracles:default",
+"uv_max": 7.0
+},
+{
+"inst": 332,
+"sub": 4,
+"mat": "grv-container-colortint-yellow-noscroll:default",
+"uv_max": 2.0
+}
+]
+}
+]
+}

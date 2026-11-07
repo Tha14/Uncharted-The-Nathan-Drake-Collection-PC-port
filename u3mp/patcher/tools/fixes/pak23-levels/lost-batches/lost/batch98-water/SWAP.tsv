@@ -1,0 +1,20 @@
+kind	file	new_md5	replaces	replaces_md5	change
+copy	u3data/build/main/pak23/ps4/old-quarter-multi.pak	188a4931340e58041f8d2c429447feca	overlay-r3	2ce47550f1eb87aab7d34e77e659c4d0	water material template + water collision layer 2
+copy	u3data/build/main/pak23/ps4/dig-coop-stage.pak	87cd6aef64b4d2a5364d3f9d014032f5	overlay-r3	633ecf7294336212f9007a0ac4c67ca6	water material template + water collision layer 2
+copy	u3data/build/main/pak23/ps4/oasis-multi-stage.pak	0e88c510ddacd9099cfbb14834ec8100	overlay-r3	52933b867c0d5f5d5a7d2f81b24bb0b2	water material template + water collision layer 2
+copy	u3data/build/main/pak23/ps4/oasis-multi.pak	c0c6805bd387155a877d6160832cf024	overlay-r3	5d872aabcc0fb76a274ddd4a55ad6735	water material template + water collision layer 2
+copy	u3data/build/main/pak23/ps4/village-multi.pak	e4003798c3f41e0b90d3c83c01a2025f	overlay-r3	4b95d9ec5f071cb2a7b168fc36bc624c	water material template + water collision layer 2
+copy	u3data/build/main/pak23/ps4/warzone-multi.pak	6e944a4aa4a645c5d7c03ca5e4eca142	overlay-r3	c679206bcd508e90c90d3abf284d02f1	water material template + water collision layer 2
+patch	u3data/build/main/pak23/ps4/cave-multi-waterfalls.pak	541ccb8f04b9dcb624a1278ed8b2aebb	overlay-r3	74311e02c35f3f38a29339ce8061cdab	water collision layer 2 (apply_patches.py, 1 u32)
+patch	u3data/build/main/pak23/ps4/cha-multi-wide.pak	67f379b1286a3c35dc1a3e42c0135e28	overlay-r3	795a399d8c77f1964dba04ef9fa7cdac	water collision layer 2 (apply_patches.py, 1 u32)
+patch	u3data/build/main/pak23/ps4/coop-ldn-victorian-station.pak	2544a45c4556fa700c00f0aa5fd76310	overlay-r3	1435b3c73532faa8b5a567e476374663	water collision layer 2 (apply_patches.py, 1 u32)
+patch	u3data/build/main/pak23/ps4/coop-syria-area2.pak	19b834dd8c3d257d186584f7f96c4b06	overlay-r3	b8880c16f580dcc02ec08334f6ca2f1d	water collision layer 2 (apply_patches.py, 1 u32)
+patch	u3data/build/main/pak23/ps4/coop-syria-connection.pak	9e6bad4176b277fd9e233a4755e3818b	overlay-r3	40e84f4c1147fe9419c0aca0123fe7dc	water collision layer 2 (apply_patches.py, 1 u32)
+patch	u3data/build/main/pak23/ps4/fort-coop-cistern.pak	fa3fbe7a3e1ecd3f2cd9f9beaed97417	overlay-r3	8d82e0dff9aa1f3ba0e708c4d8b168a4	water collision layer 2 (apply_patches.py, 1 u32)
+patch	u3data/build/main/pak23/ps4/fort-multi.pak	fb3fac56bff3590570057bb783100051	overlay-r3	3fc2480f7ffd9f511eadb0bc976ede6b	water collision layer 2 (apply_patches.py, 1 u32)
+patch	u3data/build/main/pak23/ps4/gompa-multi.pak	e6a997f064816ca18bddb6b0151ab7d1	overlay-r3	40cf4b3175c945272ec9bc6019bfabe2	water collision layer 2 (apply_patches.py, 1 u32)
+patch	u3data/build/main/pak23/ps4/grave-multi-moving-water.pak	fc1e73ab78b32c6d854a079bc33c497c	overlay-r3	c316ded0603ebcbf534fc625f029c3bd	water collision layer 2 (apply_patches.py, 1 u32)
+patch	u3data/build/main/pak23/ps4/grave-water-multi.pak	baf78f253508768b4e0330479fff6d93	overlay-r3	e660c3b94a4a09414d220131fe514354	water collision layer 2 (apply_patches.py, 1 u32)
+patch	u3data/build/main/pak23/ps4/ldn-train-multi.pak	413fca654ebb48c0489fd27acbe15844	overlay-r3	6c35a1b819cd28fe0f4623ab7b7c57ca	water collision layer 2 (apply_patches.py, 1 u32)
+patch	u3data/build/main/pak23/ps4/museum-multi-stage.pak	a8e803b82b6ffa9ae72fe7adc998d227	overlay-r3	aa70498f164bc384d7dddbd5507fda7c	water collision layer 2 (apply_patches.py, 1 u32)
+patch	u3data/build/main/pak23/ps4/museum-multi.pak	697f58f1cc04d39a5155ee9fe64791b8	overlay-r3	d8b60ebb9fad1e7cfc2fb0e189d9ca9b	water collision layer 2 (apply_patches.py, 1 u32)

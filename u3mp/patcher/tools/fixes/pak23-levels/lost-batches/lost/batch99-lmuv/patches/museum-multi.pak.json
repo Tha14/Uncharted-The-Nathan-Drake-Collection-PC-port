@@ -1,0 +1,127 @@
+{
+"pak": "museum-multi.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "697f58f1cc04d39a5155ee9fe64791b8",
+"md5_after": "9fd5549cf26df7ba524d9b6723d23d59",
+"size": 88611608,
+"writes": [
+[
+34581584,
+"00000000"
+],
+[
+34584064,
+"00000000"
+],
+[
+34612224,
+"00000000"
+],
+[
+34612304,
+"00000000"
+],
+[
+34713264,
+"00000000"
+],
+[
+34744384,
+"00000000"
+],
+[
+34744864,
+"00000000"
+],
+[
+34820064,
+"00000000"
+],
+[
+34820384,
+"00000000"
+],
+[
+34841744,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 3,
+"sub": 22,
+"mat": "mum-wall-panel03-multi:marble-panels",
+"uv_max": 2.0
+},
+{
+"inst": 5,
+"sub": 8,
+"mat": "mum-tile-roof-001-blend-multi:roof-combo-3",
+"uv_max": 7.0
+},
+{
+"inst": 170,
+"sub": 1,
+"mat": "war-stone-divider-multi:tilepanel-03",
+"uv_max": 3.0
+},
+{
+"inst": 170,
+"sub": 2,
+"mat": "war-walls-courtyard-multi:pillar",
+"uv_max": 5.0
+},
+{
+"inst": 811,
+"sub": 4,
+"mat": "war-walls-courtyard-multi:basepanel",
+"uv_max": 9.0
+},
+{
+"inst": 885,
+"sub": 2,
+"mat": "war-walls-courtyard-multi:basepanel",
+"uv_max": 2.0
+},
+{
+"inst": 886,
+"sub": 2,
+"mat": "war-walls-courtyard-multi:basepanel",
+"uv_max": 2.0
+},
+{
+"inst": 1402,
+"sub": 0,
+"mat": "mum-tile-roof-001-blend-multi:roof-combo-3",
+"uv_max": 2.0
+},
+{
+"inst": 1403,
+"sub": 0,
+"mat": "mum-tile-roof-001-blend-multi:roof-combo-3",
+"uv_max": 2.0
+},
+{
+"inst": 1546,
+"sub": 6,
+"mat": "mum-arch-multi:wall-trim",
+"uv_max": 6.0
+}
+]
+}
+]
+}

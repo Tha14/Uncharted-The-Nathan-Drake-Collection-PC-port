@@ -1,0 +1,17 @@
+{
+"pak": "coop-ldn-victorian-station.pak",
+"note": "Havok COLLISION_DATA_HAVOK_BG water mesh: collisionFilterInfoPalette[0] 1 -> retail water layer value",
+"variants": [
+{
+"base": "overlay-r3 as installed 2026-10-29 20:20 UTC",
+"md5_before": "1435b3c73532faa8b5a567e476374663",
+"md5_after": "2544a45c4556fa700c00f0aa5fd76310",
+"writes": [
+[
+41684944,
+"00000002"
+]
+]
+}
+]
+}

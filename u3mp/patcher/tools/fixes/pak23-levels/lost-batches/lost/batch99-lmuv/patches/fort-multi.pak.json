@@ -1,0 +1,61 @@
+{
+"pak": "fort-multi.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "fb3fac56bff3590570057bb783100051",
+"md5_after": "079c69daf2adc87509d5f79b49b388c4",
+"size": 82444520,
+"writes": [
+[
+32675616,
+"00000000"
+],
+[
+32675856,
+"00000000"
+],
+[
+32676096,
+"00000000"
+],
+[
+32676336,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 1137,
+"sub": 1,
+"mat": "decals-large-copy:default",
+"uv_max": 2.0
+},
+{
+"inst": 1138,
+"sub": 1,
+"mat": "decals-large-copy:default",
+"uv_max": 2.0
+},
+{
+"inst": 1139,
+"sub": 1,
+"mat": "decals-large-copy:default",
+"uv_max": 2.0
+},
+{
+"inst": 1140,
+"sub": 1,
+"mat": "decals-large-copy:default",
+"uv_max": 2.0
+}
+]
+}
+]
+}

@@ -1,0 +1,28 @@
+{
+"pak": "coop-syria-turret1.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "4efa2cd6cee375cf703a7be4545fb144",
+"md5_after": "1b57e43003312ff23d528854487c06e3",
+"size": 21335656,
+"writes": [
+[
+10182048,
+"00000000"
+]
+],
+"old": [
+"00000100"
+],
+"where": [
+{
+"inst": 2,
+"sub": 14,
+"mat": "syria-brickwall-11-2-softdirt:default",
+"uv_max": 5.0
+}
+]
+}
+]
+}

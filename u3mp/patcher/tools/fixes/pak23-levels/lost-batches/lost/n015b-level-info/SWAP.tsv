@@ -1,0 +1,6 @@
+pak	overlay	md5_before	md5_after	LEVEL_INFO_1
+coop-airport-3a.pak	overlay-r3	37fbf88f331246945afa3e3de3b8fbbf	abbe61c28dd1b7c87627cf04f1d00edc	0x00000108
+coop-syria-entrance.pak	overlay-r3	0e10b6e9c93dec7ab38c2d8a3a7de916	b476567b087f0ad696509e58f891ebf7	0x00000100
+coop-syria-turret2.pak	overlay-r3	5bbc984123ea7bc827d9c20175e70e08	b88a3a7d38a5d950e813290b415d5ab5	0x00000100
+ldn-train-multi-lit.pak	overlay-r3	bd58a6251d3455dc10e2306e2f46fcaa	03d9ca4a5af46caf5d79c3bce4dc0931	0x00000100
+syria-multi.pak	overlay-r3	f34ea5477273445f5a2153caca005ab2	9210c325b96db5c251cb5cf28f071a68	0x00000100

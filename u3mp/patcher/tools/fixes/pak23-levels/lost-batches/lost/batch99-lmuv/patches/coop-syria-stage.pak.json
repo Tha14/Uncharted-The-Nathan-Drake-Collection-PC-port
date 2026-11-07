@@ -1,0 +1,28 @@
+{
+"pak": "coop-syria-stage.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "e95061415c85187ebb1a9edda41b219a",
+"md5_after": "78349659d83a8373ee84fdfe4f2c903d",
+"size": 18535552,
+"writes": [
+[
+8819776,
+"00000000"
+]
+],
+"old": [
+"00000100"
+],
+"where": [
+{
+"inst": 0,
+"sub": 28,
+"mat": "syria-brickwall-02-2-rubble02:default",
+"uv_max": 24.0
+}
+]
+}
+]
+}

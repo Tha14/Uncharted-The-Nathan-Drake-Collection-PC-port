@@ -1,0 +1,50 @@
+{
+"pak": "gompa-multi.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "e6a997f064816ca18bddb6b0151ab7d1",
+"md5_after": "77812e74a162ad9958b87ac465856c51",
+"size": 75943576,
+"writes": [
+[
+27236144,
+"00000000"
+],
+[
+27259984,
+"00000000"
+],
+[
+27272544,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 0,
+"sub": 7,
+"mat": "gompa-neu-wood-gen:default",
+"uv_max": 11.0
+},
+{
+"inst": 220,
+"sub": 6,
+"mat": "gompa-pattern-symbols:default",
+"uv_max": 6.0
+},
+{
+"inst": 320,
+"sub": 4,
+"mat": "gompa-red-blend-rough:default",
+"uv_max": 2.0
+}
+]
+}
+]
+}

@@ -1,0 +1,17 @@
+{
+"pak": "gompa-multi.pak",
+"note": "Havok COLLISION_DATA_HAVOK_BG water mesh: collisionFilterInfoPalette[0] 1 -> retail water layer value",
+"variants": [
+{
+"base": "overlay-r3 as installed 2026-10-29 20:20 UTC",
+"md5_before": "40cf4b3175c945272ec9bc6019bfabe2",
+"md5_after": "e6a997f064816ca18bddb6b0151ab7d1",
+"writes": [
+[
+28609824,
+"00000002"
+]
+]
+}
+]
+}

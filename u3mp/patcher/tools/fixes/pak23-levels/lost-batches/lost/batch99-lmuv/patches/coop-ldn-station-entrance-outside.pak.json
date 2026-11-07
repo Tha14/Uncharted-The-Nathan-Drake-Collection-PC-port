@@ -1,0 +1,39 @@
+{
+"pak": "coop-ldn-station-entrance-outside.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "9589ac06288cd4288964a65a8f5d7c18",
+"md5_after": "f95742ff2b98730f6219ba23af5da1e7",
+"size": 36491984,
+"writes": [
+[
+16634128,
+"00000000"
+],
+[
+16634208,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 0,
+"sub": 8,
+"mat": "ldn-metal-pipe-dark:default",
+"uv_max": 23.0
+},
+{
+"inst": 0,
+"sub": 9,
+"mat": "ldn-metal-pipe-dark:default",
+"uv_max": 23.0
+}
+]
+}
+]
+}

@@ -1,0 +1,127 @@
+{
+"pak": "mon-coop-stage.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "582fce7cad8fca155a0f143b3ec7da36",
+"md5_after": "75f4db33bc6628d6f0d348e421d493f5",
+"size": 37068552,
+"writes": [
+[
+5932384,
+"00000000"
+],
+[
+5932464,
+"00000000"
+],
+[
+5932784,
+"00000000"
+],
+[
+5932864,
+"00000000"
+],
+[
+5932944,
+"00000000"
+],
+[
+5933104,
+"00000000"
+],
+[
+5933184,
+"00000000"
+],
+[
+5933264,
+"00000000"
+],
+[
+5933344,
+"00000000"
+],
+[
+5933504,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 149,
+"sub": 0,
+"mat": "mon-brick-generic:default",
+"uv_max": 2.0
+},
+{
+"inst": 149,
+"sub": 1,
+"mat": "mon-trimming-sheet-b:default",
+"uv_max": 3.0
+},
+{
+"inst": 150,
+"sub": 0,
+"mat": "mon-brick-generic:default",
+"uv_max": 2.0
+},
+{
+"inst": 150,
+"sub": 1,
+"mat": "mon-trimming-sheet-b:default",
+"uv_max": 3.0
+},
+{
+"inst": 150,
+"sub": 2,
+"mat": "mon-trimming-sheet-a:default",
+"uv_max": 5.0
+},
+{
+"inst": 150,
+"sub": 4,
+"mat": "mon-trimming-mural:default",
+"uv_max": 4.0
+},
+{
+"inst": 151,
+"sub": 0,
+"mat": "mon-brick-generic:default",
+"uv_max": 2.0
+},
+{
+"inst": 151,
+"sub": 1,
+"mat": "mon-trimming-sheet-b:default",
+"uv_max": 3.0
+},
+{
+"inst": 151,
+"sub": 2,
+"mat": "mon-trimming-sheet-a:default",
+"uv_max": 5.0
+},
+{
+"inst": 151,
+"sub": 4,
+"mat": "mon-trimming-mural:default",
+"uv_max": 4.0
+}
+]
+}
+]
+}

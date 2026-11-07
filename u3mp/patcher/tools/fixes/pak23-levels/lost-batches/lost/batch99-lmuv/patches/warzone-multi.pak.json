@@ -1,0 +1,72 @@
+{
+"pak": "warzone-multi.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "6e944a4aa4a645c5d7c03ca5e4eca142",
+"md5_after": "e20f1c504903cd9223b86ca2d1937fdf",
+"size": 98661456,
+"writes": [
+[
+48857440,
+"00000000"
+],
+[
+48866400,
+"00000000"
+],
+[
+48880560,
+"00000000"
+],
+[
+48923920,
+"00000000"
+],
+[
+49009280,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 7,
+"sub": 1,
+"mat": "war-wood-lowcost:darkwood",
+"uv_max": 11.0
+},
+{
+"inst": 12,
+"sub": 9,
+"mat": "war-wood-lowcost:darkwood",
+"uv_max": 10.0
+},
+{
+"inst": 45,
+"sub": 1,
+"mat": "war-ornate-grating:default",
+"uv_max": 5.0
+},
+{
+"inst": 368,
+"sub": 10,
+"mat": "war-lowcost-roof:default",
+"uv_max": 7.0
+},
+{
+"inst": 1258,
+"sub": 0,
+"mat": "war-metal-hotel:war-metal-hotel",
+"uv_max": 2.0
+}
+]
+}
+]
+}

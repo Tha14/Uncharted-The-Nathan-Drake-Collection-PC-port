@@ -1,0 +1,303 @@
+{
+"pak": "ldn-train-multi.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "413fca654ebb48c0489fd27acbe15844",
+"md5_after": "c08c75f71a58b05bb0d13d61a38d3bde",
+"size": 61471096,
+"writes": [
+[
+44282512,
+"00000000"
+],
+[
+44282752,
+"00000000"
+],
+[
+44282992,
+"00000000"
+],
+[
+44283232,
+"00000000"
+],
+[
+44283472,
+"00000000"
+],
+[
+44283712,
+"00000000"
+],
+[
+44283952,
+"00000000"
+],
+[
+44284192,
+"00000000"
+],
+[
+44284432,
+"00000000"
+],
+[
+44350112,
+"00000000"
+],
+[
+44350272,
+"00000000"
+],
+[
+44350432,
+"00000000"
+],
+[
+44350592,
+"00000000"
+],
+[
+44350752,
+"00000000"
+],
+[
+44350912,
+"00000000"
+],
+[
+44351072,
+"00000000"
+],
+[
+44351232,
+"00000000"
+],
+[
+44351392,
+"00000000"
+],
+[
+44351552,
+"00000000"
+],
+[
+44351712,
+"00000000"
+],
+[
+44351872,
+"00000000"
+],
+[
+44352032,
+"00000000"
+],
+[
+44352192,
+"00000000"
+],
+[
+44352352,
+"00000000"
+],
+[
+44352512,
+"00000000"
+],
+[
+44352672,
+"00000000"
+]
+],
+"old": [
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100",
+"00000100"
+],
+"where": [
+{
+"inst": 216,
+"sub": 2,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 217,
+"sub": 2,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 218,
+"sub": 2,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 219,
+"sub": 2,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 220,
+"sub": 2,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 221,
+"sub": 2,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 222,
+"sub": 2,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 223,
+"sub": 2,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 224,
+"sub": 2,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 818,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 819,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 820,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 821,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 822,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 823,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 824,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 825,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 826,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 827,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 828,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 829,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 830,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 831,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 832,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 833,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+},
+{
+"inst": 834,
+"sub": 1,
+"mat": "ug-dirty-metal-01:default",
+"uv_max": 2.0
+}
+]
+}
+]
+}

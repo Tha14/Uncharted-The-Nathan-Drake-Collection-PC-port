@@ -1,0 +1,17 @@
+{
+"pak": "museum-multi.pak",
+"note": "Havok COLLISION_DATA_HAVOK_BG water mesh: collisionFilterInfoPalette[0] 1 -> retail water layer value",
+"variants": [
+{
+"base": "overlay-r3 as installed 2026-10-29 20:20 UTC",
+"md5_before": "d8b60ebb9fad1e7cfc2fb0e189d9ca9b",
+"md5_after": "697f58f1cc04d39a5155ee9fe64791b8",
+"writes": [
+[
+36677440,
+"00000002"
+]
+]
+}
+]
+}

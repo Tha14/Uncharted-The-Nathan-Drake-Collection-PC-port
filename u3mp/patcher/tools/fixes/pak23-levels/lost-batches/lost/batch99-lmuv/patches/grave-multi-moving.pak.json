@@ -1,0 +1,28 @@
+{
+"pak": "grave-multi-moving.pak",
+"variants": [
+{
+"base": "PC overlay-r3 as scanned 2026-10-29 22:40 UTC",
+"md5_before": "ddf3b4f611ea364d70d410bae3e8ecad",
+"md5_after": "2d176b6cc314d9fe50f3d398d34afd2f",
+"size": 31160288,
+"writes": [
+[
+4802160,
+"00000000"
+]
+],
+"old": [
+"00000100"
+],
+"where": [
+{
+"inst": 108,
+"sub": 1,
+"mat": "grv-door-wet:door-watertight",
+"uv_max": 2.0
+}
+]
+}
+]
+}

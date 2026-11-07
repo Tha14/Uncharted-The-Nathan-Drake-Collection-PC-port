@@ -1,0 +1,17 @@
+{
+"pak": "old-quarter-multi.pak",
+"note": "Havok COLLISION_DATA_HAVOK_BG water mesh: collisionFilterInfoPalette[0] 1 -> retail water layer value",
+"variants": [
+{
+"base": "overlay-r3 as installed 2026-10-29 20:20 UTC",
+"md5_before": "2ce47550f1eb87aab7d34e77e659c4d0",
+"md5_after": "45ae6089087c4461a00fce934b5bc210",
+"writes": [
+[
+31029104,
+"00000002"
+]
+]
+}
+]
+}
