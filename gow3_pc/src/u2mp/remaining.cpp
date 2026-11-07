@@ -441,6 +441,44 @@ U2MP_GUEST void *stat_host_copy(void *dst, const void *src, uint64_t n) {
 
 void install_remaining(int &installed) {
     {
+        // Test run 18: online only (NET_SM >= 2), a level object's tag table ({data, count} at object
+        // +0x68) is binary-searched for tag 2743c4b0 (0x4bf44c..0x4bf492) without a count check; an
+        // empty table has data NULL and the search reads address 0 while LoadLevels runs. PS4 never ran
+        // this online path. 0x4bf44c (mov rax,[rdx]; mov ecx,[rdx+8]; xor edx,edx; jmp 4bf460) jumps to
+        // a copy that treats an empty table as "tag not found" (0x4bf510).
+        constexpr uint64_t site = 0x4bf44c, loop = 0x4bf460, not_found = 0x4bf510;
+        static const unsigned char expect[] = {0x48, 0x8b, 0x02, 0x8b, 0x4a, 0x08, 0x31, 0xd2, 0xeb, 0x0a};
+        unsigned char *stub = image.matches(site, expect, sizeof expect) ? runtime_near_image_alloc(64, 1) : nullptr;
+        const int64_t delta = stub ? int64_t(uintptr_t(stub)) - int64_t(uintptr_t(image.base + site + 5)) : 0;
+        if (stub && delta >= INT32_MIN && delta <= INT32_MAX) {
+            static const unsigned char code[] = {
+                0x48, 0x8b, 0x02,               // mov rax,[rdx]
+                0x8b, 0x4a, 0x08,               // mov ecx,[rdx+8]
+                0x48, 0x85, 0xc0,               // test rax,rax
+                0x74, 0x14,                     // jz not_found
+                0x85, 0xc9,                     // test ecx,ecx
+                0x7e, 0x10,                     // jle not_found
+                0x31, 0xd2,                     // xor edx,edx
+                0xff, 0x25, 0, 0, 0, 0,         // jmp [rip] -> loop
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0xff, 0x25, 0, 0, 0, 0,         // not_found: jmp [rip] -> not_found
+                0, 0, 0, 0, 0, 0, 0, 0};
+            std::memcpy(stub, code, sizeof code);
+            const uint64_t a = uint64_t(uintptr_t(image.base + loop)), b = uint64_t(uintptr_t(image.base + not_found));
+            std::memcpy(stub + 23, &a, 8);
+            std::memcpy(stub + 37, &b, 8);
+            unsigned char *c = image.base + site;
+            const int32_t rel = int32_t(delta);
+            c[0] = 0xe9;
+            std::memcpy(c + 1, &rel, 4);
+            std::memset(c + 5, 0x90, sizeof expect - 5);
+            log("empty tag table search (4bf44c): checked -> C++ stub");
+            ++installed;
+        } else {
+            log("empty tag table search (4bf44c): bytes differ, left alone");
+        }
+    }
+    {
         // 66c75d: xor edi,edi; call strlen; lea rdx,[rax+1]; xor esi,esi; mov rdi,rbx; call memcpy
         static const unsigned char site[] = {0x31, 0xff, 0xe8};
         static const unsigned char site2[] = {0x48, 0x8d, 0x50, 0x01, 0x31, 0xf6, 0x48, 0x89, 0xdf, 0xe8};
