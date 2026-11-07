@@ -378,6 +378,25 @@ U2MP_GUEST void player_rows(uint8_t *query) { roster_query(query); }
 // leader only). PS3: lobby -> CREATE_GAME_WAIT (0x444bb0 = PS4 0x5eb830, intact) -> room created.
 U2MP_GUEST void start_match(void *, void *, void *) {
     if (!hosting) return;
+    // Matchmaking (mode 1): PS3 picked a random game (0x49bb00, no PS4 pair) and the matchmaking
+    // state machine (0x4b0a58, PS4 0x64e910 = ret) is gone. Here the party is the match: the host
+    // picks a random game of the current game type from *net-games* (SetNetGame 0x63dc30).
+    if (G<int32_t>(kNetInfo + NI_MODE) == 1) {
+        struct Table { int32_t count; int32_t pad; uint8_t *records; };
+        auto *table = fn<Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70)(0x3b9a067d);
+        const int16_t current = G<int16_t>(kNgm + NGM_GAME);
+        if (table && table->count > 0 && table->records) {
+            const int32_t type = *reinterpret_cast<int32_t *>(table->records + 0x90 * (current >= 0 ? current : 0) + 0x0c);
+            std::vector<int16_t> same;
+            for (int32_t i = 0; i < table->count; ++i)
+                if (*reinterpret_cast<int32_t *>(table->records + 0x90 * i + 0x0c) == type) same.push_back(int16_t(i));
+            if (!same.empty()) {
+                const int16_t pick = same[size_t(std::rand()) % same.size()];
+                fn<void(U2MP_GUEST *)(void *, int16_t, const void *, int)>(0x63dc30)(image.at<void>(kNgm), pick, nullptr, 10);
+                log("matchmaking: net game %d of %zu of type %d", pick, same.size(), type);
+            }
+        }
+    }
     log("Start Match: creating the match");
     fn<void(U2MP_GUEST *)(void *, void *, void *)>(fHostCreate)(nullptr, nullptr, nullptr);   // state 3, page handler 0x6093f0
     session_set(kMatch, kRoomContext, 1, 1);
