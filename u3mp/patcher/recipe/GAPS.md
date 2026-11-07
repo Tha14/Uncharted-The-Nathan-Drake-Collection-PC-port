@@ -106,7 +106,7 @@ Cause classes of the remaining rows:
 | coop-airport-3a | equivalent | h028-backup | searched, no output kept |
 | coop-airport-3b-low | identical | final | - |
 | coop-airport-stage | equivalent | h028-backup | size+26128 / pages 11/12 (appended page) / ref-only tex 1 (flat-white.tga) / bindings differ: 1 (ceiling-b-multi:default) |
-| coop-ldn-library-inner | equivalent | backup-london | searched, no output kept |
+| coop-ldn-library-inner | base | backup-london | rebuilt exact 2026-11-07 (template search run 6, target = the recorded pre-lost-batch state); lost-batches-r3 replays it to the recorded end state |
 | coop-ldn-station-entrance-outside | equivalent | h028-backup | searched, no output kept |
 | coop-syria-area1 | equivalent | backup-london | searched, no output kept |
 | coop-syria-area2 | equivalent | backup-london | searched, no output kept |
@@ -161,7 +161,7 @@ Cause classes of the remaining rows:
 | museum-multi-stage | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | museum-multi-wide | equivalent | h028-backup | size-80 |
 | oasis-multi | equivalent | b103 | searched, no output kept |
-| oasis-multi-stage | equivalent | b103 | searched, no output kept |
+| oasis-multi-stage | base | b103 | rebuilt exact 2026-11-07 (template search run 6, target = the recorded pre-lost-batch state); lost-batches-r3 replays it to the recorded end state |
 | oasis-multi-wide | equivalent | b102 | searched, no output kept |
 | old-quarter-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | old-quarter-multi-stage | base | backup-london | - |
