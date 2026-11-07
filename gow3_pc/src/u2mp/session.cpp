@@ -476,6 +476,39 @@ StateUpdateFn original_update[kStateCount];
 // Diagnostics: which TaskManagerOnline state runs (logged when it changes, and every 10 s).
 std::atomic<int> last_online_state{-1};
 uint64_t next_online_log = 0;
+// LoadLevels waits for 0x64b770(ngm, task): every package loaded (0x56ce50 on the package table),
+// the task's level (task+0x80 -> +0x88 -> +0x28) and the net game's second level (record +0x78) at
+// state 8 in the level list 0x1534140 (node +0 next, +0x10 state, +0x98 id), and 0xa18010 false.
+// Logs each part (test run 19 stayed in LoadLevels).
+void log_load_levels(void *state) {
+    auto *task = *reinterpret_cast<uint8_t **>(static_cast<uint8_t *>(state) + 8);
+    uint32_t task_level = 0;
+    if (task) {
+        auto *a = *reinterpret_cast<uint8_t **>(task + 0x80);
+        auto *b = a ? *reinterpret_cast<uint8_t **>(a + 0x88) : nullptr;
+        if (b) task_level = *reinterpret_cast<uint32_t *>(b + 0x28);
+    }
+    const bool packages = fn<bool(U2MP_GUEST *)(void *)>(0x56ce50)(image.at<void>(0x1130390));
+    const bool busy = fn<bool(U2MP_GUEST *)()>(0xa18010)();
+    uint32_t second = 0;
+    struct Table { int32_t count; int32_t pad; uint8_t *records; };
+    auto *games = fn<Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70)(0x3b9a067d);
+    const int16_t game = G<int16_t>(kNgm + NGM_GAME);
+    if (games && games->records && game >= 0 && game < games->count)
+        second = *reinterpret_cast<uint32_t *>(games->records + 0x90 * game + 0x78);
+    char list[512] = "";
+    size_t used = 0;
+    const uint64_t head = uint64_t(uintptr_t(image.at<uint8_t>(0x1534140)));
+    uint64_t node = G<uint64_t>(0x1534140);
+    for (int n = 0; node && node != head && n < 24; ++n, node = *reinterpret_cast<uint64_t *>(uintptr_t(node))) {
+        const auto *p = reinterpret_cast<const uint8_t *>(uintptr_t(node));
+        used += size_t(std::snprintf(list + used, sizeof list - used, " %08x:%d", *reinterpret_cast<const uint32_t *>(p + 0x98),
+                                     *reinterpret_cast<const int32_t *>(p + 0x10)));
+        if (used >= sizeof list - 16) break;
+    }
+    log("load levels: packages loaded %d, busy %d, task level %08x, second level %08x; levels%s", packages, busy,
+        task_level, second, list);
+}
 template <size_t I> U2MP_GUEST uint64_t state_update(void *state) {
     const uint64_t now_ms = uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count());
@@ -483,6 +516,7 @@ template <size_t I> U2MP_GUEST uint64_t state_update(void *state) {
         next_online_log = now_ms + 10000;
         log("online state: update 0x%llx (vtable slot 0x%llx)", (unsigned long long)kStateUpdates[I].update,
             (unsigned long long)(kStateUpdates[I].slot - 0x18));
+        if (kStateUpdates[I].update == 0x5f2dc0) log_load_levels(state);
     }
     const uint64_t result = original_update[I](state);
     tick();

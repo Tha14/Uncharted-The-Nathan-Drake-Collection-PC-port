@@ -22,7 +22,7 @@ u2paktools.setup()
 from ndpak import Pak, sid  # noqa: E402
 
 OUT_NAME = 'net-u2mp.pak'
-VERSION = 2      # bump when the choice of materials changes: the import converts again
+VERSION = 3      # bump when the materials or their formats change: the import converts again
 # PS3 images taken even though PS4 has its own: the PS4 Collection redrew the Multiplayer page's mode
 # buttons (other style, larger); next to the PS3-only Leaderboards / Trophies buttons the set looked
 # mixed. The user asked for the PS3 look there. The runtime looks net-u2mp up first, so these win.
@@ -173,7 +173,8 @@ def convert(ps3_net, ps4_net, out, log=print):
     convert_net.Pak = pak
     convert_net.read_materials = lambda p: (mats, mtex)
     try:
-        r = convert_net.convert(ps3_net, ps4_net, out + '.tmp', effect=default[0], verbose=False)
+        r = convert_net.convert(ps3_net, ps4_net, out + '.tmp', effect=default[0],
+                                    srgb_color=False, verbose=False)   # PS4 net images are UNORM (0x47): sRGB drew them darker
     finally:
         convert_net.Pak, convert_net.read_materials = saved
     os.replace(out + '.tmp', out)
