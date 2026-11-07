@@ -37,6 +37,10 @@ packs come from a BCUS98123 install (see docs/ASSET-INVENTORY.md).
 | `tools/` | Research scripts: inventories and comparisons of the PS3 and PS4 files. |
 | `docs/` | Findings. |
 
+Code that runs inside the game (hooks, lobby, session, match logic) is written in **C++** and built into
+the runtime (`gow3_pc`); the C runtime calls it through `extern "C"` entry points. Python is used only
+for the launcher-side steps that run once before the game starts.
+
 ## Next
 
 1. Check the Multiplayer button in game.
