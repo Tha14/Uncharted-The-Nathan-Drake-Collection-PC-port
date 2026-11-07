@@ -797,8 +797,29 @@ U2MP_GUEST void leave_multiplayer(void *, void *, void *) {
 
 // Once per game frame (menu page handler or match state update, whichever runs first).
 double last_tick = -1;
+// The net clock (PS3 [0xf116d4], "Net Clock = %f": frames at +0xc, times a float = seconds; PS4
+// pointer 0x113a040). PS4 has ~40 readers of [ptr]+0xc and one reset of byte +0 (0x5e8b22), and
+// nothing that creates it: WaitReady (0x5f276c) read through NULL (test run 27). Ours counts the
+// frames of the game's own frame counter (0x1116180+0x144) from its creation.
+constexpr uint64_t kNetClock = 0x113a040, kFrameCounter = 0x1116180 + 0x144;
+uint8_t *net_clock = nullptr;
+int32_t net_clock_base = 0;
+void update_net_clock() {
+    if (!net_clock) {
+        if (G<uint64_t>(kNetClock)) return;   // something else made one
+        net_clock = static_cast<uint8_t *>(netheap_alloc(0x40, 16));
+        if (!net_clock) return;
+        net_clock_base = G<int32_t>(kFrameCounter);
+        G<uint64_t>(kNetClock) = uint64_t(uintptr_t(net_clock));
+        log("net clock created");
+    }
+    if (G<uint64_t>(kNetClock) == uint64_t(uintptr_t(net_clock)))
+        *reinterpret_cast<int32_t *>(net_clock + 0xc) = G<int32_t>(kFrameCounter) - net_clock_base;
+}
+
 void tick() {
     if (!active) return;
+    update_net_clock();
     const double now = gamenet::clock();
     if (now == last_tick) return;   // already done this frame
     last_tick = now;
