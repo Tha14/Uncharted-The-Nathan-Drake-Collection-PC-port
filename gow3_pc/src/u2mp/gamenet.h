@@ -4,11 +4,10 @@
 // gameplay queues events into per-peer message layers ("M", vtable 0x103fc80) of 32 connection
 // records at 0x1152a18; the PS3 packet code (header, acks: 0x4652cc / 0x465138 / 0x465218 /
 // 0x464cb8) and the per-frame update (0x43cdb8) are gone. This file is that code, in C++:
-//   per frame, after the online task update:  for each peer, pack (M vtable[2]) behind a PS3-style
-//                                               header and send it as one unreliable message;
-//   per frame, before it:                       for each received packet, header/acks (delivered /
-//                                               lost through M vtable[3]/[4]), then unpack and apply
-//                                               (M vtable[1]).
+//   per frame (frame()):  for each peer, pack (M vtable[2]) behind a PS3-style header and send it
+//                         as one unreliable transport message (tag kGamePacket);
+//   on receive (receive()): header/acks (delivered / lost through M vtable[3]/[4]), then unpack and
+//                         apply (M vtable[1]).
 // Peers are attached by the session layer (session.cpp), which owns players and slots.
 #pragma once
 #include <cstdint>
@@ -30,9 +29,14 @@ void detach(uint8_t slot);
 // The guest address of a record's message layer (for the session layer), or 0.
 uint64_t message_layer(uint8_t slot);
 
-// Installs the per-frame hook (the online task update's vtable slot). Returns false if this build
-// does not have the expected bytes.
+// Checks this build's message layer and caches its functions. Returns false if it differs.
 bool install();
+// Once per frame (session layer, after receiving): pack and send each direct peer's queued events.
+void frame(double now);
+// The game clock in seconds (frame counter / 300), the time base of the message layer.
+double clock();
+// First byte of every transport message: which layer it belongs to.
+constexpr uint8_t kGamePacket = 0, kSessionMessage = 1;
 
 // One packet arrived from `slot` (called by the session layer's transport dispatch).
 void receive(uint8_t slot, const uint8_t *data, size_t size);

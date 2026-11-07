@@ -16,8 +16,6 @@ namespace {
 constexpr uint64_t kRecords = 0x1152a18;     // 32 connection records, 0x220 bytes each
 constexpr uint64_t kRecordSize = 0x220;
 constexpr int kRecordCount = 32;
-constexpr uint64_t kOnlineUpdateSlot = 0x100ab98;   // TaskManagerOnline update in its vtable
-constexpr uint64_t kOnlineUpdate = 0x5f14d0;
 constexpr uint64_t kMessageVtable = 0x103fc80;
 constexpr uint64_t kFrameClock = 0x1116180 + 0x204;  // game frame counter (300 per second)
 constexpr uint64_t kNoopHook = 0x5e9d80;             // M+0x150 receive hook the game installs
@@ -38,14 +36,12 @@ using ReadMessagesFn = void(U2MP_GUEST *)(void *M, void *bitstream);
 using WriteMessagesFn = void(U2MP_GUEST *)(void *M, void *bitstream, void *record);
 using PacketFn = void(U2MP_GUEST *)(void *M, void *record);
 using ResetFn = void(U2MP_GUEST *)(void *M);
-using UpdateFn = uint64_t(U2MP_GUEST *)(void *task);
 
 struct Fns {
     ReadMessagesFn read;
     WriteMessagesFn write;
     PacketFn delivered, lost;
     ResetFn reset;
-    UpdateFn online_update;
 } fn{};
 
 template <typename T> T &field(uint64_t object, uint64_t offset) { return *reinterpret_cast<T *>(object + offset); }
@@ -126,7 +122,10 @@ void send_peer(uint8_t slot, Peer &peer, double now) {
     }
     field<float>(M, M_LAST_SEND) = float(now);
     const size_t bytes = (size_t(bs.bits) + 31) / 32 * 4;
-    transport->send(slot, false, reinterpret_cast<const uint8_t *>(words.data()), bytes);
+    std::vector<uint8_t> message(1 + bytes);
+    message[0] = kGamePacket;   // the session layer's channel tag
+    std::memcpy(message.data() + 1, words.data(), bytes);
+    transport->send(slot, false, message.data(), message.size());
     peer.last_send = now;
     peer.next_send = now + kSendInterval;
 }
@@ -178,22 +177,17 @@ void receive_peer(Peer &peer, const uint8_t *data, size_t size, double now) {
     if (fresh && has_messages) fn.read(reinterpret_cast<void *>(M), &bs);
 }
 
-// TaskManagerOnline update (vtable slot): receive before it, send after it.
-U2MP_GUEST uint64_t online_update(void *task) {
-    const double now = game_time();
-    if (transport) transport->pump(now);   // its on_message reaches receive() below
-    const uint64_t result = fn.online_update(task);
-    if (transport) {
-        for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot)
-            if (peers[slot].used && peers[slot].direct) send_peer(slot, peers[slot], now);
-        transport->pump(now);
-    }
-    return result;
-}
-
 }  // namespace
 
 void set_transport(net::Transport *t) { transport = t; }
+
+void frame(double now) {
+    if (!transport || !fn.write) return;
+    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot)
+        if (peers[slot].used && peers[slot].direct) send_peer(slot, peers[slot], now);
+}
+
+double clock() { return fn.write ? game_time() : 0; }
 
 int attach(uint8_t slot, uint32_t key, bool direct) {
     if (slot > net::kMaxPeers || !key) return -1;
@@ -250,9 +244,8 @@ void receive(uint8_t slot, const uint8_t *data, size_t size) {
 bool install() {
     const uint64_t base = uint64_t(uintptr_t(image.base));
     // The message layers the static constructor set up, and the online update's vtable slot.
-    if (field<uint64_t>(record_address(0) + 0x40, 0) != base + kMessageVtable ||
-        field<uint64_t>(base, kOnlineUpdateSlot) != base + kOnlineUpdate) {
-        log("game transport: unexpected message layer or online update slot, not installed");
+    if (field<uint64_t>(record_address(0) + 0x40, 0) != base + kMessageVtable) {
+        log("game transport: unexpected message layer, not installed");
         return false;
     }
     const uint64_t vt = base + kMessageVtable;
@@ -261,14 +254,12 @@ bool install() {
     fn.delivered = reinterpret_cast<PacketFn>(field<uint64_t>(vt, 0x18));
     fn.lost = reinterpret_cast<PacketFn>(field<uint64_t>(vt, 0x20));
     fn.reset = reinterpret_cast<ResetFn>(base + 0x60ba10);
-    fn.online_update = reinterpret_cast<UpdateFn>(base + kOnlineUpdate);
     if (uint64_t(uintptr_t(fn.read)) != base + 0x60a110 || uint64_t(uintptr_t(fn.write)) != base + 0x60ac70 ||
         uint64_t(uintptr_t(fn.delivered)) != base + 0x60b780 || uint64_t(uintptr_t(fn.lost)) != base + 0x60b8f0) {
         log("game transport: message layer vtable differs, not installed");
         return false;
     }
-    field<uint64_t>(base, kOnlineUpdateSlot) = uint64_t(uintptr_t(&online_update));
-    log("game transport: packet layer installed (online update 0x%llx wrapped)", (unsigned long long)kOnlineUpdate);
+    log("game transport: packet layer ready");
     return true;
 }
 

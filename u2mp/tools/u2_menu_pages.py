@@ -6,7 +6,7 @@ Page record (pointed to by a pointer to its name): +0x00 name, +0x08 id, +0x38 p
 +0x34 condition (u32), +0x48 target page, +0x58 column (u32), +0x5c width (u32).
 Read-only; prints names and numbers only.
 
-usage: python u2mp/tools/u2_menu_pages.py <menu.bin> [control name ...]
+usage: python u2mp/tools/u2_menu_pages.py <menu.bin> [control name | PAGE_name | PAGE_prefix* ...]
 """
 import struct
 import sys
@@ -51,7 +51,7 @@ def main():
         else:
             pages.append((at, name, arr, ctrls))
     for at, name, arr, ctrls in pages:
-        if not want & {c[1] for c in ctrls}:
+        if not (want & {c[1] for c in ctrls}) and name not in want and                 not any(w.endswith("*") and name.startswith(w[:-1]) for w in want):
             continue
         print(f"{name} record 0x{at:x} controls {len(ctrls)} (array 0x{arr:x})")
         for r, cname, kind, flags, label, action, cond, target, col, width in ctrls:

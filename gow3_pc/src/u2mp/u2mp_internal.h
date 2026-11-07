@@ -28,6 +28,8 @@ extern Image image;
 // Replaces the guest function at `offset` (its first `length` bytes, at least 5) with a jump to
 // `host`, a U2MP_GUEST function. The original code is not kept: only for functions we port whole.
 bool replace_function(uint64_t offset, unsigned length, void *host, const char *name);
+// Points the call instruction at `offset` (which must call `expected_target`) at `host` instead.
+bool retarget_call(uint64_t offset, uint64_t expected_target, void *host, const char *name);
 
 void log(const char *format, ...) __attribute__((format(printf, 1, 2)));
 
@@ -50,5 +52,12 @@ constexpr uint32_t sid(const char *s, uint32_t crc = 0) {
 static_assert(sid("BUTTON_MULTIPLAYER") == 0xed9d8ae1u, "string id function");
 
 void install_frontend(int &installed);
+// ShowPage(menu manager, page id, 0) in the guest.
+void show_page(uint32_t page);
+// True when the function at `offset` is a stripped stub: ret, then alignment padding.
+inline bool is_ret_stub(uint64_t offset) {
+    static const unsigned char stub[] = {0xc3, 0x66, 0x66, 0x66, 0x66};
+    return image.matches(offset, stub, sizeof stub);
+}
 
 }  // namespace u2mp

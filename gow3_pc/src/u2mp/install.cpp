@@ -72,6 +72,35 @@ bool replace_function(uint64_t offset, unsigned length, void *host, const char *
     return true;
 }
 
+bool retarget_call(uint64_t offset, uint64_t expected_target, void *host, const char *name) {
+    if (!image.executable(offset, 5) || image.base[offset] != 0xe8) {
+        log("%s at 0x%llx: not a call, left alone", name, (unsigned long long)offset);
+        return false;
+    }
+    int32_t old = 0;
+    std::memcpy(&old, image.base + offset + 1, 4);
+    if (offset + 5 + int64_t(old) != int64_t(expected_target)) {
+        log("%s at 0x%llx: calls something else, left alone", name, (unsigned long long)offset);
+        return false;
+    }
+    // Reuse the function-replacement stub: a jump stub to `host` written at a scratch location is
+    // not needed; build one directly.
+    unsigned char *stub = runtime_near_image_alloc(0x10000, 1);
+    if (!stub) return false;
+    const uint64_t target = uint64_t(uintptr_t(host));
+    stub[0] = 0x48;
+    stub[1] = 0xb8;
+    std::memcpy(stub + 2, &target, 8);
+    stub[10] = 0xff;
+    stub[11] = 0xe0;
+    const int64_t delta = int64_t(uintptr_t(stub)) - int64_t(uintptr_t(image.base + offset + 5));
+    if (delta < INT32_MIN || delta > INT32_MAX) return false;
+    const int32_t relative = int32_t(delta);
+    std::memcpy(image.base + offset + 1, &relative, 4);
+    log("%s: call at 0x%llx -> C++", name, (unsigned long long)offset);
+    return true;
+}
+
 namespace {
 
 // Bytes this build must have where u2mp reads or writes (Uncharted 2 1.02, CUSA02320/CUSA02344).

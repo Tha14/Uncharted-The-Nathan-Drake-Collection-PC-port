@@ -2976,6 +2976,8 @@ class Launcher:
         Set for every start: the Collection menu may start Uncharted 2 from any game."""
         env.pop("UNCHARTED_U2MP_OVERLAY", None)
         env.pop("UNCHARTED_U2MP", None)
+        for key in ("UNCHARTED_U2MP_NAME", "UNCHARTED_U2MP_JOIN"):
+            env.pop(key, None)
         if not self.config.get("u2mp_menu", True):
             return
         try:
@@ -2987,6 +2989,9 @@ class Launcher:
             return
         env["UNCHARTED_U2MP_OVERLAY"] = str(overlay)
         env["UNCHARTED_U2MP"] = "1"  # the runtime's u2mp module (gow3_pc/src/u2mp): the restored functions
+        env["UNCHARTED_U2MP_NAME"] = str(self.config.get("u2mp_name", "") or "Drake")[:31]
+        if str(self.config.get("u2mp_join", "")).strip():
+            env["UNCHARTED_U2MP_JOIN"] = str(self.config["u2mp_join"]).strip()
 
     def page_multiplayer(self):
         """Uncharted 2 multiplayer (u2mp). Shown only while Uncharted 2 is chosen (update_multiplayer_tab)."""
@@ -3010,6 +3015,13 @@ class Launcher:
                  "On: Uncharted 2's main menu shows Multiplayer again. Off: the normal menu.",
                  lambda parent: Toggle(parent, self.s, self.config.get("u2mp_menu", True),
                                        lambda v: self.change_config("u2mp_menu", bool(v))))
+        self.row(page, "Your name", "The name the other players see in the lobby and in matches.",
+                 lambda parent: self.text_entry(parent, "u2mp_name", "Drake", width=22))
+        self.row(page, "Join a host",
+                 "Empty: this PC hosts the party when you open Multiplayer (UDP port 27210; Windows may "
+                 "ask to allow it). To join a friend, type their address (e.g. 192.168.1.20) before "
+                 "opening Multiplayer.",
+                 lambda parent: self.text_entry(parent, "u2mp_join", "", width=22))
         return page
 
     def page_u3mp(self):
