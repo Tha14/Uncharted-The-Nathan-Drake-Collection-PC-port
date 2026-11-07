@@ -7,8 +7,8 @@ Two kinds, told apart by their items:
     U2 paks: a material with the same name when one exists (exact), else the closest retail material
     (fallback, see mkplan).  The level's own PS4 copy is never used (it is missing: that is why it is imported).
   * data paks ('-ingame10', '-npc'): spawners, regions, splines, feature db -> u2ingame.
-Not convertible yet (reported, nothing written): COLLISION_DATA_HAVOK_BG (U2 version 3 background collision),
-NAV_MESH_1 (unless drop_navmesh), WATER_DATA, and paks whose fixup directory is not in the header page.
+Background collision (u2coll), water (u2water), nav meshes (u2ingame -> u2nav) and paks with more than 512 KiB of
+fixups (u2paktools ndpak edit) are converted; CAMERA_TABLE_1 (village-multi only) is left out as before.
 """
 import json
 import os
@@ -22,8 +22,7 @@ from ndpak import Pak  # noqa: E402
 
 STAGE_TYPES = {'PM_COLLECTION_2', 'BACKGROUND_SECTION'}
 DATA_TYPES = {'SPAWNER_GROUP', 'REGION_TREE', 'FEATURE_DB_2', 'SPLINE_TABLE', 'NAV_MESH_1', 'TAG_INT'}
-BLOCKERS = {'COLLISION_DATA_HAVOK_BG': 'U2 background collision (COLLISION_DATA_HAVOK_BG version 3) has no converter yet',
-            'WATER_DATA': 'U2 WATER_DATA has no converter yet'}
+BLOCKERS = {}       # collision (u2coll), water (u2water), nav meshes (u2nav) and big fixup tables are converted now
 
 
 class Unsupported(Exception):
@@ -135,7 +134,8 @@ def convert_stage(src, out, ps4_pak_dir, res_dir, work, log=print):
         data, rep = ps4stage.convert(src, pl, bundle, out + '.tmp', verbose=False)
     e, info = stagecheck.check(out + '.tmp', quiet=True)
     # stagecheck expects the U3 retail login order; U2 retail logs in VIS_INFO_1 before GEOMETRY_1 (u2paktools)
-    e = [x for x in e if not x.startswith('login order')] + login_order_problems(out + '.tmp')
+    # stagecheck checks the U3 Havok packfile collision; U2 keeps its own layout (u2coll.check_ps4)
+    e = [x for x in e if not x.startswith('login order') and 'COLLISION_DATA_HAVOK_BG without trailer' not in x] +         login_order_problems(out + '.tmp') + collision_problems(out + '.tmp')
     plan_lines = [l for l in buf.getvalue().splitlines() if l.strip()]
     rep = dict(approx=rep.get('approx', []), check=e, info=info[:12], plan=plan_lines[:1])
     if e:
@@ -143,6 +143,12 @@ def convert_stage(src, out, ps4_pak_dir, res_dir, work, log=print):
         raise RuntimeError('stagecheck: %s' % '; '.join(e[:4]))
     os.replace(out + '.tmp', out)
     return rep
+
+
+def collision_problems(path):
+    import u2coll
+    q = Pak(path)
+    return ['collision: %s' % x for it in q.items_of('COLLISION_DATA_HAVOK_BG') for x in u2coll.check_ps4(q, it)]
 
 
 def login_order_problems(path):

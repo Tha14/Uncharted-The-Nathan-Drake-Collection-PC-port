@@ -34,6 +34,29 @@ for _p in (os.path.join(PAKTOOLS, 'stage'), PAKTOOLS, HERE):
         sys.path.insert(0, _p)
 
 U2_COOK_PREFIX = 'd:/dev/CP9/Data/U2/CookData/ND/build/texture2/'
+
+# Big U2 level paks (the DLC main maps, retail ones too) have more fixups than fit in 512 KiB: their fixup
+# directory entries {page, offset, count} then name page 1, 2 ... of the header block, i.e. 0x80000-byte chunks of
+# it (facility-multi: (0, 0x370, 65426), (1, 0, 65536), (2, 0, 2490) end exactly at hdrSize).  The PS4 writer puts
+# all fixups in one table at chunk 0, as retail PS4 does (warzone-multi: 110026 entries).
+_NDPAK_EDITS = [
+    ("            base = 0 if pg == 0 else None\n"
+     "            if base is None:\n"
+     "                raise ValueError('fixup directory in a non-header page not supported (%d)' % pg)\n",
+     "            base = pg * 0x80000\n"),
+]
+
+# retail U2 collision items keep their data 128-aligned in the page (vertex / index / MOPP blocks are 128-aligned
+# inside the item): the page writer honours Blob.data_align (u2coll sets 0x80)
+_WRITER_EDITS = [
+    ("                while len(out) % 16:\n"
+     "                    out.append(PAD)\n"
+     "                x.off = len(out)\n",
+     "                while len(out) % 16 or (len(out) + 0x20) % getattr(x.data, 'data_align', 16):\n"
+     "                    out.append(PAD)\n"
+     "                x.off = len(out)\n"),
+]
+
 INGAME = '-ingame10'
 
 _done = False
@@ -56,6 +79,13 @@ def setup():
     ps4stage.PS4_PREFIX = U2_COOK_PREFIX
     ps4stage.convert_light_table = u2light.convert_light_table
     ps4stage.visinfo = visinfo
+    import collision
+    import u2coll
+    collision.havok_bg_blobs = u2coll.havok_bg_blobs      # U2 version 3 layout (u2coll.py)
+    import waterdata
+    import u2water
+    for _n in ('objects', 'materials', 'water_blob'):   # U2 WATER_DATA version 3 (u2water.py)
+        setattr(waterdata, _n, getattr(u2water, _n))
     try:
         import ps4actor
         ps4actor.PS4_COOK_PREFIX = U2_COOK_PREFIX
@@ -66,6 +96,9 @@ def setup():
 
 # retail U2 PS4 stage paks have no ATTACHED_FG_MAPPING and no TAG_FLOAT (U3 retail stages do): not written
 _STAGE_EDITS = [
+    # the unnamed facility-multi material (see _MKPLAN_EDITS) gets a PS4 key of the usual 'dir:variant' form
+    ("            k3 = n.rsplit('/', 1)[0] + ':' + n.rsplit('/', 1)[1]\n",
+     "            k3 = n.rsplit('/', 1)[0] + ':' + n.rsplit('/', 1)[1] if '/' in n else 'levels/u2-unnamed:%s' % (n or 'material')\n"),
     ("    afm = P.item('ATTACHED_FG_MAPPING', af)\n", "    afm = None\n"),
     ("    tagf = P.item('TAG_FLOAT', tf)\n", "    tagf = None\n"),
     # login order of retail U2 stages (village-multi-wide, sky-village-multi): the small items, EFFECT_TABLE,
@@ -86,17 +119,21 @@ U2_LOGIN = ['LEVEL_INFO_1', 'LEVEL_PATS_1', 'DEBUG_INFO_1', 'EFFECT_TABLE', 'TEX
 # prime-shader materials are characters (e.g. dead-explorer skin): U2 considers every background material instead
 # (GEOMETRY_1 flag bit 0 = foreground geometry is left out).
 _MKPLAN_EDITS = [
+    # facility-multi has one PM_COLLECTION_2 group with an empty material name: planned like any material without
+    # a retail twin (closest background material) instead of failing on the missing 'dir/variant' split
+    ("    d, v = ps3name.rsplit('/', 1)\n",
+     "    if '/' not in ps3name:\n        return ps3name\n    d, v = ps3name.rsplit('/', 1)\n"),
     ("                if pk in exclude or m['s'] != 'prime-shader.fx':\n",
      "                if pk in exclude or (m.get('fl', 0) & 1) or m['s'] in ('hair.fx', 'eye.fx', 'skin.fx'):\n"),
 ]
 
 
-def _load_patched(name, edits):
-    """paktools/stage/<name>.py with U2 edits, installed as the module <name>"""
+def _load_patched(name, edits, folder='stage'):
+    """paktools/<folder>/<name>.py with U2 edits, installed as the module <name>"""
     import types
     if name in sys.modules and getattr(sys.modules[name], 'U2', False):
         return sys.modules[name]
-    path = os.path.join(PAKTOOLS, 'stage', name + '.py')
+    path = os.path.join(PAKTOOLS, folder, name + '.py')
     src = open(path, encoding='utf-8').read()
     for old, new in edits:
         if src.count(old) != 1:
@@ -117,3 +154,8 @@ def paktools_env():
                                         ([env['PYTHONPATH']] if env.get('PYTHONPATH') else []))
     env['PYTHONDONTWRITEBYTECODE'] = '1'
     return env
+
+
+# ndpak must be the patched one before any paktools module does 'from ndpak import Pak'
+_load_patched('ndpak', _NDPAK_EDITS, folder='')
+_load_patched('ps4writer', _WRITER_EDITS, folder='')

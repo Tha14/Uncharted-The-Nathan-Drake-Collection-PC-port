@@ -7,8 +7,11 @@ Checks (a JSON report; nothing is installed):
   light   LIGHT_TABLE_1 of the shared MP levels: byte-identical (pointers compared as offsets)
   vis     VIS_INFO_1 of the shared MP levels: byte-identical
   ingame  shared -ingame10 / -npc-ingame10 paks: every item compared block by block (paktools cmpitems)
+  nav     NAV_MESH_1 of the shared MP -ingame10 paks (u2nav): byte-identical, matched by nav mesh name
   skins   the 15 shared mp-hero skins, converted with a template other than themselves: ps4check, prototypes,
           submeshes (index counts and materials per submesh) against retail
+  coll    COLLISION_DATA_HAVOK_BG of 11 shared MP levels: byte-identical
+  water   WATER_DATA of 5 shared MP levels: byte-identical except material sids / exporter garbage
   stage   shared sky / wide background paks: stagecheck, item types, submesh / texture counts against retail
   banks   banks both have: structure (sound / grain / name counts) against retail
 """
@@ -138,6 +141,53 @@ def check_ingame(ps3, ps4, work):
     return out
 
 
+NAV_PAIRS = ['gompa-multi-ingame10', 'village-multi-ingame10', 'shambhala-multi-ingame10', 'warzone-multi-ingame10']
+
+
+def check_nav(ps3, ps4, work):
+    """NAV_MESH_1 (u2nav) against retail, items matched by their nav mesh name (PS3 +0x1c, PS4 +0x20)"""
+    import u2nav
+    out = {}
+    tot = collections.Counter()
+    for n in NAV_PAIRS:
+        a = ps3_file(ps3, 'pak22/%s.pak' % n, work)
+        ref = os.path.join(ps4.pak_dir, n + '.pak')
+        if not a or not os.path.exists(ref):
+            out[n] = 'pair missing'
+            continue
+        p, q = Pak(a), Pak(ref)
+        retail = {}
+        for it in q.items_of('NAV_MESH_1'):
+            r = q.resolve(it.page, it.data_off + 0x20)
+            retail[q.pstr(*r) if r else None] = it
+        res = collections.Counter()
+        for it in p.items_of('NAV_MESH_1'):
+            r = p.resolve(it.page, it.data_off + 0x1c)
+            ib = retail.get(p.pstr(*r) if r else None)
+            if ib is None:
+                res['no retail match'] += 1
+                continue
+            try:
+                m, t = blob_bytes(u2nav.nav_blob(p, it)), item_bytes(q, ib)
+            except u2nav.NavMeshUnsupported as e:
+                res['unsupported: %s' % e] += 1
+                continue
+            if m == t:
+                res['identical'] += 1
+                continue
+            # retail leaves the last word of each 0x18-byte portal record uninitialised
+            m, t = bytearray(m), bytearray(t)
+            po = int.from_bytes(m[0x58:0x60], 'little') if len(m) >= 0x60 else 0
+            if po and len(m) == len(t):
+                for k in range(po + 0x14, len(m), 0x18):
+                    m[k:k + 4] = t[k:k + 4] = b'\0' * 4
+            res['identical except portal padding' if m == t else 'DIFFERENT'] += 1
+        out[n] = dict(res)
+        tot.update(res)
+    out['_total'] = dict(tot)
+    return out
+
+
 def submeshes(p):
     g = p.items_of('GEOMETRY_1')[0]
     pg, b = g.page, g.data_off
@@ -250,10 +300,63 @@ def check_banks(ps3, ps4, work, limit=40):
             ex.append('%s: %s vs %s' % (f, [hex(x) for x in ho[:8]], [hex(x) for x in hr[:8]]))
     return dict(counts=dict(out), examples=ex[:5])
 
+COLL_PAIRS = ['dig-multi', 'stage-multi', 'sham-multi-wide', 'village-multi', 'treasure-multi', 'gompa-multi',
+              'warzone-multi', 'shambhala-multi', 'ice-cave-multi', 'train-wreck-multi', 'sniper-towers-multi']
+WATER_PAIRS = ['village-multi', 'treasure-multi', 'gompa-multi', 'warzone-multi', 'shambhala-multi']
+
+
+def check_coll(ps3, ps4, work):
+    """COLLISION_DATA_HAVOK_BG (u2coll) against retail; PS4 orders the items differently, so each converted item is
+    compared with the retail item of the closest size; plus u2coll.check_ps4 on the result"""
+    import u2coll
+    out = {}
+    tot = collections.Counter()
+    for n in COLL_PAIRS:
+        a = ps3_file(ps3, 'pak22/%s.pak' % n, work)
+        ref = os.path.join(ps4.pak_dir, n + '.pak')
+        if not a or not os.path.exists(ref):
+            out[n] = 'pair missing'
+            continue
+        p, q = Pak(a), Pak(ref)
+        res = collections.Counter()
+        for it in p.items_of('COLLISION_DATA_HAVOK_BG'):
+            m = blob_bytes(u2coll.blob(u2coll.read(p, it)))
+            ib = min(q.items_of('COLLISION_DATA_HAVOK_BG'), key=lambda x: abs(x.size - len(m)))
+            res['identical' if m == item_bytes(q, ib) else 'DIFFERENT'] += 1
+        res['retail check problems'] = sum(len(u2coll.check_ps4(q, i)) for i in q.items_of('COLLISION_DATA_HAVOK_BG'))
+        out[n] = dict(res)
+        tot.update(res)
+    out['_total'] = dict(tot)
+    return out
+
+
+def check_water(ps3, ps4, work):
+    """WATER_DATA (u2water) against retail, without the material sids (they name the PS4 material the stage
+    converter picks) and the 4 exporter garbage words per object"""
+    import u2water
+    out = {}
+    for n in WATER_PAIRS:
+        a = ps3_file(ps3, 'pak22/%s.pak' % n, work)
+        ref = os.path.join(ps4.pak_dir, n + '.pak')
+        if not a or not os.path.exists(ref):
+            out[n] = 'pair missing'
+            continue
+        p, q = Pak(a), Pak(ref)
+        m = bytearray(blob_bytes(u2water.water_blob(p)))
+        t = bytearray(item_bytes(q, q.items_of('WATER_DATA')[0]))
+        nobj = struct.unpack_from('<I', t, 4)[0]
+        if len(m) == len(t):
+            for k in range(nobj):
+                for x in (4, 0x78, 0x7c, 0x80, 0x84):
+                    o = 0x10 + u2water.PS4_OBJ * k + x
+                    m[o:o + 4] = t[o:o + 4]
+        out[n] = 'identical (%d objects)' % nobj if m == t else 'DIFFERENT (%d vs %d bytes)' % (len(m), len(t))
+    return out
+
 
 CHECKS = dict(xvag=check_xvag, light=lambda a, b, w: check_tables(a, b, w, 'light'),
-              vis=lambda a, b, w: check_tables(a, b, w, 'vis'), ingame=check_ingame, skins=check_skins,
-              stage=check_stage, banks=check_banks)
+              vis=lambda a, b, w: check_tables(a, b, w, 'vis'), ingame=check_ingame, nav=check_nav, skins=check_skins,
+              stage=check_stage, banks=check_banks, coll=check_coll, water=check_water)
 
 
 def run(ps3, ps4, work, only=None, log=print):

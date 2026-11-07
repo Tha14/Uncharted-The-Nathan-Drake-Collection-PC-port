@@ -6,6 +6,7 @@ gompa-multi-npc-ingame10, sky-village-multi-ingame10; check: validate.py ingame)
     lambda = {ptr body, u32 sid} (PS4: {ptr body, pad}); body = {ptr code, ptr consts, u32 hash, u32 tag}
     (PS4: {ptr code, ptr consts, u32 hash, pad x3}); the code bytes are copied, a trailing word equal to the
     body's tag becomes padding on PS4; constants widen from 4 to 8 bytes as in U3.
+  * NAV_MESH_1: U2 layout (no 'NavM' header), converted by u2nav.py (installed as navmesh.nav_blob).
   * the animated-actor list ps4ingame consults (spawner tag 0x66c6d3fe) comes from the U2 PS4 actor27 folder.
   * FEATURE_DB_2: U2 has two element arrays and two trees (U3: three and three).
       PS3 0x1c {ptr A, nA, ptr B, nB, u32 u, ptr T0, ptr T1}
@@ -151,22 +152,18 @@ def anim_arts_from(actor_dir, cache=None):
     return out
 
 
-class NavMeshUnsupported(Exception):
-    pass
-
-
-def _no_nav(p, it):
-    raise NavMeshUnsupported('NAV_MESH_1: the Uncharted 2 nav mesh layout (no NavM header, 0x50 -> 0x60 polys) has '
-                             'no converter yet')
+from u2nav import NavMeshUnsupported  # noqa: E402,F401  (raised for nav mesh layouts u2nav does not know)
 
 
 def convert(src, dst, drop_navmesh=False):
-    """-> list of notes.  NAV_MESH_1 items make it fail unless drop_navmesh (then they are left out)."""
+    """-> list of notes.  NAV_MESH_1 items are converted by u2nav (NavMeshUnsupported on an unknown layout);
+    drop_navmesh leaves them out instead."""
     import navmesh
+    import u2nav
     from ndpak import Pak
     if ps4ingame._ANIM_ARTS is None:
         ps4ingame._ANIM_ARTS = set()
-    navmesh.nav_blob = _no_nav
+    navmesh.nav_blob = u2nav.nav_blob
     notes = []
     p = Pak(src)
     nnav = len(p.items_of('NAV_MESH_1'))
@@ -180,7 +177,7 @@ def convert(src, dst, drop_navmesh=False):
             ps4ingame.convert(src, dst)
         finally:
             ps4ingame.Pak = old
-        notes.append('%d NAV_MESH_1 left out (no U2 nav mesh converter)' % nnav)
+        notes.append('%d NAV_MESH_1 left out (drop_navmesh)' % nnav)
         return notes
     ps4ingame.convert(src, dst)
     return notes

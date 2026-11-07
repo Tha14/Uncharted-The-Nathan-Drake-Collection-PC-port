@@ -495,7 +495,8 @@ U2MP_GUEST void start_match(void *, void *, void *) {
             const int32_t type = *reinterpret_cast<int32_t *>(table->records + 0x90 * (current >= 0 ? current : 0) + 0x0c);
             std::vector<int16_t> same;
             for (int32_t i = 0; i < table->count; ++i)
-                if (*reinterpret_cast<int32_t *>(table->records + 0x90 * i + 0x0c) == type) same.push_back(int16_t(i));
+                if (*reinterpret_cast<int32_t *>(table->records + 0x90 * i + 0x0c) == type && dlc_net_game_available(i))
+                    same.push_back(int16_t(i));   // DLC maps only when imported (dlc.cpp)
             if (!same.empty()) {
                 const int16_t pick = same[size_t(std::rand()) % same.size()];
                 fn<void(U2MP_GUEST *)(void *, int16_t, const void *, int)>(0x63dc30)(image.at<void>(kNgm), pick, nullptr, 10);

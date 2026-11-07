@@ -164,7 +164,7 @@ void build_playlists() {
     if (!games || !types || games->count <= 0 || types->count <= 0 || !games->records || !types->records) return;
     for (int32_t i = 0; i < games->count && playlist_count < kMaxPlaylists; ++i) {
         const int32_t type = *reinterpret_cast<int32_t *>(games->records + 0x90 * i + 0x0c);
-        if (type < 0 || type >= types->count) continue;
+        if (type < 0 || type >= types->count || !dlc_net_game_available(i)) continue;
         bool seen = false;
         for (int p = 0; p < playlist_count; ++p) seen = seen || playlists[p].type == type;
         if (seen) continue;
@@ -200,12 +200,12 @@ void apply_playlist() {
     if (!games || !games->records) return;
     const int16_t current = G<int16_t>(kNgm + NGM_GAME);
     if (current >= 0 && current < games->count &&
-        *reinterpret_cast<int32_t *>(games->records + 0x90 * current + 0x0c) == pl->type) {
+        *reinterpret_cast<int32_t *>(games->records + 0x90 * current + 0x0c) == pl->type && dlc_net_game_available(current)) {
         applied_playlist = id;
         return;
     }
     for (int32_t i = 0; i < games->count; ++i)
-        if (*reinterpret_cast<int32_t *>(games->records + 0x90 * i + 0x0c) == pl->type) {
+        if (*reinterpret_cast<int32_t *>(games->records + 0x90 * i + 0x0c) == pl->type && dlc_net_game_available(i)) {
             guest<void(U2MP_GUEST *)(void *, int16_t, const void *, int)>(fSetNetGame)(image.at<void>(kNgm), int16_t(i),
                                                                                     nullptr, 10);
             applied_playlist = id;

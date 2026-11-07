@@ -37,6 +37,8 @@ sys.path.insert(0, os.path.join(HERE, 'u2conv'))
 sys.dont_write_bytecode = True
 
 CONV_VERSION = '1'        # bump when a converter changes its output: those files are converted again
+SKIN_VERSION = 'twin2'    # mp-hero skins: PS4-twin build (u2twin) first; skins converted before it are redone
+ACTOR_VERSION = 'u2ag1'   # actor27 paks: U2 artgroup / lookup / LEVEL_PATS layout, props, anims (u2actorparts)
 IMPORT_LIST = os.path.join(HERE, '..', 'docs', 'import-list.tsv')
 # PS3 speech language -> PS4 speech archive (<name>_ps4.psarc). NPUA80698 is the North American release: its
 # Spanish / Portuguese tracks are taken as the Latin American Spanish / Brazilian Portuguese the PS4 game has.
@@ -102,6 +104,10 @@ class Importer:
         it = self.items.get(key)
         if self.a.force or not it or it.get('conv') != CONV_VERSION or it.get('src_sha1') != src_sha:
             return False
+        if key.lower().startswith('actor27/mp-hero') and it.get('skin') != SKIN_VERSION:
+            return False
+        if key.lower().startswith('actor27/') and it.get('actor') != ACTOR_VERSION:
+            return False
         if it.get('status') != 'ok':
             return False
         o = os.path.join(self.out, it['out'])
@@ -109,6 +115,10 @@ class Importer:
 
     def record(self, key, status, row, **kw):
         it = dict(status=status, group=row['group'], conv=CONV_VERSION, **kw)
+        if key.lower().startswith('actor27/mp-hero'):
+            it['skin'] = SKIN_VERSION
+        if key.lower().startswith('actor27/'):
+            it['actor'] = ACTOR_VERSION
         if 'out' in it:
             full = os.path.join(self.out, it['out'])
             it['size'] = os.path.getsize(full)
@@ -149,7 +159,7 @@ class Importer:
             if stem not in refs:
                 return 'PS4 music settings do not use it (PS4 plays its own renumbered copy)'
             return ''
-        if k in ('pak22/ruins-multi.pak', 'pak22/ruins-multi-ingame10.pak') and self.a.dlc_ruins:
+        if k in ('pak22/ruins-multi.pak', 'pak22/ruins-multi-ingame10.pak') and self.dlc_ruins:
             return ''
         if k.endswith('.txt') and k.startswith('pak22/'):
             return ''
@@ -169,6 +179,27 @@ class Importer:
         with open(p, 'wb') as f:
             f.write(out)
         return rel, []
+
+    def havok_tables(self):
+        """the Havok class tables (u2hkgen) are built from the player's executables on the first actor that needs
+        them, into work/u2hkclasses.json; without them the Havok-dependent actors are skipped (unsupported)"""
+        import u2havok
+        import u2hkgen
+        elf = self.a.ps3_elf or os.path.join(os.path.dirname(os.path.dirname(self.ps3.base_main)), 'EBOOT.elf')
+        path = os.path.join(self.work, 'u2hkclasses.json')
+        failed = []
+
+        def build():
+            if failed:
+                raise u2hkgen.TablesMissing(failed[0])
+            try:
+                return u2hkgen.build(elf, self.a.ps4, self.ps4.actor_dir, path, self.a.objdump, log=log)
+            except u2hkgen.TablesMissing as e:
+                failed.append('Havok tables missing (%s): actor skipped' % e)
+                log('Havok tables: ' + str(e) + '; the actors with Havok collision / ragdolls are skipped')
+                raise u2hkgen.TablesMissing(failed[0])
+        os.makedirs(self.work, exist_ok=True)
+        u2havok.configure(path, build)
 
     def conv_bank(self, row, entry, data):
         import u2bank
@@ -190,19 +221,68 @@ class Importer:
     def conv_actor(self, row, entry, data):
         import u2actor
         src = self.src_file(entry, data)
-        why = u2actor.unsupported(u2actor.U2Pak(src))
+        pak = u2actor.U2Pak(src)
+        why = u2actor.unsupported(pak)
         if why:
             raise NotImplementedError(why)
+        if u2actor.kind(pak) != 'skin':             # props, animation paks, loose ragdolls (PS4 twins first)
+            rel = 'actor27/ps4/' + os.path.basename(entry.key)
+            out = self.out_path(rel)
+            notes = u2actor.convert_prop(src, out + '.tmp', u2actor.kind(pak), self.ps4.actor_dir,
+                                         os.path.basename(entry.key)[:-4].lower())
+            errs = u2actor.check(out + '.tmp') if u2actor.kind(pak) == 'prop' else []
+            if errs:
+                os.remove(out + '.tmp')
+                raise RuntimeError('ps4check: ' + '; '.join(errs[:3]))
+            os.replace(out + '.tmp', out)
+            return rel, notes
+        twin = self.conv_twin(entry, src) if os.path.basename(entry.key).lower().startswith('mp-hero') else None
+        if isinstance(twin, tuple):
+            return twin
         tmpl, shared, total = u2actor.choose_template(src, self.ps4.actor_dir)
         rel = 'actor27/ps4/' + os.path.basename(entry.key)
         out = self.out_path(rel)
         u2actor.convert(src, tmpl, out + '.tmp')
+        if twin is not None:            # skins: retail artgroup keys (u2twin.fix_artgroup)
+            import u2twin
+            u2twin.rekey_artgroup(out + '.tmp')
         errs = u2actor.check(out + '.tmp')
         if errs:
             os.remove(out + '.tmp')
             raise RuntimeError('ps4check: ' + '; '.join(errs[:3]))
         os.replace(out + '.tmp', out)
-        return rel, ['template %s (%d of %d materials by name)' % (os.path.basename(tmpl), shared, total)]
+        return rel, (['PS3 (%s)' % twin] if twin is not None else []) +             ['template %s (%d of %d materials by name)' % (os.path.basename(tmpl), shared, total)]
+
+    def conv_twin(self, entry, src):
+        """a skin built from its PS4 campaign twin (u2twin): (rel, notes), or why not (str)"""
+        import u2actor
+        import u2twin
+        name = os.path.basename(entry.key)[:-4].lower()
+        twin = u2twin.TWINS.get(name)
+        if not twin or not self.ps4.has('actor27/%s.pak' % twin):
+            return 'no PS4 campaign twin'
+        c = self.ps3.candidates('actor27/%s.pak' % twin)
+        if not c:
+            return 'no PS3 copy of the twin %s' % twin
+        tsrc = self.src_file(c[0], c[0].read())
+        rel = 'actor27/ps4/' + os.path.basename(entry.key)
+        out = self.out_path(rel)
+        try:
+            n = u2twin.build(src, tsrc, self.ps4.files['actor27/%s.pak' % twin], out + '.tmp')
+        except u2twin.NoTwin as e:
+            return str(e)
+        except Exception as e:          # the PS3 conversion still works: logged, not fatal
+            for f in (out + '.tmp', out + '.tmp.conv'):
+                if os.path.exists(f):
+                    os.remove(f)
+            return 'twin build error %s: %s' % (type(e).__name__, str(e)[:200])
+        errs = u2actor.check(out + '.tmp')
+        if errs:
+            os.remove(out + '.tmp')
+            return 'twin build failed ps4check: ' + '; '.join(errs[:2])
+        os.replace(out + '.tmp', out)
+        return rel, ['twin %s: %d/%d LOD0 submeshes from PS4 (%.0f%% of triangles), %d/%d materials from PS4' % (
+            twin, n['swapped'], n['submeshes'], 100 * n['share'], n['twin_materials'], n['materials'])]
 
     def conv_level(self, row, entry, data):
         import u2level
@@ -235,7 +315,11 @@ class Importer:
         self.music_refs = self.ps4.music_refs()
         self.langs = set(l.strip() for l in a.speech_langs.split(',')) if a.speech_langs else set(SPEECH_LANGS.values())
         self.res = None
+        self.havok_tables()
         self.ffmpeg = None
+        # The user's rule: what PS4 has stays the PS4 one. The PS4 base ruins-multi stays unless --dlc-ruins
+        # (map pack 1's larger ruins-multi under the same name); --no-dlc-ruins is kept for older launchers.
+        self.dlc_ruins = a.dlc_ruins and bool(a.ps3_dlc) and not a.no_dlc_ruins
         import u2bank
         self.ffmpeg = u2bank.find_ffmpeg(a.ffmpeg)
         log('ffmpeg: %s' % (self.ffmpeg or 'not found (banks with MP3 samples are skipped)'))
@@ -316,6 +400,7 @@ class Importer:
                 self.save()
         self.save()
         self.registries(level_txt)
+        self.texts()
         counts = {}
         for k, it in self.items.items():
             counts[it['status']] = counts.get(it['status'], 0) + 1
@@ -349,14 +434,17 @@ class Importer:
         reg, added, skipped, dropped = registry.build_registry(text, level_txt, have_pak, have_actor, have_bank,
                                                                failed_paks=failed)
         p = self.out_path('pak22_ps4.txt')
-        if added:
-            with open(p, 'w', encoding='latin-1', newline='') as f:
-                f.write(reg)
-        elif os.path.exists(p):
-            os.remove(p)
-        self.state['registry'] = dict(added=added, skipped=skipped,
-                                      dropped={k: ['%s %s' % x for x in v] for k, v in dropped.items()})
-        log('pak22_ps4.txt: %d levels added %s; %d not added' % (len(added), added, len(skipped)))
+        if self.a.only and not level_txt:      # --only without the level .txt rows: keep the registry as it is
+            log('pak22_ps4.txt: unchanged (--only run without level rows)')
+        else:
+            if added:
+                with open(p, 'w', encoding='latin-1', newline='') as f:
+                    f.write(reg)
+            elif os.path.exists(p):
+                os.remove(p)
+            self.state['registry'] = dict(added=added, skipped=skipped,
+                                          dropped={k: ['%s %s' % x for x in v] for k, v in dropped.items()})
+            log('pak22_ps4.txt: %d levels added %s; %d not added' % (len(added), added, len(skipped)))
         bank_dir = os.path.join(self.main, 'sound1', 'banks', 'ps4')
         new_banks = [f for f in os.listdir(bank_dir) if f.endswith('.bnk')] if os.path.isdir(bank_dir) else []
         if new_banks and os.path.isfile(self.ps4.banks_txt):
@@ -367,6 +455,36 @@ class Importer:
                     f.write(btxt)
             self.state['banks_txt'] = add
             log('banks.txt: %d banks added %s' % (len(add), add))
+        self.save()
+
+    def texts(self):
+        """text1/ps4/<lang>.networking: the PS4 bank plus the PS3 strings it lacks (DLC map titles), u2text"""
+        import u2text
+        from psarc_lib import Psarc
+        core = os.path.join(self.ps4.main, 'core.psarc')
+        if not os.path.isfile(core):
+            return
+        arc = Psarc(core)
+        added = {}
+        for i, n in enumerate(arc.names):
+            m = re.match(r'text1/ps4/(\d+)\.(networking)$', n)
+            if not m:
+                continue
+            c = self.ps3.candidates('text1/%s.%s' % m.groups())
+            rel = 'text1/ps4/%s.%s' % m.groups()
+            out = os.path.join(self.main, *rel.split('/'))
+            if not c:
+                continue
+            data, ids = u2text.merge(arc.read(i + 1), c[0].read())
+            if data is None:
+                if os.path.exists(out):
+                    os.remove(out)
+                continue
+            with open(self.out_path(rel), 'wb') as f:
+                f.write(data)
+            added[rel] = len(ids)
+        self.state['text'] = added
+        log('text banks: %d written (%s strings added)' % (len(added), sorted(set(added.values()))))
         self.save()
 
     def finish(self, status, **kw):
@@ -390,11 +508,15 @@ def main():
     ap.add_argument('--list', default=IMPORT_LIST)
     ap.add_argument('--only', help='only keys matching this regex (tests)')
     ap.add_argument('--dlc-ruins', action='store_true', help='replace the PS4 (base game) ruins-multi with the '
-                                                             'map pack 1 version (PS3 players with the DLC play that)')
+                                                             'map pack 1 version (the default when --ps3-dlc is given)')
+    ap.add_argument('--no-dlc-ruins', action='store_true', help='keep the PS4 (base game) ruins-multi even with the DLC')
     ap.add_argument('--drop-navmesh', action='store_true', help='convert level data paks without their NAV_MESH_1 '
-                                                                '(no U2 nav mesh converter yet)')
+                                                                '(a fallback; u2nav converts them)')
     ap.add_argument('--no-verify', action='store_true', help='accept PS3 files whose SHA-1 differs from the list')
     ap.add_argument('--ffmpeg', default='')
+    ap.add_argument('--ps3-elf', default='', help='decrypted PS3 EBOOT.elf for the Havok tables of props with collision '
+                                                  '(default: <PS3 USRDIR>/EBOOT.elf)')
+    ap.add_argument('--objdump', default='', help='GNU objdump for the Havok tables (default: u3mp/bin, msys64, PATH)')
     ap.add_argument('--validate', action='store_true', help='also check the converters on PS3/PS4 reference pairs')
     ap.add_argument('--force', action='store_true', help='convert everything again')
     a = ap.parse_args()
