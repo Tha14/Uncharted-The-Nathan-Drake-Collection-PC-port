@@ -2971,9 +2971,11 @@ class Launcher:
 
     def u2mp_env(self, env):
         """play(): UNCHARTED_U2MP_OVERLAY, the folder tools/probe_uncharted.py lays over Uncharted 2
-        (u2mp/patcher/u2mp_overlay.py: the main menu with Multiplayer, made from the player's own game).
+        (u2mp/patcher/u2mp_overlay.py: the main menu with Multiplayer, made from the player's own game),
+        and UNCHARTED_U2MP=1, the runtime's restored multiplayer functions (gow3_pc/src/u2mp).
         Set for every start: the Collection menu may start Uncharted 2 from any game."""
         env.pop("UNCHARTED_U2MP_OVERLAY", None)
+        env.pop("UNCHARTED_U2MP", None)
         if not self.config.get("u2mp_menu", True):
             return
         try:
@@ -2984,6 +2986,7 @@ class Launcher:
             print(f"Uncharted 2 multiplayer files not made ({error}): Uncharted 2 starts without them")
             return
         env["UNCHARTED_U2MP_OVERLAY"] = str(overlay)
+        env["UNCHARTED_U2MP"] = "1"  # the runtime's u2mp module (gow3_pc/src/u2mp): the restored functions
 
     def page_multiplayer(self):
         """Uncharted 2 multiplayer (u2mp). Shown only while Uncharted 2 is chosen (update_multiplayer_tab)."""

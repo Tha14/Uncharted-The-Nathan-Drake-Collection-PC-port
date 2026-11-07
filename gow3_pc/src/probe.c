@@ -7,6 +7,7 @@
 #include <math.h>
 #include <inttypes.h>
 #include "runtime.h"
+#include "u2mp/u2mp.h"
 #include "cpu_check.h"
 #include "orb_hook.h"
 #include "cheat_hook.h"
@@ -1501,6 +1502,19 @@ int main(int argc, char **argv) {
         install_cheats(segments, ns, size);
         install_actor_watch(segments, ns, size);
         install_stat_multipliers(segments, ns, size);
+    }
+    /* u2mp (Uncharted 2 multiplayer, src/u2mp, C++): off unless UNCHARTED_U2MP=1 and the image is
+     * the Uncharted 2 1.02 build it checks for. */
+    if (gpu_enabled) {
+        uint64_t *triples = calloc(ns ? ns * 3 : 3, sizeof(*triples));
+        if (!triples) fail("allocation failed");
+        for (uint64_t i = 0; i < ns; ++i) {
+            triples[3 * i] = segments[i].address;
+            triples[3 * i + 1] = segments[i].size;
+            triples[3 * i + 2] = segments[i].flags;
+        }
+        u2mp_install(image, size, triples, ns);
+        free(triples);
     }
 #ifdef _WIN32
     printf("Guest TCB loads redirected to the TEB TLS slot: %" PRIu64 "\n", patch_tcb_loads(segments, ns));

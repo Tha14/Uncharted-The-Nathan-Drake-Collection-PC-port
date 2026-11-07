@@ -40,7 +40,7 @@ import sys
 from pathlib import Path
 
 MENU = Path("u2data/build/main/dc1/ps4/menu.bin")
-VERSION = 4  # bump when the overlay changes for the same sources (4: PAGE_PROFILE gets its own 8-control list)
+VERSION = 5  # bump when the overlay changes for the same sources (5: Multiplayer is a code button, BUTTON_MULTIPLAYER)
 RECORD = 0x70
 
 
@@ -87,23 +87,28 @@ def records_named(data, name):
 
 
 def patch_menu(data):
-    """Turn the main menu's hidden medals button into Multiplayer. Returns the patched records."""
-    pages = strings(data, "PAGE_MULTIPLAYER")
-    if not pages:
+    """Turn the main menu's hidden medals button into Multiplayer. Returns the patched records.
+
+    The button becomes BUTTON_MULTIPLAYER (id 0xed9d8ae1), a code button (action 0, no target page):
+    selecting it calls the game's registered BUTTON_MULTIPLAYER callback, which the runtime's u2mp
+    module restores (gow3_pc/src/u2mp/frontend.cpp). The name string stays BUTTON_MULTIMEDALS
+    (names are only read for diagnostics; dispatch uses the id)."""
+    if not strings(data, "PAGE_MULTIPLAYER"):
         raise ValueError("menu.bin has no PAGE_MULTIPLAYER (not Uncharted 2?)")
-    label_id, page_id = name_id("MENU_MULTIPLAYER"), name_id("PAGE_MULTIPLAYER")
+    bitmap, _ = pointer_bitmap(data)
     done = []
     for record in records_named(data, "BUTTON_MULTIMEDALS"):
         own_id, = struct.unpack_from("<I", data, record + 0x08)
         target, = struct.unpack_from("<Q", data, record + 0x48)
         target_id, = struct.unpack_from("<I", data, record + 0x50)
         if own_id != name_id("BUTTON_MULTIMEDALS") or cstring(data, target) != "PAGE_MULTIMEDALS" \
-                or target_id != name_id("PAGE_MULTIMEDALS"):
+                or target_id != name_id("PAGE_MULTIMEDALS") or not is_pointer(data, bitmap, record + 0x48):
             continue
-        struct.pack_into("<Q", data, record + 0x28, label_id)
-        struct.pack_into("<Q", data, record + 0x48, pages[0])
-        struct.pack_into("<Q", data, record + 0x50, page_id)
-        struct.pack_into("<I", data, record + 0x34, 0)
+        struct.pack_into("<Q", data, record + 0x08, name_id("BUTTON_MULTIPLAYER"))
+        struct.pack_into("<Q", data, record + 0x28, name_id("MENU_MULTIPLAYER"))
+        struct.pack_into("<II", data, record + 0x30, 0, 0)       # code button, always visible
+        struct.pack_into("<QQ", data, record + 0x48, 0, 0)       # no target page
+        clear_pointer_bit(data, bitmap, record + 0x48)           # a null target is not relocated
         done.append(record)
     if not done:
         raise ValueError("menu.bin has no hidden medals button (not the Uncharted 2 1.02 menu?)")
@@ -125,6 +130,11 @@ def pointer_bitmap(data):
 def set_pointer_bit(data, bitmap, offset):
     slot = offset // 8
     data[bitmap + slot // 8] |= 1 << (slot % 8)
+
+
+def clear_pointer_bit(data, bitmap, offset):
+    slot = offset // 8
+    data[bitmap + slot // 8] &= ~(1 << (slot % 8)) & 0xFF
 
 
 def is_pointer(data, bitmap, offset):
@@ -191,7 +201,7 @@ def patch_profile_page(data, button):
     multiplayer = bytearray(data[button:button + RECORD])
     struct.pack_into("<I", multiplayer, 0x14, struct.unpack_from("<I", data, base + 3 * RECORD + 0x14)[0])
     struct.pack_into("<I", multiplayer, 0x58, 0)
-    records = [old(0), old(1), (multiplayer, [0x00, 0x20, 0x48]), old(2),
+    records = [old(0), old(1), (multiplayer, [0x00, 0x20]), old(2),
                old(5, 0), old(6, 0), old(3, 1), old(4, 1)]
     # The new list: {u64 count, u64 base} then the records, 16-byte aligned after the old data.
     start = (end + 15) & ~15
