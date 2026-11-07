@@ -53,6 +53,7 @@ static_assert(sid("BUTTON_MULTIPLAYER") == 0xed9d8ae1u, "string id function");
 
 void install_frontend(int &installed);
 void install_natives(int &installed);   // natives.cpp: the co-op / net script natives
+void install_remaining(int &installed); // remaining.cpp: the last stubbed callbacks and Applies
 // ShowPage(menu manager, page id, 0) in the guest.
 void show_page(uint32_t page);
 // True when the function at `offset` is a stripped stub: ret, then alignment padding.

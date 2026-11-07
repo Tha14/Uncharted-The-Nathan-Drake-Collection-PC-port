@@ -139,6 +139,7 @@ extern "C" int u2mp_install(unsigned char *base, uint64_t size, const uint64_t *
     install_natives(installed);
     install_progression(installed);
     install_cinema(installed);
+    install_remaining(installed);
     log("%d functions restored", installed);
     return installed;
 }

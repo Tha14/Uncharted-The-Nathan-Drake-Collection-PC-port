@@ -16,6 +16,7 @@
 #include "gamenet.h"
 #include "progression.h"
 #include "net.h"
+#include "session_api.h"
 #include "u2mp_internal.h"
 
 namespace u2mp::session {
@@ -75,6 +76,7 @@ int32_t sent_mode = -1;
 int32_t last_state = 0;
 char roster_text[net::kMaxPeers + 1][64];
 unsigned frames = 0;
+bool kicked = false;   // the host kicked us: leave the party after this pump
 double next_rate_log = 0;
 
 uint32_t id_of_slot(uint8_t slot) { return uint32_t(slot) + 1; }
@@ -188,7 +190,7 @@ void mailbox_post(uint32_t code, uint32_t sender, const void *data, uint32_t siz
 }
 
 // ---- our session messages (transport tag kSessionMessage) ------------------------------------
-enum : uint8_t { kInfo = 1, kRoster = 2, kMode = 3, kFollow = 4 };
+enum : uint8_t { kInfo = 1, kRoster = 2, kMode = 3, kFollow = 4, kKick = 5 };
 
 void send_session(int slot, std::vector<uint8_t> body) {
     body.insert(body.begin(), gamenet::kSessionMessage);
@@ -240,6 +242,13 @@ void on_session_message(uint8_t from, const uint8_t *d, size_t n) {
             int32_t mode;
             std::memcpy(&mode, d + 1, 4);
             mailbox_post(kMsgMode, 1, &mode, 4);
+        }
+        break;
+    case kKick:   // host -> one client: kicked (PS3 KickoutRoomMember 0x4d8a98)
+        if (!hosting && from == 0) {
+            log("party: the host kicked us");
+            G<uint8_t>(kNetInfo + NI_ERROR) = 1;   // every multiplayer page falls back to the error box
+            kicked = true;
         }
         break;
     case kFollow:   // host -> clients: the host created the match; join it (PS3: party follow)
@@ -434,6 +443,14 @@ U2MP_GUEST void menu_update(void *menu) {
     transport.pump(now);
     gamenet::frame(now);
     transport.pump(now);
+    if (kicked) {   // not inside the pump: closing resets the connections it walks
+        kicked = false;
+        for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) gamenet::detach(slot);
+        transport.close();
+        active = false;
+        for (auto &m : members) m = Member{};
+        return;
+    }
     ++frames;
     if (now >= next_rate_log) {   // proves the hook runs every frame (expect ~60 per second)
         if (next_rate_log > 0) log("frame hook: %u calls in 10 s", frames);
@@ -459,6 +476,40 @@ U2MP_GUEST void menu_update(void *menu) {
 }
 
 }  // namespace
+
+// ---- session_api.h ----------------------------------------------------------------------------
+bool member_at(int row, uint32_t &net_id, std::string &name) {
+    int seen = 0;
+    for (const Member &m : members)
+        if (m.used && seen++ == row) {
+            net_id = m.net_id;
+            name = m.name;
+            return true;
+        }
+    return false;
+}
+
+bool member_name(uint32_t net_id, std::string &name) {
+    for (const Member &m : members)
+        if (m.used && m.net_id == net_id) {
+            name = m.name;
+            return true;
+        }
+    return false;
+}
+
+uint32_t local_id() { return active ? my_id : 0; }
+
+bool is_host() { return active && hosting; }
+
+bool kick(uint32_t net_id) {
+    if (!active || !hosting || net_id < 2 || net_id > net::kMaxPeers + 1) return false;
+    const uint8_t slot = uint8_t(net_id - 1);
+    if (!members[slot].used) return false;
+    log("party: kicking %s (net id %u)", members[slot].name.c_str(), net_id);
+    send_session(slot, {kKick});
+    return true;
+}
 
 void install(int &installed) {
     if (!gamenet::install()) return;
