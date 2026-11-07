@@ -21,7 +21,7 @@ files = ['pak23/ps4/air-multi.pak', 'pak23/ps4/air-multi-ingame12.pak', 'pak23_p
 def backup(rel):
     dst = BAK + rel
     if os.path.exists(dst):
-        sys.exit('backup already exists: ' + dst)
+        return                  # an earlier import or pass already saved the first state: keep that one
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     shutil.copy2(MAIN + rel, dst)
 
@@ -45,6 +45,11 @@ txt = open(MAIN + 'pak23_ps4.txt', 'rb').read()
 # A clean recipe run (2026-11-06): registry-pak23 already wrote the emblem actor lines, but no emblem pak is installed
 # yet; that is not "installed": install the paks and keep the registry as it is.
 lines_only = b'air-multi-emblem' in txt and not any(os.path.exists(MAIN + 'actor33/ps4/%s.pak' % a) for a in arts)
+# Both level paks at the state the prototype was built from (a rebuilt air-multi, e.g. a launcher update that rebuilt
+# Airstrip): install again over whatever an earlier import left (actor paks of an older build, registry lines).
+at_base = os.path.exists(MAIN + files[0]) and md5(MAIN + files[0]) == base[files[0]] and     md5(MAIN + files[1]) in (base[files[1]], md5(OUT + files[1]))   # ingame12: not rebuilt, may carry the emblem edit
+if at_base and b'air-multi-emblem' in txt:
+    lines_only = True
 if b'air-multi-emblem' in txt and not lines_only:
     # The spawners and actors need no correction; the fix is the helper bucket (helper_paste.inc).
     ok = all(os.path.exists(MAIN + 'actor33/ps4/%s.pak' % a) and md5(MAIN + 'actor33/ps4/%s.pak' % a) == md5(OUT + 'actor33/ps4/%s.pak' % a) for a in arts)
@@ -53,9 +58,10 @@ if b'air-multi-emblem' in txt and not lines_only:
     hid = all(not any(mp[h['off']:h['off'] + 2 * h['ni']]) for h in plan['hide'])
     print('already installed: actors match %s, ingame12 matches %s, background patches hidden %s' % (ok, ig, hid))
     print('nothing to write; air-multi.pak is left alone (it carries a later edit). Paste helper_paste.inc and rebuild.')
-    sys.exit(0 if ok and ig and hid else 1)
+    # the actor paks are replaced later (wall-emblem-actors: second version, emblem-cap3), so they decide nothing here
+    sys.exit(0 if ig and hid else 1)
 for rel in files[:2]:
-    if md5(MAIN + rel) != base[rel]:
+    if md5(MAIN + rel) != base[rel] and not (at_base and rel == files[1]):
         sys.exit('changed since build, rebuild the prototype first: ' + rel)
 nl = b'\r\n' if b'\r\n' in txt else b'\n'
 head = b'level-name air-multi' + nl
@@ -70,7 +76,7 @@ new = txt if lines_only else txt[:j] + b''.join(b'actor ' + a.encode() + nl for 
 for a in arts:
     src, dst = OUT + 'actor33/ps4/%s.pak' % a, MAIN + 'actor33/ps4/%s.pak' % a
     print('install', os.path.basename(dst), os.path.getsize(src))
-    if os.path.exists(dst):
+    if os.path.exists(dst) and not at_base:
         sys.exit('actor exists: ' + dst)
 print('install 2 level paks, ' + ('the %d actor lines are already in pak23_ps4.txt' if lines_only else
                                   'add %d actor lines to the air-multi block') % len(arts))

@@ -318,6 +318,20 @@ def shadowed():
     return {tuple(l.rstrip('\r\n').split('\t', 1)) for l in open(f, encoding='utf-8') if '\t' in l}
 
 
+def reference_shas():
+    """{(overlay, pak name): sha256 of the finished reference file} from the recipe manifest ($RECIPE_MANIFEST)."""
+    f = os.environ.get('RECIPE_MANIFEST')
+    out = {}
+    if not f or not os.path.exists(f):
+        return out
+    pre = 'u3data/build/main/pak23/ps4/'
+    for l in open(f, encoding='utf-8'):
+        x = l.rstrip('\r\n').split('\t')
+        if len(x) >= 4 and x[1].startswith(pre) and x[1].endswith('.pak'):
+            out[(x[0], x[1][len(pre):-4])] = x[3]
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('family')
@@ -347,11 +361,19 @@ def main():
     drop_stale_ps3_caches()
     t0 = time.time()
     todo, done = [], 0
+    ref = reference_shas()
     for r in rows:
         dst = os.path.join(WORK, r['overlay'], 'u3data', 'build', 'main', 'pak23', 'ps4', r['name'] + '.pak')
         r['dst'] = dst
         if os.path.exists(dst) and sha(dst) == r['sha256']:
             done += 1
+            continue
+        if r['status'] == 'base' and not a.strict and os.path.exists(dst) and ref.get((r['overlay'], r['name']))                 and sha(dst) != ref[(r['overlay'], r['name'])]:
+            # a 'base' row builds the exact state the later steps finish into the reference file. An existing file
+            # that is neither that state nor the finished reference is an earlier import's build of an older plan
+            # row (e.g. a launcher update made the map exact): build it again so the later steps can apply.
+            r['replace'] = True
+            todo.append(r)
             continue
         if r['status'] != 'identical' and (a.strict or os.path.exists(dst)):
             continue                                  # never replace an existing file by a non-identical rebuild
@@ -407,7 +429,7 @@ def main():
         report.append(dict(overlay=r['overlay'], name=r['name'], result='identical' if same else 'equivalent', sha256=h))
         if a.apply:
             dst = r['dst']
-            if os.path.exists(dst):
+            if os.path.exists(dst) and not r.get('replace'):     # a replaced earlier build needs no backup
                 bk = os.path.join(WORK, 'backup-pak23-levels', r['overlay'], r['name'] + '.pak')
                 if not os.path.exists(bk):
                     os.makedirs(os.path.dirname(bk), exist_ok=True)

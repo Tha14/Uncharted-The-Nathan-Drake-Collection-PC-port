@@ -112,6 +112,8 @@ def main():
     with open(sf, 'w', encoding='utf-8', newline='\n') as f:
         f.writelines('%s\t%s\n' % x for x in sorted(hidden))
     os.environ['RECIPE_SHADOWED'] = sf
+    # the reference hashes, for builders that must tell an earlier import's file from the finished reference state
+    os.environ['RECIPE_MANIFEST'] = os.path.join(R.HERE, 'manifest.tsv')
     if hidden:
         log('%d level/actor paks hidden by a higher overlay are not built (--all-files builds them too)' % len(hidden))
     hidden_rel = {'work/%s/%s' % x for x in hidden}
@@ -151,14 +153,18 @@ def main():
         if rec and 'fp' not in rec and rec.get('status') == 'ok':
             rec['fp'] = fp      # recorded by recipe <= 1.7.0 (no fingerprints): 1.8.0 changed no step's output
             state.save()
-        if rec and not a.force and rec.get('status') == 'ok' and rec.get('fp') == fp and R.outputs_unchanged(out, rec):
+        # recipe <= 1.9.6 recorded a step found at the reference state with no outputs, so it never ran again when an
+        # earlier step later changed its files (e.g. emblem-cap3 after a rebuilt Airstrip): check those again
+        stale_ref = rec and rec.get('note') == 'files already at the reference state' and not rec.get('outputs')
+        if rec and not a.force and rec.get('status') == 'ok' and rec.get('fp') == fp and not stale_ref and                 R.outputs_unchanged(out, rec):
             log(head + ': already applied (%s)' % rec['when']); counts['already'] += 1
             continue
         if rec and rec.get('status') == 'ok' and rec.get('fp') != fp:
             log(head + ': updated since it last ran, running it again')
-        if s['kind'] == 'script' and not a.force and at_reference_state(s, out, manifest, hcache, hidden_rel):
+        ref_files = s['kind'] == 'script' and not a.force and at_reference_state(s, out, manifest, hcache, hidden_rel)
+        if ref_files:
             # every file this step may write already equals the reference build: nothing to do
-            state.mark(sid, {}, 'ok', 'files already at the reference state', fp)
+            state.mark(sid, ref_files, 'ok', 'files already at the reference state', fp)
             log(head + ': already at the reference state (manifest hashes match)'); counts['already'] += 1
             continue
         if a.dry_run:
@@ -180,14 +186,15 @@ def main():
 
 
 def at_reference_state(s, out, manifest, hcache, hidden=frozenset()):
-    """True when every manifest file covered by the step's 'writes' globs exists and has the reference hash."""
+    """{file: reference hash} when every manifest file covered by the step's 'writes' globs exists and has the
+    reference hash (recorded as the step's outputs, so a later change to them runs the step again); else None."""
     import fnmatch
     pats = s.get('writes', [])
     if not pats:
-        return False
+        return None
     covered = [rel for rel in manifest if rel not in hidden and any(fnmatch.fnmatch(rel, pat) for pat in pats)]
     if not covered:
-        return False
+        return None
     for rel in covered:
         p = os.path.join(out, rel)
         if not os.path.exists(p):
@@ -197,8 +204,8 @@ def at_reference_state(s, out, manifest, hcache, hidden=frozenset()):
         if key not in hcache:
             hcache[key] = R.sha256_file(p)
         if hcache[key] != manifest[rel]:
-            return False
-    return True
+            return None
+    return {rel: manifest[rel] for rel in covered}
 
 
 def _have(inp, need):

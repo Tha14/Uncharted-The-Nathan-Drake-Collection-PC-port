@@ -36,10 +36,9 @@ print('collapse %d triangles in %s' % (n, plan['pak']))
 if not apply_:
     print('dry run: nothing written (use --apply)')
     sys.exit(0)
-if os.path.exists(BACKUP):
-    sys.exit('backup already exists: ' + BACKUP)
 os.makedirs(os.path.dirname(BACKUP), exist_ok=True)
-shutil.copy2(TARGET, BACKUP)
+if not os.path.exists(BACKUP):          # an earlier import or pass already saved this same input state: keep it
+    shutil.copy2(TARGET, BACKUP)
 tmp = TARGET + '.tmp'
 open(tmp, 'wb').write(data)
 os.replace(tmp, TARGET)
