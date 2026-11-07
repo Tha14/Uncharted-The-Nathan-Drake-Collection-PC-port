@@ -14,7 +14,7 @@ was removed from this repository (tag `backup/before-sparks-removal` keeps the s
 SHA-256 `5047b693…`). PS3 reference: **NPUA80698** (PSN, 1.10, EBOOT SHA-256 `fdac6628…`); the DLC map
 packs come from a BCUS98123 install (see docs/ASSET-INVENTORY.md).
 
-## Status (8 November 2026)
+## Status (9 November 2026)
 
 Every multiplayer function the PS4 build left as a stub is restored in C++ (77 of 85; the other 8
 are empty on PS3 too, or were the PSN connection handshake, which the session layer replaces), and
@@ -33,8 +33,10 @@ the game yet**; the host unit tests pass.
 | Progression (money, rank, stats, leaderboards) kept on the PC | `progression*.cpp` | unit test passes |
 | Cinema (recording, list, playback) | `cinema*.cpp` | unit test passes |
 | NPC damage in co-op, player/party options, PSN-only buttons | `remaining.cpp` | built |
-| Asset import from the PS3 copy (skins, the Fort, DLC maps) | not started | [docs/ASSET-INVENTORY.md](docs/ASSET-INVENTORY.md) |
-| Voice chat | not started | the PS4 build imports no voice library |
+| Menus: profile name, party status, playlists, friends / players met | `menus.cpp` | built ([docs/MENUS.md](docs/MENUS.md)) |
+| DLC maps listed only when imported | `dlc.cpp` | built ([docs/DLC.md](docs/DLC.md)) |
+| Voice chat (Opus, push-to-talk or open mic, mute per player) | `voice.cpp` | unit test passes |
+| Asset import from the PS3 copy, PS4 first: skins (34 from PS4 campaign costumes), props and animated actors, the Fort, DLC maps, sounds, music, texts | `patcher/u2mp_import.py`, `patcher/u2conv/` | full run 1,621 ok, 0 failed ([docs/IMPORT.md](docs/IMPORT.md)) |
 
 ## How it runs
 
@@ -77,7 +79,6 @@ through `extern "C"` entry points. Python only for the launcher-side steps befor
 
 ## Next
 
-1. First in-game tests: the frame hook rate (log "frame hook: N calls in 10 s"), the Multiplayer
-   button, two PCs (or two instances) in one party, a custom match start.
-2. Asset import from the player's PS3 copy (skins, the Fort's pieces, DLC maps).
-3. Voice chat (a PC implementation), LAN game browser, host migration.
+1. Bug-fixing round in game ([docs/TEST-LOG.md](docs/TEST-LOG.md)): the crash after the match task starts
+   (0x64100f), then a full match on one PC, then two PCs.
+2. chloe-ponytail; DLC map cards in net.pak; LAN game browser; host migration.
