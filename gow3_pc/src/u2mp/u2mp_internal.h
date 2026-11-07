@@ -58,6 +58,9 @@ void install_menus(int &installed);     // menus.cpp: the multiplayer menu queri
 void install_dlc(int &installed);       // dlc.cpp: DLC maps offered only when imported (u2mp/docs/DLC.md)
 // False when the *net-games* record `index` plays on a DLC map whose map pack was not imported.
 bool dlc_net_game_available(int32_t index);
+// netinit.cpp: state the removed PS3 multiplayer init set up (u2mp/docs/NETINIT.md). Both idempotent.
+void netinit_prepare();   // when Multiplayer is entered
+void netinit_match();     // at match start
 // ShowPage(menu manager, page id, 0) in the guest.
 void show_page(uint32_t page);
 // True when the function at `offset` is a stripped stub: ret, then alignment padding.

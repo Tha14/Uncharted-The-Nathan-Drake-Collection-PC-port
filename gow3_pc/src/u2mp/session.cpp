@@ -271,6 +271,7 @@ void on_session_message(uint8_t from, const uint8_t *d, size_t n) {
     case kFollow:   // host -> clients: the host created the match; join it (PS3: party follow)
         if (!hosting) {
             log("following the host into the match");
+            netinit_match();
             G<uint8_t>(kNetInfo + NI_CREATED_BY_ME) = 0;
             fn<void(U2MP_GUEST *)(void *)>(fClearNetPlayers)(image.at<void>(kNgm));
             session_set(kMatch, kRoomContext, my_id, 1);
@@ -436,6 +437,7 @@ void ensure_network_heap() {
 U2MP_GUEST void multiplayer_button(void *, void *, void *) {
     log("Multiplayer selected");
     ensure_network_heap();
+    netinit_prepare();   // what PS3 NetGameManager::Init / NetInit built (netinit.cpp)
     if (!active) {
         if (!start_transport()) {
             G<uint8_t>(kNetInfo + NI_ERROR) = 1;
@@ -505,6 +507,7 @@ U2MP_GUEST void start_match(void *, void *, void *) {
         }
     }
     log("Start Match: creating the match");
+    netinit_match();
     host_create();   // state 3, page handler 0x6093f0
     session_set(kMatch, kRoomContext, 1, 1);
     session_members(kMatch);
