@@ -8,6 +8,8 @@
 //
 // Net ids: host 1, a client in transport slot s has s + 1 (also its connection-record key).
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <utility>
 #include <cstdlib>
@@ -471,7 +473,17 @@ void unregister_frame_handler() {
 // The match states' Update, wrapped: original, then the network.
 using StateUpdateFn = uint64_t(U2MP_GUEST *)(void *state);
 StateUpdateFn original_update[kStateCount];
+// Diagnostics: which TaskManagerOnline state runs (logged when it changes, and every 10 s).
+std::atomic<int> last_online_state{-1};
+uint64_t next_online_log = 0;
 template <size_t I> U2MP_GUEST uint64_t state_update(void *state) {
+    const uint64_t now_ms = uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+    if (last_online_state.exchange(int(I)) != int(I) || now_ms >= next_online_log) {
+        next_online_log = now_ms + 10000;
+        log("online state: update 0x%llx (vtable slot 0x%llx)", (unsigned long long)kStateUpdates[I].update,
+            (unsigned long long)(kStateUpdates[I].slot - 0x18));
+    }
     const uint64_t result = original_update[I](state);
     tick();
     return result;
