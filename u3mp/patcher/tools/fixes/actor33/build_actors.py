@@ -40,6 +40,35 @@ def sha(f):
     return h.hexdigest()
 
 
+def inputs_signature(folders):
+    """Paths + size / mtime of every .psarc (and net18.bin) under the PS3 input folders (two levels deep)."""
+    sig = []
+    for f in folders:
+        sig.append(f)
+        for dp, dn, fn in os.walk(f) if f and os.path.isdir(f) else ():
+            if os.path.relpath(dp, f).replace('\\', '/').count('/') >= 3:
+                dn[:] = []
+            for n in sorted(fn):
+                if n.endswith('.psarc') or n == 'net18.bin':
+                    st = os.stat(os.path.join(dp, n))
+                    sig.append('%s %d %d' % (os.path.relpath(os.path.join(dp, n), f), st.st_size, int(st.st_mtime)))
+    return hashlib.sha256('\n'.join(sig).encode('utf-8', 'replace')).hexdigest()
+
+
+def drop_stale_ps3_caches():
+    """The extracted PS3 files and the Lab extract are kept between runs; when the PS3 inputs changed (another
+    folder, the game data downloaded or replaced), they are rebuilt (an old Lab extract made without the Lab
+    psarcs left 27 Lab props failing, 2026-11-07)."""
+    stamp = os.path.join(TMP, '.ps3-inputs')
+    sig = inputs_signature([PS3_DISC, PS3_UPDATE, PS3_DATA2])
+    old = open(stamp).read().strip() if os.path.exists(stamp) else None
+    if old != sig:
+        for d in ('ps3', 'labsrc'):
+            shutil.rmtree(os.path.join(TMP, d), ignore_errors=True)
+        os.makedirs(TMP, exist_ok=True)
+        open(stamp, 'w').write(sig)
+
+
 def ps3_sources():
     sys.path.insert(0, TT)
     from psarc_lib import Psarc
@@ -268,6 +297,7 @@ def main():
     ap.add_argument('--jobs', type=int, default=int(os.environ.get('RECIPE_JOBS') or os.cpu_count() or 1),
                     help='parallel build processes (default: all cores); installs stay in jobs.tsv order')
     a = ap.parse_args()
+    drop_stale_ps3_caches()
     ovs = {OVL[x] for x in a.overlays.split(',')}
     only = {x if x.endswith('.pak') else x + '.pak' for x in a.only.split(',') if x}
     cols = 'overlay name sha256 status method toolset source template mode cap env post'.split()

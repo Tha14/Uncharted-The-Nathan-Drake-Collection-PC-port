@@ -169,6 +169,32 @@ def res_dir():
     return d
 
 
+def drop_stale_ps3_caches():
+    """TMP/ps3 (extracted PS3 level paks), TMP/ps3idx.tsv and TMP/labsrc are kept between runs; when the PS3 inputs
+    changed (other folders, the GOTY disc standing in for the DLC packs, the game data downloaded or replaced),
+    they are rebuilt from the current ones."""
+    import hashlib
+    sig = []
+    for f in (PS3_UPDATE, PS3_DLCMAPS, PS3_DISC, PS3_DATA2):
+        sig.append(f)
+        for dp, dn, fn in os.walk(f) if f and os.path.isdir(f) else ():
+            if os.path.relpath(dp, f).replace('\\', '/').count('/') >= 3:
+                dn[:] = []
+            for n in sorted(fn):
+                if n.endswith('.psarc') or n == 'net18.bin':
+                    st = os.stat(os.path.join(dp, n))
+                    sig.append('%s %d %d' % (os.path.relpath(os.path.join(dp, n), f), st.st_size, int(st.st_mtime)))
+    sig = hashlib.sha256('\n'.join(sig).encode('utf-8', 'replace')).hexdigest()
+    stamp = os.path.join(TMP, '.ps3-inputs')
+    if (open(stamp).read().strip() if os.path.exists(stamp) else None) != sig:
+        for d in ('ps3', 'labsrc'):
+            shutil.rmtree(os.path.join(TMP, d), ignore_errors=True)
+        if os.path.exists(os.path.join(TMP, 'ps3idx.tsv')):
+            os.remove(os.path.join(TMP, 'ps3idx.tsv'))
+        os.makedirs(TMP, exist_ok=True)
+        open(stamp, 'w').write(sig)
+
+
 def ps3_index():
     f = os.path.join(TMP, 'ps3idx.tsv')
     if not os.path.exists(f):
@@ -318,6 +344,7 @@ def main():
             print('already applied')
             return 0
     os.makedirs(TMP, exist_ok=True)
+    drop_stale_ps3_caches()
     t0 = time.time()
     todo, done = [], 0
     for r in rows:

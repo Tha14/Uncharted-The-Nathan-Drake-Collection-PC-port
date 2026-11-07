@@ -268,7 +268,7 @@ def lm_locked(pak, data):
 def main():
     a = sys.argv[1:]; apply = '--apply' in a; rev = '--revert' in a; conc = '--concrete-stripes' in a
     out = a[a.index('--out') + 1] if '--out' in a else None
-    if (apply or rev) and 'Uncharted' in subprocess.run(['tasklist'], capture_output=True, text=True).stdout:
+    if (apply or rev) and any(l.split()[:1] == ['uncharted.exe'] for l in subprocess.run(['tasklist'], capture_output=True, text=True).stdout.lower().splitlines()):
         sys.exit('game running: stop it first')
     if rev:
         for f in os.listdir(BK):

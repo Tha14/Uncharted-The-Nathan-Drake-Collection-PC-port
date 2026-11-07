@@ -23,6 +23,7 @@ SRC_SIZE=110968;SRC_MD5='b397ee3b'
 # map: (overlay holding the effective file, current size, current md5 prefix)
 TG={'fort':('overlay-r2',40632,'5016bd65'),'gompa':('overlay-port',40632,'5016bd65'),'shambhala':('overlay-port',40632,'5016bd65'),
     'village':('overlay-port',52968,'48637de9'),'warzone':('overlay-port',52968,'48637de9')}
+GOTY={'gompa':((110968,'a2b322e2'),)}
 def md5(f):return hashlib.md5(open(f,'rb').read()).hexdigest()
 def tpath(m):return P+'work/'+TG[m][0]+MAIN+m+'-multi-shade-npc-ingame12.pak'
 def shadow(m):
@@ -52,7 +53,9 @@ def main():
         f=tpath(m);cur=md5(f)
         if shadow(m)!=ov:print(m,'FAIL effective overlay is',shadow(m),'expected',ov);bad+=1;continue
         if cur.startswith(SRC_MD5):print(m,'already fixed');continue
-        if os.path.getsize(f)!=sz or not cur.startswith(h):print(m,'FAIL unexpected file',os.path.getsize(f),cur[:8]);bad+=1;continue
+        # Game of the Year disc without the DLC packs: its gompa copy (goty-dlc.psarc) already has the 43 spawners
+        # (110968 bytes, md5 a2b322e2...); it is replaced by the same source file, so the result is the same
+        if (os.path.getsize(f),cur[:8]) not in ((sz,h[:8]),) + GOTY.get(m,()):print(m,'FAIL unexpected file',os.path.getsize(f),cur[:8]);bad+=1;continue
         pc=ps3check(m)
         if pc is None:print('%s: %s %d bytes md5 %s -> %d bytes (PS3 spawner check skipped: audit helpers not available)'%(m,ov,sz,h,SRC_SIZE));continue
         n3,n4,iss,dif=pc
