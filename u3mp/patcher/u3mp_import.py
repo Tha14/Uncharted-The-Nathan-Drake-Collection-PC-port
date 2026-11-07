@@ -469,7 +469,12 @@ def main():
         state['recipe_id'] = recipe_id
     if r['exit'] == 2 or not r['steps']:
         if r.get('problems'):
-            return finish('failed', error='Nothing was imported: ' + ' / '.join(r['problems']), failed_at='inputs')
+            problems = r['problems']
+            # no game data and no way to download it (no community DNS): say what the player can do here, not
+            # the RPCS3 route the input check names
+            if data2_pending and any('BCES01670DATA2' in p for p in problems):
+                problems = [data2_pending] + [p for p in problems if 'BCES01670DATA2' not in p]
+            return finish('failed', error='Nothing was imported: ' + ' / '.join(problems), failed_at='inputs')
         return finish('failed', error='The overlay recipe could not start (see the log: input folders)',
                       failed_at='inputs')
     if not r['overlays']:
