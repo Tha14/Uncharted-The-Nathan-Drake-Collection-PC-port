@@ -439,7 +439,47 @@ U2MP_GUEST void *stat_host_copy(void *dst, const void *src, uint64_t n) {
 
 }  // namespace
 
+// 0x644130 (one caller, 0x662fd0, at match start): the package of the current net game's level record
+// (*levels* 0dec97a4, the record whose +0 is the net game's +4; package id at +0x20 = sid of the
+// name at +0x18, "<map>-pak"). No PS3 or PS4 registry, file or code defines a "<map>-pak" package
+// (test runs 21-28), so it returned NULL and the caller read NULL+0x9a0 (test run 28). Here the
+// same lookup, and when "<map>-pak" does not exist, the map's own package "<map>".
+U2MP_GUEST const uint8_t *level_record_package(void *) {
+    struct Table { int32_t count; int32_t pad; uint8_t *records; };
+    auto lookup = reinterpret_cast<Table *(U2MP_GUEST *)(uint32_t)>(image.base + 0xa15e70);
+    Table *games = lookup(0x3b9a067d), *levels = lookup(0x0dec97a4);
+    const int16_t game = *image.at<int16_t>(0x113b760 + 0x1ca0);
+    if (!games || !levels || !games->records || !levels->records || game < 0 || game >= games->count) return nullptr;
+    const uint32_t level_id = *reinterpret_cast<const uint32_t *>(games->records + 0x90 * game + 4);
+    for (int32_t i = 0; i < levels->count; ++i) {
+        const uint8_t *rec = levels->records + 0x38 * i;
+        if (*reinterpret_cast<const uint32_t *>(rec) != level_id) continue;
+        if (const uint8_t *pkg = package_by_id(*reinterpret_cast<const uint32_t *>(rec + 0x20))) return pkg;
+        const char *name = *reinterpret_cast<const char *const *>(rec + 0x18);
+        const size_t n = name ? std::strlen(name) : 0;
+        if (n > 4 && std::strcmp(name + n - 4, "-pak") == 0) {
+            const std::string map(name, n - 4);
+            const uint8_t *pkg = package_by_id(sid(map.c_str()));
+            static bool said = false;
+            if (!said) {
+                said = true;
+                log("level package: %s is defined nowhere, using %s (%s)", name, map.c_str(), pkg ? "loaded" : "not loaded");
+            }
+            return pkg;
+        }
+        return nullptr;
+    }
+    return nullptr;
+}
+
 void install_remaining(int &installed) {
+    {
+        // 0x644130: push rbp; mov rbp,rsp; push r14; push rbx; sub rsp,0x10; mov rbx,rdi
+        static const unsigned char expect[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x56, 0x53, 0x48, 0x83, 0xec, 0x10, 0x48, 0x89, 0xfb};
+        if (image.matches(0x644130, expect, sizeof expect) &&
+            replace_function(0x644130, sizeof expect, reinterpret_cast<void *>(&level_record_package), "level record package (644130)"))
+            ++installed;
+    }
     {
         // Test run 25 (null+8 read at 0x6405af): for every player tracker the NetGameManager takes a
         // value from the match session's own block (+0xb10) when it has no room (+0x10 == 0) and
