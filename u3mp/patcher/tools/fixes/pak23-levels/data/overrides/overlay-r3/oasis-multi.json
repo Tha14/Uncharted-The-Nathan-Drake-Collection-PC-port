@@ -1,0 +1,635 @@
+{
+ "bytes": {
+  "23859584": [
+   1,
+   2
+  ]
+ },
+ "params": {
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-cover-layered-01/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-far-large-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-far-large-02/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-horiz-layered-02/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-horiz-layered-03/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-horiz-layered-05/default": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-horiz-layered-06/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-horiz-to-smooth-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-horiz-to-topface-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-waterfall-07/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_normalStrength1": [
+    0.5
+   ]
+  },
+  "levels/multiplayer/oasis/cover/oas-cover-rock-blend-02/default": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/cover/oas-cover-rockwall-to-drymud-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/cover/oas-cover-rockwall-to-stucco-thick-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/emblems/oas-wall-drymud-to-stucco-01-emblem/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_timeScrollU2": [
+    0.0
+   ],
+   "g_timeScrollV2": [
+    0.0
+   ]
+  },
+  "levels/multiplayer/oasis/floors/oas-floor-rock-to-sand-rough-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/floors/oas-floor-wood-to-sand-rough-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/ground/oas-ground-sand-flat-pebbly-to-rocktop-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/ground/oas-ground-sand-rough-to-rocktop-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/ground/oas-ground-sand-rough-to-rocky-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/ground/oas-ground-sand-rough-to-sliding-rocky-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/ground/oas-ground-underwater-rubble-to-rocks-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/ground/oas-ground-waterfall-base-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/objects/oas-truck-01/base-test-base-dark": {
+   "g_detailStrength1": [
+    0.15000000596046448
+   ],
+   "g_uvScale2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/objects/oas-truck-01/horse-truck-base": {
+   "g_detailStrength1": [
+    0.15000000596046448
+   ],
+   "g_uvScale2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/objects/oas-truck-01/horse-truck-roof-b-tint": {
+   "g_detailStrength1": [
+    0.15000000596046448
+   ],
+   "g_uvScale2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/objects/oas-truck-sandy-01/horse-cover-dark": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_uvScale1": [
+    1.0
+   ],
+   "g_uvScale2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/objects/oas-window-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/plants/oas-plant-reeds-all-01/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/plants/oas-plant-reeds-b-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/plants/oas-shrubs-large-01/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/plants/oas-tree-palm-date-leaves-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/plants/oas-tree-palm-date-low-01/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/plants/oas-tree-palm-young-01/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/walls/oas-wall-drymud-to-natural-rock-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/walls/oas-wall-drymud-to-rockwall-01/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/walls/oas-wall-drymud-to-rockwall-round-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/walls/oas-wall-drymud-to-stucco-thick-01/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/walls/oas-wall-stucco-thick-to-rockwall-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/waterfalls/oas-falls-water-01/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/oasis/wood/oas-wood-rough-blend-01/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_uvScale1": [
+    1.0
+   ]
+  },
+  "objects/vehicles/horse-truck/horse-glass/default": {
+   "g_uvScale1": [
+    1.0
+   ]
+  },
+  "objects/vehicles/horse-truck/horse-lights/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-cover-layered-01/default": [
+   "ldn-stations-connection.pak",
+   "levels/london-underground/walls/brick/ug-service-brick-clinker-corrode:default,4e8be8bc-3400-430b-8545-8c10ee92536d,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-horiz-layered-04-sand-slp/default": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/test/yem-darkwood:gompa-wood-blend-01,c736677c-1889-4997-bc13-07e7fe8bff22,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-horiz-layered-04-sand-slp/layered-horiz": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/walls/concrete/ug-plaster:default,4bf33870-b8ec-4397-944a-4b176e578aff,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-horiz-layered-04-sand-slp/rough-horiz": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/walls/brick/ug-service-brick-clinker-corrode:default,4e8be8bc-3400-430b-8545-8c10ee92536d,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-horiz-layered-05/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-horiz-layered-06-sand-slp/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-concrete-cracked-dark:default,b7c5201d-f58c-455f-a27c-723bdfbef575,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/cliff-rock/oas-cliff-rock-waterfall-07/default": [
+   "cruise-ship-upright-ballroom.pak",
+   "levels/cruise-ship/metal/ship-deck-metal-door-elevator:default,2a4572aa-4ddf-483a-8506-167796d1735f,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/cover/oas-cover-drymud-to-stucco-01/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/cover/oas-cover-rock-blend-02/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/cover/oas-cover-rockwall-to-drymud-01/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/cover/oas-cover-rockwall-to-drymud-02/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/emblems/oas-wall-drymud-to-stucco-01-emblem/default": [
+   "grave-pirate-ship-e-low.pak",
+   "levels/ship-graveyard/pirate-ship/grave-panels-yellow-a-scroll:cabinwall2rust-a,7b298aa9-a53f-4672-80b7-44be28328c16,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/ground/oas-ground-sand-flat-pebbly-to-rocktop-01/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/ground/oas-ground-sand-flat-pebbly-to-rough-01/default": [
+   "airport-wide.pak",
+   "levels/airport/wide/air-yem-plane-hanger-ceiling-wide:default,57f2c69f-5219-4c9c-aaac-072627d7a3a9,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/ground/oas-ground-sand-rough-to-rocky-01/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/ground/oas-ground-sand-rough-to-wetsand-01/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/walls/concrete/ug-plaster:default,4bf33870-b8ec-4397-944a-4b176e578aff,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/ground/oas-ground-underwater-rubble-to-rocks-01/default": [
+   "ldn-library-inner.pak",
+   "levels/london-underground/library/ug-lib-trims-no-overlay:default,7f9b8028-290c-4c62-a0ba-2af77dd0e2b5,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/ground/oas-ground-underwater-to-rubble-01/default": [
+   "yem-chase-alley-roofs.pak",
+   "levels/yemen/walls/stucco/yem-newyelstucco-oldconcrete-01:default,0f93b531-22a7-4dd7-9978-834d58aea4b0,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/ground/oas-ground-waterfall-base-01/default": [
+   "cruise-ship-90-ballroom.pak",
+   "levels/cruise-ship/object/ship-ballroom-woodchip:default,797e4db0-8941-47a6-94b2-975138268d52,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/objects/oas-gate-door-01/default": [
+   "col-museum-low.pak",
+   "levels/columbia/walls/col-rough-column:default,2fd3b98c-925f-451f-9bcd-0cc7ccae0be0,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/objects/oas-truck-01/base-test-base-dark": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cornerplate:default,3dac8400-f5ca-48a0-ab34-9401c7d89eee,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/objects/oas-truck-01/horse-cover-dark": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/objects/oas-truck-01/horse-truck-b-front-dark": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/objects/oas-truck-01/horse-truck-base": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cornerplate:default,3dac8400-f5ca-48a0-ab34-9401c7d89eee,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/objects/oas-truck-01/horse-truck-roof-b-tint": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cornerplate:default,3dac8400-f5ca-48a0-ab34-9401c7d89eee,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/objects/oas-truck-sandy-01/horse-cover-dark": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-concrete-cracked-2-grime:default,5a745f69-2b19-4e83-8ffc-4231525370d8,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/objects/oas-truck-tires-01/default": [
+   "syria-area2-broom-closet.pak",
+   "levels/syria/walls/syria-woodplanks:default,54626e66-7713-4156-9547-e019a16f0f40,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/objects/oas-truck-tires-metal-01/default": [
+   "syria-area2-broom-closet.pak",
+   "levels/syria/walls/syria-woodplanks:default,54626e66-7713-4156-9547-e019a16f0f40,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/objects/oas-window-01/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/plants/oas-plant-reeds-all-01/default": [
+   "syria-area2-breakable-buildings.pak",
+   "levels/syria/plants/syria-bush-2:default,2708706d-363e-41f5-b910-24df0a021b6b,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/plants/oas-plant-reeds-b-01/default": [
+   "grave-03-docks-barges.pak",
+   "levels/ship-graveyard/fabrics/grave-fish-net:default,c575935c-b3ce-4488-b658-9ae1afa57b4e,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/plants/oas-shrubs-large-01/default": [
+   "airport-wide.pak",
+   "levels/airport/plants/air-shrubs-med-dead-2:default,09ecab14-eace-4f67-865a-d04bd1d0429d,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/plants/oas-tree-palm-date-leaves-01/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/plants/oas-tree-scragly-branches-01/default": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/objects/yem-wires:default,7805cf9a-865f-4629-91fa-832d57314692,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/rock/oas-rock-simple-smooth-01-sand-slp-tint/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/rock/oas-rock-simple-smooth-01-tint/default": [
+   "col-museum-low.pak",
+   "levels/columbia/wood/col-darkwood:gompa-wood-blend-01,f1592764-bcad-4501-13b2-4c63ba62e0d2,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/rock/oas-rock-simple-smooth-01/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-marble-blue-to-nuetral-01:default,18f7dcc9-7437-46f1-bff5-d07cb7260058,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/walls/oas-wall-drymud-to-natural-rock-01/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/walls/oas-wall-drymud-to-rockwall-01/default": [
+   "ldn-library-inner.pak",
+   "levels/london-underground/library/ug-lib-trims-no-overlay:default,7f9b8028-290c-4c62-a0ba-2af77dd0e2b5,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/walls/oas-wall-drymud-to-rockwall-02/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/walls/oas-wall-drymud-to-rockwall-round-01/default": [
+   "cruise-ship-90-ballroom.pak",
+   "levels/cruise-ship/object/ship-ballroom-woodchip:default,797e4db0-8941-47a6-94b2-975138268d52,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/walls/oas-wall-drymud-to-stucco-01/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/walls/oas-wall-drymud-to-stucco-02/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/walls/oas-wall-drymud-to-stucco-thick-01/default": [
+   "ldn-library-inner.pak",
+   "levels/london-underground/library/ug-lib-trims-no-overlay:default,7f9b8028-290c-4c62-a0ba-2af77dd0e2b5,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/walls/oas-wall-drymud-to-trim-01/default": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/walls/stucco/yem-stuccoold-nwyelstucco-03:default,5ddcb356-86b8-417c-886b-a6a2abb1aeb1,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/walls/oas-wall-stucco-thick-to-rockwall-01-tint/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/walls/concrete/ug-plaster:default,4bf33870-b8ec-4397-944a-4b176e578aff,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/walls/oas-wall-stucco-thick-to-thin-01/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/waterfalls/oas-falls-water-01/default": [
+   "grave-02-hollowhulk-stern.pak",
+   "levels/ship-graveyard/hollow-hulk/grave-metal-catwalk-2:oblong,b19159e3-cb0f-4e3a-9fa6-4cc3df757452,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/wood/oas-wood-rough-blend-01/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/walls/concrete/ug-concrete-cracked-dark:default,b7c5201d-f58c-455f-a27c-723bdfbef575,prime-shader.fx"
+  ],
+  "levels/multiplayer/oasis/wood/oas-wood-rough-painted-01/default": [
+   "ldn-library-inner.pak",
+   "levels/london-underground/library/ug-lib-trims-no-overlay:default,7f9b8028-290c-4c62-a0ba-2af77dd0e2b5,prime-shader.fx"
+  ],
+  "objects/vehicles/horse-truck/horse-lights/default": [
+   "airport-wide.pak",
+   "levels/airport/windows/air-windows-wide-inc:default,0ba44ee7-70ee-49f4-97f5-6592d1e2de1c,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/general/textures/default/default-env-reflection.dds": "yem-chase-alley-roofs.pak",
+  "art/levels/airport/textures/airport-multi-env-reflection.dds": "airport-3a.pak",
+  "art/levels/cruise-ship/textures/misc/ship-deck-env-reflection-256.dds": "cruise-ship-90-ballroom.pak",
+  "art/levels/desert-village/textures/outsource/des-front-gate-color.tga": "desert-village-1a.pak",
+  "art/levels/horse-chase/textures/plants/horse-plants-shrub-large-01-color.tga": "desert-village-4b.pak",
+  "art/levels/horse-chase/textures/plants/horse-plants-shrub-large-01-normal.tga": "desert-village-4b.pak",
+  "art/levels/horse-chase/textures/plants/horse-plants-shrub-large-01-trans.tga": "desert-village-4b.pak",
+  "art/levels/oasis/textures/outsource/oas-date-palms-branches-color.tga": "san-upper-multi.pak",
+  "art/levels/oasis/textures/outsource/oas-date-palms-branches-normal.tga": "san-upper-multi.pak",
+  "art/levels/oasis/textures/outsource/oas-date-palms-branches-trans.tga": "san-upper-multi.pak",
+  "art/levels/ship-graveyard/textures/hull/grave-wet-128dxt1-env-reflection.dds": "grave-01-freighter-hold-1.pak",
+  "art/levels/water/textures/caustics/cells.tga": "grave-02-hollowhulk-stern.pak",
+  "art/levels/water/textures/waterbump/horse-ground-sand-wavy-02-normal.tga": "san-upper-multi.pak",
+  "art/levels/water/textures/waterbump/ship-water-01-3x-normal.tga": "san-upper-multi.pak",
+  "art/levels/water/textures/waterfalls/horse-ground-sand-sliding-04-normal.tga": "san-cistern-plaza-center-low.pak",
+  "art/objects/vehicles/horse-truck/texture/horse-truck-lights-only-color.tga": "cargo-plane-air-multi-ext.pak",
+  "art/objects/vehicles/horse-truck/texture/horse-truck-lights-only-inc.tga": "cargo-plane-air-multi-ext.pak"
+ }
+}

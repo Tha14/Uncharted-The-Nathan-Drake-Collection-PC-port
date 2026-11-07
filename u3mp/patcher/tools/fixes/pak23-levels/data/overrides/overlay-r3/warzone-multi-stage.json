@@ -1,0 +1,503 @@
+{
+ "params": {
+  "levels/dig/metal/dig-radio/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_incandescenceStrength": [
+    0.0
+   ]
+  },
+  "levels/warzone/fabric/war-clothes-line-misc/default": {
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/warzone/fabric/war-prayer-flags/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/warzone/ground/war-pavedtiles001/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/warzone/ground/war-pavedtiles003-lowcost/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_incandescenceStrength": [
+    0.0
+   ]
+  },
+  "levels/warzone/ground/war-pavedtiles004-lowcost-multi-cheap/alt-copy": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/warzone/ground/war-stone2gravel/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/warzone/transparency/warzone-dusty-broken-window-cheap/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/warzone/walls/war-bickwall-temple-gold-low/war-brick001": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/warzone/walls/war-brick-worn-lowcost-x2/bluewall": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/warzone/walls/war-brick-worn-lowcost-x2/steps": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/warzone/walls/war-lowcost-walls/stone-step": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/warzone/walls/war-stone-crumpled02-test/plaster02grey-blue": {
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/warzone/walls/war-temple-pillar-multi-rubble/war-brick001": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/warzone/wood/war-wood-lowcost/windowpanel": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/warzone/wood/war-wood-lowcost/windowpanel-2": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/warzone/wood/war-wood-planks/wood-gravel": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/warzone/wood/war-wood-trim/war-door-blend": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/warzone/work/war-square-tile-multi-cheap/default": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "objects/weapons/pkm/pkm/lod0": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_incandescenceStrength": [
+    0.0
+   ]
+  },
+  "objects/weapons/rpg/rpg_main/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_uvScale1": [
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/dig/metal/dig-radio/default": [
+   "san-col-rooftops.pak",
+   "levels/warzone/metal/war-glass-lamppost:war-metal-lamp-post,0691e3ab-44b7-4f98-b9f0-3f6ac99b2072,prime-shader.fx"
+  ],
+  "levels/sky/-big3/sky-warzone-stage/default": [
+   "airport-wide.pak",
+   "levels/airport/windows/air-windows-wide-inc:default,0ba44ee7-70ee-49f4-97f5-6592d1e2de1c,prime-shader.fx"
+  ],
+  "levels/village/wood/vil-wood-stripped2wet-v/vill-wood-white2splinter-copy": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/warzone/fabric/war-clothes-line-misc/default": [
+   "syria-entrance-bridge-sunrise.pak",
+   "levels/syria/gate/syria-gate-01-doublesided:default,197474ce-a559-4ee2-9095-042464d13e48,prime-shader.fx"
+  ],
+  "levels/warzone/fabric/war-prayer-flags/default": [
+   "grave-03-docks-barges.pak",
+   "levels/ship-graveyard/fabrics/grave-fish-net:default,c575935c-b3ce-4488-b658-9ae1afa57b4e,prime-shader.fx"
+  ],
+  "levels/warzone/ground/war-crumpled-dirt-lowcost-x2/muddy-water": [
+   "col-alley.pak",
+   "levels/warzone/metal/war-metal-can-copy:fuel-metal-can,71e642bb-fb7b-4946-bafc-079741125383,prime-shader.fx"
+  ],
+  "levels/warzone/ground/war-crumpled-dirt/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/warzone/ground/war-pavedtiles001/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/warzone/ground/war-pavedtiles002/default": [
+   "san-col-rooftops.pak",
+   "levels/warzone/outsourcing/vent-b-cheap:default,f7b08371-6c0e-4ace-a290-41f9449ddf48,prime-shader.fx"
+  ],
+  "levels/warzone/ground/war-pavedtiles003-lowcost/default": [
+   "san-col-rooftops.pak",
+   "levels/warzone/metal/war-glass-lamppost:war-metal-lamp-post,0691e3ab-44b7-4f98-b9f0-3f6ac99b2072,prime-shader.fx"
+  ],
+  "levels/warzone/ground/war-pavedtiles004-lowcost-multi-cheap/alt": [
+   "col-museum-exterior-intro.pak",
+   "levels/warzone/outsourcing/fire-hydrant:default,979e84f8-07fd-4158-b7ce-c6b5a4e1f5ee,prime-shader.fx"
+  ],
+  "levels/warzone/ground/war-pavedtiles004-lowcost-multi-cheap/alt-copy": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/warzone/ground/war-stone-steps02-cheap/default": [
+   "col-museum-exterior-intro.pak",
+   "levels/warzone/outsourcing/fire-hydrant:default,979e84f8-07fd-4158-b7ce-c6b5a4e1f5ee,prime-shader.fx"
+  ],
+  "levels/warzone/ground/war-stone2gravel-lowcost/default": [
+   "col-museum-exterior-intro.pak",
+   "levels/warzone/outsourcing/fire-hydrant:default,979e84f8-07fd-4158-b7ce-c6b5a4e1f5ee,prime-shader.fx"
+  ],
+  "levels/warzone/ground/war-stone2gravel/default": [
+   "ldn-library-inner.pak",
+   "levels/london-underground/library/ug-lib-trims-no-overlay:default,7f9b8028-290c-4c62-a0ba-2af77dd0e2b5,prime-shader.fx"
+  ],
+  "levels/warzone/ground/war-temple-tile-multi/default": [
+   "ldn-pub-office.pak",
+   "levels/london/office/ldn-off-curtain:default,04635caa-22f0-4d81-a995-058931b3ce67,prime-shader.fx"
+  ],
+  "levels/warzone/metal/war-corrigated-roof-notrans2/war-roof001": [
+   "ldn-pub-office.pak",
+   "levels/london/office/ldn-off-curtain:default,04635caa-22f0-4d81-a995-058931b3ce67,prime-shader.fx"
+  ],
+  "levels/warzone/metal/war-metal-lamppost-dark-cheap/war-metal-lamp-post": [
+   "ldn-pub-office.pak",
+   "levels/london/office/ldn-off-curtain:default,04635caa-22f0-4d81-a995-058931b3ce67,prime-shader.fx"
+  ],
+  "levels/warzone/metal/war-metal-lamppost-edge-grab/war-metal-lamp-post": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/warzone/metal/war-metal-shutter/war-metal-shutter02": [
+   "san-col-rooftops.pak",
+   "levels/warzone/outsourcing/vent-b-cheap:default,f7b08371-6c0e-4ace-a290-41f9449ddf48,prime-shader.fx"
+  ],
+  "levels/warzone/ornate/war-buddah-01-low/default": [
+   "col-museum-exterior-intro.pak",
+   "levels/warzone/outsourcing/fire-hydrant:default,979e84f8-07fd-4158-b7ce-c6b5a4e1f5ee,prime-shader.fx"
+  ],
+  "levels/warzone/ornate/war-ornate-basic/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-marble-blue-to-nuetral-01:default,18f7dcc9-7437-46f1-bff5-d07cb7260058,prime-shader.fx"
+  ],
+  "levels/warzone/ornate/war-ornate-grating/default": [
+   "san-col-square.pak",
+   "levels/columbia/ornate/col-ornate-grating:default,10dd0f1d-804a-c82a-01ec-aefa8c796b8c,prime-shader.fx"
+  ],
+  "levels/warzone/ornate/war-pointarch/default": [
+   "col-museum-exterior-intro.pak",
+   "levels/warzone/outsourcing/fire-hydrant:default,979e84f8-07fd-4158-b7ce-c6b5a4e1f5ee,prime-shader.fx"
+  ],
+  "levels/warzone/outsourcing/war-elephant-multi/default": [
+   "col-museum-exterior-intro.pak",
+   "levels/warzone/outsourcing/fire-hydrant:default,979e84f8-07fd-4158-b7ce-c6b5a4e1f5ee,prime-shader.fx"
+  ],
+  "levels/warzone/outsourcing/war-lion-multi/default": [
+   "san-col-square.pak",
+   "levels/warzone/outsourcing/fire-hydrant:default,979e84f8-07fd-4158-b7ce-c6b5a4e1f5ee,prime-shader.fx"
+  ],
+  "levels/warzone/outsourcing/war-stupa-to-concrete/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/warzone/outsourcing/war-stupa/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/warzone/plants/grass/default": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/plants/yem-shrub-01:default,18ab9a5a-0f58-435d-aec3-8be4401f440f,prime-shader.fx"
+  ],
+  "levels/warzone/rubble/war-rubble-01-to-concrete/default": [
+   "san-col-rooftops.pak",
+   "levels/warzone/outsourcing/vent-b-cheap:default,f7b08371-6c0e-4ace-a290-41f9449ddf48,prime-shader.fx"
+  ],
+  "levels/warzone/rubble/war-ruin-ground-lowcost/gravel": [
+   "col-museum-exterior-intro.pak",
+   "levels/warzone/outsourcing/fire-hydrant:default,979e84f8-07fd-4158-b7ce-c6b5a4e1f5ee,prime-shader.fx"
+  ],
+  "levels/warzone/rubble/war-ruin-ground-streets/gravel-streets": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/warzone/vehicles/war-wood/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-bickwall-temple-blend-destroyed/war-brick001": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/wood/col-vdarkwood:default,b1150f1b-399a-3ada-f73f-9064e10ca002,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-bickwall-temple-blend-low-no-normal/war-brick001": [
+   "syria-area2-broom-closet.pak",
+   "levels/syria/walls/syria-woodplanks:default,54626e66-7713-4156-9547-e019a16f0f40,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-bickwall-temple-blend-low/war-brick001": [
+   "syria-entrance-bridge-sunrise.pak",
+   "levels/syria/walls/syria-woodplanks:default,54626e66-7713-4156-9547-e019a16f0f40,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-bickwall-temple-gold-base-low/war-brick001": [
+   "san-col-rooftops.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-bickwall-temple-gold-base-noblend/war-brick001": [
+   "col-rooftops-interior.pak",
+   "levels/warzone/metal/war-metal-bronz-copper-gold-dish:war-metal-bronz,404d0cc1-b631-4a3e-b1cf-5b74ace21230,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-bickwall-temple-gold-low-multi-cheap/war-brick001": [
+   "col-alley.pak",
+   "levels/warzone/metal/war-metal-can-copy:fuel-metal-can,71e642bb-fb7b-4946-bafc-079741125383,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-bickwall-temple-gold-low-no-normal/war-brick001": [
+   "ldn-pub-office.pak",
+   "levels/london/office/ldn-off-rug:default,883a1450-a338-46d1-83ec-d8e91ab9ac01,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-bickwall-temple-gold-low/war-brick001": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-brick-worn-lowcost-x2/bluewall": [
+   "ldn-pub-office.pak",
+   "levels/london/pub/ldn-pub-ceiling-bar:default,d7113565-0cc7-4883-961b-6362ec5aecaf,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-brick-worn-lowcost-x2/darkwood": [
+   "col-museum-interior.pak",
+   "levels/columbia/museum/col-ornate-objects:yem-ornate-objects-01,9c18e539-3fc1-4d03-bfc5-3a95da39823b,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-brick-worn-lowcost-x2/steps": [
+   "ldn-pub-office.pak",
+   "levels/london/pub/ldn-pub-ceiling-bar:default,d7113565-0cc7-4883-961b-6362ec5aecaf,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-brick-worn-lowcost/broken": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-marble-blue-to-nuetral-01:default,18f7dcc9-7437-46f1-bff5-d07cb7260058,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-brick-worn/broken": [
+   "san-col-rooftops.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-lowcost-walls/stone-step": [
+   "ldn-pub-office.pak",
+   "levels/london/pub/ldn-pub-ceiling-bar:default,d7113565-0cc7-4883-961b-6362ec5aecaf,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-stone-crumpled02-test/crumpled2stone": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-stone-crumpled02-test/grey": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-stone-crumpled02-test/morter": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-stone-crumpled02-test/peach": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-stone-crumpled02-test/peach-copy": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-stone-crumpled02-test/plaster02grey-blue": [
+   "ldn-pub-office.pak",
+   "levels/london/office/ldn-off-rug:default,883a1450-a338-46d1-83ec-d8e91ab9ac01,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-stone-crumpled02-test/plaster02stoneblocks": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-stone-crumpled02-test/wood-copy": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-stone-pillar/bluestucco2stone": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-stone-step-wall-multi/war-brick001": [
+   "col-museum-exterior-intro.pak",
+   "levels/warzone/outsourcing/fire-hydrant:default,979e84f8-07fd-4158-b7ce-c6b5a4e1f5ee,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-temple-pillar-multi-rubble/war-brick001": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/wood/col-vdarkwood:default,b1150f1b-399a-3ada-f73f-9064e10ca002,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-temple-pillar-multi/war-brick001": [
+   "col-museum-exterior-intro.pak",
+   "levels/warzone/outsourcing/fire-hydrant:default,979e84f8-07fd-4158-b7ce-c6b5a4e1f5ee,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-temple-wall-multi/default": [
+   "col-museum-exterior-intro.pak",
+   "levels/warzone/outsourcing/fire-hydrant:default,979e84f8-07fd-4158-b7ce-c6b5a4e1f5ee,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-temple-wall-multi/wall-detail": [
+   "col-museum-exterior-intro.pak",
+   "levels/warzone/outsourcing/fire-hydrant:default,979e84f8-07fd-4158-b7ce-c6b5a4e1f5ee,prime-shader.fx"
+  ],
+  "levels/warzone/walls/war-trim-paper-tile/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/warzone/wood/war-darkwood-blend/gompa-wood-blend-01": [
+   "san-col-rooftops.pak",
+   "levels/columbia/wood/col-vdarkwood-lm:default,ed09ffeb-9d6a-bf28-fb30-5bc24f5be5bf,prime-shader.fx"
+  ],
+  "levels/warzone/wood/war-door-blend/war-door-blend": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/wood/col-vdarkwood:default,b1150f1b-399a-3ada-f73f-9064e10ca002,prime-shader.fx"
+  ],
+  "levels/warzone/wood/war-vdarkwood-lm/default": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/wood/col-vdarkwood:default,b1150f1b-399a-3ada-f73f-9064e10ca002,prime-shader.fx"
+  ],
+  "levels/warzone/wood/war-vdarkwood/default": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/wood/col-vdarkwood:default,b1150f1b-399a-3ada-f73f-9064e10ca002,prime-shader.fx"
+  ],
+  "levels/warzone/wood/war-wood-grey-blend/gompa-wood-blend-01": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/wood/col-vdarkwood:default,b1150f1b-399a-3ada-f73f-9064e10ca002,prime-shader.fx"
+  ],
+  "levels/warzone/wood/war-wood-lowcost/darkwood": [
+   "col-museum-interior.pak",
+   "levels/columbia/museum/col-ornate-objects:yem-ornate-objects-01,9c18e539-3fc1-4d03-bfc5-3a95da39823b,prime-shader.fx"
+  ],
+  "levels/warzone/wood/war-wood-planks/wood-gravel": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/warzone/wood/war-wood-trim/war-door-blend": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/walls/stucco/yem-tanplaster-01-edge:default,17de31ee-4d72-4ea4-ae1a-89e5b6c9919a,prime-shader.fx"
+  ],
+  "levels/warzone/work/war-square-tile-multi-cheap/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "objects/weapons/pkm/pkm/lod0": [
+   "san-col-rooftops.pak",
+   "levels/warzone/metal/war-glass-lamppost:war-metal-lamp-post,0691e3ab-44b7-4f98-b9f0-3f6ac99b2072,prime-shader.fx"
+  ],
+  "objects/weapons/rpg/rpg_main/default": [
+   "cruise-ship-90-cabins.pak",
+   "levels/cruise-ship/ground/ship-ballroom-carpet-blue:carpet,3d333904-63ae-40b3-9fda-242ab282d333,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/general/textures/default/default-flat-normal.tga": "ldn-train-stage.pak",
+  "art/general/textures/default/default-mask.tga": "col-museum-interior.pak",
+  "art/general/textures/default/detail-normal.tga": "ldn-train-stage.pak",
+  "art/levels/cruise-ship/textures/misc/ship-deck-env-reflection-256.dds": "cruise-ship-90-cabins.pak",
+  "art/levels/syria/texture/gate/syria-gate-01-height.tga": "syria-entrance-bridge-sunrise.pak",
+  "art/levels/warzone/textures/roof/war-roof002-color.tga": "san-col-square.pak",
+  "art/levels/yemen/textures/plants/yem-grass-color.tga": "yem-intro-hotel.pak",
+  "art/levels/yemen/textures/plants/yem-grass-trans.tga": "yem-intro-hotel.pak"
+ }
+}

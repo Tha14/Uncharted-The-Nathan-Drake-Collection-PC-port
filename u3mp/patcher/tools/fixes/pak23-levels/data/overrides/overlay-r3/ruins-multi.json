@@ -1,0 +1,774 @@
+{
+ "params": {
+  "levels/multiplayer/ruins/brick/ruins-blend-brick-plaster2upper-crust/ruins-blend-brick-plaster2upper-crust": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/brick/ruins-blend-moldingr2plaster/ruins-blend-moldingr2plaster": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/crates/ruins-multi-crates/crate-cube": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/crates/ruins-multi-crates/crate-locker": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/customs-house/ruins-customs-tile-half-round2crumble/customs-tile-half-round2crumble": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/customs-house/ruins-customs-tile-round2crumble/customs-tile-round2crumble": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/floors/ruins-m-customs-tile-border/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/foliage/ruins-tree-gnarly/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/fort/ruins-doors/regular": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_detailStrength1": [
+    0.15000000596046448
+   ],
+   "g_uvScale2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/fountain/ruins-m-fountain-base-redux/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/glass/ruins-customs-glass-tall-incan/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/ground/ruins-m-garden-trim-moss/garden-trim-moss": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/ground/ruins-m-wet-tile2dirt-copy-1/ruins-wet-tile2puddle": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/internal/ruins-black-plaster2eroded-brick/ruins-black-plaster2eroded-brick": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/marble/ruins-customs-marble-yellow-2damage/customs-marble-yellow-2damage": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/marble/ruins-customs-marble-yellow-piller2crumble/customs-marble-yellow-piller2damage": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/marble/ruins-customs-marble-yellow-smooth-emblem/customs-marble-yellow-smooth-2crumble": {
+   "g_uvScale2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/metal/ruins-monastery-gate-bar/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_detailStrength1": [
+    0.15000000596046448
+   ]
+  },
+  "levels/multiplayer/ruins/metal/ruins-monastery-gate-ornate/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/metal/ruins-mum-fence-grating/fence": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/ornate/ruins-m-detail-loose/default": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/ornate/ruins-m-fence-grating/fence": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/ornate/ruins-multi-wall-carvings-fakewindow-01/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/ornate/ruins-multi-wall-carvings-marble-01/default": {
+   "g_facingTintIn1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/recordsroom/ruins-customs-library-wood-trim/default": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/recordsroom/ruins-destruct-rail/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/roofs/ruins-roof-structure/ruins-roof-structure": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/ruins-multi/ruins-multi-woodset2-burn-dying/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/stone/ruins-molding-no-mossy-rubble/ruins-molding-no-mossy-rubble": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/trimmings/ruins-monastery-trimming-sheet-c-dmg/default": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/walls/ruins-m-brick-plaster2erosion/ruins-brick-plaster2erosion": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/walls/ruins-m-simple-metal/ruins-simple-metal": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/ruins/wide/ruins-wood-pannel-wide/ruins-wood-pannel": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "general/collision/collision": [
+   "grave-01-firstyard-hulk-1.pak",
+   "levels/ship-graveyard/fabrics/grave-cable-tint:cable,82fa8e0f-972f-465e-b1b0-cb77583e3976,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/brick/ruins-blend-brick-plaster2upper-crust/ruins-blend-brick-plaster2upper-crust": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/brick/ruins-blend-moldingr2plaster/ruins-blend-moldingr2plaster": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/brick/ruins-streeky-plaster2eroded-brick/ruins-streeky-plaster2eroded-brick": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/crates/ruins-multi-crates/crate-cube": [
+   "grave-01-passage.pak",
+   "levels/ship-graveyard/wood/grave-crate-wood-02:default,e5e3c118-b114-4419-909f-e4b49f2c3fd9,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/crates/ruins-multi-crates/crate-locker": [
+   "grave-01-passage.pak",
+   "levels/ship-graveyard/wood/grave-crate-wood-02:default,e5e3c118-b114-4419-909f-e4b49f2c3fd9,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-brick-cracked2plaster/customs-brick-cracked2plaster": [
+   "syria-walls-back-low.pak",
+   "levels/syria/windows/syria-window-arch-backwall:default,a9db7f51-c18c-441f-b8dd-25ccb81e2248,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-crumble-1-layer/customs-crumble": [
+   "cruise-ship-upright-deck-cargo.pak",
+   "levels/cruise-ship/object/ship-object-ac-unit:default,d80186c1-2bd9-4879-84fc-e2a87e7b0bf6,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-molding-plaster/customs-molding-plaster-offset": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/ground/col-stone-steps:default,a4c0beb1-52db-2c51-e368-24cf34cef4fa,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-molding-plaster2crumble-dry/customs-molding-plaster2crumble": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-molding-plaster2crumble/customs-molding-plaster2crumble": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/ground/col-stone-steps:default,a4c0beb1-52db-2c51-e368-24cf34cef4fa,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-molding-plaster2stone/customs-molding-plaster2stone": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-plaster-1-layer/customs-plaster": [
+   "grave-01-passage.pak",
+   "levels/ship-graveyard/wood/grave-crate-wood-02:default,e5e3c118-b114-4419-909f-e4b49f2c3fd9,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-plaster-dark-01/customs-plaster2crumble": [
+   "cruise-ship-upright-deck-cargo.pak",
+   "levels/cruise-ship/object/ship-object-ac-unit:default,d80186c1-2bd9-4879-84fc-e2a87e7b0bf6,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-plaster-slabs2crumble-dry/customs-plaster-slabs2crumble": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-plaster-slabs2crumble-wet/customs-plaster-slabs2crumble": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-plaster-slabs2crumble-wetnorain/customs-plaster-slabs2crumble": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-plaster-slabs2crumble/customs-plaster-slabs2crumble": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-plaster2crumble-dry/customs-plaster2crumble": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-plaster2crumble-wetnorain/customs-plaster2crumble": [
+   "cruise-ship-upright-deck-cargo.pak",
+   "levels/cruise-ship/object/ship-object-ac-unit:default,d80186c1-2bd9-4879-84fc-e2a87e7b0bf6,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-plaster2stone-inside/customs-plaster2stone": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-plaster2stone-reddish-dry/customs-plaster2stone": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-plaster2stone-reddish/customs-plaster2stone": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-plaster2stone/customs-plaster2stone": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/customs-house/ruins-customs-ruins-wood-pannel/customs-ruins-wood-pannel": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/walls/stucco/yem-tanplaster-dirt:default,75ab6f05-6536-4547-85a8-5b773bf2a27c,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/floor/ruins-customs-tile-circle/default": [
+   "cruise-ship-upright-walkway.pak",
+   "levels/cruise-ship/metal/ship-walkway-metal-walls-rings:default,b301ea3e-b879-48ac-bbb5-8618e9be35ce,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/floors/ruins-m-customs-tile-circle/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/floors/ruins-m-customs-tile-cubes-dome-inside/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/floors/ruins-m-customs-tile-flower-dome-inside/default": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/ship-graveyard/mechanical/grave-crane-barge:crane-arm-sm-01,e0e65ee0-6c83-4407-8509-bc7364d5e58a,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/floors/ruins-m-customs-tile-flower/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/floors/ruins-m-customs-tile-square-platform-transition/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/floors/ruins-m-wood-boards-contrast/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/foliage/ruins-tree-gnarly/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/fort/ruins-doors/regular": [
+   "grave-01-freighter-section-2.pak",
+   "levels/ship-graveyard/cargohold/grave-cornerplate:default,3dac8400-f5ca-48a0-ab34-9401c7d89eee,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/fort/ruins-gates/gates": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/walls/stucco/yem-stuccowhite-plaster-01:default,890c92e4-747f-469b-9980-b089463217e2,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/fountain/ruins-m-angel-statue/default": [
+   "grave-01-passage.pak",
+   "levels/ship-graveyard/wood/grave-crate-wood-02:default,e5e3c118-b114-4419-909f-e4b49f2c3fd9,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/fountain/ruins-m-fountain-structure/default": [
+   "grave-01-passage.pak",
+   "levels/ship-graveyard/wood/grave-crate-wood-02:default,e5e3c118-b114-4419-909f-e4b49f2c3fd9,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/glass/ruins-customs-glass-tall-incan/default": [
+   "grave-01-passage.pak",
+   "levels/ship-graveyard/wood/grave-crate-wood-02:default,e5e3c118-b114-4419-909f-e4b49f2c3fd9,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ground/ruins-m-garden-moss/default-copy": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ground/ruins-m-garden-trim-moss/garden-trim-moss": [
+   "grave-02-hollowhulk-hold-1.pak",
+   "levels/ship-graveyard/fabrics/grave-rope-blend-blue-climbable:cable,97d6101b-4aa3-417a-b74c-4388e7c1e677,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ground/ruins-m-tile-scallop-bridge/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ground/ruins-m-tile-scallop-courtyard/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ground/ruins-m-wet-tile-broken/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ground/ruins-m-wet-tile2dirt-copy-1/ruins-wet-tile2puddle": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/walls/stucco/yem-tanplaster-01-edge:default,17de31ee-4d72-4ea4-ae1a-89e5b6c9919a,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ground/ruins-m-wet-tile2dirt-wet/ruins-wet-tile2dirt": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ground/ruins-stair-stones2crumble/ruins-stair-stones2crumble": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ground/ruins-stair-stones2moss/ruins-stair-stones2moss": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/helicopter-crashed/ruins-carg-helicopter-crash-b-norain-multicopy/b": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/walls/stucco/yem--nwyelstucco-oldyeldestroyed-01:default,1f18cb2e-9d3d-4059-9058-0fbf138d86c1,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/internal/ruins-black-plaster2eroded-brick/ruins-black-plaster2eroded-brick": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/marble/ruins-customs-marble-ledge-grab-inside/customs-marble-red-molding2damage": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/marble/ruins-customs-marble-ledge-grab/customs-marble-red-molding2damage": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/marble/ruins-customs-marble-red-molding2damage/customs-marble-red-molding2damage": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/ship-graveyard/mechanical/grave-crane-barge:crane-arm-sm-01,e0e65ee0-6c83-4407-8509-bc7364d5e58a,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/marble/ruins-customs-marble-yellow-2crumble/customs-marble-yellow-2crumble": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/ship-graveyard/mechanical/grave-crane-barge:crane-arm-sm-01,e0e65ee0-6c83-4407-8509-bc7364d5e58a,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/marble/ruins-customs-marble-yellow-2damage/customs-marble-yellow-2damage": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/marble/ruins-customs-marble-yellow-2dark/customs-marble-yellow-2damage": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/walls/stucco/yem-tanplaster-01:default,94c62c0b-916c-4ffa-967f-1d321572e461,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/marble/ruins-customs-marble-yellow-molding2damage/default": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/ship-graveyard/mechanical/grave-crane-barge:crane-arm-sm-01,e0e65ee0-6c83-4407-8509-bc7364d5e58a,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/marble/ruins-customs-marble-yellow-piller2damage/customs-marble-yellow-piller2damage": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/ship-graveyard/mechanical/grave-crane-barge:crane-arm-sm-01,e0e65ee0-6c83-4407-8509-bc7364d5e58a,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/marble/ruins-customs-marble-yellow-smooth-2crumble/customs-marble-yellow-smooth-2crumble": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/ship-graveyard/mechanical/grave-crane-barge:crane-arm-sm-01,e0e65ee0-6c83-4407-8509-bc7364d5e58a,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/marble/ruins-customs-marble-yellow-smooth-emblem/customs-marble-yellow-smooth-2crumble": [
+   "grave-01-passage.pak",
+   "levels/ship-graveyard/wood/grave-crate-wood-03:default,09aad984-0d93-4c90-9381-f3401d33ca58,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/metal/ruins-customs-monastery-gate-bar/customs-monastery-gate-bar": [
+   "cruise-ship-upright-ballroom.pak",
+   "levels/cruise-ship/ground/ship-ballroom-carpet-brown:carpet,de39304b-cc3b-472a-bba8-0c0caa0938a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/metal/ruins-monastery-gate-bar/default": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cornerplate:default,3dac8400-f5ca-48a0-ab34-9401c7d89eee,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/metal/ruins-mum-detail-loose/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/monestary/ruins-puzzle-statues/eagle": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/ground/col-stone-steps:default,a4c0beb1-52db-2c51-e368-24cf34cef4fa,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/monestary/ruins-puzzle-statues/lion": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/ground/col-stone-steps:default,a4c0beb1-52db-2c51-e368-24cf34cef4fa,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/monestary/ruins-puzzle-statues/ox": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/ground/col-stone-steps:default,a4c0beb1-52db-2c51-e368-24cf34cef4fa,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/monestary/ruins-puzzle-statues/wings-etc": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/ground/col-stone-steps:default,a4c0beb1-52db-2c51-e368-24cf34cef4fa,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ornate/ruins-m-detail-loose/default": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ornate/ruins-m-fence-grating/fence": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ornate/ruins-m-trimming-sheet-c-dmg/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ornate/ruins-multi-angel-statue/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/ground/col-stone-steps:default,a4c0beb1-52db-2c51-e368-24cf34cef4fa,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ornate/ruins-multi-wall-carvings-01/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/ground/col-stone-steps:default,a4c0beb1-52db-2c51-e368-24cf34cef4fa,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ornate/ruins-multi-wall-carvings-02/default": [
+   "grave-01-passage.pak",
+   "levels/ship-graveyard/wood/grave-crate-wood-02:default,e5e3c118-b114-4419-909f-e4b49f2c3fd9,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ornate/ruins-multi-wall-carvings-fakewindow-01/default": [
+   "airport-1.pak",
+   "levels/airport/windows/air-windows-skylight-glass-trans:default,0a6dd9ef-e2b7-4f2d-9f75-06e1347cdc99,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ornate/ruins-multi-wall-carvings-fakewindow-02/default": [
+   "airport-1.pak",
+   "levels/airport/windows/air-windows-skylight-glass-trans:default,0a6dd9ef-e2b7-4f2d-9f75-06e1347cdc99,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ornate/ruins-multi-wall-carvings-marble-01/default": [
+   "cruise-ship-upright-walkway.pak",
+   "levels/cruise-ship/metal/ship-walkway-metal-gold:default,548aac04-5b1c-4bc0-83dc-3eba4832598a,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ornate/ruins-multi-wall-carvings-marble-vasepillar/default": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/ship-graveyard/mechanical/grave-crane-barge:crane-arm-sm-01,e0e65ee0-6c83-4407-8509-bc7364d5e58a,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/plants/ruins-m-elephantapple/default": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/objects/yem-wires:default,7805cf9a-865f-4629-91fa-832d57314692,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/plants/ruins-m-hanging-moss/default": [
+   "yem-chase-alleys.pak",
+   "levels/yemen/objects/yem-wires:default,7805cf9a-865f-4629-91fa-832d57314692,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/recordsroom/ruins-customs-books-individual/default": [
+   "grave-01-firstyard-hulk-1.pak",
+   "levels/ship-graveyard/fabrics/grave-cable-tint:cable,82fa8e0f-972f-465e-b1b0-cb77583e3976,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/recordsroom/ruins-customs-library-wood-deep/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/ground/col-stone-steps:default,a4c0beb1-52db-2c51-e368-24cf34cef4fa,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/recordsroom/ruins-customs-library-wood-trim/default": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/walls/stucco/yem-tanplaster-01-edge:default,17de31ee-4d72-4ea4-ae1a-89e5b6c9919a,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/recordsroom/ruins-destruct-rail/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/roofs/ruins-roof-structure/ruins-roof-structure": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/roofs/ruins-roof-tiles-no-offset/ruins-roof-tiles-no-offset": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ruins-multi/ruins-multi-rubble-01-small/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ruins-multi/ruins-multi-rubble-01-small/default-copy": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ruins-multi/ruins-multi-rubble-hole-right/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/ruins-multi/ruins-multi-woodset2-burn-dying/default": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/wood/yem-wood-05-edge:default,f78735d5-fa34-4c0e-8332-647173500296,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/stone/ruins-blend-stone-plaster2upper-crust/ruins-blend-stone-plaster2upper-crust": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/trimmings/ruins-monastery-trimming-sheet-c-dmg/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-blend-stone-plaster2upper-crust/ruins-blend-stone-plaster2upper-crust": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-blend-brick-plaster2upper-crust-moss-norain/ruins-blend-brick-plaster2upper-crust": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-blend-brick-plaster2upper-crust-moss/ruins-blend-brick-plaster2upper-crust": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-blend-brick-plaster2upper-crust/ruins-blend-brick-plaster2upper-crust": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-brick-m-plaster2crumble-moss/ruins-brick-plaster2crumble-moss": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-brick-pattern2eroded-crumble-rain/ruins-brick-pattern2eroded-crumble": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-brick-pattern2eroded-crumble/ruins-brick-pattern2eroded-crumble": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-brick-plaster2-to-moss/ruins-brick-plaster2erosion": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-brick-plaster2crumble-noblend/ruins-brick-plaster2crumble": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/ground/col-stone-steps:default,a4c0beb1-52db-2c51-e368-24cf34cef4fa,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-brick-plaster2crumble/ruins-brick-plaster2crumble": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-brick-plaster2erosion-moss-noblend/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-brick-plaster2erosion/ruins-brick-plaster2erosion": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-brick2crumble-moss/ruins-brick2crumble-moss": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-brick2crumble-noblend/ruins-brick2crumble": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-brick2crumble/ruins-brick2crumble": [
+   "syria-walls-back-low.pak",
+   "levels/syria/windows/syria-window-arch-backwall:default,a9db7f51-c18c-441f-b8dd-25ccb81e2248,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-brickstone/customs-plaster2stone": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-piller-slabs-nostream/ruins-piller-slabs": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-piller-slabs/ruins-piller-slabs": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-plaster-slabs2crumble-windowtop/customs-plaster-slabs2crumble": [
+   "grave-01-passage.pak",
+   "levels/ship-graveyard/wood/grave-crate-wood-02:default,e5e3c118-b114-4419-909f-e4b49f2c3fd9,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-plaster2-crumble-nostream/ruins-plaster2-crumble": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-plaster2-crumble/ruins-plaster2-crumble": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-redgatebar/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-simple-metal/ruins-simple-metal": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-waterline-molding-dry/ruins-waterline-molding": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-waterline-molding-noblend/ruins-waterline-molding": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-m-waterline-molding/ruins-waterline-molding": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/walls/ruins-waterline-molding/ruins-waterline-molding": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/wide/ruins-black-plaster2eroded-brick-wide/ruins-black-plaster2eroded-brick": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/wide/ruins-brick-plaster2erosion-wide/ruins-brick-plaster2erosion": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/wide/ruins-m-lava-rocks-002-blend-copy/surface_rivermtl": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/wide/ruins-m-lava-rocks-002-blend/surface_rivermtl": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/wide/ruins-roof-tiles-wide/ruins-roof-tiles-no-offset": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/wide/ruins-wall-trim-tall-stucco-001-wide/ruins-wall-trim-tall-stucco-001": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/color-tinted-walls/col-generic-wall-01b:cub-generic-wall-01,7eef12a0-6b04-4fc5-b522-cf920ce69194,prime-shader.fx"
+  ],
+  "levels/multiplayer/ruins/wide/ruins-wood-pannel-wide/ruins-wood-pannel": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/wood/yem-wood-05-edge:default,f78735d5-fa34-4c0e-8332-647173500296,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/general/textures/layout-textures/gen-flat-satur-05-b-color.tga": "airport-1.pak",
+  "art/levels/airport/textures/airport-multi-env-reflection.dds": "airport-1.pak",
+  "art/levels/cruise-ship/textures/misc/ship-deck-env-reflection-256.dds": "cruise-ship-upright-ballroom.pak"
+ }
+}

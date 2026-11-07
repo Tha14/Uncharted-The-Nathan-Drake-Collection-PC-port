@@ -1,0 +1,101 @@
+{
+ "params": {
+  "levels/desert-village/brick-walls/des-mud-stackers2rubble/default": {
+   "g_ambientDiffuseBiasU": [
+    0.5
+   ]
+  },
+  "levels/desert-village/brick-walls/des-mud2diagonal-bricks-emblem/default": {
+   "g_blendSoftness_blendOffset_linearBlendOffset": [
+    0.029999999329447746,
+    1.0,
+    0.0
+   ],
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_uvScale1": [
+    1.0
+   ]
+  },
+  "levels/desert-village/brick-walls/des-plaster2mudbricks-dome-emblem/default": {
+   "g_blendSoftness_blendOffset_linearBlendOffset": [
+    0.029999999329447746,
+    1.0,
+    0.0
+   ],
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/desert-village/brick-walls/des-plaster2mudbricks-emblem/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/desert-village/brick-walls/des-plaster2mudbricks/default": {
+   "g_ambientDiffuseBiasU": [
+    0.5
+   ]
+  },
+  "levels/desert-village/ground/des-reeds-messy2alpha-001/default": {
+   "g_ambientDiffuseBiasU": [
+    0.10000000149011612
+   ],
+   "g_ambientDiffuseBiasV": [
+    0.4000000059604645
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/desert-village/outsource/des-vil-pottery/default": {
+   "g_specularExponentMax": [
+    128.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/desert-village/brick-walls/des-mud2diagonal-bricks-2-cheap/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/desert-village/brick-walls/des-mud2diagonal-bricks-emblem/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-concrete-cracked-2-grime:default,5a745f69-2b19-4e83-8ffc-4231525370d8,prime-shader.fx"
+  ],
+  "levels/desert-village/ground/des-reeds-messy2alpha-001/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/desert-village/ground/des-vil-mud-clumps2gravel-emblem/default": [
+   "grave-01-passage.pak",
+   "levels/ship-graveyard/wood/grave-crate-wood-02:default,e5e3c118-b114-4419-909f-e4b49f2c3fd9,prime-shader.fx"
+  ],
+  "levels/desert-village/ground/des-vill-wood-ledge-grab/default": [
+   "ldn-library-inner.pak",
+   "levels/london-underground/library/ug-lib-trims-no-overlay:default,7f9b8028-290c-4c62-a0ba-2af77dd0e2b5,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/levels/ship-graveyard/textures/hull/grave-wet-128dxt1-env-reflection.dds": "grave-01-passage.pak"
+ }
+}

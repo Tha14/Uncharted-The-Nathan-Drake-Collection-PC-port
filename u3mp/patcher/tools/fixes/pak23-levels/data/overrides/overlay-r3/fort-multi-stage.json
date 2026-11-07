@@ -1,0 +1,403 @@
+{
+ "params": {
+  "levels/multiplayer/fort-multi/foliage/sham-ivy/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/fort/fort-mlti-symbols/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_uvScale2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/fort/fort-mlti-wall-plaster-cream-emblem/default": {
+   "g_timeScrollV2": [
+    0.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/fort/fort-plant-leaf-no-normal/type-bush": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/ground/rock2grass-copy-no-rain/rock2grass": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/ground/rock2grass-copy/rock2grass": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/ground/stone-steps/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/ground/stone2moss-copy-low/default": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/ground/stone2moss-copy/paralax-stone2moss": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/ground/stone2mud/paralax-stone2moss": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/objects/fort-mlti-metal-crates2/crate-cube": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/objects/fort-mlti-metal-crates2/crate-locker": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/plants/dig-grass-tall/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/rock/dig-rock-base/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/walls/crumbled-plaster-copy/crumbled-plaster": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/walls/crumbled-plaster-light-low/default": {
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/walls/crumbled-plaster-new-low-2-no-detail/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/walls/darker-crumbled-brick-copy/crumbled-brick": {
+   "g_uvScale1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/walls/darker-eroded-brick2crackedplaster-warm-detail/eroded-brick2crackedplaster": {
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_uvScale1": [
+    1.0
+   ],
+   "g_uvScale2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/walls/darker-eroded-brick2crackedplaster-warm-no-detail/eroded-brick2crackedplaster": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/walls/darker-eroded-brick2crackedplaster-warm/eroded-brick2crackedplaster": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorBrightness3": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint3": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/walls/decals-large-copy/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/walls/eroded-brick-2-moss/mos2eroded-brick": {
+   "g_uvScale1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/fort-multi/wood/dig-ship-barrel/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_uvScale2": [
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/multiplayer/fort-multi/foliage/sham-ivy/default": [
+   "syria-hub-top.pak",
+   "levels/syria/plants/syria-bush-2:default,2708706d-363e-41f5-b910-24df0a021b6b,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/foliage/sham-willow/default": [
+   "cha-courtyard-low.pak",
+   "levels/dig/plants/dig-plant-cards:bush-cards-01,dac2874e-39aa-443d-a2d9-31872b3659ea,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/fort-multi/fort-grass-tall/default": [
+   "san-cistern-upper-elevator.pak",
+   "levels/yemen/plants/yem-shrub-01:default,18ab9a5a-0f58-435d-aec3-8be4401f440f,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/fort/fort-mlti-bricks-small-dk/default": [
+   "cruise-ship-upright-deck-cargo.pak",
+   "levels/cruise-ship/object/ship-object-ac-unit:default,d80186c1-2bd9-4879-84fc-e2a87e7b0bf6,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/fort/fort-mlti-symbols/default": [
+   "grave-01-passage.pak",
+   "levels/ship-graveyard/wood/grave-crate-wood-02:default,e5e3c118-b114-4419-909f-e4b49f2c3fd9,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/fort/fort-mlti-trim-basic/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/fort/fort-mlti-wall-plaster-cream-emblem/default": [
+   "grave-pirate-ship-a.pak",
+   "levels/ship-graveyard/pirate-ship/waterscroll/grave-storage-box-scroll:panels000-grey,314d8631-94e2-4ae8-b703-7498a4251f3d,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/fort/fort-mlti-wall-plaster-cream/default": [
+   "airport-wide.pak",
+   "levels/airport/wide/air-yem-ground-sand-2-asphalt-wide:default,882c29d8-8aa9-466e-a179-2ae2974e9b1d,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/fort/fort-plant-leaf-no-normal/type-bush": [
+   "syria-hub-top.pak",
+   "levels/syria/plants/syria-bush-2:default,2708706d-363e-41f5-b910-24df0a021b6b,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/gompa/gompa-rope/default": [
+   "menu-default.pak",
+   "general/layout-textures/gen-gray-03:default,c0dc61df-6543-0033-356a-08fdc611,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/ground/paralax-stone-2-moss/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/ground/rock2grass-copy-no-rain/rock2grass": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/ground/rock2grass-copy/rock2grass": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/ground/stone-steps/default": [
+   "grave-02-hollowhulk-hold-1.pak",
+   "levels/ship-graveyard/multiplayer/wreck/grave-panels-wet-multi2:metal-hull-wet-faded-white,300efdb1-63ed-4f58-a6b3-3b58f570fb68,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/ground/stone2moss-copy-low/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/ground/stone2moss-copy/paralax-stone2moss": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/ground/stone2mud/paralax-stone2moss": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/metal/dig-iron-plain-rusted/rusty": [
+   "menu-default.pak",
+   "general/layout-textures/gen-gray-03:default,c0dc61df-6543-0033-356a-08fdc611,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/metal/dig-ship-metal/default": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/metal/fort-mlti-metal-iron/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/metal/fort-mlti-red-rust/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/objects/fort-mlti-sandbags-high/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/ground/col-stone-steps:default,a4c0beb1-52db-2c51-e368-24cf34cef4fa,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/plants/dig-grass-tall/default": [
+   "syria-hub-top.pak",
+   "levels/syria/plants/syria-bush-2:default,2708706d-363e-41f5-b910-24df0a021b6b,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/crumbled-plaster-copy/crumbled-plaster": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/crumbled-plaster-new-low-2-no-detail/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/crumbled-plaster-new-low/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/crumbled-plaster-warm-low/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/darker-crumbled-brick-copy/crumbled-brick": [
+   "syria-under-puzzle.pak",
+   "levels/syria/crypt/syria-crypt-ceiling-01-rubbled:default,399608b5-d66f-4410-8d63-6642fc95529f,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/darker-eroded-brick2crackedplaster-warm-detail/eroded-brick2crackedplaster": [
+   "syria-under-exit.pak",
+   "levels/syria/crypt/syria-crypt-ceiling-2-stucco:default,3c83caa0-2cb3-43ca-b68c-926de7826b21,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/darker-eroded-brick2crackedplaster-warm-low/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/darker-eroded-brick2crackedplaster-warm-no-detail/eroded-brick2crackedplaster": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/darker-eroded-brick2crackedplaster-warm/eroded-brick2crackedplaster": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/walls/concrete/ug-service-concrete-blend:default,f5a61a30-f560-4156-aa07-ebe31f9803d0,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/decals-large-copy/default": [
+   "ldn-pub-office.pak",
+   "levels/london/pub/ldn-pub-ceiling-bar:default,d7113565-0cc7-4883-961b-6362ec5aecaf,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/eroded-brick-2-moss/mos2eroded-brick": [
+   "syria-under-puzzle.pak",
+   "levels/syria/crypt/syria-crypt-ceiling-01-rubbled:default,399608b5-d66f-4410-8d63-6642fc95529f,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/eroded-brick2crackedplaster-copy/eroded-brick2crackedplaster": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/flat-stone2plaster-copy/flat-stone2plaster": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/plaster-molding-01-light/plaster-molding-01": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/plaster-molding-01/plaster-molding-01": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/plaster-molding-crumble/plaster-molding-crumble": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/ground/ug-track-plank:default,6d50890f-6479-4c0e-9e0e-5de0479004d2,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/plaster-stone-small/paraput-stone2moss": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/walls/red-brick-plain/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/multiplayer/fort-multi/wood/dig-ship-barrel/default": [
+   "grave-01-passage.pak",
+   "levels/ship-graveyard/wood/grave-crate-wood-02:default,e5e3c118-b114-4419-909f-e4b49f2c3fd9,prime-shader.fx"
+  ],
+  "objects/character-props/canteen/canteen/lod0": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "objects/weapons/pkm/pkm/lod0": [
+   "menu-default.pak",
+   "general/layout-textures/gen-rock-01:default,6ab572d5-297d-8e1c-731d-b7037070,prime-shader.fx"
+  ],
+  "objects/weapons/spas12-shotgun/spas12-shotgun/lod0": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/general/textures/default/default-flat-normal.tga": "ldn-train-stage.pak",
+  "art/general/textures/default/default-lightmap0.tga": "airport-wide.pak",
+  "art/general/textures/default/default-lightmap1.tga": "airport-wide.pak",
+  "art/general/textures/default/detail-normal.tga": "ldn-train-stage.pak",
+  "art/levels/cruise-ship/textures/misc/ship-ballroom-128.dds": "cruise-ship-upright-ballroom.pak",
+  "art/levels/ship-graveyard/textures/hull/grave-wet-128dxt1-env-reflection.dds": "grave-01-freighter-hold-1.pak",
+  "art/objects/weapons/galil/texture/galil-body-color.tga": "ldn-train-stage.pak",
+  "art/objects/weapons/galil/texture/galil-body-normal.tga": "ldn-train-stage.pak",
+  "art/objects/weapons/galil/texture/galil-body-spec-mask.tga": "ldn-train-stage.pak",
+  "art/objects/weapons/sniper-bolt/texture/sniper-bolt-color.tga": "ldn-train-stage.pak",
+  "art/objects/weapons/sniper-bolt/texture/sniper-bolt-normal.tga": "ldn-train-stage.pak"
+ }
+}

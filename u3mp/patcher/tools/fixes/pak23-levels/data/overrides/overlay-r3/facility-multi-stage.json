@@ -1,0 +1,171 @@
+{
+ "params": {
+  "levels/multiplayer/facility-multi/ice/fac-cracked-floor/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_specularBrightness": [
+    15.0
+   ],
+   "g_specularEnvironmentStrength": [
+    15.0
+   ]
+  },
+  "levels/multiplayer/facility-multi/metal/fac-mum-metal-sewer/mum-metal-sewer-red": {
+   "g_specularBrightness": [
+    2.0999999046325684
+   ],
+   "g_specularEnvironmentStrength": [
+    0.15000000596046448
+   ]
+  },
+  "levels/multiplayer/facility-multi/metal/fac-uboat-greymetal-02-dl/default": {
+   "g_specularBrightness": [
+    0.30000001192092896
+   ]
+  }
+ },
+ "templates": {
+  "levels/multiplayer/facility-multi/dig/fac-dig-military-crate/default": [
+   "col-museum-low.pak",
+   "levels/columbia/walls/col-rough-column:default,2fd3b98c-925f-451f-9bcd-0cc7ccae0be0,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/facility-multi/fac-board-molded-concrete-broken-caustics/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/facility-multi/fac-cable-anim/mum-metal-sewer-bluegrey": [
+   "ldn-pub-office.pak",
+   "levels/london/office/ldn-off-curtain:default,04635caa-22f0-4d81-a995-058931b3ce67,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/facility-multi/fac-chipped-painted-all-wall-copy/default": [
+   "cha-forest-start-low.pak",
+   "levels/dig/rock/dig-rock-high-cliff:default,76d2dc54-7c05-4e53-913e-8438de413591,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/facility-multi/fac-corroded-iron-copy/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/facility-multi/fac-floor-concrete-blend-broken-caustics/default": [
+   "cha-forest-start-low.pak",
+   "levels/dig/rock/dig-rock-high-cliff:default,76d2dc54-7c05-4e53-913e-8438de413591,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/facility-multi/fac-floor-concrete-blend-broken/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/facility-multi/fac-floor-concrete-blend-caustics/default": [
+   "cha-forest-start-low.pak",
+   "levels/dig/rock/dig-rock-high-cliff:default,76d2dc54-7c05-4e53-913e-8438de413591,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/facility-multi/fac-floor-concrete-blend-copy/default": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/facility-multi/fac-floor-concrete-blend-emblem/default": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/facility-multi/fac-pipe-metal-outsourced-1/default": [
+   "cha-forest-start-low.pak",
+   "levels/dig/rock/dig-rock-high-cliff:default,76d2dc54-7c05-4e53-913e-8438de413591,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/facility-multi/fac-pipes-painted/mum-metal-sewer-bluegrey": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/facility-multi/fac-steel-panel-copy/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/facility-multi/fac-wood-planks-wet-copy/default": [
+   "yem-chase-alley-roofs.pak",
+   "levels/yemen/walls/stucco/yem--nwyelstucco-oldyeldestroyed-01:default,1f18cb2e-9d3d-4059-9058-0fbf138d86c1,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/facility-multi/fac-wood-planks-wet-no-ice/default-copy": [
+   "yem-chase-alley-roofs.pak",
+   "levels/yemen/walls/stucco/yem--nwyelstucco-oldyeldestroyed-01:default,1f18cb2e-9d3d-4059-9058-0fbf138d86c1,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/galleon/fac-galleon-double-sided/default": [
+   "cha-forest-start-low.pak",
+   "levels/chateau/tree/cha-trees-flats:default,84e221a5-b3c6-4813-8e8d-882ffa70f800,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/ground/fac-facility-mtl-grate/default": [
+   "yem-chase-alleys.pak",
+   "levels/yemen/objects/yem-stungflags-01:default,09115dd4-ae2c-44f8-b1b4-a4165fabf169,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/ground/fac-ground-mud-blend-caustics/default": [
+   "col-museum-low.pak",
+   "levels/columbia/walls/col-rough-column:default,2fd3b98c-925f-451f-9bcd-0cc7ccae0be0,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/ice/fac-cracked-floor/default": [
+   "grave-01-firstyard-yard-1.pak",
+   "levels/ship-graveyard/edgegrab/grave-hull-blue-tugboa:panels000-grey,96c8831b-b095-4134-9f52-f4c0336b124d,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/ice/fac-multi-iceground-side-cracked/default": [
+   "syria-walls-back-low.pak",
+   "levels/syria/windows/syria-window-arch-backwall:default,a9db7f51-c18c-441f-b8dd-25ccb81e2248,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/ice/fac-multi-iceground-top-cracked/default": [
+   "ldn-library-inner.pak",
+   "levels/london-underground/library/ug-lib-trims-no-overlay:default,7f9b8028-290c-4c62-a0ba-2af77dd0e2b5,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/ice/fac-multi-icicle-jagged/default": [
+   "ldn-pub-streets.pak",
+   "levels/london/streets/ldn-streets-door-a:default,971cb433-d680-4bf9-8347-84639ab38dae,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/metal/fac-mum-metal-sewer/mum-metal-sewer-red": [
+   "grave-02-hollowhulk-rear-house-front.pak",
+   "levels/ship-graveyard/hollow-hulk/grave-wooddeck:debris,1c77a03d-b1e2-42bf-a34e-8581ca0beb23,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/metal/fac-pipe-metal-outsourced-1/default": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/metal/fac-pipe-rusty/default": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/metal/fac-uboat-greymetal-02-dl/default": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/objects/fac-fort-mlti-sandbags/default": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/uboat/fac-uboat-metal-gen/fac-uboat-metal-gen": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/uboat/fac-uboat-metal-gen/fac-uboat-metal-gen-copy": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/uboat/fac-uboat-metal-gen/fac-uboat-metal-grating-copy": [
+   "col-museum-staircase-day.pak",
+   "levels/columbia/color-tinted-walls/col-rough-stone:default,03aca39e-d3db-4851-aab8-3343bd9387a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/facility-multi/wide/fac-wide-mountain-snow/default": [
+   "yem-chase-alley-roofs.pak",
+   "levels/yemen/walls/stucco/yem-newyelstucco-oldconcrete-01:default,0f93b531-22a7-4dd7-9978-834d58aea4b0,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/wide/sham-wide-mountain-snow/default": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "objects/weapons/rpg/rpg_main/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ]
+ },
+ "texsrc": {
+  "art/general/textures/default/default-lightmap0.tga": "cha-forest-start-low.pak",
+  "art/general/textures/default/default-lightmap1.tga": "cha-forest-crawl.pak"
+ }
+}

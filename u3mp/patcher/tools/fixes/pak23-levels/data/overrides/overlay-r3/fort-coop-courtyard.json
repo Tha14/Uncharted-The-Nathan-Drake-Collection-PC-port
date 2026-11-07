@@ -1,0 +1,385 @@
+{
+ "params": {
+  "levels/coop/fort/bush/fort-graveyard-bush-filler-decal/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/coop/fort/canopy/fort-forttree-canopy-nobump/forttree-canopy-nobump": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/coop/fort/cistern/fort-rubblecrack-moss/crumbled-brick": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/fort/cistern/fort-stonegreenmoss/default": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/fort/fort-b-plus/fort-vase/flat-stone2plaster": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/fort/ground/fort-pstone2moss/paralax-stone2moss": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/fort/plants/fort-leafy-ground-plant/leafy-ground-plant": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/coop/fort/seawall/fort-seawall-beans/seawall-beans": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/fort/seawall/fort-seawall-crunble/seawall-crunble": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/fort/seawall/fort-seawall-plaster/seawall-plaster": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/fort/seawall/fort-seawallbricks-moss/seawallbricks-moss": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/fort/walls/fort-crumbled-plaster/crumbled-plaster": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/fort/walls/fort-darker-crumbled-brick/crumbled-brick": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/fort/walls/fort-darker-crumbled-plaster/crumbled-plaster": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/fort/walls/fort-moss-piles/moss-piles": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/fort/walls/fort-moss2cliff/moss2cliff": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/dig/dig-rope/default": {
+   "g_specularBrightness": [
+    0.20000000298023224
+   ],
+   "g_specularExponentMax": [
+    20.0
+   ]
+  },
+  "levels/multiplayer/cave/foliage/cave-grass-gen/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/coop/fort/bark/fort-copy_of_tree_banyan_trunk/copy_of_tree_banyan_trunk": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend:concrete-stone,bc2824a6-5e4d-d3bd-77f1-006a62d99e11,prime-shader.fx"
+  ],
+  "levels/coop/fort/bark/fort-root/fort-root": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/bush/fort-graveyard-bush-filler-decal/default": [
+   "syria-area2-breakable-buildings.pak",
+   "levels/syria/plants/syria-bush-2:default,2708706d-363e-41f5-b910-24df0a021b6b,prime-shader.fx"
+  ],
+  "levels/coop/fort/canopy/fort-forttree-canopy-nobump/forttree-canopy-nobump": [
+   "syria-area2-breakable-buildings.pak",
+   "levels/syria/plants/syria-bush-2:default,2708706d-363e-41f5-b910-24df0a021b6b,prime-shader.fx"
+  ],
+  "levels/coop/fort/cisold/fort-plasterwbrick/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/coop/fort/cistern/fort-_paralax-paint-wall/default": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/coop/fort/cistern/fort-_pillarhead2/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/coop/fort/cistern/fort-paralax-wall/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/cistern/fort-pillar-surface/default": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/coop/fort/cistern/fort-rubble-stone-moss/big-rubble2small-rubble-moss": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend:concrete-stone,bc2824a6-5e4d-d3bd-77f1-006a62d99e11,prime-shader.fx"
+  ],
+  "levels/coop/fort/cistern/fort-rubblecrack-moss/crumbled-brick": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/fort/cistern/fort-stonegreenmoss/default": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/fort/cistern/fort-wood-plank/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/crates/fort-crate-wood/2mflat": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/crates/fort-crate-wood/2x1x1": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/crates/fort-crate-wood/nostrap-1x1x1": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/fort-b-plus/fort-dark_linedot-deco/flat-linedots-plaster": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend:concrete-stone,bc2824a6-5e4d-d3bd-77f1-006a62d99e11,prime-shader.fx"
+  ],
+  "levels/coop/fort/fort-b-plus/fort-darkplaster-white2plaster/flat-stone2plaster": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend:concrete-stone,bc2824a6-5e4d-d3bd-77f1-006a62d99e11,prime-shader.fx"
+  ],
+  "levels/coop/fort/fort-b-plus/fort-double-pillar-plaster/paraput-stone2moss": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend:concrete-stone,bc2824a6-5e4d-d3bd-77f1-006a62d99e11,prime-shader.fx"
+  ],
+  "levels/coop/fort/fort-b-plus/fort-paralaxsandbag/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/fort-b-plus/fort-spannish-gable/flat-stone2plaster": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend:concrete-stone,bc2824a6-5e4d-d3bd-77f1-006a62d99e11,prime-shader.fx"
+  ],
+  "levels/coop/fort/fort-b-plus/fort-vase/flat-stone2plaster": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/fort/fort/fort-doors/regular": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/fort/fort-gates/gates": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/coop/fort/general/fort-general-rusty/doorroundback": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/ground/fort-dirt2grass/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend:concrete-stone,bc2824a6-5e4d-d3bd-77f1-006a62d99e11,prime-shader.fx"
+  ],
+  "levels/coop/fort/ground/fort-moss2small-rubbel/moss2small-rubbel": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend:concrete-stone,bc2824a6-5e4d-d3bd-77f1-006a62d99e11,prime-shader.fx"
+  ],
+  "levels/coop/fort/ground/fort-pstone2moss/paralax-stone2moss": [
+   "grave-03-docks-barges.pak",
+   "levels/ship-graveyard/metal/doors/grave-doors:door001-doors,411673fc-f582-4f2f-9c4c-d8b3c07d2aad,prime-shader.fx"
+  ],
+  "levels/coop/fort/ground/fort-stone2moss/paralax-stone2moss": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/coop/fort/junk/fort-a-wood-chair/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/junk/fort-metal-black/metal-black": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/junk/fort-vase-stone/vase-stone": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/leaves/fort-copy_of_dangling_vines_b_long_leaves_leaf_small_blade/copy_of_dangling_vines_b_long_leaves_leaf_small_blade": [
+   "col-rooftops-low-b-night.pak",
+   "levels/columbia/fabric/col-cutain:default,d7883cfc-17d1-fe47-5941-90deba11c306,prime-shader.fx"
+  ],
+  "levels/coop/fort/leaves/fort-long-leafy-plant-002/long-leafy-plant-002": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/coop/fort/leaves/fort-long-leafy-plant/long-leafy-plant": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/coop/fort/machine/fort-skeleton/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/plants/fort-leafy-ground-plant/leafy-ground-plant": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/coop/fort/rocks/fort-cliff-rock2moss/cliff-rock2moss": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/coop/fort/seawall/fort-seawall-beans/seawall-beans": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/fort/seawall/fort-seawall-crunble/seawall-crunble": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/fort/seawall/fort-seawall-plaster/seawall-plaster": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/fort/seawall/fort-seawallbricks-moss/seawallbricks-moss": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/fort/trees/fort-chase-trees-elephantapple-trunk/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/coop/fort/trees/fort-chase-trees-elephantapple/default": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/coop/fort/vines/fort-cinnamon-vine/fort-cinnamon-vine": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/coop/fort/vines/fort-copy_of_hanging-straight-bb/hanging-straight-bb": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-crumbled-brick/crumbled-brick": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend:concrete-stone,bc2824a6-5e4d-d3bd-77f1-006a62d99e11,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-crumbled-plaster/crumbled-plaster": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-crumbled/crumbled": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/walls/col-office-ceiling-low:ceiling,71eb0a44-0207-7275-025e-93304a7fe822,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-darker-crumbled-brick/crumbled-brick": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-darker-crumbled-plaster/crumbled-plaster": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-eroded-brick2crackedplaster/eroded-brick2crackedplaster": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend:concrete-stone,bc2824a6-5e4d-d3bd-77f1-006a62d99e11,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-flat-stone2plaster/flat-stone2plaster": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend:concrete-stone,bc2824a6-5e4d-d3bd-77f1-006a62d99e11,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-metal-simple/metal-simple": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-moss-piles/moss-piles": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-moss-stone2eroded-brick2/moss-stone2eroded-brick2": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend:concrete-stone,bc2824a6-5e4d-d3bd-77f1-006a62d99e11,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-moss2cliff/moss2cliff": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-plain-bricks-small/plain-bricks-small": [
+   "cruise-ship-90-cabins.pak",
+   "levels/cruise-ship/ground/ship-hall-carpet2:carpet,aad971e4-09dd-4857-9026-9b96b8812f6a,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-plain-plaster/plain-plaster": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-plaster2dark-plaster/plaster2dark-plaster": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend:concrete-stone,bc2824a6-5e4d-d3bd-77f1-006a62d99e11,prime-shader.fx"
+  ],
+  "levels/dig/dig-rope/default": [
+   "cha-grounds-central.pak",
+   "levels/chateau/objects/cha-grand-gate-inset:default,b4cabfa1-2ff4-406b-9d4e-cb81c8f4c8e3,prime-shader.fx"
+  ],
+  "levels/dig/plants/dig-grass-tall/default": [
+   "san-collapse-sand-climb.pak",
+   "levels/multiplayer/museum/plants/muse-buganvilia-multi:default,iwslal4s-ed8r-f2gu-kqzf-lnpuutka0rvu,prime-shader.fx"
+  ],
+  "levels/dig/wood/dig-wood-dock/default": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/gompa/objects/gompa-radio/default": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/cave/foliage/cave-grass-gen/default": [
+   "syria-area2-breakable-buildings.pak",
+   "levels/syria/plants/syria-bush-2:default,2708706d-363e-41f5-b910-24df0a021b6b,prime-shader.fx"
+  ]
+ }
+}

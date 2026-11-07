@@ -103,51 +103,51 @@ Cause classes of the remaining rows:
 | cha-multi-shade | equivalent | h017co-backup | searched, no output kept |
 | cha-multi-stage | base | backup-mapcolor2 | - |
 | coop-airport-2 | equivalent | backup-london | searched, no output kept |
-| coop-airport-3a | equivalent | h028-backup | searched, no output kept |
+| coop-airport-3a | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | coop-airport-3b-low | identical | final | - |
-| coop-airport-stage | equivalent | h028-backup | size+26128 / pages 11/12 (appended page) / ref-only tex 1 (flat-white.tga) / bindings differ: 1 (ceiling-b-multi:default) |
+| coop-airport-stage | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | coop-ldn-library-inner | base | backup-london | rebuilt exact 2026-11-07 (template search run 6, target = the recorded pre-lost-batch state); lost-batches-r3 replays it to the recorded end state |
-| coop-ldn-station-entrance-outside | equivalent | h028-backup | searched, no output kept |
+| coop-ldn-station-entrance-outside | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | coop-syria-area1 | equivalent | backup-london | searched, no output kept |
 | coop-syria-area2 | equivalent | backup-london | searched, no output kept |
 | coop-syria-area2-top | identical | final | - |
 | coop-syria-turret2 | base | b103 | - |
-| desert-multi | equivalent | b102 | searched, no output kept |
+| desert-multi | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | dig-coop-approach | equivalent | b102 | searched, no output kept |
 | dig-coop-approach-water | base | .bak-jitter | rebuilt exact 2026-11-06 (converter f525859w = f525859 + stage/water_templates.json; dig-coop-stage + override templates/bytes): the recorded pre-step state |
 | dig-coop-approach-water-ss | base | .bak-jitter | rebuilt exact 2026-11-06 (converter f525859w = f525859 + stage/water_templates.json; dig-coop-stage + override templates/bytes): the recorded pre-step state |
-| dig-coop-dropdown | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| dig-coop-dropdown | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | dig-coop-dropdown-water | base | .bak-jitter | rebuilt exact 2026-11-06 (converter f525859w = f525859 + stage/water_templates.json; dig-coop-stage + override templates/bytes): the recorded pre-step state |
 | dig-coop-dropdown-water-ss | base | .bak-jitter | rebuilt exact 2026-11-06 (converter f525859w = f525859 + stage/water_templates.json; dig-coop-stage + override templates/bytes): the recorded pre-step state |
-| dig-coop-ship | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| dig-coop-ship | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | dig-coop-ship-water | base | .bak-jitter | rebuilt exact 2026-11-06 (converter f525859w = f525859 + stage/water_templates.json; dig-coop-stage + override templates/bytes): the recorded pre-step state |
 | dig-coop-ship-water-ss | base | .bak-jitter | rebuilt exact 2026-11-06 (converter f525859w = f525859 + stage/water_templates.json; dig-coop-stage + override templates/bytes): the recorded pre-step state |
 | dig-coop-stage | base | b102 | rebuilt exact 2026-11-06 (converter f525859w = f525859 + stage/water_templates.json; dig-coop-stage + override templates/bytes): the recorded pre-step state |
-| facility-multi | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
-| facility-multi-stage | equivalent | h028-backup | searched, no output kept |
-| facility-multi-wide | equivalent | b103 | size-64 |
+| facility-multi | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| facility-multi-stage | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| facility-multi-wide | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | fort-coop-cistern | base | h017co-backup | template search exact 2026-11-06 (RUN 2): the recorded pre-batch state; cloud-batches-r3 and the session steps make the reference |
-| fort-coop-courtyard | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
-| fort-coop-stage | equivalent | h028-backup | searched, no output kept |
-| fort-coop-tower | equivalent | h017co-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| fort-coop-courtyard | base | h017co-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| fort-coop-stage | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| fort-coop-tower | base | h017co-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | fort-coop-tower-wide | equivalent | h028-backup | size+96 |
-| fort-multi | equivalent | b102 | searched, no output kept |
-| fort-multi-stage | equivalent | h028-backup | searched, no output kept |
+| fort-multi | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| fort-multi-stage | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | fort-multi-wide | equivalent | final | size-64 |
-| gompa-multi | equivalent | h028-backup | searched, no output kept |
-| gompa-multi-stage | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| gompa-multi | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| gompa-multi-stage | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | gompa-multi-wide | identical | - | - |
-| grave-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
-| grave-multi-moving | equivalent | h028-backup | searched, no output kept |
+| grave-multi | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| grave-multi-moving | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | grave-multi-stage | equivalent | final | items differing RAW_DATA:409,VRAM_DESC:59,EFFECT:13,EFFECT_TABLE:1 |
-| grave-multi-wide | equivalent | b103 | searched, no output kept |
+| grave-multi-wide | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | graveyard-drydock-anniversary | base | h017co-backup | - |
 | graveyard-drydock-wide | identical | final | - |
-| highrise-multi | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
-| highrise-multi-stage | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| highrise-multi | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| highrise-multi-stage | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | highrise-multi-wide | equivalent | final | items differing RAW_DATA:582,VRAM_DESC:44,EFFECT:13,EFFECT_TABLE:1 |
 | ldn-streets-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
-| ldn-streets-multi-stage | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| ldn-streets-multi-stage | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | ldn-streets-multi-wide | base | - | - |
 | ldn-train-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | ldn-train-multi-tunnel | base | backup-london | - |
@@ -157,15 +157,15 @@ Cause classes of the remaining rows:
 | mon-coop-courtyard | base | h017co-backup | rebuilt exact 2026-11-07 (Airstrip procedure: effect donors, effect phases, recorded constants and texture sources); lost-batches-r3 replays it to the recorded end state |
 | mon-coop-front | base | h028-backup | rebuilt exact 2026-11-07 (Airstrip procedure: effect donors, effect phases, recorded constants and texture sources); lost-batches-r3 replays it to the recorded end state |
 | mon-coop-stage | base | h028-backup | template search exact 2026-11-06 (RUN 2): the recorded pre-batch state; cloud-batches-r3 and the session steps make the reference |
-| museum-multi | equivalent | b103 | searched, no output kept |
-| museum-multi-stage | equivalent | h028-backup | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| museum-multi | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| museum-multi-stage | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | museum-multi-wide | equivalent | h028-backup | size-80 |
-| oasis-multi | equivalent | b103 | searched, no output kept |
+| oasis-multi | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | oasis-multi-stage | base | b103 | rebuilt exact 2026-11-07 (template search run 6, target = the recorded pre-lost-batch state); lost-batches-r3 replays it to the recorded end state |
-| oasis-multi-wide | equivalent | b102 | searched, no output kept |
-| old-quarter-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| oasis-multi-wide | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| old-quarter-multi | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | old-quarter-multi-stage | base | backup-london | - |
-| ruins-multi | equivalent | b102 | searched, no output kept |
+| ruins-multi | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | ruins-multi-stage | base | b102 | template search exact 2026-11-06 (RUN 2): the recorded pre-batch state; cloud-batches-r3 and the session steps make the reference |
 | ruins-multi-wide | base | - | - |
 | san-upper-multi-stage | equivalent | final | size+2379952 / ref-only tex 6 (ammobox-2-brownpaint-wood-spec-mask.tga, ammobox-3-blue-02-spec-mask.tga, detail-normal.tga, missingtexture, table-top-d-env-refeletion.dds, wt-spec-mask.tga) / template |
@@ -180,16 +180,16 @@ Cause classes of the remaining rows:
 | sky-ldn-streets-multi | identical | final | rebuilt byte-identical 2026-11-06: recovered batch57 sky converter (method sky, lib/build_skies.py, paktools-sky) |
 | sky-oasis-multi | identical | final | rebuilt byte-identical 2026-11-06: recovered batch57 sky converter (method sky, lib/build_skies.py, paktools-sky) |
 | sky-yemen-mp | identical | final | rebuilt byte-identical 2026-11-06: recovered batch57 sky converter (method sky, lib/build_skies.py, paktools-sky) |
-| syria-multi | equivalent | b103 | searched, no output kept |
-| temple-multi | equivalent | b103 | searched, no output kept |
+| syria-multi | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| temple-multi | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | temple-multi-stage | base | h028-backup | - |
-| train-wreck-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| train-wreck-multi | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | train-wreck-multi-stage | base | h028-backup | template search exact 2026-11-06 (RUN 2): the recorded pre-batch state; cloud-batches-r3 and the session steps make the reference |
-| village-multi | equivalent | b102 | searched, no output kept |
-| village-multi-stage | equivalent | b102 | searched, no output kept |
-| warzone-multi | equivalent | b102 | searched, no output kept |
-| warzone-multi-stage | equivalent | b102 | searched, no output kept |
-| yemen-multi | equivalent | b102 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
+| village-multi | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| village-multi-stage | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| warzone-multi | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| warzone-multi-stage | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
+| yemen-multi | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | yemen-multi-stage | base | b102 | - |
 | yemen-multi-wide | base | b102 | - |
 

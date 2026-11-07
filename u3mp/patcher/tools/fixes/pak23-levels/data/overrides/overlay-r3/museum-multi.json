@@ -1,0 +1,893 @@
+{
+ "params": {
+  "levels/multiplayer/museum/ground/mum-ctrtyrd-floor-multi/floor-zigzag": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/ground/mum-tiled-floor-multi/mmfloor": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/metal/mum-balcony-grating-multi/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/metal/mum-fence-grating-multi/chainlink": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/metal/mum-fence-grating-multi/fence": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/metal/mum-metal-bronz-multi/mum-irongate": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/metal/mum-metal-bronz-multi/mum-metal-bronz": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/metal/mum-metal-bronz-multi/mum-metal-bronz-grey": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/metal/mum-metal-bronz/mum-metal-bronz": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/metal/mum-ornate-grating-yellow-multi/round": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/metal/muse-vent-b-multi/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/museum-multi/museum-multi-fountainpool-ripples/barge5x5": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/objects/fire-ext/fire-canister": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/objects/mum-ornate-grating/default": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/objects/mum-vent-b-multi/default": {
+   "g_facingTintFalloff1": [
+    1.0
+   ],
+   "g_facingTintIn1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintOut1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_uvScale1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/roof/mum-tile-roof-001-multi/roof003": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/walls/mum-arch-multi/arch-tower": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_specularEnvironmentStrength": [
+    0.25
+   ]
+  },
+  "levels/multiplayer/museum/wood/mum-bridge-multi/bridge": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintFalloff1": [
+    1.0
+   ],
+   "g_facingTintIn1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintOut1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_uvScale1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/wood/mum-windowpanel-multi/circular": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/wood/mum-windowpanel-multi/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/wood/mum-windowpanel-multi/teardrop-outside": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/wood/mum-windowpanel/circular": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/wood/war-entrydoor-frame-multi/information-desk": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintFalloff1": [
+    1.0
+   ],
+   "g_facingTintIn1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintOut1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_uvScale1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/wood/war-entrydoor-frame-multi/panel-doors": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintFalloff1": [
+    1.0
+   ],
+   "g_facingTintIn1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintOut1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_uvScale1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/wood/war-entrydoor-frame-multi/panel-doors-basic": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintFalloff1": [
+    1.0
+   ],
+   "g_facingTintIn1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintOut1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_uvScale1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/wood/war-entrydoor-frame-multi/panel-keyhole": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintFalloff1": [
+    1.0
+   ],
+   "g_facingTintIn1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintOut1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_uvScale1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/museum/wood/war-entrydoor-frame-multi/pillar": {
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintFalloff1": [
+    1.0
+   ],
+   "g_facingTintIn1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_facingTintOut1": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "g_uvScale1": [
+    1.0
+   ]
+  }
+ },
+ "templates": {
+  "levels/multiplayer/museum/crates/crate-wood-light-2/default": [
+   "syria-hub-top.pak",
+   "levels/syria/walls/syria-woodplanks:default,54626e66-7713-4156-9547-e019a16f0f40,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/fabric/war-traveloffice-cardboardbox/cardbox02": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/yem-temple-spot-grey:default,90817955-daf8-472a-ac23-4b0eface1e62,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/fabric/war-traveloffice-cardboardbox/cardbox03": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/yem-temple-spot-grey:default,90817955-daf8-472a-ac23-4b0eface1e62,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/fabric/war-traveloffice-cardboardbox/default": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/yem-temple-spot-grey:default,90817955-daf8-472a-ac23-4b0eface1e62,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/foliage/shm-grass-gen/default": [
+   "syria-hub-top.pak",
+   "levels/warzone/detail/war-tree-leaves-generic:default,acf507db-5e84-483c-8297-c9d2c3374263,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/glass/mum-glass-crtyrd-lamps-multi/mum-lights-copy": [
+   "graveyard-drydock-moving.pak",
+   "levels/multiplayer/highrise/construction/hrs-highrise-hanging-light-glow:yellow,65g3rv51-v0a9-by5g-78wu-sx4er2o7s1d8,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/glass/mum-tower-glass-outside/default": [
+   "col-rooftops-low-b-night.pak",
+   "levels/columbia/transparency/col-window-glass-2:default,b6ac18a1-e351-4449-abb3-7874fc3a4478,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/glass/mum-tower-glass/default": [
+   "col-rooftops-low-b-night.pak",
+   "levels/columbia/transparency/col-window-glass-2:default,b6ac18a1-e351-4449-abb3-7874fc3a4478,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mm--ground-blend-out-water-scroll-multi/stripes-wet": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mm--ground-blend-out-water-scroll-multi/stripes-wet-copy": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mm--ground-blend-out-water-scroll-multi/zigzag-wet": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mum-circular-floor-multi/towr-floor": [
+   "grave-pirate-ship-e.pak",
+   "levels/ship-graveyard/deck-objects/grave-winch-med:default,078b69b4-5b2f-4bdd-8c64-4b85cac6a746,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mum-ctrtyrd-floor-multi/floor-zigzag": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mum-dirt2moss-noblend-multi/default": [
+   "syria-hub-top.pak",
+   "levels/shambala/foliage/shm-bark-wind:default,b9673aa2-4c99-4e7d-a1a3-f0c471332f0f,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mum-pavedtiles001-multi/blocks": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mum-pavedtiles001-multi/default": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mum-pavedtiles001-multi/marble": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mum-pavedtiles001-multi/tower-floor": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mum-pavedtiles001-multi/wallornate": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mum-pavedtiles001/tower-floor": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mum-sewerstone-blend-multi/alleyway": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mum-sewerstone-blend/alleyway": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/mum-tiled-floor-multi/mmfloor": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/shm-tiles/default": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/ground/war-pavedtile002-multi/courtyard02": [
+   "grave-02-hollowhulk-rear-house-front.pak",
+   "levels/ship-graveyard/hollow-hulk/grave-wooddeck:debris,1c77a03d-b1e2-42bf-a34e-8581ca0beb23,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-corroded-iron-multi/corroded": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-corroded-iron-multi/default": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-corroded-iron-multi/orange": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-corroded-iron-multi/yellow": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-corroded-iron/default": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-corroded-iron/orange": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-deatil2-edgegrab-multi/war-metal-bronz": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-detail-loose-edgegrab-multi/default": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/yem-temple-spot-grey:default,90817955-daf8-472a-ac23-4b0eface1e62,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-dtail-loose-blend-multi/mum-metal-sewer-bluegrey": [
+   "grave-02-hollowhulk-rear-house-front.pak",
+   "levels/ship-graveyard/hollow-hulk/grave-wooddeck:debris,1c77a03d-b1e2-42bf-a34e-8581ca0beb23,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-metal-bronz-multi/mum-irongate": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-metal-bronz-multi/mum-metal-bronz": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-metal-bronz-multi/mum-metal-bronz-grey": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-metal-bronz/mum-metal-bronz": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-metal-sewer-multi/mum-metal-sewer": [
+   "grave-02-hollowhulk-rear-house-front.pak",
+   "levels/ship-graveyard/hollow-hulk/grave-wooddeck:debris,1c77a03d-b1e2-42bf-a34e-8581ca0beb23,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-metal-sewer-multi/mum-metal-sewer-bluegrey": [
+   "grave-02-hollowhulk-rear-house-front.pak",
+   "levels/ship-graveyard/hollow-hulk/grave-wooddeck:debris,1c77a03d-b1e2-42bf-a34e-8581ca0beb23,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-metal-shutter-low-multi/war-metal-shutter03": [
+   "col-rooftops-low-night.pak",
+   "levels/columbia/other/co-sign4:default,d940a9ad-a0b8-4cda-90b8-7abc8074e3b1,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-steel-panel-multi/default": [
+   "cha-forest-start-low.pak",
+   "levels/dig/rock/dig-rock-high-cliff:default,76d2dc54-7c05-4e53-913e-8438de413591,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-steel-panel/default": [
+   "cha-forest-start-low.pak",
+   "levels/dig/rock/dig-rock-high-cliff:default,76d2dc54-7c05-4e53-913e-8438de413591,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/metal/mum-vent/default": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/mum-faux-sky/default": [
+   "graveyard-drydock-moving.pak",
+   "levels/multiplayer/highrise/construction/hrs-highrise-hanging-light-glow:yellow,65g3rv51-v0a9-by5g-78wu-sx4er2o7s1d8,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/museum-multi/museum-multi-fountainpool-ripples/barge5x5": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/objects/fire-ext/fire-canister": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/objects/mum-newspaper/default": [
+   "yem-intro-temple-entrance-2.pak",
+   "levels/yemen/objects/yem-newspaper-01:default,c5873e5a-35c6-4132-a45c-6dcda56e3d79,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/objects/mum-rug001/rug02": [
+   "yem-chase-cistern.pak",
+   "levels/yemen/objects/yem-stungflags-01:default,09115dd4-ae2c-44f8-b1b4-a4165fabf169,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/objects/mum-statue-wide-waterstream/default": [
+   "grave-pirate-ship-e-low.pak",
+   "levels/ship-graveyard/pirate-ship/grave-panels-yellow-a-scroll:cabinwall2rust-a,7b298aa9-a53f-4672-80b7-44be28328c16,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/objects/mum-statue-wide/default": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/objects/mum-vent-b-multi/default": [
+   "cruise-ship-90-cabins.pak",
+   "levels/cruise-ship/ground/ship-ballroom-carpet-blue:carpet,3d333904-63ae-40b3-9fda-242ab282d333,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/outsource/muse-artifact-statue-man-elbow-out/default": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/plants/mum-plant-vine-hanging-multi/default": [
+   "san-collapse-sand-climb.pak",
+   "levels/multiplayer/museum/plants/muse-buganvilia-multi:default,iwslal4s-ed8r-f2gu-kqzf-lnpuutka0rvu,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/plants/muse-ivy-multi/default": [
+   "san-collapse-sand-climb.pak",
+   "levels/multiplayer/museum/plants/muse-buganvilia-multi:default,iwslal4s-ed8r-f2gu-kqzf-lnpuutka0rvu,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/plants/muse-ivy-multi/pine": [
+   "san-collapse-sand-climb.pak",
+   "levels/multiplayer/museum/plants/muse-buganvilia-multi:default,iwslal4s-ed8r-f2gu-kqzf-lnpuutka0rvu,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/plants/muse-ivy/default": [
+   "san-collapse-sand-climb.pak",
+   "levels/multiplayer/museum/plants/muse-buganvilia-multi:default,iwslal4s-ed8r-f2gu-kqzf-lnpuutka0rvu,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/plants/muse-ivy/flowers": [
+   "san-collapse-sand-climb.pak",
+   "levels/multiplayer/museum/plants/muse-buganvilia-multi:default,iwslal4s-ed8r-f2gu-kqzf-lnpuutka0rvu,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/plants/museum-boa/default": [
+   "col-rooftops-interior.pak",
+   "levels/multiplayer/museum/objects/mum-rug001:default,3lgu88hu-sfys-sc1r-9yyx-srjjphfzqrun,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi/roof-combo-3": [
+   "grave-02-hollowhulk-rear-house-front.pak",
+   "levels/ship-graveyard/hollow-hulk/grave-wooddeck:debris,1c77a03d-b1e2-42bf-a34e-8581ca0beb23,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi/roof002": [
+   "grave-02-hollowhulk-rear-house-front.pak",
+   "levels/ship-graveyard/hollow-hulk/grave-wooddeck:debris,1c77a03d-b1e2-42bf-a34e-8581ca0beb23,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/roof/mum-tile-roof-001-blend-multi/roof003": [
+   "grave-02-hollowhulk-rear-house-front.pak",
+   "levels/ship-graveyard/hollow-hulk/grave-wooddeck:debris,1c77a03d-b1e2-42bf-a34e-8581ca0beb23,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/roof/mum-tile-roof-001-blend/roof002": [
+   "grave-02-hollowhulk-rear-house-front.pak",
+   "levels/ship-graveyard/hollow-hulk/grave-wooddeck:debris,1c77a03d-b1e2-42bf-a34e-8581ca0beb23,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/roof/mum-tile-roof-001-blend/roof003": [
+   "grave-02-hollowhulk-rear-house-front.pak",
+   "levels/ship-graveyard/hollow-hulk/grave-wooddeck:debris,1c77a03d-b1e2-42bf-a34e-8581ca0beb23,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/roof/mum-tile-roof-001-multi/roof003": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/statue/mum-bronze-chenrezig-buddha-multi/bronze-chenrezig-buddha": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/statue/mum-bronze-chenrezig-buddha-multi/bronze-chenrezig-buddha-copy": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/vines/mum-ivy-crtyrd02-blend/basicred": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-combo-multi/arch-tower-ring": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-crtyrd02-multi/arch-003": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-crtyrd02-multi/arch-straight": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-crtyrd02-multi/basicred": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-crtyrd02-multi/railing": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-crtyrd02-multi/wall-trim": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-crtyrd02-multi/wallornate": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-crtyrd02-wet-multi/wall-trim": [
+   "ldn-pub-streets.pak",
+   "levels/london/streets/ldn-streets-door-a:default,971cb433-d680-4bf9-8347-84639ab38dae,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-crtyrd02/basicred": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-crtyrd04-multi/arch-cove": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-crtyrd04/arch-cove": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-multi/arcade-arches01": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-multi/arch-entry": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-multi/arch-ornate": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-multi/arch-tower": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-multi/archdesign": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-multi/door-facade-basic": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-multi/gate-big": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-multi/marble": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-multi/planter-trim": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-multi/railingtrim": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-multi/wall-trim": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch-multi/wallornate": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch/arcade-arches01": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch/marble": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-arch/wall-trim": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-column-2-multi/archdesign": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-pillar-combo-multi/wall-trim": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-railing-multi/railing02": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-smokestack/smokestack01": [
+   "cha-forest-start-low.pak",
+   "levels/dig/rock/dig-rock-high-cliff:default,76d2dc54-7c05-4e53-913e-8438de413591,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-wall-crtyrd02-blend-multi/basic-red-blend": [
+   "cha-forest-start-low.pak",
+   "levels/dig/rock/dig-rock-high-cliff:default,76d2dc54-7c05-4e53-913e-8438de413591,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-wall-crtyrd02-blend/basic-red-blend": [
+   "cha-forest-start-low.pak",
+   "levels/dig/rock/dig-rock-high-cliff:default,76d2dc54-7c05-4e53-913e-8438de413591,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/mum-walls-ctryrd-worn-blend-multi/wall-belltower-trim": [
+   "cha-forest-start-low.pak",
+   "levels/dig/rock/dig-rock-high-cliff:default,76d2dc54-7c05-4e53-913e-8438de413591,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-pillar-half-combo-multi/pillar-half-combo": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-walls-courtyard-02-multi/basic-02": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-walls-courtyard-02-multi/bell-tower-trim": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-walls-courtyard-02-multi/pillar": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-walls-courtyard-02-multi/stone": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-walls-courtyard-02/basic-02": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-walls-courtyard-02/pillar": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-walls-courtyard-multi-emblem-dark/basic": [
+   "grave-pirate-ship-e-low.pak",
+   "levels/ship-graveyard/deck-objects/grave-tires:default,3b532f0d-18d7-483d-85cc-101892817fcd,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-walls-courtyard-multi-emblem/basic": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/ship-graveyard/deck-objects/grave-tires:default,3b532f0d-18d7-483d-85cc-101892817fcd,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-walls-courtyard-multi/basepanel": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-walls-courtyard-multi/basic": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-walls-courtyard-multi/bldgtop07": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-walls-courtyard-multi/pillar": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-walls-courtyard/basic": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-windows-courtyard-multi/windows01": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/hotel/war-washing-machine-glass:default,fb6a81bf-6a79-4792-a698-c1d44f70656f,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-windows-courtyard-multi/windows02": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/hotel/war-washing-machine-glass:default,fb6a81bf-6a79-4792-a698-c1d44f70656f,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-windows-courtyard-multi/windows03": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/hotel/war-washing-machine-glass:default,fb6a81bf-6a79-4792-a698-c1d44f70656f,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-windows-courtyard-multi/windows04": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/hotel/war-washing-machine-glass:default,fb6a81bf-6a79-4792-a698-c1d44f70656f,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/walls/war-windows-courtyard-multi/windows05": [
+   "col-rooftops-interior.pak",
+   "levels/columbia/hotel/war-washing-machine-glass:default,fb6a81bf-6a79-4792-a698-c1d44f70656f,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/waterscroll/mm--trim-blend-out-water-scroll-multi/griffin": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/waterscroll/mm--trim-blend-out-water-scroll-multi/griffin-copy": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/waterscroll/mm--trim-blend-out-water-scroll-multi/trim": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/waterscroll/mm--trim-blend-out-water-scroll-multi/trim2": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/waterscroll/mum-water-scroll-multi/column-top": [
+   "grave-pirate-ship-e.pak",
+   "levels/ship-graveyard/deck-objects/grave-winch-med:default,078b69b4-5b2f-4bdd-8c64-4b85cac6a746,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/waterscroll/mum-water-scroll-multi/default": [
+   "grave-pirate-ship-e.pak",
+   "levels/ship-graveyard/deck-objects/grave-winch-med:default,078b69b4-5b2f-4bdd-8c64-4b85cac6a746,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/waterscroll/mum-water-scroll-multi/marble-slab": [
+   "grave-pirate-ship-e.pak",
+   "levels/ship-graveyard/deck-objects/grave-winch-med:default,078b69b4-5b2f-4bdd-8c64-4b85cac6a746,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/waterscroll/mum-water-scroll-multi/tile-panel": [
+   "grave-pirate-ship-e.pak",
+   "levels/ship-graveyard/deck-objects/grave-winch-med:default,078b69b4-5b2f-4bdd-8c64-4b85cac6a746,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/waterscroll/mum-water-scroll-multi/white": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/ship-graveyard/deck-objects/grave-winch-med:default,078b69b4-5b2f-4bdd-8c64-4b85cac6a746,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/wood/mum-bridge-multi/bridge": [
+   "cruise-ship-90-cabins.pak",
+   "levels/cruise-ship/ground/ship-ballroom-carpet-blue:carpet,3d333904-63ae-40b3-9fda-242ab282d333,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/wood/mum-windowpanel-multi/circular": [
+   "airport-1.pak",
+   "levels/airport/windows/air-windows-skylight-glass-trans:default,0a6dd9ef-e2b7-4f2d-9f75-06e1347cdc99,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/wood/mum-windowpanel-multi/default": [
+   "airport-1.pak",
+   "levels/airport/windows/air-windows-skylight-glass-trans:default,0a6dd9ef-e2b7-4f2d-9f75-06e1347cdc99,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/wood/mum-windowpanel-multi/teardrop-outside": [
+   "airport-1.pak",
+   "levels/airport/windows/air-windows-skylight-glass-trans:default,0a6dd9ef-e2b7-4f2d-9f75-06e1347cdc99,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/wood/mum-windowpanel/circular": [
+   "airport-1.pak",
+   "levels/airport/windows/air-windows-skylight-glass-trans:default,0a6dd9ef-e2b7-4f2d-9f75-06e1347cdc99,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/wood/war-entrydoor-frame-multi/information-desk": [
+   "cruise-ship-90-cabins.pak",
+   "levels/cruise-ship/ground/ship-ballroom-carpet-blue:carpet,3d333904-63ae-40b3-9fda-242ab282d333,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/wood/war-entrydoor-frame-multi/panel-doors": [
+   "cruise-ship-90-cabins.pak",
+   "levels/cruise-ship/ground/ship-ballroom-carpet-blue:carpet,3d333904-63ae-40b3-9fda-242ab282d333,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/wood/war-entrydoor-frame-multi/panel-doors-basic": [
+   "cruise-ship-90-cabins.pak",
+   "levels/cruise-ship/ground/ship-ballroom-carpet-blue:carpet,3d333904-63ae-40b3-9fda-242ab282d333,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/wood/war-entrydoor-frame-multi/panel-keyhole": [
+   "cruise-ship-90-cabins.pak",
+   "levels/cruise-ship/ground/ship-ballroom-carpet-blue:carpet,3d333904-63ae-40b3-9fda-242ab282d333,prime-shader.fx"
+  ],
+  "levels/multiplayer/museum/wood/war-entrydoor-frame-multi/pillar": [
+   "cruise-ship-90-cabins.pak",
+   "levels/cruise-ship/ground/ship-ballroom-carpet-blue:carpet,3d333904-63ae-40b3-9fda-242ab282d333,prime-shader.fx"
+  ]
+ }
+}
