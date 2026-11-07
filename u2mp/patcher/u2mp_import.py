@@ -399,6 +399,8 @@ class Importer:
             if n % 20 == 0:
                 self.save()
         self.save()
+        if have_numpy:
+            self.net_images(level_txt)
         self.registries(level_txt)
         self.texts()
         counts = {}
@@ -411,6 +413,41 @@ class Importer:
             self.state['validation'] = validate.run(self.ps3, self.ps4, os.path.join(self.work, 'validate'), log=log)
         bad = counts.get('failed', 0) + counts.get('missing', 0)
         return self.finish('partial' if bad or counts.get('unsupported') else 'imported')
+
+    def net_images(self, level_txt):
+        """pak22/ps4/net-u2mp.pak: the PS3 net.pak menu images the PS4 net.pak lacks (Leaderboards / Trophies
+        buttons, DLC map photos, store skin portraits ...), u2netimg; registered as its own level / package"""
+        import u2netimg
+        key = 'pak22/' + u2netimg.OUT_NAME
+        c = self.ps3.candidates('pak22/net.pak')
+        ps4_net = os.path.join(self.ps4.pak_dir, 'net.pak')
+        if not c or not os.path.isfile(ps4_net):
+            self.items[key] = dict(status='missing', group='A', note='no PS3 or PS4 net.pak', conv=CONV_VERSION)
+            return
+        data = c[0].read()
+        src_sha = sha1(data)
+        out = self.out_path('pak22/ps4/' + u2netimg.OUT_NAME)
+        if not self.done_before(key, src_sha):
+            src = os.path.join(self.work, 'ps3-net.pak')
+            with open(src, 'wb') as f:
+                f.write(data)
+            t = time.time()
+            try:
+                names = u2netimg.convert(src, ps4_net, out, log=log)
+            except Exception as e:
+                self.items[key] = dict(status='failed', group='A', conv=CONV_VERSION, src=c[0].source,
+                                       note=('%s: %s' % (type(e).__name__, e))[:400])
+                log('FAILED %s: %s: %s' % (key, type(e).__name__, str(e)[:300]))
+                return
+            finally:
+                os.remove(src)
+            if not names:
+                return
+            self.record(key, 'ok', dict(group='A'), out=os.path.join(OUT_MAIN, 'pak22', 'ps4', u2netimg.OUT_NAME)
+                        .replace('\\', '/'), src=c[0].source, src_sha1=src_sha, note='%d menu images' % len(names))
+            log('ok      %s <- %s (%.1fs) %d menu images' % (key, c[0].source, time.time() - t, len(names)))
+        if os.path.isfile(out):
+            level_txt[u2netimg.OUT_NAME[:-4]] = 'level-id %s\npackage %s\n' % ((u2netimg.OUT_NAME[:-4],) * 2)
 
     def registries(self, level_txt):
         """pak22_ps4.txt and banks.txt of the overlay (from the PS4 files + what was converted)"""

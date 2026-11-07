@@ -66,6 +66,10 @@ void *netheap_alloc(size_t size, size_t align);
 void netinit_prepare();   // when Multiplayer is entered
 void netinit_match();     // at match start
 void netinit_dump(const char *when);   // diagnostics: the tables as the game finds them
+// session.cpp: a loaded package by id (no request), NULL when absent.
+const uint8_t *package_by_id(uint32_t id);
+// menuimages.cpp: "net-u2mp" when the import wrote pak22/ps4/net-u2mp.pak (PS3 menu images), else NULL.
+const char *extra_net_package();
 // ShowPage(menu manager, page id, 0) in the guest.
 void show_page(uint32_t page);
 // True when the function at `offset` is a stripped stub: ret, then alignment padding.

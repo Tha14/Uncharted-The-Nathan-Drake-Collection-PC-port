@@ -21,10 +21,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <mutex>
+#include <system_error>
 #include <vector>
 
 #include "u2mp_internal.h"
+
+extern "C" int runtime_file_translate(const char *guest, char *out, size_t size);
 
 namespace u2mp {
 namespace {
@@ -116,9 +120,39 @@ int find_by_slash_id(int sel, const MaterialTable *t, uint32_t id) {
     return -1;
 }
 
+// ---- net-u2mp: the PS3 net.pak images the PS4 net.pak lacks (u2mp/patcher/u2conv/u2netimg.py) ----
+// Leaderboards / Trophies mode buttons, DLC map photos, store skin portraits and icons, rank badges
+// above 63... The import writes them as their own package, materials named with the PS3 names (so
+// their ids are the ids the menus ask for). session.cpp requests it next to "net"; once logged in
+// (+0x30 == 7) its material table (+0x940, as 0x554090 reads the net one) answers net ids the net
+// table does not have.
+constexpr const char *kExtraPak = "/app0/u2data/build/main/pak22/ps4/net-u2mp.pak";
+constexpr uint64_t PKG_STATE = 0x30, PKG_MATERIALS = 0x940;
+
+const MaterialTable *extra_table() {
+    if (!extra_net_package()) return nullptr;
+    static const uint32_t id = sid("net-u2mp");
+    const uint8_t *pkg = package_by_id(id);
+    if (!pkg || rd<int32_t>(pkg, PKG_STATE) != 7) return nullptr;
+    return rd<const MaterialTable *>(pkg, PKG_MATERIALS);
+}
+
+uint8_t *extra_lookup(uint32_t id) {
+    const MaterialTable *t = extra_table();
+    if (!t || !t->entries) return nullptr;
+    static const MaterialTable *logged = nullptr;
+    if (logged != t) {
+        logged = t;
+        log("menu images: net-u2mp table %p, %u materials", static_cast<const void *>(t), t->count);
+    }
+    for (unsigned i = 0; i < t->count; ++i)
+        if (rd<uint32_t>(t->entries + 0x28 * size_t(i), 8) == id) return t->entries + 0x28 * i;
+    return nullptr;
+}
+
 // 0x5558c0 ported: the hud table (selector 0) by index only; net (1) and menu (2) by index or, with
-// index < 0, by id; plus the PS3-name fallback. Out-of-range indices return NULL (the original
-// asserted).
+// index < 0, by id; plus the PS3-name fallback and, for net ids, the net-u2mp package. Out-of-range
+// indices return NULL (the original asserted).
 U2MP_GUEST uint8_t *image_lookup(uint64_t id_sel, int32_t index) {
     const uint32_t id = uint32_t(id_sel), sel = uint32_t(id_sel >> 32);
     const uint64_t slot = sel == 2 ? 0x78 : sel == 1 ? 0x70 : 0x68;
@@ -129,11 +163,13 @@ U2MP_GUEST uint8_t *image_lookup(uint64_t id_sel, int32_t index) {
         for (unsigned i = 0; i < t->count; ++i)
             if (rd<uint32_t>(t->entries + 0x28 * size_t(i), 8) == id) return t->entries + 0x28 * i;
         index = find_by_slash_id(int(sel), t, id);
+        uint8_t *extra = index < 0 && sel == 1 ? extra_lookup(id) : nullptr;
         if (log_budget.load(std::memory_order_relaxed) > 0) {
             log_budget.fetch_sub(1, std::memory_order_relaxed);
             log("menu images: lookup %s id %08x -> %s (%d)", sel == 1 ? "net" : "menu", id,
-                index >= 0 ? "found by PS3 name" : "missing", index);
+                index >= 0 ? "found by PS3 name" : extra ? "found in net-u2mp" : "missing", index);
         }
+        if (extra) return extra;
         if (index < 0) return nullptr;
     }
     if (unsigned(index) >= t->count) return nullptr;
@@ -276,6 +312,18 @@ U2MP_GUEST void draw_missing_type(uint8_t *desc, uint8_t *frame, uint32_t c2, ui
 }
 
 }  // namespace
+
+const char *extra_net_package() {
+    static const int present = [] {
+        char host[1024];
+        std::error_code ec;
+        const bool ok = runtime_file_translate(kExtraPak, host, sizeof host) == 0 &&
+                        std::filesystem::is_regular_file(std::filesystem::path(host), ec);
+        log("menu images: net-u2mp.pak %s", ok ? "imported (PS3 menu images PS4 lacks)" : "not imported");
+        return ok ? 1 : 0;
+    }();
+    return present ? "net-u2mp" : nullptr;
+}
 
 void install_menuimages(int &installed) {
     static const unsigned char lookup_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x56, 0x53, 0x89,

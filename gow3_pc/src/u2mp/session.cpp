@@ -378,12 +378,17 @@ U2MP_GUEST void page_event(uint32_t *event) {
 // images were missing; check_net_package logs what the table holds). Requested on entry and again
 // every second while the menus are up (RequestPackage returns the package when it exists).
 constexpr uint64_t PKG_FLAGS = 0x18, PKG_STATE = 0x30, kNetImageTable = 0x1130008 + 0x70;
-uint8_t *keep_net_package() {
-    static const char net_package[] = "net";
+uint8_t *request_package(const char *name) {
     auto *pkg = fn<uint8_t *(U2MP_GUEST *)(void *, const char *, int)>(fRequestPackage)(image.at<void>(kPackageTable),
-                                                                                    net_package, 0);
+                                                                                    name, 0);
     if (pkg) pkg[PKG_FLAGS] |= 0x40;
     return pkg;
+}
+// With it the imported "net-u2mp" (the PS3 menu images PS4's net.pak lacks, menuimages.cpp), when present.
+uint8_t *keep_net_package() {
+    static const char net_package[] = "net";
+    if (const char *extra = extra_net_package()) request_package(extra);
+    return request_package(net_package);
 }
 // The package table lookup without a request (as 0x5540b9: FNV-1a over the id's bytes; buckets
 // +0x10, bucket count +0x4c, node {+0 next, +0x10 id, +0x18 package}, buckets[count] = end node).
@@ -782,3 +787,7 @@ void install(int &installed) {
 }
 
 }  // namespace u2mp::session
+
+namespace u2mp {
+const uint8_t *package_by_id(uint32_t id) { return session::find_package(id); }
+}  // namespace u2mp

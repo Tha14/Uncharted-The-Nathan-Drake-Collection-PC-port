@@ -288,3 +288,24 @@ Log (`u2mp: menu images:`): the first 6 entries of each net / menu table (id, PS
 types (type, value, image id, found, box). Check in game: mode icons, game type / map cards and
 separate rows on the custom game page, playlist card, rank badge 28 and the booster pair on the
 Multiplayer panel, Profile page contents, store skin pictures.
+
+## 8. Menu images PS4 dropped: net-u2mp.pak (u2netimg.py, 2026-11-07)
+
+Run 15 still missed two ids on the Multiplayer page: `e2c34a4a` = `general/net/mode-buttons/leaderboards`
+and `067e1f80` = `.../trophies`. The PS4 net.pak has no such materials. Compared material by material
+(PS3 id = sid of the `/` name, PS4 id = sid of the name with `:` read as `/`), the newest PS3 net.pak
+(dlc-patch7) has 104 materials the PS4 one lacks: those two buttons, the DLC map photos (highrise,
+museum, sts, sge, wtr), rank-badges/default2 (ranks above 63), the-lab playlist, medal icons, and the
+player photos / icons of the PS3-only skins (store rows without a picture).
+
+The import converts only those (the rule: what PS4 has stays the PS4 one) into
+`pak22/ps4/net-u2mp.pak` with the Uncharted 3 net converter (`paktools/convert_net.py`), with three U2
+differences in `u2conv/u2netimg.py`: the U2 PS3 MATERIAL_TABLE_1 (two tables, texture hashes in a shared
+array on another page, no name array), a few textures that share one path under several hashes get a
+unique name, and each material takes the effect of a PS4 net material of its set (the PS4 net.pak is
+the effect reference). The registry gets a `net-u2mp` level / package entry.
+
+In game: `keep_net_package` requests `net-u2mp` next to `net` when the file exists; the image lookup
+(0x5558c0 port) answers a net id that neither the net table nor its PS3-name pass finds from the
+`net-u2mp` package's material table (`+0x940`, once the package state is 7). Log:
+`menu images: net-u2mp.pak imported`, `net-u2mp table ..., N materials`, `-> found in net-u2mp`.
