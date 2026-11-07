@@ -1363,7 +1363,7 @@ def remove_pipeline_binaries(cache):
 def instance_suffix():
     """UNCHARTED_INSTANCE=<n> (n >= 2; co-op tests, 25 Oct 2026): another game on this PC with its
     own folders (analysis/<game>-i<n>, analysis/uncharted-user-i<n>), so that two instances can
-    play each other over the LAN transport (gow3_pc/src/runtime_net.c). Instance 1, the default,
+    run side by side. Instance 1, the default,
     uses the normal folders."""
     value = os.environ.get("UNCHARTED_INSTANCE", "1").strip()
     return f"-i{int(value)}" if value.isdigit() and int(value) >= 2 else ""
@@ -1392,69 +1392,6 @@ def user_dir():
                 shutil.copy2(source, user / name)
         print(f"Instance {suffix[2:]}: new user folder {user} (settings, saves and caches copied)")
     return user
-
-
-def net_mode():
-    """LAN multiplayer (the launcher's Multiplayer page, Uncharted 2 only, 25 Oct 2026):
-    UNCHARTED_NET_MODE=host|join starts Uncharted 2's own online game ("task online") with the
-    LAN transport (gow3_pc/src/runtime_net.c) and the stand-ins for the removed session layer
-    (runtime_coop.c's netinit). Off unless set."""
-    mode = os.environ.get("UNCHARTED_NET_MODE", "").strip().lower()
-    return mode if mode in ("host", "join") else ""
-
-
-def net_lobby():
-    """The lobby before each match (runtime_coop_menu.c mpmenu lobby); UNCHARTED_NET_LOBBY=0 = off."""
-    return os.environ.get("UNCHARTED_NET_LOBBY", "1").strip() != "0"
-
-
-def net_game_env(env, user, roots):
-    """The runtime settings of a net game; returns the /app0 overlay it needs (tools/net_overlay.py,
-    built from the player's own game files; roots = the /app0 folders, topmost first).
-      UNCHARTED_NET_ADDRESS  host: [address:]port to listen on (default 0.0.0.0:27000);
-                             join: the host's address[:port] (port 27000 unless given)
-      UNCHARTED_NET_GAME     host: the net game (*net-games* index; 114 = The Village co-op)
-      UNCHARTED_NET_TITLE    host: its title in the LAN search
-      UNCHARTED_NET_NAME     the player's name
-      UNCHARTED_NET_SKIN     the player's character: an actor of the game (e.g. mp-hero-elena,
-                             hero-default); every machine shows this player with it (GOW3_NET_SKIN,
-                             runtime_net.c / runtime_coop_mp.c). Ignored when the game lacks it.
-    A joiner gets its player id and the net game from the host's welcome: the boot commands wait
-    for it (netwait) before setting up the net game (netinit auto). The per-game settings (levels,
-    teams, default character) follow from the net game inside the runtime (runtime_coop_mp.c)."""
-    from net_overlay import build_overlay, actor_exists
-    skin = os.environ.get("UNCHARTED_NET_SKIN", "").strip().lower()
-    if skin and not actor_exists(roots, skin):
-        print(f"Net game: character {skin} is not in the game files: the default one is used")
-        skin = ""
-    overlay = build_overlay(roots, user / "net-overlay", [skin] if skin else [])
-    if skin:
-        env["GOW3_NET_SKIN"] = skin
-    boot = user / "net-boot.txt"
-    # mpmenu auto (runtime_coop_menu.c): the game's own results pages after a round (25 Oct, run f6)
-    # mpmenu lobby (25 Oct): the game's own Custom Game lobby first, the host's Start Game starts
-    # every game (no "task online" then); UNCHARTED_NET_LOBBY=0 starts the match at once as before.
-    boot.write_text("at 1\nnetwait\nnetinit auto 64\nmpmenu auto\n" + ("mpmenu lobby\n" if net_lobby() else ""),
-                    encoding="ascii")
-    env["GOW3_COOP_BOOT"] = str(boot)
-    # Multiplayer data the Collection does not ship (e.g. the bullets' MP explosion settings,
-    # the first shot faulted) falls back to its single-player twin (runtime_coop_mp.c).
-    env.setdefault("GOW3_COOP_MP_TWINS", "1")
-    address = os.environ.get("UNCHARTED_NET_ADDRESS", "").strip()
-    if name := os.environ.get("UNCHARTED_NET_NAME", "").strip():
-        env["GOW3_NET_NAME"] = name[:31]
-    if net_mode() == "host":
-        env["GOW3_NET_HOST"] = address or "0.0.0.0:27000"
-        env["GOW3_NET_GAME"] = os.environ.get("UNCHARTED_NET_GAME", "114").strip() or "114"
-        env["GOW3_NET_TITLE"] = os.environ.get("UNCHARTED_NET_TITLE", "")[:47]
-        print(f"Net game: hosting net game {env['GOW3_NET_GAME']} on {env['GOW3_NET_HOST']}")
-    else:
-        if address and ":" not in address:
-            address += ":27000"
-        env["GOW3_NET_JOIN"] = address or "127.0.0.1:27000"
-        env["GOW3_NET_ID"] = "auto"
-        print(f"Net game: joining {env['GOW3_NET_JOIN']}")
-    return overlay
 
 
 def u3mp_image(executable):
@@ -1552,9 +1489,9 @@ def image_patches(executable):
 def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=()):
     """game: the folder the prepare scripts read; app0 (default: game) with overlays laid over
     it is what the game sees as /app0."""
-    stem = "uncharted" if executable == "eboot.bin" else Path(executable).stem
-    out = args.analysis_root / stem if args.analysis_root else ROOT / "analysis" / (stem + instance_suffix())
-    user = args.user_dir
+    out = ROOT / "analysis" / (("uncharted" if executable == "eboot.bin" else Path(executable).stem)
+                               + instance_suffix())
+    user = user_dir()
     user.mkdir(parents=True, exist_ok=True)
     scripts = ROOT / "gow3_pc/scripts"
     for script in ("prepare.py", "link_modules.py", "content_profile.py"):
@@ -1944,21 +1881,16 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
     window_icon = game_window_icon(game)
     if window_icon:
         env.setdefault("GOW3_WINDOW_ICON", str(window_icon))
-    command = [str(args.runtime_executable or game_executable()), str(out / "boot-linked.bin"),
+    command = [str(game_executable()), str(out / "boot-linked.bin"),
                "--no-game-hooks", "--low-image", "--content-profile", str(out / "content.bin"),
                "--app0", str(app0 or game), "--user", str(user)]
-    # gow3 24 Oct 2026, co-op research: UNCHARTED_COOP_OVERLAY=<dir> lays one more folder over
-    # /app0, ahead of the others (e.g. a U2 package manifest without the missing co-op skins,
-    # analysis/triage-1022/coop-work/make_coop_overlay.py). Off unless set.
-    if coop_overlay := os.environ.get("UNCHARTED_COOP_OVERLAY"):
-        command += ["--app0-overlay", coop_overlay]
-    if executable == "big2-ps4_Shipping.elf" and net_mode():
-        command += ["--app0-overlay", str(net_game_env(env, user, [*overlays, app0 or game]))]
-    # UNCHARTED_MOD_DIR: folders laid over the game before the update (the first holding a file
-    # wins), e.g. the multiplayer menu built by tools/uc2mp_menu.py.
-    mods = [m for m in os.environ.get("UNCHARTED_MOD_DIR", "").split(os.pathsep) if m]
+    # Uncharted 2 multiplayer (u2mp, set by the launcher): UNCHARTED_U2MP_OVERLAY, a folder made from the
+    # player's own game (u2mp/patcher/u2mp_overlay.py), laid over /app0 ahead of the update.
+    u2mp = os.environ.get("UNCHARTED_U2MP_OVERLAY", "")
+    if executable == "big2-ps4_Shipping.elf" and u2mp and Path(u2mp).is_dir():
+        command += ["--app0-overlay", u2mp]
     # Uncharted 3 multiplayer: its four overlays (the first wins) ahead of the update.
-    for overlay in [*mods, *(mp["overlays"] if mp else ()), *overlays]:
+    for overlay in [*(mp["overlays"] if mp else ()), *overlays]:
         command += ["--app0-overlay", str(overlay)]
     # guest_args is the game's complete argv; argv[0] is the program name.
     command += ["--guest-path", guest_args[0] if guest_args else "/app0/" + executable]
@@ -2001,10 +1933,6 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
                 print(f"Uncharted 3 multiplayer: started without its address layout ({error})")
         if process is None:
             process = subprocess.Popen(command, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
-        result["process_id"] = process.pid
-        running = {"pid": process.pid, "runtime": str(Path(command[0]).resolve()),
-                   "started_unix_ns": time.time_ns(), "active": True}
-        (out / (name + ".running.json")).write_text(json.dumps(running, indent=2), encoding="utf-8")
         # Freeze watchdog (needs the Frame stats lines, i.e. diagnostics on). UNCHARTED_HANG_SECONDS
         # sets its wait (30 s), 0 turns it off.
         hang_seconds = int(os.environ.get("UNCHARTED_HANG_SECONDS", "30") or 0)
@@ -2032,8 +1960,6 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
             result["exit_code"] = process.wait()
             result["timed_out"] = True
     result["elapsed_seconds"] = round(time.monotonic() - start, 3)
-    running.update(active=False, exit_code=result["exit_code"])
-    (out / (name + ".running.json")).write_text(json.dumps(running, indent=2), encoding="utf-8")
     (out / (name + ".json")).write_text(json.dumps(result, indent=2), encoding="utf-8")
     # The game has ended: the log can take the freeze reports' names (the launcher looks there).
     if args.boot and hang_reports:
@@ -2054,12 +1980,6 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--game", type=Path, default=ROOT / "game/CUSA02344/uroot")
-    parser.add_argument("--analysis-root", type=Path,
-                        help="Separate build/log directory for isolated experiments")
-    parser.add_argument("--user-dir", type=Path,
-                        help="Separate player-data directory for isolated experiments")
-    parser.add_argument("--runtime-executable", type=Path,
-                        help="Run this runtime directly without replacing the installed executable")
     parser.add_argument("--boot", action="store_true", help="Execute guest code after preparation")
     parser.add_argument("--executable", choices=EXECUTABLES, default="eboot.bin")
     parser.add_argument("--guest-arg", action="append", default=None,
@@ -2071,16 +1991,9 @@ def main():
     parser.add_argument("--capture", action="store_true", help="Request a renderer frame dump every three seconds")
     parser.add_argument("--seconds", type=int, default=30, help="External process time limit; 0 disables it")
     args = parser.parse_args()
-    if args.runtime_executable:
-        args.runtime_executable = args.runtime_executable.resolve()
-        if not args.runtime_executable.is_file():
-            parser.error("--runtime-executable must name an existing file")
     if args.seconds < 0:
         parser.error("--seconds must be nonnegative")
-    user = args.user_dir.resolve() if args.user_dir else user_dir()
-    args.user_dir = user
-    if args.analysis_root:
-        args.analysis_root = args.analysis_root.resolve()
+    user = user_dir()
     user.mkdir(parents=True, exist_ok=True)
     loadexec = user / "loadexec.txt"
     executable = args.executable
@@ -2093,8 +2006,6 @@ def main():
             guest_args = ["/app0/eboot.bin"]
         else:
             guest_args = ["eboot.bin", "ispartofuccollection"]
-            if executable == "big2-ps4_Shipping.elf" and net_mode() and not net_lobby():
-                guest_args += ["task", "online"]  # Uncharted 2's own online game (net_mode)
     while True:
         loadexec.unlink(missing_ok=True)
         result = run_once(args, executable, guest_args, loadexec)

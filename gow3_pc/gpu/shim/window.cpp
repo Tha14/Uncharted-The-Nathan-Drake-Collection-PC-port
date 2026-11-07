@@ -19,13 +19,6 @@
 namespace Frontend {
 
 namespace {
-bool Headless() {
-    static const bool headless = [] {
-        const char* env = std::getenv("GOW3_HEADLESS");
-        return env && std::strcmp(env, "1") == 0;
-    }();
-    return headless;
-}
 // GOW3_WINDOW_BACKGROUND=1 (scripted tests while the player uses the PC): the window opens
 // without the focus, behind the other windows, and is never raised.
 bool Background() {
@@ -113,7 +106,7 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}
     if (WindowPlacement().on) {
         windowed_width = WindowPlacement().w;
         windowed_height = WindowPlacement().h;
-    } else if (SDL_Rect usable{}; !Headless() && SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable) && usable.w > 0 &&
+    } else if (SDL_Rect usable{}; SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable) && usable.w > 0 &&
                            usable.h > 0) {
         const int max_w = usable.w * 85 / 100, max_h = usable.h * 85 / 100;
         if (windowed_width > max_w || windowed_height > max_h) {
@@ -132,8 +125,7 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}
     }
     SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, windowed_width);
     SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, windowed_height);
-    SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_RESIZABLE_BOOLEAN, !Headless());
-    SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, Headless());
+    SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_RESIZABLE_BOOLEAN, true);
     SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_VULKAN_BOOLEAN, true);
     base_title = title;
     window = SDL_CreateWindowWithProperties(props);
@@ -167,13 +159,13 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}
         UNREACHABLE_MSG("Unsupported SDL video driver {}", driver ? driver : "(none)");
     }
     // gow3: GOW3_FULLSCREEN=1 (older launchers) still asks for fullscreen.
-    if (const char* fullscreen = std::getenv("GOW3_FULLSCREEN"); !Headless() && fullscreen && fullscreen[0] == '1' &&
+    if (const char* fullscreen = std::getenv("GOW3_FULLSCREEN"); fullscreen && fullscreen[0] == '1' &&
         Gow3Settings::Get().display_mode == Gow3Graphics::Windowed) {
         Gow3Settings::Get().display_mode = Gow3Graphics::Borderless;
     }
     ApplyDisplayMode(Gow3Settings::Get().display_mode);
     // gow3: the game has no mouse; the in-game menu draws its own cursor (Gow3Overlay::SetOpen).
-    if (!Headless()) SDL_HideCursor();
+    SDL_HideCursor();
     int w = 0, h = 0;
     SDL_GetWindowSizeInPixels(window, &w, &h);
     width = w;
@@ -184,10 +176,6 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}
 // Windowed, borderless (desktop-sized, no mode change) or exclusive fullscreen at the desktop
 // mode. Window thread only (SDL). The swapchain follows the size events.
 void WindowSDL::ApplyDisplayMode(int mode) {
-    if (Headless()) {
-        display_mode = mode;
-        return;
-    }
     const bool was_fullscreen = display_mode > Gow3Graphics::Windowed;
     if (WindowPlacement().on) {
         mode = Gow3Graphics::Windowed; // GOW3_WINDOW_HALF / _RECT: always at its place
@@ -307,7 +295,7 @@ bool WindowSDL::PollEvents() {
     // cursor follows ImGui's last mouse position, which can be off screen after mouse look let
     // the pointer go. Windows' cursor is shown while the menu or a dialog takes the input,
     // placed in the middle of the window when it appears, and hidden again when the game has it.
-    if (!Headless()) {
+    {
         static bool cursor_shown = false;
         const bool want_cursor = Gow3Overlay::CapturesInput();
         if (want_cursor != cursor_shown) {
