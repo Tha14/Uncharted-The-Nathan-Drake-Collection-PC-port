@@ -8,7 +8,6 @@
 #include <vector>
 #include "common/types.h"
 #include "video_core/renderer_vulkan/vk_common.h"
-#include <vk_mem_alloc.h>
 
 namespace Frontend {
 class WindowSDL;
@@ -35,11 +34,6 @@ public:
 
     /// Presents the current image and move to the next one
     bool Present();
-
-    bool IsHeadless() const { return headless; }
-    vk::ImageLayout FinalLayout() const {
-        return headless ? vk::ImageLayout::eGeneral : vk::ImageLayout::ePresentSrcKHR;
-    }
 
     vk::SurfaceKHR GetSurface() const {
         return surface;
@@ -118,7 +112,6 @@ private:
 
     /// Performs creation of image views and framebuffers from the swapchain images
     void SetupImages();
-    void CreateOffscreenImages();
 
     /// Creates the image acquired and present ready semaphores
     void RefreshSemaphores();
@@ -136,7 +129,6 @@ private:
     vk::SurfaceTransformFlagBitsKHR transform;
     vk::CompositeAlphaFlagBitsKHR composite_alpha;
     std::vector<vk::Image> images;
-    std::vector<VmaAllocation> offscreen_allocations;
     std::vector<vk::ImageView> images_view;
     std::vector<vk::Semaphore> image_acquired;
     std::vector<vk::Semaphore> present_ready;
@@ -154,7 +146,6 @@ private:
     u32 image_index = 0;
     u32 frame_index = 0;
     bool needs_recreation = true;
-    bool headless = false;
     bool needs_hdr = false;    // The game requested HDR swapchain
     bool supports_hdr = false; // SC supports HDR output
 };
