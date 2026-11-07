@@ -205,6 +205,10 @@ if (WIN32)
     target_link_libraries(gow3-probe PRIVATE gow3gpu atrac9 onecore bcrypt ws2_32 -pthread)
     # The PS4 range (64 GiB - 1 TiB) must stay free: no high-entropy ASLR for heaps and stacks.
     # The guest main thread runs on the process stack: 16 MiB, committed (no stack probes).
+    # u2mp network core test (no game needed): ninja -C out/gpu u2mp-net-test
+    add_executable(u2mp-net-test EXCLUDE_FROM_ALL ../tests/test_u2mp_net.cpp ../src/u2mp/net.cpp)
+    target_compile_options(u2mp-net-test PRIVATE -Wall -Wextra -Werror)
+    target_link_libraries(u2mp-net-test PRIVATE ws2_32)
     target_link_options(gow3-probe PRIVATE -Wl,--disable-high-entropy-va "SHELL:-Xlinker --stack -Xlinker 16777216,16777216")
     # gow3: runtime unit tests (ninja -C out/gpu mp3-test videodec-test services-test).
     add_executable(mp3-test EXCLUDE_FROM_ALL ../tests/test_mp3.c ../src/runtime_mp3.c ../src/compat_win.c)
