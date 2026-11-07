@@ -182,11 +182,82 @@ def try_swap(data):
     return True
 
 
+def _link_file(src, dst, budget):
+    """dst as a hard link to src (same drive), else a copy; budget[0] counts the bytes copied."""
+    try:
+        os.link(src, dst)
+        return
+    except OSError:
+        pass
+    budget[0] += src.stat().st_size
+    if budget[0] > budget[1]:
+        raise OSError('the game folder and its update are on another drive than the multiplayer data, and the files '
+                      'to combine exceed %d MB' % (budget[1] >> 20))
+    shutil.copy2(src, dst)
+
+
+def _merge(base, update, view, budget):
+    """view = base with update laid over it: folders only one side has are junctions to it, files hard links (or
+    copies), folders both sides have are merged one level further down."""
+    view.mkdir()
+    names = {p.name: p for p in base.iterdir()} if base and base.is_dir() else {}
+    over = {p.name: p for p in update.iterdir()} if update and update.is_dir() else {}
+    for name in sorted(set(names) | set(over)):
+        b, u, v = names.get(name), over.get(name), view / name
+        if u is not None and b is not None and u.is_dir() and b.is_dir():
+            _merge(b, u, v, budget)
+        elif (u or b).is_dir():
+            import _winapi
+            _winapi.CreateJunction(str(u or b), str(v))
+        else:
+            _link_file(u or b, v, budget)
+
+
+def ps4_view(a, data):
+    """The PS4 game as the game sees it: with update 1.02 in its own folder (--ps4-update), the recipe must read the
+    updated files (dc1 menu.bin / modules.bin differ from 1.00), so it gets a merged view of the two folders
+    (<data>/ps4-view, rebuilt when either folder changes). Without an update: the game folder itself."""
+    if not a.ps4_update:
+        return a.ps4
+    base, update = Path(a.ps4), Path(a.ps4_update)
+    view = data / 'ps4-view'
+    stamp = '%s|%s|%d|%d|v1' % (base, update, int(base.stat().st_mtime), int(update.stat().st_mtime))
+    sf = data / 'ps4-view.txt'
+    if view.is_dir() and sf.exists() and sf.read_text(encoding='utf-8') == stamp:
+        return str(view)
+    if view.exists():
+        _remove_view(view)
+    sf.unlink(missing_ok=True)
+    try:
+        _merge(base, update, view, [0, 2 << 30])
+    except OSError as e:
+        log('note: the PS4 update could not be combined with the game folder (%s); the recipe reads the game folder '
+            'alone, so steps that need update 1.02 files may fail' % e)
+        if view.exists():
+            _remove_view(view)
+        return a.ps4
+    sf.write_text(stamp, encoding='utf-8')
+    log('PS4 game for the recipe: %s with update %s laid over it (%s)' % (base, update, view))
+    return str(view)
+
+
+def _remove_view(view):
+    """Delete a merged view without following its junctions into the game folders."""
+    for dp, dn, fn in os.walk(view, topdown=True):
+        for d in list(dn):
+            p = os.path.join(dp, d)
+            if os.path.isjunction(p) or os.path.islink(p):
+                os.rmdir(p) if os.path.isjunction(p) else os.unlink(p)
+                dn.remove(d)
+    shutil.rmtree(view)
+
+
 def run_recipe(a, data, ps4_elf, ps3_elf, out=None):
     out = out or data / 'recipe'
     out.mkdir(parents=True, exist_ok=True)
     python = os.environ.get('U3MP_PYTHON') or sys.executable
-    cmd = [python, '-u', str(RECIPE / 'rebuild_overlays.py'), '--ps4', a.ps4, '--out', str(out), '--continue-on-error',
+    cmd = [python, '-u', str(RECIPE / 'rebuild_overlays.py'), '--ps4', ps4_view(a, data), '--out', str(out),
+           '--continue-on-error',
            '--speech-langs', a.speech_langs]
     for f in a.ps3_u3:
         cmd += ['--ps3-u3', f]

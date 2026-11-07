@@ -33,7 +33,7 @@ md5 = lambda b: hashlib.md5(b).hexdigest()
 
 def game_running():
     try:
-        return any(l.split()[:1] == ['uncharted.exe'] for l in subprocess.run(['tasklist'], capture_output=True, text=True).stdout.lower().splitlines())
+        return any(l.split()[:1] == ['uncharted.exe'] for l in subprocess.run(['tasklist'], capture_output=True).stdout.decode('ascii', 'replace').lower().splitlines())
     except Exception:
         return False
 

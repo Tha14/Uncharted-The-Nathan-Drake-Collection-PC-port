@@ -12,7 +12,7 @@ DSTDIR=WORK+'/overlay-r3/u3data/build/main/dc1/ps4'; BAK=WORK+'/backup-igc3'; SR
 FILES={'skel-retargets.bin':'1237caf2ab9c7b1a20660e6d952e63a28148fc94e69f750de15c8d6efc90459d'}
 def h(f): return hashlib.sha256(open(f,'rb').read()).hexdigest()
 def game_running():
-    try: out=subprocess.run(['tasklist'],capture_output=True,text=True).stdout
+    try: out=subprocess.run(['tasklist'],capture_output=True).stdout.decode('ascii','replace')
     except Exception: return False
     return 'uncharted.exe' in out.lower()
 a=argparse.ArgumentParser();a.add_argument('--apply',action='store_true');a.add_argument('--restore',action='store_true');o=a.parse_args()

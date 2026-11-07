@@ -20,7 +20,7 @@ a = sys.argv[1:]; apply_ = '--apply' in a
 sat = float(a[a.index('--sat') + 1]) if '--sat' in a else 0.5
 out = a[a.index('--out') + 1] if '--out' in a else None
 if not 0 <= sat <= 1: sys.exit('--sat must be 0..1')
-if apply_ and any(l.split()[:1] == ['uncharted.exe'] for l in subprocess.run(['tasklist'], capture_output=True, text=True).stdout.lower().splitlines()): sys.exit('game running: stop it first')
+if apply_ and any(l.split()[:1] == ['uncharted.exe'] for l in subprocess.run(['tasklist'], capture_output=True).stdout.decode('ascii', 'replace').lower().splitlines()): sys.exit('game running: stop it first')
 md5 = lambda b: hashlib.md5(b).hexdigest()
 pins = json.load(open(PIN))
 if '--restore' in a:

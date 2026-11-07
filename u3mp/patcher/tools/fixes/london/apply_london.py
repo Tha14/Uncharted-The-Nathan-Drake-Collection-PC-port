@@ -28,7 +28,7 @@ md5 = lambda b: hashlib.md5(b).hexdigest()
 
 
 def game_running():
-    return any(l.split()[:1] == ['uncharted.exe'] for l in subprocess.run(['tasklist'], capture_output=True, text=True).stdout.lower().splitlines())
+    return any(l.split()[:1] == ['uncharted.exe'] for l in subprocess.run(['tasklist'], capture_output=True).stdout.decode('ascii', 'replace').lower().splitlines())
 
 
 # paks whose overlay-r3 copy already fails crashcheck before any change here (check-all.log); left alone unless --include-failing
