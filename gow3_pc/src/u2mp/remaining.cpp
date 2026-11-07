@@ -441,6 +441,22 @@ U2MP_GUEST void *stat_host_copy(void *dst, const void *src, uint64_t n) {
 
 void install_remaining(int &installed) {
     {
+        // Test run 25 (null+8 read at 0x6405af): for every player tracker the NetGameManager takes a
+        // value from the match session's own block (+0xb10) when it has no room (+0x10 == 0) and
+        // +0xb0c == 0x30, else from the room attributes, an accessor PS4 stripped and the compiler
+        // folded to NULL (`mov edi,0; cmovne rdi,rsi`). Our session has a room, so: always the own block.
+        constexpr uint64_t site = 0x640598;
+        static const unsigned char expect[] = {0xbf, 0x00, 0x00, 0x00, 0x00, 0x48, 0x0f, 0x45, 0xfe};
+        if (image.matches(site, expect, sizeof expect)) {
+            static const unsigned char fix[] = {0x48, 0x89, 0xf7, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90};   // mov rdi,rsi
+            std::memcpy(image.base + site, fix, sizeof fix);
+            log("tracker values (640598): read from the session block, not the stripped room accessor");
+            ++installed;
+        } else {
+            log("tracker values (640598): bytes differ, left alone");
+        }
+    }
+    {
         // Test run 18: online only (NET_SM >= 2), a level object's tag table ({data, count} at object
         // +0x68) is binary-searched for tag 2743c4b0 (0x4bf44c..0x4bf492) without a count check; an
         // empty table has data NULL and the search reads address 0 while LoadLevels runs. PS4 never ran
