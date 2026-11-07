@@ -33,7 +33,13 @@ done
 
 cp gow3_pc/scripts/*.py "$stage/gow3_pc/scripts/"
 cp tools/probe_uncharted.py tools/hang_report.py tools/apply_update.py tools/install_update.py \
-    tools/net_overlay.py tools/check_game_files.py tools/game_files_102.json.gz tools/u3mp_process.py "$stage/tools/"
+    tools/check_game_files.py tools/game_files_102.json.gz tools/u3mp_process.py "$stage/tools/"
+# Uncharted 2 multiplayer (launcher -> Multiplayer while Uncharted 2 is chosen): u2mp/patcher, scripts only;
+# the player's PC makes every game-derived file from the player's own game.
+mkdir -p "$stage/u2mp"
+cp -r u2mp/patcher "$stage/u2mp/patcher"
+cp u2mp/README.md "$stage/u2mp/README.md"
+find "$stage/u2mp" -name '__pycache__' -prune -exec rm -rf {} +
 # Uncharted 3 multiplayer (launcher -> Multiplayer): the import (u3mp/patcher/u3mp_import.py), the overlay
 # recipe and its tools (scripts and tables only), and the helper builds (our compiled code). The player's PC
 # makes every game-derived file from the player's own copies.
@@ -82,9 +88,8 @@ fi
 # PkgTool (LibOrbisPkg, LGPL-3.0): Advanced -> Install game update unpacks the player's own update PKG.
 mkdir -p "$stage/tools/pkgtool"
 cp tools/pkgtool/PkgTool.exe tools/pkgtool/LibOrbisPkg.dll "$stage/tools/pkgtool/"
-# Every launcher module and data file (0.6.1 shipped without net_lan.py, which the launcher
-# imported at start: it did not open, GitHub #208).
-cp launcher/*.py launcher/*.pyw launcher/*.json "$stage/launcher/"
+# Every launcher module and data file.
+cp launcher/*.py launcher/*.pyw "$stage/launcher/"
 # The package's version (tools/VERSION; the launcher's updates compare it with the releases).
 cp tools/VERSION "$stage/VERSION"
 cp launcher/assets/uncharted.ico launcher/assets/icon.png "$stage/launcher/assets/"

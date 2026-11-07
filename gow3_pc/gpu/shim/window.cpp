@@ -295,7 +295,7 @@ bool WindowSDL::PollEvents() {
     // cursor follows ImGui's last mouse position, which can be off screen after mouse look let
     // the pointer go. Windows' cursor is shown while the menu or a dialog takes the input,
     // placed in the middle of the window when it appears, and hidden again when the game has it.
-    if (!Headless()) {
+    {
         static bool cursor_shown = false;
         const bool want_cursor = Gow3Overlay::CapturesInput();
         if (want_cursor != cursor_shown) {

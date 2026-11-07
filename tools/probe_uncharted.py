@@ -1363,7 +1363,7 @@ def remove_pipeline_binaries(cache):
 def instance_suffix():
     """UNCHARTED_INSTANCE=<n> (n >= 2; co-op tests, 25 Oct 2026): another game on this PC with its
     own folders (analysis/<game>-i<n>, analysis/uncharted-user-i<n>), so that two instances can
-    play each other over the LAN transport (gow3_pc/src/runtime_net.c). Instance 1, the default,
+    run side by side. Instance 1, the default,
     uses the normal folders."""
     value = os.environ.get("UNCHARTED_INSTANCE", "1").strip()
     return f"-i{int(value)}" if value.isdigit() and int(value) >= 2 else ""
@@ -1392,69 +1392,6 @@ def user_dir():
                 shutil.copy2(source, user / name)
         print(f"Instance {suffix[2:]}: new user folder {user} (settings, saves and caches copied)")
     return user
-
-
-def net_mode():
-    """LAN multiplayer (the launcher's Multiplayer page, Uncharted 2 only, 25 Oct 2026):
-    UNCHARTED_NET_MODE=host|join starts Uncharted 2's own online game ("task online") with the
-    LAN transport (gow3_pc/src/runtime_net.c) and the stand-ins for the removed session layer
-    (runtime_coop.c's netinit). Off unless set."""
-    mode = os.environ.get("UNCHARTED_NET_MODE", "").strip().lower()
-    return mode if mode in ("host", "join") else ""
-
-
-def net_lobby():
-    """The lobby before each match (runtime_coop_menu.c mpmenu lobby); UNCHARTED_NET_LOBBY=0 = off."""
-    return os.environ.get("UNCHARTED_NET_LOBBY", "1").strip() != "0"
-
-
-def net_game_env(env, user, roots):
-    """The runtime settings of a net game; returns the /app0 overlay it needs (tools/net_overlay.py,
-    built from the player's own game files; roots = the /app0 folders, topmost first).
-      UNCHARTED_NET_ADDRESS  host: [address:]port to listen on (default 0.0.0.0:27000);
-                             join: the host's address[:port] (port 27000 unless given)
-      UNCHARTED_NET_GAME     host: the net game (*net-games* index; 114 = The Village co-op)
-      UNCHARTED_NET_TITLE    host: its title in the LAN search
-      UNCHARTED_NET_NAME     the player's name
-      UNCHARTED_NET_SKIN     the player's character: an actor of the game (e.g. mp-hero-elena,
-                             hero-default); every machine shows this player with it (GOW3_NET_SKIN,
-                             runtime_net.c / runtime_coop_mp.c). Ignored when the game lacks it.
-    A joiner gets its player id and the net game from the host's welcome: the boot commands wait
-    for it (netwait) before setting up the net game (netinit auto). The per-game settings (levels,
-    teams, default character) follow from the net game inside the runtime (runtime_coop_mp.c)."""
-    from net_overlay import build_overlay, actor_exists
-    skin = os.environ.get("UNCHARTED_NET_SKIN", "").strip().lower()
-    if skin and not actor_exists(roots, skin):
-        print(f"Net game: character {skin} is not in the game files: the default one is used")
-        skin = ""
-    overlay = build_overlay(roots, user / "net-overlay", [skin] if skin else [])
-    if skin:
-        env["GOW3_NET_SKIN"] = skin
-    boot = user / "net-boot.txt"
-    # mpmenu auto (runtime_coop_menu.c): the game's own results pages after a round (25 Oct, run f6)
-    # mpmenu lobby (25 Oct): the game's own Custom Game lobby first, the host's Start Game starts
-    # every game (no "task online" then); UNCHARTED_NET_LOBBY=0 starts the match at once as before.
-    boot.write_text("at 1\nnetwait\nnetinit auto 64\nmpmenu auto\n" + ("mpmenu lobby\n" if net_lobby() else ""),
-                    encoding="ascii")
-    env["GOW3_COOP_BOOT"] = str(boot)
-    # Multiplayer data the Collection does not ship (e.g. the bullets' MP explosion settings,
-    # the first shot faulted) falls back to its single-player twin (runtime_coop_mp.c).
-    env.setdefault("GOW3_COOP_MP_TWINS", "1")
-    address = os.environ.get("UNCHARTED_NET_ADDRESS", "").strip()
-    if name := os.environ.get("UNCHARTED_NET_NAME", "").strip():
-        env["GOW3_NET_NAME"] = name[:31]
-    if net_mode() == "host":
-        env["GOW3_NET_HOST"] = address or "0.0.0.0:27000"
-        env["GOW3_NET_GAME"] = os.environ.get("UNCHARTED_NET_GAME", "114").strip() or "114"
-        env["GOW3_NET_TITLE"] = os.environ.get("UNCHARTED_NET_TITLE", "")[:47]
-        print(f"Net game: hosting net game {env['GOW3_NET_GAME']} on {env['GOW3_NET_HOST']}")
-    else:
-        if address and ":" not in address:
-            address += ":27000"
-        env["GOW3_NET_JOIN"] = address or "127.0.0.1:27000"
-        env["GOW3_NET_ID"] = "auto"
-        print(f"Net game: joining {env['GOW3_NET_JOIN']}")
-    return overlay
 
 
 def u3mp_image(executable):
@@ -1947,13 +1884,11 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
     command = [str(game_executable()), str(out / "boot-linked.bin"),
                "--no-game-hooks", "--low-image", "--content-profile", str(out / "content.bin"),
                "--app0", str(app0 or game), "--user", str(user)]
-    # gow3 24 Oct 2026, co-op research: UNCHARTED_COOP_OVERLAY=<dir> lays one more folder over
-    # /app0, ahead of the others (e.g. a U2 package manifest without the missing co-op skins,
-    # analysis/triage-1022/coop-work/make_coop_overlay.py). Off unless set.
-    if coop_overlay := os.environ.get("UNCHARTED_COOP_OVERLAY"):
-        command += ["--app0-overlay", coop_overlay]
-    if executable == "big2-ps4_Shipping.elf" and net_mode():
-        command += ["--app0-overlay", str(net_game_env(env, user, [*overlays, app0 or game]))]
+    # Uncharted 2 multiplayer (u2mp, set by the launcher): UNCHARTED_U2MP_OVERLAY, a folder made from the
+    # player's own game (u2mp/patcher/u2mp_overlay.py), laid over /app0 ahead of the update.
+    u2mp = os.environ.get("UNCHARTED_U2MP_OVERLAY", "")
+    if executable == "big2-ps4_Shipping.elf" and u2mp and Path(u2mp).is_dir():
+        command += ["--app0-overlay", u2mp]
     # Uncharted 3 multiplayer: its four overlays (the first wins) ahead of the update.
     for overlay in [*(mp["overlays"] if mp else ()), *overlays]:
         command += ["--app0-overlay", str(overlay)]
@@ -2071,8 +2006,6 @@ def main():
             guest_args = ["/app0/eboot.bin"]
         else:
             guest_args = ["eboot.bin", "ispartofuccollection"]
-            if executable == "big2-ps4_Shipping.elf" and net_mode() and not net_lobby():
-                guest_args += ["task", "online"]  # Uncharted 2's own online game (net_mode)
     while True:
         loadexec.unlink(missing_ok=True)
         result = run_once(args, executable, guest_args, loadexec)
