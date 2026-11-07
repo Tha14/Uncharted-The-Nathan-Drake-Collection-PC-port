@@ -121,7 +121,7 @@ bool init_table(uint64_t t, int32_t entries, uint32_t node_size, const char *nam
     const int32_t buckets = mask + 1;
     const uint64_t pool_offset = (uint64_t(buckets) * 8 + 8 + 15) & ~uint64_t(15);
     const uint64_t size = pool_offset + uint64_t(entries + 1) * node_size;
-    auto *mem = static_cast<uint8_t *>(game_alloc(size, 16));
+    auto *mem = static_cast<uint8_t *>(netheap_alloc(size, 16));   // the network heap: never reused by others
     if (!mem) {
         log("netinit: %s: allocation of %llu bytes failed", name, static_cast<unsigned long long>(size));
         return false;
@@ -215,5 +215,27 @@ void init_common() {
 void netinit_prepare() { init_common(); }
 
 void netinit_match() { init_common(); }
+
+// Diagnostics (test runs): the NetGameManager tables as the match task finds them.
+void netinit_dump(const char *when) {
+    struct { uint64_t at; const char *name; } tables[] = {{0x113b760 + 0x1ba0, "0x1ba0"}, {0x113b760 + 0x1c10, "0x1c10"}};
+    for (const auto &tb : tables) {
+        const uint64_t b = G<uint64_t>(tb.at + HT_BUCKETS), end = G<uint64_t>(tb.at + HT_BUCKETS_END);
+        const int32_t n = G<int32_t>(tb.at + HT_NUM_BUCKETS);
+        int used = 0, minus = 0;
+        if (b && n > 0 && n <= 4096)
+            for (int32_t i = 0; i <= n; ++i) {
+                const uint64_t v = *reinterpret_cast<uint64_t *>(uintptr_t(b) + uint64_t(i) * 8);
+                used += v != 0;
+                minus += v == ~uint64_t(0);
+            }
+        log("netinit[%s] table %s: buckets %#llx end %#llx (%s) n %d free %#llx pool %#llx sentinel %#llx "
+            "ready %u; non-null slots %d, -1 slots %d",
+            when, tb.name, (unsigned long long)b, (unsigned long long)end,
+            b && end == b + uint64_t(n) * 8 ? "ok" : "MISMATCH", n,
+            (unsigned long long)G<uint64_t>(tb.at + HT_FREE), (unsigned long long)G<uint64_t>(tb.at + HT_POOL),
+            (unsigned long long)G<uint64_t>(tb.at + HT_SENTINEL), G<uint8_t>(tb.at + HT_READY), used, minus);
+    }
+}
 
 }  // namespace u2mp

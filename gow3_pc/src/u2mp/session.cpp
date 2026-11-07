@@ -436,7 +436,7 @@ void ensure_network_heap() {
 // SetNetState(18)). PS4 0x5eb160 was a bare ret.
 U2MP_GUEST void multiplayer_button(void *, void *, void *) {
     log("Multiplayer selected");
-    ensure_network_heap();
+    netheap_install();   // context 0x14: a heap of its own (netheap.cpp)
     netinit_prepare();   // what PS3 NetGameManager::Init / NetInit built (netinit.cpp)
     if (!active) {
         if (!start_transport()) {
@@ -508,7 +508,9 @@ U2MP_GUEST void start_match(void *, void *, void *) {
     }
     log("Start Match: creating the match");
     netinit_match();
-    host_create();   // state 3, page handler 0x6093f0
+    netinit_dump("before create");
+    host_create();
+    netinit_dump("after create");   // state 3, page handler 0x6093f0
     session_set(kMatch, kRoomContext, 1, 1);
     session_members(kMatch);
     fill_net_players();
@@ -601,6 +603,7 @@ void tick() {
     const int32_t s = state();
     if (s != last_state) {
         log("net state %d -> %d", last_state, s);
+        if (s == kServerLobby || s == kCreateGameWait) netinit_dump(s == kServerLobby ? "state 16" : "state 3");
         if (hosting && s == kCreateGameWait && last_state == kLeaveGame)
             G<uint8_t>(kMatch + M_CREATED) = 0;   // back in the lobby: wait for the next Start Match
         last_state = s;

@@ -59,8 +59,11 @@ void install_dlc(int &installed);       // dlc.cpp: DLC maps offered only when i
 // False when the *net-games* record `index` plays on a DLC map whose map pack was not imported.
 bool dlc_net_game_available(int32_t index);
 // netinit.cpp: state the removed PS3 multiplayer init set up (u2mp/docs/NETINIT.md). Both idempotent.
+void netheap_install();                     // netheap.cpp: memory context 0x14 gets a heap of its own
+void *netheap_alloc(size_t size, size_t align);
 void netinit_prepare();   // when Multiplayer is entered
 void netinit_match();     // at match start
+void netinit_dump(const char *when);   // diagnostics: the tables as the game finds them
 // ShowPage(menu manager, page id, 0) in the guest.
 void show_page(uint32_t page);
 // True when the function at `offset` is a stripped stub: ret, then alignment padding.

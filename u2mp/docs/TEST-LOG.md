@@ -9,3 +9,6 @@
 | 3 | frame hook 60/s, NET_SM 18, net.pak loaded, Multiplayer page shown; Start Match crashed in 0x5eb830 (room-attribute list 0x14ce9b8 is null on PS4) | host_create() in C++ without that pick |
 | 4 | states 18 -> 3 -> 10; crash in the allocator: memory context 0x14 (network heap) has no heap on PS4 | context 0x14 shares the default heap |
 | 5 | states 3 -> 10 -> 16 (PlayTask "deathmatch"); crash at 0x64100f (AssignTeams area) called from 0x9bddc3 | open: next bug-fixing round, after the menus and assets |
+| 6-7 | (with the PS3 import) Multiplayer, 11 playlists, both map packs offered; states 3 -> 10 -> 16; crash in 0x640fc0 (NetGameManager match reset): its two hash tables were never built on PS4 | netinit.cpp builds them (PS3 NetGameManager::Init 0x49c740) |
+| 8 | crash again in 0x640fc0: the tables' memory was reused (context 0x14 had been pointed at the thread's scratch heap) | netheap.cpp: context 0x14 gets a heap of its own |
+| 9 | no crash: tables clean up to state 16 (the match task); the game then went quiet until closed | open: what the screen showed |
