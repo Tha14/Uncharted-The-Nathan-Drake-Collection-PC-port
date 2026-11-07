@@ -480,6 +480,40 @@ uint64_t next_online_log = 0;
 // the task's level (task+0x80 -> +0x88 -> +0x28) and the net game's second level (record +0x78) at
 // state 8 in the level list 0x1534140 (node +0 next, +0x10 state, +0x98 id), and 0xa18010 false.
 // Logs each part (test run 19 stayed in LoadLevels).
+//
+// Test run 21: the wait list holds the package "<map>-pak" (the name of the net game's level record,
+// *levels* 0dec97a4 +0x18, e.g. ice-cave-multi-pak) next to the map and its sky. No registry defines
+// those names (PS3 1.10's pak22.txt defines 5 of 13, as empty level groups; PS4 none) and no file
+// exists, so the package is never created and LoadLevels waits forever. Its entry in the first list
+// gets the list's own skip flag (bit 1, which 0x56ce50 honours there) while no such package exists;
+// the map and sky packages are still waited for.
+void skip_missing_level_pak() {
+    struct Table { int32_t count; int32_t pad; uint8_t *records; };
+    auto lookup = fn<Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70);
+    Table *games = lookup(0x3b9a067d), *levels = lookup(0x0dec97a4);
+    const int16_t game = G<int16_t>(kNgm + NGM_GAME);
+    if (!games || !levels || !games->records || !levels->records || game < 0 || game >= games->count) return;
+    const uint32_t level_id = *reinterpret_cast<const uint32_t *>(games->records + 0x90 * game + 4);
+    const char *name = nullptr;
+    for (int32_t i = 0; i < levels->count; ++i)
+        if (*reinterpret_cast<const uint32_t *>(levels->records + 0x38 * i) == level_id)
+            name = *reinterpret_cast<const char *const *>(levels->records + 0x38 * i + 0x18);
+    if (!name) return;
+    const size_t n = std::strlen(name);
+    if (n < 4 || std::strcmp(name + n - 4, "-pak") != 0) return;
+    const uint32_t id = sid(name);
+    if (find_package(id)) return;
+    const uint64_t table = uint64_t(uintptr_t(image.at<uint8_t>(0x1130390)));
+    const uint32_t count = *reinterpret_cast<const uint32_t *>(uintptr_t(table + 0x5a98));
+    auto *e = *reinterpret_cast<uint8_t **>(uintptr_t(table + 0x5aa0));
+    for (uint32_t i = 0; e && i < count && i < 256; ++i, e += 0x10) {
+        auto &fl = *reinterpret_cast<uint32_t *>(e + 0xc);
+        if (*reinterpret_cast<const uint32_t *>(e + 8) == id && !(fl & 1)) {
+            fl |= 1;
+            log("load levels: %s is defined nowhere (no registry entry, no file): not waited for", name);
+        }
+    }
+}
 void log_load_levels(void *state) {
     auto *task = *reinterpret_cast<uint8_t **>(static_cast<uint8_t *>(state) + 8);
     uint32_t task_level = 0;
@@ -536,6 +570,7 @@ template <size_t I> U2MP_GUEST uint64_t state_update(void *state) {
             (unsigned long long)(kStateUpdates[I].slot - 0x18));
         if (kStateUpdates[I].update == 0x5f2dc0) log_load_levels(state);
     }
+    if (kStateUpdates[I].update == 0x5f2dc0) skip_missing_level_pak();
     const uint64_t result = original_update[I](state);
     tick();
     return result;
