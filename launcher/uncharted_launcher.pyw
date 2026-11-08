@@ -153,6 +153,31 @@ U2MP_DIR = USER_DIR / "u2mp"
 U3MP_DIR = ROOT / "u3mp" / "patcher"
 
 
+def launcher_version():
+    """The launcher release (VERSION next to the launcher in a package, tools/VERSION in the source tree)."""
+    for path in (ROOT / "VERSION", ROOT / "tools" / "VERSION"):
+        try:
+            text = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if text:
+            return text
+    return "?"
+
+
+def recipe_version():
+    """The Uncharted 3 multiplayer recipe shipped with the launcher (u3mp/patcher/recipe/VERSION)."""
+    try:
+        return (U3MP_DIR / "recipe" / "VERSION").read_text(encoding="utf-8").strip() or "?"
+    except OSError:
+        return "?"
+
+
+def version_suffix():
+    """' - Launcher Version: x - Recipe Version: y', shown after the launcher's and the games' window titles."""
+    return f" - Launcher Version: {launcher_version()} - Recipe Version: {recipe_version()}"
+
+
 def u3mp_default_data():
     base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or str(Path.home())
     return Path(base) / "Uncharted Launcher" / "U3 Multiplayer"
@@ -1557,7 +1582,7 @@ class Launcher:
         self.gpu_name = self.config.get("gpu")
         self.recommended = gpu_recommendation(self.gpu_name)
         self.fonts()
-        root.title(APP_TITLE)
+        root.title(APP_TITLE + version_suffix())
         root.configure(bg=BG)
         root.resizable(True, True)
         self.width = self.px(1180)
@@ -1653,6 +1678,7 @@ class Launcher:
     def build(self):
         self.build_hero()
         self.build_cards()
+        self.build_update_banner()
         self.build_footer()
         self.build_tabs()
         self.select_game(self.config.get("game", "u1"), save=False)
@@ -1691,6 +1717,23 @@ class Launcher:
         canvas.create_text(x + self.px(3), y + self.px(44), text="T H E   N A T H A N   D R A K E   C O L L E C T I O N",
                            font=self.f_subtitle, fill="#8a6326", anchor="w")
         canvas.create_line(x + self.px(3), y + self.px(66), x + self.px(330), y + self.px(66), fill="#b98d45", width=2)
+
+    def build_update_banner(self):
+        """A gold bar under the game cards while Uncharted 3's multiplayer files update (u3mp_gate): hidden
+        otherwise (an empty slot keeps its place in the layout)."""
+        self.banner_slot = tk.Frame(self.root, bg=BG, height=1)
+        self.banner_slot.pack(side="top", fill="x", padx=self.px(40))
+        self.banner = tk.Frame(self.banner_slot, bg=GOLD)
+        self.banner_title = tk.Label(self.banner, text="", font=self.f_body_bold, bg=GOLD, fg=INK, anchor="w",
+                                     justify="left")
+        self.banner_title.pack(side="top", fill="x", padx=self.px(16), pady=(self.px(10), 0))
+        self.banner_detail = tk.Label(self.banner, text="", font=self.f_small, bg=GOLD, fg=INK, anchor="w",
+                                      justify="left", wraplength=self.px(1000))
+        self.banner_detail.pack(side="top", fill="x", padx=self.px(16), pady=(self.px(2), self.px(4)))
+        self.banner_bar = tk.Canvas(self.banner, height=self.px(8), bg=GOLD, highlightthickness=0)
+        self.banner_bar.pack(side="top", fill="x", padx=self.px(16), pady=(0, self.px(10)))
+        self.banner_shown = False
+        self.u3mp_block = ""
 
     def build_cards(self):
         frame = tk.Frame(self.root, bg=BG)
@@ -1741,6 +1784,8 @@ class Launcher:
         if hasattr(self, "status") and not self.process:
             self.set_status(f"Ready to play {self.current_game()['name']}.")
         self.update_multiplayer_tab()
+        if hasattr(self, "play_button"):
+            self.u3mp_gate()
 
     def u2_net_tab(self):
         """Uncharted 2's Multiplayer page (u2mp, page_multiplayer) is shown instead of Uncharted 3's."""
@@ -2923,10 +2968,77 @@ class Launcher:
         except (OSError, tk.TclError):
             pass
 
+    def u3mp_block_reason(self):
+        """Why Uncharted 3 cannot start yet: "running" (an update of an existing import is rebuilding the
+        multiplayer files), "pending" (a launcher update brought a new build or recipe that is not applied yet), or
+        "" (nothing to wait for; a first import in progress does not block: Uncharted 3 then starts without it)."""
+        if not hasattr(self, "u3mp_status"):
+            return ""
+        try:
+            state = self.u3mp_state()
+            if self.u3mp_running():
+                return "running" if state.get("image") else ""
+            if state.get("status") in ("imported", "partial") and self.u3mp_pending(state):
+                return "pending"
+        except (OSError, tk.TclError):
+            pass
+        return ""
+
+    def u3mp_blocked(self):
+        """PLAY is held for Uncharted 3 while its multiplayer update is pending or running."""
+        return bool(getattr(self, "u3mp_block", "")) and self.config.get("game") == "u3" and not self.process
+
+    def u3mp_gate(self):
+        """Every second (u3mp_poll) and on a game change: the gold update bar under the game cards and the PLAY
+        button follow the multiplayer update state."""
+        reason = self.u3mp_block_reason()
+        changed = reason != getattr(self, "u3mp_block", "")
+        self.u3mp_block = reason
+        if not hasattr(self, "banner"):
+            return
+        if reason:
+            n, total, _ = getattr(self, "u3mp_progress", (0, 0, ""))
+            if reason == "running":
+                pct = f" ({int(100 * n / total)}%)" if total else ""
+                self.banner_title.config(text="UNCHARTED 3 MULTIPLAYER UPDATE IN PROGRESS" + pct +
+                                              " - Uncharted 3 can be played when it finishes")
+                step = self.u3mp_step.cget("text") if hasattr(self, "u3mp_step") else ""
+                self.banner_detail.config(text=(step + "\n" if step else "") +
+                                          "The launcher update changed the multiplayer files; only what changed is "
+                                          "rebuilt. Uncharted 1 and 2 can be played meanwhile, and closing the "
+                                          "launcher does not stop the update (details: Multiplayer tab).")
+            else:
+                self.banner_title.config(text="UNCHARTED 3 MULTIPLAYER UPDATE NEEDED - it starts in a moment")
+                self.banner_detail.config(text="The launcher update brought new multiplayer files. Uncharted 3 can "
+                                               "be played once they are rebuilt.")
+            self.banner_bar.delete("all")
+            width = self.banner_bar.winfo_width()
+            self.banner_bar.create_rectangle(0, 0, width, self.px(8), fill=INK, outline=INK)
+            if total and width > 1 and reason == "running":
+                self.banner_bar.create_rectangle(0, 0, int(width * min(1.0, n / total)), self.px(8), fill=TEXT,
+                                                 outline=TEXT)
+            if not self.banner_shown:
+                self.banner.pack(side="top", fill="x", pady=(0, self.px(12)))
+                self.banner_shown = True
+        elif self.banner_shown:
+            self.banner.pack_forget()
+            self.banner_shown = False
+        if changed:
+            self.draw_play()
+            if not self.process and hasattr(self, "status"):
+                if self.u3mp_blocked():
+                    self.set_status("Uncharted 3 is updating its multiplayer files.",
+                                    "PLAY unlocks when the update finishes (progress above).")
+                else:
+                    self.set_status(f"Ready to play {self.current_game()['name']}.")
+
     def u3mp_confirm_play(self):
-        """play(): with multiplayer on, a pending update starts now (if it did not yet) and, while the multiplayer
-        image is not up to date, the player chooses between waiting and starting without multiplayer."""
-        if not self.u3mp_on() or not hasattr(self, "u3mp_status"):
+        """play(): Uncharted 3 does not start while its multiplayer update is pending or running (u3mp_gate); a
+        pending one starts now if it did not yet."""
+        if self.config.get("game") != "u3" or not hasattr(self, "u3mp_status"):
+            return True
+        reason = self.u3mp_block_reason()
+        if not reason:
             return True
         try:
             pending = self.u3mp_pending()
@@ -2934,18 +3046,14 @@ class Launcher:
                 self.u3mp_import(silent=True, image_only=(pending == "image"),
                                  reason="the launcher update brought a new multiplayer "
                                         + ("build" if pending == "image" else "version"))
-            if not self.u3mp_running() or self.u3mp_state().get("staging"):
-                return True     # an update that builds into a second folder leaves the current files playable
         except (OSError, tk.TclError):
-            return True
-        # the import rewrites overlay files: the game must not read them meanwhile, so it starts without them
-        if not messagebox.askyesno(
-                APP_TITLE, "The multiplayer files are being updated (Multiplayer tab: a new multiplayer build takes "
-                           "about a minute, new conversion steps longer).\n\nStart Uncharted 3 now without "
-                           "multiplayer? (No = wait for the update)"):
-            return False
-        self.u3mp_skip_once = True
-        return True
+            pass
+        self.u3mp_gate()
+        messagebox.showinfo(
+            APP_TITLE, "Uncharted 3 is updating its multiplayer files after the launcher update.\n\nIt can be played "
+                       "as soon as the update finishes (progress at the top of the launcher). Uncharted 1 and 2 can "
+                       "be played meanwhile.")
+        return False
 
     def u3mp_env(self, env):
         """play(): Uncharted 3 starts with the multiplayer image and overlays (tools/probe_uncharted.py
@@ -3443,6 +3551,10 @@ class Launcher:
                 self.u3mp_refresh()
         except (OSError, tk.TclError):
             pass
+        try:
+            self.u3mp_gate()
+        except (OSError, tk.TclError):
+            pass
         self.root.after(1000, self.u3mp_poll)
 
     def u3mp_lines(self, lines):
@@ -3540,6 +3652,13 @@ class Launcher:
         w, h = int(canvas["width"]), int(canvas["height"])
         canvas.delete("all")
         running = self.process is not None
+        if not running and self.u3mp_blocked():
+            # Uncharted 3's multiplayer update is pending or running (u3mp_gate): PLAY is held until it finishes
+            round_rect(canvas, 2, 2, w - 2, h - 2, self.px(8), fill=PANEL_HI, outline=DIM)
+            canvas.create_text(w // 2, h // 2, text="UPDATING...", font=self.f_play, fill=MUTED)
+            canvas.config(cursor="arrow")
+            return
+        canvas.config(cursor="hand2")
         fill = (STOP_RED if running else (GOLD_HI if hover else GOLD))
         round_rect(canvas, 2, 2, w - 2, h - 2, self.px(8), fill=fill, outline=fill)
         canvas.create_text(w // 2, h // 2, text="STOP" if running else "PLAY", font=self.f_play,
@@ -3781,6 +3900,7 @@ class Launcher:
         write_config(self.config)
         game = self.current_game()
         env = os.environ.copy()
+        env["GOW3_TITLE_SUFFIX"] = version_suffix()   # the game window's title (gow3gpu.cpp), like the launcher's
         env["UNCHARTED_DIAGNOSTICS"] = "1" if self.config.get("diagnostics", True) else "0"
         env["UNCHARTED_TORCH_FORWARD"] = "1" if self.config.get("torch_forward", True) else "0"
         env["UNCHARTED_JOB_SLEEP"] = {"off": "0", "on": "1"}.get(str(self.config.get("job_sleep", "auto")), "auto")

@@ -494,9 +494,11 @@ extern "C" int gow3gpu_init(const Gow3GpuConfig* config) {
     if (config->user_dir) setenv("GOW3_GPU_USER_DIR", config->user_dir, 0);
 #endif
     Core::Emulator::FillElfInfo(*config);
-    // gow3: the port's author in the title bar.
+    // gow3: the launcher passes its version line (" - Launcher Version: x - Recipe Version: y") for the title bar;
+    // started without the launcher, the port's author is shown as before.
+    const char* title_suffix = std::getenv("GOW3_TITLE_SUFFIX");
     const std::string title = std::string(config->title ? config->title : "Uncharted: The Nathan Drake Collection") +
-                              " — PC port by BilalReloaded";
+                              (title_suffix && *title_suffix ? title_suffix : " — PC port by BilalReloaded");
     const s32 width = config->width, height = config->height;
     g_window_thread = std::thread([title, width, height] {
         Common::SetCurrentThreadName("gow3:window");

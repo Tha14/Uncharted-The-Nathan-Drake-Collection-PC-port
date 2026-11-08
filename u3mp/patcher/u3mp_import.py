@@ -11,9 +11,10 @@ Run by the launcher (MULTIPLAYER tab -> Import) in the background; can also be r
      continuing after a failing step                                 -> <data>/recipe/work/overlay-{r3,r2,port,mp}
   3. <data>/state.json: what was made, which steps failed; the launcher starts Uncharted 3 with it.
 
-Updates: when the shipped recipe differs from the one an import was made with (state.json recipe_id), the whole recipe
-runs again into <data>/recipe-next (the caches in recipe/scratch move along), so every file a newer recipe makes
-differently is replaced, while <data>/recipe stays playable.  When it ends no worse than the import it replaces, the
+Updates: when the shipped recipe differs from the one an import was made with (state.json recipe_id), the recipe runs
+again into <data>/recipe-next, which starts as a copy of the current files and step records (the caches in
+recipe/scratch move along): only the steps whose fingerprint changed run again, and the steps whose files they change,
+so every file a newer recipe makes differently is replaced, while <data>/recipe stays untouched.  When it ends no worse than the import it replaces, the
 two folders are swapped (if the game holds the files open, the swap waits for the next run: <data>/recipe-next/.ready).
 Without room for a second work folder, or with --in-place, the recipe runs on <data>/recipe as before (it then only adds
 missing files and reruns changed steps).
@@ -156,6 +157,29 @@ def tree_size(folder):
             except OSError:
                 pass
     return n
+
+
+def seed_next(cur, nxt):
+    """A staged update starts from a copy of the current import (work files, backups and the step records in
+    _recipe/state.json, whose paths are relative), so rebuild_overlays.py reruns only the steps whose fingerprint
+    changed and those whose files they change, not the whole recipe (hours).  The copy goes to work.seed first and is
+    renamed when complete, and the step records come last: an interrupted copy is started again, never used half."""
+    if (nxt / '_recipe').exists() or not (cur / 'work').is_dir() or not (cur / '_recipe' / 'state.json').exists():
+        return False
+    seed = nxt / 'work.seed'
+    if (nxt / 'work').exists():
+        shutil.rmtree(nxt / 'work')                 # a copy interrupted after the rename, before the records
+    if seed.exists():
+        shutil.rmtree(seed)
+    t0 = time.time()
+    size = tree_size(cur / 'work')
+    log('update: copying the current files to %s (%.1f GB) so only the changed steps run again ...'
+        % (nxt, size / 1e9))
+    shutil.copytree(cur / 'work', seed)
+    os.replace(seed, nxt / 'work')
+    shutil.copytree(cur / '_recipe', nxt / '_recipe')
+    log('update: copied in %.0f s' % (time.time() - t0))
+    return True
 
 
 def try_swap(data):
@@ -428,6 +452,7 @@ def main():
         nxt.mkdir(parents=True, exist_ok=True)
         if (data / 'recipe' / 'scratch').is_dir() and not (nxt / 'scratch').exists():
             os.replace(data / 'recipe' / 'scratch', nxt / 'scratch')     # caches: PS3 extracts, converter trees
+        seed_next(data / 'recipe', nxt)
         state['staging'] = recipe_id      # the launcher lets the game run on the current files meanwhile
         state_file.write_text(json.dumps(state, indent=1), encoding='utf-8')
     state.pop('update_failed_for', None)
