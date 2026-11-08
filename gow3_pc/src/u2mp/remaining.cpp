@@ -458,12 +458,20 @@ U2MP_GUEST const uint8_t *level_record_package(void *) {
         const char *name = *reinterpret_cast<const char *const *>(rec + 0x18);
         const size_t n = name ? std::strlen(name) : 0;
         if (n > 4 && std::strcmp(name + n - 4, "-pak") == 0) {
+            // The caller (GetSpawnLocator, net-player-tracker.cpp) looks up spawners in the package's
+            // +0x9a0 table: spawners are in the level's data package "<map>-ingame" (test run 29: the
+            // map's geometry package "<map>" has none, "Missing spawner"). Then "<map>" as before.
             const std::string map(name, n - 4);
-            const uint8_t *pkg = package_by_id(sid(map.c_str()));
-            static bool said = false;
-            if (!said) {
-                said = true;
-                log("level package: %s is defined nowhere, using %s (%s)", name, map.c_str(), pkg ? "loaded" : "not loaded");
+            std::string used = map + "-ingame";
+            const uint8_t *pkg = package_by_id(sid(used.c_str()));
+            if (!pkg || !*reinterpret_cast<const uint64_t *>(pkg + 0x9a0)) {
+                used = map;
+                pkg = package_by_id(sid(map.c_str()));
+            }
+            static std::string said;
+            if (said != name) {
+                said = name;
+                log("level package: %s is defined nowhere, using %s (%s)", name, used.c_str(), pkg ? "loaded" : "not loaded");
             }
             return pkg;
         }
