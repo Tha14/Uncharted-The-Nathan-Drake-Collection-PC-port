@@ -24,6 +24,12 @@
 // patched to match, and the call 0x3fc391 goes to arena_memory below. A diagnostic wrapper on the
 // call at 0x3fae9c (just before the frame reset of the arena, 0x3faea1) logs the previous frame's
 // use and the peak.
+//
+// Second limit (run 32): with the commands surviving, the quads overflow the per-frame dynamic
+// vertex / index streams of the 2D context (256 KiB vertex = 1,024 quads, 8 KiB index = 682
+// quads) and the writer 0xbdc190 asserts at 0xbdc5c2 / 0xbdc65a. install_streams raises the stream
+// sizes at their setup 0xc79d40 (guest frame-heap memory, as before) and guards 0xbdc190 so that a
+// quad that still does not fit is dropped instead of written past the end.
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -84,9 +90,133 @@ U2MP_GUEST uint64_t frame_begin(void *arg) {
     return guest<uint64_t(U2MP_GUEST *)(void *)>(fFrameBegin)(arg);
 }
 
+// ---- the dynamic vertex / index streams the quads are written to --------------------------------
+// Render-side execution of the 0x303a command, 0xbdc190(ctx, vertices, alpha in xmm0), writes 4
+// vertices of 0x40 bytes at the 64-aligned current pointer of the vertex stream [ctx+0x10] and 6
+// u16 indices (vertex number = offset / 0x40) to the index stream [ctx+0x18]. Only afterwards does
+// it assert (dynamic-stream-mgr.h SetPointer, line 0x9a: 0xbdc5c2 / 0xbdc65a) that the stream did
+// not pass its size. Stream object (0x28 bytes): +0 buffer object, +8 per-frame view, +0x10 start,
+// +0x18 current, +0x20 u32 size. The flush 0xbdc670 (0x303c) draws (index count - batch start)
+// indices and skips the draw when that is 0, so a dropped quad is safe.
+constexpr uint64_t fQuadWrite = 0xbdc190;
+constexpr uint64_t kQuadCall = 0xbdad3c;   // call 0xbdc190 (0x303a in the command list executor 0xbdaca0)
+constexpr uint64_t kQuadJmp = 0xbdd16c;    // jmp 0xbdc190 (immediate path of 0xbdd130)
+constexpr uint32_t kVertexOld = 0x40000, kVertexNew = 0x180000;   // 1,024 -> 6,144 quads
+constexpr uint32_t kIndexOld = 0x2000, kIndexNew = 0x12000;       // 682 -> 6,144 quads
+static_assert(kVertexNew / 0x40 <= 0x10000, "u16 indices address the whole vertex stream");
+
+std::atomic<uint64_t> quads_dropped{0};
+
+uint64_t rd64(const void *p, ptrdiff_t off) {
+    uint64_t v;
+    std::memcpy(&v, static_cast<const uint8_t *>(p) + off, sizeof v);
+    return v;
+}
+uint32_t rd32(const void *p, ptrdiff_t off) {
+    uint32_t v;
+    std::memcpy(&v, static_cast<const uint8_t *>(p) + off, sizeof v);
+    return v;
+}
+
+// True when `bytes` more fit in stream `s` at its current pointer aligned to `align` (0xbdc203).
+bool stream_room(const uint8_t *s, uint64_t align, uint64_t bytes, uint64_t *offset) {
+    const uint64_t start = rd64(s, 0x10), cur = rd64(s, 0x18), size = rd32(s, 0x20);
+    const uint64_t at = (cur - start + align - 1) & ~(align - 1);
+    if (offset) *offset = at;
+    return at + bytes < size;
+}
+
+U2MP_GUEST void quad_write(uint8_t *ctx, void *vertices, float alpha) {
+    const uint8_t *vs = ctx ? reinterpret_cast<const uint8_t *>(rd64(ctx, 0x10)) : nullptr;
+    const uint8_t *is = ctx ? reinterpret_cast<const uint8_t *>(rd64(ctx, 0x18)) : nullptr;
+    // Streams missing or unmapped: the original asserts as before.
+    if (vs && is && rd64(vs, 0x10) && rd64(vs, 0x18) && rd64(is, 0x10) && rd64(is, 0x18)) {
+        uint64_t voff = 0;
+        const bool ok = stream_room(vs, 0x40, 0x100, &voff) && stream_room(is, 1, 0xc, nullptr) &&
+                        voff / 0x40 + 3 <= 0xffff;   // u16 indices
+        if (!ok) {
+            const uint64_t n = quads_dropped.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (n <= 4 || (n & (n - 1)) == 0)
+                log("menu draw: vertex/index stream full, quad dropped (%llu so far; streams %u / %u bytes)",
+                    (unsigned long long)n, rd32(vs, 0x20), rd32(is, 0x20));
+            return;
+        }
+    }
+    guest<void(U2MP_GUEST *)(uint8_t *, void *, float)>(fQuadWrite)(ctx, vertices, alpha);
+}
+
+// Stream sizes. 0xc79d40 (render init, from 0xc8edb0) sets up 4 frame slots of 0x370 bytes at
+// 0x13d2ee0; each frame 0xc7a3e0 (from 0xb6315b, frame params +0x98) takes the memory of every
+// stream from the frame heap (0xc12150 -> 0xb333f0, context 0x46 / 0x35) with the size at +0x20,
+// so the streams stay guest, GPU-visible memory. Each stream also has a buffer object created
+// from {u32 bytes, u32 kind} (0xc16820) whose byte count must agree with +0x20. The 2D context
+// (0xccf830 type 0, set up at 0x4bab4c for the frame's 2D pass that runs the command list at
+// 0x4bad05) uses stream +0x00 (vertex) and +0xf0 (index); types 3 / 4 use +0x28 / +0x118. The
+// immediates are shared between neighbouring streams, so those grow too (all small).
+struct StreamImm { uint64_t at; unsigned char op[2]; uint64_t old_value, new_value; };
+constexpr uint64_t kVSize = 0x800000000ull, kVBuf = 0x100000000ull, kIBuf = 0x200000000ull;
+constexpr StreamImm kStreamImms[] = {
+    {0xc79d70, {0x48, 0xb8}, kVSize | kVertexOld, kVSize | kVertexNew},  // +0x20, +0x48 sizes
+    {0xc79d8b, {0x48, 0xb8}, kVBuf | kVertexOld, kVBuf | kVertexNew},    // +0x00, +0x28 buffers
+    {0xc79ed3, {0x48, 0xb8}, kVSize | kIndexOld, kVSize | kIndexNew},    // +0xc0 (vertex +0xa0), +0x110 sizes
+    {0xc79ee8, {0x48, 0xb8}, kVBuf | kIndexOld, kVBuf | kIndexNew},      // +0xa0 buffer
+    {0xc79f33, {0x49, 0xbc}, kIBuf | kIndexOld, kIBuf | kIndexNew},      // +0xf0, +0x118 buffers (r12)
+    {0xc79f68, {0x48, 0xb8}, kVSize | kIndexOld, kVSize | kIndexNew},    // +0x138 size
+};
+
+void install_streams(int &installed) {
+    bool all = true;
+    for (const StreamImm &s : kStreamImms) {
+        unsigned char want[10];
+        std::memcpy(want, s.op, 2);
+        std::memcpy(want + 2, &s.old_value, 8);
+        if (!image.matches(s.at, want, sizeof want)) all = false;
+    }
+    if (all) {
+        for (const StreamImm &s : kStreamImms) std::memcpy(image.base + s.at + 2, &s.new_value, 8);
+        log("menu draw: dynamic streams per frame: vertex 0x%x -> 0x%x, index 0x%x -> 0x%x bytes", kVertexOld,
+            kVertexNew, kIndexOld, kIndexNew);
+        ++installed;
+    } else {
+        log("menu draw: stream setup 0xc79d40 differs, stream sizes left alone");
+    }
+
+    // The overflow guard, also when the sizes could not be raised.
+    static const unsigned char quad_head[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
+                                              0x41, 0x55, 0x41, 0x54, 0x53, 0x50};
+    if (!image.matches(fQuadWrite, quad_head, sizeof quad_head)) {
+        log("menu draw: quad writer 0xbdc190 differs, no stream overflow guard");
+        return;
+    }
+    if (retarget_call(kQuadCall, fQuadWrite, reinterpret_cast<void *>(&quad_write), "menu draw: quad stream guard"))
+        ++installed;
+    int32_t rel = 0;
+    std::memcpy(&rel, image.base + kQuadJmp + 1, 4);
+    unsigned char *stub = nullptr;
+    if (image.base[kQuadJmp] == 0xe9 && kQuadJmp + 5 + int64_t(rel) == int64_t(fQuadWrite) && (stub = near_stub(16))) {
+        // mov rax,quad_write; jmp rax   (a tail jump: rdi, rsi and xmm0 pass through)
+        const uint64_t target = uint64_t(uintptr_t(&quad_write));
+        stub[0] = 0x48;
+        stub[1] = 0xb8;
+        std::memcpy(stub + 2, &target, 8);
+        stub[10] = 0xff;
+        stub[11] = 0xe0;
+        const int64_t delta = int64_t(uintptr_t(stub)) - int64_t(uintptr_t(image.base + kQuadJmp + 5));
+        if (delta >= INT32_MIN && delta <= INT32_MAX) {
+            const int32_t r = int32_t(delta);
+            std::memcpy(image.base + kQuadJmp + 1, &r, 4);
+            log("menu draw: quad stream guard: jmp at 0x%llx -> C++", (unsigned long long)kQuadJmp);
+        }
+    } else {
+        log("menu draw: jmp at 0x%llx differs, immediate quad path left unguarded", (unsigned long long)kQuadJmp);
+    }
+}
+
 }  // namespace
 
 void install_menudraw(int &installed) {
+    install_streams(installed);   // first: more surviving 2D commands need room in the streams
+
     static const unsigned char mov_size[] = {0xbf, 0x00, 0x00, 0x03, 0x00, 0xe8};
     static const unsigned char or_flags[] = {0x48, 0x0d, 0x00, 0x00, 0x0c, 0x00};
     static const unsigned char add_end[] = {0x49, 0x81, 0xc6, 0x00, 0x00, 0x03, 0x00};

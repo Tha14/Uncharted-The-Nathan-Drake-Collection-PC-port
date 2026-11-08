@@ -54,10 +54,63 @@ outsized share.
   `frame_begin`, which logs the previous frame's use / high-water when a new peak is reached
   (`menu draw: 2D arena peak N of 2097152 bytes ...`, noting when it passes the old 192 KiB).
 
+## Second limit: dynamic vertex / index streams (run 32)
+
+Run 32: arena peak 213432 bytes, more than the old 196608 bytes, and then an assert at `0xbdc65a`
+(sibling `0xbdc5c2`): dynamic-stream-mgr.h SetPointer `m_pCurrent - m_pBufferStart < m_bufferSize`.
+
+- Writer `0xbdc190(ctx, vertices, alpha xmm0)`, the render-side execution of the 0x303a command
+  (command list executor `0xbdaca0`, `call` at `0xbdad3c`; immediate path `jmp` at `0xbdd16c`):
+  4 vertices of 0x40 bytes at the 64-aligned current pointer of the vertex stream `[ctx+0x10]`,
+  6 u16 indices (vertex number = offset / 0x40) to the index stream `[ctx+0x18]`. It writes first
+  and asserts afterwards.
+- Stream object, 0x28 bytes: `+0` buffer object, `+8` per-frame view, `+0x10` start, `+0x18` current,
+  `+0x20` u32 size.
+- Stream manager `0x13d2ee0`: 4 frame slots of 0x370 bytes, set up once by `0xc79d40` (from
+  `0xc8edb0` at render init). Each frame `0xc7a3e0` (frame params `+0x98`, `0xb6315b`) takes every
+  stream's memory from the frame heap (`0xc12150` -> `0xb333f0`, context 0x46, or 0x35 for kind 4)
+  with the size at `+0x20`. Each stream also has a buffer object made by `0xc16820` from
+  `{u32 bytes, u32 kind}`, which has to match the size.
+- Contexts `0xccf830(ctx, type)`: type 0 = vertex `+0x00` / index `+0xf0` (the 2D pass, `0x4bab4c`,
+  command list run at `0x4bad05`); 1 = `+0x50` (14 MiB) / `+0x140` (4 MiB); 2 = `+0xa0` / `+0x280`;
+  3, 4 = `+0x28` / `+0x118`.
+- 2D sizes: vertex 0x40000 (1,024 quads), index 0x2000 (8 KiB = 682 quads; the old arena allowed
+  about 420 quads, so this was never reached on PS4).
+
+Fix (`install_streams`, called first in `install_menudraw`):
+
+| site | instruction | old | new | streams |
+|---|---|---|---|---|
+| `0xc79d70` | `movabs rax` | 0x800040000 | 0x800180000 | size `+0x00`, `+0x28` |
+| `0xc79d8b` | `movabs rax` | 0x100040000 | 0x100180000 | buffer `+0x00`, `+0x28` |
+| `0xc79ed3` | `movabs rax` | 0x800002000 | 0x800012000 | size `+0xa0`, `+0xf0` |
+| `0xc79ee8` | `movabs rax` | 0x100002000 | 0x100012000 | buffer `+0xa0` |
+| `0xc79f33` | `movabs r12` | 0x200002000 | 0x200012000 | buffer `+0xf0`, `+0x118` |
+| `0xc79f68` | `movabs rax` | 0x800002000 | 0x800012000 | size `+0x118` |
+
+- Vertex goes to 1.5 MiB (6,144 quads, 24,576 vertices, inside the u16 index range). Index goes to
+  72 KiB (6,144 quads). Neighbouring streams share the immediates, so they grow as well. This is
+  about 2.8 MiB more per frame from the frame heap, and the memory stays guest frame-heap memory
+  (GPU path unchanged).
+- All six byte patterns are checked before any is written. The patch only takes effect if it is
+  installed before render init runs `0xc79d40`.
+- Overflow guard `quad_write`, on both `0xbdad3c` (call) and `0xbdd16c` (jmp through a near stub):
+  - It checks the vertex stream (64-aligned + 0x100), the index stream (+0xc) and the u16 limit
+    the same way `0xbdc190` does.
+  - If they do not fit, it drops the quad and logs (`vertex/index stream full, quad dropped (N so
+    far ...)`, the first 4, then powers of two).
+  - Otherwise it calls `0xbdc190`. Streams that are NULL go to the original, which asserts as before.
+  - Dropping is safe: the flush `0xbdc670` (0x303c) draws (index count - batch start) and skips a
+    draw of 0.
+
 ## Left / to check
 
 - In game: the Profile page draws completely, also over the Multiplayer page; the log shows the
-  peak (if it stays under 196608 the arena was not the cause and the next suspect is elsewhere).
-- Lifetime of context 0x33 memory was not traced; 4 buffers assume the render side is at most
-  3 frames behind Draw.
-- The lead wires `install_menudraw(installed)` into install.cpp (declaration in u2mp_internal.h).
+  arena peak and the `dynamic streams per frame` line; no `quad dropped` lines expected.
+- Lifetime of context 0x33 memory was not traced; 4 arena buffers assume the render side is at
+  most 3 frames behind Draw.
+- Frame heap capacity (contexts 0x33 / 0x34 / 0x35) was not measured. If the larger streams
+  exhaust it, `0xb333f0` fails at frame start: then lower kVertexNew / kIndexNew, since the guard
+  alone already prevents the assert.
+- Other stream writers were not guarded: text (`0xcc28d2`.., `0xcc3472`..), `0xcd0748`. If a
+  text-heavy page asserts in those, the same kind of guard is needed there.
