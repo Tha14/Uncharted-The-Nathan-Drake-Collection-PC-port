@@ -635,6 +635,7 @@ U2MP_GUEST void multiplayer_button(void *, void *, void *) {
     log("Multiplayer selected");
     netheap_install();   // context 0x14: a heap of its own (netheap.cpp)
     netinit_prepare();   // what PS3 NetGameManager::Init / NetInit built (netinit.cpp)
+    netpatch_load();     // the server live-data module net-patch9 (weapon sets ...; PS3 NetInit 0x447a5c)
     if (!active) {
         if (!start_transport()) {
             G<uint8_t>(kNetInfo + NI_ERROR) = 1;

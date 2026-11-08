@@ -402,6 +402,7 @@ class Importer:
         if have_numpy:
             self.net_images(level_txt)
             self.net_spawn_paks(level_txt)
+        self.net_patch()
         self.registries(level_txt)
         self.texts()
         counts = {}
@@ -497,6 +498,76 @@ class Importer:
             if os.path.isfile(self.out_path(rel)):
                 level_txt[level] = 'level-id %s\npackage %s-ingame\n' % (level, level)
         log('net spawn paks: %d maps' % sum(1 for k in level_txt if k.endswith('-pak')))
+        self.save()
+
+    def ps3_data_file(self, name):
+        """a file of the PS3 game-data folder (<game id>DATA2/USRDIR/<name>), searched like ps3_data_pak22: --ps3-data,
+        then the title's own DATA2 folder (GOTY NPUA80698 -> NPUA80698DATA2), then any other DATA2 folder"""
+        cands = []
+        if self.a.ps3_data:
+            cands.append(self.a.ps3_data)
+        title = None
+        for part in reversed(os.path.abspath(self.a.ps3).replace('\\', '/').split('/')):
+            if re.match(r'^[A-Z]{4}\d{5}$', part):
+                title = part
+                break
+        for root in (self.a.ps3_dlc, self.a.ps3):
+            if not root:
+                continue
+            p = os.path.abspath(root)
+            for _ in range(6):
+                if os.path.basename(p).lower() == 'game':
+                    if title:
+                        cands.append(os.path.join(p, title + 'DATA2'))
+                    cands += sorted(os.path.join(p, d) for d in os.listdir(p) if d.upper().endswith('DATA2'))
+                    break
+                p = os.path.dirname(p)
+        for c in cands:
+            for sub in ('', 'USRDIR'):
+                f = os.path.join(c, sub, name)
+                if os.path.isfile(f):
+                    return f
+        return None
+
+    def net_patch(self):
+        """dc1/ps4/net-patch9.bin: the PS3 server live-data DC module (weapon sets such as 0x8cf8e1cc that the PS4
+        net.bin names but does not define, playlists ...). PS3 1.10 downloaded it into the game-data folder and bound
+        its symbols at NetInit (0x4e83c8); the u2mp runtime (netpatch.cpp) loads the converted file the same way.
+        Converted with u2dc (schema learned from the PS3 dc1.psarc / PS4 dc1/ps4 module pairs)."""
+        import u2dc
+        key = 'dc1/net-patch9.bin'
+        rel = 'dc1/ps4/net-patch9.bin'
+        src = self.ps3_data_file('net-patch9.bin')
+        if not src:
+            self.items[key] = dict(status='missing', group='A', conv=CONV_VERSION,
+                                   note='no PS3 game-data folder with net-patch9.bin (NPUA80698DATA2; set --ps3-data)')
+            log('MISSING %s: no PS3 game-data folder with net-patch9.bin (start the PS3 GOTY once in RPCS3 or set '
+                '--ps3-data): match start asserts on weapon set 0x8cf8e1cc' % key)
+            return
+        data = open(src, 'rb').read()
+        src_sha = sha1(data)
+        out = self.out_path(rel)
+        if self.done_before(key, src_sha) and self.items[key].get('dc') == u2dc.VERSION:
+            return
+        t = time.time()
+        try:
+            schema, _ = u2dc.schema_for(self.ps3, os.path.join(self.ps4.main, 'dc1', 'ps4'),
+                                        os.path.join(self.work, 'dc'), log=log, net_patch=data)
+            conv, rep = u2dc.Converter(schema).convert(data)
+            info = u2dc.check_module(conv)
+        except Exception as e:
+            self.items[key] = dict(status='failed', group='A', conv=CONV_VERSION, src='ps3-data',
+                                   note=('%s: %s' % (type(e).__name__, e))[:400])
+            log('FAILED %s: %s: %s' % (key, type(e).__name__, str(e)[:300]))
+            return
+        with open(out, 'wb') as f:
+            f.write(conv)
+        fallback = {k: v for k, v in rep.items() if v and k in ('key-unknown', 'layout-extend-failed', 'slot-not-ptr',
+                                                                'ptr-target-missing', 'sym-target-missing')}
+        note = '%d symbols, %d pointers; fallbacks %s' % (info['symbols'], info['pointers'], fallback or 'none')
+        self.record(key, 'ok', dict(group='A'), out=os.path.join(OUT_MAIN, *rel.split('/')).replace('\\', '/'),
+                    src='ps3-data', src_sha1=src_sha, note=note, dc=u2dc.VERSION)
+        log('ok      %s <- %s (%.1fs) %s' % (key, src, time.time() - t, note))
         self.save()
 
     def net_images(self, level_txt):

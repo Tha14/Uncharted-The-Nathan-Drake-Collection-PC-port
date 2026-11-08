@@ -162,7 +162,8 @@ extern "C" int u2mp_install(unsigned char *base, uint64_t size, const uint64_t *
     install_menudraw(installed);
     install_frontend2(installed);
     install_spawn(installed);
-    install_nullsites(installed);   // after install_cinema: only a fallback when cinema's stream hook is absent
+    install_nullsites(installed);
+    install_netpatch(installed);   // after install_cinema: only a fallback when cinema's stream hook is absent
     log("%d functions restored", installed);
     return installed;
 }
