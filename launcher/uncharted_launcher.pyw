@@ -3291,7 +3291,7 @@ class Launcher:
                    "ps3_u2", (("Choose", self.u3mp_choose_u2), ("Clear", lambda: self.u3mp_set("u3mp_ps3_u2", ""))))
         folder_row("Decrypted PS3 EBOOT (update 1.19)",
                    "For the characters' collision data. In RPCS3: Utilities -> Decrypt PS3 Binaries, pick "
-                   "dev_hdd0/game/BCES01670 (EU) or BCUS99086 (US)/USRDIR/EBOOT.BIN; the EBOOT.elf it writes there is found by itself.",
+                   "dev_hdd0/game/BCES01670 (EU), BCES01692 (UK) or BCUS99086 (US)/USRDIR/EBOOT.BIN; the EBOOT.elf it writes there is found by itself.",
                    "ps3_elf", (("Choose file", self.u3mp_choose_elf),
                                ("Clear", lambda: self.u3mp_set("u3mp_ps3_elf", ""))))
         def dns_entry(parent):
