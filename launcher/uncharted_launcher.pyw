@@ -3336,7 +3336,30 @@ class Launcher:
         self.u3mp_refresh()
         self.root.after(1000, self.u3mp_poll)
         self.root.after(4000, self.u3mp_auto_update)
+        self.u3mp_extension(page)
         return page
+
+    def u3mp_extension(self, page):
+        """An optional extra section at the end of this page: u3mp/patcher/online/u3_online.py when the
+        package has that file. Its attach(launcher, page, context) builds the section and starts what it needs
+        (its frame's <Destroy> ends it). Without the file the page shows nothing more; a failure is logged."""
+        self.u3mp_online = None
+        path = U3MP_DIR / "online" / "u3_online.py"
+        if not path.is_file():
+            return
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("u3_online", path)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules["u3_online"] = module
+            spec.loader.exec_module(module)
+            self.u3mp_online = module.attach(self, page, {
+                "user_dir": USER_DIR, "bg": BG, "panel": PANEL, "panel_hi": PANEL_HI, "line": LINE, "text": TEXT,
+                "muted": MUTED, "dim": DIM, "gold": GOLD, "gold_hi": GOLD_HI, "ink": INK, "red": STOP_RED})
+        except Exception:
+            log_launcher_error(*sys.exc_info())
+            tk.Label(page, text="The online section could not be loaded (see launcher-error.log).",
+                     font=self.f_small, bg=BG, fg=MUTED, anchor="w").pack(side="top", fill="x", pady=(self.px(12), 0))
 
     def u3mp_set(self, key, value):
         self.change_config(key, value)
