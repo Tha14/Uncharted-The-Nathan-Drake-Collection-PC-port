@@ -3076,6 +3076,7 @@ class Launcher:
         env["UNCHARTED_U3MP_IMAGE_SHA256"] = state["image"]["sha256"]
         env["UNCHARTED_U3MP_VERSION"] = state["image"].get("version", "")
         env["UNCHARTED_U3MP_OVERLAYS"] = os.pathsep.join(p for p in state.get("overlays", []) if Path(p).is_dir())
+        self.u3mp_extension_env(env)
 
     def u2mp_env(self, env):
         """play(): UNCHARTED_U2MP_OVERLAY, the folder tools/probe_uncharted.py lays over Uncharted 2
@@ -3344,15 +3345,10 @@ class Launcher:
         package has that file. Its attach(launcher, page, context) builds the section and starts what it needs
         (its frame's <Destroy> ends it). Without the file the page shows nothing more; a failure is logged."""
         self.u3mp_online = None
-        path = U3MP_DIR / "online" / "u3_online.py"
-        if not path.is_file():
-            return
         try:
-            import importlib.util
-            spec = importlib.util.spec_from_file_location("u3_online", path)
-            module = importlib.util.module_from_spec(spec)
-            sys.modules["u3_online"] = module
-            spec.loader.exec_module(module)
+            module = self.u3mp_extension_module(reload=True)
+            if module is None:
+                return
             self.u3mp_online = module.attach(self, page, {
                 "user_dir": USER_DIR, "bg": BG, "panel": PANEL, "panel_hi": PANEL_HI, "line": LINE, "text": TEXT,
                 "muted": MUTED, "dim": DIM, "gold": GOLD, "gold_hi": GOLD_HI, "ink": INK, "red": STOP_RED})
@@ -3360,6 +3356,33 @@ class Launcher:
             log_launcher_error(*sys.exc_info())
             tk.Label(page, text="The online section could not be loaded (see launcher-error.log).",
                      font=self.f_small, bg=BG, fg=MUTED, anchor="w").pack(side="top", fill="x", pady=(self.px(12), 0))
+
+    def u3mp_extension_module(self, reload=False):
+        """The optional module u3mp/patcher/online/u3_online.py (loaded once; reload=True loads it again), or None
+        when the package does not have it."""
+        module = None if reload else sys.modules.get("u3_online")
+        if module is not None:
+            return module
+        path = U3MP_DIR / "online" / "u3_online.py"
+        if not path.is_file():
+            return None
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("u3_online", path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["u3_online"] = module
+        spec.loader.exec_module(module)
+        return module
+
+    def u3mp_extension_env(self, env):
+        """play(), when Uncharted 3 starts with multiplayer: the optional module may add to the game's environment
+        (its handoff_env(env, context)). Without the module, or without that function, nothing changes."""
+        try:
+            module = self.u3mp_extension_module()
+            hook = getattr(module, "handoff_env", None) if module is not None else None
+            if hook is not None:
+                hook(env, {"user_dir": USER_DIR})
+        except Exception:
+            log_launcher_error(*sys.exc_info())
 
     def u3mp_set(self, key, value):
         self.change_config(key, value)
