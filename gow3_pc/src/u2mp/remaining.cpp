@@ -461,19 +461,31 @@ U2MP_GUEST const uint8_t *level_record_package(void *) {
             // The caller (GetSpawnLocator, net-player-tracker.cpp) looks up spawners in the package's
             // +0x9a0 table: spawners are in the level's data package "<map>-ingame" (test run 29: the
             // map's geometry package "<map>" has none, "Missing spawner"). Then "<map>" as before.
+            // (test run 30: "<map>-ingame" did not qualify; the file is <map>-ingame10.pak)
             const std::string map(name, n - 4);
-            std::string used = map + "-ingame";
-            const uint8_t *pkg = package_by_id(sid(used.c_str()));
-            if (!pkg || !*reinterpret_cast<const uint64_t *>(pkg + 0x9a0)) {
-                used = map;
-                pkg = package_by_id(sid(map.c_str()));
-            }
             static std::string said;
-            if (said != name) {
-                said = name;
-                log("level package: %s is defined nowhere, using %s (%s)", name, used.c_str(), pkg ? "loaded" : "not loaded");
+            const bool tell = said != name;
+            said = name;
+            const uint8_t *fallback = nullptr;
+            std::string fallback_name;
+            for (const char *suffix : {"-ingame10", "-ingame", ""}) {
+                const std::string cand = map + suffix;
+                const uint8_t *pkg = package_by_id(sid(cand.c_str()));
+                const uint64_t table = pkg ? *reinterpret_cast<const uint64_t *>(pkg + 0x9a0) : 0;
+                if (tell) log("level package: %s candidate %s: %s, spawner table %s", name, cand.c_str(),
+                              pkg ? "loaded" : "missing", table ? "present" : "none");
+                if (pkg && table) {
+                    if (tell) log("level package: %s is defined nowhere, using %s", name, cand.c_str());
+                    return pkg;
+                }
+                if (pkg && !fallback) {
+                    fallback = pkg;
+                    fallback_name = cand;
+                }
             }
-            return pkg;
+            if (tell) log("level package: %s is defined nowhere, no candidate has spawners; using %s", name,
+                          fallback ? fallback_name.c_str() : "nothing");
+            return fallback;
         }
         return nullptr;
     }
