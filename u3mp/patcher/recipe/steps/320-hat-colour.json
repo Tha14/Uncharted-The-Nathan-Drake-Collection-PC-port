@@ -1,6 +1,6 @@
 {
  "id": "hat-colour",
- "title": "Tintable head-wear templates: 249 paks rebuilt, the 229 of safe_only.txt installed (actor33/rebuild_am.py hats, hat-colour/apply_hat_colour.py --only)",
+ "title": "Tintable head-wear templates plus Yeti teeth surface basis repair",
  "kind": "script",
  "job": "actor33",
  "family": "overlay-r3/actor33",
@@ -31,10 +31,11 @@
  ],
  "status": "reproducible",
  "applied": "2026-11-02 01:04",
- "notes": "jobs-hats.tsv = template/cap of batch.json per pak; mp-hero-ramses-jak-goggles was built before build_hat got its OVERLAY/UV_3 template filter (option no-overlay-filter = HAT_NO_OVERLAY_FILTER=1). 249/249 byte-identical to hat-colour/manifest.json (2026-11-05, 152 s). Installed: safe_only.txt (229 = work/backup-hat-colour/state.json; the earlier lists/hat-colour-only.txt held only the 81 that had a backup copy).",
+ "notes": "jobs-hats.tsv = template/cap of batch.json per pak; mp-hero-ramses-jak-goggles was built before build_hat got its OVERLAY/UV_3 template filter (option no-overlay-filter = HAT_NO_OVERLAY_FILTER=1). 249/249 byte-identical to hat-colour/manifest.json (2026-11-05, 152 s). Installed: safe_only.txt (229 = work/backup-hat-colour/state.json; the earlier lists/hat-colour-only.txt held only the 81 that had a backup copy). Yeti mask: reconstruct missing normals/tangents for its three teeth LODs from unchanged PS3 positions, UVs, and triangles; the main mask mesh, skin weights, and texture VRAM stay unchanged. Launcher overlay pak SHA-256: a76d11fdacc554c22d36d47799c9d543cc8a4ac1de565e2f61ac0763ed915ea4.",
  "recipe_version_added": "1.0.0",
  "with_jobs": [
   "actor-materials",
   "hat-colour"
- ]
+ ],
+ "recipe_version_updated": "1.10.1"
 }

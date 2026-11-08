@@ -4,6 +4,7 @@
   build_hat.py NAME TEMPLATE [CAP]      (CAP = top texture size, default 256)
 Writes only inside this folder (ps3/, out/)."""
 import sys, os, io, json, hashlib, contextlib
+import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__)); os.chdir(HERE)
 AM = os.path.join(HERE, '..', 'actor-materials'); sys.path.insert(0, AM); sys.dont_write_bytecode = True
 from lib import *
@@ -13,6 +14,18 @@ from build import role, pool, kinds_of_binds, BUDGET
 os.chdir(HERE)   # build.py chdirs to actor-materials on import
 sys.path.insert(0, T + '/stage')
 import cubefix, cb3fix
+from repair_hunter_jacket import reconstructed_basis
+
+BASIS_REPAIR_TARGETS = {
+    'mp-kit-shared-monster-mask': {
+        (187, 202): 'lod0 teeth',
+        (144, 137): 'lod1 teeth',
+        (94, 90): 'lod2 teeth',
+    }
+}
+BASIS_REPAIR_SOURCE_SHA256 = {
+    'mp-kit-shared-monster-mask': 'c72c2bf95e216c58a8749876089ddaffb905859f744c9ab7c7d79fdf1ee29fc9',
+}
 
 
 def errs(f):
@@ -101,14 +114,60 @@ def build(name, tname, cap=256, verbose=True):
         choice[mn] = best['name']
         report.append((mn, r + warn, best['name'].split(',')[0], sorted(ks), 'tint' if 'COLOR_1_APPLY_INSTANCE_TINT' in best['feats'] else 'no-tint'))
     dst = f'out/{name}.pak'
-    with contextlib.redirect_stdout(io.StringIO()):
-        A.convert(p3, tpl, dst, mat_choice=choice, verbose=False)
+    basis_repair = []
+    targets = BASIS_REPAIR_TARGETS.get(name, {})
+    if targets:
+        source_sha256 = hashlib.sha256(open(p3, 'rb').read()).hexdigest()
+        if source_sha256 != BASIS_REPAIR_SOURCE_SHA256.get(name):
+            raise ValueError('Unexpected Yeti mask PS3 source SHA-256: ' + source_sha256)
+        original_decode = ps3geom.decode_block
+        seen = set()
+
+        def decode_with_missing_basis(pak, page, block, skin=True):
+            decoded = original_decode(pak, page, block, skin=skin)
+            missing_normal = 'normal' not in decoded
+            missing_tangent = 'tangent' not in decoded
+            if missing_normal != missing_tangent:
+                raise ValueError('Only one of the Yeti mask normal/tangent streams is missing')
+            if missing_normal:
+                signature = (decoded['nverts'], len(decoded['tris']))
+                if signature not in targets:
+                    raise ValueError('Unexpected Yeti mask mesh without a basis: %r' % (signature,))
+                positions = np.asarray(decoded['pos'], dtype='<f4').tobytes()
+                uvs = np.asarray(decoded['uv0'], dtype='<f2').tobytes()
+                indices = np.asarray(decoded['tris'], dtype='<u2').tobytes()
+                normal_bytes, tangent_bytes, skipped = reconstructed_basis(positions, uvs, indices)
+                nv = decoded['nverts']
+                decoded['normal'] = np.frombuffer(normal_bytes, '<f2').reshape(nv, 4)[:, :3].astype(np.float64)
+                decoded['tangent'] = np.frombuffer(tangent_bytes, '<f2').reshape(nv, 4).astype(np.float64)
+                seen.add(signature)
+                basis_repair.append({
+                    'mesh': targets[signature],
+                    'vertices': nv,
+                    'triangles': len(decoded['tris']),
+                    'skipped_zero_area_triangles': skipped,
+                })
+            return decoded
+
+        ps3geom.decode_block = decode_with_missing_basis
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                A.convert(p3, tpl, dst, mat_choice=choice, verbose=False)
+        finally:
+            ps3geom.decode_block = original_decode
+        if seen != set(targets):
+            raise ValueError('Yeti mask basis repair coverage differs: %r' % (seen,))
+    else:
+        with contextlib.redirect_stdout(io.StringIO()):
+            A.convert(p3, tpl, dst, mat_choice=choice, verbose=False)
     q_ = Pak(dst); end = q_.pages[-1][0] + q_.pages[-1][1]
     if end != q_.vram_base:
         raw = open(dst, 'rb').read(); open(dst, 'wb').write(raw[:end] + raw[q_.vram_base:])
     cf = cubefix.fix(dst, p3)
     n, raised = cb3fix.fix(dst, dst)
     meta = dict(src=src, template=tname, cap=cap, roles=report, cubes=list(cf or []), cb3=raised, vram=Pak(dst).u32(0x20))
+    if basis_repair:
+        meta['basis_repair'] = dict(method='area-weighted normals and UV-derived tangents reconstructed from PS3 positions, UVs, and triangles', meshes=basis_repair)
     json.dump(meta, open(f'out/{name}.json', 'w'), indent=0)
     if verbose:
         for r in report: print('  ', r)

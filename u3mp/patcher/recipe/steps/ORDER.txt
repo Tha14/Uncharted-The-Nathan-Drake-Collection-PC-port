@@ -41,6 +41,7 @@ coop-desc-fix
 orange-wall
 excess-wall
 hat-colour
+outdoor-jacket
 airport-igc2
 enemy-stall-option-defaults
 emblem-cap3
