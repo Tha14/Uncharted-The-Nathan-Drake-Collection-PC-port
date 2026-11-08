@@ -80,8 +80,8 @@ def find_program(port, name, extra=()):
 def find_ps3_elf(folders, explicit):
     """The decrypted PS3 1.19 EBOOT.elf: the one given, else one in the PS3 folders, 4 levels deep like the recipe's
     own scan: an EBOOT.elf (RPCS3 writes it next to the EBOOT.BIN it decrypts), or any .elf with the tested 1.19 hash
-    (e.g. EBOOT-1.19.elf; the EU BCES01670, UK BCES01692 and US BCUS99086 Game of the Year 1.19 EBOOTs decrypt
-    to the same file)."""
+    (e.g. EBOOT-1.19.elf; the EU BCES01670, UK BCES01692, US BCUS99086 and Asia BCAS25014 Game of the Year
+    1.19 EBOOTs decrypt to the same file)."""
     if explicit:
         return explicit if os.path.isfile(explicit) else None
     best = None
@@ -131,7 +131,7 @@ def ensure_data2(a, data, ps3_elf):
         return ''
     log('game data: ' + ' / '.join(problems))
     if not a.dns:
-        return ('the game data (BCES01670DATA2 / BCES01692DATA2 / BCUS99086DATA2) is missing or another version, and no community server DNS is set '
+        return ('the game data (BCES01670DATA2 / BCES01692DATA2 / BCUS99086DATA2 / BCAS25014DATA2) is missing or another version, and no community server DNS is set '
                 'to download it: enter it on the Multiplayer tab')
     if not ps3_elf:
         return 'downloading the game data needs the decrypted PS3 1.19 EBOOT.elf (RPCS3: Decrypt PS3 Binaries)'
@@ -382,7 +382,7 @@ def main():
     ap.add_argument('--only', help='run only these recipe steps (tests; passed to rebuild_overlays.py --only)')
     ap.add_argument('--in-place', action='store_true', help='update an import in its own folder (no second work folder)')
     ap.add_argument('--dns', default='', help='IPv4 of the community server DNS (downloads the PS3 game data when the '
-                                              "player's own BCES01670DATA2 / BCES01692DATA2 / BCUS99086DATA2 is missing or another version)")
+                                              "player's own BCES01670DATA2 / BCES01692DATA2 / BCUS99086DATA2 / BCAS25014DATA2 is missing or another version)")
     a = ap.parse_args()
     data = a.data.resolve()
     data.mkdir(parents=True, exist_ok=True)
@@ -425,7 +425,7 @@ def main():
                                            ' (differs from the tested 1.19 EBOOT.elf)'))
     else:
         log('No decrypted PS3 1.19 EBOOT.elf found: decrypt it with RPCS3 (Utilities -> Decrypt PS3 Binaries, '
-            'dev_hdd0/game/BCES01670, BCES01692 or BCUS99086/USRDIR/EBOOT.BIN); the Havok tables step is skipped without it')
+            'dev_hdd0/game/BCES01670, BCES01692, BCUS99086 or BCAS25014/USRDIR/EBOOT.BIN); the Havok tables step is skipped without it')
     data2_pending = '' if a.only else ensure_data2(a, data, ps3_elf)
     if data2_pending:
         log('game data: ' + data2_pending)
@@ -514,7 +514,7 @@ def main():
     critical = [s for s in CRITICAL_STEPS if s in failed]
     if critical:
         return finish('failed', error='Step %s failed: the multiplayer files would not start. Open the import log, '
-                      'check the PS3 folders (Uncharted 3 Game of the Year BCES01670, BCES01692 or BCUS99086 with update 1.19) and press RE-IMPORT / UPDATE'
+                      'check the PS3 folders (Uncharted 3 Game of the Year BCES01670, BCES01692, BCUS99086 or BCAS25014 with update 1.19) and press RE-IMPORT / UPDATE'
                       % ', '.join(critical), failed_at=critical[0])
     if failed:
         first = min(failed, key=lambda s: r['steps'][s]['n'])

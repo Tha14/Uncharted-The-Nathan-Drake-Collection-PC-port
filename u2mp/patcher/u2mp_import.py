@@ -302,8 +302,10 @@ class Importer:
         _log_file = open(os.path.join(self.out, 'import.log'), 'a', encoding='utf-8')
         log('=== u2mp import %s (converter %s)' % (time.strftime('%Y-%m-%d %H:%M:%S'), CONV_VERSION))
         self.state.update(status='running', started=time.strftime('%Y-%m-%d %H:%M:%S'), pid=os.getpid(),
-                          inputs=dict(ps4=a.ps4, ps3=a.ps3, ps3_dlc=a.ps3_dlc or ''), conv=CONV_VERSION)
-        self.state.pop('error', None)
+                          inputs=dict(ps4=a.ps4, ps3=a.ps3, ps3_dlc=a.ps3_dlc or ''), conv=CONV_VERSION,
+                          updating=bool(a.update))
+        for k in ('error', 'failed'):
+            self.state.pop(k, None)
         self.save()
         import sources
         try:
@@ -329,6 +331,7 @@ class Importer:
         except ImportError:
             have_numpy = False
             log('numpy is not installed: skins and levels (they need it) are skipped')
+        self.have_numpy = have_numpy
         groups = set(g.strip().upper() for g in a.groups.split(','))
         rows = [r for r in read_list(a.list) if r['group'][:1] in groups]
         if a.only:
@@ -336,8 +339,138 @@ class Importer:
         order = {'sound1': 0, 'actor27': 1, 'pak22': 2}
         rows.sort(key=lambda r: (order.get(r['key'].split('/')[0], 3), r['group'], r['key']))
         log('%d import-list rows in groups %s' % (len(rows), ','.join(sorted(groups))))
-        level_txt = {}
+        self.rows = rows
+        self.level_txt = {}
         t0 = time.time()
+        # The steps, like Uncharted 3's recipe (u3mp/patcher/recipe): each has a fingerprint over its own code, the
+        # converter modules it imports, the inputs and what the steps before it made; a step whose fingerprint and
+        # outputs are unchanged since its last good run is skipped, so an update redoes only what changed.
+        lt = lambda: self.level_txt  # noqa: E731
+        steps = [
+            ('import-list', 'Files from the PS3 copy: sounds, skins, actors and levels (%d rows)' % len(rows),
+             self.step_items, (self.step_items, self.source, self.ps4_has, self.done_before, self.record,
+                               self.conv_xvag, self.conv_bank, self.src_file, self.conv_actor, self.conv_twin,
+                               self.conv_level, self.havok_tables), True),
+            ('net-images', 'Menu images of the multiplayer maps',
+             (lambda: self.net_images(lt())) if have_numpy else None, (self.net_images,), False),
+            ('net-spawn-paks', 'Spawn paks of the multiplayer maps (PS3 game data)',
+             (lambda: self.net_spawn_paks(lt())) if have_numpy else None,
+             (self.net_spawn_paks, self.ps3_data_pak22, self.ps3_data_file), False),
+            ('net-patch', 'net-patch9: the PS3 server live-data DC module', self.net_patch,
+             (self.net_patch, self.ps3_data_file), False),
+            ('registries', 'pak22_ps4.txt and banks.txt: the imported levels and banks', lambda: self.registries(lt()),
+             (self.registries,), False),
+            ('texts', 'Text banks with the multiplayer strings', self.texts, (self.texts,), False),
+        ]
+        records = self.state.setdefault('steps', {})
+        failed = []
+        for i, (sid, title, fn, code, first) in enumerate(steps, 1):
+            event(phase='recipe', step=i, total=len(steps), id=sid, title=title, status='running')
+            log('[%d/%d] %s - %s' % (i, len(steps), sid, title))
+            if fn is None:
+                records[sid] = dict(status='skipped', note='needs numpy')
+                log('        skipped: needs numpy')
+                event(phase='recipe', id=sid, status='skipped', note='needs numpy')
+                continue
+            fp = self.step_fingerprint(sid, code, first)
+            old = records.get(sid) or {}
+            if not a.force and old.get('fp') == fp and old.get('status') == 'ok' and self.step_outputs_ok(sid):
+                log('        no change (already applied)')
+                event(phase='recipe', id=sid, status='ok', note='no change')
+                continue
+            t = time.time()
+            try:
+                fn()
+                records[sid] = dict(fp=fp, status='ok', seconds=round(time.time() - t, 1))
+                log('        ok  %.1f s' % (time.time() - t))
+                event(phase='recipe', id=sid, status='ok', note='ok  %.1f s' % (time.time() - t))
+            except Exception as e:  # noqa: BLE001 - one step failing does not stop the others
+                failed.append(sid)
+                records[sid] = dict(fp=fp, status='failed', note=('%s: %s' % (type(e).__name__, e))[:400])
+                log('        FAILED after %.1f s: %s: %s' % (time.time() - t, type(e).__name__, str(e)[:300]))
+                log(traceback.format_exc()[-1500:])
+                event(phase='recipe', id=sid, status='failed', note=records[sid]['note'])
+            self.save()
+        counts = {}
+        for k, it in self.items.items():
+            counts[it['status']] = counts.get(it['status'], 0) + 1
+        self.state['counts'] = counts
+        log('done in %.0f s: %s; steps failed: %s' % (time.time() - t0, ', '.join('%s %d' % kv for kv in
+                                                                                   sorted(counts.items())),
+                                                     ', '.join(failed) or 'none'))
+        if a.validate:
+            import validate
+            self.state['validation'] = validate.run(self.ps3, self.ps4, os.path.join(self.work, 'validate'), log=log)
+        import u2mp_version
+        self.state['recipe_id'] = u2mp_version.shipped_id()
+        if 'import-list' in failed:
+            return self.finish('failed', failed=failed, error='step import-list failed: see the import log')
+        bad = counts.get('failed', 0) + counts.get('missing', 0)
+        return self.finish('partial' if bad or counts.get('unsupported') or failed else 'imported', failed=failed)
+
+    def step_fingerprint(self, sid, code, first):
+        """sha256 over the step's methods, the u2conv / tools modules they import (u2mp_version.module_closure),
+        the converter versions, the inputs and options, and (for the steps after the first) what the import-list
+        step made (its item records and the level lists)."""
+        import inspect
+        import u2mp_version
+        a = self.a
+        h = hashlib.sha256(sid.encode() + b'\0')
+        names = set()
+        for f in code:
+            src = inspect.getsource(f)
+            h.update(src.replace('\r\n', '\n').encode())
+            for x, y in u2mp_version.IMPORT_RE.findall(src):
+                names.update([x] if x else [n.strip().split(' ')[0] for n in y.split(',')])
+        if first:
+            names.add('sources')
+        for p in u2mp_version.module_closure(sorted(names)):
+            h.update(p.name.encode() + u2mp_version.file_digest(p))
+        archives = []
+        for p in getattr(self.ps3, 'archives', []):
+            try:
+                archives.append([os.path.basename(p), os.path.getsize(p), int(os.path.getmtime(p))])
+            except OSError:
+                archives.append([os.path.basename(p)])
+        h.update(json.dumps(dict(
+            conv=CONV_VERSION, skin=SKIN_VERSION, actor=ACTOR_VERSION, ps4=a.ps4, ps3=a.ps3, dlc=a.ps3_dlc or '',
+            data=a.ps3_data or '', elf=a.ps3_elf or '', groups=a.groups, langs=a.speech_langs, dlc_ruins=a.dlc_ruins,
+            no_dlc_ruins=a.no_dlc_ruins, navmesh=a.drop_navmesh, only=a.only or '', no_verify=a.no_verify,
+            archives=archives), sort_keys=True).encode())
+        if first:
+            h.update(u2mp_version.file_digest(a.list))
+        else:
+            # taken once, right after the import-list step: the later steps add their own records and level lists
+            if getattr(self, 'base_digest', None) is None:
+                self.base_digest = hashlib.sha256(json.dumps(
+                    [{r['key']: self.items.get(r['key']) for r in self.rows}, self.level_txt],
+                    sort_keys=True, default=str).encode()).digest()
+            h.update(self.base_digest)
+        return h.hexdigest()
+
+    def step_outputs_ok(self, sid):
+        """A skipped step must still have its files: the import-list step's converted files (and its level lists,
+        which the later steps read); the later steps write few files and are cheap to redo."""
+        if sid != 'import-list':
+            return True
+        for it in self.items.values():
+            if it.get('status') == 'ok' and it.get('out'):
+                p = os.path.join(self.out, it['out'])
+                if not os.path.isfile(p) or os.path.getsize(p) != it.get('size'):
+                    return False
+        try:
+            self.level_txt = json.load(open(os.path.join(self.work, 'level-txt.json'), encoding='utf-8'))
+        except (OSError, ValueError):
+            return False
+        return True
+
+    def step_items(self):
+        """Step import-list: every row of u2mp/docs/import-list.tsv the PS4 game lacks, converted (files whose
+        inputs and converter version are unchanged are kept)."""
+        a = self.a
+        rows = self.rows
+        have_numpy = self.have_numpy
+        level_txt = self.level_txt = {}
         for n, row in enumerate(rows):
             key = row['key']
             kl = key.lower()
@@ -398,23 +531,10 @@ class Importer:
                     log(traceback.format_exc()[-1500:])
             if n % 20 == 0:
                 self.save()
+        os.makedirs(self.work, exist_ok=True)
+        with open(os.path.join(self.work, 'level-txt.json'), 'w', encoding='utf-8') as f:
+            json.dump(level_txt, f)
         self.save()
-        if have_numpy:
-            self.net_images(level_txt)
-            self.net_spawn_paks(level_txt)
-        self.net_patch()
-        self.registries(level_txt)
-        self.texts()
-        counts = {}
-        for k, it in self.items.items():
-            counts[it['status']] = counts.get(it['status'], 0) + 1
-        self.state['counts'] = counts
-        log('done in %.0f s: %s' % (time.time() - t0, ', '.join('%s %d' % kv for kv in sorted(counts.items()))))
-        if a.validate:
-            import validate
-            self.state['validation'] = validate.run(self.ps3, self.ps4, os.path.join(self.work, 'validate'), log=log)
-        bad = counts.get('failed', 0) + counts.get('missing', 0)
-        return self.finish('partial' if bad or counts.get('unsupported') else 'imported')
 
     def ps3_data_pak22(self):
         """pak22 of the PS3 game-data folder (<game id>DATA2/USRDIR/build/main/pak22: what PS3 1.10 downloaded
@@ -687,6 +807,14 @@ class Importer:
     def finish(self, status, **kw):
         self.state.update(kw, status=status, finished=time.strftime('%Y-%m-%d %H:%M:%S'))
         self.state.pop('pid', None)
+        self.state.pop('updating', None)
+        # an automatic update (--update) that failed is not started again at every launcher start for the same
+        # import version (u2mp_version.shipped_id); Import retries it, and a good run clears the mark
+        import u2mp_version
+        if status == 'failed' and self.a.update:
+            self.state['update_failed_for'] = u2mp_version.shipped_id()
+        elif status in ('imported', 'partial'):
+            self.state.pop('update_failed_for', None)
         self.save()
         event(phase='done', status=status, error=self.state.get('error', ''))
         log('status: %s %s' % (status, self.state.get('error', '')))
@@ -716,6 +844,8 @@ def main():
                                                   '(default: <PS3 USRDIR>/EBOOT.elf)')
     ap.add_argument('--objdump', default='', help='GNU objdump for the Havok tables (default: u3mp/bin, msys64, PATH)')
     ap.add_argument('--validate', action='store_true', help='also check the converters on PS3/PS4 reference pairs')
+    ap.add_argument('--update', action='store_true', help='started by the launcher after a launcher update (an '
+                    'existing import is brought up to date; the launcher holds PLAY meanwhile)')
     ap.add_argument('--force', action='store_true', help='convert everything again')
     a = ap.parse_args()
     return Importer(a).run()

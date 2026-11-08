@@ -2986,17 +2986,45 @@ class Launcher:
 
     def u3mp_blocked(self):
         """PLAY is held for Uncharted 3 while its multiplayer update is pending or running."""
-        return bool(getattr(self, "u3mp_block", "")) and self.config.get("game") == "u3" and not self.process
+        game = self.config.get("game")
+        return not self.process and ((game == "u3" and bool(getattr(self, "u3mp_block", ""))) or
+                                     (game == "u2" and bool(getattr(self, "u2mp_block", ""))))
 
     def u3mp_gate(self):
         """Every second (u3mp_poll) and on a game change: the gold update bar under the game cards and the PLAY
         button follow the multiplayer update state."""
         reason = self.u3mp_block_reason()
-        changed = reason != getattr(self, "u3mp_block", "")
+        reason2 = self.u2mp_block_reason()
+        changed = reason != getattr(self, "u3mp_block", "") or reason2 != getattr(self, "u2mp_block", "")
         self.u3mp_block = reason
+        self.u2mp_block = reason2
         if not hasattr(self, "banner"):
             return
-        if reason:
+        if reason2 and not reason:
+            n, total = getattr(self, "u2mp_progress", (0, 0))
+            if reason2 == "running":
+                pct = f" ({int(100 * n / total)}%)" if total else ""
+                self.banner_title.config(text="UNCHARTED 2 MULTIPLAYER UPDATE IN PROGRESS" + pct +
+                                              " - Uncharted 2 can be played when it finishes")
+                step = self.u2mp_step.cget("text") if hasattr(self, "u2mp_step") else ""
+                self.banner_detail.config(text=(step + "\n" if step else "") +
+                                          "The launcher update changed the multiplayer files; only what changed is "
+                                          "rebuilt. Uncharted 1 and 3 can be played meanwhile, and closing the "
+                                          "launcher does not stop the update (details: Multiplayer tab).")
+            else:
+                self.banner_title.config(text="UNCHARTED 2 MULTIPLAYER UPDATE NEEDED - it starts in a moment")
+                self.banner_detail.config(text="The launcher update brought new multiplayer files. Uncharted 2 can "
+                                               "be played once they are rebuilt.")
+            self.banner_bar.delete("all")
+            width = self.banner_bar.winfo_width()
+            self.banner_bar.create_rectangle(0, 0, width, self.px(8), fill=INK, outline=INK)
+            if total and width > 1 and reason2 == "running":
+                self.banner_bar.create_rectangle(0, 0, int(width * min(1.0, n / total)), self.px(8), fill=TEXT,
+                                                 outline=TEXT)
+            if not self.banner_shown:
+                self.banner.pack(side="top", fill="x", pady=(0, self.px(12)))
+                self.banner_shown = True
+        elif reason:
             n, total, _ = getattr(self, "u3mp_progress", (0, 0, ""))
             if reason == "running":
                 pct = f" ({int(100 * n / total)}%)" if total else ""
@@ -3006,7 +3034,8 @@ class Launcher:
                 self.banner_detail.config(text=(step + "\n" if step else "") +
                                           "The launcher update changed the multiplayer files; only what changed is "
                                           "rebuilt. Uncharted 1 and 2 can be played meanwhile, and closing the "
-                                          "launcher does not stop the update (details: Multiplayer tab).")
+                                          "launcher does not stop the update (details: Multiplayer tab)." +
+                                          ("\nUncharted 2's multiplayer files are updating too." if reason2 else ""))
             else:
                 self.banner_title.config(text="UNCHARTED 3 MULTIPLAYER UPDATE NEEDED - it starts in a moment")
                 self.banner_detail.config(text="The launcher update brought new multiplayer files. Uncharted 3 can "
@@ -3028,14 +3057,16 @@ class Launcher:
             self.draw_play()
             if not self.process and hasattr(self, "status"):
                 if self.u3mp_blocked():
-                    self.set_status("Uncharted 3 is updating its multiplayer files.",
-                                    "PLAY unlocks when the update finishes (progress above).")
+                    self.set_status(f"Uncharted {'2' if self.config.get('game') == 'u2' else '3'} is updating its "
+                                    "multiplayer files.", "PLAY unlocks when the update finishes (progress above).")
                 else:
                     self.set_status(f"Ready to play {self.current_game()['name']}.")
 
     def u3mp_confirm_play(self):
         """play(): Uncharted 3 does not start while its multiplayer update is pending or running (u3mp_gate); a
         pending one starts now if it did not yet."""
+        if self.config.get("game") == "u2":
+            return self.u2mp_confirm_play()
         if self.config.get("game") != "u3" or not hasattr(self, "u3mp_status"):
             return True
         reason = self.u3mp_block_reason()
@@ -3199,10 +3230,31 @@ class Launcher:
                  font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
                  wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(8), 0))
         self.u2mp_proc = None
+        self.u2mp_auto = ""  # why the running import was started by the launcher (an update), else ""
         self.u2mp_log_pos = 0
         self.u2mp_progress = (0, 0)
         self.u2mp_refresh()
+        self.root.after(1000, self.u2mp_poll)
+        self.root.after(4500, self.u2mp_auto_update)
+        self.u2mp_extension(page)
         return page
+
+    def u2mp_extension(self, page):
+        """The RPCN section on Uncharted 2's page too: the private module's attach_view(launcher, page, context)
+        adds a second view of the one RPCN session (RPCN refuses a second sign-in of an account). A module
+        without attach_view shows nothing here."""
+        try:
+            module = self.u3mp_extension_module()
+            hook = getattr(module, "attach_view", None) if module is not None else None
+            if hook is not None:
+                hook(self, page, {
+                    "user_dir": USER_DIR, "bg": BG, "panel": PANEL, "panel_hi": PANEL_HI, "line": LINE,
+                    "text": TEXT, "muted": MUTED, "dim": DIM, "gold": GOLD, "gold_hi": GOLD_HI, "ink": INK,
+                    "red": STOP_RED, "game": "u2"})
+        except Exception:
+            log_launcher_error(*sys.exc_info())
+            tk.Label(page, text="The online section could not be loaded (see launcher-error.log).",
+                     font=self.f_small, bg=BG, fg=MUTED, anchor="w").pack(side="top", fill="x", pady=(self.px(12), 0))
 
     def u2mp_set(self, key, value):
         self.change_config(key, value)
@@ -3221,7 +3273,75 @@ class Launcher:
             return {}
 
     def u2mp_running(self):
-        return getattr(self, "u2mp_proc", None) is not None and self.u2mp_proc.poll() is None
+        """The import runs: started here, or (the launcher was closed and opened again) its state names a live pid."""
+        if getattr(self, "u2mp_proc", None) is not None and self.u2mp_proc.poll() is None:
+            return True
+        state = self.u2mp_state()
+        return state.get("status") == "running" and pid_alive(state.get("pid"))
+
+    def u2mp_shipped_id(self):
+        """The fingerprint of the installed Uncharted 2 import (u2mp/patcher/u2mp_version.py), computed once."""
+        if getattr(self, "u2mp_shipped", None) is None:
+            try:
+                sys.path.insert(0, str(ROOT / "u2mp" / "patcher"))
+                import u2mp_version
+                self.u2mp_shipped = u2mp_version.shipped_id()
+            except Exception:  # noqa: BLE001 - an incomplete patcher folder: nothing to compare
+                self.u2mp_shipped = ""
+            finally:
+                if sys.path and sys.path[0] == str(ROOT / "u2mp" / "patcher"):
+                    sys.path.pop(0)
+        return self.u2mp_shipped
+
+    def u2mp_pending(self, state=None):
+        """True when a launcher update changed the Uncharted 2 import (its steps or converters) since the last
+        import: the import then reruns by itself and redoes only the steps whose fingerprint changed."""
+        state = self.u2mp_state() if state is None else state
+        if state.get("status") not in ("imported", "partial"):
+            return False
+        shipped = self.u2mp_shipped_id()
+        # an update that ended worse is not retried at every start (Import retries it)
+        return bool(shipped) and state.get("recipe_id") != shipped and state.get("update_failed_for") != shipped
+
+    def u2mp_auto_update(self):
+        """After a launcher update: bring an existing Uncharted 2 import up to date in the background, with the
+        folders it was imported from (no dialogs; the status line and log show it)."""
+        try:
+            if not self.u2mp_running() and self.u2mp_pending():
+                self.u2mp_import(silent=True, reason="the launcher update changed the Uncharted 2 multiplayer files")
+        except (OSError, tk.TclError):
+            pass
+
+    def u2mp_block_reason(self):
+        """Like u3mp_block_reason, for Uncharted 2: "running" (an update of an existing import), "pending" (not
+        applied yet) or "" (a first import does not block: Uncharted 2 then starts without it)."""
+        if not hasattr(self, "u2mp_status"):
+            return ""
+        try:
+            state = self.u2mp_state()
+            if self.u2mp_running():
+                return "running" if state.get("recipe_id") or state.get("updating") else ""
+            if self.u2mp_pending(state):
+                return "pending"
+        except (OSError, tk.TclError):
+            pass
+        return ""
+
+    def u2mp_confirm_play(self):
+        """play(): Uncharted 2 does not start while its multiplayer update is pending or running."""
+        if self.config.get("game") != "u2" or not self.u2mp_block_reason():
+            return True
+        try:
+            if not self.u2mp_running() and self.u2mp_pending():
+                self.u2mp_import(silent=True, reason="the launcher update changed the Uncharted 2 multiplayer files")
+        except (OSError, tk.TclError):
+            pass
+        self.u3mp_gate()
+        messagebox.showinfo(
+            APP_TITLE, "Uncharted 2 is updating its multiplayer files after the launcher update.\n\nIt can be played "
+                       "as soon as the update finishes (progress at the top of the launcher). Uncharted 1 and 3 can "
+                       "be played meanwhile.")
+        return False
 
     def u2mp_refresh(self):
         if not hasattr(self, "u2mp_status"):
@@ -3229,12 +3349,16 @@ class Launcher:
         state = self.u2mp_state()
         status = state.get("status")
         running = self.u2mp_running()
+        failed = state.get("failed") or []
         if running:
-            text, colour = "Importing...", GOLD
+            text, colour = (("Updating the multiplayer files (launcher update; only what changed is redone)..."
+                             if getattr(self, "u2mp_auto", "") or state.get("updating") else "Importing..."), GOLD)
         elif status == "imported":
             text, colour = f"Imported ({state.get('finished', '?')}).", TEXT
         elif status == "partial":
-            text, colour = "Imported with problems: some files could not be made (see the import log).", GOLD
+            text = "Imported with problems: " + (f"step(s) {', '.join(failed)} failed; " if failed else "") + \
+                   "some files could not be made (see the import log)."
+            colour = GOLD
         elif status == "failed":
             text, colour = f"Import failed: {state.get('error', '') or 'see the import log'}", STOP_RED
         elif status == "running":
@@ -3261,15 +3385,18 @@ class Launcher:
         if total and width > 1:
             bar.create_rectangle(0, 0, int(width * min(1.0, n / total)), self.px(6), fill=GOLD, outline=GOLD)
 
-    def u2mp_import(self):
-        """Runs u2mp/patcher/u2mp_import.py (below normal priority) into analysis/uncharted-user/u2mp/import."""
+    def u2mp_import(self, silent=False, reason=""):
+        """IMPORT / RE-IMPORT, or (silent) the automatic update after a launcher update: u2mp/patcher/u2mp_import.py
+        (below normal priority) into analysis/uncharted-user/u2mp/import; it keeps running when the launcher closes."""
         if self.u2mp_running():
-            messagebox.showinfo(APP_TITLE, "The import is already running.")
-            return
+            if not silent:
+                messagebox.showinfo(APP_TITLE, "The import is already running.")
+            return False
         ps3 = self.config.get("u2mp_ps3")
         if not ps3:
-            messagebox.showinfo(APP_TITLE, "Choose your PS3 Uncharted 2 folder first.")
-            return
+            if not silent:
+                messagebox.showinfo(APP_TITLE, "Choose your PS3 Uncharted 2 folder first.")
+            return False
         out = U2MP_DIR / "import"
         out.mkdir(parents=True, exist_ok=True)
         python = Path(sys.executable)
@@ -3279,6 +3406,8 @@ class Launcher:
                    "--ps3", ps3, "--out", str(out)]
         if self.config.get("u2mp_ps3_dlc"):
             command += ["--ps3-dlc", self.config["u2mp_ps3_dlc"]]
+        if silent:
+            command += ["--update"]
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
         flags = NO_WINDOW | getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)
@@ -3288,30 +3417,39 @@ class Launcher:
                                               stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, creationflags=flags)
             log.close()
         except OSError as error:
-            messagebox.showerror(APP_TITLE, f"Could not start the import:\n{error}")
-            return
+            if not silent:
+                messagebox.showerror(APP_TITLE, f"Could not start the import:\n{error}")
+            else:
+                print(f"Could not start the Uncharted 2 multiplayer update: {error}")
+            self.u2mp_proc = None
+            return False
+        self.u2mp_auto = reason if silent else ""
         self.u2mp_log_pos = 0
         self.u2mp_progress = (0, 0)
         self.u2mp_log.config(state="normal")
         self.u2mp_log.delete("1.0", "end")
         self.u2mp_log.config(state="disabled")
-        self.u2mp_step.config(text="Starting the import...")
+        self.u2mp_step.config(text=("Updating the multiplayer files: " + reason + "...") if silent else
+                              "Starting the import...")
         self.u2mp_refresh()
-        self.root.after(1000, self.u2mp_poll)
+        return True
 
     def u2mp_cancel(self):
-        if self.u2mp_running() and messagebox.askyesno(
-                APP_TITLE, "Stop the import? Finished files are kept; Import continues it."):
-            subprocess.run(["taskkill", "/PID", str(self.u2mp_proc.pid), "/T", "/F"], creationflags=NO_WINDOW,
+        pid = self.u2mp_proc.pid if getattr(self, "u2mp_proc", None) is not None and self.u2mp_proc.poll() is None \
+            else self.u2mp_state().get("pid")
+        if pid and messagebox.askyesno(APP_TITLE, "Stop the import? Finished files are kept; Import continues it."):
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], creationflags=NO_WINDOW,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.u2mp_step.config(text="Import stopped.")
             self.root.after(500, self.u2mp_refresh)
 
     def u2mp_poll(self):
-        """While the import runs: new lines of its output, its progress events (@U2MP ...), the status."""
+        """Every second: new lines of the import's output, its progress events (@U2MP ...), the status."""
         try:
             path = U2MP_DIR / "import" / "launcher-run.log"
             if path.exists():
+                if path.stat().st_size < self.u2mp_log_pos:   # a new run rewrote the file
+                    self.u2mp_log_pos = 0
                 with open(path, "rb") as f:
                     f.seek(self.u2mp_log_pos)
                     chunk = f.read()
@@ -3319,16 +3457,19 @@ class Launcher:
                 if cut:
                     self.u2mp_log_pos += cut
                     self.u2mp_lines(chunk[:cut].decode("utf-8", "replace").splitlines())
+            proc = getattr(self, "u2mp_proc", None)
+            if proc is not None and proc.poll() is not None:
+                self.u2mp_proc = None
+                self.u2mp_auto = ""
+                if proc.returncode not in (0, None) and \
+                        not self.u2mp_step.cget("text").startswith(("Import stopped", "Import failed")):
+                    self.u2mp_step.config(text="Import failed: see the import log.")
+                self.u2mp_refresh()
+            elif self.u2mp_running() != self.u2mp_status.cget("text").startswith(("Importing...", "Updating the")):
+                self.u2mp_refresh()
         except (OSError, tk.TclError):
             pass
-        if self.u2mp_running():
-            self.root.after(1000, self.u2mp_poll)
-            return
-        proc, self.u2mp_proc = self.u2mp_proc, None
-        if proc is not None and proc.returncode not in (0, None) and \
-                not self.u2mp_step.cget("text").startswith(("Import stopped", "Import failed")):
-            self.u2mp_step.config(text="Import failed: see the import log.")
-        self.u2mp_refresh()
+        self.root.after(1000, self.u2mp_poll)
 
     def u2mp_lines(self, lines):
         shown = []
@@ -3338,13 +3479,22 @@ class Launcher:
                     ev = json.loads(line[6:])
                 except ValueError:
                     continue
-                if ev.get("phase") == "item" and ev.get("total"):
-                    self.u2mp_progress = (ev.get("n", 0), ev["total"])
-                    self.u2mp_step.config(text=f"File {ev.get('n', 0)}/{ev['total']}: {ev.get('key', '')[:90]}")
+                if ev.get("phase") == "recipe" and ev.get("step"):
+                    self.u2mp_steps = (ev["step"], ev["total"], ev.get("title", ""))
+                    self.u2mp_progress = (ev["step"] - 1, ev["total"])
+                    self.u2mp_step.config(text=f"Step {ev['step']}/{ev['total']}: {ev.get('title', '')[:90]}")
+                elif ev.get("phase") == "recipe" and ev.get("status") == "failed":
+                    shown.append(f"!! step {ev.get('id')} failed: {ev.get('note', '')}")
+                elif ev.get("phase") == "item" and ev.get("total"):
+                    step, steps, title = getattr(self, "u2mp_steps", (1, 1, ""))
+                    self.u2mp_progress = ((step - 1) + ev.get("n", 0) / ev["total"], steps)
+                    self.u2mp_step.config(text=f"Step {step}/{steps}: file {ev.get('n', 0)}/{ev['total']}: "
+                                               f"{ev.get('key', '')[:80]}")
                 elif ev.get("phase") == "done":
-                    self.u2mp_progress = (self.u2mp_progress[1], self.u2mp_progress[1])
+                    self.u2mp_progress = (1, 1)
                     self.u2mp_step.config(text="Import finished." if ev.get("status") in ("imported", "partial")
                                           else "Import failed: " + ev.get("error", ""))
+                    self.root.after(200, self.u2mp_refresh)
                 continue
             shown.append(line)
         if shown:
@@ -3405,7 +3555,7 @@ class Launcher:
                    "ps3_u2", (("Choose", self.u3mp_choose_u2), ("Clear", lambda: self.u3mp_set("u3mp_ps3_u2", ""))))
         folder_row("Decrypted PS3 EBOOT (update 1.19)",
                    "For the characters' collision data. In RPCS3: Utilities -> Decrypt PS3 Binaries, pick "
-                   "dev_hdd0/game/BCES01670 (EU), BCES01692 (UK) or BCUS99086 (US)/USRDIR/EBOOT.BIN; the EBOOT.elf it writes there is found by itself.",
+                   "dev_hdd0/game/BCES01670 (EU), BCES01692 (UK), BCUS99086 (US) or BCAS25014 (Asia)/USRDIR/EBOOT.BIN; the EBOOT.elf it writes there is found by itself.",
                    "ps3_elf", (("Choose file", self.u3mp_choose_elf),
                                ("Clear", lambda: self.u3mp_set("u3mp_ps3_elf", ""))))
         def dns_entry(parent):
