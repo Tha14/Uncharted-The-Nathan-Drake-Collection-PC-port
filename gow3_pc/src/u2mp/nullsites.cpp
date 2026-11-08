@@ -80,10 +80,52 @@ bool install_stream_start() {
     return true;
 }
 
+// ---- 2. Shader-resource binding with an unresolved resource (test run 35) ---------------------------
+// The binding walker 0xc25670 (a render job, reached from 0xc419d0's list at +0x170) goes over 48-byte
+// entries {const desc *res; void *buffer; const param *def; ...; u32 used @+0x20; u8 dirty @+0x28} and
+// for each live one calls 0xc12150(&res, def->size, &entry.buffer), which reads the 32-byte resource
+// descriptor at `res` (type u16 at +0x18) and copies it into a new GPU buffer. Run 35 reached Playing on
+// Shambhala and crashed at 0xc12173 on the first frame: res = 0x33d5c036f1b17bc2, a non-canonical
+// value built at run time (the pair is in no file), i.e. a binding whose resource was never linked.
+// This guard at the one call that crashed (0xc258b2) logs the entry, so the asset can be found, and
+// lets that frame bind an all-zero descriptor (a null resource) instead of crashing.
+constexpr uint64_t cBindCall = 0xc258b2, fBindCopy = 0xc12150;
+alignas(64) uint64_t zero_descriptor[8];
+using BindCopy = void *(U2MP_GUEST *)(const void **, uint64_t, void *);
+
+bool bad_pointer(uint64_t p) { return p < 0x10000 || p >= 0x0000800000000000ull; }
+
+U2MP_GUEST void *bind_copy_checked(const void **res, uint64_t size, void *out) {
+    const uint64_t r = uint64_t(uintptr_t(*res));
+    if (bad_pointer(r)) {
+        static int logged = 0;
+        if (logged < 12) {
+            ++logged;
+            const uint64_t *entry = reinterpret_cast<const uint64_t *>(static_cast<uint8_t *>(out) - 8);
+            log("bind guard (c258b2): resource %016llx not a pointer; entry %016llx %016llx %016llx %016llx "
+                "%016llx %016llx, size 0x%llx",
+                (unsigned long long)r, (unsigned long long)entry[0], (unsigned long long)entry[1],
+                (unsigned long long)entry[2], (unsigned long long)entry[3], (unsigned long long)entry[4],
+                (unsigned long long)entry[5], (unsigned long long)size);
+            const uint64_t def = entry[2];
+            if (!bad_pointer(def)) {
+                const uint32_t *d = reinterpret_cast<const uint32_t *>(uintptr_t(def));
+                log("bind guard: param def %016llx: %08x %08x %08x %08x %08x %08x %08x %08x",
+                    (unsigned long long)def, d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]);
+            }
+        }
+        *res = zero_descriptor;   // the caller's local copy only; the entry itself is not changed
+    }
+    return reinterpret_cast<BindCopy>(image.base + fBindCopy)(res, size, out);
+}
+
 }  // namespace
 
 void install_nullsites(int &installed) {
     if (install_stream_start()) ++installed;
+    if (retarget_call(cBindCall, fBindCopy, reinterpret_cast<void *>(&bind_copy_checked),
+                      "bind guard (unresolved shader resource)"))
+        ++installed;
 }
 
 }  // namespace u2mp
