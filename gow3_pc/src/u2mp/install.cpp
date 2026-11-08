@@ -151,6 +151,7 @@ extern "C" int u2mp_install(unsigned char *base, uint64_t size, const uint64_t *
     install_crashlog();
     install_frontend(installed);
     install_events(installed);
+    install_gameplay2(installed);
     install_natives(installed);
     install_progression(installed);
     install_cinema(installed);
@@ -158,6 +159,9 @@ extern "C" int u2mp_install(unsigned char *base, uint64_t size, const uint64_t *
     install_menus(installed);
     install_menuimages(installed);
     install_dlc(installed);
+    install_menudraw(installed);
+    install_frontend2(installed);
+    install_spawn(installed);
     log("%d functions restored", installed);
     return installed;
 }

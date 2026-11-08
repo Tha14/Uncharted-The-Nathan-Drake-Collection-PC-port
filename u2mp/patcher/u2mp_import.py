@@ -401,6 +401,7 @@ class Importer:
         self.save()
         if have_numpy:
             self.net_images(level_txt)
+            self.net_spawn_paks(level_txt)
         self.registries(level_txt)
         self.texts()
         counts = {}
@@ -413,6 +414,78 @@ class Importer:
             self.state['validation'] = validate.run(self.ps3, self.ps4, os.path.join(self.work, 'validate'), log=log)
         bad = counts.get('failed', 0) + counts.get('missing', 0)
         return self.finish('partial' if bad or counts.get('unsupported') else 'imported')
+
+    def ps3_data_pak22(self):
+        """pak22 of the PS3 game-data folder (<game id>DATA2/USRDIR/build/main/pak22: what PS3 1.10 downloaded
+        from the server), from --ps3-data or next to the DLC / disc folders under dev_hdd0/game"""
+        cands = []
+        if self.a.ps3_data:
+            cands.append(self.a.ps3_data)
+        for root in (self.a.ps3_dlc, self.a.ps3):
+            if not root:
+                continue
+            p = os.path.abspath(root)
+            for _ in range(6):                     # up to dev_hdd0/game
+                if os.path.basename(p).lower() == 'game':
+                    for gid in ('BCUS98123DATA2', 'BCES00757DATA2'):
+                        cands.append(os.path.join(p, gid))
+                    cands += sorted(os.path.join(p, d) for d in os.listdir(p) if d.upper().endswith('DATA2'))
+                    break
+                p = os.path.dirname(p)
+        for c in cands:
+            for sub in ('', 'USRDIR', os.path.join('USRDIR', 'build', 'main'), os.path.join('build', 'main')):
+                d = os.path.join(c, sub, 'pak22') if sub or not c.lower().endswith('pak22') else c
+                if os.path.isdir(d) and any(f.endswith('-pak-ingame10.pak') for f in os.listdir(d)):
+                    return d
+        return None
+
+    def net_spawn_paks(self, level_txt):
+        """pak22/ps4/<map>-pak-ingame10.pak: the multiplayer spawners (online-spawner-*, team / start tags), CTF
+        flags and territories of each map. The game asks for the level '<map>-pak' (the net game's level record) and
+        reads its spawner group (GetSpawnLocator 0x662fa0, start / respawn choice 0x644220 / 0x642d20). PS3 1.10
+        downloaded these packages from the server into the game-data folder as 1-<map>-pak-ingame10.pak (net-patch9
+        maps '<map>-pak' -> '1-<map>-pak-ingame'); neither disc has them and PS4 ships only stage-multi-pak-ingame10.
+        Converted like any -ingame10 data pak (u2level -> u2ingame), registered as level '<map>-pak'."""
+        d = self.ps3_data_pak22()
+        found = sorted(f for f in os.listdir(d) if f.endswith('-pak-ingame10.pak')) if d else []
+        if not d:
+            log('net spawn paks: no PS3 game-data folder with <map>-pak-ingame10.pak (set --ps3-data): '
+                'multiplayer maps have no player spawners')
+        import u2level
+        for f in found:
+            m = re.match(r'^(?:\d+-)?(.+-pak)-ingame10\.pak$', f)
+            if not m:
+                continue
+            level = m.group(1)
+            key = 'pak22/%s-ingame10.pak' % level
+            rel = 'pak22/ps4/%s-ingame10.pak' % level
+            if self.ps4.has('pak22/%s-ingame10.pak' % level):          # stage-multi-pak: PS4 ships it
+                level_txt[level] = 'level-id %s\npackage %s-ingame\n' % (level, level)
+                self.items[key] = dict(status='ps4', group='A', note='PS4 has it', conv=CONV_VERSION)
+                continue
+            src = os.path.join(d, f)
+            data = open(src, 'rb').read()
+            src_sha = sha1(data)
+            if not self.done_before(key, src_sha):
+                t = time.time()
+                try:
+                    if self.res is None:
+                        self.res = u2level.build_res(self.ps4.pak_dir, os.path.join(self.work, 'res'), log=log)
+                    kind, notes = u2level.convert(src, self.out_path(rel), self.ps4.pak_dir, self.res,
+                                                  os.path.join(self.work, 'levels'), drop_navmesh=self.a.drop_navmesh,
+                                                  log=log)
+                except Exception as e:
+                    self.items[key] = dict(status='failed', group='A', conv=CONV_VERSION, src='ps3-data',
+                                           note=('%s: %s' % (type(e).__name__, e))[:400])
+                    log('FAILED %s: %s: %s' % (key, type(e).__name__, str(e)[:300]))
+                    continue
+                self.record(key, 'ok', dict(group='A'), out=os.path.join(OUT_MAIN, *rel.split('/')).replace('\\', '/'),
+                            src='ps3-data', src_sha1=src_sha, note='; '.join([kind] + notes)[:400])
+                log('ok      %s <- ps3-data %s (%.1fs) %s' % (key, f, time.time() - t, kind))
+            if os.path.isfile(self.out_path(rel)):
+                level_txt[level] = 'level-id %s\npackage %s-ingame\n' % (level, level)
+        log('net spawn paks: %d maps' % sum(1 for k in level_txt if k.endswith('-pak')))
+        self.save()
 
     def net_images(self, level_txt):
         """pak22/ps4/net-u2mp.pak: the PS3 net.pak menu images the PS4 net.pak lacks (Leaderboards / Trophies
@@ -542,6 +615,7 @@ def main():
     ap.add_argument('--ps4', required=True)
     ap.add_argument('--ps3', required=True)
     ap.add_argument('--ps3-dlc')
+    ap.add_argument('--ps3-data', help='PS3 game-data folder (dev_hdd0/game/BCUS98123DATA2): the downloaded multiplayer spawn paks')
     ap.add_argument('--out', required=True)
     ap.add_argument('--groups', default='A,B,C,D,E')
     ap.add_argument('--speech-langs', default='', help='PS4 speech languages to fill (default: all four the PS4 game '
