@@ -1,6 +1,8 @@
 // u2mp voice chat (voice.h). The codec, jitter buffer, mixer and gate come first and need nothing
 // but libopus (the host test builds them alone with U2MP_VOICE_CORE_ONLY); the SDL3 streams and the
 // transport side follow.
+#include <utility>
+#include <vector>
 #include "voice.h"
 
 #include <algorithm>

@@ -1,6 +1,11 @@
 // u2mp cinema file store (see cinema_store.h). PS3 1.10 originals: refresh 0x4631d8, make room
 // 0x4635c8, load 0x463738, open 0x4638cc, delete 0x463ab8, protect 0x463ba4, pump 0x463ce8,
 // finish 0x464464.
+#include <cstdio>
+#include <ctime>
+#include <string>
+#include <utility>
+#include <vector>
 #include "cinema_store.h"
 
 #include <algorithm>

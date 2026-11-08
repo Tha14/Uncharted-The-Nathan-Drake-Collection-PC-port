@@ -29,6 +29,8 @@
 //     fills the leaderboard object 0x113d960 (PS3 0xf1fd20) from the local player's Data and the
 //     players this PC saw in recent matches. Net trophies (mode 5, LIST_STATS, vtable 0x1009100)
 //     read the Data block directly and need only the connect.
+#include <array>
+#include <utility>
 #include "progression.h"
 
 #include <algorithm>

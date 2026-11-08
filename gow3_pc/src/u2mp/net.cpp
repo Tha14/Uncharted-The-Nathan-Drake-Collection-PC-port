@@ -1,4 +1,8 @@
 // u2mp network core: see net.h for the wire format.
+#include <cstdlib>
+#include <functional>
+#include <string>
+#include <vector>
 #include "net.h"
 
 #include <algorithm>

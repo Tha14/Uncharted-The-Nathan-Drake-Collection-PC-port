@@ -7,6 +7,7 @@
 // transport: the party leader is the match host.
 //
 // Net ids: host 1, a client in transport slot s has s + 1 (also its connection-record key).
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>

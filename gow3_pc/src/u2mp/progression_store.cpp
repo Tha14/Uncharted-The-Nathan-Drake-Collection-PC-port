@@ -13,6 +13,9 @@
 //                 char name[32]; u32 kills, deaths, wins, losses, seconds, coop_points, money,
 //                 matches, rank; u32 0; u64 last_seen
 //   end  u32      CRC-32 (IEEE) of everything before it
+#include <string>
+#include <utility>
+#include <vector>
 #include "progression_store.h"
 
 #include <algorithm>
