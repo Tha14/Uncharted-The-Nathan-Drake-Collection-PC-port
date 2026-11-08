@@ -64,6 +64,8 @@ constexpr uint64_t gHashCount = 0x153410c;    // s32 bucket count
 constexpr uint32_t kRootType = 0x916aa605;    // type header of the module root table
 constexpr uint32_t kRunScript = 0x87b03989;   // PS3: this entry is run, not bound
 constexpr uint32_t kWeaponSet = 0x8cf8e1cc;   // the symbol test run 33 missed
+constexpr uint32_t kOnlineWeaponSettings = 0x837a26b6;   // read online by 0xada5e0 (net-patch9 only)
+constexpr uint32_t kOfflineWeaponSettings = 0x974cf651;  // PS4 player-weapon-settings.bin
 constexpr const char *kPath = "/app0/u2data/build/main/dc1/ps4/net-patch9.bin";
 
 using RelocateFn = void **(U2MP_GUEST *)(void *);
@@ -182,6 +184,19 @@ int netpatch_load() {
             continue;
         }
         void **have = find(id);
+        // Test run 34: the online player weapon settings map (0x837a26b6, read when NET_SM > 1 by 0xada5e0)
+        // converts only partly (its large records fall to the generic layout: field +0x2c0 read as -1).
+        // Its records have the layout of the offline map 0x974cf651 that the PS4 player-weapon-settings.bin
+        // defines correctly, so the online id is bound to the PS4 offline map (single-player tuning).
+        if (id == kOnlineWeaponSettings && !have) {
+            if (void **offline = find(kOfflineWeaponSettings)) {
+                const uint64_t v = *reinterpret_cast<uint64_t *>(offline);
+                bind(id, &v);
+                ++g_bound;
+                log("netpatch: online weapon settings 0x%08x -> the PS4 offline map 0x%08x", id, kOfflineWeaponSettings);
+                continue;
+            }
+        }
         if (have && !all) {
             ++kept;   // the PS4 game defines it: keep the PS4 data
             continue;
