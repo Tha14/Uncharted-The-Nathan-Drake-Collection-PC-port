@@ -63,6 +63,7 @@ void install_menudraw(int &installed);  // menudraw.cpp: 2D command arena 192 Ki
 void install_frontend2(int &installed); // frontend2.cpp: partial menu functions vs PS3 (PORT-FRONTEND2.md)
 void install_spawn(int &installed);     // spawn.cpp: spawner lookup at match start (PORT-SPAWN.md)
 void install_gameplay2(int &installed); // gameplay2.cpp: connection event Applies (PORT-GAMEPLAY2.md)
+void install_nullsites(int &installed); // nullsites.cpp: replay stream fallback at WaitReady::Exit (PORT-NULLSITES.md)
 // False when the *net-games* record `index` plays on a DLC map whose map pack was not imported.
 bool dlc_net_game_available(int32_t index);
 // netinit.cpp: state the removed PS3 multiplayer init set up (u2mp/docs/NETINIT.md). Both idempotent.
