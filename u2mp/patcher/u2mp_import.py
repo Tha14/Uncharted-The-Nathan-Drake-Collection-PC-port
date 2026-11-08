@@ -421,14 +421,22 @@ class Importer:
         cands = []
         if self.a.ps3_data:
             cands.append(self.a.ps3_data)
+        # The game's own data folder first (the title id of --ps3, e.g. NPUA80698 = GOTY 1.10 -> NPUA80698DATA2),
+        # then any other DATA2 folder: these packages are the multiplayer server's map data, byte-identical in the
+        # BCUS98123DATA2 and BCES00757DATA2 copies (checked 2026-11-08), not part of a game version.
+        title = None
+        for part in reversed(os.path.abspath(self.a.ps3).replace('\\', '/').split('/')):
+            if re.match(r'^[A-Z]{4}\d{5}$', part):
+                title = part
+                break
         for root in (self.a.ps3_dlc, self.a.ps3):
             if not root:
                 continue
             p = os.path.abspath(root)
             for _ in range(6):                     # up to dev_hdd0/game
                 if os.path.basename(p).lower() == 'game':
-                    for gid in ('BCUS98123DATA2', 'BCES00757DATA2'):
-                        cands.append(os.path.join(p, gid))
+                    if title:
+                        cands.append(os.path.join(p, title + 'DATA2'))
                     cands += sorted(os.path.join(p, d) for d in os.listdir(p) if d.upper().endswith('DATA2'))
                     break
                 p = os.path.dirname(p)
@@ -448,6 +456,8 @@ class Importer:
         Converted like any -ingame10 data pak (u2level -> u2ingame), registered as level '<map>-pak'."""
         d = self.ps3_data_pak22()
         found = sorted(f for f in os.listdir(d) if f.endswith('-pak-ingame10.pak')) if d else []
+        if d:
+            log('net spawn paks: from %s (server map data, the same for every PS3 version)' % d)
         if not d:
             log('net spawn paks: no PS3 game-data folder with <map>-pak-ingame10.pak (set --ps3-data): '
                 'multiplayer maps have no player spawners')
