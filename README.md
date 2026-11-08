@@ -186,12 +186,14 @@ game-derived ships with the launcher: the **MULTIPLAYER** tab converts the files
 - The PS4 Collection as the launcher's game folder: **CUSA02320 (EU), version 1.02** (the multiplayer build
   is made for its Uncharted 3 executable; the import checks it by SHA-256 and says so when yours differs.
   A replaced `big3-ps4_Shipping.elf` is fine when the retail one is kept as `backup/big3-ps4_Shipping.elf`).
-- Your PS3 **Uncharted 3** (BCES01670): the game folder (disc `PS3_GAME/USRDIR` or an extracted ISO) and
-  RPCS3's `dev_hdd0/game` folder with update **1.19**, the game data install (`BCES01670DATA2`) and the DLC
-  map packs. Add both folders.
+- Your PS3 **Uncharted 3 Game of the Year** (BCES01670 EU or BCUS99086 US; both have the same 1.19 code and
+  the same game files apart from the speech languages): the game folder (disc `PS3_GAME/USRDIR` or an extracted
+  ISO) and RPCS3's `dev_hdd0/game` folder with update **1.19**, the game data install (`BCES01670DATA2` /
+  `BCUS99086DATA2`) and the DLC map packs. Add both folders.
 - The **decrypted 1.19 EBOOT**, for the characters' collision data: in RPCS3, *Utilities -> Decrypt PS3
-  Binaries*, choose `dev_hdd0/game/BCES01670/USRDIR/EBOOT.BIN`; the `EBOOT.elf` it writes there is found by
-  the import (or choose it on the tab). Without it that step is skipped.
+  Binaries*, choose `dev_hdd0/game/BCES01670/USRDIR/EBOOT.BIN` (US: `BCUS99086`); the `EBOOT.elf` it writes
+  there is found by the import, as is any `.elf` with the 1.19 hash such as `EBOOT-1.19.elf` (or choose it on
+  the tab). Without it that step is skipped.
 - PS3 **Uncharted 2** is optional: no multiplayer file comes from it today.
 - About 12 GB free for the multiplayer data folder (default
   `%LOCALAPPDATA%\Uncharted Launcher\U3 Multiplayer`, changeable on the tab).
