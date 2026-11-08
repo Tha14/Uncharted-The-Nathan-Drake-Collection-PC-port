@@ -1,0 +1,23 @@
+# names of the PS3 1.19 emitters build48 adds (sid = Naughty Dog string id of the name; checked when building)
+047888d5	gompa-multi-aurora-borealis/AuroraGeo_emitter
+1722e625	gompa-multi-fire-no-light/sound_emitter
+1eae0e13	gompa-multi-fire-brazier-no-light/fireDebris1C_emitter
+2414875b	gompa-multi-fire-torch-no-light/fireDebris1A_emitter
+32780aaa	sham-torch-fire-01/emitter_fire
+36d46446	gompa-multi-fire-torch-no-light/fireDebris1B_emitter
+38b3eae8	gompa-multi-fire-brazier-no-light/distBase_emitter
+4396706b	gompa-multi-fire-no-light/distBase_emitter
+45d58b2f	gompa-multi-fire-torch-no-light/sound_emitter
+4a9a4091	gompa-multi-fire-no-light/fireDebris1A_emitter
+585aa38c	gompa-multi-fire-no-light/fireDebris1B_emitter
+5f321941	gompa-multi-fire-torch-no-light/smokeBaseB_emitter
+83c51051	waterfall-mist/fog_emitter2
+8e863688	waterfall-mist/fog_emitter1
+a3415fc0	gompa-multi-fire-no-light/smokeBaseC_emitter
+c351ec10	cave-multi-fog-valley/fog_emitter2
+c4d4ce20	gompa-multi-fire-torch-no-light/fireDebris1C_emitter
+cd33f5d5	gompa-multi-fire-brazier-no-light/smokeBaseB_emitter
+cd77997f	sham-torch-fire-01/emitter_sound
+ce12cac9	cave-multi-fog-valley/fog_emitter1
+ecaea475	gompa-multi-fire-brazier-no-light/fireDebris1B_emitter
+fe6e4768	gompa-multi-fire-brazier-no-light/fireDebris1A_emitter

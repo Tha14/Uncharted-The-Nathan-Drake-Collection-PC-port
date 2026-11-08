@@ -8,7 +8,7 @@ State of 2026-11-05 (recipe 1.1.0; banks, text1, EULA, map-colors restored 11-05
 | overlay-mp vtex1 | 882 | 124 | 882 | - |
 | overlay-r3 sound1/streams | 11 980 | 379 | 11 980 | - |
 | overlay-r3 sound1/banks | 128 | 167 | 128 | Converter: `tools/fixes/sound-banks` (`bnkconv.py` SBlk v4/v5 BE -> v13 LE, `convert_banks.py`, step `convert-banks`). All 124 converted banks byte-identical (verified 2026-11-05 with ffmpeg 8.1.1). MP3/PCM16 samples are re-encoded by `vagenc.py`, an exact port of the original encoder `third_party/vagenc-oct27-src/.../sound/c/vagenc.c` (supplied by the user 2026-11-05); the envelope table `adsr_env.json` + nearest-pair fallback are the original's too. Needs ffmpeg for the 95 banks with MP3 samples. |
-| overlay-r3 dc1 (281) + dc2 (3), overlay-r2 dc1 (16), overlay-port dc1 (3) | 303 | 6.4 | 303 (by recipe test) | (2026-11-05) All reproducible: `convert-dc1` converts 72 whole-file conversions exactly (+69 .dci; tools/dcconv/dcconv.py, layouts learned from the PS3/PS4 pairs); `dc-recipes` rebuilds the other 161 files byte for byte (the merged modules net.bin / menu.bin / modules.bin / medals / looks / scenes / vox* / weapon-* / net-always-loaded(.dci) / ss-coop-adv-fort / the 3 dc2 part modules, overlay-r2 and overlay-port net / medals / modules / render-settings, and the 80 conversions the converter misses, with their .dci) from provenance recipes (`tools/dcconv/dc-recipes.json.gz`, 1.25 MB): copy ops over the user's PS4 retail and PS3 1.19 modules (raw, 32-bit-swapped, 16-bit-swapped, opcode-renumbered) + the retail weapon actor paks for the skin material names, the pointer slots, and 5947 literal bytes in all (short string-id fragments). Sources are sha256-checked, outputs must hit the reference sha256; a different-region game copy whose modules differ would make a recipe refuse (it then reports which source). `skel-retargets.bin` = airport-igc3. The cloud merge scripts themselves (dcsynth/dcgraft2/dcmod4/ngconv2/netfix.py) remain lost: only fragments are in the 10-27 transcripts. dctools (common/dcedit/dcsyms, originals) and every session dctools step are verified 29/29 from their backups. |
+| overlay-r3 dc1 (281) + dc2 (3), overlay-r2 dc1 (16), overlay-port dc1 (3) | 303 | 6.4 | 303 (by recipe test) | (2026-11-05) All reproducible: `convert-dc1` converts 72 whole-file conversions exactly (+69 .dci; tools/dcconv/dcconv.py, layouts learned from the PS3/PS4 pairs); `dc-recipes` rebuilds the other 161 files byte for byte (the merged modules net.bin / menu.bin / modules.bin / medals / looks / scenes / vox* / weapon-* / net-always-loaded(.dci) / ss-coop-adv-fort / the 3 dc2 part modules, overlay-r2 and overlay-port net / medals / modules / render-settings, and the 80 conversions the converter misses, with their .dci) from provenance recipes (`tools/dcconv/dc-recipes.json.gz`, 1.25 MB): copy ops over the user's PS4 retail and PS3 1.19 modules (raw, 32-bit-swapped, 16-bit-swapped, opcode-renumbered) + the retail weapon actor paks for the skin material names, the pointer slots, and 5947 literal bytes in all (short string-id fragments). Sources are sha256-checked, outputs must hit the reference sha256; a different-region game copy whose modules differ would make a recipe refuse (it then reports which source). `skel-retargets.bin` = airport-igc3. The cloud merge scripts themselves (dcsynth/dcgraft2/dcmod4/ngconv2/netfix.py) remain lost: only fragments are in the 10-27 transcripts. dctools (common/dcedit/dcsyms, originals) and every session dctools step are verified 29/29 from their backups. **dc2 part modules (2026-11-07, recipe 1.10.0):** step `convert-dc2-part-modules` is no longer "unavailable": it rebuilds part-cave / part-gompa / part-shambhala-multi.bin with the recovered batch45/batch48 converter (`tools/fixes/part-emitters`: graft44 grafts batch45's 31 gompa water effects from retail PS4 modules, emitconv converts the 22 PS3 1.19 emitters to the PS4 format, build48 appends them and re-points the 7 groups); md5-checked 3/3 from the real game inputs. |
 | overlay-r3 text1 | 66 | 12 | 66 | Merge rewritten 2026-11-05: `tools/fixes/text1-merge/merge_text1.py` (step `convert-text1`). Source of the PS3 strings is the disc `goty-patch.psarc` (`build/main/text1/`), not `text1.psarc`/`dlc-patch18`: 47 fixed keys replaced/added where they differ, in hash order, plus the helper message 0x4a93e6b9 "Your party does not have enough players..." appended to every `.common`. |
 | overlay-r3 vtex1 (eula) | 7 | 10 | 7 | 7 pages p1..p7 (not 6 + emblem). Source: the JPEGs BCES-EN-1..7 in the user's `DATA2/USRDIR/http-cache` (matched by sha256); Pillow flip + JPEG q95, ffmpeg lanczos mips, DXT5: `eula-batch/make_eula.py` (step `eula-pages`) reproduces all 7 byte for byte with Pillow 13.0.0 + ffmpeg 8.1.1; without ffmpeg equivalent. A user without the cached pages (never online in RPCS3) cannot build them. |
 | overlay-r3 pak23 | 328 | 3 864 | 1 + 200 rebuilt (+36 base, +81 equivalent; + 10 fix-step side files) | (2026-11-06, recipe 1.7.0) **identical** 130 rows + **base** 36 (= a recorded pre-batch or pre-session state; `cloud-batches-r3` and the session steps make the reference) + **equivalent** 81. New: the cloud batches 102 / h017c / 103 / h017co / h028 are replayed by step `cloud-batches-r3` from their original scripts (PC inbox), their PS3 textures regenerated from the user's PS3 paks; replayed on the 66 recorded pre-batch states every pak reaches its pre-session state. 19 more rows exact this session (templates/params/texsrc/<=64 flag bytes recovered against the earliest recorded state; h018 paks = option set U3_STAGE_LEVELINFO_PS3=1). Remaining 81: per-pak table below (lost batches 99..101m / n014, Borneo water code, 8 sky paks, and 27 large paks whose search hit the 2 h limit). |
@@ -21,6 +21,7 @@ State of 2026-11-05 (recipe 1.1.0; banks, text1, EULA, map-colors restored 11-05
 ## Lost or unavailable tools
 
 * ~~`dctools/common.py`, `dcedit.py`, `dcsyms.py`~~ restored 2026-11-05 (originals, see the dc1 row).
+* ~~PS3 -> PS4 particle emitter converter (stage-assets batch45 / batch48)~~ recovered 2026-11-07 (u3-particle-emitter-converter download; `tools/fixes/part-emitters`, step `convert-dc2-part-modules`, 3/3 md5 from the game inputs). Its pickles are replaced by tsv rule tables; the s11 struct samples are learned from the player's PS3/PS4 MP module pairs. part-ruins-multi (batch48 made it, never installed) is not built.
 * The PS3 -> PS4 DC converter: rewritten 2026-11-05 (`tools/dcconv/dcconv.py`, 72/152 exact); every other DC file is rebuilt exactly by `dc-recipes`. The cloud merge scripts (netfix, menu, modules, ssfix) remain lost.
 * Sound-bank sample encoder: solved 2026-11-05 with the original source (vagenc.c, README of
   `third_party/vagenc-oct27-src/vagenc-oct27`). The rule my searches missed: the shift comes from the open-loop
@@ -97,19 +98,19 @@ Cause classes of the remaining rows:
 | air-multi-stage | base | backup-mapcolor2 | - |
 | air-multi-strip | base | backup-excess | rebuilt exact 2026-11-07 (scratch/pak23-recovery/airstrip): cloud effect donors + EFFECT phases; air-multi/-shade from their pre-lost-batch state (lost-batches-r3), air-multi-strip at backup-orange (new step orange-wall, then excess-wall); end to end identical incl. the wall-emblem chain |
 | air-multi-wide | base | b103 | - |
-| cave-multi | equivalent | backup-london | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
-| cave-multi-stage | equivalent | h028-backup | searched, no output kept |
+| cave-multi | base | chain t0 | rebuilt exact 2026-11-07 (scratch/pak23-recovery/no-t0, wire12): plan row = the recorded pre-lost-batch state (chain t0); lost-batches-r3 (t0-md5.tsv) replays it to the recorded end state; verified identical to the reference end to end |
+| cave-multi-stage | base | h028-backup | rebuilt exact 2026-11-07 (scratch/pak23-recovery/no-t0, wire12): plan row = the recorded pre-h028 state; cloud-batches-r3 h028 makes the reference; verified end to end |
 | cha-multi | equivalent | h017co-backup | searched, no output kept |
 | cha-multi-shade | equivalent | h017co-backup | searched, no output kept |
 | cha-multi-stage | base | backup-mapcolor2 | - |
-| coop-airport-2 | equivalent | backup-london | searched, no output kept |
+| coop-airport-2 | base | chain t0 | rebuilt exact 2026-11-07 (scratch/pak23-recovery/no-t0, wire12): plan row = the recorded pre-lost-batch state (chain t0); lost-batches-r3 (t0-md5.tsv) replays it to the recorded end state; verified identical to the reference end to end |
 | coop-airport-3a | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | coop-airport-3b-low | identical | final | - |
 | coop-airport-stage | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | coop-ldn-library-inner | base | backup-london | rebuilt exact 2026-11-07 (template search run 6, target = the recorded pre-lost-batch state); lost-batches-r3 replays it to the recorded end state |
 | coop-ldn-station-entrance-outside | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
-| coop-syria-area1 | equivalent | backup-london | searched, no output kept |
-| coop-syria-area2 | equivalent | backup-london | searched, no output kept |
+| coop-syria-area1 | base | chain t0 | rebuilt exact 2026-11-07 (scratch/pak23-recovery/no-t0, wire12): plan row = the recorded pre-lost-batch state (chain t0); lost-batches-r3 (t0-md5.tsv) replays it to the recorded end state; verified identical to the reference end to end; gobo textures from retail syria-area1 (override key gobo) |
+| coop-syria-area2 | base | chain t0 | rebuilt exact 2026-11-07 (scratch/pak23-recovery/no-t0, wire12): plan row = the recorded pre-lost-batch state (chain t0); lost-batches-r3 (t0-md5.tsv) replays it to the recorded end state; verified identical to the reference end to end; gobo texture from retail syria-area1-entrance (override key gobo) |
 | coop-syria-area2-top | identical | final | - |
 | coop-syria-turret2 | base | b103 | - |
 | desert-multi | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
@@ -130,22 +131,22 @@ Cause classes of the remaining rows:
 | fort-coop-courtyard | base | h017co-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | fort-coop-stage | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | fort-coop-tower | base | h017co-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
-| fort-coop-tower-wide | equivalent | h028-backup | size+96 |
+| fort-coop-tower-wide | base | h028-backup | rebuilt exact 2026-11-07 (scratch/pak23-recovery/no-t0, wire12): plan row = the recorded pre-h028 state; cloud-batches-r3 h028 makes the reference; verified end to end |
 | fort-multi | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | fort-multi-stage | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
-| fort-multi-wide | equivalent | final | size-64 |
+| fort-multi-wide | identical | final | rebuilt exact 2026-11-07 (scratch/pak23-recovery/no-t0, wire12): plan row identical; no later batch or step touches it; verified end to end |
 | gompa-multi | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | gompa-multi-stage | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | gompa-multi-wide | identical | - | - |
 | grave-multi | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | grave-multi-moving | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
-| grave-multi-stage | equivalent | final | items differing RAW_DATA:409,VRAM_DESC:59,EFFECT:13,EFFECT_TABLE:1 |
+| grave-multi-stage | identical | final | rebuilt exact 2026-11-07 (scratch/pak23-recovery/no-t0, wire12): plan row identical; no later batch or step touches it; verified end to end (pkm / spas12-shotgun lod0 template choice of tailfix.py is in the override) |
 | grave-multi-wide | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | graveyard-drydock-anniversary | base | h017co-backup | - |
 | graveyard-drydock-wide | identical | final | - |
 | highrise-multi | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | highrise-multi-stage | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
-| highrise-multi-wide | equivalent | final | items differing RAW_DATA:582,VRAM_DESC:44,EFFECT:13,EFFECT_TABLE:1 |
+| highrise-multi-wide | identical | final | rebuilt exact 2026-11-07 (scratch/pak23-recovery/no-t0, wire12): plan row identical; no later batch or step touches it; verified end to end |
 | ldn-streets-multi | equivalent | b103 | template search hit the 2 h limit (2026-11-06, CPU capped); rerun without limit planned |
 | ldn-streets-multi-stage | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | ldn-streets-multi-wide | base | - | - |
@@ -159,7 +160,7 @@ Cause classes of the remaining rows:
 | mon-coop-stage | base | h028-backup | template search exact 2026-11-06 (RUN 2): the recorded pre-batch state; cloud-batches-r3 and the session steps make the reference |
 | museum-multi | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | museum-multi-stage | base | h028-backup | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
-| museum-multi-wide | equivalent | h028-backup | size-80 |
+| museum-multi-wide | base | h028-backup | rebuilt exact 2026-11-07 (scratch/pak23-recovery/no-t0, wire12): plan row = the recorded pre-h028 state; cloud-batches-r3 h028 makes the reference; verified end to end |
 | oasis-multi | base | b103 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | oasis-multi-stage | base | b103 | rebuilt exact 2026-11-07 (template search run 6, target = the recorded pre-lost-batch state); lost-batches-r3 replays it to the recorded end state |
 | oasis-multi-wide | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
@@ -168,9 +169,9 @@ Cause classes of the remaining rows:
 | ruins-multi | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | ruins-multi-stage | base | b102 | template search exact 2026-11-06 (RUN 2): the recorded pre-batch state; cloud-batches-r3 and the session steps make the reference |
 | ruins-multi-wide | base | - | - |
-| san-upper-multi-stage | equivalent | final | size+2379952 / ref-only tex 6 (ammobox-2-brownpaint-wood-spec-mask.tga, ammobox-3-blue-02-spec-mask.tga, detail-normal.tga, missingtexture, table-top-d-env-refeletion.dds, wt-spec-mask.tga) / template |
+| san-upper-multi-stage | identical | final | 2026-11-07: the retail PS4 stage + wind strengths zeroed (plan method windoff, lib/windoff.py), built from the user's PS4 pak23; verified end to end |
 | sham-multi-wide | identical | - | - |
-| shambhala-multi | equivalent | b103 | searched, no output kept |
+| shambhala-multi | base | chain t0 | rebuilt exact 2026-11-07 (scratch/pak23-recovery/no-t0, wire12): plan row = the recorded pre-lost-batch state (chain t0); lost-batches-r3 (t0-md5.tsv) replays it to the recorded end state; verified identical to the reference end to end (batch100 C = 36 words; the content rule of lost-batches-r3 replays all of them) |
 | shambhala-multi-stage | base | b103 | - |
 | sky-drydock | identical | final | rebuilt byte-identical 2026-11-06: recovered batch57 sky converter (method sky, lib/build_skies.py, paktools-sky) |
 | sky-fort-coop-b | identical | final | rebuilt byte-identical 2026-11-06: recovered batch57 sky converter (method sky, lib/build_skies.py, paktools-sky) |
@@ -192,6 +193,17 @@ Cause classes of the remaining rows:
 | yemen-multi | base | b102 | rebuilt exact 2026-11-07 (effect donors / phases, recorded constants and texture sources); verified identical to the reference end to end |
 | yemen-multi-stage | base | b102 | - |
 | yemen-multi-wide | base | b102 | - |
+
+### 12 more r3 level paks exact (2026-11-07, wire12)
+cave-multi, coop-airport-2, coop-syria-area1/2, shambhala-multi (base = chain t0, lost-batches-r3), cave-multi-stage,
+fort-coop-tower-wide, museum-multi-wide (base = pre-h028, cloud-batches-r3), fort-multi-wide, grave-multi-stage,
+highrise-multi-wide (identical) and san-upper-multi-stage (new plan method `windoff`: retail PS4 pak + g_pivotWind* strengths
+zeroed) now rebuild byte-exact. New override key `gobo` (co-op Syria projector textures from the retail PS4 pak23, U3_GOBO in
+lib/convert_one.py). Verified with this runner: levels.py r3 --only (the 12) then `--only lost-batches-r3,cloud-batches-r3,
+borneo-water-jitter,map-colors-lightmap,borneo-grass-leaf,map-colors2,london-fade,vram-gap`: all 12 sha256-identical to the
+reference (london-fade adds the fade records to coop-syria-area2 and shambhala-multi). In that 12-pak test folder
+map-colors-lightmap / map-colors2 / borneo-grass-leaf stop because their own target paks are absent (no backup folder /
+dig-coop-approach missing); none of the 12 is one of their targets.
 
 ### Session steps on level paks (1.7.0)
 * wall-emblem: `prep_p3.py` extracts PS3 air-multi(-ingame12).pak from the disc pak23.psarc into ./p3 and creates ./out; lib.py loads

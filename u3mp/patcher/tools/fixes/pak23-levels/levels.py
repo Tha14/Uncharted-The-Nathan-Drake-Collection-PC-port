@@ -11,7 +11,9 @@ Idempotent: a file already equal to the plan's sha256 is skipped ("already appli
 backed up to {{PROJECT}}/work/backup-pak23-levels/<overlay>/ (never overwriting an existing backup) before install.
 Converters (see README.md): f525859 = {{PAKTOOLS}} + paktools-f525859/ overlay files, git snapshots in paktools-<ver>/.
 Methods: stage (mkplan -> fxextract -> ps4stage [+ paramfix/cubefix: opts mb]), ingame (ps4ingame), vischeat,
-empty (the 248-byte empty PS4 level), copy (another plan output), slice (maps-batch Lab 34 pieces), havok (maps-batch).
+empty (the 248-byte empty PS4 level), copy (another plan output), slice (maps-batch Lab 34 pieces), havok (maps-batch),
+windoff (the user's retail PS4 pak23 file 'src' with the g_pivotWind* strengths of some materials zeroed, lib/windoff.py).
+Override key 'gobo' {retail PS4 pak: {PS3 texture hash: texture path}}: gobo textures from the retail PS4 pak23 (U3_GOBO).
 """
 import argparse
 import concurrent.futures as cf
@@ -256,6 +258,11 @@ def build(row, idx, built):
         run([PY, os.path.join(HERE, 'lib', 'hud_textures.py'), paktools(row['version']),
              os.path.join(PS4MAIN, 'pak23', 'ps4', 'hud.pak'), ps3_source(row, idx), op])
         return op
+    if m == 'windoff':                              # retail PS4 pak + wind strengths zeroed (City of Brass reeds/shrubs)
+        subs = [x for x in row['opts'].split(',') if x and x != '-']
+        run([PY, os.path.join(HERE, 'lib', 'windoff.py'), paktools(row['version']),
+             os.path.join(PS4MAIN, 'pak23', 'ps4', row['src'] + '.pak'), op] + subs)
+        return op
     if m in ('slice', 'havok'):
         return built[(row['overlay'], row['name'])]          # produced by the maps-batch builder (see main)
     if m == 'sky':                                  # the cloud's batch57 sky converter (lib/build_skies.py, paktools-sky)
@@ -276,6 +283,8 @@ def build(row, idx, built):
         for k, e in (('templates', 'U3_MKPLAN_OVERRIDE'), ('params', 'U3_MKPLAN_PARAMS'), ('texsrc', 'U3_MKPLAN_TEXSRC')):
             if o.get(k):
                 f = os.path.join(od2, '%s.%s.json' % (row['name'], k)); json.dump(o[k], open(f, 'w')); env[e] = f
+        if o.get('gobo'):                   # gobo textures from another retail pak (lib/convert_one.py, U3_GOBO)
+            f = os.path.join(od2, '%s.gobo.json' % row['name']); json.dump(o['gobo'], open(f, 'w')); env['U3_GOBO'] = f
         env.update(o.get('env', {}))
     sp = ps3_source(row, idx)
     cmd = [PY, os.path.join(HERE, 'lib', 'convert_one.py'), pt, m, sp, op, res_dir() if m == 'stage' else '-',

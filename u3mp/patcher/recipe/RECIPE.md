@@ -76,7 +76,7 @@ inputs, and the r3 paks were rebuilt byte-identical with them. `U3_LEVELS_FAST=0
 | overlay-r3 `actor33/ps4` | 538 | 284 | ps4actor conversions (cloud) + 5 session rebuild batches | 0 |
 | overlay-r3 `dc1/ps4` | 281 | 6 | DC conversions (cloud) + 9 session edits; `skel-retargets.bin` from retail | 1 match + 72 by `convert-dc1` (tools/dcconv); the dctools edit steps reproduce every checkpoint exactly once the converted net.bin / menu.bin / modules.bin base exists (that base, the cloud "netfix" merge, is still missing) |
 | overlay-r3 `text1/ps4` | 66 | 12 | PS4 text banks + goty-patch MP strings, `text1-merge/merge_text1.py` | 66 match |
-| overlay-r3 `vtex1`, `dc2` | 10 | 10 | EULA renders, emblem, particle modules | 0 |
+| overlay-r3 `vtex1`, `dc2` | 10 | 10 | EULA renders, emblem, particle modules | 0 (2026-11-03; since then `eula-pages` 7, and `dc-recipes` / `convert-dc2-part-modules` the 3 dc2 part modules) |
 | overlay-r2 (`pak23` 427, `actor33` 33, `dc1` 16) | 476 | 2 277 | second conversion pass (cloud) + shade-npc copies; pak23 by `pak23-levels` | pak23: 295 match, 131 equivalent (all shadowed by r3) |
 | overlay-port (`pak23` 160, `actor33` 680, `dc1` 3) | 843 | 1 096 | first conversion pass (cloud) + shade-npc copies; pak23 by `pak23-levels` | pak23: 138 match, 1 base, 21 equivalent |
 | overlay-mp `actor33`, `pak23` | 5 | 13 | `convert_net.py` + 3 actor conversions; `net-ingame12.pak` retail copy | 1 match |
@@ -92,7 +92,8 @@ converted pak run once the conversion exists.
 
 1. `copy-ps3-vtex1`, `copy-ps3-speech`, `copy-ps3-sfx`, `copy-ps4-retail` (byte copies, sha256-checked)
 2. `convert-levels-port`, `convert-levels-r2`, `convert-levels-r3`, `convert-actors-r3`, `convert-dc1`,
-   `convert-dc2-part-modules` (documented, not runnable here); `convert-banks`, `convert-text1` (runnable since 1.1.0)
+   `convert-dc2-part-modules` (runnable since 1.10.0: `tools/fixes/part-emitters`, the recovered batch45/batch48
+   particle converter); `convert-banks`, `convert-text1` (runnable since 1.1.0)
 3. `registry-pak23` (mkregistry)
 4. session fixes in application order: `facility-collapse`, `lab-registration`*, `elim-pic`*,
    `classic-netgames`*, `skins-net-names`*, `maps-batch`*, `rpcn-menu-page`*, `skin-textures`, `wall-emblem`,

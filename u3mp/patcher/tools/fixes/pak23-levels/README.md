@@ -56,7 +56,15 @@ status, reference sha256, note.
 
 Methods: `stage` (mkplan -> fxextract -> ps4stage), `ingame` (ps4ingame, IGNORE_OTHERS), `vischeat` (killvis),
 `empty` (248-byte empty level: login page + empty VRAM table), `copy` (lab34-stage = lab-multi-14), `slice` / `havok`
-(maps-batch Lab 34 pieces: slicepak.slice_pages + ps4ingame NEUTRALIZE_ARTS, collision.havok_bg_blobs).
+(maps-batch Lab 34 pieces: slicepak.slice_pages + ps4ingame NEUTRALIZE_ARTS, collision.havok_bg_blobs), `windoff`
+(2026-11-07: the user's retail PS4 pak23 file named in `src` with the g_pivotWind* strength constants of the City of Brass
+reeds / grass-shrubs zeroed, `lib/windoff.py` = agent P's lost agm/windoff.py of 10-29; overlay-r3 san-upper-multi-stage, which
+is the retail PS4 stage, not a converter output; `opts` may list other material-name substrings).
+
+Override key `gobo` (2026-11-07, `lib/convert_one.py`, env `U3_GOBO`): `{retail PS4 pak: {PS3 texture hash: texture path}}`.
+The PS3 projector lights of co-op Syria area1 / area2 name gobo textures that live in another level; the cloud build
+(selfbuild.gobo_tex, b57/b82) put the retail PS4 copy into the fxextract bundle (`tex`) and mapped the hash to it
+(`gobo_tex`, read by ps4stage.convert gobo()). The texture is read from the user's retail PS4 pak23, nothing is shipped.
 
 ## Files
 
@@ -67,7 +75,7 @@ Methods: `stage` (mkplan -> fxextract -> ps4stage), `ingame` (ps4ingame, IGNORE_
 | `paktools-f525859/` | f525859 files that differ from `tools/paktools`: ndpak.py, ps4writer.py, stage/ps4stage.py |
 | `paktools-003b433/`, `paktools-7d45c1f/` | git snapshots (GPL v2, as tools/paktools); 7d45c1f gets f525859's stage/fxextract.py |
 | `data/conv_anim_actors.json` | the 167 converted animated actor names of the 10-31 overlays (ps4ingame anim_arts) |
-| `lib/` | mkres.py, ps3index.py, xl.py (Lab sources), convert_one.py, extract_one.py, empty_level.py, anim_actors.py, build_level_paks.py, slicepak.py (with patch7 slice_pages) |
+| `lib/` | mkres.py, ps3index.py, xl.py (Lab sources), convert_one.py, extract_one.py, empty_level.py, anim_actors.py, build_level_paks.py, slicepak.py (with patch7 slice_pages), windoff.py |
 
 ## The cloud in-place batches of 2026-10-30 (step `cloud-batches-r3`, `cloud_batches.py`) - added 2026-11-06
 

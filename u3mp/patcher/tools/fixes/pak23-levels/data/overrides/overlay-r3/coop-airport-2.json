@@ -1,0 +1,12 @@
+{
+ "templates": {
+  "levels/airport/objects/air-yem-gas-pump/default": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/airport/objects/air-yem-military-crate/crate-cube": [
+   "airport-1.pak",
+   "levels/airport/objects/air-yem-cardboardbox:box-2,799411c0-809d-3df0-3d57-26dba623bd41,prime-shader.fx"
+  ]
+ }
+}

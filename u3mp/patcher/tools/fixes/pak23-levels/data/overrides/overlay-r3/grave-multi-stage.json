@@ -1,0 +1,118 @@
+{
+ "templates": {
+  "levels/multiplayer/graveyard/graveyard-drydock/grv-multi-sky-faux/default": [
+   "graveyard-drydock-moving.pak",
+   "levels/multiplayer/highrise/construction/hrs-highrise-hanging-light-glow:yellow,65g3rv51-v0a9-by5g-78wu-sx4er2o7s1d8,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/raft/grv-raft-panels-2/raft02": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/cargohold/grave-cargohold01-wall:default,1aa3e28b-e40e-42f1-925b-c1c86e799342,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/deck-objects/grv-float/float-grey-yellow": [
+   "grave-04-rough-seas-rail-section-1.pak",
+   "levels/ship-graveyard/pirate-ship/grave-beam-barnacle-rust:turbine,58146b9f-f719-4da6-8b6b-3708167a7990,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/tug-boat/grv-hull-green-tugboat/panels000-grey": [
+   "grave-01-firstyard-hulk-1.pak",
+   "levels/ship-graveyard/pirate-ship/grave-beam-barnacle-rust:turbine,58146b9f-f719-4da6-8b6b-3708167a7990,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/fabrics/grv-tarp-blue-dirty/default": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/ship-graveyard/plastic/grave-plastic-barrel-blue:default,7f0e369d-c4fc-4a5c-a112-f3547e0ef795,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/tug-boat/grv-tugboat-cabinwalls/tugboatcabinwall": [
+   "grave-01-firstyard-hulk-1.pak",
+   "levels/ship-graveyard/pirate-ship/grave-beam-barnacle-rust:turbine,58146b9f-f719-4da6-8b6b-3708167a7990,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/mechanical/grv-pump-flatbed-grey/flatbed": [
+   "grave-01-firstyard-hulk-1.pak",
+   "levels/ship-graveyard/pirate-ship/grave-beam-barnacle-rust:turbine,58146b9f-f719-4da6-8b6b-3708167a7990,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/tug-boat/grv-deck-floors-tugboat-sludge/tugboattosludge": [
+   "grave-01-firstyard-hulk-1.pak",
+   "levels/ship-graveyard/pirate-ship/grave-beam-barnacle-rust:turbine,58146b9f-f719-4da6-8b6b-3708167a7990,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/caustics/grv-hull-panels-green/hull-black-copy": [
+   "grave-01-firstyard-hulk-1.pak",
+   "levels/ship-graveyard/pirate-ship/grave-beam-barnacle-rust:turbine,58146b9f-f719-4da6-8b6b-3708167a7990,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/wreck/grv-wreck-beam-yard/blue-rust": [
+   "grave-01-firstyard-hulk-1.pak",
+   "levels/ship-graveyard/pirate-ship/grave-beam-barnacle-rust:turbine,58146b9f-f719-4da6-8b6b-3708167a7990,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/wide/grv-wide-deck-grey/deck-grey": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/detail/grv-wires/default": [
+   "graveyard-drydock-moving.pak",
+   "levels/ship-graveyard/glass/grave-antena:default,5e7514d3-711a-4024-bd68-edc77a56fc9d,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/wide/grv-wide-crane/cargocon-stack": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/wide/grv-wide-cargo-con/cargocon-stack": [
+   "cruise-ship-upright-stern.pak",
+   "levels/cruise-ship/deck/ship-deck-table-round:default,6c8f8eb2-27da-4191-885f-f5503b9d396b,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/decals/grv-panel-mech/default": [
+   "ldn-pub-office.pak",
+   "levels/london/pub/ldn-pub-ceiling-bar:default,d7113565-0cc7-4883-961b-6362ec5aecaf,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/detail/grv-handrail/railing-antenna": [
+   "graveyard-drydock-moving.pak",
+   "levels/ship-graveyard/glass/grave-antena:default,5e7514d3-711a-4024-bd68-edc77a56fc9d,prime-shader.fx"
+  ],
+  "objects/weapons/m32-grenade-launcher/m32-grenade-launcher/default": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/ship-graveyard/fabrics/grave-rope:default,1b7ea8b2-a126-4ce3-b428-a5251c880404,prime-shader.fx"
+  ],
+  "objects/weapons/pkm/pkm/lod0": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/ship-graveyard/fabrics/grave-rope:default,1b7ea8b2-a126-4ce3-b428-a5251c880404,prime-shader.fx"
+  ],
+  "objects/weapons/rpg/rpg_main/default": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "objects/weapons/spas12-shotgun/spas12-shotgun/lod0": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/ship-graveyard/fabrics/grave-rope:default,1b7ea8b2-a126-4ce3-b428-a5251c880404,prime-shader.fx"
+  ],
+  "levels/multiplayer/graveyard/glass/grv-dusty-broken-window/ship-brokenglass": [
+   "grave-02-hollowhulk-front-low.pak",
+   "levels/ship-graveyard/glass/grave-dusty-broken-window:default,6f1f5dca-b4e3-4ec0-a730-b6dc36929d5d,prime-shader.fx"
+  ]
+ },
+ "params": {
+  "levels/multiplayer/graveyard/detail/grv-wires/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/graveyard/decals/grv-panel-mech/default": {
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/graveyard/detail/grv-handrail/railing-antenna": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "objects/weapons/rpg/rpg_main/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ]
+  }
+ },
+ "texsrc": {
+  "art/levels/ship-graveyard/textures/hull/grave-rust02-blend.tga": "grave-01-freighter-hold-1.pak"
+ }
+}

@@ -1,0 +1,188 @@
+{
+ "templates": {
+  "levels/multiplayer/highrise/wide/hrs-wide-city-block-1024-a/default": [
+   "cruise-ship-90-cabins.pak",
+   "levels/cruise-ship/lights/ship-hall-lightbulb:default,dd40b09a-3149-4fbb-bf3f-8b6457419fe3,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/wide/hrs-war-wide-mountain-snow/defalt": [
+   "ldn-train-stage.pak",
+   "levels/london-underground/walls/concrete/ug-concrete-cracked-dark:default,b7c5201d-f58c-455f-a27c-723bdfbef575,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/wide/hrs-wide-river-water-mp/default": [
+   "grave-01-firstyard-yard-low.pak",
+   "levels/ship-graveyard/debris/grave-debris-sludge-freighter-wreck:sludge03,d9e5c173-d5d0-4f15-b136-f9925fdd5ad4,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/metal/hrs-war-metal-gold-temple-top/war-metal-bronz": [
+   "ldn-pub-hallway.pak",
+   "levels/london/doors/ldn-pub-wood-door03:default,ec9c5984-8308-45d6-8b5d-b5bdfb073e46,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/wide/hrs-wide-temple-low/default": [
+   "ldn-pub.pak",
+   "levels/london/metal/ldn-metal-silver:rename,e5138a7c-30ad-4f42-8f39-a9b0060111d1,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/wide/hrs-wide-temple-med/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/roof/hrs-war-roof-cement-cheap/default": [
+   "cruise-ship-90-cabins.pak",
+   "levels/cruise-ship/lights/ship-hall-lightbulb:default,dd40b09a-3149-4fbb-bf3f-8b6457419fe3,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/roof/hrs-war-lowcost-roof-objects/default": [
+   "cruise-ship-90-cabins.pak",
+   "levels/cruise-ship/ship-spot-black:default,2dc4d6f2-d970-4b67-8f63-a6cd94761ac6,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/wood/hrs-war-darkwood/gompa-wood-blend-01": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/wood/yem-wood-05-edge:default,f78735d5-fa34-4c0e-8332-647173500296,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/plants/hrs-trees-low-res/default": [
+   "syria-area2-breakable-buildings.pak",
+   "levels/syria/plants/syria-bush-2:default,2708706d-363e-41f5-b910-24df0a021b6b,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/walls/hrs-war-brick-painted-over-flat/yellow-wallpaperbase": [
+   "cruise-ship-upright-ballroom.pak",
+   "levels/cruise-ship/ground/ship-ballroom-carpet-brown:carpet,de39304b-cc3b-472a-bba8-0c0caa0938a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/ornate/hrs-war-ornate-basic-cheap/default": [
+   "cruise-ship-upright-ballroom.pak",
+   "levels/cruise-ship/ground/ship-ballroom-carpet-brown:carpet,de39304b-cc3b-472a-bba8-0c0caa0938a1,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/roof/hrs-war-roof-cement-cheap/cement-02": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/wood/yem-wood-05-edge:default,f78735d5-fa34-4c0e-8332-647173500296,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/ornate/hrs-war-ornate-basic/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/wide/hrs-war-wide-metal-gold-temple-top/war-metal-bronz": [
+   "ldn-pub-hallway.pak",
+   "levels/london/doors/ldn-pub-wood-door03:default,ec9c5984-8308-45d6-8b5d-b5bdfb073e46,prime-shader.fx"
+  ],
+  "levels/multiplayer/highrise/wide/hrs-trees-vines-spec/default": [
+   "yem-intro-hotel.pak",
+   "levels/yemen/objects/yem-wires:default,7805cf9a-865f-4629-91fa-832d57314692,prime-shader.fx"
+  ]
+ },
+ "params": {
+  "levels/multiplayer/highrise/floors/hrs-highrise-rice-patty-wide/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/highrise/wide/hrs-wide-hills-slope/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/highrise/wide/hrs-wide-ground-paths/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/highrise/wide/hrs-wide-hills-slope-distant/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/highrise/wide/hrs-wide-tree-detailed/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/highrise/wide/hrs-wide-ground/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/highrise/roof/hrs-war-roof-cement-cheap/default": {
+   "g_incandescenceStrength": [
+    0.0
+   ]
+  },
+  "levels/multiplayer/highrise/wood/hrs-war-darkwood/gompa-wood-blend-01": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/highrise/plants/hrs-trees-low-res/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/highrise/walls/hrs-war-brick-painted-over-flat/yellow-wallpaperbase": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/highrise/ornate/hrs-war-ornate-basic-cheap/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorTint1": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/highrise/roof/hrs-war-roof-cement-cheap/cement-02": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ },
+ "texsrc": {
+  "art/general/textures/default/default-lightmap1.tga": "airport-wide.pak",
+  "art/levels/cruise-ship/textures/misc/ship-ballroom-128.dds": "cruise-ship-90-cabins.pak",
+  "art/general/textures/default/default-lightmap0.tga": "airport-wide.pak"
+ }
+}

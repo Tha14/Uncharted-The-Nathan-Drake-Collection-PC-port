@@ -1,0 +1,33 @@
+# batch45 (gompa water effects): the 31 effect symbols grafted into the retail PS4 part-gompa-multi.bin, and the retail PS4
+# MP module each one is copied from (its PS3 copy is byte-identical to the PS3 1.19 gompa one). Order = graft order.
+00562f87	part-village-multi
+008a92f4	part-village-multi
+0831980d	part-oasis-multi
+0943fa3a	part-oasis-multi
+0f277a13	part-oasis-multi
+13ee36a2	part-village-multi
+15ce4c80	part-oasis-multi
+2b5435c3	part-graveyard-multi
+2ff5684f	part-fort-multi
+55808c8a	part-old-quarter-multi
+6628c6d8	part-oasis-multi
+66397565	part-oasis-multi
+80a94ee5	part-oasis-multi
+853371be	part-warzone-multi
+88ce69ec	part-village-multi
+8cb4d608	part-fort-multi
+8f61485c	part-oasis-multi
+911c16ec	part-oasis-multi
+9160b08b	part-oasis-multi
+96fa5e39	part-oasis-multi
+ac866784	part-village-multi
+d3a8aae0	part-oasis-multi
+dbb06503	part-village-multi
+e36be368	part-graveyard-multi
+e52a1c40	part-oasis-multi
+e598ad93	part-village-multi
+ef8221be	part-village-multi
+f0af922d	part-oasis-multi
+f190ef10	part-oasis-multi
+f9a7aafa	part-oasis-multi
+ffc32ad3	part-village-multi

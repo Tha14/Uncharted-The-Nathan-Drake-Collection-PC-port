@@ -1,0 +1,35 @@
+# the 33 PS3/PS4 MP part module pairs the s11 samples are learned from: module, PS3 layer (patch18 = 1.19 update
+# dlc-patch18.psarc, disc = disc build/main/bin.psarc), PS3 dc1 path
+part-air-multi-stage	disc	bin.psarc/dc1/part-air-multi-stage.bin
+part-airport-multi	disc	bin.psarc/dc1/part-airport-multi.bin
+part-airport-multi-bangroom	disc	bin.psarc/dc1/part-airport-multi-bangroom.bin
+part-airport-multi-bangroom-interior	disc	bin.psarc/dc1/part-airport-multi-bangroom-interior.bin
+part-airport-multi-shade	patch18	dlc-patch18/build/main/bin/dc1/part-airport-multi-shade.bin
+part-cave-multi	patch18	dlc-patch18/build/main/bin/dc1/part-cave-multi.bin
+part-cha-multi-stage	disc	bin.psarc/dc1/part-cha-multi-stage.bin
+part-chateau-multi	disc	bin.psarc/dc1/part-chateau-multi.bin
+part-desert-village-multi	disc	bin.psarc/dc1/part-desert-village-multi.bin
+part-drydock-multi	disc	bin.psarc/dc1/part-drydock-multi.bin
+part-facility-multi	disc	bin.psarc/dc1/part-facility-multi.bin
+part-fort-multi	patch18	dlc-patch18/build/main/bin/dc1/part-fort-multi.bin
+part-fort-multi-stage	patch18	dlc-patch18/build/main/bin/dc1/part-fort-multi-stage.bin
+part-gompa-multi	patch18	dlc-patch18/build/main/bin/dc1/part-gompa-multi.bin
+part-graveyard-multi	patch18	dlc-patch18/build/main/bin/dc1/part-graveyard-multi.bin
+part-highrise-multi	disc	bin.psarc/dc1/part-highrise-multi.bin
+part-ldn-streets-multi	patch18	dlc-patch18/build/main/bin/dc1/part-ldn-streets-multi.bin
+part-multiplayer	disc	bin.psarc/dc1/part-multiplayer.bin
+part-museum-multi	disc	bin.psarc/dc1/part-museum-multi.bin
+part-oasis-multi	patch18	dlc-patch18/build/main/bin/dc1/part-oasis-multi.bin
+part-old-quarter-multi	patch18	dlc-patch18/build/main/bin/dc1/part-old-quarter-multi.bin
+part-ruins-multi	patch18	dlc-patch18/build/main/bin/dc1/part-ruins-multi.bin
+part-sandlantis-multi	disc	bin.psarc/dc1/part-sandlantis-multi.bin
+part-shambhala-multi	patch18	dlc-patch18/build/main/bin/dc1/part-shambhala-multi.bin
+part-syr-multi	patch18	dlc-patch18/build/main/bin/dc1/part-syr-multi.bin
+part-temple-multi	patch18	dlc-patch18/build/main/bin/dc1/part-temple-multi.bin
+part-train-multi	patch18	dlc-patch18/build/main/bin/dc1/part-train-multi.bin
+part-underground-multi	disc	bin.psarc/dc1/part-underground-multi.bin
+part-village-multi	patch18	dlc-patch18/build/main/bin/dc1/part-village-multi.bin
+part-warzone-multi	patch18	dlc-patch18/build/main/bin/dc1/part-warzone-multi.bin
+part-yem-streets-multi	patch18	dlc-patch18/build/main/bin/dc1/part-yem-streets-multi.bin
+part-yemen-multi	disc	bin.psarc/dc1/part-yemen-multi.bin
+part-yemen-multi-stage	disc	bin.psarc/dc1/part-yemen-multi-stage.bin

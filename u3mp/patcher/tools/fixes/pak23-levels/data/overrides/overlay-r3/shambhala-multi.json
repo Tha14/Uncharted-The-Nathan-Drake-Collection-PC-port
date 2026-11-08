@@ -1,0 +1,539 @@
+{
+ "templates": {
+  "levels/multiplayer/shambala/ornate/sham-ornate-relief-basic/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-column-moss/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ground/sham-dirt-grass/grassclump": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ground/sham-dirt-grass/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/rock/sham-rockwall/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-ornate-trim/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-stone-cut/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ground/sham-steps-molder/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ground/sham-tile-diamond-moss/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/street/sham-ground-grass/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-drain-blocks-dry/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/ground/ug-service-concrete-under-water:default,93e1ed5d-94e1-42c5-a741-3f1fb54963e0,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-ornate-relief-basic-moss/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-wall-plaster-white/default": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ground/sham-steps-molder-ruin/default": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/roof/sham-roof-flat/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-drain-blocks-dry-to-broken/default": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/rock/sham-vertical-rock-to-broken/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/street/sham-ground-tile-to-broken/default": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/street/sham-ground-tile/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/street/sham-steps/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-drain-blocks-dry-moss/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-drain-blocks-waterfall/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-drain-blocks-dry-to-rubble/default": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/street/sham-tile-worn-grass/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-tower-wall/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-ornate-relief-basic-moss/trim": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-wall-plaster-cream-crumble/default": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ground/sham-tile-walk/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ground/sham-steps-basic/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-ornate-relief-basic-moss/tower": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-stone-cut-emblem/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/wood/sham-wood-trim-moss/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-brick-plaster/default": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-wall-low-moss/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ground/sham-tile-diamond-debris/rubble": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-tmp-ornate-01-worn/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ground/sham-tile-diamond-debris/ruininside": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-wall-plaster-blue/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-wall-plaster-white-emblem/default": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ice/sham-multi-icicle-jagged/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/street/sham-background-wide-card/default": [
+   "graveyard-drydock-moving.pak",
+   "levels/multiplayer/highrise/construction/hrs-highrise-hanging-light-glow:yellow,65g3rv51-v0a9-by5g-78wu-sx4er2o7s1d8,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/street/sham-ruin-side/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-stone-trim/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ground/sham-dirt-grass/ruin-ground": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ground/sham-tile-diamond-debris/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/plants/sham-plant-cards/bush-cards-01": [
+   "cargo-plane-int-vents.pak",
+   "objects/vehicles/cargo-plane/temp-plane/wires:default,e4ec44e2-b88d-41c7-8e40-c8d0a3583afe,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/wide/sham-trees-vines-spec/default": [
+   "grave-03-docks-barges.pak",
+   "levels/ship-graveyard/fabrics/grave-fish-net:default,c575935c-b3ce-4488-b658-9ae1afa57b4e,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-drain-blocks-tunnel/default": [
+   "yem-intro-wide.pak",
+   "levels/yemen/test/walls/yem-test-wall-block-01:default,b8e3633c-de40-4d85-aeb9-b5721351f7f6,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/wide/sham-wide-buildings/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/street/sham-tile-worn/default": [
+   "yem-chase-alley-roofs.pak",
+   "levels/yemen/walls/stucco/yem-stuccoold-nwyelstucco-03:default,5ddcb356-86b8-417c-886b-a6a2abb1aeb1,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-ornate-relief-basic-dk/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-rough-stone/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/wood/sham-darkwood-blend/gompa-wood-blend-01": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/foliage/sham-bark/default": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-stone-trim-dmg/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ground/sham-tile-stone-ruin/default": [
+   "ldn-valve-room-2.pak",
+   "levels/london-underground/walls/concrete/ug-concrete-cracked-dark:default,b7c5201d-f58c-455f-a27c-723bdfbef575,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/trees/sham-bamboo-leafs/default": [
+   "cargo-plane-int-vents.pak",
+   "objects/vehicles/cargo-plane/temp-plane/wires:default,e4ec44e2-b88d-41c7-8e40-c8d0a3583afe,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/foliage/sham-bark-dense-moss/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/statues/sham-lion-statue-dst/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/statues/sham-lion-statue-dst/platform": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-wall-low/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/statues/sham-lion-statue/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/statues/sham-lion-statue/platform": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-ornate-inset/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/object/sham-tmp-curtains/default": [
+   "syria-comp-wide.pak",
+   "levels/syria/trees/syria-deadtrees:default,a76b953f-59a4-4c5e-a4e2-7707df4c60d0,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-ornate-gold/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/fabric/sham-rope-copy/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-ornate-loose/default": [
+   "syria-comp-wide.pak",
+   "levels/syria/trees/syria-deadtrees:default,a76b953f-59a4-4c5e-a4e2-7707df4c60d0,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/wood/sham-wood-planks/default": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-tmp-ornate-01/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-wall-ctyd/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-snake-arch/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/rock/sham-vertical-rock-to-snow/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-brick-basic-ruin/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-pillar-moss/default": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-blocks/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-blocks-stone/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/wood/sham-wood-door-gmp/default": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ground/sham-tile-walk-grass/ruin": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-column/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-pillar/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-wall-alcove/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-arch/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-stem/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/wide/sham-wide-mountain-snow/default": [
+   "syria-area2-entrance-sunrise.pak",
+   "levels/syria/floor/syria-rockyfloor-2-dirt-nospec:default,20f54d37-9da4-42ef-98e6-73e5ba649723,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/plants/sham-plant-leaf-no-bump/broms": [
+   "cargo-plane-int-vents.pak",
+   "objects/vehicles/cargo-plane/temp-plane/wires:default,e4ec44e2-b88d-41c7-8e40-c8d0a3583afe,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/foliage/sham-bark-wind/default": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/multiplayer/highrise/wood/hrs-war-darkwood-blend:gompa-wood-blend-01,wy8uci1k-zpmw-g7w3-qfu6-l195xi1e6bl0,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/foliage/sham-bark-small/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-wall-gold-plaster/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/statues/sham-circular-ring-statue/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/statues/sham-circular-ring-statue-b/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/metal/sham-metal-gold-dish/war-metal-bronz": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-arch-ornate/default": [
+   "yem-intro-wide.pak",
+   "levels/yemen/test/walls/yem-test-wall-block-01:default,b8e3633c-de40-4d85-aeb9-b5721351f7f6,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-brick-white-ruin/default": [
+   "syria-walls-back-low.pak",
+   "levels/syria/windows/syria-window-arch-backwall:default,a9db7f51-c18c-441f-b8dd-25ccb81e2248,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-brick-white/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-tmp-ornate-01-worn2/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-wall-plaster-blue-emblem/default": [
+   "airport-wide.pak",
+   "levels/airport/ground/air-yem-ground-sand-rough-03:rough-sand,1f965251-e469-4acc-9fd2-1ae67620073a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-tmp-pillar-02/default": [
+   "syria-walls-back-low.pak",
+   "levels/syria/windows/syria-window-arch-backwall:default,a9db7f51-c18c-441f-b8dd-25ccb81e2248,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/street/sham-background-temple-card/default": [
+   "graveyard-drydock-moving.pak",
+   "levels/multiplayer/highrise/construction/hrs-highrise-hanging-light-glow:yellow,65g3rv51-v0a9-by5g-78wu-sx4er2o7s1d8,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-tmp-wall-01/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-ornate-heavy/default": [
+   "syria-walls-back-low.pak",
+   "levels/syria/windows/syria-window-arch-backwall:default,a9db7f51-c18c-441f-b8dd-25ccb81e2248,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-grating-link/default": [
+   "syria-comp-wide.pak",
+   "levels/syria/trees/syria-deadtrees:default,a76b953f-59a4-4c5e-a4e2-7707df4c60d0,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-wall-plaster-cream/default": [
+   "airport-3a.pak",
+   "levels/airport/ground/air-yem-roof-cement-blend-edgegrab:concrete-stone,ce501abf-9967-4711-8b8f-a95e0362bbb3,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-column/streaks": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/statues/sham-lion-makara/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-carving/default": [
+   "yem-chase-hookah-lounge.pak",
+   "levels/yemen/ground/yem-stonefloor-02:default,6f276a08-78fc-4453-b04b-fe4ba50fab7e,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-blocks-stone-moss/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ornate/sham-tmp-pillar-face/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/ice/sham-multi-icicle-flat/default": [
+   "grave-03-docks-barges-destroyed.pak",
+   "levels/ship-graveyard/deck-objects/grtave-crate-grey:default,7a57c3a3-79dc-4f4c-bcf0-48581be38e93,prime-shader.fx"
+  ],
+  "levels/multiplayer/shambala/walls/sham-drain-blocks-tunnel-emblem/default": [
+   "airport-wide.pak",
+   "levels/airport/walls/air-yem-wall-stone:default,f626f6a2-7d2f-4913-ae2b-6b093622244c,prime-shader.fx"
+  ]
+ },
+ "params": {
+  "levels/multiplayer/shambala/ground/sham-tile-stone/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/shambala/ornate/sham-ornate-inset-base/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/shambala/plants/sham-plant-leaf-no-normal/type-bush": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/shambala/ground/sham-tile-stone-grass/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/shambala/street/sham-ground-tile-grass/default": {
+   "g_colorBrightness1": [
+    1.0
+   ],
+   "g_colorBrightness2": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/shambala/ornate/sham-ornate-inset/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/shambala/ground/sham-tile-walk-grass/ruin": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/shambala/ornate/sham-wall-alcove/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/shambala/statues/sham-circular-ring-statue/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/shambala/statues/sham-circular-ring-statue-b/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/multiplayer/shambala/interior/sham-floor-tile/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/shambala/interior/sham-floor-tile-to-rubble/default": {
+   "g_colorBrightness2": [
+    1.0
+   ],
+   "g_colorTint2": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/multiplayer/shambala/walls/sham-wall-plaster-cream/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  }
+ }
+}

@@ -1,0 +1,117 @@
+{
+ "templates": {
+  "levels/coop/fort/mountains/fort-mountain-01-saturated/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/coop/fort/mountains/fort-mountain-01-blue/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-04:default,5ac78ffa-b05f-4e7c-b13b-55c9f7cd97b7,prime-shader.fx"
+  ],
+  "levels/coop/fort/mountains/fort-mountain-01/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/coop/fort/wide/fort-cliffwall-02/default": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/coop/fort/mountains/fort-sand-blend/default": [
+   "grave-01-freighter-hold-1.pak",
+   "levels/ship-graveyard/wood/grave-wood-lumber-pile:default,5896e2f6-37d5-4740-bff3-4b94318d88f3,prime-shader.fx"
+  ],
+  "levels/coop/fort/wide/fort-cliffwall-01/wide-cliffwall-01": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-04:default,5ac78ffa-b05f-4e7c-b13b-55c9f7cd97b7,prime-shader.fx"
+  ],
+  "levels/coop/fort/wide/fort-jaggyrocks/default": [
+   "yem-temp-cistern.pak",
+   "levels/yem-temple/walls/yem-temple-cistern-column-pieces:default,d0d372dd-ad70-4d87-ba30-24029eef7c48,prime-shader.fx"
+  ],
+  "levels/coop/fort/water/fort-coop-ocean/surface-rivermtl": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-04:default,5ac78ffa-b05f-4e7c-b13b-55c9f7cd97b7,prime-shader.fx"
+  ],
+  "levels/coop/fort/seawall/fort-seawallbricks-moss/seawallbricks-moss": [
+   "yem-chase-rooftops-wide.pak",
+   "levels/yemen/wide/yem-stuccowhite-plaster-dark:default,65c0b263-1423-429c-871b-97f47199217f,prime-shader.fx"
+  ],
+  "levels/coop/fort/trees/fort-tree-canopy/default": [
+   "syria-area2-breakable-buildings.pak",
+   "levels/syria/plants/syria-bush-2:default,2708706d-363e-41f5-b910-24df0a021b6b,prime-shader.fx"
+  ],
+  "levels/coop/fort/cards/fort-far-trees-clump-02/default": [
+   "syria-area2-breakable-buildings.pak",
+   "levels/syria/plants/syria-bush-2:default,2708706d-363e-41f5-b910-24df0a021b6b,prime-shader.fx"
+  ],
+  "levels/coop/fort/trees/fort-tree-trunk/default": [
+   "col-museum-low.pak",
+   "levels/columbia/walls/col-interior-dark:default,3204cd7b-6905-4fb2-bce4-478d809827e7,prime-shader.fx"
+  ],
+  "levels/coop/fort/cards/fort-bush-card-01/default": [
+   "syria-area2-breakable-buildings.pak",
+   "levels/syria/plants/syria-bush-2:default,2708706d-363e-41f5-b910-24df0a021b6b,prime-shader.fx"
+  ],
+  "levels/coop/fort/cards/fort-bush-card-03/default": [
+   "san-elevator.pak",
+   "levels/coop/shambhala/foliage/sham-willow:default,9b84l550-4rkn-hiyy-7qf7-ect7akl54w45,prime-shader.fx"
+  ],
+  "levels/coop/fort/cards/fort-chase-grasscard-01/default": [
+   "col-museum-low.pak",
+   "levels/columbia/fabric/col-cutain:default,d7883cfc-17d1-fe47-5941-90deba11c306,prime-shader.fx"
+  ],
+  "levels/coop/fort/new-canopies/fort-river-ficus-canopy/default": [
+   "san-elevator.pak",
+   "levels/coop/shambhala/foliage/sham-willow:default,9b84l550-4rkn-hiyy-7qf7-ect7akl54w45,prime-shader.fx"
+  ],
+  "levels/coop/fort/new-trees/fort-ficus-trunk/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/walls/fort-chase-river-rock/chase-river-rock": [
+   "syria-entrance-low-sunrise.pak",
+   "levels/syria/walls/syria-wall-details-02:default,203346d2-2f7c-48a7-99a3-a5e9a53e9f8a,prime-shader.fx"
+  ],
+  "levels/coop/fort/galleon/fort-galleon/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ],
+  "levels/coop/fort/galleon/fort-galleon-double-sided/default": [
+   "san-upper-multi.pak",
+   "levels/sandlantis/multi/san-multi-wall-smooth-marble-to-blue-01:default,8c24c10a-22f3-43f7-b008-525c94a00d45,prime-shader.fx"
+  ]
+ },
+ "params": {
+  "levels/coop/fort/wide/fort-grass/default": {
+   "g_specularBrightness": [
+    0.6000000238418579
+   ]
+  },
+  "levels/coop/fort/seawall/fort-seawallbricks-moss/seawallbricks-moss": {
+   "g_diffuseColorBorderTint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  "levels/coop/fort/trees/fort-tree-canopy/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/coop/fort/cards/fort-far-trees-clump-02/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  },
+  "levels/coop/fort/cards/fort-bush-card-01/default": {
+   "g_colorBrightness1": [
+    1.0
+   ]
+  }
+ },
+ "texsrc": {
+  "art/general/textures/default/default-lightmap1.tga": "san-elevator.pak",
+  "art/general/textures/default/default-lightmap0.tga": "san-elevator.pak"
+ }
+}
