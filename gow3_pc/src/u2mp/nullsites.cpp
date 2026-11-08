@@ -119,10 +119,62 @@ U2MP_GUEST void *bind_copy_checked(const void **res, uint64_t size, void *out) {
     return reinterpret_cast<BindCopy>(image.base + fBindCopy)(res, size, out);
 }
 
+// Run 36: with that call guarded, the walker read the same entry again at 0xc25ddb (res->type), and
+// the logged entry showed the whole entry is raw ids, not resolved pointers: res = 0x33d5c036f1b17bc2,
+// buffer = 0x08d9a770'6f1c0396 (6f1c0396 = sid "general"), param def name 0x8704e118, size 0x40. So
+// the entry is skipped as a whole, like an unused one: the loop's `cmp dword [entry+0x20],0; je next`
+// (0xc2574f) becomes a stub that also takes `next` when entry+0 is not a user-space pointer. Every
+// caller of the walker (about 30 render paths) goes through this one check.
+constexpr uint64_t cEntryCheck = 0xc2574f, cEntryLive = 0xc2575b, cEntryNext = 0xc25e38;
+
+bool install_entry_skip() {
+    // cmp dword [rax+r13+0x20],0; je 0xc25e38
+    static const unsigned char site[] = {0x42, 0x83, 0x7c, 0x28, 0x20, 0x00, 0x0f, 0x84, 0xdd, 0x06, 0x00, 0x00};
+    if (!image.matches(cEntryCheck, site, sizeof site) || !image.executable(cEntryCheck, sizeof site)) {
+        log("bind entry skip (c2574f): bytes differ, left alone");
+        return false;
+    }
+    unsigned char *stub = near_stub(80);
+    const int64_t delta = stub ? int64_t(uintptr_t(stub)) - int64_t(uintptr_t(image.base + cEntryCheck + 5)) : 0;
+    if (!stub || delta < INT32_MIN || delta > INT32_MAX) {
+        log("bind entry skip (c2574f): no stub memory in range");
+        return false;
+    }
+    // rcx and rdx are free here: the live path writes both before reading them (0xc2576a/0xc257a6, 0xc257c9).
+    unsigned char code[] = {
+        0x42, 0x83, 0x7c, 0x28, 0x20, 0x00,       // cmp dword [rax+r13+0x20],0   (original)
+        0x74, 0x1c,                               // je next
+        0x4a, 0x8b, 0x14, 0x28,                   // mov rdx,[rax+r13]            entry.res
+        0x48, 0x89, 0xd1,                         // mov rcx,rdx
+        0x48, 0xc1, 0xe9, 0x2f,                   // shr rcx,47
+        0x75, 0x0f,                               // jnz next                     not user space
+        0x48, 0x81, 0xfa, 0x00, 0x00, 0x01, 0x00, // cmp rdx,0x10000
+        0x72, 0x06,                               // jb next
+        0xff, 0x25, 0x06, 0x00, 0x00, 0x00,       // jmp [rip+6] -> 0xc2575b      live
+        // next:
+        0xff, 0x25, 0x08, 0x00, 0x00, 0x00,       // jmp [rip+8] -> 0xc25e38
+        0, 0, 0, 0, 0, 0, 0, 0,                   // 0xc2575b
+        0, 0, 0, 0, 0, 0, 0, 0};                  // 0xc25e38
+    static_assert(sizeof code == 58, "stub layout");
+    const uint64_t live = uint64_t(uintptr_t(image.base + cEntryLive));
+    const uint64_t next = uint64_t(uintptr_t(image.base + cEntryNext));
+    std::memcpy(code + 42, &live, 8);
+    std::memcpy(code + 50, &next, 8);
+    std::memcpy(stub, code, sizeof code);
+    unsigned char *c = image.base + cEntryCheck;
+    const int32_t jump = int32_t(delta);
+    c[0] = 0xe9;
+    std::memcpy(c + 1, &jump, 4);
+    std::memset(c + 5, 0x90, sizeof site - 5);
+    log("bind entry skip (c2574f): entries whose resource is not a pointer are skipped like unused ones");
+    return true;
+}
+
 }  // namespace
 
 void install_nullsites(int &installed) {
     if (install_stream_start()) ++installed;
+    if (install_entry_skip()) ++installed;
     if (retarget_call(cBindCall, fBindCopy, reinterpret_cast<void *>(&bind_copy_checked),
                       "bind guard (unresolved shader resource)"))
         ++installed;
