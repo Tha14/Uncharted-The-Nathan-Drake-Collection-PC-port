@@ -421,13 +421,17 @@ class Importer:
         cands = []
         if self.a.ps3_data:
             cands.append(self.a.ps3_data)
-        # The game's own data folder first (the title id of --ps3, e.g. NPUA80698 = GOTY 1.10 -> NPUA80698DATA2),
-        # then any other DATA2 folder: these packages are the multiplayer server's map data, byte-identical in the
-        # BCUS98123DATA2 and BCES00757DATA2 copies (checked 2026-11-08), not part of a game version.
+        # The game's own data folder first. PS3 1.10 GameData::Init (cellGameDataCheck '%sDATA2') maps each digital
+        # edition to its disc edition's data folder (EBOOT table at 0xd94650): GOTY NPUA80698 -> BCUS98123DATA2,
+        # NPHA80194 -> BCAS20097, NPEA00369 -> BCES00727, NPEA00364 -> BCES00509, NPEA00365 -> BCES00757.
+        # Then any other DATA2 folder: these packages are the multiplayer server's map data, byte-identical in the
+        # BCUS98123DATA2 and BCES00757DATA2 copies (checked 2026-11-08).
+        data_ids = {'NPUA80698': 'BCUS98123', 'NPHA80194': 'BCAS20097', 'NPEA00369': 'BCES00727',
+                    'NPEA00364': 'BCES00509', 'NPEA00365': 'BCES00757'}
         title = None
         for part in reversed(os.path.abspath(self.a.ps3).replace('\\', '/').split('/')):
             if re.match(r'^[A-Z]{4}\d{5}$', part):
-                title = part
+                title = data_ids.get(part, part)
                 break
         for root in (self.a.ps3_dlc, self.a.ps3):
             if not root:
