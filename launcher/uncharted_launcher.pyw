@@ -3108,7 +3108,8 @@ class Launcher:
             env["UNCHARTED_U2MP_JOIN"] = str(self.config["u2mp_join"]).strip()
 
     def page_multiplayer(self):
-        """Uncharted 2 multiplayer (u2mp). Shown only while Uncharted 2 is chosen (update_multiplayer_tab)."""
+        """Uncharted 2 multiplayer (u2mp), laid out like Uncharted 3's page (page_u3mp). Shown only while
+        Uncharted 2 is chosen (update_multiplayer_tab)."""
         page = self.page()
         banner = tk.Frame(page, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
         banner.pack(side="top", fill="x", pady=(0, self.px(12)))
@@ -3121,72 +3122,149 @@ class Launcher:
         tk.Label(head, text="IN DEVELOPMENT", font=self.f_caps, bg=GOLD, fg=INK, padx=self.px(7),
                  pady=self.px(1)).pack(side="left", padx=(self.px(12), 0))
         tk.Label(about, text="Among Thieves' multiplayer, being restored. For now: the Multiplayer entry in "
-                             "Uncharted 2's main menu. Made on this PC from your own game; no game file comes "
+                             "Uncharted 2's main menu and LAN parties. The import takes what the PS4 game lacks from "
+                             "your own PS3 Uncharted 2, on this PC: nothing is downloaded and no game file comes "
                              "with the launcher.",
                  font=self.f_small, bg=PANEL, fg=MUTED, anchor="w", justify="left",
                  wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(5), 0))
+        self.u2mp_status = tk.Label(about, text="", font=self.f_body_bold, bg=PANEL, fg=TEXT, anchor="w",
+                                    justify="left", wraplength=self.px(760))
+        self.u2mp_status.pack(side="top", fill="x", pady=(self.px(8), 0))
+
+        def folder_row(title, hint, label_key, actions):
+            def factory(parent):
+                box = tk.Frame(parent, bg=BG)
+                for label, action in actions:
+                    self.flat_button(box, label, action).pack(side="left", padx=(self.px(8), 0))
+                return box
+            self.row(page, title, hint, factory)
+            label = tk.Label(page, text="", font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
+                             wraplength=self.px(760))
+            label.pack(side="top", fill="x", pady=(0, self.px(10)))
+            self.u2mp_labels[label_key] = label
+
+        def text_row(key, title, hint, default):
+            def factory(parent):
+                var = tk.StringVar(value=self.config.get(key, default))
+                entry = tk.Entry(parent, textvariable=var, width=18, font=self.f_body, bg=PANEL, fg=TEXT,
+                                 insertbackground=TEXT, relief="flat")
+                var.trace_add("write", lambda *_: self.change_config(key, var.get().strip()))
+                return entry
+            self.row(page, title, hint, factory)
+
+        self.u2mp_labels = {}
+        if not self.config.get("u2mp_ps3") and self.config.get("u3mp_ps3_u2"):
+            self.config["u2mp_ps3"] = self.config["u3mp_ps3_u2"]   # the folder chosen for Uncharted 3's import
         self.row(page, "Multiplayer in the Uncharted 2 menu",
                  "On: Uncharted 2's main menu shows Multiplayer again. Off: the normal menu.",
                  lambda parent: Toggle(parent, self.s, self.config.get("u2mp_menu", True),
                                        lambda v: self.change_config("u2mp_menu", bool(v))))
-        self.row(page, "Your name", "The name the other players see in the lobby and in matches.",
-                 lambda parent: self.text_entry(parent, "u2mp_name", "Drake", width=22))
-        self.row(page, "Join a host",
-                 "Empty: this PC hosts the party when you open Multiplayer (UDP port 27210; Windows may "
-                 "ask to allow it). To join a friend, type their address (e.g. 192.168.1.20) before "
-                 "opening Multiplayer.",
-                 lambda parent: self.text_entry(parent, "u2mp_join", "", width=22))
+        text_row("u2mp_name", "Your name", "The name the other players see in the lobby and in matches.", "Drake")
+        text_row("u2mp_join", "Join a host",
+                 "Empty: this PC hosts the party when you open Multiplayer (UDP port 27210; Windows may ask to "
+                 "allow it). To join a friend, type their address (e.g. 192.168.1.20) before opening Multiplayer.",
+                 "")
+        folder_row("PS3 Uncharted 2 folder",
+                   "Your PS3 Uncharted 2 (e.g. NPUA80698 or BCES00757, the folder with USRDIR). The import takes "
+                   "from it only what the PS4 game lacks: multiplayer skins, the Fort's missing parts, sounds, music.",
+                   "u2mp_ps3", (("Choose", lambda: self.u2mp_choose("u2mp_ps3", "Choose the PS3 Uncharted 2 folder")),
+                                ("Clear", lambda: self.u2mp_set("u2mp_ps3", ""))))
+        folder_row("PS3 map packs (optional)",
+                   "The folder with dlc-map1.psarc / dlc-map2.psarc (RPCS3: dev_hdd0/game/BCUS98123/USRDIR/build/"
+                   "main): Facility, Ruins, Highrise, Museum and the DLC characters.",
+                   "u2mp_ps3_dlc", (("Choose", lambda: self.u2mp_choose("u2mp_ps3_dlc",
+                                                                        "Choose the folder with the PS3 map packs")),
+                                    ("Clear", lambda: self.u2mp_set("u2mp_ps3_dlc", ""))))
+        folder_row("Multiplayer data folder",
+                   "Where the import writes the files taken from your PS3 copy.",
+                   "data", (("Open", lambda: self.u3mp_open(U2MP_DIR / "import")),))
 
-        # The import: what the PS4 game lacks (skins, maps, sounds...) from the player's own PS3 copy.
-        def folder(key, title, hint, chooser):
-            def factory(parent):
-                box = tk.Frame(parent, bg=BG)
-                self.u2mp_labels[key] = tk.Label(box, text=self.config.get(key) or "Not chosen.", font=self.f_small,
-                                                 bg=BG, fg=MUTED, anchor="e", width=40)
-                self.u2mp_labels[key].pack(side="left", padx=(0, self.px(10)))
-                self.flat_button(box, "Choose", chooser).pack(side="left")
-                return box
-            self.row(page, title, hint, factory)
-        self.u2mp_labels = {}
-        if not self.config.get("u2mp_ps3") and self.config.get("u3mp_ps3_u2"):
-            self.config["u2mp_ps3"] = self.config["u3mp_ps3_u2"]   # the folder chosen for Uncharted 3's import
-        folder("u2mp_ps3", "PS3 Uncharted 2 folder",
-               "Your PS3 Uncharted 2 (e.g. NPUA80698 or BCES00757, the folder with USRDIR). The import takes "
-               "from it only what the PS4 game lacks: multiplayer skins, the Fort's missing parts, sounds, music.",
-               lambda: self.u2mp_choose("u2mp_ps3", "Choose the PS3 Uncharted 2 folder"))
-        folder("u2mp_ps3_dlc", "PS3 map packs (optional)",
-               "The folder with dlc-map1.psarc / dlc-map2.psarc (RPCS3: dev_hdd0/game/BCUS98123/USRDIR/build/main): "
-               "Facility, Ruins, Highrise, Museum and the DLC characters.",
-               lambda: self.u2mp_choose("u2mp_ps3_dlc", "Choose the folder with the PS3 map packs"))
-
-        def import_controls(parent):
-            box = tk.Frame(parent, bg=BG)
-            self.u2mp_status = tk.Label(box, text=self.u2mp_import_state(), font=self.f_small, bg=BG, fg=MUTED,
-                                        anchor="e", width=40)
-            self.u2mp_status.pack(side="left", padx=(0, self.px(10)))
-            self.gold_button(box, "IMPORT", self.u2mp_import, small=True).pack(side="left")
-            return box
-        self.row(page, "Import from your PS3 copy",
-                 "Made on this PC; nothing is downloaded. Uncharted 2 then starts with the imported files.",
-                 import_controls)
+        actions = tk.Frame(page, bg=BG)
+        actions.pack(side="top", fill="x", pady=(self.px(6), self.px(8)))
+        self.u2mp_button = self.gold_button(actions, "IMPORT", self.u2mp_import)
+        self.u2mp_button.pack(side="left")
+        self.u2mp_cancel_button = self.flat_button(actions, "Cancel", self.u2mp_cancel)
+        self.flat_button(actions, "Open import log", lambda: self.u3mp_open(U2MP_DIR / "import" / "import.log")).pack(
+            side="left", padx=(self.px(10), 0))
+        self.u2mp_step = tk.Label(actions, text="", font=self.f_small, bg=BG, fg=MUTED, anchor="w")
+        self.u2mp_step.pack(side="left", fill="x", expand=True, padx=(self.px(14), 0))
+        self.u2mp_bar = tk.Canvas(page, height=self.px(6), bg=PANEL, highlightthickness=0)
+        self.u2mp_bar.pack(side="top", fill="x")
+        self.u2mp_log = tk.Text(page, height=9, font=("Consolas", 8), bg=PANEL, fg=MUTED, relief="flat",
+                                highlightthickness=1, highlightbackground=LINE, wrap="none", state="disabled")
+        self.u2mp_log.pack(side="top", fill="x", pady=(self.px(8), 0))
+        tk.Label(page, text="The PS4 game is the launcher's game folder (Advanced -> Folders). The import runs on "
+                            "this PC and can run while you play other games. Uncharted 2 then starts with the "
+                            "imported files.",
+                 font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
+                 wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(8), 0))
+        self.u2mp_proc = None
+        self.u2mp_log_pos = 0
+        self.u2mp_progress = (0, 0)
+        self.u2mp_refresh()
         return page
+
+    def u2mp_set(self, key, value):
+        self.change_config(key, value)
+        self.u2mp_refresh()
 
     def u2mp_choose(self, key, title):
         from tkinter import filedialog
         folder = filedialog.askdirectory(title=title, parent=self.root, mustexist=True)
         if folder:
-            self.change_config(key, folder)
-            self.u2mp_labels[key].config(text=folder)
+            self.u2mp_set(key, folder)
 
-    def u2mp_import_state(self):
-        state = U2MP_DIR / "import" / "state.json"
-        if getattr(self, "u2mp_proc", None) and self.u2mp_proc.poll() is None:
-            return "Importing..."
-        return "Imported." if state.exists() else "Not imported yet."
+    def u2mp_state(self):
+        try:
+            return json.loads((U2MP_DIR / "import" / "state.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def u2mp_running(self):
+        return getattr(self, "u2mp_proc", None) is not None and self.u2mp_proc.poll() is None
+
+    def u2mp_refresh(self):
+        if not hasattr(self, "u2mp_status"):
+            return
+        state = self.u2mp_state()
+        status = state.get("status")
+        running = self.u2mp_running()
+        if running:
+            text, colour = "Importing...", GOLD
+        elif status == "imported":
+            text, colour = f"Imported ({state.get('finished', '?')}).", TEXT
+        elif status == "partial":
+            text, colour = "Imported with problems: some files could not be made (see the import log).", GOLD
+        elif status == "failed":
+            text, colour = f"Import failed: {state.get('error', '') or 'see the import log'}", STOP_RED
+        elif status == "running":
+            text, colour = "The last import was interrupted. Press Import to continue it.", GOLD
+        else:
+            text, colour = "Not imported.", MUTED
+        self.u2mp_status.config(text=text, fg=colour)
+        self.u2mp_labels["u2mp_ps3"].config(text=self.config.get("u2mp_ps3") or "None chosen yet.")
+        self.u2mp_labels["u2mp_ps3_dlc"].config(text=self.config.get("u2mp_ps3_dlc") or "Not used.")
+        self.u2mp_labels["data"].config(text=str(U2MP_DIR / "import"))
+        self.u2mp_button.config(text="RE-IMPORT / UPDATE" if status in ("imported", "partial", "failed", "running")
+                                else "IMPORT")
+        if running and not self.u2mp_cancel_button.winfo_manager():
+            self.u2mp_cancel_button.pack(side="left", padx=(self.px(10), 0), after=self.u2mp_button)
+        elif not running and self.u2mp_cancel_button.winfo_manager():
+            self.u2mp_cancel_button.pack_forget()
+        self.u2mp_draw_bar()
+
+    def u2mp_draw_bar(self):
+        n, total = self.u2mp_progress
+        bar = self.u2mp_bar
+        bar.delete("all")
+        width = bar.winfo_width()
+        if total and width > 1:
+            bar.create_rectangle(0, 0, int(width * min(1.0, n / total)), self.px(6), fill=GOLD, outline=GOLD)
 
     def u2mp_import(self):
         """Runs u2mp/patcher/u2mp_import.py (below normal priority) into analysis/uncharted-user/u2mp/import."""
-        if getattr(self, "u2mp_proc", None) and self.u2mp_proc.poll() is None:
+        if self.u2mp_running():
+            messagebox.showinfo(APP_TITLE, "The import is already running.")
             return
         ps3 = self.config.get("u2mp_ps3")
         if not ps3:
@@ -3212,36 +3290,72 @@ class Launcher:
         except OSError as error:
             messagebox.showerror(APP_TITLE, f"Could not start the import:\n{error}")
             return
-        self.u2mp_status.config(text="Importing...")
+        self.u2mp_log_pos = 0
+        self.u2mp_progress = (0, 0)
+        self.u2mp_log.config(state="normal")
+        self.u2mp_log.delete("1.0", "end")
+        self.u2mp_log.config(state="disabled")
+        self.u2mp_step.config(text="Starting the import...")
+        self.u2mp_refresh()
         self.root.after(1000, self.u2mp_poll)
 
+    def u2mp_cancel(self):
+        if self.u2mp_running() and messagebox.askyesno(
+                APP_TITLE, "Stop the import? Finished files are kept; Import continues it."):
+            subprocess.run(["taskkill", "/PID", str(self.u2mp_proc.pid), "/T", "/F"], creationflags=NO_WINDOW,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.u2mp_step.config(text="Import stopped.")
+            self.root.after(500, self.u2mp_refresh)
+
     def u2mp_poll(self):
-        """The import's progress from its '@U2MP {json}' lines."""
-        proc = getattr(self, "u2mp_proc", None)
-        if not proc:
-            return
-        text = "Importing..."
+        """While the import runs: new lines of its output, its progress events (@U2MP ...), the status."""
         try:
-            lines = (U2MP_DIR / "import" / "launcher-run.log").read_text(encoding="utf-8", errors="replace").splitlines()
-            for line in reversed(lines):
-                if line.startswith("@U2MP "):
-                    info = json.loads(line[6:])
-                    done, total = info.get("n"), info.get("total")
-                    if done is not None and total:
-                        text = f"Importing... {done}/{total}"
-                    break
-        except (OSError, ValueError):
+            path = U2MP_DIR / "import" / "launcher-run.log"
+            if path.exists():
+                with open(path, "rb") as f:
+                    f.seek(self.u2mp_log_pos)
+                    chunk = f.read()
+                cut = chunk.rfind(b"\n") + 1
+                if cut:
+                    self.u2mp_log_pos += cut
+                    self.u2mp_lines(chunk[:cut].decode("utf-8", "replace").splitlines())
+        except (OSError, tk.TclError):
             pass
-        if proc.poll() is None:
-            self.u2mp_status.config(text=text)
+        if self.u2mp_running():
             self.root.after(1000, self.u2mp_poll)
             return
-        self.u2mp_proc = None
-        ok = proc.returncode == 0
-        self.u2mp_status.config(text="Imported." if ok else "Import failed: see analysis\\uncharted-user\\u2mp\\import")
-        if not ok:
-            messagebox.showerror(APP_TITLE, "The Uncharted 2 multiplayer import stopped. Its log is in "
-                                            f"{U2MP_DIR / 'import' / 'import.log'}.")
+        proc, self.u2mp_proc = self.u2mp_proc, None
+        if proc is not None and proc.returncode not in (0, None) and \
+                not self.u2mp_step.cget("text").startswith(("Import stopped", "Import failed")):
+            self.u2mp_step.config(text="Import failed: see the import log.")
+        self.u2mp_refresh()
+
+    def u2mp_lines(self, lines):
+        shown = []
+        for line in lines:
+            if line.startswith("@U2MP "):
+                try:
+                    ev = json.loads(line[6:])
+                except ValueError:
+                    continue
+                if ev.get("phase") == "item" and ev.get("total"):
+                    self.u2mp_progress = (ev.get("n", 0), ev["total"])
+                    self.u2mp_step.config(text=f"File {ev.get('n', 0)}/{ev['total']}: {ev.get('key', '')[:90]}")
+                elif ev.get("phase") == "done":
+                    self.u2mp_progress = (self.u2mp_progress[1], self.u2mp_progress[1])
+                    self.u2mp_step.config(text="Import finished." if ev.get("status") in ("imported", "partial")
+                                          else "Import failed: " + ev.get("error", ""))
+                continue
+            shown.append(line)
+        if shown:
+            self.u2mp_log.config(state="normal")
+            self.u2mp_log.insert("end", "\n".join(shown) + "\n")
+            excess = int(self.u2mp_log.index("end-1c").split(".")[0]) - 400
+            if excess > 0:
+                self.u2mp_log.delete("1.0", f"{excess}.0")
+            self.u2mp_log.see("end")
+            self.u2mp_log.config(state="disabled")
+        self.u2mp_draw_bar()
 
     def page_u3mp(self):
         """Uncharted 3 multiplayer: import from the player's own PS3 and PS4 copies (u3mp/patcher/u3mp_import.py),
