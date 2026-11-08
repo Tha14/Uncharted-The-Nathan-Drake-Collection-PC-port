@@ -3022,6 +3022,7 @@ class Launcher:
                 self.banner_shown = True
         elif self.banner_shown:
             self.banner.pack_forget()
+            self.banner_slot.configure(height=1)   # Tk keeps a frame's size when its last child goes
             self.banner_shown = False
         if changed:
             self.draw_play()
