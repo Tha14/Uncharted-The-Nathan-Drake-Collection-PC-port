@@ -172,7 +172,80 @@ def module():
 def convert(ps3_path, tmpl_path, out_path, **kw):
     """ps4actor.convert for a U2 PS3 actor pak; tmpl_path = a retail PS4 actor27 pak with a similar skeleton"""
     kw.setdefault('verbose', False)
-    return module().convert(ps3_path, tmpl_path, out_path, **kw)
+    r = module().convert(ps3_path, tmpl_path, out_path, **kw)
+    fix_cbuffer_capacity(out_path)
+    return r
+
+
+# ------------------------------------------------------------------ prototype cbuffer capacity
+# A GEOMETRY_1 prototype states at +0x30 how many instance-scope (scope 3) constant buffers its materials'
+# shader programs declare. MeshInstance::Init (PS4 0xc3b6f0) allocates exactly that many slots per instance
+# (0xc24780: capacity keys followed by capacity 48-byte entries) and AddCb (0xc24b30) appends one per distinct
+# cbuffer without a bounds check. ps4actor writes a fixed 2 (+0x34: 1); retail U2 actors state the number of
+# distinct scope-3 cbuffers in their pak (mp-hero-elena 4, costume-hero-nd 4, mp-hero-merc 3, 9mm-casing 3).
+# The converted skins declare 4 (transform 0x8704e118/0x2b444d15, 0x0252db4e/0x9263c223, 0x33d5c036/0xf1b17bc2,
+# 'general' 0x08d9a770/0x6f1c0396), so the keys of cbuffers 3 and 4 overwrote entry 0 (Gompa first-frame crash,
+# test runs 35-38, u2mp/docs/PORT-RENDER.md). The cbuffer records of every program the materials use are in the
+# pak ({ptr members, u32 n, u32 size, u32 name, u32 scope sid, u32 id, u32 1, ...}, 0x30 bytes); the distinct
+# scope-3 ones of the whole pak bound what any of its prototypes needs.
+CB_SCOPE_INSTANCE = 0x6bbcf890     # scope sid -> 3 (const-buffer-mgr.cpp CBufferScope, PS4 0xc2637a)
+
+
+def scope3_cbuffers(d):
+    """distinct (name, id) of the scope-3 cbuffer records in pak bytes d"""
+    import struct
+    pat = struct.pack('<I', CB_SCOPE_INSTANCE)
+    out = set()
+    i = d.find(pat)
+    while i != -1:
+        if i >= 4 and i % 4 == 0 and i + 12 <= len(d):
+            name, = struct.unpack_from('<I', d, i - 4)
+            cid, one = struct.unpack_from('<II', d, i + 4)
+            if one == 1 and name and cid:
+                out.add((name, cid))
+        i = d.find(pat, i + 1)
+    return out
+
+
+def prototype_capacities(q):
+    """[(file offset of +0x30, capacity, name)] of the GEOMETRY_1 prototypes of PS4 pak q"""
+    import struct
+    g = q.items_of('GEOMETRY_1')
+    if not g:
+        return []
+    g = g[0]
+    pl = q.resolve(g.page, g.data_off + 0x20)
+    n = struct.unpack_from('<Q', q.d, q.pbase(g.page) + g.data_off + 0x18)[0]
+    out = []
+    for i in range(n if pl else 0):
+        r = q.resolve(pl[0], pl[1] + 8 * i)
+        nm = q.resolve(r[0], r[1] + 0x10)
+        out.append((q.pbase(r[0]) + r[1] + 0x30, q.pu32(r[0], r[1] + 0x30),
+                    q.pstr(*nm) if nm else 'prototype%d' % i))
+    return out
+
+
+def fix_cbuffer_capacity(path):
+    """raise every prototype's scope-3 cbuffer capacity (+0x30) of the PS4 pak at path to the distinct scope-3
+    cbuffers of the pak, in place (one u32 each, no relocation). Returns the number of prototypes changed."""
+    import struct
+    q = Pak(path)
+    need = len(scope3_cbuffers(q.d))
+    low = [off for off, cap, _name in prototype_capacities(q) if cap < need]
+    if low:
+        d = bytearray(q.d)
+        for off in low:
+            struct.pack_into('<I', d, off, need)
+        with open(path, 'wb') as f:
+            f.write(bytes(d))
+    return len(low)
+
+
+def cbuffer_capacity_errors(q):
+    """prototypes of PS4 pak q that state fewer scope-3 cbuffers than the pak declares"""
+    need = len(scope3_cbuffers(q.d))
+    return ['prototype %s: scope-3 cbuffer capacity %d < %d cbuffers (AddCb overflows the instance list)' % (
+        name, cap, need) for _o, cap, name in prototype_capacities(q) if cap < need]
 
 
 # ------------------------------------------------------------------ what the converter takes, templates, checks
@@ -379,5 +452,6 @@ def check(path):
     """ps4check problems that retail U2 PS4 skins do not show too ([] = fine)"""
     import ps4check
     errs, info, _ = ps4check.check(path, quiet=True)
-    return [e for e in errs if not e.startswith('unknown item type') and not
+    errs = [e for e in errs if not e.startswith('unknown item type') and not
             (e.startswith('tiled size') and '-env-reflection' in e)]
+    return errs + cbuffer_capacity_errors(Pak(path))

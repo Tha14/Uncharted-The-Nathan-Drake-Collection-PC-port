@@ -385,7 +385,8 @@ def build(ps3_mp, ps3_twin, ps4_twin, out_path, work=None, log=None, use_loose=T
             else:
                 fix[lp_].pop(lo_ + o, None)
                 rec[lo_ + o:lo_ + o + 8] = crec[o:o + 8]
-    # LOD0 prototype words +0x30 (retail: 4,2 / 3,2 ...; the converter writes 2,1)
+    # LOD0 prototype words +0x30 (retail: 4,2 / 3,2 ...; the converter writes 2,1). +0x30 is the scope-3 cbuffer
+    # capacity (u2actor.fix_cbuffer_capacity raises it again after the build)
     lpr = lg['protos'][lod0_proto(lg)]
     cpr = cg['protos'][lod0_proto(cg)]
     if len(swap) == len(l0):
@@ -455,7 +456,11 @@ def build(ps3_mp, ps3_twin, ps4_twin, out_path, work=None, log=None, use_loose=T
         struct.pack_into('<Q', pages[lgeo.page], lgeo.data_off + 0x38, len(lent) + len(cent))
         put_ptr(lgeo.page, lgeo.data_off + 0x40, arr, 0)
     notes['geometry_textures_added'] = len(cent)
-    return _write(L, C, g, pages, fix, redirect, add_tex, out_path, lpath, notes, raw_refs)
+    notes = _write(L, C, g, pages, fix, redirect, add_tex, out_path, lpath, notes, raw_refs)
+    # +0x30 = scope-3 cbuffer capacity: the twin's LOD0 value above is the retail one for the twin's materials,
+    # but the skin also keeps converted materials, and LOD1-3 keep the converter's 2 (u2actor; PORT-RENDER.md)
+    notes['cbuffer_capacity_raised'] = u2actor.fix_cbuffer_capacity(out_path)
+    return notes
 
 
 def _stem(path):

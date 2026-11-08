@@ -38,12 +38,14 @@ sys.dont_write_bytecode = True
 
 CONV_VERSION = '1'        # bump when a converter changes its output: those files are converted again
 SKIN_VERSION = 'twin2'    # mp-hero skins: PS4-twin build (u2twin) first; skins converted before it are redone
-ACTOR_VERSION = 'u2ag1'   # actor27 paks: U2 artgroup / lookup / LEVEL_PATS layout, props, anims (u2actorparts)
+ACTOR_VERSION = 'u2ag2'   # actor27 paks: U2 artgroup / lookup / LEVEL_PATS layout, props, anims (u2actorparts)
 IMPORT_LIST = os.path.join(HERE, '..', 'docs', 'import-list.tsv')
 # PS3 speech language -> PS4 speech archive (<name>_ps4.psarc). NPUA80698 is the North American release: its
 # Spanish / Portuguese tracks are taken as the Latin American Spanish / Brazilian Portuguese the PS4 game has.
 SPEECH_LANGS = {'english': 'english', 'french': 'french', 'spanish': 'sam-spanish', 'portuguese': 'brazilian'}
 OUT_MAIN = os.path.join('u2data', 'build', 'main')
+# PS3 sources of the GOTY release (NPUA80698 1.10: base archives + all-patches.psarc) and the map packs
+GOTY_SOURCES = ('patch', 'base', 'dlc-map2', 'dlc-map1')
 
 _log_file = None
 
@@ -93,7 +95,15 @@ class Importer:
         tmp = self.state_file + '.tmp'
         with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(self.state, f, indent=1, sort_keys=True)
-        os.replace(tmp, self.state_file)
+        # a sync client (OneDrive, Proton Drive) or a virus scanner may hold state.json for a moment: retry
+        for i in range(40):
+            try:
+                os.replace(tmp, self.state_file)
+                return
+            except PermissionError:
+                if i == 39:
+                    raise
+                time.sleep(0.25)
 
     def out_path(self, rel):
         p = os.path.join(self.main, *rel.split('/'))
@@ -132,7 +142,9 @@ class Importer:
             raise LookupError('not in the given PS3 folders (needs %s)' % row['ps3_source'])
         want = row.get('sha1', '')
         mism = []
-        for e in sorted(cands, key=lambda e: e.source != row['ps3_source']):
+        # the listed source first, then the GOTY copy (NPUA80698 base / all-patches) and the map packs, the BCUS
+        # title updates (dlc-patch*) last: another version's data, used only where nothing else has the file
+        for e in sorted(cands, key=lambda e: (e.source != row['ps3_source'], e.source not in GOTY_SOURCES)):
             data = e.read()
             if not want or self.a.no_verify or sha1(data) == want:
                 return e, data
@@ -152,18 +164,32 @@ class Importer:
                 return 'language not selected'
             return 'PS4 %s speech has it' % l4 if k.split('/')[-1] in self.ps4.speech[l4] else ''
         if k.startswith('sound1/music/'):
-            stem = os.path.basename(k)[:-5]
-            refs = {r.lower() for r in self.music_refs}
             if self.ps4.has(k):
                 return 'PS4 has it'
-            if stem not in refs:
-                return 'PS4 music settings do not use it (PS4 plays its own renumbered copy)'
+            name = self.music_name(os.path.basename(k)[:-5])
+            if name is None:
+                return 'PS4 music settings do not use it'
+            if self.ps4.has('sound1/music/%s.xvag' % name):
+                return 'PS4 music settings do not use it (PS4 plays its own renumbered copy %s)' % name
             return ''
         if k in ('pak22/ruins-multi.pak', 'pak22/ruins-multi-ingame10.pak') and self.dlc_ruins:
             return ''
         if k.endswith('.txt') and k.startswith('pak22/'):
             return ''
         return 'PS4 has it' if self.ps4.has(k) else ''
+
+    def music_name(self, stem):
+        """the track name the PS4 music settings use for a PS3 music track, or None: the same name, else the one
+        name with the same title after the track number (PS4 renumbered the tracks: PS3 873_WZMilitaryCombat_Coop3
+        = PS4 620_..., PS3 407_BrutalComboMambo_LOOP1ALTSTART = PS4 336_...)"""
+        refs = sorted(self.music_refs)
+        s = stem.lower()
+        for r in refs:
+            if r.lower() == s:
+                return r
+        title = re.sub(r'^\d+_', '', s)
+        same = [r for r in refs if re.sub(r'^\d+_', '', r.lower()) == title]
+        return same[0] if len(same) == 1 else None
 
     # ------------------------------------------------------------------ converters
     def conv_xvag(self, row, entry, data):
@@ -172,6 +198,10 @@ class Importer:
         if k.lower().startswith('sound1/speech/'):
             lang = SPEECH_LANGS[k.lower().split('/')[2]]
             rel = 'sound1/speech/%s/%s' % (lang, os.path.basename(entry.key))
+        elif k.lower().startswith('sound1/music/'):
+            # under the name the PS4 music settings use (PS4 renumbered the tracks: PS3 407_..._LOOP1ALTSTART is
+            # PS4 336_..._LOOP1ALTSTART)
+            rel = 'sound1/music/%s.xvag' % self.music_name(os.path.basename(entry.key)[:-5])
         else:
             rel = '/'.join(k.split('/')[:-1]) + '/' + os.path.basename(entry.key)
         out = xvag.convert(data)
@@ -491,9 +521,10 @@ class Importer:
             if kl.endswith('.txt') and kl.startswith('pak22/'):
                 level_txt[os.path.basename(key)[:-4]] = data.decode('latin-1')
                 self.items[key] = dict(status='ok', group=row['group'], note='registry input', conv=CONV_VERSION,
-                                       src_sha1=src_sha)
+                                       src=entry.source, src_sha1=src_sha)
                 continue
             if self.done_before(key, src_sha):
+                self.items[key]['src'] = entry.source       # same bytes; the archive they are read from now
                 continue
             if kl.endswith('.xvag'):
                 fn = self.conv_xvag
@@ -695,7 +726,9 @@ class Importer:
         buttons, DLC map photos, store skin portraits ...), u2netimg; registered as its own level / package"""
         import u2netimg
         key = 'pak22/' + u2netimg.OUT_NAME
-        c = self.ps3.candidates('pak22/net.pak')
+        # the GOTY all-patches net.pak first: the newer BCUS dlc-patch7 one adds only 8 images that neither the PS4 dc
+        # nor the GOTY dc names (year-one / desert Drake icons, the siege / wt test map photos)
+        c = sorted(self.ps3.candidates('pak22/net.pak'), key=lambda e: e.source not in GOTY_SOURCES)
         ps4_net = os.path.join(self.ps4.pak_dir, 'net.pak')
         if not c or not os.path.isfile(ps4_net):
             self.items[key] = dict(status='missing', group='A', note='no PS3 or PS4 net.pak', conv=CONV_VERSION)
@@ -759,6 +792,8 @@ class Importer:
             self.state['registry'] = dict(added=added, skipped=skipped,
                                           dropped={k: ['%s %s' % x for x in v] for k, v in dropped.items()})
             log('pak22_ps4.txt: %d levels added %s; %d not added' % (len(added), added, len(skipped)))
+            for name, why in sorted(skipped.items()):
+                log('        not added %s: %s' % (name, why))
         bank_dir = os.path.join(self.main, 'sound1', 'banks', 'ps4')
         new_banks = [f for f in os.listdir(bank_dir) if f.endswith('.bnk')] if os.path.isdir(bank_dir) else []
         if new_banks and os.path.isfile(self.ps4.banks_txt):
@@ -782,7 +817,7 @@ class Importer:
         if not os.path.isfile(core):
             return
         arc = Psarc(core)
-        added = {}
+        added, tu_ids = {}, {}
         for i, n in enumerate(arc.names):
             m = re.match(r'text1/ps4/(\d+)\.(networking|common)$', n)
             if not m:
@@ -792,16 +827,29 @@ class Importer:
             out = os.path.join(self.main, *rel.split('/'))
             if not c:
                 continue
-            data, ids = u2text.merge(arc.read(i + 1), c[0].read())
-            if data is None:
+            # the GOTY bank first; then the ids only the newest BCUS title update has (the DLC map titles and the
+            # menu texts of MENUS.md section 4 exist in no GOTY bank: GOTY took them from the PS3 server)
+            goty = [e for e in c if e.source in GOTY_SOURCES][:1]
+            tu = [e for e in c if e.source not in GOTY_SOURCES][:1]
+            data, ids, from_tu = arc.read(i + 1), [], 0
+            for e in goty + tu:
+                d, new = u2text.merge(data, e.read())
+                if d is not None:
+                    data, ids = d, ids + new
+                    from_tu += len(new) if e in tu else 0
+            if not ids:
                 if os.path.exists(out):
                     os.remove(out)
                 continue
             with open(self.out_path(rel), 'wb') as f:
                 f.write(data)
             added[rel] = len(ids)
+            if from_tu:
+                tu_ids[rel] = (from_tu, tu[0].source)
         self.state['text'] = added
-        log('text banks: %d written (%s strings added)' % (len(added), sorted(set(added.values()))))
+        self.state['text_title_update'] = {k: '%d from %s' % v for k, v in tu_ids.items()}
+        log('text banks: %d written (%s strings added; %s from a BCUS title update)' % (
+            len(added), sorted(set(added.values())), sorted({'%d from %s' % v for v in tu_ids.values()}) or 'none'))
         self.save()
 
     def finish(self, status, **kw):
@@ -828,7 +876,10 @@ def main():
     ap.add_argument('--ps3-dlc')
     ap.add_argument('--ps3-data', help='PS3 game-data folder (dev_hdd0/game/BCUS98123DATA2): the downloaded multiplayer spawn paks')
     ap.add_argument('--out', required=True)
-    ap.add_argument('--groups', default='A,B,C,D,E')
+    # B (the Fort's missing pieces: -wide, -wide-2, sky-fort-multi, -npc, its actors, bank and streams) is left out
+    # by default until the user has tested the Fort with the PS4 files alone (2026-11-08); C/D need --ps3-dlc,
+    # which the launcher does not pass: the import ships what the GOTY copy (NPUA80698) has.
+    ap.add_argument('--groups', default='A,C,D,E')
     ap.add_argument('--speech-langs', default='', help='PS4 speech languages to fill (default: all four the PS4 game '
                                                        'has: english, french, sam-spanish, brazilian)')
     ap.add_argument('--list', default=IMPORT_LIST)

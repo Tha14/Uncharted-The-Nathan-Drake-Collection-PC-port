@@ -61,8 +61,10 @@ void install_menuimages(int &installed); // menuimages.cpp: net image ids, lost 
 void install_dlc(int &installed);       // dlc.cpp: DLC maps offered only when imported (u2mp/docs/DLC.md)
 void install_menudraw(int &installed);  // menudraw.cpp: 2D command arena 192 KiB -> 2 MiB (PORT-MENUDRAW.md)
 void install_frontend2(int &installed); // frontend2.cpp: partial menu functions vs PS3 (PORT-FRONTEND2.md)
+void install_frontend3(int &installed); // frontend3.cpp: matchmaking, vote, leader back-out (PORT-FRONTEND3.md)
 void install_spawn(int &installed);     // spawn.cpp: spawner lookup at match start (PORT-SPAWN.md)
 void install_gameplay2(int &installed); // gameplay2.cpp: connection event Applies (PORT-GAMEPLAY2.md)
+void install_gameplay3(int &installed); // gameplay3.cpp: ShowResults::Enter + results countdown (PORT-GAMEPLAY3.md)
 void install_nullsites(int &installed); // nullsites.cpp: replay stream fallback at WaitReady::Exit (PORT-NULLSITES.md)
 void install_netpatch(int &installed);  // netpatch.cpp: the PS3 server live-data module net-patch9 (PORT-NETPATCH.md)
 int netpatch_load();                    // netpatch.cpp: bind net-patch9's symbols (idempotent); when MP is entered

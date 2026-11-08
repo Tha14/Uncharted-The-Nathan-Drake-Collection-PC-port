@@ -12,3 +12,24 @@
 | 6-7 | (with the PS3 import) Multiplayer, 11 playlists, both map packs offered; states 3 -> 10 -> 16; crash in 0x640fc0 (NetGameManager match reset): its two hash tables were never built on PS4 | netinit.cpp builds them (PS3 NetGameManager::Init 0x49c740) |
 | 8 | crash again in 0x640fc0: the tables' memory was reused (context 0x14 had been pointed at the thread's scratch heap) | netheap.cpp: context 0x14 gets a heap of its own |
 | 9 | no crash: tables clean up to state 16 (the match task); the game then went quiet until closed | open: what the screen showed |
+| 10-15 | menu rounds: icons, playlists, DLC cards, texts | MENUS.md |
+| 16 | match start: strlen/memcpy of a NULL host name in the NetStatGame init (0x66c75f) | remaining.cpp: the host name |
+| 17 | map loads, black screen | online-state log (session.cpp) |
+| 18 | EstablishConnection -> LoadLevels, crash on an empty tag table (0x4bf48b) | empty table = not found (0x4bf44c) |
+| 19-21 | LoadLevels waits forever: the level `<map>-pak` (server spawn data) is missing | skip flag on that entry; later the imported spawn paks |
+| 22 | Treasure loaded fully, then Leave | leave-reason log |
+| 23 | Multiplayer button dead: near-image stub memory ran out, 63 functions not installed | one shared near_stub pool (install.cpp) |
+| 24 | Leave after LoadLevels: level loading clears the player list (host tracker NULL) | players registered again during setup |
+| 25 | NULL+8 at 0x6405af (removed room-attribute read) | read the session block (0x640598) |
+| 26 | Profile page draws only up to the Level widget | 2D command arena 192 KiB -> 2 MiB (menudraw.cpp) |
+| 27 | net clock 0x113a040 NULL at 0x5f276c | session.cpp creates it |
+| 28-31 | NULL+0x9a0 at 0x662fd5, then "Missing spawner" | spawn paks imported from the server data, spawn.cpp lookup |
+| 32 | dynamic vertex stream assert on the Profile page | streams enlarged, quad guard |
+| 33 | DC symbol 0x8cf8e1cc (online weapon set) missing | netpatch.cpp loads net-patch9 |
+| 34 | Playing on Gompa; rdx=-1 at 0xad34f3 (online weapon settings record) | online map 0x837a26b6 -> PS4 offline map 0x974cf651 |
+| 35 | Playing on Shambhala; first frame: unresolved shader resource at 0xc12173 | bind guard (nullsites.cpp) |
+| 36 | same entry read again at 0xc25ddb; the entry is raw ids (mesh-instance parameter reference never linked) | skip entry |
+| 37 | another render path (0xc04403) reads the same entry | repair entry with a zero block |
+| 38 | repair ran (1 entry); draw path 0xc30ec0/0xc04340 needs a real resource (NULL at 0xc04403) | root cause handed to the render port (PORT-RENDER.md) |
+
+From run 38 on, fixes are batched (render root cause, remaining gameplay/menu functions, assets) before the next test.

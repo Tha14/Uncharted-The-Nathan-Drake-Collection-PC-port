@@ -73,7 +73,7 @@ progression	-	0x4355d0	absent	absent	source file cinema.cpp has no trace in the 
 progression	-	0x4355e0	absent	absent	source file cinema.cpp has no trace in the PS4 image		cinema.cpp	0x10			
 progression	-	0x4355f0	absent	absent	source file cinema.cpp has no trace in the PS4 image		cinema.cpp	0x5f8		7eb4a0 330fd0 332580 3304ec 4919b0	f116c9 f116ca f1bbf8
 progression	cinema: replay state machine	0x435be8	absent	absent	source file cinema.cpp has no trace in the PS4 image		cinema.cpp	0x440		9238f8 923f14 4383cc 495790 42f89c 4638cc 463ce8 42fcf8 +12	e60bcc f116cc f116d0 f116d4 f119c0
-players	NetAnimList::AddAnim	0x45212c	absent	absent	identifying strings missing on PS4 ("NetAnimList::AddAnim - too many animatio")		net-anim-command-generator.cpp	0x10c	453c10	8417e8 841908	
+players	NetAnimList::AddAnim	0x45212c	absent	absent	identifying strings missing on PS4 ("NetAnimList::AddAnim - too many animatio")	only caller PS3 0x453c10 (PS4 slot 0x5f48d0 is a ret stub). Not ported: the live remote-anim path is PS3 0x4533f8 = PS4 0x5f48e0 (intact); PORT-GAMEPLAY3.md 3	net-anim-command-generator.cpp	0x10c	453c10	8417e8 841908	
 players	-	0x452238	-	unresolved	no static pairing (small; probably inlined)		net-anim-command-generator.cpp	0x58			
 players	-	0x452290	-	unresolved	no static pairing (small; probably inlined)		net-anim-command-generator.cpp	0x40	19a130 45a1d4	ac9730	
 players	-	0x4522d0	-	unresolved	no static pairing (small; probably inlined)		net-anim-command-generator.cpp	0x38		4daf88	
@@ -97,10 +97,10 @@ players	-	0x452d98	-	unresolved	no static pairing		net-anim-command-generator.cp
 players	prints "Snapshot [%d]: Time %f"	0x452e24	0x5f38e0	intact-alive	str:Snapshot [%d]: Time %f  		net-anim-command-generator.cpp	0x1b0		451d50 924128 923e40 4da608	
 players	-	0x452fd4	-	unresolved	no static pairing		net-anim-command-generator.cpp	0x1c8		451d50 4da608 df5d8	
 players	NetAnimCmdGenerator::CreateAnimCmds	0x45319c	-	unresolved	no static pairing (log-only on PS3)		net-anim-command-generator.cpp	0x25c		451d50 4da608 2c20e8 9238f8 923f14 4db060 1cd4c 2cfa78	
-players	-	0x4533f8	0x5f48e0	inlined	inlined (features 100% inside); host alive		net-anim-command-generator.cpp	0x600	1a6d68 45ed60	451d50 820c0 81fec	
+players	-	0x4533f8	0x5f48e0	inlined	inlined (features 100% inside); host alive	remote character anim update, called directly by the NetCharacter update PS4 0x605070 (PS3 0x45ed60) at 0x6050a4; same layout (snapshots +0x70 stride 0x90, time +0x960 = PS3 +2124)	net-anim-command-generator.cpp	0x600	1a6d68 45ed60	451d50 820c0 81fec	
 players	-	0x4539f8	0x246d10	inlined	inlined (features 100% inside); host alive		net-anim-command-generator.cpp	0x17c	453c10	451d50 4da608	
 players	-	0x453b74	-	unresolved	no static pairing		net-anim-command-generator.cpp	0x9c	19a130 45a1d4	ac9730	
-players	-	0x453c10	-	unresolved	no static pairing		net-anim-command-generator.cpp	0xc98		ac9730 4539f8 45212c 7ab88	
+players	-	0x453c10	0x5f48d0	stub	no static pairing	NetAnimCmdGenerator vtable slot (PS3 0xd705bc slot 5 = PS4 0x103fad0 slot 4); ret on PS4, referenced only by the vtable. Not ported: PORT-GAMEPLAY3.md 3	net-anim-command-generator.cpp	0xc98		ac9730 4539f8 45212c 7ab88	
 players	-	0x4548a8	-	unresolved	no static pairing		net-anim-command-generator.cpp	0x20c	33ec7c 436220 45ed60 4c9e98 4ca228	451d50 4da504 df5d8	
 players	-	0x454ab4	-	unresolved	no static pairing		net-anim-command-generator.cpp	0x1a4	1a6d68 45f7c0	451d50 4da484 df5d8	
 players	-	0x454c58	-	unresolved	no static pairing		net-anim-command-generator.cpp	0x3c8	1d6750 461ea0	abe4ec 451c4c	e60bcc
@@ -898,7 +898,7 @@ match	prints "NetGameManager - removed npc %s (%i)"	0x497128	-	unresolved	no sta
 match	-	0x497350	-	unresolved	no static pairing		net-game-manager.cpp	0x150	555fc 55cd0	553d0 151d10	
 match	-	0x4974a0	-	unresolved	no static pairing		net-game-manager.cpp	0xd0		ebee0 2b538 820c0	
 match	-	0x497570	0x671cd0	inlined	inlined (features 100% inside); host alive		net-game-manager.cpp	0x170	472ce0	70e7d4 ebee0 4e3fbc	
-modes	coop arena: wave complete (duration, bonus)	0x4976e0	-	unresolved	no static pairing (log-only on PS3)		net-game-manager.cpp	0x568	476338	9238f8 923f14 4dc74c	e60bcc f32e2c f32e60 f32e94 f32ec8
+modes	coop arena: wave complete (duration, bonus)	0x4976e0	0x647650	intact-alive	no static pairing (log-only on PS3)	manual: only PS3 caller Apply 0x476338 = PS4 0x61afe0, which calls 0x647650; same 10-slot unrolled tally update (PORT-GAMEPLAY3.md 4)	net-game-manager.cpp	0x568	476338	9238f8 923f14 4dc74c	e60bcc f32e2c f32e60 f32e94 f32ec8
 match	-	0x497c48	0x5b0070	inlined	inlined (features 100% inside); host alive		net-game-manager.cpp	0xa0	163500 4895b8 4c0ea8	151d4c	
 match	-	0x497ce8	0x64b570	intact-dead	score:0.91		net-game-manager.cpp	0x150	4895b8	151d4c 90a56c 40b7c0	
 match	-	0x497e38	-	unresolved	no static pairing (small; probably inlined)		net-game-manager.cpp	0x28	464464 4c8e08 5b6c78 8aef68		e60bcc

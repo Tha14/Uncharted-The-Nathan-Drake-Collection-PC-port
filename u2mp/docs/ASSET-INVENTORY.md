@@ -117,7 +117,7 @@ Notes:
 
 ## 4. Minimal import list (PS3 → PS4)
 
-The full table with SHA-1 for every file is `u2mp/docs/import-list.tsv` (3,785 rows). Sizes are PS3 uncompressed. Every pak needs PS3 to PS4 conversion.
+The full table with SHA-1 for every file is `u2mp/docs/import-list.tsv` (3,787 rows; 2026-11-08: +2 music rows, the BrutalComboMambo ALTSTART tracks). Sizes are PS3 uncompressed. Every pak needs PS3 to PS4 conversion.
 
 | Group | Files | Size | Source the player needs |
 |---|---:|---:|---|
@@ -125,8 +125,8 @@ The full table with SHA-1 for every file is `u2mp/docs/import-list.tsv` (3,785 r
 | B. The Fort completion (wide, wide-2, sky, npc-ingame10, 7 actors, bank, 3 streams, registry fragments) | 20 | 23.2 MB | `all-patches.psarc` or `dlc-patch2.psarc` |
 | C. Map pack 1: Facility + DLC Ruins | 38 | 227.8 MB | `dlc-map1.psarc` (owned DLC) |
 | D. Map pack 2: Highrise, Museum, Museum-EVA, npc updates | 73 | 271.5 MB | `dlc-map2.psarc` (owned DLC) |
-| E. Base MP/co-op extras: mp-wrk props, war-wide-coop and ruins banks, 24 music tracks, pnk/rka voices | 3,588 (English only: 588) | 94.7 MB (English only: 72.6 MB) | base + patch |
-| **Required total** | **3,768** | **950.9 MB** (928.9 MB with English voices only) | |
+| E. Base MP/co-op extras: mp-wrk props, war-wide-coop and ruins banks, 26 music tracks, pnk/rka voices | 3,590 (English only: 590) | 113.7 MB (English only: 91.6 MB) | base + patch |
+| **Required total** | **3,770** | **969.9 MB** (947.9 MB with English voices only) | |
 | F. Optional, not referenced by PS4: siege-v1, wt-v1, lost-city-storm bank, `*.networking.crypt` | 17 | 188.1 MB | `dlc-patch7.psarc` |
 
 Without the DLC (groups A, B and E only), about 430 MB comes from the base game plus its free patch. That covers all 12 base and patch maps, co-op and all base skins.
@@ -157,8 +157,31 @@ Without the DLC (groups A, B and E only), about 430 MB comes from the base game 
 
 Intermediate listings (`ps3_list.tsv`, `bcus_list.tsv`, `ps4_list.tsv`, `compare_all.tsv`, executable string sets, `check_*.tsv`) are in `.../U3 Multiplayer/scratch/u2mp/`.
 
+## Import coverage (audit of 2026-11-08, `IMPORT.md` test run)
+
+Every gap above against the import result (`scratch/u2mp/import-test`, status `imported`, failed 0, missing 0):
+
+| gap | import |
+|---|---|
+| Fort: -wide, -wide-2, sky-fort-multi, -npc-ingame10, 7 actors, fort-multi.bnk, 3 streams | ok, all from the GOTY all-patches copy (byte-identical to dlc-patch2); 4 levels registered, bank in banks.txt |
+| Ruins DLC actors and bank | ok (dlc-map1 / GOTY all-patches `ruins-multi.bnk`); the PS4 registry entry already lists them |
+| mp-wrk-crash-boxcar, mp-wrk-explode-tanker | ok, with their PS4 twins (wrk-box-car-02, wrk-exploding-tanker-b) as template |
+| war-wide-coop.bnk | ok; already in the PS4 banks.txt |
+| 6 co-op skins, 43 PS3-only skins (incl. Pinkerton, Rika from GOTY all-patches) | ok, 49 rows; every actor any PS4 dc names exists on PS4 or in the overlay |
+| 12 Fort / DLC streams | ok |
+| music: mp_win1-3, mp_lose1-3, 15 `*_Coop1-3` | ok (21); the 3 PS3 `*_Coop3` that PS4 ships renumbered stay PS4 (skipped) |
+| music the PS4 settings name but nobody listed | 336 / 338 `BrutalComboMambo_LOOP1/2ALTSTART` from PS3 407 / 428 (added to the import list) |
+| pnk-* / rka-* speech | ok for the 4 PS4 languages (356 lines each); 6 PS3 languages have no PS4 archive (skipped) |
+| net-beta.bin | not imported: a subset of the GOTY net.bin symbols (the beta's settings) |
+| map cards / photos | `net-u2mp.pak` (99 GOTY net.pak images PS4 lacks) |
+| DLC map titles | text banks; only BCUS dlc-patch7 has these ids (IMPORT.md gap 10) |
+| player spawners (`<map>-pak-ingame10`), net-patch9 | ok, from PS3 game-data folders (server data) |
+
+The 7 levels the registry step does not add (gompa / shambhala / village / warzone-multi-npc, ice-cave-multi,
+ruins-multi, the-fort-multi) are defined in the PS4 registry with exactly the PS3 lines.
+
 ## Open points
 
-- PS4 `ruins-multi.pak` (24.9 MB) does not tell us whether it is the base or the DLC version. The PS4 registry lists the DLC actor set but the actors are missing. Check this by parsing the pak's level data.
+- PS4 `ruins-multi.pak` (24.9 MB) is the base-game version: its `-ingame10` (390 KB) is the base one's size (PS3 base 355 KB, map pack 1 768 KB) and lacks the DLC props (`mp-ruins-heli-blade`). The PS4 registry lists the DLC actor set anyway. The import keeps it and adds the map pack wide / sky / npc levels (IMPORT.md gap 11).
 - Many PS4 `*-multi-npc-ingame10.pak` sizes match the dlc-map2 versions more closely than the base versions.
 - The PS4 executable may need its session/lobby layer replaced, as was done for U3.

@@ -472,3 +472,22 @@ registers natives as static nodes in `0x666d50`. All are registered on PS4.
   `score`, `strfuzzy`, `caller` and `inlined` pairings are probable, not proven; `manual`
   rows were checked in the disassembly.
 - Semantics come from strings, call structure and the factory tables, not from execution.
+
+## 10. Port status (state at the gameplay3 job)
+
+Every PS4 `stub` and `partial` row of the TSV now has a C++ port or a documented reason why
+nothing is missing:
+
+| Rows | Where |
+|---|---|
+| Net event Read/Write stubs (types 37, 38, 44, 47, 49, 51, 52, 53, 54, 55, 57, 61, 67, 76) and NpcSpawn Apply | `events.cpp` |
+| StartConnection / ConnectionDone Apply | `gameplay2.cpp` (PORT-GAMEPLAY2.md) |
+| NpcDealDamage Apply, KickGriefer Apply | `remaining.cpp` |
+| Co-op / net script natives (6 stubs, coop task) | `natives.cpp` |
+| "partial" Applies (EarnMedal, Event, TerritoryOwn/Spawn/SetTimer, NpcKill, TurretSnapshot, SimpleSnapshot, PlayVox, SpawnHiddenTreasure, StartNpcFight) | intact on PS4; they were "partial" only because their Read/Write were stubs |
+| Empty on PS3 too (StartConnection Read/Write, EarnMedalClient, CompleteTask Read/Write, 0x456a40, 0x4862b4) | nothing to port |
+| ShowResults::Enter (frontend map row `43ec08`, PS4 `5f0ea0` ret) and the results countdown end time it set | `gameplay3.cpp` (PORT-GAMEPLAY3.md) |
+| NetAnimList::AddAnim `0x45212c` / generator slot `0x453c10` -> `0x5f48d0` | not ported; the live remote-animation path is `0x4533f8` = `0x5f48e0` (PORT-GAMEPLAY3.md 3) |
+| absent: TrophyManager, leaderboards (sceNpScore), NetPlayerData TUS, cinema.cpp | PS4/PC replacements: `progression.cpp`, `progression_store.cpp`, `cinema*.cpp` |
+
+PORT-GAMEPLAY3.md section 4 lists the unresolved rows that were checked against PS4.

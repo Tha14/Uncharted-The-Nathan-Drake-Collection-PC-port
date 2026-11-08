@@ -70,3 +70,6 @@ level-package choice in remaining.cpp `level_record_package` (0x644130).
   `vt.py`.
 - The scan scripts are in the session scratchpad (`ns/`: conv.py, scan1-5.py, gl.py, objf.py, check.py).
   They are not in the repo (job tools).
+
+Note (2026-11-08): the shader-binding guards that were nullsites.cpp section 2 (runs 35-37) moved to render.cpp;
+see PORT-RENDER.md for the root cause (cbuffer list capacity in converted actor paks).

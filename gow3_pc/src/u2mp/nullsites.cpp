@@ -80,132 +80,20 @@ bool install_stream_start() {
     return true;
 }
 
-// ---- 2. Shader-resource binding with an unresolved resource (test run 35) ---------------------------
-// The binding walker 0xc25670 (a render job, reached from 0xc419d0's list at +0x170) goes over 48-byte
-// entries {const desc *res; void *buffer; const param *def; ...; u32 used @+0x20; u8 dirty @+0x28} and
-// for each live one calls 0xc12150(&res, def->size, &entry.buffer), which reads the 32-byte resource
-// descriptor at `res` (type u16 at +0x18) and copies it into a new GPU buffer. Run 35 reached Playing on
-// Shambhala and crashed at 0xc12173 on the first frame: res = 0x33d5c036f1b17bc2, a non-canonical
-// value built at run time (the pair is in no file), i.e. a binding whose resource was never linked.
-// This guard at the one call that crashed (0xc258b2) logs the entry, so the asset can be found, and
-// lets that frame bind an all-zero descriptor (a null resource) instead of crashing.
-constexpr uint64_t cBindCall = 0xc258b2, fBindCopy = 0xc12150;
-alignas(64) uint64_t zero_descriptor[8];
-using BindCopy = void *(U2MP_GUEST *)(const void **, uint64_t, void *);
-
-bool bad_pointer(uint64_t p) { return p < 0x10000 || p >= 0x0000800000000000ull; }
-
-extern uint64_t repaired_count, repaired_last;
-
-U2MP_GUEST void *bind_copy_checked(const void **res, uint64_t size, void *out) {
-    static uint64_t reported = 0;
-    if (repaired_count != reported && (reported < 8 || (repaired_count & 1023) == 0)) {
-        reported = repaired_count;
-        log("bind entry repair: %llu entries repaired so far (last unresolved key %016llx)",
-            (unsigned long long)reported, (unsigned long long)repaired_last);
-    }
-    const uint64_t r = uint64_t(uintptr_t(*res));
-    if (bad_pointer(r)) {
-        static int logged = 0;
-        if (logged < 12) {
-            ++logged;
-            const uint64_t *entry = reinterpret_cast<const uint64_t *>(static_cast<uint8_t *>(out) - 8);
-            log("bind guard (c258b2): resource %016llx not a pointer; entry %016llx %016llx %016llx %016llx "
-                "%016llx %016llx, size 0x%llx",
-                (unsigned long long)r, (unsigned long long)entry[0], (unsigned long long)entry[1],
-                (unsigned long long)entry[2], (unsigned long long)entry[3], (unsigned long long)entry[4],
-                (unsigned long long)entry[5], (unsigned long long)size);
-            const uint64_t def = entry[2];
-            if (!bad_pointer(def)) {
-                const uint32_t *d = reinterpret_cast<const uint32_t *>(uintptr_t(def));
-                log("bind guard: param def %016llx: %08x %08x %08x %08x %08x %08x %08x %08x",
-                    (unsigned long long)def, d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]);
-            }
-        }
-        *res = zero_descriptor;   // the caller's local copy only; the entry itself is not changed
-    }
-    return reinterpret_cast<BindCopy>(image.base + fBindCopy)(res, size, out);
-}
-
-// Run 36: with that call guarded, the walker read the same entry again at 0xc25ddb (res->type), and
-// the logged entry showed the whole entry is raw ids, not resolved pointers: res = 0x33d5c036f1b17bc2,
-// buffer = 0x08d9a770'6f1c0396 (6f1c0396 = sid "general"), param def {name 0x8704e118, id 0x2b444d15,
-// 3, size 0x40}. The list is a mesh instance's shader parameters (GeoGroup, ndlib/render/ngen/
-// geo-group.cpp: UpdateTransforms 0xb90ba0 marks param 0x2b444d15, the 4x4 transform, dirty), and the
-// unresolved value is the key of a parameter reference {name 0x33d5c036, 0x6bbcf890, 0xf1b17bc2, 1}
-// that was never linked. Run 37 skipped the entry, and another renderer path (0xc04340, reading
-// entry.res at 0xc04403) crashed on it instead. So the entry is repaired, not skipped: the loop's
-// `cmp dword [entry+0x20],0; je next` (0xc2574f) becomes a stub that, when entry.res is not a
-// user-space pointer, points res and buffer at a zeroed block (a null resource, zero transform) and
-// counts it; every later reader then sees valid memory. The walker runs first on a frame (run 35).
-constexpr uint64_t cEntryCheck = 0xc2574f, cEntryLive = 0xc2575b, cEntryNext = 0xc25e38;
-alignas(64) unsigned char zero_block[0x1000];
-uint64_t repaired_count = 0, repaired_last = 0;
-
-bool install_entry_repair() {
-    // cmp dword [rax+r13+0x20],0; je 0xc25e38
-    static const unsigned char site[] = {0x42, 0x83, 0x7c, 0x28, 0x20, 0x00, 0x0f, 0x84, 0xdd, 0x06, 0x00, 0x00};
-    if (!image.matches(cEntryCheck, site, sizeof site) || !image.executable(cEntryCheck, sizeof site)) {
-        log("bind entry repair (c2574f): bytes differ, left alone");
-        return false;
-    }
-    unsigned char *stub = near_stub(128);
-    const int64_t delta = stub ? int64_t(uintptr_t(stub)) - int64_t(uintptr_t(image.base + cEntryCheck + 5)) : 0;
-    if (!stub || delta < INT32_MIN || delta > INT32_MAX) {
-        log("bind entry repair (c2574f): no stub memory in range");
-        return false;
-    }
-    // rcx and rdx are free here: the live path writes both before reading them (0xc2576a/0xc257a6, 0xc257c9).
-    unsigned char code[] = {
-        0x42, 0x83, 0x7c, 0x28, 0x20, 0x00,       //  0 cmp dword [rax+r13+0x20],0  (original)
-        0x74, 0x1c,                               //  6 je next
-        0x4a, 0x8b, 0x14, 0x28,                   //  8 mov rdx,[rax+r13]           entry.res
-        0x48, 0x89, 0xd1,                         // 12 mov rcx,rdx
-        0x48, 0xc1, 0xe9, 0x2f,                   // 15 shr rcx,47
-        0x75, 0x15,                               // 19 jnz bad                     not user space
-        0x48, 0x81, 0xfa, 0x00, 0x00, 0x01, 0x00, // 21 cmp rdx,0x10000
-        0x72, 0x0c,                               // 28 jb bad
-        0xff, 0x25, 0x36, 0x00, 0x00, 0x00,       // 30 live: jmp [rip+0x36] -> 0xc2575b
-        0xff, 0x25, 0x38, 0x00, 0x00, 0x00,       // 36 next: jmp [rip+0x38] -> 0xc25e38
-        0x48, 0xb9, 0, 0, 0, 0, 0, 0, 0, 0,       // 42 bad: mov rcx,&repaired_last
-        0x48, 0x89, 0x11,                         // 52 mov [rcx],rdx
-        0x48, 0xb9, 0, 0, 0, 0, 0, 0, 0, 0,       // 55 mov rcx,&repaired_count
-        0xf0, 0x48, 0xff, 0x01,                   // 65 lock inc qword [rcx]
-        0x48, 0xb9, 0, 0, 0, 0, 0, 0, 0, 0,       // 69 mov rcx,&zero_block
-        0x4a, 0x89, 0x0c, 0x28,                   // 79 mov [rax+r13],rcx           entry.res
-        0x4a, 0x89, 0x4c, 0x28, 0x08,             // 83 mov [rax+r13+8],rcx         entry.buffer
-        0xeb, 0xc4,                               // 88 jmp live
-        0, 0, 0, 0, 0, 0, 0, 0,                   // 90 0xc2575b
-        0, 0, 0, 0, 0, 0, 0, 0};                  // 98 0xc25e38
-    static_assert(sizeof code == 106, "stub layout");
-    const uint64_t last = uint64_t(uintptr_t(&repaired_last));
-    const uint64_t count = uint64_t(uintptr_t(&repaired_count));
-    const uint64_t zero = uint64_t(uintptr_t(zero_block));
-    const uint64_t live = uint64_t(uintptr_t(image.base + cEntryLive));
-    const uint64_t next = uint64_t(uintptr_t(image.base + cEntryNext));
-    std::memcpy(code + 44, &last, 8);
-    std::memcpy(code + 57, &count, 8);
-    std::memcpy(code + 71, &zero, 8);
-    std::memcpy(code + 90, &live, 8);
-    std::memcpy(code + 98, &next, 8);
-    std::memcpy(stub, code, sizeof code);
-    unsigned char *c = image.base + cEntryCheck;
-    const int32_t jump = int32_t(delta);
-    c[0] = 0xe9;
-    std::memcpy(c + 1, &jump, 4);
-    std::memset(c + 5, 0x90, sizeof site - 5);
-    log("bind entry repair (c2574f): entries whose resource is not a pointer get a zeroed block");
-    return true;
-}
+// ---- 2. Constant-buffer entries of mesh instances (test runs 35-38) -> render.cpp ---------------------
+// The unresolved "shader resource" of runs 35-38 (res = 0x33d5c036'f1b17bc2) was not a missing link but
+// an overflow: AddCb (0xc24b30) appends to a per-instance cbuffer list without checking its capacity,
+// and the converted skins stated capacity 2 for 4 cbuffers, so cbuffer keys landed on entry 0.
+// render.cpp grows full lists, repairs a bad entry with a real cbuffer resource and gives lookups that
+// find nothing a zeroed cbuffer (u2mp/docs/PORT-RENDER.md). The stopgaps that were here moved there.
 
 }  // namespace
 
+void install_render(int &installed);   // render.cpp: cbuffer list guard, entry repair, lookup fallback
+
 void install_nullsites(int &installed) {
     if (install_stream_start()) ++installed;
-    if (install_entry_repair()) ++installed;
-    if (retarget_call(cBindCall, fBindCopy, reinterpret_cast<void *>(&bind_copy_checked),
-                      "bind guard (unresolved shader resource)"))
-        ++installed;
+    install_render(installed);
 }
 
 }  // namespace u2mp

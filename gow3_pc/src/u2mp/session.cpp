@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "frontend3.h"
 #include "gamenet.h"
 #include "progression.h"
 #include "net.h"
@@ -86,6 +87,7 @@ struct Member {
     bool used = false;
     uint32_t net_id = 0;
     std::string name;
+    uint8_t rank = 0;   // rank badge index (PS3 room member data +8, roster query 0x4bc728)
 };
 Member members[net::kMaxPeers + 1];   // by transport slot; slot 0 = the host
 net::Transport transport;
@@ -97,12 +99,26 @@ int32_t last_state = 0;
 char roster_text[net::kMaxPeers + 1][64];
 unsigned frames = 0;
 bool kicked = false;   // the host kicked us: leave the party after this pump
+bool lost_host = false;   // the host is gone: close the transport after this pump (PS3 teardown 0x4386d0)
+uint8_t sent_rank = 0xff;   // the rank this PC last published
 double next_rate_log = 0;
 
 uint32_t id_of_slot(uint8_t slot) { return uint32_t(slot) + 1; }
 
 void set_state(int32_t s) { G<int32_t>(kNetState) = s; }
 int32_t state() { return G<int32_t>(kNetState); }
+
+// This PC's rank badge index: PS3 0x0cfa58 over the cash in NetPlayerData (+0xd8) and the rank table
+// c85e199d (+0x50 count, +0x58 thresholds), as the profile panel and progression.cpp compute it.
+uint8_t local_rank() {
+    struct Table { uint8_t pad[0x50]; int32_t count; int32_t pad2; int32_t *thresholds; };
+    const auto *t = fn<const Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70)(0xc85e199d);
+    if (!t || t->count <= 1 || !t->thresholds) return 0;
+    const int32_t money = G<int32_t>(0x11474f8 + 0xd8), last = t->count - 1;
+    for (int32_t i = 0; i < last; ++i)
+        if (t->thresholds[i] <= money && t->thresholds[i + 1] > money) return uint8_t(std::min(i, 255));
+    return uint8_t(std::min(last, 255));
+}
 
 void session_set(uint64_t s, uint64_t ctx, uint32_t me, uint32_t host) {
     G<uint64_t>(s + S_CTX) = ctx;
@@ -211,20 +227,34 @@ void mailbox_post(uint32_t code, uint32_t sender, const void *data, uint32_t siz
 
 // ---- our session messages (transport tag kSessionMessage) ------------------------------------
 enum : uint8_t { kInfo = 1, kRoster = 2, kMode = 3, kFollow = 4, kKick = 5 };
+// types >= session::kFrontendMessages (frontend3.h) belong to frontend3.cpp (matchmaking)
 
-void send_session(int slot, std::vector<uint8_t> body) {
+void send_session(int slot, std::vector<uint8_t> body, int except = -1) {
     body.insert(body.begin(), gamenet::kSessionMessage);
-    if (slot < 0) transport.broadcast(true, body.data(), body.size());
-    else transport.send(uint8_t(slot), true, body.data(), body.size());
+    if (slot >= 0) transport.send(uint8_t(slot), true, body.data(), body.size());
+    else if (except < 0) transport.broadcast(true, body.data(), body.size());
+    else
+        for (uint8_t s = 1; s <= net::kMaxPeers; ++s)
+            if (members[s].used && s != except) transport.send(s, true, body.data(), body.size());
+}
+
+// kInfo: {len, name, rank} (client -> host).
+void send_info() {
+    std::vector<uint8_t> b{kInfo, uint8_t(std::min<size_t>(my_name.size(), 31))};
+    b.insert(b.end(), my_name.begin(), my_name.begin() + b[1]);
+    sent_rank = local_rank();
+    b.push_back(sent_rank);
+    send_session(0, b);
 }
 
 void broadcast_roster() {
     std::vector<uint8_t> b{kRoster};
-    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) {
+    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) {   // {slot, len, rank, name}
         if (!members[slot].used) continue;
         b.push_back(slot);
         const std::string &n = members[slot].name;
         b.push_back(uint8_t(std::min<size_t>(n.size(), 31)));
+        b.push_back(members[slot].rank);
         b.insert(b.end(), n.begin(), n.begin() + std::min<size_t>(n.size(), 31));
     }
     send_session(-1, b);
@@ -241,6 +271,7 @@ void on_session_message(uint8_t from, const uint8_t *d, size_t n) {
     case kInfo:   // client -> host: its name
         if (hosting && from >= 1 && from <= net::kMaxPeers && n >= 2) {
             members[from].name.assign(reinterpret_cast<const char *>(d + 2), std::min<size_t>(d[1], n - 2));
+            if (n >= size_t(2) + d[1] + 1) members[from].rank = d[2 + d[1]];
             refresh_sessions();
             broadcast_roster();
         }
@@ -248,11 +279,11 @@ void on_session_message(uint8_t from, const uint8_t *d, size_t n) {
     case kRoster:   // host -> clients: everyone in the party
         if (!hosting) {
             for (auto &m : members) m = Member{};
-            for (size_t at = 1; at + 2 <= n;) {
-                const uint8_t slot = d[at], len = d[at + 1];
-                if (slot > net::kMaxPeers || at + 2 + len > n) break;
-                members[slot] = Member{true, id_of_slot(slot), std::string(reinterpret_cast<const char *>(d + at + 2), len)};
-                at += 2 + len;
+            for (size_t at = 1; at + 3 <= n;) {
+                const uint8_t slot = d[at], len = d[at + 1], rank = d[at + 2];
+                if (slot > net::kMaxPeers || at + 3 + len > n) break;
+                members[slot] = Member{true, id_of_slot(slot), std::string(reinterpret_cast<const char *>(d + at + 3), len), rank};
+                at += 3 + len;
             }
             refresh_sessions();
         }
@@ -280,6 +311,7 @@ void on_session_message(uint8_t from, const uint8_t *d, size_t n) {
             session_set(kMatch, kRoomContext, my_id, 1);
             session_members(kMatch);
             G<int32_t>(kMatch + M_JOIN_RESULT) = 0;
+            G<uint8_t>(kMatch + M_LEFT) = 0;
             G<uint64_t>(kMatch + M_JOIN_ROOM) = kRoomContext;
             G<uint8_t>(kMatch + M_JOINED) = 1;
             fill_net_players();
@@ -288,6 +320,9 @@ void on_session_message(uint8_t from, const uint8_t *d, size_t n) {
             const uint8_t yes = 1;
             mailbox_post(kMsgPartyHostJoined, 1, &yes, 1);   // JOINING 12 -> 14 -> 17
         }
+        break;
+    default:   // matchmaking, vote, leader back-out (frontend3.cpp)
+        if (d[0] >= kFrontendMessages) matchmaking::on_message(from, d, n);
         break;
     }
 }
@@ -313,14 +348,16 @@ void on_peer(uint8_t slot, bool joined) {
         my_id = id_of_slot(transport.local_slot());
         session_set(kParty, kRoomContext, my_id, 1);
         gamenet::attach(0, 1, true);
-        std::vector<uint8_t> b{kInfo, uint8_t(std::min<size_t>(my_name.size(), 31))};
-        b.insert(b.end(), my_name.begin(), my_name.begin() + b[1]);
-        send_session(0, b);
+        send_info();
         log("party: joined the host as net id %u", my_id);
     } else {        // host gone: every multiplayer page falls back to the error box
         log("party: lost the host");
         gamenet::detach(0);
         G<uint8_t>(kNetInfo + NI_ERROR) = 1;
+        // PS3 PAGE_MULTIPLAYER event 3 ran the teardown 0x4386d0 on this error; PS4 lost it, so
+        // `active` stayed true over a dead transport and the next Multiplayer skipped
+        // start_transport. Closed after this pump, as for a kick (not inside it).
+        lost_host = true;
     }
 }
 
@@ -355,20 +392,47 @@ bool start_transport() {
         }
         hosting = true;
         my_id = 1;
-        members[0] = Member{true, 1, my_name};
+        members[0] = Member{true, 1, my_name, local_rank()};
         log("hosting a party on UDP port %u", port);
     }
     return true;
 }
 
 // ---- per frame ----------------------------------------------------------------------------------
+// The menu's top page id (menu +0x1010 top index, +0x9d0 page records, record +0x10 id).
+uint32_t top_page_id() {
+    const uint64_t menu = addr::menu_manager;
+    const int32_t top = G<int32_t>(menu + 0x1010);
+    if (top < 0 || top > 0x40) return 0;
+    const uint64_t page = G<uint64_t>(menu + 0x9d0 + 8 * uint64_t(top));
+    return page ? *reinterpret_cast<const uint32_t *>(uintptr_t(page) + 0x10) : 0;
+}
+
+// PAGE_MULTIPLAYER_LEAVING_GAME (handler 0x5eb7d0, PS3 0x43ea8c) waits for match+0xc8 ("left the
+// room": PS3 0x4d26b0(match) != 1 after the Matching2 LeaveRoom 0x4d8540 that "Leave Game" 0x44026c
+// and the error paths started). PS4 lost the LeaveRoom and nothing sets the byte, so the page never
+// closed (Leave Game from the pause menu, an error in the client wait page 0x609d00, Leave::Enter's
+// error path). The PC has no room to leave: the byte is set while the page is up. The game then
+// clears the players, pops and goes to NET_SM 18 (netInfo+0x34 cleared first: back in the lobby; the
+// party stays together, the PC's match is the party's).
+constexpr uint32_t kPageLeavingGame = 0xb808d03c;
+static_assert(sid("PAGE_MULTIPLAYER_LEAVING_GAME") == kPageLeavingGame, "page id");
+void finish_leaving_game() {
+    if (top_page_id() != kPageLeavingGame || G<uint8_t>(kMatch + M_LEFT)) return;
+    log("leaving the match: LEAVING_GAME may close (match +0xc8 = 1)");
+    G<int32_t>(kNetInfo + NI_FROM_MATCHMAKING) = 0;
+    G<uint8_t>(kMatch + M_LEFT) = 1;
+}
+
 void tick();
 void host_create();
 void log_match_choice();
 
 // Page-event handler for every page (page id 0): event 6 every frame while a menu page is up.
 U2MP_GUEST void page_event(uint32_t *event) {
-    if (event && event[0] == kEventUpdate) tick();
+    if (!event || event[0] != kEventUpdate) return;
+    finish_leaving_game();   // also after the transport closed (host lost: the client wait page's error path)
+    tick();
 }
 
 // ---- the "net" package (MP menu art: mode buttons, game types, map cards, playlists, badges) ----
@@ -438,6 +502,31 @@ void check_net_package(bool menus) {
         last_table = table;
         last_count = count;
     }
+}
+
+// PS3 PAGE_MULTIPLAYER_CONNECTING (0x445020, at 0x4454ac) also requested the packages of the name
+// list at 0xe155d0 that were not loaded yet (0xaf220), each with the flag the "net" request sets
+// (PS3 +0x10 |= 0x200 << 32, PS4 +0x18 |= 0x40 as 0x5ed843): the multiplayer weapons and the
+// multiplayer animation sets. PS4 has no copy of the list (none of its strings is referenced); all
+// 21 packages exist in the PS4 data (pak22_ps4.txt, actor27). UNCHARTED_U2MP_PRELOAD=0 skips it.
+void preload_ps3_packages() {
+    static const char *const kNames[] = {
+        "beretta-pistol", "beretta-pistol-magazine", "colt-defender-pistol", "colt-defender-magazine",
+        "desert-eagle", "desert-eagle-magazine", "dragunov-magazine", "dragunov-rifle", "fn-fal-clip",
+        "fn-fal-rifle", "m4-rifle", "m4-rifle-magazine", "shotgun", "spas12-shotgun", "machine-gun",
+        "machine-gun-clip", "rpg", "anim-proto-multiplayer", "anim-proto-shield", "anim-proto-carry-objects",
+        "m32-grenade-launcher"};
+    if (const char *v = std::getenv("UNCHARTED_U2MP_PRELOAD"); v && std::strcmp(v, "0") == 0) return;
+    int requested = 0, present = 0, failed = 0;
+    for (const char *name : kNames) {
+        if (find_package(sid(name))) {
+            ++present;
+            continue;
+        }
+        if (request_package(name)) ++requested;
+        else ++failed;
+    }
+    log("package preload (PS3 0xe155d0): %d requested, %d already present, %d not created", requested, present, failed);
 }
 
 void register_frame_handler() {
@@ -657,6 +746,7 @@ U2MP_GUEST void multiplayer_button(void *, void *, void *) {
     // PS3 showed PAGE_MULTIPLAYER_CONNECTING while NetInit ran; its PS4 handler waits for the "net"
     // package forever (the request never reaches the loader). Request it here and go straight on.
     keep_net_package();
+    preload_ps3_packages();
     show_page(sid("PAGE_MULTIPLAYER"));
 }
 
@@ -673,7 +763,20 @@ void roster_query(uint8_t *query) {
     for (uint8_t slot = 0; slot <= net::kMaxPeers && !m; ++slot)
         if (members[slot].used && uint64_t(seen++) == row) { m = &members[slot]; mslot = slot; }
     if (op == 7) *reinterpret_cast<uint32_t *>(query + 4) = m ? 1 : 0;
-    else if (op == 1) {
+    else if (op == 3) {
+        // PS3 0x4bc9f0: image 0 (+4 == 0) is the member's rank badge, type 0x27 (menuimages.cpp draws
+        // it) with the rank at +0x18 (PS3 +16); image 1 was the cellVoice talking icon (not here).
+        if (m && *reinterpret_cast<uint32_t *>(query + 4) == 0) {
+            *reinterpret_cast<uint32_t *>(query + 0x08) = 0x27;
+            *reinterpret_cast<uint64_t *>(query + 0x10) = 0;
+            *reinterpret_cast<uint32_t *>(query + 0x18) = m->rank;
+            *reinterpret_cast<uint64_t *>(query + 0x1c) = 0;
+            *reinterpret_cast<int32_t *>(query + 0x24) = -1;
+            *reinterpret_cast<uint32_t *>(query + 0x28) = 0;
+            *reinterpret_cast<int32_t *>(query + 0x2c) = -1;
+            *reinterpret_cast<float *>(query + 0x30) = 1.0f;
+        }
+    } else if (op == 1) {
         std::snprintf(roster_text[mslot], sizeof roster_text[mslot], "%s", m ? m->name.c_str() : "");
         *reinterpret_cast<uint64_t *>(query + 0x40) = m ? uint64_t(uintptr_t(roster_text[mslot])) : uint64_t(uintptr_t(""));
     } else
@@ -684,11 +787,17 @@ U2MP_GUEST void player_rows(uint8_t *query) { roster_query(query); }
 
 // BUTTON_MULTIPLAYER_STARTMATCH (PS4 0x5eb780 was a bare ret; the query enables it for the party
 // leader only). PS3: lobby -> CREATE_GAME_WAIT (0x444bb0 = PS4 0x5eb830, intact) -> room created.
+void create_match_now();
 U2MP_GUEST void start_match(void *, void *, void *) {
     if (!hosting) return;
-    // Matchmaking (mode 1): PS3 picked a random game (0x49bb00, no PS4 pair) and the matchmaking
-    // state machine (0x4b0a58, PS4 0x64e910 = ret) is gone. Here the party is the match: the host
-    // picks a random game of the current game type from *net-games* (SetNetGame 0x63dc30).
+    // Matchmaking (mode 1): PS3 0x43aab0 -> START_MATCHMAKING -> the matchmaking page 0x4b0a58
+    // (PS4 0x64e910 = ret), ported in frontend3.cpp (gather, vote, countdown; it then calls
+    // create_match). Without that port: the host picks a random game of the playlist here
+    // (PS3's random pick 0x49bb00 has no PS4 pair; SetNetGame 0x63dc30).
+    if (G<int32_t>(kNetInfo + NI_MODE) == 1 && matchmaking::installed()) {
+        matchmaking::leader_start();
+        return;
+    }
     if (G<int32_t>(kNetInfo + NI_MODE) == 1) {
         struct Table { int32_t count; int32_t pad; uint8_t *records; };
         auto *table = fn<Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70)(0x3b9a067d);
@@ -708,7 +817,13 @@ U2MP_GUEST void start_match(void *, void *, void *) {
             }
         }
     }
+    create_match_now();
+}
+
+// Host: the match of the current net game (the custom-game create path); the party follows.
+void create_match_now() {
     log("Start Match: creating the match");
+    G<uint8_t>(kMatch + M_LEFT) = 0;
     log_match_choice();
     netinit_match();
     netinit_dump("before create");
@@ -801,27 +916,37 @@ U2MP_GUEST void leave_multiplayer(void *, void *, void *) {
 double last_tick = -1;
 // The net clock (PS3 [0xf116d4], "Net Clock = %f": frames at +0xc, times a float = seconds; PS4
 // pointer 0x113a040). PS4 has ~40 readers of [ptr]+0xc and one reset of byte +0 (0x5e8b22), and
-// nothing that creates it: WaitReady (0x5f276c) read through NULL (test run 27). Ours counts the
-// frames of the game's own frame counter (0x1116180+0x144) from its creation.
-constexpr uint64_t kNetClock = 0x113a040, kFrameCounter = 0x1116180 + 0x144;
+// nothing that creates it: WaitReady (0x5f276c) read through NULL (test run 27). Its unit is 1/300 s:
+// PS3 "Net Clock = %f" prints +0xc times 1/300 (0xdb04c0), PS4's readers convert the same way (the
+// matchmaking status 0x65aab5 multiplies by 1/300 at 0xe62628), and remaining.cpp's kClockRate is
+// 300. Ours counts 300 ticks per real second from its creation (it used to count frames, 60 per
+// second, so every countdown read from it ran five times too slow).
+constexpr uint64_t kNetClock = 0x113a040;
 uint8_t *net_clock = nullptr;
-int32_t net_clock_base = 0;
+std::chrono::steady_clock::time_point net_clock_base;
+uint32_t own_ticks() {
+    static const std::chrono::steady_clock::time_point origin = std::chrono::steady_clock::now();
+    const auto since = std::chrono::steady_clock::now() - (net_clock ? net_clock_base : origin);
+    return uint32_t(std::chrono::duration_cast<std::chrono::microseconds>(since).count() * 3 / 10000);
+}
 void update_net_clock() {
     if (!net_clock) {
         if (G<uint64_t>(kNetClock)) return;   // something else made one
         net_clock = static_cast<uint8_t *>(netheap_alloc(0x40, 16));
         if (!net_clock) return;
-        net_clock_base = G<int32_t>(kFrameCounter);
+        std::memset(net_clock, 0, 0x40);
+        net_clock_base = std::chrono::steady_clock::now();
         G<uint64_t>(kNetClock) = uint64_t(uintptr_t(net_clock));
-        log("net clock created");
+        log("net clock created (300 ticks per second)");
     }
     if (G<uint64_t>(kNetClock) == uint64_t(uintptr_t(net_clock)))
-        *reinterpret_cast<int32_t *>(net_clock + 0xc) = G<int32_t>(kFrameCounter) - net_clock_base;
+        *reinterpret_cast<int32_t *>(net_clock + 0xc) = int32_t(own_ticks());
 }
 
 void tick() {
+    // before the active test: once made, the clock keeps running after the host is lost (not made outside MP)
+    if (active || net_clock) update_net_clock();
     if (!active) return;
-    update_net_clock();
     const double now = gamenet::clock();
     if (now == last_tick) return;   // already done this frame
     last_tick = now;
@@ -829,8 +954,10 @@ void tick() {
     gamenet::frame(now);
     voice::frame();
     transport.pump(now);
-    if (kicked) {   // not inside the pump: closing resets the connections it walks
+    if (kicked || lost_host) {   // not inside the pump: closing resets the connections it walks
+        log("party: closing the transport (%s); Multiplayer starts a new one", kicked ? "kicked" : "host lost");
         kicked = false;
+        lost_host = false;
         for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) gamenet::detach(slot);
         voice::stop();
     transport.close();
@@ -840,6 +967,7 @@ void tick() {
     }
     ++frames;
     skip_net_fade();
+    finish_leaving_game();   // in a match the menu handler may not run
     if (frames % 60 == 1) {
         const int32_t st = state();
         check_net_package(st == kChooseHostJoin || st == kCreateGameWait || st == kClientWaitPartyHost);
@@ -848,6 +976,15 @@ void tick() {
         if (next_rate_log > 0) log("frame hook: %u calls in 10 s", frames);
         frames = 0;
         next_rate_log = now + 10;
+    }
+    if (frames % 120 == 7) {   // the rank badge of the party rows (PS3: room member data +8)
+        const uint8_t r = local_rank();
+        if (hosting && members[0].used && members[0].rank != r) {
+            members[0].rank = r;
+            broadcast_roster();
+        } else if (!hosting && my_id && r != sent_rank) {
+            send_info();
+        }
     }
     if (hosting) {   // the party leader's mode reaches the members (PS3: party data)
         const int32_t mode = G<int32_t>(kNetInfo + NI_MODE);
@@ -892,6 +1029,26 @@ bool member_name(uint32_t net_id, std::string &name) {
 }
 
 uint32_t local_id() { return active ? my_id : 0; }
+
+void send_message(int slot, const std::vector<uint8_t> &body, int except) {
+    if (active && !body.empty()) send_session(slot, body, except);
+}
+
+uint32_t net_ticks() {
+    const uint64_t clock = G<uint64_t>(kNetClock);
+    if (clock) return *reinterpret_cast<const uint32_t *>(uintptr_t(clock) + 0xc);
+    return own_ticks();
+}
+
+void create_match() {
+    if (active && hosting) create_match_now();
+}
+
+uint32_t member_rank(uint32_t net_id) {
+    for (const Member &m : members)
+        if (m.used && m.net_id == net_id) return m.rank;
+    return 0;
+}
 
 bool is_host() { return active && hosting; }
 

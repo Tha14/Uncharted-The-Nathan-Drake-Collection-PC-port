@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 
+#include "frontend3.h"
 #include "progression.h"
 #include "session_api.h"
 #include "u2mp_internal.h"
@@ -470,6 +471,16 @@ int32_t playlist_pick_type() {
         if (playlists[p].id == id && playlists[p].type_count > 0)
             return playlists[p].types[size_t(std::rand()) % size_t(playlists[p].type_count)];
     return -1;
+}
+
+// The matchmaking vote (frontend3.cpp): every game type of the chosen playlist.
+bool playlist_game_types(std::vector<int32_t> &types) {
+    types.clear();
+    const uint32_t id = G<uint32_t>(kNpd + NPD_PLAYLIST);
+    for (int p = 0; p < playlist_count; ++p)
+        if (playlists[p].id == id)
+            for (int t = 0; t < playlists[p].type_count; ++t) types.push_back(playlists[p].types[t]);
+    return !types.empty();
 }
 
 void install_menus(int &installed) {

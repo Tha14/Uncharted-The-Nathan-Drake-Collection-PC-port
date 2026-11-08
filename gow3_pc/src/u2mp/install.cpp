@@ -152,6 +152,7 @@ extern "C" int u2mp_install(unsigned char *base, uint64_t size, const uint64_t *
     install_frontend(installed);
     install_events(installed);
     install_gameplay2(installed);
+    install_gameplay3(installed);
     install_natives(installed);
     install_progression(installed);
     install_cinema(installed);
@@ -161,6 +162,7 @@ extern "C" int u2mp_install(unsigned char *base, uint64_t size, const uint64_t *
     install_dlc(installed);
     install_menudraw(installed);
     install_frontend2(installed);
+    install_frontend3(installed);
     install_spawn(installed);
     install_nullsites(installed);
     install_netpatch(installed);   // after install_cinema: only a fallback when cinema's stream hook is absent

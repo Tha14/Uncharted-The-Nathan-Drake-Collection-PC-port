@@ -70,7 +70,15 @@ def build_registry(ps4_text, new_levels, have_pak, have_actor, have_bank, failed
     added, skipped, dropped = [], {}, {}
     for name in sorted(new_levels):
         if name in levels:
-            skipped[name] = 'the PS4 registry already defines it'
+            # kept as PS4 has it; say whether the PS3 entry would have read differently
+            mine = [(k, v) for k, v in levels[name] if k != 'package-ts']
+            ps3 = [(k, v) for k, v in parse('level-name %s\n%s' % (name, new_levels[name]))[0][name]]
+            extra = [kv for kv in ps3 if kv not in mine]
+            gone = [kv for kv in mine if kv not in ps3]
+            skipped[name] = 'the PS4 registry already defines it (%s)' % (
+                'same lines as the PS3 entry' if not extra and not gone else
+                'PS3 differs: %d lines only PS3 has %s, %d only PS4 has %s' % (
+                    len(extra), ['%s %s' % kv for kv in extra[:3]], len(gone), ['%s %s' % kv for kv in gone[:3]]))
             continue
         pk = [v for k, v in parse('level-name %s\n%s' % (name, new_levels[name]))[0][name] if k == 'package']
         pk = pk or [name]          # no package line (the-fort-multi-wide-2): the level's own pak

@@ -66,7 +66,7 @@ State: **stub** = `ret`; **wrap** / **port** = changed by menus.cpp; otherwise i
 | 67..76 | PAGE_CINEMA, cinema list, progress | `659410`.. | `4baef8`.. | intact (cinema.cpp) |
 | 77, 78 | PLAYER_OPTIONS: LIST_BOOSTERS0/1 | `659bd0` | `4be788` | intact; NetPlayerData unlocks |
 | 79..86, 105, 106 | results, round results, PLAYER_OPTIONS rank widget (k19), last game results | `65bd80`.. | `4baa4c`.. | intact; NetStatGame, NetPlayerData |
-| 89, 90 | PAGE_MULTIPLAYER_MATCHMAKING status, vote list | `65a900`, `65ae50` | `4bcc68`, `4bf768` | intact; page handler `64e910` is a stub (see 3.6) |
+| 89, 90 | PAGE_MULTIPLAYER_MATCHMAKING status, vote list | `65a900`, `65ae50` | `4bcc68`, `4bf768` | intact; their data (phase, deadline, vote block `0x113db50`) now comes from the matchmaking port (frontend3.cpp, 3.6) |
 | 92..94 | (in-game) | | | intact |
 | 95, 96 | EULA, MOTD | `65e210`, `65e2e0` | `4b74f8`, `4ba660` | intact; pages never shown on PS4 |
 | 97..101, 130, 137 | page panel queries (title, help bar from `0x1041560`) | `65ecc0` | `4bc310` | intact |
@@ -145,10 +145,24 @@ button (sceNpCommerce2) explains it is not available (remaining.cpp).
 
 ### 3.6 PAGE_MULTIPLAYER_MATCHMAKING, JOIN / JOINING, LOBBY start
 
-The matchmaking state machine (`64e910`, PS3 `0x4b0a58`) is a stub; session.cpp starts matchmaking
-games from the party instead (playlist above decides the game type). The status widget (cond 89)
-and vote list (cond 90, LIST_MATCHMAKING_VOTE `64e8e0`) are intact but only meaningful with that
-machine. The join list (cond 3) is answered as an empty list; PC joins by address.
+- **PS3:** Find Match -> "Searching for players..." (status cond 89, tips line), the players found
+  (PLAYER0..9, cond 6..15), then the vote screen: two games (map name, map picture, game type, vote
+  counts; LIST_MATCHMAKING_VOTE cond 90), "Voting ends in [A]...", the winner, "Game starting in
+  [A]..." and the match. After it, back to this page and the next vote.
+- **PS4 as shipped:** the widgets and their queries are intact; the page handler (the matchmaking state
+  machine `64e910`, PS3 `0x4b0a58`) is a `ret`, the vote was never broadcast, nothing filled the vote
+  block. session.cpp started matchmaking games straight from the lobby.
+- **Restored (frontend3.cpp, PORT-FRONTEND3.md):** Start Match in matchmaking mode runs the PS3 flow on
+  the party: gather (3..10 s, until every member's page is up), vote between two games of the chosen
+  playlist (15 s), result, 10 s countdown, then the custom-game create path takes the party into the
+  match. After the match Leave::Enter returns everyone to this page for the next vote. Back asks "Leave
+  Matchmaking?" and returns the party to the lobby.
+
+The join list (cond 3) is answered as an empty list; PC joins by address. PAGE_MULTIPLAYER_LEAVING_GAME
+now closes (session.cpp sets match+0xc8 while it is up; PORT-FRONTEND3.md section 6).
+
+Party and player rows (cond 16..35, 6..15): name and, as PS3 `0x4bc728` / `0x4bfac8` op 3, the
+member's rank badge (type 0x27), the rank exchanged in the session messages.
 
 ### 3.7 Post-game: POSTGAME, RESULTS, ROUND_RESULTS, SCOREBOARD, LASTGAMERESULTS
 
@@ -197,8 +211,9 @@ Only the PC-only message boxes (store, voice, invites ...) are our own text.
 ## 5. Gaps
 
 - "[A] daily players" (69cbee70) was a count from Naughty Dog's server; the party size is shown with it.
-- PAGE_FRIENDACTIONS, the matchmaking machine `64e910`, the MOTD/EULA pages and the PSN friend
-  card (cond 38) are not restored (no PC counterpart).
+- PAGE_FRIENDACTIONS, the MOTD/EULA pages and the PSN friend card (cond 38) are not restored (no PC
+  counterpart). The matchmaking machine `64e910` is restored on the party (frontend3.cpp); the PS3
+  5 s "Starting in [A]..." popup before it is not (no PS4 counterpart).
 - `dd2d35e7` (a net event's text, `62f250`) is absent from both tables; not a menu text, left.
 - Not verified in the running game (static analysis only): the k23 panel and k19 rank widget
   drawing (`59ddb0`, `59bf50`) and the action-23 list classes are intact by size and callees, and
@@ -230,7 +245,7 @@ Three causes cover most of the gaps:
    and `0x27` (rank badge: profile panel, k19 widget, PS3 party rows): they go to its default
    (`0x5c1ab1`, draw nothing). The queries are intact; the drawing code went with the PS4 multiplayer.
    The PS4 net.pak has the materials (`general/net/rank-badges:default`, `general/net/boosters:*`,
-   `map-photos:*`, `playlists:*`). Now ported (section 7) except 0x23.
+   `map-photos:*`, `playlists:*`). Now ported (section 7); 0x23 is the MOTD picture, not needed.
 
 | page (reference) | PS3 | before | now |
 |---|---|---|---|
@@ -273,7 +288,7 @@ as the type 3 case does. Descriptor value = `+0x10` (query `+0x18`). From PS3 `0
 | 0x1e booster pair | `0x41c2d8` | low / high 16 bits = boosters (table `916e03b0`, rec `+8` image, ids 05454b23 / 01845694 none), each w x w/2, centred at 28 % / 72 % height |
 | 0x22 map picture | `0x41eb50` | map table `0dec97a4` (0x38 bytes, `+0` id, `+0xc` image), u 0.0898..0.9102 |
 | 0x24, 0x25 playlist | `0x41f418` | ngm playlist with that id, image `+0x10` (menus.cpp sets it), u 0.0703..0.9297 |
-| 0x23 | `0x41cd34` | not ported (several materials and text); draws nothing as before |
+| 0x23 | `0x41cd34` | not needed: its only PS3 producer is the MOTD query (cond 96, `0x4ba660`, at `0x4ba760`), whose server page PS4 / PC never shows; the PS4 MOTD query `65e2e0` no longer produces it, and no other PS4 query sets 0x23 |
 
 Not ported details: the PS3 overlay drawn when descriptor `+0x20` is set (0x22, 0x24/0x25) and the
 0x25 bottom-edge adjustment.

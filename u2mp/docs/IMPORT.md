@@ -14,9 +14,19 @@ speech archive of that language has the line).
 ```
 python u2mp/patcher/u2mp_import.py --ps4 "<CUSA02320 folder>" --ps3 "<NPUA80698 folder>"
        [--ps3-dlc "<RPCS3 dev_hdd0/game/BCUS98123/USRDIR>"] --out "<overlay folder>"
-       [--groups A,B,C,D,E] [--speech-langs english,french,sam-spanish,brazilian] [--no-dlc-ruins]
+       [--ps3-data "<RPCS3 dev_hdd0/game/<id>DATA2>"] [--groups A,B,C,D,E]
+       [--speech-langs english,french,sam-spanish,brazilian] [--dlc-ruins | --no-dlc-ruins]
        [--drop-navmesh] [--validate] [--force] [--only REGEX] [--ps3-elf EBOOT.elf] [--objdump PATH]
 ```
+
+* PS3 sources: the GOTY release NPUA80698 1.10 (base archives + `all-patches.psarc`) for game data, the map packs
+  (`dlc-map1/2.psarc`) from the BCUS98123 install, and the server-only spawn paks / `net-patch9.bin` from a
+  `*DATA2` folder (see "What the game needs to see the new content"). For a row the import takes the import-list source first, then a GOTY or
+  map-pack copy, and a BCUS title update (`dlc-patch2/3/5/7`) only when nothing else has the file; every input is
+  checked by SHA-1. The 23 group A/B/E rows that the inventory took from `dlc-patch2` (Fort, Pinkerton, Rika,
+  `ruins-multi.bnk`) point at their byte-identical GOTY `all-patches.psarc` copies since 2026-11-08
+  (`the-fort-multi.txt`: the GOTY copy differs only in CRLF line ends). Two inputs still come from `dlc-patch7`
+  because no GOTY file has them: see "Known gaps" 10.
 
 * Output: `<out>/u2data/build/main/...`, which holds only the converted files plus `pak22_ps4.txt` and
   `sound1/config/ps4/banks.txt` when something was added to them. The run also writes `<out>/state.json` (per
@@ -108,14 +118,14 @@ in the pak, so converted paks are larger than retail.
 |---|---|---|
 | streams / music (`.xvag`) | `xvag.py`: container rewrite, ADPCM frames kept, no re-encode | 146/148/149/150_JungleExplore: byte-identical with the retail interleave |
 | speech (`pnk-*`, `rka-*`) | `xvag.py` -> `sound1/speech/<ps4 language>/<line>.xvag` (loose). PS3 english/french -> same; spanish -> sam-spanish; portuguese -> brazilian (NPUA80698 is the North American release); the other 6 PS3 languages have no PS4 counterpart | the format as above (the PS4 speech lines are ATRAC9, no PS-ADPCM pair) |
-| music | only tracks the PS4 `dc1/ps4/music-settings.bin` names and the PS4 folder lacks: 21 (MP_Win1-3, MP_Lose1-3, 15 `*_Coop1/2/3`). The PS3 873/892/901 `*_Coop3` are on PS4 renumbered as 620/610/609 and stay PS4 | as above |
+| music | only tracks the PS4 `dc1/ps4/music-settings.bin` names and the PS4 folder lacks, written loose to `sound1/music/<name the settings use>.xvag`: 23 = MP_Win1-3 / MP_Lose1-3 (the match-end stingers), 15 `*_Coop1/2/3`, and PS3 407/428 `BrutalComboMambo_LOOP1/2ALTSTART`, which the PS4 settings name as 336/338 but PS4 does not ship. A PS3 track is matched by its name, else by its title after the track number (`u2mp_import.music_name`; PS4 renumbered the tracks). The PS3 873/892/901 `*_Coop3` are on PS4 renumbered as 620/610/609 and stay PS4 (skipped). The settings hold no other name that neither PS4 nor the overlay has; there is no music list to register (the game opens the track by name) | as above |
 | sound banks | U3 `bnkconv` (SBlk v4 -> v13, MP3 samples re-encoded to PS-ADPCM via ffmpeg + vagenc) -> `sound1/banks/ps4/`; new names appended to `sound1/config/ps4/banks.txt` | banks both have: same header counts, different samples (retail U2 PS4 banks were rebuilt from source) |
 | skins (`mp-hero-*`) | with a PS4 campaign twin: `u2twin` (below: the PS4 mesh and materials, MP parts converted). Otherwise `u2actor`: U3 `ps4actor` geometry and texture conversion; materials, effects and joint table from a retail PS4 mp-hero with the same skeleton (all MP heroes use skeleton 0x27e57f43) that shares the most material names | twin builds: the 15 retail pairs (below); the 16 retail skins converted with another template: see Validation |
 | props, anims, Havok actors | `u2actor.convert_prop` (section "Props and animated actors"): props through the skin path plus skeleton, anims, collision, sound banks; animation paks and loose ragdolls on their own | the actor27 reference pairs, below |
 | level background paks | `u2level` stage: mkplan (materials by name from retail U2 paks, otherwise the closest retail background material) -> fxextract -> ps4stage (+ u2light, u2vis, u2coll, u2water) -> stagecheck + U2 login order + u2coll.check_ps4 | sky/wide pairs, collision and water pairs: see Validation |
 | level data paks (`-ingame10`, `-npc-ingame10`, `*-npc`) | `u2ingame` (U3 ps4ingame + U2 scripts / FEATURE_DB_2 + u2nav) | 6 retail pairs block by block; nav meshes: 4 pairs |
 | text banks | `u2text`: `text1/ps4/<lang>.networking` and `.common` = the PS4 bank (from `core.psarc`) plus the ids only PS3 (newest copy) has; PS4 strings are never changed. The game reads `core.psarc`; the runtime serves the added ids (remaining.cpp, MENUS.md section 4) | |
-| registry | `pak22_ps4.txt` = retail file + appended levels from the PS3 per-level `.txt` (only for levels whose package converted; package/actor/bank lines kept when the file exists on PS4 or in the overlay; the 8 MP `package-ts texturedict1/...` lines added) | |
+| registry | `pak22_ps4.txt` = retail file + appended levels from the PS3 per-level `.txt` (only for levels whose package converted; package/actor/bank lines kept when the file exists on PS4 or in the overlay; the 8 MP `package-ts texturedict1/...` lines added). A level the PS4 registry already defines keeps its PS4 entry; the log and `state.json` say whether the PS3 entry reads the same. The 7 such levels (`the-fort-multi`, `ruins-multi`, `ice-cave-multi`, `gompa/shambhala/village/warzone-multi-npc`) have exactly the PS3 (patch / map pack) lines, so "7 not added" is correct and nothing is lost | every package / actor / sound-bank line of the 112 MP and co-op levels of the result resolves to a PS4 or overlay file (bank names also in banks.txt), apart from `sniper-towers-multi-ingame` and `train-wreck-multi-tdm-ingame`, which no PS3 or PS4 copy has |
 
 ## Props and animated actors (`u2actor` + `u2actorparts`, `u2anim`, `u2skel`, `u2actorcoll`, `u2havok`)
 
@@ -257,15 +267,26 @@ Test run (2026-11-07, `--only mp-hero`, 49 skins):
   (`gow3_pc/src/u2mp/dlc.cpp`) hides a map pack from the custom game list and matchmaking unless the import produced
   its level paks and registry entries. Map pack 1 = facility-multi + ruins-multi-wide, map pack 2 =
   highrise-multi-2, museum-multi, museum-multi-eva.
-* **DLC map titles**: missing from the PS4 networking text banks; the import writes merged banks
-  (`text1/ps4/<lang>.networking`, loose: like the speech lines, **not verified** that loose files override
-  `core.psarc`).
-* **DLC map card images** (`art/general/net/maps/*` in `net.pak`): the PS4 `net.pak` has only the base map cards;
-  the PS3 dlc-patch7 `net.pak` has the DLC ones. Not imported yet (it means rebuilding the retail `net.pak` with
-  extra textures): the menus show the DLC maps without a picture.
-* **DLC Ruins**: map pack 1 ships another `ruins-multi` (78 MB, with -wide / sky / npc) than the PS4 (base game)
-  one under the same name. With `--ps3-dlc` the import replaces it (as a PS3 with map pack 1 did);
-  `--no-dlc-ruins` keeps the PS4 one. Players of one match must use the same version.
+* **DLC map titles and the MP menu texts PS4 dropped**: missing from the PS4 networking text banks; the import
+  writes merged banks (`text1/ps4/<lang>.<category>`, read by the runtime's TextDb fallback, remaining.cpp). No GOTY
+  bank has these 233 networking ids (GOTY took them from the PS3 server), so they come from the BCUS `dlc-patch7`
+  bank; `state.json` `text_title_update` records that.
+* **Menu images PS4 dropped** (Leaderboards / Trophies buttons, the DLC map photos, PS3-only skin portraits ...):
+  `pak22/ps4/net-u2mp.pak` (`u2netimg`, MENUS.md section 8), from the GOTY `all-patches.psarc` `net.pak`: 99
+  materials. The BCUS `dlc-patch7` net.pak has 8 more (year-one / desert Drake icons and photos, siege / wt test map
+  photos); none of them is named by the PS4 dc, the PS4 executable, the GOTY dc or the GOTY net-patch9, so the
+  GOTY copy is used (since 2026-11-08; earlier runs had 107).
+* **Multiplayer spawners** (`<map>-pak-ingame10.pak`, registered as level `<map>-pak`) and **net-patch9.bin**
+  (the server live-data DC module): from a PS3 `*DATA2` folder (`--ps3-data`, else the GOTY `NPUA80698DATA2`, else
+  any other). The spawn paks were downloaded from the PS3 server and are byte-identical in BCUS98123DATA2 and
+  BCES00757DATA2 (version-independent server data); GOTY's own data folder has none because the server is off.
+  12 converted, `stage-multi-pak-ingame10` stays PS4.
+* **DLC Ruins**: map pack 1 ships another `ruins-multi` (78 MB main pak, DLC `-ingame10` with the heli and plank
+  bridge) than the PS4 one under the same name; the PS4 `ruins-multi` / `-ingame10` are the base-game version
+  (390 KB data pak, no DLC props; the PS4 registry entry nevertheless lists the DLC actors, as the PS3 map pack 1
+  `.txt` does). The import keeps the PS4 one (rule: PS4 first) unless `--dlc-ruins`. It always adds the map pack
+  pieces PS4 lacks: `ruins-multi-wide`, `sky-ruins-multi`, `ruins-multi-npc` (+ -ingame10), the DLC props and
+  `ruins-multi.bnk`; the PS4 net.bin (like the GOTY one) names them for the Ruins map. See "Known gaps" 11.
 
 ## Validation (reference pairs, 2026-11-07, `validate.py`)
 
@@ -301,7 +322,27 @@ highrise-multi-2 233 s, museum-multi 241 s, museum-multi-eva 180 s). Result of 2
 
 What this means for play: the five DLC maps now have every level pak, registry entry and title, and the runtime
 offers them (dlc.cpp). Not tried in game. Level materials without a retail twin use the closest retail material
-(facility-multi: 150 of 170), and the map cards are missing (see above).
+(facility-multi: 150 of 170).
+
+Result of 2026-11-08 (after the coverage audit; resumed run, 11 s; `python` = any Python 3 with numpy):
+* **ok 1,635, ps4 11, skipped 2,139, unsupported 0, failed 0, missing 0**; every step ok; status `imported`.
+  3,770 import-list rows (ok 1,621, ps4 10, skipped 2,139) plus the step items: 12 spawn paks (ok) and
+  `stage-multi-pak-ingame10` (ps4), `net-u2mp.pak`, `net-patch9.bin`.
+* Inputs (state.json `src`, converted files and the 26 per-level registry `.txt`): GOTY all-patches, GOTY base,
+  dlc-map1, dlc-map2 and PS3 game data (spawn paks, net-patch9) only. No item comes from a BCUS title update any
+  more; only the 4 networking text banks still take 233 ids from dlc-patch7 (above).
+* New: `sound1/music/336_BrutalComboMambo_LOOP1ALTSTART.xvag` and `338_..._LOOP2ALTSTART.xvag` (PS3 407 / 428),
+  which `music-settings.bin` names and PS4 lacks; now every track name in the PS4 music settings has a file.
+* `pak22_ps4.txt`: 33 levels added (the 19 above, `net-u2mp`, the 13 `<map>-pak` spawn levels); 7 not added, each
+  "the PS4 registry already defines it (same lines as the PS3 entry)".
+* The skips, checked one by one: 2,136 = 356 Pinkerton / Rika lines x 6 PS3 speech languages the PS4 game has no
+  archive for (dutch, german, italian, japanese, polish, russian); 3 = the PS3 `*_Coop3` tracks PS4 ships renumbered
+  (620/610/609; same length, ATRAC9). The 4 PS4 languages get all 356 lines each.
+* Coverage checks on the result: every PS3 actor, bank and stream file that PS4 lacks is in the overlay (apart from
+  `sce-ndi-logos.xvag`); the only PS3 level paks neither has are group F and `post-56` (not MP). Every actor the
+  PS4 dc names (by id or name, 216) exists on PS4 or in the overlay. `dc1/net-beta.bin` (PS4 lacks it; the PS4
+  executable's DC module list names it) is not imported: its 68 symbols are a subset of the GOTY `net.bin`'s
+  (the multiplayer beta's settings), so loading it would only shadow net.bin values.
 
 ## Known gaps (as of this version)
 
@@ -309,7 +350,8 @@ offers them (dlc.cpp). Not tried in game. Level materials without a retail twin 
    checked against retail pairs only. The PS4 game's own collision/nav loaders were not traced; u2coll.check_ps4
    checks pointers, ranges, alignment and index bounds. Retail main maps log in VIS_INFO_1 after LIGHT_TABLE_1 (wide
    paks before GEOMETRY_1); converted paks use the wide-pak order.
-2. **DLC map cards** in `net.pak` are not imported (needs a rebuilt retail net.pak).
+2. **DLC map cards**: imported as `net-u2mp.pak` (the DLC map photos and the other menu images PS4 dropped),
+   served by the runtime next to the retail net.pak (MENUS.md section 8). Not verified in game.
 3. **Text banks and speech as loose files** over `core.psarc` / the speech archives: not verified in game.
 4. **Props and animated actors**: converted (section above). Open: the 44 props without a PS4 twin get the closest
    retail material record (often none shares a name), so their shaders may differ from PS3; the ARTGROUP /
@@ -323,5 +365,31 @@ offers them (dlc.cpp). Not tried in game. Level materials without a retail twin 
 8. **Sound banks** are converted from the PS3 samples. Retail U2 PS4 banks were rebuilt from source,
    so imported banks sound like the PS3 ones.
 9. Not imported on purpose: group F (siege-v1/wt-v1 test levels, `lost-city-storm.bnk`, `*.networking.crypt`).
-   The PS4 game does not reference them. With `--ps3-dlc` the map pack 1 `ruins-multi` replaces the PS4 (base game)
-   one of the same name; `--no-dlc-ruins` keeps the PS4 one.
+   The PS4 game does not reference them. Also not imported: `dc1/net-beta.bin` (see the test run).
+10. **BCUS title-update data**: the user's rule is GOTY NPUA80698 1.10 for game data (map packs and the server
+    spawn paks excepted). The only input still taken from a BCUS title update is the 233 networking text ids
+    (DLC map titles, the MP menu texts of MENUS.md section 4) from `dlc-patch7`: no GOTY file has them. Without
+    them the DLC map names and those menu labels stay blank. Needs the user's decision.
+11. **Ruins version mix**: by default the PS4 (base-game) `ruins-multi` main and data paks are kept, while the map
+    pack 1 `ruins-multi-wide`, `sky-ruins-multi`, `ruins-multi-npc` and the server spawn pak
+    `ruins-multi-pak-ingame10` are added. On PS3 these pieces only ever ran with the map pack 1 main pak
+    (`--dlc-ruins`). Whether the DLC backdrop, NPC data and spawners fit the base-game layout is not verified;
+    if not, either `--dlc-ruins` becomes the default again or the DLC ruins pieces are left out (then dlc.cpp, which
+    takes `ruins-multi-wide` as the map pack 1 marker, needs another marker).
+
+## GOTY-only default (user decision, 8 November 2026)
+
+The import ships only what the GOTY copy (NPUA80698) contains, so players need no extra DLC folders. The
+launcher passes no `--ps3-dlc`, and the default groups are `A,C,D,E`. Group B (the Fort's missing pieces) is off
+until the Fort has been tested with the PS4 files alone. Groups C and D need the map packs, which GOTY does not
+have, so they report `missing (needs dlc-map1/2)`. The server spawn paks (BCUS98123DATA2) stay: every map needs
+them.
+
+Fresh run 2026-11-08 into `scratch/u2mp/import-goty` with `--ps3` = the RPCS3 GOTY install
+(`dev_hdd0/game/NPUA80698`, so `NPUA80698DATA2` next to it is found for net-patch9; the spawn paks came from
+`BCES00757DATA2`): **ok 1,514, ps4 11, skipped 2,139, missing 101** (36 map pack 1 and 65 map pack 2 files),
+failed 0. With a standalone GOTY copy outside `dev_hdd0/game`, pass `--ps3-data` or neither net-patch9 nor
+the spawn paks are found. All validate checks match retail. The text banks gain 1 string
+(none from a BCUS title update). So the 26 MENUS.md section 4 ids (profile stat labels, Leaderboards, Trophies,
+stats ticker, leaderboard footer, daily players, Clan Tag, quit penalty, DLC notes) are missing again: GOTY got
+them from the PS3 server. The game shows its fallback for them.
