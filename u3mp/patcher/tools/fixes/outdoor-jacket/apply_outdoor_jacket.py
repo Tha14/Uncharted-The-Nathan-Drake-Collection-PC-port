@@ -16,7 +16,11 @@ SOURCE = WORK / "overlay-r3" / REL / (NAME + ".pak")
 PS3_SOURCE = SCRATCH / "hat-colour/ps3" / (NAME + ".pak")
 CANDIDATE = SCRATCH / "outdoor-jacket/out" / (NAME + ".pak")
 BACKUP_DIR = WORK / "backup-outdoor-jacket"
+# The donor is the jacket as it was before the hat-colour step replaced it: that step keeps it in
+# work/backup-hat-colour/ on every install. work/backup-outdoor-jacket/donor.pak is still used if present.
 DONOR = BACKUP_DIR / "donor.pak"
+if not DONOR.is_file():
+    DONOR = WORK / "backup-hat-colour" / (NAME + ".pak")
 BACKUP = BACKUP_DIR / (NAME + ".pak")
 STATE = BACKUP_DIR / "state.json"
 

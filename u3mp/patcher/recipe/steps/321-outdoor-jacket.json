@@ -22,7 +22,7 @@
  "must_write": false,
  "status": "needs-converted-base",
  "applied": "2026-11-08",
- "notes": "Uses the pinned PS3 source and overlay-port donor. Restores the jacket Color1 map and reconstructs normals/tangents from unchanged PS4 positions, UVs, and triangle lists. The helper refuses unexpected input hashes and preserves the original pak under work/backup-outdoor-jacket/. Donor is retained as work/backup-outdoor-jacket/donor.pak (SHA-256 070e2c9519c91fdf357686b9d39247bac822f66f31db7688442948ee40bfb5cf).",
+ "notes": "Uses the pinned PS3 source and overlay-port donor. Restores the jacket Color1 map and reconstructs normals/tangents from unchanged PS4 positions, UVs, and triangle lists. The helper refuses unexpected input hashes and preserves the original pak under work/backup-outdoor-jacket/. Donor: the pre-hat-colour jacket that step keeps as work/backup-hat-colour/mp-kit-hunter-torso-jacket-a.pak (SHA-256 065ee28fa8e99bd8aab43d7008c98091fe27cd53166a3b6178cb9a0973aa9985); work/backup-outdoor-jacket/donor.pak (070e2c95...) is used instead when present.",
  "recipe_version_added": "1.10.2",
  "with_jobs": [
   "actor-materials",
