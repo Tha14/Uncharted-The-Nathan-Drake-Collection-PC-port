@@ -499,6 +499,7 @@ U2MP_GUEST void cinema_receive(void *, void *, void *) {
         return;
     }
     const int n = online::cinema_received();
+    G<int32_t>(kNetInfo + 0x18) = 0;   // read: the L1 "Messages" entry goes away (online.cpp sets it)
     show_notice(n ? (std::to_string(n) + " cinema file(s) from friends are in your cinema list.").c_str()
                   : "No cinema files from friends yet. Friends send them from a cinema's page.");
 }

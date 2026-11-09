@@ -344,3 +344,14 @@ Details: PORT-FRONTEND4.md.
 - **Image sizes**: PS4 net.pak textures are twice the PS3 resolution and a type 3 image takes its size
   from its texture, so on the multiplayer pages (PS3 layout) every PS4 net image was twice the PS3
   size. Those images are now measured at half their texture size.
+
+## Audit of the PS3 net-menu helpers (2026-11-09)
+
+The 75 PS3 net-menu functions the matcher left unpaired (0x4b7124..0x4c2bac) all have live PS4 slots in
+the query table (PS3 0xe15b50 = PS4 0x105e370, paired by cond), except the known `ret` conds (3, 6..35, 36,
+38, 64: ported or not needed). Two player-visible gaps were found and fixed:
+- cond 100 (cinema list panel, 0x65ecc0) shows the L1 "Messages" entry (action 6b2970e2, cinema receive)
+  only while netInfo+0x18 (PS3 NP message count) is set: online.cpp now counts received cinema files
+  there and remaining.cpp's cinema_receive clears it.
+- cond 104 (voice volume slider, 0x65f3f0 = PS3 0x4b77ac): menus.cpp answers op 4 (volume x 20), op 5
+  (max 20, original) and op 9 (volume = value x 0.05) with voice.cpp's playback volume.

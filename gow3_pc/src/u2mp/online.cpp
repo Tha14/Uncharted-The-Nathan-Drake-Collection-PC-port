@@ -801,7 +801,12 @@ void on_cinema(const U2oMessage &m, const std::string &from) {
     const int r = cinema::add_received(all + sizeof meta, meta.size, meta.name);
     log("online: cinema file %s (%u bytes) from %s: %s", meta.name, meta.size, from.c_str(),
         r > 0 ? "saved" : r == 0 ? "no free slot" : "invalid");
-    if (r > 0) ++cinemas_received;
+    if (r > 0) {
+        ++cinemas_received;
+        // netInfo+0x18 = PS3's NP message count (0x43b200 / 0x449ae8): the cinema list panel (cond 100,
+        // 0x65eda8) shows the L1 "Messages" entry (6b2970e2, remaining.cpp cinema_receive) only while it is set.
+        ++*image.at<int32_t>(kNetInfo + 0x18);
+    }
     notice(r > 0 ? from + " sent you a cinema file. It is in your cinema list now."
            : r == 0 ? from + " sent you a cinema file, but all 20 cinema slots are protected. You have no free slots available."
                     : from + " sent a cinema file that could not be read.");

@@ -447,5 +447,15 @@ bool toggle_mute(uint32_t net_id) {
     return mutes[net_id];
 }
 
+float volume() {
+    load_config();
+    return config.volume;
+}
+void set_volume(float v) {
+    load_config();
+    config.volume = std::clamp(v, 0.0f, 4.0f);
+    log("voice: volume %.2f (menu)", double(config.volume));
+}
+
 }  // namespace u2mp::voice
 #endif

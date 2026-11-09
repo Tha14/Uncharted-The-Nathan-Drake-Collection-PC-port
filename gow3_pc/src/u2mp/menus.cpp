@@ -29,6 +29,7 @@
 #include "progression.h"
 #include "session_api.h"
 #include "u2mp_internal.h"
+#include "voice.h"
 
 namespace u2mp {
 namespace {
@@ -449,6 +450,25 @@ U2MP_GUEST void join_list_query(uint8_t *q) {
     else list_query(q, 0, join_current, [](int) -> const char * { return kEmpty; });
 }
 
+// ---- cond 104: voice volume slider of PAGE_AUDIO_VOLUMES (0x65f3f0 = PS3 0x4b77ac) ----------------------
+// PS4 answers 0 / max 20 and drops changes (cellVoice is gone). PS3: op 4 value = volume x 20, op 5 max 20,
+// op 9 volume = value x 0.05. Here the volume is voice.cpp's playback volume; outside multiplayer the
+// original answers (PS3 put a blank label there).
+QueryFn orig_voice_volume = nullptr;
+U2MP_GUEST void voice_volume_query(uint8_t *q) {
+    const uint32_t op = Q<uint32_t>(q, 0);
+    if (op == 4 && G<int32_t>(0x14ce97c) > 1) {
+        const float v = voice::volume() * 20.0f + 0.5f;
+        *reinterpret_cast<int32_t *>(q + 4) = std::min(20, std::max(0, int32_t(v)));
+        return;
+    }
+    if (op == 9 && G<int32_t>(0x14ce97c) > 1) {
+        voice::set_volume(float(Q<int32_t>(q, 4)) * 0.05f);
+        return;
+    }
+    orig_voice_volume(q);
+}
+
 // ---- install ------------------------------------------------------------------------------------
 struct QueryEntry {
     uint32_t cond, pad;
@@ -540,6 +560,7 @@ void install_menus(int &installed) {
         {49, 0x659a90, &status_query, &orig_status, "party status line"},
         {55, 0x6562d0, &playlist_query, &orig_playlist, "PLAYLIST"},
         {39, 0x65bcd0, &players_met_query, &orig_players_met, "LIST_PLAYERSMET"},
+        {104, 0x65f3f0, &voice_volume_query, &orig_voice_volume, "voice volume slider"},
     };
     for (const Wrap &w : wraps)
         if (wrap_query(w.cond, w.fn, w.host, w.orig, w.name)) ++installed;

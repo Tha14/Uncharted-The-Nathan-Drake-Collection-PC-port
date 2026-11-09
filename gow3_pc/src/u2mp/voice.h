@@ -116,6 +116,9 @@ void receive(uint8_t slot, const uint8_t *data, size_t size);
 void stop();
 // False when UNCHARTED_U2MP_VOICE=off.
 bool enabled();
+// Playback volume of the other players (PAGE_AUDIO_VOLUMES slider, cond 104; PS3 cellVoice volume 0..1).
+float volume();
+void set_volume(float v);
 // Local mute of one member (by net id); toggle returns the new state.
 bool muted(uint32_t net_id);
 bool toggle_mute(uint32_t net_id);
