@@ -38,6 +38,7 @@
 //
 // UNCHARTED_U2MP_HUD=0 leaves the stub alone (test switch). The first draw and every 600th are logged.
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -147,6 +148,87 @@ void time_left(const uint8_t *set, uint64_t start_field) {
     text(set, W_SECONDS, "%02i", secs - mins * 60);
 }
 
+// ---- message list (kill feed, medal / money messages), PS3 0x8abc68 + 0x8ab600 --------------------
+// Data (filled by the intact PS4 code): list at element+0x40, {s32 count; entry[16] of 0x80 at +8}, added by
+// 0x55d140 (PS3 AddMessage; callers are the net event Applies) and expired by the Update 0x55abe0:
+//   +0x00 text 1 (48 chars), +0x30 colour 1, +0x34 text 2 (48), +0x64 colour 2, +0x68 icon pointer,
+//   +0x70 start time, +0x74 end time (start + 7 s), +0x78 flags, +0x7c count; times in seconds of
+//   [0x1116180+0x44] / 300. Colours are 0x00RRGGBB (PS3 0x8ab700: clrlwi 8, or alpha, rotlwi 8).
+// PS3 layout (0x8abcec..0x8abef0): appear = clamp((now - start) * 2.2222), vanish = clamp((end - now) * 2),
+// x = 120 - 200 * (1 - appear)^2, alpha = appear * vanish, lines of 25 from y = 650 - sum(vanish * 25),
+// newest on top. PS3 drew the lines with its low-level text and quad calls (0x73cf20, 0x89ff3c, weapon
+// icon 0x8a0260), which have no PS4 counterpart; here each text is a HUD text widget built from the
+// score widget (font, colour model) and drawn with 0x5555a0. The weapon icon between the two names is
+// not drawn; a count (+0x7c, multi kills / medal repeats, PS3 "%s%i") is appended as "x<n>".
+constexpr uint64_t E_MSG_LIST = 0x40, MSG_ENTRIES = 0x8, MSG_SIZE = 0x80;
+constexpr uint64_t M_TEXT1 = 0x00, M_COLOR1 = 0x30, M_TEXT2 = 0x34, M_COLOR2 = 0x64, M_START = 0x70, M_END = 0x74,
+                   M_COUNT = 0x7c;
+constexpr int kMaxMessages = 16;
+constexpr uint64_t kClock = 0x1116180 + 0x44;
+constexpr uint32_t kFlagMessages = 0x80000;   // PS3 rlwinm 0,25,0,12,12
+constexpr float kMsgBaseY = 650.0f, kMsgLine = 25.0f, kMsgX = 120.0f, kMsgSlide = -200.0f, kMsgAppear = 2.2222223f,
+                kMsgVanish = 2.0f;                 // PS3 0xdd0c18 / c38 / c30 / c28 / c20, fadds f13,f13
+constexpr float kMsgScale = 0.55f, kMsgNameWidth = 220.0f, kMsgGap = 14.0f;
+
+struct alignas(16) TextWidget {   // dc HUD text widget (identical on PS3 and PS4, 0x2c bytes)
+    float x, y, w, h;
+    uint32_t align;               // 0 left, 1 centre, 2 right
+    float scale, r, g, b, a;
+    uint32_t font;
+    uint8_t pad[0x14];
+};
+
+float clamp01(float v) { return v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v; }
+
+void msg_text(const TextWidget &tpl, float x, float y, uint32_t align, uint32_t color, float alpha, const char *s) {
+    if (!s[0] || alpha <= 0.0f) return;
+    TextWidget w = tpl;
+    w.x = x, w.y = y, w.w = kMsgNameWidth, w.h = kMsgLine;
+    w.align = align;
+    w.scale = kMsgScale;
+    w.r = float((color >> 16) & 0xff) / 255.0f, w.g = float((color >> 8) & 0xff) / 255.0f, w.b = float(color & 0xff) / 255.0f;
+    w.a = 1.0f;
+    const Pos pos;
+    reinterpret_cast<TextFn>(image.base + fText)(&w, &pos, "%s", alpha, s);
+}
+
+void draw_messages(const uint8_t *element, const uint8_t *set) {
+    const uint8_t *list = element + E_MSG_LIST;
+    const int32_t count = R<int32_t>(list, 0);
+    const uint8_t *tpl_src = ptr_at(set, W_SCORE);
+    if (count <= 0 || count > kMaxMessages || !tpl_src) return;
+    TextWidget tpl{};
+    std::memcpy(&tpl, tpl_src, 0x2c);
+    const float now = float(G<int32_t>(kClock)) * (1.0f / kFramesPerSecond);
+    float xs[kMaxMessages], alphas[kMaxMessages], used = 0.0f;
+    for (int i = 0; i < count; ++i) {
+        const uint8_t *e = list + MSG_ENTRIES + MSG_SIZE * i;
+        const float appear = clamp01((now - R<float>(e, M_START)) * kMsgAppear);
+        const float vanish = clamp01((R<float>(e, M_END) - now) * kMsgVanish);
+        used += vanish * kMsgLine;
+        xs[i] = kMsgX + kMsgSlide * (1.0f - appear) * (1.0f - appear);
+        alphas[i] = appear * vanish;
+    }
+    float y = kMsgBaseY - used;
+    for (int i = count - 1; i >= 0; --i, y += kMsgLine) {
+        const uint8_t *e = list + MSG_ENTRIES + MSG_SIZE * i;
+        char t1[49], t2[64];
+        std::memcpy(t1, e + M_TEXT1, 48), t1[48] = 0;
+        std::memcpy(t2, e + M_TEXT2, 48), t2[48] = 0;
+        const int32_t n = R<int32_t>(e, M_COUNT);
+        if (n > 1 && n < 1000) {
+            const size_t l = std::strlen(t2);
+            std::snprintf(t2 + l, sizeof t2 - l, t2[0] ? " x%d" : "x%d", int(n));
+        }
+        if (t1[0] && t2[0]) {   // "killer  victim": a column around x + width
+            msg_text(tpl, xs[i], y, 2, R<uint32_t>(e, M_COLOR1), alphas[i], t1);
+            msg_text(tpl, xs[i] + kMsgNameWidth + kMsgGap, y, 0, R<uint32_t>(e, M_COLOR2), alphas[i], t2);
+        } else {
+            msg_text(tpl, xs[i], y, 0, R<uint32_t>(e, t1[0] ? M_COLOR1 : M_COLOR2), alphas[i], t1[0] ? t1 : t2);
+        }
+    }
+}
+
 // Slot 1 of the multiplayer HUD element (PS3 0x8aef68): (element, draw context).
 U2MP_GUEST void net_hud_draw(void *element, void *ctx) {
     (void)element;
@@ -167,19 +249,23 @@ U2MP_GUEST void net_hud_draw(void *element, void *ctx) {
         log("hud: multiplayer draw #%llu: type %d, flags 0x%x, team %d, scores %u/%u, limit %d, time limit %.0f s",
             (unsigned long long)g_draws, type, flags, team, team_score(team), team_score(team == 0),
             G<int32_t>(kNgm + NGM_SCORE_LIMIT), double(G<float>(kNgm + NGM_TIME_LIMIT)));
-    if (coop || type == 11 || !(flags & kFlagScorePanel) || type == 7) return;
-    frame_image(ctx, set, W_FRAME);
-    text(set, W_SCORE, "%i", int(team_score(team)));
-    text(set, W_SCORE_OTHER, "%i", int(team_score(team == 0)));
-    if (type == 10) {
-        label(set, W_LABEL, kLabelRound);
-        text(set, W_VALUE, "%i", G<int32_t>(kNgm + NGM_ROUND) + 1);
-        time_left(set, NGM_MATCH_START);
-    } else {
-        label(set, W_LABEL, kLabelScoreLimit);
-        text(set, W_VALUE, "%i", G<int32_t>(kNgm + NGM_SCORE_LIMIT));
-        time_left(set, NGM_ROUND_START);
+    if (!coop && type != 11 && (flags & kFlagScorePanel) && type != 7) {
+        frame_image(ctx, set, W_FRAME);
+        text(set, W_SCORE, "%i", int(team_score(team)));
+        text(set, W_SCORE_OTHER, "%i", int(team_score(team == 0)));
+        if (type == 10) {
+            label(set, W_LABEL, kLabelRound);
+            text(set, W_VALUE, "%i", G<int32_t>(kNgm + NGM_ROUND) + 1);
+            time_left(set, NGM_MATCH_START);
+        } else {
+            label(set, W_LABEL, kLabelScoreLimit);
+            text(set, W_VALUE, "%i", G<int32_t>(kNgm + NGM_SCORE_LIMIT));
+            time_left(set, NGM_ROUND_START);
+        }
     }
+    // PS3 tail 0x8af1a0..0x8af43c: the message list (kill feed, medals) for competitive games other than
+    // type 11, flag 0x80000.
+    if (!coop && type != 11 && (flags & kFlagMessages)) draw_messages(static_cast<const uint8_t *>(element), set);
 }
 
 bool layout_matches() {

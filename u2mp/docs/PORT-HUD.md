@@ -78,3 +78,60 @@ slots, but that was not checked against PS3 slot by slot. The medal and XP pop-u
 Unverified: nothing was run. Whether `0x5555a0` places the texts where PS3 did depends on the widget
 data (positions come from the dc widget, the pos argument is {0, 0} as on PS3). Team scores for a
 free-for-all game are the scores of team 0 / 1 as on PS3.
+
+## 4. Second pass
+
+### 4.1 Ported: the message list (kill feed, multi-kill / medal lines), PS3 0x8abc68 + 0x8ab600
+
+The data is intact on PS4. The list is at element+0x40: `{s32 count; entry[16] of 0x80 at +8}`. It is
+filled by `0x55d140` (PS3 AddMessage; called by the net event Applies at `0x611160`, `0x612770`,
+`0x61e710`, `0x61eb90`, `0x622d60`, `0x6236b0`, `0x625890`) and expired by the Update `0x55abe0`.
+
+| entry field | PS4 | PS3 |
+|---|---|---|
+| text 1 (48 chars) / colour 1 | +0x00 / +0x30 | +0 / +48 |
+| text 2 (48 chars) / colour 2 | +0x34 / +0x64 | +52 / +100 |
+| icon pointer | +0x68 | +104 |
+| start / end time (s; end = start + 7) | +0x70 / +0x74 | +108 / +112 |
+| flags / count | +0x78 / +0x7c | +116 / +120 |
+
+hud.cpp `draw_messages` uses the PS3 layout and animation (`0x8abcec..0x8abef0`): appear =
+clamp((now - start) x 2.2222), vanish = clamp((end - now) x 2), x = 120 - 200 (1 - appear)^2, alpha =
+appear x vanish, lines of 25 from y = 650 - sum(vanish x 25), newest on top; gate flag 0x80000,
+competitive games other than type 11. PS3 drew with its low-level text and quad calls (DrawText
+`0x73cf20`, quad `0x89ff3c`, weapon icon `0x8a0260`). None of them has a PS4 counterpart (DrawText exists
+only inlined in `0x37a690`). So each name is a HUD text widget: a copy of the score widget (font), with the
+entry colour and position, drawn with `0x5555a0`. That function adds the position and multiplies the
+alpha by its float argument (`0x555719..0x555763`). Text 1 is right-aligned in a 220-unit box, and text 2
+is left-aligned after it. The weapon icon is not drawn. A count is appended as "x<n>".
+
+### 4.2 Medal and XP pop-ups: present on PS4, not part of the stripped Draw
+
+The medal award `0x5779a0` (from NetEventEarnMedal Apply `0x61d1e0` and `0x61ee6c`) calls `0x5776c0`. That
+function computes the money with the booster amount `0x5f6410` and adds a pop-up with `0x554ca0` to
+the HUD manager's pop-up element at hud+0x310. That element is constructed at `0x553368` with vptr
+`0x103f360` = PS3 `0xd87ca8`: Update `0x8a5340` -> `0x557d50`, Draw `0x8a51c0` (+ inlined `0x8a4a68`)
+-> `0x557f10`, which keeps its three multiplayer branches. Nothing to port.
+
+### 4.3 HUD element vtables, slot by slot
+
+PS4 element vtables `0x103f2f0..0x103f760` (17 classes): every Update (slot 0) / Draw (slot 1) is a real
+function except the multiplayer Draw `0x55c5b0`. The `ret` slots are destructors, the base no-ops
+`0x557850` / `0x557840`, and the PS3 equivalents `0x89f848` / `0x89f84c` (4-byte `blr`). The PS3 table at
+`0xd87c88..0xd87db8` has 9 of those classes; the others (weapon / ammo / grenade / reticle in
+`hudweapon.cpp`, damage indicator) are in other PS3 tables. Their PS4 slots are not stubs. A
+function-by-function comparison of their bodies was not done (the matcher pairs only 3 of them). The
+PS4 Draw functions with a multiplayer branch keep it (`0x557f10`: 3 NET_SM tests).
+
+### 4.4 Still not ported, and why
+
+All of these draw with the PS3 low-level primitives (`0x73cf20` text, `0x89ff3c` / `0x8a015c` /
+`0x8a1f88` quads and icons, `0x8b0220` / `0x8b0de8` / `0x8b12b8` / `0x8b1600` meters, `0x12c070`
+transforms) that PS4 does not have as functions. Their PS4 data layouts (element +0x860 names, +0x1560
+markers, +0x1928 indicator) are only known from the inlined Update `0x55abe0`:
+
+| part | PS3 | what is needed |
+|---|---|---|
+| names over heads (draw half) | `0x8aeeb0` -> `0x8adb60` (count +3200, entries of 160 at +2080) | PS4 entry layout at element+0x860 (written by `0x55abe0` after the two `0x5566b0` projections at `0x55b6d5` / `0x55b6ec`); then text widgets like 4.1 |
+| world markers | `0x8ad018` | entries at element+0x1560; icon drawing |
+| type 7 panel, objective carrier icon, co-op type 9 panel, booster icons `0x8a9bbc`, indicator `0x8a8ed8` / `0x8ac3f0`, list `0x8ab4d0` | see section 3 | an image / quad primitive. The intact one is `0x5559f0`, which draws a dc image widget (material name pointer +0, id +0x10 (compared with 4240ef2e at `0x555a1f`), -1 at +0x18, rect x / y / w / h at +0x1c); synthesized image widgets would work like the text widgets in 4.1 |
