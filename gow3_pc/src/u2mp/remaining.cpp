@@ -153,6 +153,30 @@ bool detour(uint64_t offset, const unsigned char *expect, unsigned length, void 
     return true;
 }
 
+// ---- menu style lookup guard (test 64) --------------------------------------------------------
+// 0x5b4e90(ctx = menu+0x10, element, style index, rect): index 0..9 reads a pointer table at ctx+0x68, 10 =
+// none. Test 64 crashed in it during the match loading screen with a stack address in rdx (a caller that
+// passed a pointer where the index goes): the index is checked here and the caller logged.
+constexpr uint64_t fMenuStyle = 0x5b4e90;
+using MenuStyleFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+MenuStyleFn menu_style_original = nullptr;
+U2MP_GUEST uint64_t menu_style_guard(uint64_t ctx, uint64_t element, uint64_t index, uint64_t rect, uint64_t a4, uint64_t a5) {
+    if (uint32_t(index) > 10) {
+        static int logged = 0;
+        if (logged < 8) {
+            ++logged;
+            const uint64_t from = uint64_t(uintptr_t(__builtin_return_address(0)));
+            const uint64_t base = uint64_t(uintptr_t(image.base));
+            log("menu style 0x5b4e90: bad index %llx (ctx %llx element %llx rect %llx) from %s0x%llx: skipped",
+                (unsigned long long)index, (unsigned long long)ctx, (unsigned long long)element, (unsigned long long)rect,
+                from >= base && from < base + image.size ? "guest " : "host ",
+                (unsigned long long)(from >= base && from < base + image.size ? from - base : from));
+        }
+        return 0;
+    }
+    return menu_style_original(ctx, element, index, rect, a4, a5);
+}
+
 // ---- 44 NetEventNpcDealDamage::Apply (PS3 0x48a620) -------------------------------------------
 // Payload (Read in events.cpp): +0x0c attacker net id (12 bits), +0x10 npc id, +0x14 S32 damage,
 // +0x18 time (s), +0x1c attack type index (6 bits).
@@ -629,6 +653,17 @@ void install_remaining(int &installed) {
         ++installed;
     } else {
         log("PC texts unavailable: the PC message boxes will show the game's fallback text");
+    }
+
+    // 0x5b4e90: push rbp; mov rbp,rsp; push r15; push r14; push r13; push r12; push rbx (13 bytes, whole instructions)
+    static const unsigned char style_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54, 0x53};
+    {
+        void *orig = nullptr;
+        if (detour(fMenuStyle, style_bytes, sizeof style_bytes, reinterpret_cast<void *>(&menu_style_guard), &orig,
+                   "menu style lookup guard (0x5b4e90)")) {
+            menu_style_original = reinterpret_cast<MenuStyleFn>(orig);
+            ++installed;
+        }
     }
 
     // Guest functions we call.

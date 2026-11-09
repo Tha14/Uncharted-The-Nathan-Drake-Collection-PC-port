@@ -1198,7 +1198,8 @@ void tick() {
         check_net_package(st == kChooseHostJoin || st == kCreateGameWait || st == kClientWaitPartyHost);
     }
     if (now >= next_rate_log) {   // proves the hook runs every frame (expect ~60 per second)
-        if (next_rate_log > 0) log("frame hook: %u calls in 10 s", frames);
+        if (next_rate_log > 0)
+            log("frame hook: %u calls in 10 s (net state %d, top page %08x)", frames, state(), top_page_id());
         frames = 0;
         next_rate_log = now + 10;
     }
