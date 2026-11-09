@@ -102,3 +102,6 @@ Also check once with the DLL path removed: `online: off (...)` and LAN behaves a
   - Players Met: a row opens Add Friend (online) / View Profile;
   - objective modes: carrier icon blinks while the flag is carried;
   - online matchmaking: `online: matchmaking: room ...` lines; rooms near our rank picked first.
+- Tests 68-69: no crash. Test 69: `8 switches`, panel draws after each; the player saw the weapon panel on every
+  switch (fixed). The game's own ShowWeaponHud calls come from RunNGun (0x8fe50a). Not yet exercised: theater
+  HUD, Players Met popup, kill feed icon, carrier blink.
