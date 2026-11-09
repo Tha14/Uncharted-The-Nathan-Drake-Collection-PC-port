@@ -67,6 +67,7 @@ void install_frontend3(int &installed); // frontend3.cpp: matchmaking, vote, lea
 void install_spawn(int &installed);     // spawn.cpp: spawner lookup at match start (PORT-SPAWN.md)
 void install_gameplay2(int &installed); // gameplay2.cpp: connection event Applies (PORT-GAMEPLAY2.md)
 void install_visibility(int &installed); // visibility.cpp: PS3 KickVisibilityJob 0x494c38 (PORT-GAMEPLAY3.md 7)
+void install_scripttime(int &installed); // scripttime.cpp: net-timer track-group delta (PORT-SCRIPTTIME.md)
 void install_matchend(int &installed); // matchend.cpp: match-end watch, test time limit (PORT-GAMEPLAY3.md 6)
 void install_gameplay3(int &installed); // gameplay3.cpp: ShowResults::Enter + results countdown (PORT-GAMEPLAY3.md)
 void install_nullsites(int &installed); // nullsites.cpp: replay stream fallback at WaitReady::Exit (PORT-NULLSITES.md)
