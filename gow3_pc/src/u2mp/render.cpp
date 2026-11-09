@@ -1185,6 +1185,46 @@ bool patch_view_mask() {
     return true;
 }
 
+// ---- section 9: the view's "no dynamic objects" flag (tests 56-65) --------------------------------------
+// In a match the actors' draw data (hero, weapons, the level's banners) are collected every frame and put in
+// the draw lists (tests 59-61), but five places skip them while byte +0xbf of the render settings
+// ([ctx+0xe8], global 0x1050d40) is set: the view setup 0xcad380 (0xcad55d, 0xcad5cb), its second pass
+// (0xcadc0a) and the view draws 0xcae4e0 (0xcaeb86) and 0xcafc10 (0xcaff53). 0x52ec66 sets the flag from the
+// camera's focus object; in a match the player camera's focus is the player, so it is on for the whole
+// match and no actor is drawn; the menu camera has no focus object. Test 65 (four sites patched): the hero
+// was drawn in the secondary passes but not in the main view, which goes through the fifth site. Four skips
+// become NOPs; the fifth dereferences the list without a null check, so its flag test becomes a null test
+// of the list (the skip path there sets r14 = 0 and goes on: what a null list needs).
+// UNCHARTED_U2MP_ACTOR_FLAG=0 keeps the original code.
+struct CodePatch { uint64_t at; unsigned char expect[13]; unsigned char code[13]; unsigned len; };
+const CodePatch kFlagPatches[] = {
+    // cmp byte [rax+0xbf],0; mov r14,[rbx+0x40]; jne 0xcad5a6  ->  mov r14,[rbx+0x40]; test r14,r14; je 0xcad5a6; nop4
+    {0xcad55d, {0x80, 0xb8, 0xbf, 0x00, 0x00, 0x00, 0x00, 0x4c, 0x8b, 0x73, 0x40, 0x75, 0x3c},
+               {0x4c, 0x8b, 0x73, 0x40, 0x4d, 0x85, 0xf6, 0x74, 0x40, 0x0f, 0x1f, 0x40, 0x00}, 13},
+    {0xcad5d2, {0x75, 0x16}, {0x66, 0x90}, 2},
+    {0xcadc11, {0x0f, 0x85, 0x25, 0x01, 0x00, 0x00}, {0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00}, 6},
+    {0xcaeb93, {0x0f, 0x85, 0x16, 0x02, 0x00, 0x00}, {0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00}, 6},
+    {0xcaff5e, {0x0f, 0x85, 0xe9, 0x01, 0x00, 0x00}, {0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00}, 6},
+};
+int patch_flag_skips() {
+    if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_FLAG"); v && std::strcmp(v, "0") == 0) {
+        log("render: view flag +0xbf skips kept (UNCHARTED_U2MP_ACTOR_FLAG=0)");
+        return 0;
+    }
+    int done = 0;
+    for (const CodePatch &f : kFlagPatches) {
+        if (!image.matches(f.at, f.expect, f.len) || !image.executable(f.at, f.len)) {
+            log("render: view flag skip at 0x%llx differs, left alone", (unsigned long long)f.at);
+            continue;
+        }
+        std::memcpy(image.base + f.at, f.code, f.len);
+        ++done;
+    }
+    log("render: view flag +0xbf: %d of %zu actor-draw skips removed (actors drawn in matches)", done,
+        sizeof kFlagPatches / sizeof *kFlagPatches);
+    return done;
+}
+
 void actor_bounds_fix(uint64_t inst, uint64_t proto) {
     actor_cell_fix(inst);
     if (!actor_bounds_on) return;
@@ -1208,6 +1248,7 @@ void install_render(int &installed) {
     if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_BOUNDS"); v && std::strcmp(v, "0") == 0)
         actor_bounds_on = false;
     if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_CELL"); v && std::strcmp(v, "0") == 0) actor_cell_on = false;
+    if (patch_flag_skips()) ++installed;
     // patch_view_mask() is not installed: run 58 showed +0x298 + view * 8 is the instance's pass mask (+0xd8),
     // not a visibility mask; removing that test drew actors in passes they do not belong to.
     (void)&patch_view_mask;
