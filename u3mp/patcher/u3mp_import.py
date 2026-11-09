@@ -39,6 +39,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.dont_write_bytecode = True
 import mpimage  # noqa: E402
+import ps3keep  # noqa: E402
 import u3mp_version  # noqa: E402
 
 RECIPE = HERE / 'recipe'
@@ -85,8 +86,9 @@ def find_ps3_elf(folders, explicit):
     own scan: an EBOOT.elf (RPCS3 writes it next to the EBOOT.BIN it decrypts), or any .elf with the tested 1.19 hash
     (e.g. EBOOT-1.19.elf; the EU BCES01670, UK BCES01692, US BCUS99086 and Asia BCAS25014 Game of the Year
     1.19 EBOOTs decrypt to the same file)."""
-    if explicit:
-        return explicit if os.path.isfile(explicit) else None
+    if explicit and os.path.isfile(explicit):
+        return explicit
+    # a chosen file that is gone (PS3 files deleted, "keep only the PS3 files updates need"): looked for in the folders
     best = None
     for root in folders:
         root = Path(root)
@@ -432,6 +434,10 @@ def main():
     ap.add_argument('--in-place', action='store_true', help='update an import in its own folder (no second work folder)')
     ap.add_argument('--dns', default='', help='IPv4 of the community server DNS (downloads the PS3 game data when the '
                                               "player's own BCES01670DATA2 / BCES01692DATA2 / BCUS99086DATA2 / BCAS25014DATA2 is missing or another version)")
+    ap.add_argument('--keep-ps3', action='store_true', help='after the import, keep only the PS3 files it needs in '
+                                                             '<data>/ps3-kept (Multiplayer tab option: saves space)')
+    ap.add_argument('--keep-ps3-only', action='store_true', help='only make / refresh <data>/ps3-kept, no import')
+    ap.add_argument('--keep-ps3-off', action='store_true', help='only delete <data>/ps3-kept, no import')
     a = ap.parse_args()
     data = a.data.resolve()
     data.mkdir(parents=True, exist_ok=True)
@@ -440,6 +446,23 @@ def main():
         old = json.loads(state_file.read_text(encoding='utf-8'))
     except (OSError, ValueError):
         old = {}
+    own_ps3 = [f for f in a.ps3_u3 if os.path.isdir(f)]   # the player's PS3 folders that still exist
+    if a.keep_ps3_off or a.keep_ps3_only:
+        if a.keep_ps3_off:
+            ps3keep.drop(data, log=log)
+            old.pop('ps3_kept', None)
+        else:
+            elf = find_ps3_elf(own_ps3, a.ps3_elf)
+            old['ps3_kept'] = ps3keep.keep(data, own_ps3, elf, log=log, event=event)
+        state_file.write_text(json.dumps(old, indent=1), encoding='utf-8')
+        return 0 if a.keep_ps3_off or old['ps3_kept'].get('complete') else 1
+    # the kept PS3 files ("keep only the PS3 files updates need") come after the player's own folders: those win
+    # while they exist; once they are deleted the import reads the kept copy
+    a.ps3_u3 = own_ps3 + [k for k in ps3keep.kept_roots(data) if k not in own_ps3]
+    if len(a.ps3_u3) > len(own_ps3):
+        log('PS3 files: using the kept copy in %s after your PS3 folders' % (data / ps3keep.KEPT))
+    ps3keep.record(own_ps3 + ([os.path.dirname(os.path.abspath(a.ps3_elf))] if a.ps3_elf and os.path.isfile(a.ps3_elf)
+                              else []), data, os.environ)
     state = dict(old, status='running', pid=os.getpid(), started=time.strftime('%Y-%m-%d %H:%M:%S'),
                  inputs=dict(ps4=a.ps4, ps3_u3=a.ps3_u3, ps3_u2=a.ps3_u2 or ''))
     state.pop('error', None)
@@ -447,6 +470,12 @@ def main():
     remove_leftovers(data)
 
     def finish(status, **kw):
+        if a.keep_ps3 and status in ('imported', 'partial') and not a.only and not a.image_only:
+            try:
+                state['ps3_kept'] = ps3keep.keep(data, own_ps3, find_ps3_elf(own_ps3, a.ps3_elf), log=log, event=event)
+            except Exception as e:      # noqa: BLE001 - the import itself is done; reported
+                state['ps3_kept'] = dict(ps3keep.manifest(data).get('state', {}), error='%s: %s' % (type(e).__name__, e))
+                log('PS3 files: could not keep them: %s' % state['ps3_kept']['error'])
         state.update(kw, status=status, finished=time.strftime('%Y-%m-%d %H:%M:%S'))
         state_file.write_text(json.dumps(state, indent=1), encoding='utf-8')
         event(phase='done', status=status, error=state.get('error', ''))

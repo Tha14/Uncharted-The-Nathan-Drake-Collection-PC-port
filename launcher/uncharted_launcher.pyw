@@ -3659,6 +3659,20 @@ class Launcher:
                    "Where the import writes the converted files (about 9 GB) and the multiplayer image.",
                    "data", (("Change", self.u3mp_choose_data), ("Open", lambda: self.u3mp_open(self.u3mp_data()))))
 
+        def keep_toggle(parent):
+            self.u3mp_keep_widget = Toggle(parent, self.s, self.config.get("u3mp_keep_ps3", False), self.u3mp_keep_ps3)
+            return self.u3mp_keep_widget
+        self.row(page, "Keep only the PS3 files updates need (saves space)",
+                 "Only for saving disk space; it changes nothing in the game. Keeps just the PS3 Uncharted 3 files "
+                 "the import reads (about 14 GB of the about 51 GB) in the multiplayer data folder, so you can delete "
+                 "your PS3 Uncharted 3 folders afterwards and updates still work. Leave it off if you keep the PS3 "
+                 "game anyway. A later update that needs a PS3 file not kept asks for your PS3 folders again.",
+                 keep_toggle)
+        label = tk.Label(page, text="", font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
+                         wraplength=self.px(760))
+        label.pack(side="top", fill="x", pady=(0, self.px(10)))
+        self.u3mp_labels["keep_ps3"] = label
+
         actions = tk.Frame(page, bg=BG)
         actions.pack(side="top", fill="x", pady=(self.px(6), self.px(8)))
         self.u3mp_button = self.gold_button(actions, "IMPORT", self.u3mp_import)
@@ -3836,6 +3850,19 @@ class Launcher:
         self.u3mp_labels["ps3_elf"].config(text=self.config.get("u3mp_ps3_elf") or
                                            state.get("ps3_elf") or "Looked for in the PS3 folders when importing.")
         self.u3mp_labels["data"].config(text=str(self.u3mp_data()))
+        kept = state.get("ps3_kept") or {}
+        if not self.config.get("u3mp_keep_ps3", False):
+            keep_text = "Off: the import reads your PS3 folders."
+        elif kept.get("complete"):
+            keep_text = (f"On: {kept.get('size', 0) / 1e9:.1f} GB kept in {kept.get('folder', '')}. Your PS3 "
+                         "Uncharted 3 folders are no longer needed by the import; you can delete them.")
+            if kept.get("error"):
+                keep_text += f" Last refresh: {kept['error']}."
+        elif kept.get("error"):
+            keep_text = f"On, not done: {kept['error']}."
+        else:
+            keep_text = "On: the PS3 files are kept when the next import or update finishes."
+        self.u3mp_labels["keep_ps3"].config(text=keep_text)
         self.u3mp_button.config(text="RE-IMPORT / UPDATE" if status in ("imported", "partial", "failed", "running",
                                                                         "image-only") else "IMPORT")
         if running and not self.u3mp_cancel_button.winfo_manager():
@@ -3852,9 +3879,32 @@ class Launcher:
         if total and width > 1:
             bar.create_rectangle(0, 0, int(width * min(1.0, n / total)), self.px(6), fill=GOLD, outline=GOLD)
 
-    def u3mp_import(self, silent=False, image_only=False, reason=""):
+    def u3mp_keep_ps3(self, on):
+        """The "keep only the PS3 files updates need" switch: the importer makes (--keep-ps3-only) or deletes
+        (--keep-ps3-off) <data>/ps3-kept; the work and its checks are in u3mp/patcher/ps3keep.py."""
+        kept = (self.u3mp_state().get("ps3_kept") or {}).get("complete")
+        if not on and kept and not any(Path(f).is_dir() for f in self.config.get("u3mp_ps3_u3", [])):
+            if not messagebox.askyesno(APP_TITLE, "Your PS3 Uncharted 3 folders are not there any more, so the kept "
+                                                  "PS3 files are the only copy the import can use. Turning this off "
+                                                  "deletes them, and updates then need your PS3 game again.\n\n"
+                                                  "Turn it off anyway?"):
+                self.u3mp_keep_widget.set(True)
+                return
+        if self.u3mp_running():
+            self.u3mp_keep_widget.set(not on)
+            messagebox.showinfo(APP_TITLE, "The import is running. Change this when it has finished.")
+            return
+        self.change_config("u3mp_keep_ps3", bool(on))
+        if on and self.u3mp_state().get("status") in ("imported", "partial"):
+            self.u3mp_import(keep="only")
+        elif not on and (self.u3mp_data() / "ps3-kept").exists():
+            self.u3mp_import(keep="off")
+        self.u3mp_refresh()
+
+    def u3mp_import(self, silent=False, image_only=False, reason="", keep=""):
         """IMPORT / RE-IMPORT, or (silent) the automatic update after a launcher update: the same import with the
-        saved folders, no dialogs; image_only relinks just the multiplayer image."""
+        saved folders, no dialogs; image_only relinks just the multiplayer image; keep "only" / "off" makes or deletes
+        the kept PS3 files (no import)."""
         if self.u3mp_running():
             if not silent:
                 messagebox.showinfo(APP_TITLE, "The import is already running.")
@@ -3866,7 +3916,9 @@ class Launcher:
                                                "(Advanced -> Folders -> Change game folder).")
             return False
         folders = [f for f in self.config.get("u3mp_ps3_u3", []) if Path(f).is_dir()]
-        if not folders and not image_only:
+        # PS3 folders deleted after "keep only the PS3 files updates need": the importer reads the kept copy
+        kept = (self.u3mp_state().get("ps3_kept") or {}).get("complete")
+        if not folders and not image_only and not kept and keep != "off":
             if not silent:
                 messagebox.showinfo(APP_TITLE, "Add your PS3 Uncharted 3 folder(s) first: the game disc's folder and "
                                                "RPCS3's dev_hdd0/game.")
@@ -3879,7 +3931,7 @@ class Launcher:
             if not silent:
                 messagebox.showerror(APP_TITLE, f"The multiplayer data folder can't be used:\n{error}")
             return False
-        if free < 12 * 1024 ** 3 and not image_only and (silent or not messagebox.askyesno(
+        if free < 12 * 1024 ** 3 and not image_only and not keep and (silent or not messagebox.askyesno(
                 APP_TITLE, f"{data.anchor} has {free / 1024 ** 3:.0f} GB free; the import needs about 12 GB. "
                            "Start anyway?")):
             if silent:
@@ -3902,12 +3954,17 @@ class Launcher:
             command += ["--dns", self.u3mp_dns()]
         if image_only:
             command += ["--image-only"]
+        if keep:
+            command += ["--keep-ps3-" + keep]
+        elif self.config.get("u3mp_keep_ps3", False):
+            command += ["--keep-ps3"]
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
         # below normal priority: an import or update never slows a running game down
         flags = NO_WINDOW | getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)
         try:
-            log = open(data / "import.log", "w", encoding="utf-8")
+            log_start = (data / "import.log").stat().st_size if keep and (data / "import.log").exists() else 0
+            log = open(data / "import.log", "a" if keep else "w", encoding="utf-8")
             self.u3mp_proc = subprocess.Popen(command, cwd=str(U3MP_DIR), env=env, stdout=log, stderr=subprocess.STDOUT,
                                               stdin=subprocess.DEVNULL, creationflags=flags)
             log.close()
@@ -3919,13 +3976,13 @@ class Launcher:
             self.u3mp_proc = None
             return False
         self.u3mp_auto = reason if silent else ""
-        self.u3mp_log_pos = 0
+        self.u3mp_log_pos = log_start  # a keep run appends to the import log: show only its lines
         self.u3mp_progress = (0, 0, "")
         self.u3mp_log.config(state="normal")
         self.u3mp_log.delete("1.0", "end")
         self.u3mp_log.config(state="disabled")
         self.u3mp_step.config(text=("Updating the multiplayer files: " + reason + "...") if silent else
-                              "Starting the import...")
+                              ("Keeping the PS3 files..." if keep == "only" else "Removing the kept PS3 files..." if keep else "Starting the import..."))
         self.u3mp_refresh()
         return True
 
@@ -3980,6 +4037,8 @@ class Launcher:
                     self.u3mp_step.config(text=f"Step {ev['step']}/{ev['total']}: {ev.get('title', '')[:90]}")
                 elif ev.get("phase") == "recipe" and ev.get("status") == "failed":
                     shown.append(f"!! step {ev.get('id')} failed: {ev.get('note', '')}")
+                elif ev.get("phase") == "ps3keep":
+                    self.u3mp_step.config(text=ev.get("note", ""))
                 elif ev.get("phase") == "done":
                     n, total, _ = self.u3mp_progress
                     self.u3mp_progress = (total, total, "")
