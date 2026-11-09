@@ -443,11 +443,25 @@ uint64_t render_object_of(uint64_t drawdata) {
 
 using CollectFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 unsigned char *collect_original = nullptr;
+// 0xbd6d00 appends at most 0x800 - count draw data to the out list ({u32 count; ptr[0x800]}); a full list drops
+// the rest silently. Run 58 question: does a match fill it before the actors come?
+uint32_t collect_max = 0;
+uint64_t collect_full = 0, collect_dropped_tracked = 0;
 U2MP_GUEST uint64_t collect_logged(uint64_t object, uint64_t out, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+    bool tracked_obj = false;
     for (int i = 0; i < kTracked; ++i)
-        if (tracked[i].render_object == object && __atomic_load_n(&tracked[i].instance, __ATOMIC_RELAXED))
+        if (tracked[i].render_object == object && __atomic_load_n(&tracked[i].instance, __ATOMIC_RELAXED)) {
             __atomic_add_fetch(&tracked[i].collects, 1, __ATOMIC_RELAXED);
-    return reinterpret_cast<CollectFn>(collect_original)(object, out, a2, a3, a4, a5);
+            tracked_obj = true;
+        }
+    const uint32_t before = out ? *reinterpret_cast<const uint32_t *>(uintptr_t(out)) : 0;
+    const uint64_t r = reinterpret_cast<CollectFn>(collect_original)(object, out, a2, a3, a4, a5);
+    const uint32_t after = out ? *reinterpret_cast<const uint32_t *>(uintptr_t(out)) : 0;
+    if (after > collect_max) collect_max = after;
+    if (after >= 0x800) ++collect_full;
+    if (tracked_obj && after == before && *reinterpret_cast<const uint32_t *>(uintptr_t(object) + 0xfc))
+        ++collect_dropped_tracked;
+    return r;
 }
 
 // 0xc419d0(MeshInstance, ...) is the per-instance draw job (reached through the thunk 0xc42250 of the
@@ -745,6 +759,9 @@ U2MP_GUEST uint64_t walker_logged(uint64_t list, uint64_t a1, uint64_t a2, uint6
         log("render diag: summary at walker call %llu; list table %u of %d used, %u lists not watched (table full)",
             (unsigned long long)calls, __atomic_load_n(&lists_used, __ATOMIC_RELAXED), kListSlots,
             __atomic_load_n(&lists_dropped, __ATOMIC_RELAXED));
+        log("render diag: collect out list: largest %u of 2048 draw data, full %llu times, tracked objects added nothing %llu times",
+            collect_max, (unsigned long long)collect_full, (unsigned long long)collect_dropped_tracked);
+        collect_max = 0;
         for (int i = 0; i < kTracked; ++i) {
             Tracked &t = tracked[i];
             const uint64_t inst = __atomic_load_n(&t.instance, __ATOMIC_ACQUIRE);
