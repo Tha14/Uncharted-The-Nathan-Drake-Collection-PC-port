@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 
 // The shown tab's page. What is not in a section (an intro, the multiplayer banner) spans the width; the sections
 // (rounded cards) sit side by side in two columns, each card going to the shorter column. One column when the
@@ -51,6 +52,37 @@ Flickable {
     }
 
     clip: true
+    // Where the page meets the tabs and the PLAY bar, the cards curve away (rounded corners per column) instead of
+    // being cut straight: the page is drawn through this mask.
+    readonly property real edgeRadius: Theme.radiusCard
+    property Item viewMask: Item {
+        parent: view   // the Flickable itself, not its scrolling content
+        width: view.width
+        height: view.height
+        visible: false
+        layer.enabled: true
+        Rectangle {   // the middle (the gap between the columns too, so a full-width card has no seam)
+            x: Theme.gutter
+            y: view.edgeRadius
+            width: view.innerWidth + 6
+            height: Math.max(0, view.height - 2 * view.edgeRadius)
+        }
+        Repeater {   // each column, with rounded ends
+            model: view.columns
+            Rectangle {
+                x: Theme.gutter + index * (view.columnWidth + view.gap)
+                width: view.columns === 1 ? view.innerWidth : view.columnWidth
+                height: view.height
+                radius: view.edgeRadius
+            }
+        }
+        Rectangle { x: view.width - 14; width: 14; height: view.height }   // the scroll bar
+    }
+    layer.enabled: true
+    layer.effect: MultiEffect {
+        maskEnabled: true
+        maskSource: view.viewMask
+    }
     contentWidth: width
     contentHeight: content.implicitHeight + 24
     boundsBehavior: Flickable.StopAtBounds

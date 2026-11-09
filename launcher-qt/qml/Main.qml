@@ -67,16 +67,16 @@ ApplicationWindow {
         fillMode: Image.PreserveAspectCrop
         verticalAlignment: Image.AlignTop
         asynchronous: true
-        visible: false
-    }
-    MultiEffect {
-        anchors.fill: parent
-        source: backgroundArt
-        blurEnabled: true
-        blurMax: 64
-        blur: 0.85
-        saturation: -0.2
-        visible: backgroundArt.status === Image.Ready
+        // the blur is this picture's own layer: it is redrawn at the window's size after every resize, maximize
+        // or restore (a separate effect kept a stale, offset copy)
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            blurEnabled: true
+            blurMax: 64
+            blur: 0.85
+            saturation: -0.2
+            autoPaddingEnabled: false
+        }
     }
     Rectangle { anchors.fill: parent; color: "#9a0b0b0d" }
 
@@ -87,7 +87,7 @@ ApplicationWindow {
         // the picture, with the title and the three games on it
         Hero {
             Layout.fillWidth: true
-            Layout.preferredHeight: 210
+            Layout.preferredHeight: 168
             source: backend.fileUrl(backend.chrome.hero || "")
             games: backend.chrome.games || []
         }

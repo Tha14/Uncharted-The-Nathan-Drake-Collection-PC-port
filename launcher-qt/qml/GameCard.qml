@@ -29,23 +29,19 @@ Item {
         anchors.leftMargin: 16
         anchors.rightMargin: 14
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 4
-        Text {
-            text: card.game.number || ""
-            color: card.selected ? Theme.gold : "#c8c3b8"
-            font.family: Theme.serif; font.pixelSize: 40; font.bold: true
+        spacing: 5
+        Text {   // "Uncharted 1" (the subtitle's first part), where the big number was
+            width: parent.width
+            text: (card.game.subtitle || "").split("•")[0].trim()
+            color: card.selected ? Theme.gold : "#d6d1c6"
+            font.family: Theme.sansSemi; font.pixelSize: 16
+            elide: Text.ElideRight
         }
         Text {
             width: parent.width
             text: card.game.title || ""
             color: Theme.text; font.family: Theme.serif; font.pixelSize: 15; font.bold: true
             wrapMode: Text.Wrap
-        }
-        Text {
-            width: parent.width
-            text: (card.game.subtitle || "").split("•")[0].trim()
-            color: Theme.muted; font.pixelSize: Theme.fontSmall
-            elide: Text.ElideRight
         }
     }
     MouseArea {

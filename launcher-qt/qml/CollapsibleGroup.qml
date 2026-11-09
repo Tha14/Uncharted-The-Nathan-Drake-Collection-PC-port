@@ -8,7 +8,7 @@ Rectangle {
     property bool open: true
     implicitHeight: header.height + body.height + 2
     radius: 14
-    color: "#18181d"
+    color: "#12ffffff"   // glass, like the cards around it
     border.color: Theme.cardLine
     clip: true
 

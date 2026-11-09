@@ -3937,13 +3937,13 @@ class Launcher:
             self.u3mp_labels[label_key] = label
 
         self.u3mp_labels = {}
-        self.section(page, "Your PS3 game")
-        folder_row("PS3 Uncharted 3 folders",
+        self.section(page, "Set up multiplayer", "New here? Do these four steps in order.")
+        folder_row("1. Add your PS3 Uncharted 3 folders",
                    "Your PS3 game folder and RPCS3's dev_hdd0/game folder (update, game data, map packs). Add both.",
                    "ps3_u3", (("Add folder", self.u3mp_add_folder), ("Clear", self.u3mp_clear_folders)))
         # (no PS3 Uncharted 2 folder row: no multiplayer file comes from Uncharted 2 today; a folder chosen before
         # still goes to the import)
-        folder_row("Decrypted PS3 EBOOT (update 1.19)",
+        folder_row("2. Choose the decrypted EBOOT (update 1.19)",
                    "Required. In RPCS3: Utilities > Decrypt PS3 Binaries, then pick the game's USRDIR/EBOOT.BIN. "
                    "The EBOOT.elf it writes is found by itself.",
                    "ps3_elf", (("Choose file", self.u3mp_choose_elf),
@@ -3957,28 +3957,19 @@ class Launcher:
                 self.change_config("u3mp_dns", var.get().strip())
             var.trace_add("write", save)
             return entry
-        self.section(page, "Community server")
-        self.row(page, "Community server DNS",
-                 "Same as on the RPCN page. Used to download missing game data. Empty: taken from your RPCN "
-                 "settings.", dns_entry)
-        self.section(page, "Storage")
-        folder_row("Multiplayer data folder",
-                   "Where the converted files go (about 9 GB).",
+        # the RPCN section's DNS Server box sets this one too (one DNS for both); only a package without the online
+        # section shows the import's own box
+        if self.u3mp_extension_module() is None:
+            self.section(page, "Community server")
+            self.row(page, "Community server DNS",
+                     "The server's address. Used to download missing game data.", dns_entry)
+        folder_row("3. Choose where the files go",
+                   "The multiplayer data folder: the converted files (about 9 GB).",
                    "data", (("Change", self.u3mp_choose_data), ("Open", lambda: self.u3mp_open(self.u3mp_data()))))
 
-        def keep_toggle(parent):
-            self.u3mp_keep_widget = Toggle(parent, self.s, self.config.get("u3mp_keep_ps3", False), self.u3mp_keep_ps3)
-            return self.u3mp_keep_widget
-        self.row(page, "Keep only the PS3 files updates need (saves space)",
-                 "Saves disk space only. Keeps the PS3 files updates need (about 14 GB of 51 GB), so you can "
-                 "delete your PS3 Uncharted 3 folders.",
-                 keep_toggle)
-        label = tk.Label(page, text="", font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
-                         wraplength=self.px(760))
-        label.pack(side="top", fill="x", pady=(0, self.px(10)))
-        self.u3mp_labels["keep_ps3"] = label
 
-        self.section(page, "Import")
+        tk.Label(page, text="4. Import", font=self.f_body_bold, bg=BG, fg=TEXT, anchor="w").pack(
+            side="top", fill="x", pady=(self.px(4), 0))
         actions = tk.Frame(page, bg=BG)
         actions.pack(side="top", fill="x", pady=(self.px(6), self.px(8)))
         self.u3mp_button = self.gold_button(actions, "IMPORT", self.u3mp_import)
@@ -3998,6 +3989,18 @@ class Launcher:
                             "update only what changed is redone.",
                  font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
                  wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(8), 0))
+        self.section(page, "Storage")
+        def keep_toggle(parent):
+            self.u3mp_keep_widget = Toggle(parent, self.s, self.config.get("u3mp_keep_ps3", False), self.u3mp_keep_ps3)
+            return self.u3mp_keep_widget
+        self.row(page, "Keep only the PS3 files updates need (saves space)",
+                 "Saves disk space only. Keeps the PS3 files updates need (about 14 GB of 51 GB), so you can "
+                 "delete your PS3 Uncharted 3 folders.",
+                 keep_toggle)
+        label = tk.Label(page, text="", font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
+                         wraplength=self.px(760))
+        label.pack(side="top", fill="x", pady=(0, self.px(10)))
+        self.u3mp_labels["keep_ps3"] = label
         self.u3mp_proc = None
         self.u3mp_auto = ""  # why the running import was started by the launcher (an update), else ""
         self.u3mp_log_pos = 0

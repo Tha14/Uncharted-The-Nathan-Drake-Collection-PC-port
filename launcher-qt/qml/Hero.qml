@@ -30,6 +30,10 @@ Item {
     Canvas {
         id: picture
         anchors.fill: parent
+        canvasSize: Qt.size(Math.max(1, width), Math.max(1, height))
+        canvasWindow: Qt.rect(0, 0, Math.max(1, width), Math.max(1, height))
+        tileSize: canvasSize
+        renderStrategy: Canvas.Immediate
         readonly property string url: String(art.source)
         onUrlChanged: if (url) loadImage(url)
         onImageLoaded: requestPaint()
@@ -76,13 +80,13 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: Theme.gutter
         anchors.top: parent.top
-        anchors.topMargin: 22
+        anchors.topMargin: 42   // level with the top of the UNCHARTED letters
         spacing: 12
         Repeater {
             model: hero.games
             GameCard {
                 width: 172
-                height: 156
+                height: 92
                 game: modelData
                 backdrop: art
             }
