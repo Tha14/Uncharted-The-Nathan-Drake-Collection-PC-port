@@ -396,9 +396,12 @@ U2MP_GUEST void friends_query(uint8_t *q) {
             set_text(q, friends_title);
             return;
         }
-        list_query(q, n ? n : 1, friends_current, [n](int r) -> const char * {
+        // row 0: the online game list (PS3 reached it from BUTTON_MULTIPLAYER_JOIN, which PS4's pages lost;
+        // the Invites row only shows a label while invites wait), then the friends
+        list_query(q, 1 + (n ? n : 1), friends_current, [n](int r) -> const char * {
+            if (r == 0) return "Browse Online Games";
             if (!n) return "No RPCN friends yet. Add friends in the launcher.";
-            return online::friend_row(r);
+            return online::friend_row(r - 1);
         });
         return;
     }

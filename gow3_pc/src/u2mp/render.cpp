@@ -1063,7 +1063,24 @@ U2MP_GUEST uint64_t spawn_hero_shown(uint64_t a0, uint64_t a1, uint64_t a2, uint
 bool actor_bounds_on = true;
 uint32_t actor_bounds_count = 0;
 
+// Test 50: in a match every actor-path instance (hero, weapons, the level's banners) had 0 submits while the
+// menu's actors drew. The visibility gate 0xc42430 tests the instance's cell (+0xd4, set once by Init from its
+// descriptor, 0xc3b934) against the frame's visible-cell bitset unless it is 0xffff. Actors come with cell 0;
+// the menu level's cell 0 is visible, a match level's is not, so every actor was culled. An actor has no cell
+// of its own: 0xffff (no cell test; the frustum test still runs). UNCHARTED_U2MP_ACTOR_CELL=0 turns it off.
+bool actor_cell_on = true;
+uint32_t actor_cell_count = 0;
+void actor_cell_fix(uint64_t inst) {
+    if (!actor_cell_on) return;
+    uint32_t *cell = reinterpret_cast<uint32_t *>(uintptr_t(inst) + 0xd4);
+    if (*cell != 0) return;
+    *cell = 0xffff;
+    if (__atomic_add_fetch(&actor_cell_count, 1, __ATOMIC_RELAXED) <= 4)
+        log("render: actor cell fix: %p visibility cell 0 -> none (0xffff)", reinterpret_cast<const void *>(uintptr_t(inst)));
+}
+
 void actor_bounds_fix(uint64_t inst, uint64_t proto) {
+    actor_cell_fix(inst);
     if (!actor_bounds_on) return;
     uint16_t *flags = reinterpret_cast<uint16_t *>(uintptr_t(inst) + 0xc0);
     const uint16_t before = *flags;
@@ -1084,10 +1101,11 @@ void actor_bounds_fix(uint64_t inst, uint64_t proto) {
 void install_render(int &installed) {
     if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_BOUNDS"); v && std::strcmp(v, "0") == 0)
         actor_bounds_on = false;
+    if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_CELL"); v && std::strcmp(v, "0") == 0) actor_cell_on = false;
     const bool diag = install_draw_diag(installed);
     // Section 7 rides on the MeshInstance::Init A hook; without the diagnostics it is installed alone
     // (mesh_init_logged applies the fix, then returns because diag_mode is 0).
-    if (actor_bounds_on && !diag) {
+    if ((actor_bounds_on || actor_cell_on) && !diag) {
         diag_mode = 0;
         if (retarget_call(cInitA, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged),
                           "render: actor cull fix (MeshInstance::Init A)"))

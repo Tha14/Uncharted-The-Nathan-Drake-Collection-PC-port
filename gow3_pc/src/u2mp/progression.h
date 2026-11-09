@@ -17,4 +17,7 @@ void progression_publish();
 // The players this PC met in recent matches (local store), most recently seen first, at most `max`.
 std::vector<std::string> progression_recent_players(size_t max);
 
+// clantag.cpp: BUTTON_CLANTAG's text box (NetPlayerData +0x1a8).
+bool edit_clan_tag();
+
 }  // namespace u2mp

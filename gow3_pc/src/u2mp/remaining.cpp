@@ -19,6 +19,7 @@
 
 #include "cinema.h"
 #include "online.h"
+#include "progression.h"
 #include "session_api.h"
 #include "texts.h"
 #include "voice.h"
@@ -315,8 +316,9 @@ void friend_options(int row) {
 }
 U2MP_GUEST void friends_row(void *arg, void *, void *) {   // list row
     const int row = int(arg32(arg, 4));
-    if (online::active()) friend_options(row);
-    else player_options(row);
+    if (!online::active()) player_options(row);
+    else if (row == 0) online::open_join_list();   // "Browse Online Games" (menus.cpp)
+    else friend_options(row - 1);
 }
 
 // 7cc46b94 (PS3 0x439cf8): KickoutRoomMember(party, selected member).
@@ -368,10 +370,17 @@ U2MP_GUEST void invite_to_party(void *, void *, void *) {
     }
     message_box(kTextInvite);
 }
-// cond 48: the Invites label stays (PS4 blanked it with no invites); column 1 = the invites waiting.
+// cond 48 (PS3 0x4b8e08, PS4 0x659b50): with no invites op 1 blanks the label (the page then lays the button
+// out as an empty row, as PS3 did; a shown label pushed the whole page up, test 50); column 1 = the invites
+// waiting.
 char invites_count_text[16];
 U2MP_GUEST void invites_query(uint8_t *q) {
     const uint32_t op = field<uint32_t>(q, 0);
+    if (op == 1 && online::invite_count() == 0) {
+        static const char empty[] = "";
+        *reinterpret_cast<uint64_t *>(q + 0x40) = uint64_t(uintptr_t(empty));
+        return;
+    }
     if (op == 2 && field<uint32_t>(q, 0x54) == 1) {
         const int n = online::invite_count();
         if (n > 0) {
@@ -383,7 +392,9 @@ U2MP_GUEST void invites_query(uint8_t *q) {
 
 // BUTTON_CLANTAG (PS3 0x441440): the on-screen keyboard for the clan tag; PAGE_MULTIPLAYER_PLAYER_OPTIONS
 // (PS3 0x4443f8) polled it (events 2/3 free it, 6 stores the tag) and closed itself when signed out.
-U2MP_GUEST void clan_tag(void *, void *, void *) { message_box(kTextClanTag); }
+U2MP_GUEST void clan_tag(void *, void *, void *) {
+    if (!edit_clan_tag()) message_box(kTextClanTag);
+}
 U2MP_GUEST void player_options_page(void *arg, void *, void *) {
     if (arg32(arg, 0) == 6 && state() < 2) pop_page();
 }
