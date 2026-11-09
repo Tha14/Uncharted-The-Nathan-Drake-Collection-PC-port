@@ -60,3 +60,21 @@ each needs a check in the next runs:
 | GOTY stub tables | co-op kills of every NPC type (no assert at `0x5dedac`), health 90, Baseball Shirt Drake in the store | UNLOCKS.md 3.1, 5 |
 | visibility probe (two PCs) | enemy name tags in line of sight and behind walls (filter {26, 0}) | PORT-GAMEPLAY3.md 7 |
 | player character drawn, HUD, loading rosters | other ports in progress | PORT-RENDER.md, PORT-HUD.md, PORT-FRONTEND5.md |
+
+## Online (built 2026-11-09, not run yet): what to test
+
+Two PCs, this build on both, both signed in to RPCN in the launcher (online extension installed), so
+`UNCHARTED_U2MP_ONLINE_DLL` and `UNCHARTED_U2MP_RELAY` are set. Flow and every log line: `PORT-ONLINE.md`.
+
+| Step | PC A | PC B | boot.log proof |
+|---|---|---|---|
+| 1 | Multiplayer | Multiplayer | `online: u2_online.dll loaded`, `link connecting -> ready`, `world W on server S`, `created party room` (both) |
+| 2 | Custom Game, Start Match | - | `created custom game room <id>`, `Start Match goes on`, `net state 3 -> 10 -> 16`, `state 0x53 = 1` |
+| 3 | - | Invites -> list shows "A - Custom Game (1/10)" | `join list: N room(s) listed` |
+| 4 | - | select the row | B: `joined custom game room`, `peer ...: active, rtt`, `transport switch done`, `following the host into the match`; A: `peer in slot 1 joined`, `sending the follow` |
+| 5 | both in the lobby, roster shows both names; A starts | | `NET_SM 26: match running`, `hidden and closed`, both PCs see each other in the match |
+| 6 | match ends | | `back from the match`, `shown and open again`, `state 0x53 = 0` |
+| 7 | B leaves Multiplayer, A kicks / leaves | | `leaving every room`, A: `left room ... (cause 1: left)` |
+| 8 | party: B joins A's party row from the list while A is on PAGE_MULTIPLAYER, then A starts a custom game | | B: `joined party room`, then `joining the leader's match room` |
+
+Also check once with the DLL path removed: `online: off (...)` and LAN behaves as before.

@@ -25,6 +25,7 @@ extern "C" int runtime_file_translate(const char *guest, char *out, size_t size)
 #include "gamenet.h"
 #include "progression.h"
 #include "net.h"
+#include "online.h"
 #include "session_api.h"
 #include "u2mp_internal.h"
 #include "voice.h"
@@ -342,6 +343,11 @@ void on_session_message(uint8_t from, const uint8_t *d, size_t n) {
     case kFollow:   // host -> clients: the host created the match; join it (PS3: party follow)
         if (!hosting) {
             log("following the host into the match");
+            if (n >= 9) {   // online: {kFollow, u64 match room id} (PS3: member data +0 / mailbox 0x10e)
+                uint64_t room = 0;
+                std::memcpy(&room, d + 1, 8);
+                online::follow_match_room(room);
+            }
             netinit_match();
             G<uint8_t>(kNetInfo + NI_CREATED_BY_ME) = 0;
             fn<void(U2MP_GUEST *)(void *)>(fClearNetPlayers)(image.at<void>(kNgm));
@@ -358,10 +364,23 @@ void on_session_message(uint8_t from, const uint8_t *d, size_t n) {
             mailbox_post(kMsgPartyHostJoined, 1, &yes, 1);   // JOINING 12 -> 14 -> 17
         }
         break;
+    case kOnlineMessage:   // online.cpp (the party follows its leader into another room)
+        online::on_message(from, d + 1, n - 1);
+        break;
     default:   // matchmaking, vote, leader back-out (frontend3.cpp)
         if (d[0] >= kFrontendMessages) matchmaking::on_message(from, d, n);
         break;
     }
+}
+
+// {kFollow} (LAN) or {kFollow, u64 match room id} (online: the members join the room too).
+std::vector<uint8_t> follow_body() {
+    std::vector<uint8_t> b{kFollow};
+    if (const uint64_t room = online::match_room()) {
+        b.resize(9);
+        std::memcpy(b.data() + 1, &room, 8);
+    }
+    return b;
 }
 
 void on_peer(uint8_t slot, bool joined) {
@@ -370,6 +389,15 @@ void on_peer(uint8_t slot, bool joined) {
             members[slot] = Member{true, id_of_slot(slot), "Player " + std::to_string(slot + 1)};
             gamenet::attach(slot, id_of_slot(slot), true);
             log("party: peer in slot %u joined", slot);
+            if (online::active()) {
+                online::on_host_reached(id_of_slot(slot));
+                // Online, players also arrive while the custom game lobby is up (join list): PS3 took them
+                // through JOINING 12 -> 14 -> 17 into CLIENT_LOBBY; the follow does the same here.
+                if (G<uint8_t>(kMatch + M_CREATED) && state() == kServerLobby) {
+                    log("online: slot %u joined while the lobby is up: sending the follow", slot);
+                    send_session(slot, follow_body());
+                }
+            }
         } else {
             log("party: %s left", members[slot].name.c_str());
             player_left(members[slot].net_id);
@@ -387,6 +415,10 @@ void on_peer(uint8_t slot, bool joined) {
         gamenet::attach(0, 1, true);
         send_info();
         log("party: joined the host as net id %u", my_id);
+        online::on_host_reached(my_id);
+    } else if (online::host_change_expected()) {   // online: the party follows its leader to another room
+        log("online: the old host closed the link; following the leader to its new room");
+        gamenet::detach(0);
     } else {        // host gone: every multiplayer page falls back to the error box
         log("party: lost the host");
         gamenet::detach(0);
@@ -412,6 +444,14 @@ bool start_transport() {
     gamenet::set_transport(&transport);
     voice::set_transport(&transport);
     for (auto &m : members) m = Member{};
+    if (net::Link *link = online::start()) {   // online (u2_online.dll): the party is hosted on the online link
+        if (!transport.host_link(link)) return false;
+        hosting = true;
+        my_id = 1;
+        members[0] = Member{true, 1, my_name, local_rank()};
+        log("online: hosting a party on the online link as %s", my_name.c_str());
+        return true;
+    }
     const char *join = std::getenv("UNCHARTED_U2MP_JOIN");
     if (join && *join) {
         net::Address host;
@@ -965,9 +1005,12 @@ void create_match_now() {
     session_members(kMatch);
     fill_net_players();
     G<int32_t>(kMatch + M_CREATE_RESULT) = 0;
-    G<uint8_t>(kMatch + M_CREATED) = 1;   // 0x6093f0: 3 -> 10 -> 16 -> PlayTask("deathmatch")
     in_match_setup = true;
-    send_session(-1, {kFollow});
+    // Online: PS3 waited for CreateJoinRoom (0x4d421c) before 0x6093f0 saw +0x99; online.cpp makes the
+    // match room and calls online_match_ready() with it.
+    if (online::create_match_room()) return;
+    G<uint8_t>(kMatch + M_CREATED) = 1;   // 0x6093f0: 3 -> 10 -> 16 -> PlayTask("deathmatch")
+    send_session(-1, follow_body());
 }
 
 // Diagnostics: what Start Match is about to start (mode, the custom choice list, the net game and its level).
@@ -1032,6 +1075,7 @@ U2MP_GUEST void leave_multiplayer(void *, void *, void *) {
     for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) gamenet::detach(slot);
     voice::stop();
     transport.close();
+    online::on_transport_closed("Multiplayer left");
     active = false;
     session_clear(kParty);
     session_clear(kMatch);
@@ -1078,6 +1122,7 @@ void update_net_clock() {
 void tick() {
     // before the active test: once made, the clock keeps running after the host is lost (not made outside MP)
     if (active || net_clock) update_net_clock();
+    online::frame();   // room service events (no-op while online is off)
     if (!active) return;
     const double now = gamenet::clock();
     if (now == last_tick) return;   // already done this frame
@@ -1088,11 +1133,13 @@ void tick() {
     transport.pump(now);
     if (kicked || lost_host) {   // not inside the pump: closing resets the connections it walks
         log("party: closing the transport (%s); Multiplayer starts a new one", kicked ? "kicked" : "host lost");
+        const char *why = kicked ? "kicked" : "host lost";
         kicked = false;
         lost_host = false;
         for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) gamenet::detach(slot);
         voice::stop();
     transport.close();
+        online::on_transport_closed(why);
         active = false;
         for (auto &m : members) m = Member{};
         return;
@@ -1179,6 +1226,40 @@ uint32_t net_ticks() {
 
 void create_match() {
     if (active && hosting) create_match_now();
+}
+
+void online_reopen(net::Link *link, const net::Address *owner) {
+    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) gamenet::detach(slot);
+    transport.close();
+    for (auto &m : members) m = Member{};
+    kicked = lost_host = false;
+    if (!owner) {
+        hosting = transport.host_link(link);
+        my_id = 1;
+        members[0] = Member{true, 1, my_name, local_rank()};
+        session_set(kParty, kRoomContext, 1, 1);
+        session_members(kParty);
+        log("online: transport switch: hosting a new party on the online link");
+    } else {
+        hosting = false;
+        my_id = 0;
+        session_set(kParty, kRoomContext, 0xfff, 1);
+        session_members(kParty);
+        transport.join_link(link, *owner);
+        log("online: transport switch: joining the room owner over the online link");
+    }
+    sent_mode = -1;
+    active = true;
+}
+
+void online_match_ready(uint64_t room_id) {
+    if (!active || !hosting) {
+        log("online: match room %llx ready but this PC no longer hosts: ignored", (unsigned long long)room_id);
+        return;
+    }
+    log("online: Start Match goes on (match room %llx)", (unsigned long long)room_id);
+    G<uint8_t>(kMatch + M_CREATED) = 1;   // 0x6093f0: 3 -> 10 -> 16 -> PlayTask("deathmatch")
+    send_session(-1, follow_body());
 }
 
 uint32_t member_rank(uint32_t net_id) {

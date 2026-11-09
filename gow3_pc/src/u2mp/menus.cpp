@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "frontend3.h"
+#include "online.h"
 #include "progression.h"
 #include "session_api.h"
 #include "u2mp_internal.h"
@@ -421,6 +422,11 @@ U2MP_GUEST void players_met_query(uint8_t *q) {
 // is empty; answering keeps the page from reading stale values.
 int join_current = 0;
 U2MP_GUEST void join_list_query(uint8_t *q) {
+    if (const int rows = online::join_rows(); rows >= 0) {   // online: the rooms of the search (online.cpp)
+        if (Q<uint32_t>(q, 0) == kTitle) set_text(q, online::join_title());
+        else list_query(q, rows, join_current, [](int r) -> const char * { return online::join_row(r); });
+        return;
+    }
     if (Q<uint32_t>(q, 0) == kTitle) set_text(q, kEmpty);
     else list_query(q, 0, join_current, [](int) -> const char * { return kEmpty; });
 }

@@ -67,7 +67,16 @@ private:
     void acknowledge(uint16_t ack, uint32_t bits);
 };
 
-// The local endpoint: a UDP socket and up to kMaxPeers connections. Host or client.
+// A datagram path other than the transport's own UDP socket (online play: online.cpp sends through the
+// online link's peer-to-peer socket). The link names its peers with Addresses of its own choosing.
+struct Link {
+    virtual ~Link() = default;
+    virtual void send(const Address &to, const uint8_t *data, size_t size) = 0;
+    // One received datagram: its length, 0 when none is waiting.
+    virtual int receive(Address &from, uint8_t *data, size_t capacity) = 0;
+};
+
+// The local endpoint: a UDP socket (or a Link) and up to kMaxPeers connections. Host or client.
 class Transport {
 public:
     using Deliver = std::function<void(uint8_t slot, const uint8_t *data, size_t size)>;
@@ -76,6 +85,9 @@ public:
     ~Transport();
     bool host(uint16_t port);                                  // listen; we are slot 0
     bool join(const Address &host_address, uint16_t local_port = 0);
+    // The same over a Link instead of a socket of our own (the link stays the caller's).
+    bool host_link(Link *link);
+    bool join_link(Link *link, const Address &host_address);
     void close();
     // Once per frame: receive everything, time out silent peers, send.
     void pump(double now);
@@ -90,6 +102,7 @@ public:
 
 private:
     uintptr_t socket_ = ~uintptr_t(0);
+    Link *link_ = nullptr;
     uint16_t port_ = 0;
     bool hosting_ = false;
     uint8_t local_slot_ = 0;
@@ -97,6 +110,7 @@ private:
     Address host_address_;
     double hello_sent_ = -1;
     bool open(uint16_t port);
+    bool is_open() const { return socket_ != ~uintptr_t(0) || link_; }
     void send_raw(const Address &to, const std::vector<uint8_t> &packet);
     void send_control(const Address &to, uint8_t kind, uint8_t value);
     Connection *find(const Address &from);

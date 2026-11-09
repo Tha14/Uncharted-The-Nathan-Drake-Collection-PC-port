@@ -16,6 +16,7 @@
 #include <cstring>
 #include <string>
 
+#include "online.h"
 #include "session_api.h"
 #include "texts.h"
 #include "voice.h"
@@ -274,6 +275,7 @@ U2MP_GUEST void save_print(void *, void *, void *) { log("Save"); }
 // BUTTON_MULTIPLAYER_INVITES (PS3 0x440948): the PSN invite inbox, then PAGE_LOBBY when a mode is
 // chosen. 0ace8463 (PS3 0x43ff60): invite the selected friend to the party (NP message 0x10b).
 U2MP_GUEST void invites(void *, void *, void *) {
+    if (online::open_join_list()) return;   // online: the rooms of the room service (online.cpp)
     if (G<int32_t>(kNetInfo + NI_MODE) != 0) show_page(kPageLobby);
     message_box(kTextInvite);
 }

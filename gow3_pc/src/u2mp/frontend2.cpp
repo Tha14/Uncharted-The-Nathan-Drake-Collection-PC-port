@@ -15,6 +15,7 @@
 //   JOINING code (0x609790) only fails. The PC joins by address (session.cpp) and the list query
 //   (cond 3, menus.cpp) has no rows, so the callback should never run; if it does it now only logs
 //   instead of reading garbage.
+#include "online.h"
 #include "u2mp_internal.h"
 
 namespace u2mp {
@@ -25,6 +26,7 @@ constexpr uint64_t cbSelectJoinGame = 0x609680;   // PS3 0x465808
 // Menu callback (same arguments as the other button callbacks): the row selected is at arg+4.
 U2MP_GUEST void select_join_game(void *arg, void *, void *) {
     const uint32_t row = arg ? *reinterpret_cast<const uint32_t *>(static_cast<const uint8_t *>(arg) + 4) : 0;
+    if (online::select_join(int(row))) return;   // online: join that room (online.cpp)
     log("join game list: row %u selected; the PC joins by address (UNCHARTED_U2MP_JOIN), nothing to join", row);
 }
 

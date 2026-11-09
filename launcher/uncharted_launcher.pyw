@@ -3143,6 +3143,21 @@ class Launcher:
         env["UNCHARTED_U2MP_OVERLAY"] = os.pathsep.join(layers)
         env["UNCHARTED_U2MP"] = "1"  # the runtime's u2mp module (gow3_pc/src/u2mp): the restored functions
         env["UNCHARTED_U2MP_NAME"] = "Drake"   # the name and join rows were removed (user, 2026-11-09)
+        # Online play like Uncharted 3: the player signs in to RPCN on this page (the private module's section);
+        # the game then uses that session through the local relay (UNCHARTED_U2MP_RELAY) and plays under the
+        # account's name. Without the module or a signed-in session, Uncharted 2 has LAN play only.
+        env.pop("UNCHARTED_U2MP_RELAY", None)
+        env.pop("UNCHARTED_U2MP_ONLINE_DLL", None)
+        online_dll = U3MP_DIR / "online" / "u2_online.dll"   # comes with the online extension
+        if online_dll.is_file():
+            env["UNCHARTED_U2MP_ONLINE_DLL"] = str(online_dll)
+        try:
+            module = self.u3mp_extension_module()
+            hook = getattr(module, "handoff_env", None) if module is not None else None
+            if hook is not None:
+                hook(env, {"user_dir": USER_DIR, "game": "u2"})
+        except Exception:
+            log_launcher_error(*sys.exc_info())
 
     def page_multiplayer(self):
         """Uncharted 2 multiplayer (u2mp), laid out like Uncharted 3's page (page_u3mp). Shown only while

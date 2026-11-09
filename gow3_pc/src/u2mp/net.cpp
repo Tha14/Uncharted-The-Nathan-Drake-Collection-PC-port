@@ -235,15 +235,18 @@ bool Transport::open(uint16_t port) {
 }
 
 void Transport::close() {
-    if (socket_ == ~uintptr_t(0)) return;
+    if (!is_open()) return;
     for (Connection &c : peers_)
         if (c.connected) send_control(c.address, kBye, local_slot_);
+    if (socket_ != ~uintptr_t(0)) {
 #ifdef _WIN32
-    closesocket(SOCKET(socket_));
+        closesocket(SOCKET(socket_));
 #else
-    ::close(int(socket_));
+        ::close(int(socket_));
 #endif
+    }
     socket_ = ~uintptr_t(0);
+    link_ = nullptr;
     for (Connection &c : peers_) c.reset();
     hosting_ = false;
     local_slot_ = 0;
@@ -265,12 +268,35 @@ bool Transport::join(const Address &host_address, uint16_t local_port) {
     return true;
 }
 
+bool Transport::host_link(Link *link) {
+    close();
+    if (!link) return false;
+    link_ = link;
+    hosting_ = true;
+    local_slot_ = 0;
+    return true;
+}
+
+bool Transport::join_link(Link *link, const Address &host_address) {
+    close();
+    if (!link) return false;
+    link_ = link;
+    hosting_ = false;
+    host_address_ = host_address;
+    hello_sent_ = -1;
+    return true;
+}
+
 bool Transport::connected() const {
-    if (hosting_) return socket_ != ~uintptr_t(0);
+    if (hosting_) return is_open();
     return peers_[0].connected;
 }
 
 void Transport::send_raw(const Address &to, const std::vector<uint8_t> &packet) {
+    if (link_) {
+        link_->send(to, packet.data(), packet.size());
+        return;
+    }
     sockaddr_in a{};
     a.sin_family = AF_INET;
     a.sin_port = htons(to.port);
@@ -339,9 +365,14 @@ void Transport::handle(const Address &from, const uint8_t *packet, size_t size, 
 }
 
 void Transport::pump(double now) {
-    if (socket_ == ~uintptr_t(0)) return;
+    if (!is_open()) return;
     uint8_t buffer[2048];
-    for (;;) {
+    for (Address from; link_;) {
+        const int n = link_->receive(from, buffer, sizeof buffer);
+        if (n <= 0) break;
+        handle(from, buffer, size_t(n), now);
+    }
+    for (; !link_;) {
         sockaddr_in a{};
         socklen_type length = sizeof a;
         const auto n = ::recvfrom(decltype(::socket(0, 0, 0))(socket_), reinterpret_cast<char *>(buffer), int(sizeof buffer), 0,

@@ -42,6 +42,7 @@
 #include <system_error>
 #include <vector>
 
+#include "online.h"
 #include "progression_store.h"
 #include "u2mp_internal.h"
 #include "unlocks.h"
@@ -249,6 +250,7 @@ void U2MP_GUEST player_info_update() {
         unlocks_refresh();   // GOTY skin / booster tables (unlocks.cpp) before the menus read them
         ensure_connected();
         publish_if_changed();
+        online::member_data_changed();   // PS3 0x4af240 also published the room member blob 0x59
     }
     guard();
 }
