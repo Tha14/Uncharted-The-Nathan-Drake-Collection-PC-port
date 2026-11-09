@@ -196,7 +196,8 @@ def node(widget):
         items = children(w.inner)
         if not items:
             return None
-        return {"t": "section", "id": wid, "title": w.title, "note": w.note, "items": items}
+        return {"t": "section", "id": wid, "title": w.title, "note": w.note, "items": items,
+                "column": getattr(w, "column", "")}
     if getattr(w, "is_row", False) and hasattr(w, "control"):
         hint = w.hint_label
         control = node(w.control) if shown(w.control) else None
@@ -284,6 +285,12 @@ def node(widget):
                 else:
                     merged.append(n)
             items = merged
+            # "Add friend" + its box: the name above, the box across the whole width (as the other fields)
+            if (len(items) == 2 and items[0].get("t") == "label" and items[1].get("t") == "entry"
+                    and "button" in items[1]):
+                items[0] = dict(items[0], side="top")
+                items[1] = dict(items[1], side="top", wide=True)
+                return {"t": "box", "dir": "v", "id": wid, "items": items, "bg": color(w, "bg")}
         return {"t": "box", "dir": "h" if horizontal else "v", "id": wid, "items": items, "bg": color(w, "bg")}
     return None
 
@@ -388,6 +395,10 @@ def chrome(app):
     if getattr(app, "banner_shown", False):
         bar = canvas_node(app.banner_bar) or {}
         banner = {"title": text_of(app.banner_title), "detail": text_of(app.banner_detail), "progress": bar.get("v", 0)}
+    if getattr(app, "update_busy", False) and getattr(app, "update_release", None):   # a launcher update installing
+        done, total = getattr(app, "update_progress", (0, 0))
+        banner = {"title": "UPDATING THE LAUNCHER TO " + ul.updater.version_text(app.update_release["version"]),
+                  "detail": text_of(app.status) + " " + text_of(app.substatus), "progress": done / total if total else 0}
     update = shown(app.update_button)
     hero = ""
     for name in ("pic1.png", "pic0.png"):

@@ -2,6 +2,7 @@ import QtCore
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 
 // The launcher window: picture, game cards, tabs, the shown tab's page, and the PLAY bar.
 ApplicationWindow {
@@ -58,30 +59,37 @@ ApplicationWindow {
         }
     }
 
+    // Frosted background: the cover art across the whole window, blurred and darkened, so text on it stays readable.
+    Image {
+        id: backgroundArt
+        anchors.fill: parent
+        source: backend.fileUrl(backend.chrome.hero || "")
+        fillMode: Image.PreserveAspectCrop
+        verticalAlignment: Image.AlignTop
+        asynchronous: true
+        visible: false
+    }
+    MultiEffect {
+        anchors.fill: parent
+        source: backgroundArt
+        blurEnabled: true
+        blurMax: 64
+        blur: 1.0
+        saturation: -0.25
+        visible: backgroundArt.status === Image.Ready
+    }
+    Rectangle { anchors.fill: parent; color: "#d80b0b0d" }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
+        // the picture, with the title and the three games on it
         Hero {
             Layout.fillWidth: true
-            Layout.preferredHeight: 170
+            Layout.preferredHeight: 210
             source: backend.fileUrl(backend.chrome.hero || "")
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.leftMargin: Theme.gutter
-            Layout.rightMargin: Theme.gutter
-            Layout.topMargin: -18
-            spacing: 16
-            Repeater {
-                model: backend.chrome.games || []
-                GameCard {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 76
-                    game: modelData
-                }
-            }
+            games: backend.chrome.games || []
         }
 
         // Uncharted 3 multiplayer update in progress (the Tk launcher's gold banner)
@@ -90,7 +98,8 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.leftMargin: Theme.gutter
             Layout.rightMargin: Theme.gutter
-            Layout.topMargin: 12
+            Layout.topMargin: -6
+            Layout.bottomMargin: 6
             Layout.preferredHeight: bannerColumn.implicitHeight + 24
             radius: Theme.radiusCard
             color: Theme.gold
@@ -124,7 +133,7 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.leftMargin: Theme.gutter
             Layout.rightMargin: Theme.gutter
-            Layout.topMargin: 16
+            Layout.topMargin: 0
             tabs: backend.chrome.tabs || []
         }
 

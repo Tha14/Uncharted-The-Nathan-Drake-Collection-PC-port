@@ -39,6 +39,7 @@ set(LAUNCHER_QML
     qml/PresetCard.qml
     qml/MessageDialog.qml
     qml/CollapsibleGroup.qml
+    qml/GlassPanel.qml
 )
 # Every QML file sits at the module's root at run time (next to its qmldir), so each sees the module's types and
 # the Theme singleton.

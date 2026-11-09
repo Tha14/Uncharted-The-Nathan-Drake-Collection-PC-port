@@ -1,12 +1,15 @@
 import QtQuick
 
-// The Collection's picture across the top, fading into the window's black, with the title.
+// The Collection's picture across the top, fading into the frosted background, with the title on the left and the
+// three games on the right. `art` is the picture item (the game cards' glass blurs it).
 Item {
     id: hero
     property alias source: art.source
+    property alias art: art
+    property var games: []
     clip: true
 
-    Rectangle { anchors.fill: parent; color: "#d9c9a6"; visible: art.status !== Image.Ready }
+    // the sharp picture, faded out at the bottom
     Image {
         id: art
         anchors.left: parent.left
@@ -18,17 +21,19 @@ Item {
         smooth: true
         mipmap: true
     }
+    // fades into the frosted background below (the same dark tint, so there is no edge)
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
             GradientStop { position: 0.0; color: "transparent" }
             GradientStop { position: 0.55; color: "transparent" }
-            GradientStop { position: 1.0; color: Theme.bg }
+            GradientStop { position: 1.0; color: "#d80b0b0d" }
         }
     }
+
     Column {
         x: Theme.gutter + 8
-        y: 26
+        y: 34
         spacing: 2
         Text {
             text: "UNCHARTED"
@@ -40,5 +45,22 @@ Item {
             color: "#8a6326"; font.family: Theme.sansSemi; font.pixelSize: 14
         }
         Rectangle { x: 3; width: 330; height: 2; color: "#b98d45"; radius: 1 }
+    }
+
+    Row {
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.gutter
+        anchors.top: parent.top
+        anchors.topMargin: 22
+        spacing: 12
+        Repeater {
+            model: hero.games
+            GameCard {
+                width: 172
+                height: 156
+                game: modelData
+                backdrop: art
+            }
+        }
     }
 }

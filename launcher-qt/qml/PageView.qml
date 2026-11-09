@@ -18,8 +18,11 @@ Flickable {
     readonly property bool single: items.filter(n => n.t === "section").length === 1
     readonly property var wide: items.filter(n => n.t !== "section" || single)
     // a very long section (RPCN with its friend list) gets the right column to itself; the others stack on the left
-    readonly property var full: single ? [] : items.filter(n => n.t === "section" && weight(n) >= 40)
-    readonly property var sections: single ? [] : items.filter(n => n.t === "section" && weight(n) < 40)
+    readonly property bool pinned: items.some(n => n.t === "section" && n.column === "right")
+    readonly property var full: single ? [] : items.filter(n => n.t === "section"
+                                                             && (pinned ? n.column === "right" : weight(n) >= 40))
+    readonly property var sections: single ? [] : items.filter(n => n.t === "section"
+                                                                 && (pinned ? n.column !== "right" : weight(n) < 40))
 
     // a section's rough height, to put each in the shorter column (rows count most, long notes and logs too)
     function weight(n) {

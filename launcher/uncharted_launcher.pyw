@@ -2167,7 +2167,8 @@ class Launcher:
         self.tab_cells = {}
         tabs = [("setup", "QUICK SETUP"), ("display", "DISPLAY"), ("performance", "PERFORMANCE"),
                 ("controls", "CONTROLS"), ("cheats", "CHEATS"), ("advanced", "ADVANCED"), ("tools", "TOOLS"),
-                ("u3mp", "MULTIPLAYER"), ("multiplayer", "MULTIPLAYER")]  # u3mp, or u2mp's while Uncharted 2 is chosen
+                ("u3mp", "MULTIPLAYER"), ("multiplayer", "MULTIPLAYER"),  # u3mp, or u2mp's while Uncharted 2 is chosen
+                ("launcher", "LAUNCHER")]
         for name, label in tabs:
             cell = tk.Frame(strip, bg=PANEL)
             cell.pack(side="left", padx=(0, self.px(4)))
@@ -2190,6 +2191,7 @@ class Launcher:
             "advanced": self.page_advanced(),
             "u3mp": self.page_u3mp(),
             "multiplayer": self.page_multiplayer(),
+            "launcher": self.page_launcher(),
         }
         self.pages["tools"] = self.tools_page   # made by page_advanced (its shortcut, Steam and folder buttons)
         for page in self.pages.values():
@@ -2261,12 +2263,13 @@ class Launcher:
         inner.holder = holder
         return inner
 
-    def section(self, page, title, note=""):
+    def section(self, page, title, note="", column=""):
         """Starts a group of rows: organize() puts what follows (up to the next section) in a rounded card
         with this heading."""
         marker = tk.Frame(page, bg=BG, height=1)
         marker.pack(side="top", fill="x")
         marker.section = (title, note)
+        marker.column = column   # "right": the Qt window puts this section in the right column
         return marker
 
     def organize(self, page):
@@ -2286,6 +2289,7 @@ class Launcher:
             if hasattr(w, "section"):
                 title, note = w.section
                 card = Card(page, self.s, title, note, self.f_section, self.f_small, wrap=820)
+                card.column = getattr(w, "column", "")
                 card.pack(side="top", fill="x", pady=(0, self.px(14)))
                 w.destroy()
                 last_row = False
@@ -3073,14 +3077,6 @@ class Launcher:
                  "The torch lights where Nate points it. Off: as on the PS4, it lights where the camera "
                  "looks. Needs update 1.02.", torch_forward)
 
-        def check_updates(parent):
-            return Toggle(parent, self.s, self.config.get("check_updates", True),
-                          lambda v: self.change_config("check_updates", v))
-        version = updater.installed_version(ROOT)
-        self.row(page, "Check for updates at start",
-                 f"Installed: {updater.version_text(version) if version else 'source tree (updates with git)'}. "
-                 "The launcher asks before it installs anything.", check_updates)
-
         advanced = page
         page = self.tools_page = self.page()   # the TOOLS tab
 
@@ -3119,6 +3115,48 @@ class Launcher:
                  wraplength=self.width - 2 * self.px(40) - self.px(30)).pack(side="top", fill="x",
                                                                               pady=(self.px(10), 0))
         return advanced
+
+    def page_launcher(self):
+        """The launcher itself: how its updates install."""
+        page = self.page()
+        self.section(page, "Updates")
+        version = updater.installed_version(ROOT)
+
+        def mode(parent):
+            return Segmented(parent, (("auto", "Automatic"), ("manual", "Manual")),
+                             self.config.get("update_mode", "manual"), self.change_update_mode, self.f_small)
+        self.row(page, "Launcher updates",
+                 "Automatic: a new version installs by itself when no game or import is running. Manual: the "
+                 "UPDATE button installs it.", mode)
+
+        def check_updates(parent):
+            return Toggle(parent, self.s, self.config.get("check_updates", True),
+                          lambda v: self.change_config("check_updates", v))
+        self.row(page, "Check for updates at start",
+                 f"Installed: {updater.version_text(version) if version else 'source tree (updates with git)'}.",
+                 check_updates)
+
+        def check_now(parent):
+            return self.flat_button(parent, "Check now", lambda: self.check_updates(manual=True))
+        self.row(page, "Check for a new version", "", check_now)
+        return page
+
+    def change_update_mode(self, value):
+        self.change_config("update_mode", value)
+        if value == "auto" and self.update_release and not self.update_busy:
+            self.update_button.pack_forget()
+            self.auto_install()
+        elif value == "manual" and self.update_release and not self.update_busy:
+            self.update_button.pack(side="right", padx=(0, self.px(14)))
+
+    def auto_install(self):
+        """Automatic updates: install the found version as soon as no game or import is running."""
+        if self.config.get("update_mode") != "auto" or not self.update_release or self.update_busy:
+            return
+        if self.process or self.import_running():
+            self.root.after(60000, self.auto_install)
+            return
+        self.install_update(auto=True)
 
     def flat_button(self, parent, label, action):
         """A secondary action: a dark rounded button."""
@@ -3491,7 +3529,7 @@ class Launcher:
         self.u2mp_refresh()
         self.root.after(1000, self.u2mp_poll)
         self.root.after(4500, self.u2mp_auto_update)
-        self.section(page, "RPCN online play")
+        self.section(page, "RPCN online play", column="right")
         self.u2mp_extension(page)
         return page
 
@@ -3554,6 +3592,9 @@ class Launcher:
         import: the import then reruns by itself and redoes only the steps whose fingerprint changed."""
         state = self.u2mp_state() if state is None else state
         if state.get("status") not in ("imported", "partial"):
+            return False
+        # only an import this PC ran (it writes import.log next to its state); a state.json copied in is not one
+        if not (U2MP_DIR / "import" / "import.log").is_file():
             return False
         shipped = self.u2mp_shipped_id()
         # an update that ended worse is not retried at every start (Import retries it)
@@ -3964,7 +4005,7 @@ class Launcher:
         self.u3mp_refresh()
         self.root.after(1000, self.u3mp_poll)
         self.root.after(4000, self.u3mp_auto_update)
-        self.section(page, "RPCN online play")
+        self.section(page, "RPCN online play", column="right")
         self.u3mp_extension(page)
         return page
 
@@ -4427,6 +4468,11 @@ class Launcher:
         if release:
             self.update_release = release
             version = updater.version_text(release["version"])
+            if self.config.get("update_mode") == "auto":
+                if not self.process:
+                    self.set_status(f"Version {version} is available.", "It installs by itself in a moment.")
+                self.root.after(1500, self.auto_install)
+                return
             self.update_button.config(text=f"UPDATE TO {version}")
             self.update_button.pack(side="right", padx=(0, self.px(14)))
             if not self.process:
@@ -4449,7 +4495,7 @@ class Launcher:
         except Exception:  # noqa: BLE001 - never block an update on a broken state file
             return False
 
-    def install_update(self):
+    def install_update(self, auto=False):
         release = self.update_release
         if not release or self.update_busy:
             return
@@ -4460,7 +4506,7 @@ class Launcher:
             messagebox.showinfo(APP_TITLE, self.IMPORT_BUSY)
             return
         version = updater.version_text(release["version"])
-        if not messagebox.askyesno(APP_TITLE, f"Install version {version} ({release['size'] / 1e6:.0f} MB "
+        if not auto and not messagebox.askyesno(APP_TITLE, f"Install version {version} ({release['size'] / 1e6:.0f} MB "
                                    "download)?\n\nSaves, settings and the shader cache are kept. The "
                                    "launcher closes, installs the update and starts again.\n\n"
                                    f"What's new: {release['page']}"):

@@ -5,8 +5,8 @@ import QtQuick
 QtObject {
     // near black with the Collection's yellow-gold accent
     readonly property color bg: "#0c0c0e"
-    readonly property color panel: "#141417"
-    readonly property color card: "#151519"
+    readonly property color panel: "#c4141417"
+    readonly property color card: "#cc151519"
     readonly property color cardLine: "#25252c"
     readonly property color field: "#222228"
     readonly property color fieldHi: "#2c2c34"
