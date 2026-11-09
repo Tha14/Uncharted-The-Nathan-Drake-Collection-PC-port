@@ -2,14 +2,16 @@ import QtQuick
 import QtQuick.Layouts
 
 // The bottom bar: status, UPDATE (a newer release) and PLAY / STOP.
+// A floating rounded bar, centred under the page.
 Rectangle {
     color: Theme.panel
-    Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.cardLine }
+    radius: height / 2
+    border.color: Theme.cardLine
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: Theme.gutter
-        anchors.rightMargin: Theme.gutter
+        anchors.leftMargin: 32
+        anchors.rightMargin: 12
         spacing: 14
         ColumnLayout {
             Layout.fillWidth: true

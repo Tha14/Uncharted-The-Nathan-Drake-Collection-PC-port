@@ -74,11 +74,11 @@ ApplicationWindow {
         source: backgroundArt
         blurEnabled: true
         blurMax: 64
-        blur: 1.0
-        saturation: -0.25
+        blur: 0.85
+        saturation: -0.2
         visible: backgroundArt.status === Image.Ready
     }
-    Rectangle { anchors.fill: parent; color: "#d80b0b0d" }
+    Rectangle { anchors.fill: parent; color: "#9a0b0b0d" }
 
     ColumnLayout {
         anchors.fill: parent
@@ -145,9 +145,12 @@ ApplicationWindow {
             tab: backend.tab
         }
 
-        Footer {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 84
+        Footer {   // floating: centred, as wide as the tabs and the page, with a gap under it
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: window.width - 2 * Theme.gutter
+            Layout.preferredHeight: 76
+            Layout.topMargin: 10
+            Layout.bottomMargin: 16
         }
     }
 
