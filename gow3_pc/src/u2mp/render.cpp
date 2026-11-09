@@ -404,6 +404,7 @@ struct Tracked {
     uint64_t collects_reported;
     uint64_t draw_jobs;       // 0xc419d0 calls for this instance
     uint64_t draw_jobs_reported;
+    bool loop_off_logged;
     uint64_t loop_calls;      // 0xbe3930 calls (frame loop 0xcaea00 / 0xb90f17) for the render object's +0xf0
 };
 Tracked tracked[kTracked];
@@ -469,13 +470,33 @@ using LoopDrawFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t
 uint64_t loop_calls_total = 0;
 U2MP_GUEST uint64_t loop_draw_counted(uint64_t obj, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5,
                                       uint64_t s0, uint64_t s1, uint64_t s2, uint64_t s3) {
-    __atomic_add_fetch(&loop_calls_total, 1, __ATOMIC_RELAXED);
+    const uint64_t total = __atomic_add_fetch(&loop_calls_total, 1, __ATOMIC_RELAXED);
+    bool matched = false;
     for (int i = 0; i < kTracked; ++i) {
+        const uint64_t inst = __atomic_load_n(&tracked[i].instance, __ATOMIC_RELAXED);
+        if (!inst) continue;
         const uint64_t ro = tracked[i].render_object;
-        if (ro && __atomic_load_n(&tracked[i].instance, __ATOMIC_RELAXED) && !bad_pointer(ro) &&
-            *reinterpret_cast<const uint64_t *>(uintptr_t(ro) + 0xf0) == obj)
-            __atomic_add_fetch(&tracked[i].loop_calls, 1, __ATOMIC_RELAXED);
+        // what the loop passes: the instance, its draw data (instance - 0x1c0), the render object, or within 0x800
+        // of one of them (a sub-object)
+        const uint64_t keys[] = {inst, inst - 0x1c0, ro};
+        for (uint64_t k : keys)
+            if (k && obj >= k && obj < k + 0x800) {
+                __atomic_add_fetch(&tracked[i].loop_calls, 1, __ATOMIC_RELAXED);
+                if (!tracked[i].loop_off_logged) {
+                    tracked[i].loop_off_logged = true;
+                    log("render diag: frame loop draws %s %p through object %llx (= %s + 0x%llx)", tracked[i].kind,
+                        reinterpret_cast<const void *>(uintptr_t(inst)), (unsigned long long)obj,
+                        k == inst ? "instance" : k == ro ? "render object" : "draw data", (unsigned long long)(obj - k));
+                }
+                matched = true;
+                break;
+            }
     }
+    if (!matched && (total & 0xfff) == 1 && !bad_pointer(obj))
+        log("render diag: frame loop object sample %llx: +0 %016llx +8 %016llx +44 %u", (unsigned long long)obj,
+            (unsigned long long)*reinterpret_cast<const uint64_t *>(uintptr_t(obj)),
+            (unsigned long long)*reinterpret_cast<const uint64_t *>(uintptr_t(obj) + 8),
+            *reinterpret_cast<const uint32_t *>(uintptr_t(obj) + 0x44));
     return reinterpret_cast<LoopDrawFn>(image.base + fLoopDraw)(obj, a1, a2, a3, a4, a5, s0, s1, s2, s3);
 }
 
@@ -624,6 +645,7 @@ U2MP_GUEST uint64_t mesh_init_logged(uint64_t inst, uint64_t a1, uint64_t a2, ui
     t.collects = t.collects_reported = 0;
     t.draw_jobs = t.draw_jobs_reported = 0;
     t.loop_calls = 0;
+    t.loop_off_logged = false;
     __atomic_store_n(&t.instance, inst, __ATOMIC_RELEASE);
     const uint8_t *in = reinterpret_cast<const uint8_t *>(uintptr_t(inst));
     list_insert(inst + 0x170, slot, 0, gen);
