@@ -525,6 +525,14 @@ U2MP_GUEST uint64_t gate_counted(uint64_t inst, uint64_t a1, uint64_t a2, uint64
 
 void log_gate(const Tracked &t, uint64_t inst) {
     const uint8_t *dd = reinterpret_cast<const uint8_t *>(uintptr_t(inst - 0x1c0));
+    // the draw-data loop 0xcafc10's own tests before the gate (0xcaffbc..0xcb0078): +0x1b8 / +0x1b9 flags, the
+    // per-view mask +0x298, +0x324 != 0, +0x280 & 6 (run 57: actors still never reach the gate)
+    log("render diag: %s %p draw data loop fields: +1b8 %08x +280 %08x +298 %016llx %016llx %016llx %016llx +324 %u",
+        t.kind, reinterpret_cast<const void *>(uintptr_t(inst)), *reinterpret_cast<const uint32_t *>(dd + 0x1b8),
+        *reinterpret_cast<const uint32_t *>(dd + 0x280), (unsigned long long)*reinterpret_cast<const uint64_t *>(dd + 0x298),
+        (unsigned long long)*reinterpret_cast<const uint64_t *>(dd + 0x2a0),
+        (unsigned long long)*reinterpret_cast<const uint64_t *>(dd + 0x2a8),
+        (unsigned long long)*reinterpret_cast<const uint64_t *>(dd + 0x2b0), *reinterpret_cast<const uint32_t *>(dd + 0x324));
     const uint64_t ro = t.render_object;
     if (!ro || bad_pointer(ro)) {
         log("render diag: %s %p draw data flags +1b8 %08x, render object unknown", t.kind,
