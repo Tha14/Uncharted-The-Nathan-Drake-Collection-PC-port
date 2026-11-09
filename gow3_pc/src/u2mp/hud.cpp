@@ -1335,6 +1335,127 @@ void install_weapon_panel() {
         "multiplayer draw), probes on", double(kWeaponHudSeconds));
 }
 
+// ---- theater HUD (PS3 0x8af620: selector 0x8a8ed8 + draw 0x8ac3f0), while a film plays ----
+// Sub-object element+0x1928 (ctor 0x55d690 = PS3 0x8a7c64; Reset 0x55abb0): +0 selected index, +4
+// smoothed index, +8 pending release id, +0xc cameras (0x18 each: +0 callback id, +4 release id, +8 image
+// handle, +0x14 name text id), +0xfc camera count, +0x100 shown list (10 pointers), +0x150 shown count,
+// +0x154 fade, +0x158 time stamp. Shown only with HUD flag 0x100000 (RePlaying::Update 0x5e6dca, toggled by
+// the square button).
+// Selector (0x8a8ed8): the shown list keeps 3cf5deed always, never e8184ce8, ff502160 / 806c9824 /
+// 887c7d6e only in cinema mode 1 / 2 / 0 ([0x113a990+0x678]), every other id; L1 / R1 (PS3 pad bits 4 / 8
+// through the repeat helper 0xaac38) move the selection, clamped; smoothed = smoothed / 2 + index / 2;
+// fade -> 0.7 fade + 0.3 (PS3 fades to 0 while a menu page is open, menu+1460: its PS4 field is not
+// mapped, and the pause menu stops this draw anyway); at fade >= 0.9 the confirm button
+// runs the camera's callback id through DoCallback (PS3 0x426dbc(menu 0xf0e800) = PS4 0x5c8840(menu
+// 0x1136640, id, 0)) and keeps its release id, which runs when the button is let go.
+// Draw (0x8ac3f0, PS3 layout primitives 0x420f58 / 0x421018 / 0x4156cc have no PS4 counterpart): a dark
+// panel at the bottom, the camera icons 64 x 32 (step 72) around the smoothed index with alpha falling off
+// by 0.3 per step, the selected camera's name above, the film position / length as m:ss with a progress
+// bar (PS3 0x462fbc: position = (clock [+0x204] - cinema +0x6a0) / 300; length = header +0x10 = cinema
+// +0x1d8, PS3 +456). The PS3 sound on a camera change (0x30fb28 / 0x7069c8, f57d53ce) and the "x%2.1f"
+// speed line (PS3 [0xe1558c], no PS4 pair found) are left out. Pad: raw OrbisPadData buttons 0x14b7fb0.
+constexpr uint64_t E_THEATER = 0x1928;
+constexpr uint64_t TH_SEL = 0x0, TH_SMOOTH = 0x4, TH_RELEASE = 0x8, TH_CAMS = 0xc, TH_CAM_SIZE = 0x18,
+                   TH_CAM_COUNT = 0xfc, TH_SHOWN = 0x100, TH_SHOWN_COUNT = 0x150, TH_FADE = 0x154, TH_TIME = 0x158;
+constexpr uint64_t CIN_CLOCK = 0x6a0, CIN_DURATION = 0x1c8 + 0x10;
+constexpr uint64_t kPadButtonsRaw = 0x14b7fb0, kMenuMgr = 0x1136640, fDoCallback = 0x5c8840;
+constexpr uint32_t kFlagTheater = 0x100000;
+constexpr uint32_t kPadL1 = 0x400, kPadR1 = 0x800, kPadCross = 0x4000;
+constexpr uint32_t kCamAlways = 0x3cf5deed, kCamNever = 0xe8184ce8, kCamMode1 = 0xff502160, kCamMode2 = 0x806c9824,
+                   kCamMode0 = 0x887c7d6e;
+using DoCallbackFn = void(U2MP_GUEST *)(void *, uint32_t, uint32_t);
+uint32_t g_theater_last_buttons = 0;
+bool g_theater_logged = false;
+
+void fmt_mss(char *out, size_t n, int32_t secs) {
+    if (secs < 0) secs = 0;
+    std::snprintf(out, n, "%d:%02d", int(secs / 60), int(secs % 60));
+}
+
+void draw_theater(void *ctx, const uint8_t *element) {
+    const uint8_t *sub = element + E_THEATER;
+    const int32_t cams = R<int32_t>(sub, TH_CAM_COUNT);
+    if (cams <= 0 || cams > 10) return;
+    const int32_t mode = G<int32_t>(kCinemaMgr + CINEMA_MODE);
+    const uint8_t *shown[10];
+    int n = 0;
+    for (int i = 0; i < cams; ++i) {
+        const uint8_t *c = sub + TH_CAMS + TH_CAM_SIZE * uint64_t(i);
+        const uint32_t id = R<uint32_t>(c, 0);
+        const bool keep = id == kCamAlways || (id != kCamNever && (id == kCamMode1   ? mode == 1
+                                                                   : id == kCamMode2 ? mode == 2
+                                                                   : id == kCamMode0 ? mode == 0
+                                                                                     : true));
+        if (keep) shown[n++] = c;
+    }
+    for (int i = 0; i < n; ++i) Wr<uint64_t>(sub, TH_SHOWN + 8 * uint64_t(i), uint64_t(uintptr_t(shown[i])));
+    Wr<int32_t>(sub, TH_SHOWN_COUNT, n);
+    if (!g_theater_logged) {
+        g_theater_logged = true;
+        log("hud: theater HUD: %d cameras, %d shown in cinema mode %d", int(cams), n, int(mode));
+    }
+    if (n == 0) return;
+    // selector
+    const uint32_t buttons = G<uint32_t>(kPadButtonsRaw);
+    const uint32_t pressed = buttons & ~g_theater_last_buttons;
+    g_theater_last_buttons = buttons;
+    int32_t sel = R<int32_t>(sub, TH_SEL);
+    const uint32_t release = R<uint32_t>(sub, TH_RELEASE);
+    DoCallbackFn callback = reinterpret_cast<DoCallbackFn>(image.base + fDoCallback);
+    if (!(buttons & kPadCross)) {
+        if (release) {
+            callback(image.base + kMenuMgr, release, 0);
+            Wr<uint32_t>(sub, TH_RELEASE, 0u);
+        }
+        if (pressed & kPadL1) --sel;
+        if (pressed & kPadR1) ++sel;
+    }
+    if (sel > n - 1) sel = n - 1;
+    if (sel < 0) sel = 0;
+    Wr<int32_t>(sub, TH_SEL, sel);
+    const float smooth = R<float>(sub, TH_SMOOTH) * 0.5f + float(sel) * 0.5f;
+    Wr<float>(sub, TH_SMOOTH, smooth);
+    const float fade = R<float>(sub, TH_FADE) * 0.7f + 0.3f;
+    Wr<float>(sub, TH_FADE, fade);
+    Wr<int32_t>(sub, TH_TIME, G<int32_t>(kFrames));
+    if (fade >= 0.9f && (pressed & kPadCross)) {
+        callback(image.base + kMenuMgr, R<uint32_t>(shown[sel], 0), 0);
+        Wr<uint32_t>(sub, TH_RELEASE, R<uint32_t>(shown[sel], 4));
+        log("hud: theater HUD: camera %08x", R<uint32_t>(shown[sel], 0));
+    }
+    // draw
+    const float a = clamp01(fade);
+    Handle sq;
+    const bool box = resolve(sid_handle(kSidTerritorySquare, 1), "theater panel", sq);
+    const float panel_w = float(n) * 72.0f + 40.0f, px = 640.0f - panel_w * 0.5f;
+    if (box) quad(ctx, sq, V4{0.0f, 0.0f, 0.0f, 0.6f * a}, V2{px, 600.0f}, V2{panel_w, 100.0f});
+    for (int i = 0; i < n; ++i) {
+        const float d = float(i) - smooth;
+        const float ia = clamp01(1.0f - 0.3f * (d < 0 ? -d : d)) * a;
+        const float x = 640.0f + d * 72.0f - 32.0f;
+        if (i == sel && box)
+            quad(ctx, sq, V4{1.0f, 1.0f, 1.0f, 0.35f * a}, V2{x - 4.0f, 618.0f}, V2{72.0f, 40.0f});
+        quad(ctx, handle_at(shown[i] + 8), V4{1.0f, 1.0f, 1.0f, ia}, V2{x, 622.0f}, V2{64.0f, 32.0f}, false,
+             V2{0.0f, -1.0f}, V2{0.0f, 0.0f}, V2{1.0f, 1.0f}, "theater camera");
+    }
+    const char *name = reinterpret_cast<FindFn>(image.base + fTextFind)(image.base + kTextDb, R<uint32_t>(shown[sel], 0x14));
+    if (name) draw_text(640.0f, 578.0f, 0.6f, V4{1.0f, 1.0f, 1.0f, a}, 1, 600.0f, 20.0f, name);
+    const int32_t length = G<int32_t>(kCinemaMgr + CIN_DURATION);
+    const int32_t pos = int32_t(float(G<int32_t>(kFrames) - G<int32_t>(kCinemaMgr + CIN_CLOCK)) / kFramesPerSecond);
+    if (length > 0) {
+        const float fill = clamp01(float(pos) / float(length));
+        if (box) {
+            quad(ctx, sq, V4{1.0f, 1.0f, 1.0f, 0.25f * a}, V2{440.0f, 672.0f}, V2{400.0f, 6.0f});
+            quad(ctx, sq, V4{1.0f, 0.82f, 0.25f, 0.9f * a}, V2{440.0f, 672.0f}, V2{400.0f * fill, 6.0f});
+        }
+        char t[16];
+        fmt_mss(t, sizeof t, pos > length ? length : pos);
+        draw_text(380.0f, 666.0f, 0.5f, V4{1.0f, 1.0f, 1.0f, a}, 1, 50.0f, 20.0f, t);
+        fmt_mss(t, sizeof t, length);
+        draw_text(850.0f, 666.0f, 0.5f, V4{1.0f, 1.0f, 1.0f, a}, 1, 50.0f, 20.0f, t);
+    }
+}
+
 // Slot 1 of the multiplayer HUD element (PS3 0x8aef68): (element, draw context). The PS3 order:
 //   competitive (not co-op 4/8/9/12), not type 11, flag 0x40000 (0x8af1fc): type 7 panel (0x8af960),
 //     type 10 panel (0x8af648), or the score panel (0x8af220) and, for types other than 1 / 2, the
@@ -1398,6 +1519,8 @@ U2MP_GUEST void net_hud_draw(void *element_v, void *ctx) {
         }
     }
     draw_coop_panel(ctx, element, set, flags);                   // 0x8af150: type 9 only (checked inside)
+    if (G<uint8_t>(kNgm + NGM_FILM) && (flags & kFlagTheater) && !std::getenv("UNCHARTED_U2MP_NO_THEATER"))
+        draw_theater(ctx, element);                               // 0x8af620
     draw_boosters(ctx, element, local, coop, flags);              // 0x8af158 film site, 0x8af1a0 loadout site
     if (!coop && type != 11 && (flags & kFlagMessages)) draw_messages(ctx, element, set);   // 0x8af424
     if (flags & kFlagNames) {                                     // 0x8af1d4
