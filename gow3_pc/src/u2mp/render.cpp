@@ -30,7 +30,6 @@
 //  4. Bind guard at the walker's 0xc12150 call (0xc258b2), kept from run 35 as the last check.
 //
 // Addresses are Uncharted 2 PS4 1.02 image offsets. Every patch checks the bytes it replaces first.
-#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -406,9 +405,7 @@ struct Tracked {
     uint64_t draw_jobs;       // 0xc419d0 calls for this instance
     uint64_t draw_jobs_reported;
     bool loop_off_logged;
-    uint64_t gate_calls, gate_pass;
-    uint64_t in_view_list[16];   // 0xcafc10 calls whose draw-data list (5th arg) holds this draw data, by pass
-    uint64_t view_lists_seen;   // 0xc42430 per instance (run 55: the actor path's gate)
+    uint64_t gate_calls, gate_pass;   // 0xc42430 per instance (run 55: the actor path's gate)
     uint64_t loop_calls;      // 0xbe3930 calls (frame loop 0xcaea00 / 0xb90f17) for the render object's +0xf0
 };
 Tracked tracked[kTracked];
@@ -446,112 +443,11 @@ uint64_t render_object_of(uint64_t drawdata) {
 
 using CollectFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 unsigned char *collect_original = nullptr;
-// ---- section 8: actors into every view's draw-data list (tests 50-60) ------------------------------------
-// In a match the actors' draw data (hero, weapons, the level's banners) are collected every frame (0xbd6d00) and
-// reach the pass-15 lists of 0xcafc10, but never the draw-data list of the main view draws 0xcae4e0 (10 call
-// sites, list = stack argument 2), which the menu's actors do reach. Every draw data the collect produced in the
-// last frames is added to a copy of each 0xcae4e0 list that lacks it; the list's own tests (pass bits +0x1b8,
-// pass mask +0x298, +0x324, +0x280) and the visibility gate 0xc42430 still decide whether it is drawn in that
-// pass, so the actors are drawn where they belong. UNCHARTED_U2MP_ACTOR_INJECT=0 turns it off.
-bool actor_inject_on = true;
-constexpr int kActorSlots = 8192;
-uint64_t actor_dd[kActorSlots];
-uint64_t actor_ms[kActorSlots];
-uint64_t now_ms() {
-    return uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
-}
-void actor_seen(uint64_t dd) {
-    if (!dd) return;
-    uint32_t h = uint32_t((dd >> 4) * 0x9e3779b1u) & (kActorSlots - 1);
-    const uint64_t t = now_ms();
-    for (int probe = 0; probe < 64; ++probe, h = (h + 1) & (kActorSlots - 1)) {
-        uint64_t k = __atomic_load_n(&actor_dd[h], __ATOMIC_ACQUIRE);
-        if (k == dd) {
-            __atomic_store_n(&actor_ms[h], t, __ATOMIC_RELAXED);
-            return;
-        }
-        if (k == 0 && __atomic_compare_exchange_n(&actor_dd[h], &k, dd, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
-            __atomic_store_n(&actor_ms[h], t, __ATOMIC_RELAXED);
-            return;
-        }
-        if (k == dd) return;
-    }
-}
-
-constexpr uint64_t fViewMain = 0xcae4e0;
-const uint64_t cViewMain[] = {0xbfaeeb, 0xc9dad1, 0xc9e387, 0xc9eaed, 0xc9ffb3, 0xca032f, 0xca11df, 0xca214f, 0xca2e8a, 0xca40ac};
-using ViewMainFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
-                                          uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
-                                          uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
-uint64_t inject_calls = 0, inject_added = 0;
-U2MP_GUEST uint64_t view_main_injected(uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5,
-                                       uint64_t s0, uint64_t s1, uint64_t list, uint64_t s3, uint64_t s4, uint64_t s5,
-                                       uint64_t s6, uint64_t s7, uint64_t s8, uint64_t s9, uint64_t s10, uint64_t s11,
-                                       uint64_t s12, uint64_t s13, uint64_t s14) {
-    const auto original = reinterpret_cast<ViewMainFn>(image.base + fViewMain);
-    if (!actor_inject_on || !list || bad_pointer(list))
-        return original(a0, a1, a2, a3, a4, a5, s0, s1, list, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14);
-    thread_local uint64_t *copy = nullptr;
-    thread_local uint32_t seen_stamp = 0;
-    thread_local uint32_t mark[kActorSlots];   // stamp of list entries this call (hash of the entry)
-    constexpr uint32_t kCap = 0x2000;
-    if (!copy) copy = static_cast<uint64_t *>(std::calloc(kCap + 1, 8));
-    if (!copy) return original(a0, a1, a2, a3, a4, a5, s0, s1, list, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14);
-    if (++seen_stamp == 0) {
-        std::memset(mark, 0, sizeof mark);
-        seen_stamp = 1;
-    }
-    const uint32_t n = *reinterpret_cast<const uint32_t *>(uintptr_t(list));
-    const uint64_t *e = reinterpret_cast<const uint64_t *>(uintptr_t(list) + 8);
-    if (n >= kCap) return original(a0, a1, a2, a3, a4, a5, s0, s1, list, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14);
-    uint32_t m = 0;
-    for (uint32_t k = 0; k < n; ++k) {
-        copy[1 + m++] = e[k];
-        mark[uint32_t((e[k] >> 4) * 0x9e3779b1u) & (kActorSlots - 1)] = seen_stamp;
-    }
-    const uint64_t t = now_ms();
-    uint32_t added = 0;
-    for (int h = 0; h < kActorSlots && m < kCap; ++h) {
-        const uint64_t dd = __atomic_load_n(&actor_dd[h], __ATOMIC_ACQUIRE);
-        if (!dd || t - __atomic_load_n(&actor_ms[h], __ATOMIC_RELAXED) > 200) continue;
-        const uint32_t hh = uint32_t((dd >> 4) * 0x9e3779b1u) & (kActorSlots - 1);
-        if (mark[hh] == seen_stamp) {   // maybe there already (hash hit): check exactly
-            bool there = false;
-            for (uint32_t k = 0; k < n && !there; ++k) there = e[k] == dd;
-            if (there) continue;
-        }
-        copy[1 + m++] = dd;
-        ++added;
-    }
-    if (!added) return original(a0, a1, a2, a3, a4, a5, s0, s1, list, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14);
-    *reinterpret_cast<uint32_t *>(copy) = m;
-    __atomic_add_fetch(&inject_calls, 1, __ATOMIC_RELAXED);
-    __atomic_add_fetch(&inject_added, added, __ATOMIC_RELAXED);
-    return original(a0, a1, a2, a3, a4, a5, s0, s1, uint64_t(uintptr_t(copy)), s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13,
-                    s14);
-}
-
-// 0xbd6d00 appends at most 0x800 - count draw data to the out list ({u32 count; ptr[0x800]}); a full list drops
-// the rest silently. Run 58 question: does a match fill it before the actors come?
-uint32_t collect_max = 0;
-uint64_t collect_full = 0, collect_dropped_tracked = 0;
 U2MP_GUEST uint64_t collect_logged(uint64_t object, uint64_t out, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
-    bool tracked_obj = false;
     for (int i = 0; i < kTracked; ++i)
-        if (tracked[i].render_object == object && __atomic_load_n(&tracked[i].instance, __ATOMIC_RELAXED)) {
+        if (tracked[i].render_object == object && __atomic_load_n(&tracked[i].instance, __ATOMIC_RELAXED))
             __atomic_add_fetch(&tracked[i].collects, 1, __ATOMIC_RELAXED);
-            tracked_obj = true;
-        }
-    const uint32_t before = out ? *reinterpret_cast<const uint32_t *>(uintptr_t(out)) : 0;
-    const uint64_t r = reinterpret_cast<CollectFn>(collect_original)(object, out, a2, a3, a4, a5);
-    const uint32_t after = out ? *reinterpret_cast<const uint32_t *>(uintptr_t(out)) : 0;
-    for (uint32_t k = before; out && k < after && k < 0x800; ++k)
-        actor_seen(*reinterpret_cast<const uint64_t *>(uintptr_t(out) + 8 + 8 * uint64_t(k)));
-    if (after > collect_max) collect_max = after;
-    if (after >= 0x800) ++collect_full;
-    if (tracked_obj && after == before && *reinterpret_cast<const uint32_t *>(uintptr_t(object) + 0xfc))
-        ++collect_dropped_tracked;
-    return r;
+    return reinterpret_cast<CollectFn>(collect_original)(object, out, a2, a3, a4, a5);
 }
 
 // 0xc419d0(MeshInstance, ...) is the per-instance draw job (reached through the thunk 0xc42250 of the
@@ -627,45 +523,7 @@ U2MP_GUEST uint64_t gate_counted(uint64_t inst, uint64_t a1, uint64_t a2, uint64
     return r;
 }
 
-// 0xcafc10 (calls 0xc9d148, 0xca16ea) draws a view's objects: its 5th argument is the view's draw-data list
-// {u32 count; dd*[]}, read at 0xcaff7a; the 7th (stack +8) is the pass. Run 59: is the hero's draw data there?
-constexpr uint64_t fViewDraw = 0xcafc10;
-const uint64_t cViewDraw[] = {0xc9d148, 0xca16ea};
-using ViewDrawFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
-                                          uint64_t, uint64_t);
-uint64_t view_draw_calls = 0, view_list_max = 0, view_draw_by_pass[3] = {};
-U2MP_GUEST uint64_t view_draw_counted(uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t list, uint64_t a5,
-                                      uint64_t s0, uint64_t pass, uint64_t s2, uint64_t s3) {
-    __atomic_add_fetch(&view_draw_calls, 1, __ATOMIC_RELAXED);
-    ++view_draw_by_pass[(pass & 0xffffffff) == 0 ? 0 : (pass & 0xffffffff) == 15 ? 1 : 2];
-    if (list && !bad_pointer(list)) {
-        const uint32_t n = *reinterpret_cast<const uint32_t *>(uintptr_t(list));
-        if (n > view_list_max) view_list_max = n;
-        const uint64_t *e = reinterpret_cast<const uint64_t *>(uintptr_t(list) + 8);
-        for (int i = 0; i < kTracked; ++i) {
-            const uint64_t inst = __atomic_load_n(&tracked[i].instance, __ATOMIC_RELAXED);
-            if (!inst) continue;
-            ++tracked[i].view_lists_seen;
-            for (uint32_t k = 0; k < n && k < 0x2000; ++k)
-                if (e[k] == inst - 0x1c0) {
-                    ++tracked[i].in_view_list[pass & 15];
-                    break;
-                }
-        }
-    }
-    return reinterpret_cast<ViewDrawFn>(image.base + fViewDraw)(a0, a1, a2, a3, list, a5, s0, pass, s2, s3);
-}
-
 void log_gate(const Tracked &t, uint64_t inst) {
-    {
-        char by[160] = "";
-        size_t at = 0;
-        for (int p = 0; p < 16; ++p)
-            if (t.in_view_list[p] && at + 20 < sizeof by) at += size_t(std::snprintf(by + at, sizeof by - at, " pass %d: %llu", p, (unsigned long long)t.in_view_list[p]));
-        log("render diag: %s %p in the view draw-data lists of 0xcafc10:%s (of %llu lists; longest list %llu)", t.kind,
-            reinterpret_cast<const void *>(uintptr_t(inst)), at ? by : " never", (unsigned long long)t.view_lists_seen,
-            (unsigned long long)view_list_max);
-    }
     const uint8_t *dd = reinterpret_cast<const uint8_t *>(uintptr_t(inst - 0x1c0));
     // the draw-data loop 0xcafc10's own tests before the gate (0xcaffbc..0xcb0078): +0x1b8 / +0x1b9 flags, the
     // per-view mask +0x298, +0x324 != 0, +0x280 & 6 (run 57: actors still never reach the gate)
@@ -820,8 +678,6 @@ U2MP_GUEST uint64_t mesh_init_logged(uint64_t inst, uint64_t a1, uint64_t a2, ui
     t.loop_calls = 0;
     t.loop_off_logged = false;
     t.gate_calls = t.gate_pass = 0;
-    std::memset(t.in_view_list, 0, sizeof t.in_view_list);
-    t.view_lists_seen = 0;
     __atomic_store_n(&t.instance, inst, __ATOMIC_RELEASE);
     const uint8_t *in = reinterpret_cast<const uint8_t *>(uintptr_t(inst));
     list_insert(inst + 0x170, slot, 0, gen);
@@ -885,20 +741,10 @@ U2MP_GUEST uint64_t walker_logged(uint64_t list, uint64_t a1, uint64_t a2, uint6
             log_instance("submit", reinterpret_cast<const uint8_t *>(uintptr_t(t.instance)));
         }
     }
-    static uint64_t last_summary_ms = 0;
-    const uint64_t now_ms = uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
-    if ((calls & 0x3ffff) == 0 || now_ms - last_summary_ms >= 8000) {
-        last_summary_ms = now_ms;
-        log("render: actor inject: %llu main view lists extended, %llu draw data added", (unsigned long long)inject_calls,
-            (unsigned long long)inject_added);
-        log("render diag: view draws 0xcafc10 by pass: 0:%llu 15:%llu other:%llu", (unsigned long long)view_draw_by_pass[0],
-            (unsigned long long)view_draw_by_pass[1], (unsigned long long)view_draw_by_pass[2]);
+    if ((calls & 0x3ffff) == 0) {
         log("render diag: summary at walker call %llu; list table %u of %d used, %u lists not watched (table full)",
             (unsigned long long)calls, __atomic_load_n(&lists_used, __ATOMIC_RELAXED), kListSlots,
             __atomic_load_n(&lists_dropped, __ATOMIC_RELAXED));
-        log("render diag: collect out list: largest %u of 2048 draw data, full %llu times, tracked objects added nothing %llu times",
-            collect_max, (unsigned long long)collect_full, (unsigned long long)collect_dropped_tracked);
-        collect_max = 0;
         for (int i = 0; i < kTracked; ++i) {
             Tracked &t = tracked[i];
             const uint64_t inst = __atomic_load_n(&t.instance, __ATOMIC_ACQUIRE);
@@ -946,11 +792,6 @@ bool install_draw_diag(int &installed) {
     n += retarget_call(cInitA, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init A");
     n += retarget_call(cInitB, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init B");
     n += retarget_call(cInitC, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init C");
-    if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_INJECT"); v && std::strcmp(v, "0") == 0) actor_inject_on = false;
-    for (const uint64_t c : cViewMain)
-        n += retarget_call(c, fViewMain, reinterpret_cast<void *>(&view_main_injected), "render: actors into the main view lists (0xcae4e0)");
-    for (const uint64_t c : cViewDraw)
-        n += retarget_call(c, fViewDraw, reinterpret_cast<void *>(&view_draw_counted), "render diag: view draw 0xcafc10 counted");
     for (const uint64_t c : cGates)
         n += retarget_call(c, fGate, reinterpret_cast<void *>(&gate_counted), "render diag: visibility gate 0xc42430 counted");
     n += retarget_call(cFreeActor, fMeshFree, reinterpret_cast<void *>(&mesh_free_logged), "render diag: actor mesh teardown");
