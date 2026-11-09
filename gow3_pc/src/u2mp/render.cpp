@@ -1208,7 +1208,9 @@ void install_render(int &installed) {
     if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_BOUNDS"); v && std::strcmp(v, "0") == 0)
         actor_bounds_on = false;
     if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_CELL"); v && std::strcmp(v, "0") == 0) actor_cell_on = false;
-    if (patch_view_mask()) ++installed;
+    // patch_view_mask() is not installed: run 58 showed +0x298 + view * 8 is the instance's pass mask (+0xd8),
+    // not a visibility mask; removing that test drew actors in passes they do not belong to.
+    (void)&patch_view_mask;
     const bool diag = install_draw_diag(installed);
     // Section 7 rides on the MeshInstance::Init A hook; without the diagnostics it is installed alone
     // (mesh_init_logged applies the fix, then returns because diag_mode is 0).
