@@ -30,6 +30,7 @@
 //  4. Bind guard at the walker's 0xc12150 call (0xc258b2), kept from run 35 as the last check.
 //
 // Addresses are Uncharted 2 PS4 1.02 image offsets. Every patch checks the bytes it replaces first.
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -545,10 +546,11 @@ constexpr uint64_t fViewDraw = 0xcafc10;
 const uint64_t cViewDraw[] = {0xc9d148, 0xca16ea};
 using ViewDrawFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
                                           uint64_t, uint64_t);
-uint64_t view_draw_calls = 0, view_list_max = 0;
+uint64_t view_draw_calls = 0, view_list_max = 0, view_draw_by_pass[3] = {};
 U2MP_GUEST uint64_t view_draw_counted(uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t list, uint64_t a5,
                                       uint64_t s0, uint64_t pass, uint64_t s2, uint64_t s3) {
     __atomic_add_fetch(&view_draw_calls, 1, __ATOMIC_RELAXED);
+    ++view_draw_by_pass[(pass & 0xffffffff) == 0 ? 0 : (pass & 0xffffffff) == 15 ? 1 : 2];
     if (list && !bad_pointer(list)) {
         const uint32_t n = *reinterpret_cast<const uint32_t *>(uintptr_t(list));
         if (n > view_list_max) view_list_max = n;
@@ -796,7 +798,12 @@ U2MP_GUEST uint64_t walker_logged(uint64_t list, uint64_t a1, uint64_t a2, uint6
             log_instance("submit", reinterpret_cast<const uint8_t *>(uintptr_t(t.instance)));
         }
     }
-    if ((calls & 0x3ffff) == 0) {
+    static uint64_t last_summary_ms = 0;
+    const uint64_t now_ms = uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+    if ((calls & 0x3ffff) == 0 || now_ms - last_summary_ms >= 8000) {
+        last_summary_ms = now_ms;
+        log("render diag: view draws 0xcafc10 by pass: 0:%llu 15:%llu other:%llu", (unsigned long long)view_draw_by_pass[0],
+            (unsigned long long)view_draw_by_pass[1], (unsigned long long)view_draw_by_pass[2]);
         log("render diag: summary at walker call %llu; list table %u of %d used, %u lists not watched (table full)",
             (unsigned long long)calls, __atomic_load_n(&lists_used, __ATOMIC_RELAXED), kListSlots,
             __atomic_load_n(&lists_dropped, __ATOMIC_RELAXED));
