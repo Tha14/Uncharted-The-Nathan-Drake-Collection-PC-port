@@ -173,9 +173,11 @@ def recipe_version():
         return "?"
 
 
-def version_suffix():
-    """' - Launcher Version: x - Recipe Version: y', shown after the launcher's and the games' window titles."""
-    return f" - Launcher Version: {launcher_version()} - Recipe Version: {recipe_version()}"
+def version_suffix(imported=""):
+    """' - Launcher Version: x - Recipe Version: y[ - Imported vZ]', shown after the launcher's and the games' window
+    titles; Z is the Uncharted 3 multiplayer build of the current import (state.json image version)."""
+    tail = f" - Imported v{imported}" if imported else ""
+    return f" - Launcher Version: {launcher_version()} - Recipe Version: {recipe_version()}{tail}"
 
 
 def u3mp_default_data():
@@ -1582,7 +1584,7 @@ class Launcher:
         self.gpu_name = self.config.get("gpu")
         self.recommended = gpu_recommendation(self.gpu_name)
         self.fonts()
-        root.title(APP_TITLE + version_suffix())
+        root.title(APP_TITLE + self.title_suffix())
         root.configure(bg=BG)
         root.resizable(True, True)
         self.width = self.px(1180)
@@ -3702,7 +3704,19 @@ class Launcher:
         state = self.u3mp_state()
         return state.get("status") == "running" and pid_alive(state.get("pid"))
 
+    def title_suffix(self):
+        """version_suffix with the imported Uncharted 3 multiplayer build, when there is an import."""
+        state = self.u3mp_state()
+        imported = ""
+        if state.get("status") in ("imported", "partial"):
+            imported = str((state.get("image") or {}).get("version") or "")
+        return version_suffix(imported)
+
     def u3mp_refresh(self):
+        try:
+            self.root.title(APP_TITLE + self.title_suffix())   # an import or update may have changed the build
+        except tk.TclError:
+            pass
         if not hasattr(self, "u3mp_status"):
             return
         state = self.u3mp_state()
@@ -4211,7 +4225,7 @@ class Launcher:
         write_config(self.config)
         game = self.current_game()
         env = os.environ.copy()
-        env["GOW3_TITLE_SUFFIX"] = version_suffix()   # the game window's title (gow3gpu.cpp), like the launcher's
+        env["GOW3_TITLE_SUFFIX"] = self.title_suffix()   # the game window's title (gow3gpu.cpp), the same as the launcher's
         env["UNCHARTED_DIAGNOSTICS"] = "1" if self.config.get("diagnostics", True) else "0"
         env["UNCHARTED_TORCH_FORWARD"] = "1" if self.config.get("torch_forward", True) else "0"
         env["UNCHARTED_JOB_SLEEP"] = {"off": "0", "on": "1"}.get(str(self.config.get("job_sleep", "auto")), "auto")

@@ -50,6 +50,11 @@ cp -r u3mp/patcher "$stage/u3mp/patcher"
 # maintainer tools (recipe sync, release notes) are not needed by players
 rm -rf "$stage/u3mp/patcher/maintainer"
 find "$stage/u3mp/patcher" -name '__pycache__' -prune -exec rm -rf {} +
+# Only the newest multiplayer build ships: the launcher (u3mp_release) and mpimage.py (latest_version) use the newest
+# one, older ones only took space. A player's update drops the old folders (apply_update.py, installed-files.txt).
+newest=$(ls -d "$stage/u3mp/patcher/build"/v*/ | xargs -n1 basename | sort -V | tail -1)
+for d in "$stage/u3mp/patcher/build"/v*/; do [[ "$(basename "$d")" == "$newest" ]] || rm -rf "$d"; done
+echo "multiplayer build shipped: $newest"
 cp gow3_pc/LICENSE "$stage/u3mp/patcher/LICENSE.txt"
 # The sound-bank encoder in C (sound-banks/native: the original vagenc.c; ~30x faster than vagenc.py), built
 # here and checked byte-identical against vagenc.py; if either fails the import uses the Python encoder.

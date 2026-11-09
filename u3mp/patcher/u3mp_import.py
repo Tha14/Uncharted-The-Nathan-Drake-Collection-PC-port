@@ -16,6 +16,9 @@ again into <data>/recipe-next, which starts as a copy of the current files and s
 recipe/scratch move along): only the steps whose fingerprint changed run again, and the steps whose files they change,
 so every file a newer recipe makes differently is replaced, while <data>/recipe stays untouched.  When it ends no worse than the import it replaces, the
 two folders are swapped (if the game holds the files open, the swap waits for the next run: <data>/recipe-next/.ready).
+No old copy stays on the PC: the replaced folder is deleted after the swap (a part that was locked then is deleted at the
+next run, remove_leftovers), and an update that is not applied deletes <data>/recipe-next again (its caches go back to
+<data>/recipe/scratch).
 Without room for a second work folder, or with --in-place, the recipe runs on <data>/recipe as before (it then only adds
 missing files and reruns changed steps).
 
@@ -205,9 +208,49 @@ def try_swap(data):
         log('update ready, waiting to swap it in (%s)' % e)
         return False
     (cur / '.ready').unlink(missing_ok=True)
-    shutil.rmtree(old, ignore_errors=True)
     log('update swapped in: %s' % cur)
+    remove_leftovers(data)      # the replaced copy (and any older one a locked file kept)
     return True
+
+
+def _rmtree_retry(path, seconds=10):
+    """Delete a folder; files another process just closed can stay locked for a moment (antivirus scans too)."""
+    deadline = time.monotonic() + seconds
+    while path.exists():
+        shutil.rmtree(path, ignore_errors=True)
+        if not path.exists() or time.monotonic() > deadline:
+            break
+        time.sleep(0.5)
+    return not path.exists()
+
+
+def remove_leftovers(data):
+    """Old copies of the import that an earlier swap could not delete (files in use then): recipe-old-*."""
+    for old in sorted(data.glob('recipe-old-*')):
+        if not old.is_dir():
+            continue
+        size = tree_size(old)
+        if _rmtree_retry(old):
+            log('removed an old copy of the import: %s (%.1f GB)' % (old.name, size / 1e9))
+        else:
+            log('could not remove the old copy %s yet (files in use); it is removed at the next run' % old.name)
+
+
+def discard_next(data):
+    """An update that is not applied: delete <data>/recipe-next (a full copy of the import), keeping its caches."""
+    nxt, cur = data / 'recipe-next', data / 'recipe'
+    if not nxt.is_dir():
+        return
+    if (nxt / 'scratch').is_dir() and not (cur / 'scratch').exists() and cur.is_dir():
+        try:
+            os.replace(nxt / 'scratch', cur / 'scratch')    # the caches moved over for the update come back
+        except OSError:
+            pass
+    size = tree_size(nxt)
+    if _rmtree_retry(nxt):
+        log('update not applied: its copy %s was deleted (%.1f GB)' % (nxt.name, size / 1e9))
+    else:
+        log('update not applied: %s could not be deleted yet (files in use); it is reused or removed later' % nxt.name)
 
 
 def _link_file(src, dst, budget):
@@ -395,6 +438,7 @@ def main():
                  inputs=dict(ps4=a.ps4, ps3_u3=a.ps3_u3, ps3_u2=a.ps3_u2 or ''))
     state.pop('error', None)
     state_file.write_text(json.dumps(state, indent=1), encoding='utf-8')
+    remove_leftovers(data)
 
     def finish(status, **kw):
         state.update(kw, status=status, finished=time.strftime('%Y-%m-%d %H:%M:%S'))
@@ -477,9 +521,11 @@ def main():
             if r['exit'] == 2 or not r['steps']:
                 why = ' / '.join(r.get('problems') or []) or 'the input folders (see the log)'
                 log('update: not started: %s; the current files are kept' % why)
+                discard_next(data)
                 return finish(old['status'], error='Update not applied: ' + why, failed_at='inputs')
             log('update: the new build has more failed steps (%d) than the current import (%d); the current files '
-                'are kept, %s stays for the next try' % (len(failed), len(old.get('failed') or []), nxt))
+                'are kept' % (len(failed), len(old.get('failed') or [])))
+            discard_next(data)
             return finish(old['status'], error='Update not applied: %d step(s) failed' % len(failed),
                           failed_at=(min(failed, key=lambda s: r['steps'][s]['n']) if failed else 'recipe'))
         r['overlays'] = [str(data / 'recipe' / 'work' / name) for name in OVERLAYS if (nxt / 'work' / name).is_dir()]
