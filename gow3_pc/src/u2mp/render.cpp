@@ -480,6 +480,13 @@ void log_gate(const Tracked &t, uint64_t inst) {
         f0 && !bad_pointer(f0) ? *reinterpret_cast<const uint32_t *>(uintptr_t(f0) + 0x44) : 0u,
         *reinterpret_cast<const uint16_t *>(dd + 0x11c), *reinterpret_cast<const uint16_t *>(dd + 0x120),
         (unsigned long long)dd_f0);
+    {   // the frame loop 0xcaea00's entries may be render objects: their +0x11c / +0x120 / +0xf0 too (run 52)
+        const uint64_t of0 = *reinterpret_cast<const uint64_t *>(o + 0xf0);
+        log("render diag: %s %p loop gate (render object): +11c %04x +120 %04x +f0 %llx (+44 %u)", t.kind,
+            reinterpret_cast<const void *>(uintptr_t(inst)), *reinterpret_cast<const uint16_t *>(o + 0x11c),
+            *reinterpret_cast<const uint16_t *>(o + 0x120), (unsigned long long)of0,
+            of0 && !bad_pointer(of0) ? *reinterpret_cast<const uint32_t *>(uintptr_t(of0) + 0x44) : 0u);
+    }
     log("render diag: %s %p draw data flags +1b8 %08x; render object %p: %llu collects (+%llu), +0 %016llx "
         "%016llx +f8 %u/%u", t.kind, reinterpret_cast<const void *>(uintptr_t(inst)),
         *reinterpret_cast<const uint32_t *>(dd + 0x1b8), static_cast<const void *>(o),
