@@ -619,6 +619,12 @@ void log_leave_reason(const char *when) {
     const uint64_t host = G<uint64_t>(kNgm + NGM_HOST);
     log("%s: abort byte %u, host tracker %s, host excluded %u", when, unsigned(G<uint8_t>(kAbortByte)),
         host ? "set" : "NULL", host ? unsigned(*reinterpret_cast<const uint8_t *>(uintptr_t(host) + 0x26c)) : 0u);
+    // Playing::Update (0x5f14d0) exits (run 39): leave flag 0x104f1c0, error box 0x11474f8 (+0x44 kind,
+    // +0x6c0 state), idle timer 0x14cec0c (kick at 120 s, 0x5ec010), present players 0x63ffb0(0x113b760).
+    const int players = fn<int(U2MP_GUEST *)(void *)>(0x63ffb0)(image.at<void>(0x113b760));
+    log("%s: leave flag %u, error box kind %d state %d, idle %.1f s, players %d, room %d", when,
+        unsigned(G<uint8_t>(0x104f1c0)), G<int32_t>(0x11474f8 + 0x44), G<int32_t>(0x11474f8 + 0x6c0),
+        double(G<float>(0x14cec0c)), players, G<int32_t>(0x14ce97c));
 }
 void log_load_levels(void *state) {
     log_leave_reason("load levels");
