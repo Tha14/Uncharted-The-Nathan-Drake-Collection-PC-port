@@ -168,7 +168,7 @@ Recording is on unless `UNCHARTED_U2MP_CINEMA=0`.
 - Duration is wall-clock seconds between WaitReady::Exit and finish (PS3 used a game timer).
 - `0x104f1b9` (local/server list flag) is forced to 1; the server list stays empty.
 
-## 7. Theater HUD (PS3 0x8af620): traced, not ported (2026-11-09)
+## 7. Theater HUD (PS3 0x8af620): ported in a simplified layout (PORT-HUD.md 7.3); the trace below
 
 PS3 Draw `0x8aef68` (PS4 slot 1 of vtable `0x103f550`, now hud.cpp's `net_hud_draw`) calls, while a film
 plays (ngm+7076 = PS4 ngm+0x209c), with HUD flag 0x100000 and `[[0xe1eb1c]+16] == 0`:

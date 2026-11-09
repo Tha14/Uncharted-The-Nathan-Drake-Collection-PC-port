@@ -195,8 +195,8 @@ receive button (6b2970e2) tells how many came.
   error path.
 - Member blob +10..+47 are 0 (PS3 NetPlayerData +356/+360/+228..+240 and the address words have no
   known PS4 counterpart); only +0, +8, +9 are filled.
-- Not done: stranger matchmaking (section 6 item 8: search by playlist key, distance/tier scoring, RTT
-  check; matchmaking mode makes no room and plays with the party), host migration (item 10: the host
-  leaving ends the match as over LAN), GrantRoomOwner / Kickout as service calls (no such calls),
-  invites by NpId, player counts / lat-lon (no heartbeat server).
+- Done since (sections 5a-5c): stranger matchmaking (kind-3 rooms by playlist), lobby and in-match
+  host migration, Promote (owner succession), invites by NpId (messages). Still not done: distance /
+  tier scoring and the RTT check of the PS3 search, Kickout as a service call (no such call), player
+  counts / lat-lon (no heartbeat server).
 - The transport is a star over the owner: clients do not exchange game packets directly (as LAN).

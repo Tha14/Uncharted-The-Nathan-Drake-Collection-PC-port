@@ -397,3 +397,48 @@ Left out:
 - That the frame now shows behind the score (440..840 x 50..111 at 1280 x 720).
 - Names, markers, boosters, the co-op and Turf War panels in their own game types. They draw with the
   same quad path, so the ctx fix applies to them too.
+
+## 7. Fifth pass (2026-11-09): weapon panel, kill feed icon and badge, theater HUD
+
+Built, not run yet.
+
+### 7.1 Weapon panel on a weapon switch
+
+The weapon panel (icon, ammo, grenades) is the hudweapon.cpp element at HUD loop index 13: vtable
+`0x103f760`, Draw `0x563a20`, element bits 0x8, widget `0x8632c9ad` of hud-settings `9353ed16`. It draws
+while HUD flag 0x8 is set. Only the weapon controller's ShowWeaponHud sets it: player+0x2768, vtable
+`0x1026d40` slot +0x2f0 = `0x954740` (PS3 `0x69e538`, the same code: booster `2bbd20fa` check, OR 0x8,
+mark the element, store the fade). Its callers are player states (RunNGun `0x8fe490`, `0x8b5660`, ...),
+which pass -100.0 or 0.0.
+
+In matches the panel never showed on a weapon switch. hud.cpp now calls `0x954740(controller, -100.0)`
+from the multiplayer element's Draw (loop index 9, before the panel at 13) for 3 s after the local
+player's current weapon changes (player vtable slot +0x260 = `0x71dec0`, the inventory entry at
++0x4b8; local player = handle `0x115bd20`, id at object +0x44). A probe on vtable slot `0x1027030` counts
+the game's own calls and logs their callers, and a probe on the panel's Draw slot `0x103f768` counts its
+draws:
+`hud: weapon panel: N switches, ShowWeaponHud N by the game (from ...) / N here, panel draws N, flags 0x...`.
+Switch: `UNCHARTED_U2MP_WEAPON_HUD=0`.
+
+Checked and ruled out: the HUD frame update `0x554340` zeroes the flags in net games only when the NGM
+state (ngm+0x1e80) is not 2 (PS3 `0x8a2c10` does the same); the panel's layout data is stock PS4.
+
+### 7.2 Kill feed: weapon icon and count badge
+
+- Weapon icon: the message entry +0x68 points at a record of the hud-settings list `9353ed16` +0x40
+  (+0x68 next; filled by `0x646560` from the weapon id). The icon element `0x562990` loads its image with
+  `0x555140(record +0x10 name, 0)`; size +0x18 / +0x1c; PS3 +28 / +36 = PS4 +0x28 / +0x30. Drawn at
+  0.45 s x size after text 1, advance = width x +0x30 / +0x28.
+- Badge: PS3 `0x4156cc` (rounded box) has no PS4 pair; the box is the net table square `12ffe6ae`
+  tinted with the badge colour, the count black on it.
+
+### 7.3 Theater HUD (supersedes 5.6)
+
+hud.cpp `draw_theater`, called from the multiplayer Draw while a film plays (ngm+0x209c) with HUD flag
+0x100000 (square in RePlaying). Selector as PS3 `0x8a8ed8` (filter by cinema mode, L1 / R1 = PS3 pad bits
+4 / 8, Cross = confirm, DoCallback `0x5c8840(menu 0x1136640, id, 0)`, release id when Cross is let go,
+smoothing 0.5, fade 0.7 / 0.3). The draw is a simplified layout (PS3 layout primitives have no PS4 pair):
+panel, camera icons 64 x 32 every 72 units, the selected name, position / length (m:ss) and a progress
+bar. Position = (clock +0x204 - cinema +0x6a0) / 300 (PS3 `0x462fbc`), length = cinema +0x1d8 (header
++0x10, PS3 +456). Left out: the camera change sound and the "x%2.1f" speed line. Pad: raw OrbisPadData
+buttons `0x14b7fb0`. Switch: `UNCHARTED_U2MP_NO_THEATER=1`.
