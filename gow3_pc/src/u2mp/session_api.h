@@ -19,6 +19,7 @@ bool is_host();
 bool kick(uint32_t net_id);
 // This PC's player name (UNCHARTED_U2MP_NAME, else "Drake").
 std::string local_name();
+int rank();   // this PC's rank badge index (profile panel)
 // Players in the party, this PC included; 0 when not in one.
 int member_count();
 

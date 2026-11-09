@@ -196,7 +196,8 @@ receive button (6b2970e2) tells how many came.
 - Member blob +10..+47 are 0 (PS3 NetPlayerData +356/+360/+228..+240 and the address words have no
   known PS4 counterpart); only +0, +8, +9 are filled.
 - Done since (sections 5a-5c): stranger matchmaking (kind-3 rooms by playlist), lobby and in-match
-  host migration, Promote (owner succession), invites by NpId (messages). Still not done: distance /
-  tier scoring and the RTT check of the PS3 search, Kickout as a service call (no such call), player
+  host migration, Promote (owner succession), invites by NpId (messages). Tier: rooms carry the owner's rank in 0x50
+  and the search prefers rooms within 20 ranks, then the fullest. Still not done: distance scoring and
+  the RTT check of the PS3 search (no location service), Kickout as a service call (no such call), player
   counts / lat-lon (no heartbeat server).
 - The transport is a star over the owner: clients do not exchange game packets directly (as LAN).

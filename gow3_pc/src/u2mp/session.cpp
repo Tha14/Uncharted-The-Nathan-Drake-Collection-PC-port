@@ -1472,6 +1472,8 @@ void install(int &installed) {
     }
 }
 
+int rank() { return local_rank(); }
+
 }  // namespace u2mp::session
 
 namespace u2mp {

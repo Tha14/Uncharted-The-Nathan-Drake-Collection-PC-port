@@ -503,7 +503,8 @@ void publish_blob(Room &r, bool force) {
 
 uint64_t create_room(uint32_t kind) {
     // PS3 CreateJoinRoom 0x4d421c: searchable ints 0x4C key, 0x4D party size, 0x4E/0x4F lat/lon (no
-    // location service: 0 on every PC), 0x50 region (0), 0x52 kind (PC), 0x53 state; bin 0x55 lat/lon
+    // location service: 0 on every PC), 0x50 region (PC: the owner's rank, for the matchmaking tier
+    // preference; PS3 region), 0x52 kind (PC), 0x53 state; bin 0x55 lat/lon
     // floats (8 bytes, 0), bin 0x58 room name "%s.%lld"; member bin 0x59.
     static uint8_t latlon[8];
     static char name[64];
@@ -512,7 +513,7 @@ uint64_t create_room(uint32_t kind) {
     const U2oAttr attrs[] = {
         {A_KEY, 0, room_key(), nullptr},          {A_PARTY_SIZE, 0, party_size, nullptr},
         {A_LAT, 0, 0, nullptr},                   {A_LON, 0, 0, nullptr},
-        {A_REGION, 0, 0, nullptr},                {A_KIND, 0, kind, nullptr},
+        {A_REGION, 0, uint32_t(session::rank()), nullptr},   {A_KIND, 0, kind, nullptr},
         {A_STATE, 0, 0, nullptr},                 {A_LATLON, uint16_t(sizeof latlon), 0, latlon},
         {A_NAME, uint16_t(std::strlen(name)), 0, reinterpret_cast<const uint8_t *>(name)},
         {A_TIER, 0, kind == kKindMatchmaking ? mm_playlist : 0, nullptr},
@@ -871,6 +872,7 @@ bool join_by_id(uint64_t room, uint32_t kind, const std::string &owner, unsigned
 }
 
 // ---- stranger matchmaking (PS3 0x4b0a58 states 19 -> 5 -> 6 -> 7 / 3, PORT-MATCHMAKING.md 3.3) ------
+constexpr int kTierSpan = 20;   // rank badges
 void mm_search_done(const U2oEvent &e) {
     if (mm_state != Mm::Searching) return;
     const int party = std::max(1, session::member_count());
@@ -882,8 +884,13 @@ void mm_search_done(const U2oEvent &e) {
         log("online: matchmaking: room %llx of %s, %u/%u players%s", (unsigned long long)x.room_id, x.owner_name,
             unsigned(x.cur_members), unsigned(x.max_slot), bad ? " (failed before)" : free_slots < party ? " (no room for us)" : "");
         if (bad || free_slots < party || room_by_id(x.room_id)) continue;
-        // PS3 0x4b13ac scored by distance (no location on PC); the fullest room wins, so players gather.
-        if (!best || x.cur_members > best->cur_members) best = &x;
+        // PS3 0x4b13ac scored by distance and tier (no location on PC): rooms whose owner's rank (0x50) is
+        // within kTierSpan of ours come first, then the fullest room wins, so players gather.
+        const int dr = int(x.int_attr[A_REGION - A_KEY]) - session::rank();
+        const bool close_rank = dr <= kTierSpan && dr >= -kTierSpan;
+        const int db = best ? int(best->int_attr[A_REGION - A_KEY]) - session::rank() : 0;
+        const bool best_near = best && db <= kTierSpan && db >= -kTierSpan;
+        if (!best || (close_rank && !best_near) || (close_rank == best_near && x.cur_members > best->cur_members)) best = &x;
     }
     if (e.error || !best) {
         log("online: matchmaking: %s: creating a room of our own (PS3 GATHER)", e.error ? "search failed" : "no room to join");
