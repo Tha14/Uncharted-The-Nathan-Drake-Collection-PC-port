@@ -33,3 +33,9 @@
 | 38 | repair ran (1 entry); draw path 0xc30ec0/0xc04340 needs a real resource (NULL at 0xc04403) | root cause handed to the render port (PORT-RENDER.md) |
 
 From run 38 on, fixes are batched (render root cause, remaining gameplay/menu functions, assets) before the next test.
+
+## 9 November 2026 (batch test)
+
+| Run | Result | Fix |
+|---|---|---|
+| 39 | first run without a crash: Gompa reached Playing (no render repairs needed), Leave about 5 s later, back to the menu cleanly; the Fort then waited in LoadLevels for `sky-fort-multi` and `the-fort-multi-wide` | Fort pieces imported again (group B); the Gompa leave reason is open |

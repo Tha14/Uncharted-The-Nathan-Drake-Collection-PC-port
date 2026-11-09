@@ -876,10 +876,10 @@ def main():
     ap.add_argument('--ps3-dlc')
     ap.add_argument('--ps3-data', help='PS3 game-data folder (dev_hdd0/game/BCUS98123DATA2): the downloaded multiplayer spawn paks')
     ap.add_argument('--out', required=True)
-    # B (the Fort's missing pieces: -wide, -wide-2, sky-fort-multi, -npc, its actors, bank and streams) is left out
-    # by default until the user has tested the Fort with the PS4 files alone (2026-11-08); C/D need --ps3-dlc,
-    # which the launcher does not pass: the import ships what the GOTY copy (NPUA80698) has.
-    ap.add_argument('--groups', default='A,C,D,E')
+    # B = the Fort's missing pieces (GOTY has them; the Fort does not load without sky-fort-multi and
+    # the-fort-multi-wide, test run 39). C/D need --ps3-dlc, which the launcher does not pass: the import ships
+    # what the GOTY copy (NPUA80698) has; GOTY's ruins-multi is the base map (the flooded one is map pack 1 only).
+    ap.add_argument('--groups', default='A,B,C,D,E')
     ap.add_argument('--speech-langs', default='', help='PS4 speech languages to fill (default: all four the PS4 game '
                                                        'has: english, french, sam-spanish, brazilian)')
     ap.add_argument('--list', default=IMPORT_LIST)

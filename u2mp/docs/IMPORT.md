@@ -393,3 +393,9 @@ the spawn paks are found. All validate checks match retail. The text banks gain 
 (none from a BCUS title update). So the 26 MENUS.md section 4 ids (profile stat labels, Leaderboards, Trophies,
 stats ticker, leaderboard footer, daily players, Clan Tag, quit penalty, DLC notes) are missing again: GOTY got
 them from the PS3 server. The game shows its fallback for them.
+
+Update 2026-11-09: group B is on again (default `A,B,C,D,E`). Test run 39 showed the Fort hangs in LoadLevels
+without `sky-fort-multi` and `the-fort-multi-wide`, and GOTY has all the Fort pieces. GOTY's `ruins-multi.pak`
+(32.8 MB) is the base map, byte-identical in size to the BCUS base disc. The flooded map pack Ruins (78 MB,
+`dlc-map1.psarc`) is not in GOTY, so it is not shipped. Run: ok 1,534, ps4 11, skipped 2,139, missing 101 (map
+packs only), failed 0.
