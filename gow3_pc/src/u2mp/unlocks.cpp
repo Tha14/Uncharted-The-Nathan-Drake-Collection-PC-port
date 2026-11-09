@@ -211,6 +211,7 @@ bool g_given_up = false;     // the file is missing or bad: not retried
 uint8_t *g_np9 = nullptr;    // our relocated copy of net-patch9 (kept for the whole game)
 size_t g_np9_size = 0;
 uint8_t *g_skins = nullptr;  // {s32 count; pad; rec *} + records, PS4 layout
+std::atomic<uint32_t> g_skin_fp{0};   // skin table order fingerprint
 const uint8_t *g_boosters = nullptr;   // net-patch9's booster table object
 int32_t g_booster_count = 0;
 
@@ -494,6 +495,7 @@ bool build_skins(const uint8_t *ps4_table) {
         fp = sid(buf, fp);
     }
     log("unlocks: skin table order fingerprint %08x (%d records; every PC of a match must log the same)", fp, count);
+    g_skin_fp = fp;
     // labels for the name ids (served only when no bank has the id)
     std::vector<std::pair<uint32_t, std::string>> names;
     for (int32_t i = 0; i < count; ++i) {
@@ -1141,5 +1143,7 @@ void install_unlocks(int &installed) {
     log("unlocks: %s", g_spoof ? "every multiplayer skin, booster, co-op weapon upgrade and taunt unlocked"
                                 : "spoof off (UNCHARTED_U2MP_UNLOCKS=off); GOTY tables only");
 }
+
+uint32_t unlocks_skin_fingerprint() { return g_skin_fp.load(); }
 
 }  // namespace u2mp

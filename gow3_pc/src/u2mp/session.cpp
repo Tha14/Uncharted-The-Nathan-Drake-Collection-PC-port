@@ -29,6 +29,7 @@ extern "C" int runtime_file_translate(const char *guest, char *out, size_t size)
 #include "online.h"
 #include "session_api.h"
 #include "u2mp_internal.h"
+#include "unlocks.h"
 #include "voice.h"
 
 namespace u2mp::session {
@@ -267,6 +268,8 @@ void send_info() {
     b.push_back(sent_rank);
     sent_team = local_team();
     b.push_back(sent_team);
+    const uint32_t fp = unlocks_skin_fingerprint();   // a host of an older build reads up to the team
+    for (int i = 0; i < 4; ++i) b.push_back(uint8_t(fp >> (8 * i)));
     send_session(0, b);
 }
 
@@ -324,6 +327,18 @@ void on_session_message(uint8_t from, const uint8_t *d, size_t n) {
             members[from].name.assign(reinterpret_cast<const char *>(d + 2), std::min<size_t>(d[1], n - 2));
             if (n >= size_t(2) + d[1] + 1) members[from].rank = d[2 + d[1]];
             if (n >= size_t(2) + d[1] + 2) members[from].team = d[3 + d[1]];
+            if (n >= size_t(2) + d[1] + 6) {   // the client's skin table fingerprint (unlocks.cpp)
+                uint32_t fp = 0;
+                for (int i = 0; i < 4; ++i) fp |= uint32_t(d[4 + d[1] + i]) << (8 * i);
+                const uint32_t mine = unlocks_skin_fingerprint();
+                if (fp && mine && fp != mine) {
+                    log("party: %s's skin table differs (fingerprint %08x, ours %08x): a different import; "
+                        "skins may show as others", members[from].name.c_str(), fp, mine);
+                    show_notice((members[from].name + " has a different Uncharted 2 multiplayer import. Their "
+                                 "character skins may show differently. Both players should run the importer "
+                                 "again.").c_str());
+                }
+            }
             refresh_sessions();
             broadcast_roster();
             broadcast_teams();

@@ -140,7 +140,9 @@ Skin descriptions: the PS4 store shows none for skins (the description column of
   every PC with the same import. The log line `unlocks: skin table order fingerprint XXXXXXXX (N records ...)` must
   be equal on the PCs of a match. A PC without the import (2 + 1 records) maps the indices differently: the
   remote skin is then out of range (no model) or another record. Sending ids instead would change the game's own
-  message (0x6144b0); not done.
+  message (0x6144b0); not done. Instead a client's join info (session kInfo) carries its fingerprint and the
+  host compares it: on a mismatch it logs `party: <name>'s skin table differs` and shows a notice to run the
+  importer again.
 - The 15 names above are labels, not the PS3 DLC texts (not in any GOTY file).
 - Not verified in the game. Log (`u2mp: unlocks:`): `skin table: 107 GOTY records (0x28-byte converted
   layout) + PS4 2 (2 replaced, 0 appended) = 107`, `booster table: 32 GOTY records`, `... bound`,

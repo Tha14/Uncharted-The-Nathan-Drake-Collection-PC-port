@@ -18,4 +18,8 @@ void unlocks_refresh();
 // banks): a label made from the skin's actor package name. NULL for other ids. For the TextDb miss path.
 const char *unlocks_text(uint32_t id);
 
+// CRC of the skin table's ids in order (0 until the tables are bound): the PCs of a match must agree,
+// since the player data message sends skins by position (session.cpp compares it at join).
+uint32_t unlocks_skin_fingerprint();
+
 }  // namespace u2mp
