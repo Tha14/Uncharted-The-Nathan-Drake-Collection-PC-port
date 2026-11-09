@@ -374,25 +374,41 @@ U2MP_GUEST void *bind_copy_checked(const void **res, uint64_t size, void *out) {
 //      instance, then counts every 0x40000 walker calls. No submit = culled or never queued.
 //   c. at the first submit: the transform and the walker's override table (count, first entries), which
 //      carries per-draw data such as the skinning palette. A zero / far transform = drawn off-screen.
-// UNCHARTED_U2MP_RENDER_DIAG=0 turns it off; =all records every prototype, not only mp_hero ones.
-constexpr uint64_t fMeshInit = 0xc3b6f0, fWalker = 0xc25670;
-constexpr uint64_t cInitA = 0xbe4bb3, cInitB = 0xc29a74, cInitC = 0xd256b7;
-constexpr int kTracked = 128;
-constexpr int kListSlots = 4096;
+// Run 43: the hero's 4 instances were made (actor path 0xbe48d0) but never submitted in 60 s. Run 44 adds
+// references (other actors and level instances, whose submits prove the counter counts drawn objects),
+// the actor's scope-6 list (+0x200), the teardown (0xc3f4b0 at 0xbe46c5) and the hero's transform and
+// bounds again with every summary (identity / zero after 10 s = nothing positions or animates it).
+// UNCHARTED_U2MP_RENDER_DIAG=0 turns it off; =all records every prototype (in the 64 hero slots).
+constexpr uint64_t fMeshInit = 0xc3b6f0, fWalker = 0xc25670, fMeshFree = 0xc3f4b0;
+constexpr uint64_t cInitA = 0xbe4bb3, cInitB = 0xc29a74, cInitC = 0xd256b7, cFreeActor = 0xbe46c5;
+// Slots: the hero's prototypes, then references that prove the counter counts drawn objects: the last 8
+// other actors (MeshInstance::Init from 0xbe48d0 at 0xbe4bb3, the actor path the hero uses: weapons,
+// props) and the last 8 level / GeoGroup instances (from 0xc29a74).
+constexpr int kHeroSlots = 64, kActorRefs = 8, kGeoRefs = 8;
+constexpr int kActorBase = kHeroSlots, kGeoBase = kHeroSlots + kActorRefs, kTracked = kGeoBase + kGeoRefs;
+constexpr int kListSlots = 8192;
+const char *const kListNames[] = {"+0x170 scope 3", "+0x1b0 scope 4", "sub-element +0x340 scope 5",
+                                  "+0x200 scope 6 (actor)"};
 
 struct Tracked {
-    uint64_t instance;
+    uint64_t instance;     // 0 = free / destroyed
+    uint32_t generation;
     char name[48];
+    const char *kind;
+    uint64_t born;         // walker calls at init
     uint64_t submits;
     uint64_t submits_reported;
     bool logged_first;
 };
 Tracked tracked[kTracked];
-uint32_t tracked_next = 0;
-uint64_t list_key[kListSlots];     // list address
-int16_t list_owner[kListSlots];    // index into tracked
-int diag_mode = 1;                 // 0 off, 1 mp_hero prototypes, 2 all
+uint32_t hero_next = 0, actor_next = 0, geo_next = 0, generation_next = 0;
+uint64_t list_key[kListSlots];      // list address
+int16_t list_owner[kListSlots];     // index into tracked
+uint8_t list_code[kListSlots];      // kListNames index
+uint32_t list_gen[kListSlots];      // the owner's generation when inserted
+int diag_mode = 1;                  // 0 off, 1 mp_hero + references, 2 every prototype (hero slots)
 uint64_t walker_calls = 0;
+uint32_t lists_used = 0, lists_dropped = 0;   // list table fill (never emptied)
 
 bool readable_string(const char *s, char *out, size_t n) {
     if (bad_pointer(uint64_t(uintptr_t(s)))) return false;
@@ -407,22 +423,32 @@ bool readable_string(const char *s, char *out, size_t n) {
 
 uint32_t list_hash(uint64_t list) { return uint32_t((list >> 4) * 0x9e3779b1u) & (kListSlots - 1); }
 
-void list_insert(uint64_t list, int owner) {
+void list_insert(uint64_t list, int owner, int code, uint32_t gen) {
     uint32_t h = list_hash(list);
     for (int probe = 0; probe < kListSlots; ++probe, h = (h + 1) & (kListSlots - 1)) {
         const uint64_t k = __atomic_load_n(&list_key[h], __ATOMIC_ACQUIRE);
         if (k == list || k == 0) {
+            if (k == 0) __atomic_add_fetch(&lists_used, 1, __ATOMIC_RELAXED);
             list_owner[h] = int16_t(owner);
+            list_code[h] = uint8_t(code);
+            list_gen[h] = gen;
             __atomic_store_n(&list_key[h], list, __ATOMIC_RELEASE);
             return;
         }
     }
+    __atomic_add_fetch(&lists_dropped, 1, __ATOMIC_RELAXED);   // table full (=all mode): not watched
 }
-int list_find(uint64_t list) {
+// The live tracked owner of a list (-1: none, or its instance was destroyed / the slot reused).
+int list_find(uint64_t list, int *code) {
     uint32_t h = list_hash(list);
     for (int probe = 0; probe < 64; ++probe, h = (h + 1) & (kListSlots - 1)) {
         const uint64_t k = __atomic_load_n(&list_key[h], __ATOMIC_ACQUIRE);
-        if (k == list) return list_owner[h];
+        if (k == list) {
+            const int o = list_owner[h];
+            if (!tracked[o].instance || tracked[o].generation != list_gen[h]) return -1;
+            *code = list_code[h];
+            return o;
+        }
         if (k == 0) return -1;
     }
     return -1;
@@ -448,30 +474,65 @@ U2MP_GUEST uint64_t mesh_init_logged(uint64_t inst, uint64_t a1, uint64_t a2, ui
     const uint64_t r = reinterpret_cast<MeshInitFn>(image.base + fMeshInit)(inst, a1, a2, proto, desc, a5, s0, s1,
                                                                              s2, s3, s4, s5, s6);
     if (!diag_mode || bad_pointer(inst) || bad_pointer(proto)) return r;
+    const uint64_t from = uint64_t(uintptr_t(__builtin_return_address(0))) - uint64_t(uintptr_t(image.base));
+    const bool actor = from == cInitA + 5, geo = from == cInitB + 5;
     char name[48];
     if (!readable_string(*reinterpret_cast<const char *const *>(uintptr_t(proto) + 0x10), name, sizeof name))
         std::strcpy(name, "?");
-    if (diag_mode == 1 && !std::strstr(name, "mp_hero")) return r;
-    const uint32_t slot = __atomic_fetch_add(&tracked_next, 1, __ATOMIC_RELAXED) % kTracked;
+    const bool hero = std::strstr(name, "mp_hero") != nullptr;
+    int slot;
+    const char *kind;
+    if (hero || diag_mode == 2) {
+        slot = int(__atomic_fetch_add(&hero_next, 1, __ATOMIC_RELAXED) % kHeroSlots);
+        kind = hero ? "hero" : "any";
+    } else if (actor) {
+        slot = kActorBase + int(__atomic_fetch_add(&actor_next, 1, __ATOMIC_RELAXED) % kActorRefs);
+        kind = "reference actor";
+    } else if (geo) {
+        slot = kGeoBase + int(__atomic_fetch_add(&geo_next, 1, __ATOMIC_RELAXED) % kGeoRefs);
+        kind = "reference level";
+    } else {
+        return r;
+    }
     Tracked &t = tracked[slot];
-    t.instance = inst;
+    const uint32_t gen = __atomic_add_fetch(&generation_next, 1, __ATOMIC_RELAXED);
+    __atomic_store_n(&t.instance, uint64_t(0), __ATOMIC_RELEASE);
+    t.generation = gen;
     std::memcpy(t.name, name, sizeof t.name);
+    t.kind = kind;
+    t.born = __atomic_load_n(&walker_calls, __ATOMIC_RELAXED);
     t.submits = t.submits_reported = 0;
     t.logged_first = false;
+    __atomic_store_n(&t.instance, inst, __ATOMIC_RELEASE);
     const uint8_t *in = reinterpret_cast<const uint8_t *>(uintptr_t(inst));
-    list_insert(inst + 0x170, int(slot));
-    list_insert(inst + 0x1b0, int(slot));
+    list_insert(inst + 0x170, slot, 0, gen);
+    list_insert(inst + 0x1b0, slot, 1, gen);
+    if (actor) list_insert(inst + 0x200, slot, 3, gen);   // 0xbe4bb8: lea r12,[r14+0x3c0] = MeshInstance +0x200
     const int32_t nsub = *reinterpret_cast<const int32_t *>(in + 0x164);
     const uint64_t subs = *reinterpret_cast<const uint64_t *>(in + 0x168);
     for (int32_t i = 0; i < nsub && i < 64 && !bad_pointer(subs); ++i)
-        list_insert(subs + 0x3a0 * uint64_t(i) + 0x340, int(slot));
+        list_insert(subs + 0x3a0 * uint64_t(i) + 0x340, slot, 2, gen);
     const uint32_t *pw = reinterpret_cast<const uint32_t *>(uintptr_t(proto));
-    log("render diag: init %p prototype '%s' (%u submeshes, cbuffer capacity %u), %d sub-elements, %u instance "
-        "cbuffers, called from %llx", static_cast<const void *>(in), name, pw[1], pw[12], nsub,
-        *reinterpret_cast<const uint32_t *>(in + 0x170),
-        (unsigned long long)(uint64_t(uintptr_t(__builtin_return_address(0))) - uint64_t(uintptr_t(image.base))));
+    log("render diag: init %s %p prototype '%s' (%u submeshes, cbuffer capacity %u), %d sub-elements, %u instance "
+        "cbuffers, called from %llx", kind, static_cast<const void *>(in), name, pw[1], pw[12], nsub,
+        *reinterpret_cast<const uint32_t *>(in + 0x170), (unsigned long long)from);
     log_instance("init", in);
     return r;
+}
+
+// 0xc3f4b0 (the instance teardown), called for actors at 0xbe46c5: logs a tracked instance's end.
+using MeshFreeFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t);
+U2MP_GUEST uint64_t mesh_free_logged(uint64_t inst, uint64_t a1, uint64_t a2, uint64_t a3) {
+    for (int i = 0; diag_mode && i < kTracked; ++i) {
+        Tracked &t = tracked[i];
+        if (__atomic_load_n(&t.instance, __ATOMIC_ACQUIRE) != inst) continue;
+        log("render diag: destroy %s %p '%s' after %llu walker calls, %llu submits", t.kind,
+            reinterpret_cast<const void *>(uintptr_t(inst)), t.name,
+            (unsigned long long)(__atomic_load_n(&walker_calls, __ATOMIC_RELAXED) - t.born),
+            (unsigned long long)__atomic_load_n(&t.submits, __ATOMIC_RELAXED));
+        __atomic_store_n(&t.instance, uint64_t(0), __ATOMIC_RELEASE);
+    }
+    return reinterpret_cast<MeshFreeFn>(image.base + fMeshFree)(inst, a1, a2, a3);
 }
 
 using WalkerFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
@@ -481,7 +542,8 @@ unsigned char *walker_original = nullptr;
 U2MP_GUEST uint64_t walker_logged(uint64_t list, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t table,
                                   uint64_t count) {
     const uint64_t calls = __atomic_add_fetch(&walker_calls, 1, __ATOMIC_RELAXED);
-    const int owner = list_find(list);
+    int code = 0;
+    const int owner = list_find(list, &code);
     if (owner >= 0) {
         Tracked &t = tracked[owner];
         __atomic_add_fetch(&t.submits, 1, __ATOMIC_RELAXED);
@@ -497,21 +559,26 @@ U2MP_GUEST uint64_t walker_logged(uint64_t list, uint64_t a1, uint64_t a2, uint6
                 if (w < 0 || size_t(w) >= sizeof ids - at) break;
                 at += size_t(w);
             }
-            log("render diag: first submit of %p '%s' (list %llx, walker call %llu), override table %d entries:%s",
-                reinterpret_cast<const void *>(uintptr_t(t.instance)), t.name, (unsigned long long)list,
-                (unsigned long long)calls, n, ids);
+            log("render diag: first submit of %s %p '%s' through list %s (%llu walker calls after init), override "
+                "table %d entries:%s", t.kind, reinterpret_cast<const void *>(uintptr_t(t.instance)), t.name,
+                kListNames[code & 3], (unsigned long long)(calls - t.born), n, ids);
             log_instance("submit", reinterpret_cast<const uint8_t *>(uintptr_t(t.instance)));
         }
     }
     if ((calls & 0x3ffff) == 0) {
+        log("render diag: summary at walker call %llu; list table %u of %d used, %u lists not watched (table full)",
+            (unsigned long long)calls, __atomic_load_n(&lists_used, __ATOMIC_RELAXED), kListSlots,
+            __atomic_load_n(&lists_dropped, __ATOMIC_RELAXED));
         for (int i = 0; i < kTracked; ++i) {
             Tracked &t = tracked[i];
-            if (!t.instance) continue;
+            const uint64_t inst = __atomic_load_n(&t.instance, __ATOMIC_ACQUIRE);
+            if (!inst) continue;
             const uint64_t s = __atomic_load_n(&t.submits, __ATOMIC_RELAXED);
-            log("render diag: %p '%s': %llu walker submits (+%llu)",
-                reinterpret_cast<const void *>(uintptr_t(t.instance)), t.name, (unsigned long long)s,
+            log("render diag: %s %p '%s': %llu walker submits (+%llu)", t.kind,
+                reinterpret_cast<const void *>(uintptr_t(inst)), t.name, (unsigned long long)s,
                 (unsigned long long)(s - t.submits_reported));
             t.submits_reported = s;
+            if (i < kHeroSlots) log_instance("now", reinterpret_cast<const uint8_t *>(uintptr_t(inst)));
         }
     }
     return reinterpret_cast<WalkerFn>(walker_original)(list, a1, a2, a3, a4, table, count);
@@ -540,6 +607,7 @@ bool install_draw_diag(int &installed) {
     n += retarget_call(cInitA, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init A");
     n += retarget_call(cInitB, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init B");
     n += retarget_call(cInitC, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init C");
+    n += retarget_call(cFreeActor, fMeshFree, reinterpret_cast<void *>(&mesh_free_logged), "render diag: actor mesh teardown");
     installed += n;
     // walker: trampoline = its 13-byte prologue + jmp back to 0xc2567d; the entry jumps to the host
     unsigned char *tramp = near_stub(32);
@@ -568,8 +636,8 @@ bool install_draw_diag(int &installed) {
     std::memcpy(c + 1, &rel, 4);
     std::memset(c + 5, 0x90, 8);
     ++installed;
-    log("render diag: MeshInstance::Init and the binding walker logged for %s prototypes",
-        diag_mode == 2 ? "all" : "mp_hero");
+    log("render diag: MeshInstance::Init, teardown and the binding walker logged for %s",
+        diag_mode == 2 ? "every prototype" : "mp_hero prototypes + 8 actor / 8 level references");
     return true;
 }
 

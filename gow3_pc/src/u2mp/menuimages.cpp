@@ -24,6 +24,7 @@
 #include <cstring>
 #include <filesystem>
 #include <mutex>
+#include <utility>
 #include <system_error>
 #include <vector>
 
@@ -200,6 +201,43 @@ bool in_ps4_net_table(const uint8_t *m) {
     return m && t && t->entries && m >= t->entries && m < t->entries + 0x28 * size_t(t->count);
 }
 float net_image_scale = 0.5f;
+// ---- measurement (run 43: "boosters and skins in the profile editor are too big") -------------------
+// The converter 0x5bc290(out, src, ?, const float box[2], colour, ?, float scale) turns an image
+// descriptor into its drawn size (out +0x3c w, h; +0x48 material). Every type 3 net image (selector 1)
+// it sizes is logged once per (caller, id): the caller (the widget that draws it), the id, the scale
+// and the box the widget passes, the texture size, whether it is a PS4 net.pak or a net-u2mp material,
+// and the size that results. PS3's converter 0x41fd18 has the same rule, so a size that differs from
+// PS3 comes from the caller's scale or box: the log names the site to compare with its PS3 caller.
+constexpr uint64_t fConverter = 0x5bc290;
+using ConverterFn = uint64_t(U2MP_GUEST *)(uint8_t *, const uint8_t *, uint64_t, const float *, const void *, uint32_t, float);
+ConverterFn converter_original = nullptr;
+std::mutex size_log_mutex;
+std::vector<std::pair<uint64_t, uint32_t>> size_logged;
+U2MP_GUEST uint64_t converter_logged(uint8_t *out, const uint8_t *src, uint64_t a2, const float *box, const void *colour,
+                                     uint32_t a5, float scale) {
+    const uint64_t ra = uint64_t(uintptr_t(__builtin_return_address(0)));
+    const uint64_t r = converter_original(out, src, a2, box, colour, a5, scale);
+    if (!out || !src || rd<uint32_t>(src, 0) != 3 || rd<uint32_t>(src, 0x18) != 1) return r;
+    const uint32_t id = rd<uint32_t>(src, 0x14);
+    const uint64_t base = uint64_t(uintptr_t(image.base));
+    const uint64_t caller = ra >= base && ra < base + image.size ? ra - base : ra;
+    {
+        std::lock_guard<std::mutex> lock(size_log_mutex);
+        if (size_logged.size() >= 96) return r;
+        for (const auto &e : size_logged)
+            if (e.first == caller && e.second == id) return r;
+        size_logged.emplace_back(caller, id);
+    }
+    uint8_t *m = rd<uint8_t *>(out, 0x48);
+    alignas(8) float tex[2] = {0, 0};
+    if (m) guest<float *(U2MP_GUEST *)(float *, uint8_t *)>(0x5bbd90)(tex, m);
+    log("menu images: size id %08x from 0x%llx: scale %.3f box %.0fx%.0f texture %.0fx%.0f (%s) -> %.1fx%.1f", id,
+        (unsigned long long)caller, double(scale), box ? double(box[0]) : -1.0, box ? double(box[1]) : -1.0,
+        double(tex[0]), double(tex[1]), !m ? "no material" : in_ps4_net_table(m) ? "PS4 net.pak" : "net-u2mp",
+        double(rd<float>(out, 0x3c)), double(rd<float>(out, 0x40)));
+    return r;
+}
+
 U2MP_GUEST float *image_size(float *out, uint8_t *material) {
     guest<float *(U2MP_GUEST *)(float *, uint8_t *)>(fImageSize)(out, material);
     if (out && in_ps4_net_table(material)) {
@@ -349,10 +387,10 @@ uint8_t *menu_net_material(uint32_t id) { return net_material(id); }
 // A textured quad outside the renderer (the overlay of loading.cpp): the deferred 2D arena takes it
 // with a NULL draw list, as the menu primitives (menudraw.cpp). Screen units as the renderer's boxes.
 void menu_draw_quad(uint8_t *material, float x, float y, float w, float h, float u0, float v0, float u1, float v1,
-                    float alpha) {
+                    float alpha, float rgb) {
     Frame f{};
     f.list = nullptr;
-    for (float &c : f.color) c = 1.0f;
+    for (float &c : f.color) c = rgb;
     f.color[3] = alpha;
     draw_quad(f, material, x, y, w, h, u0, v0, u1, v1);
 }
@@ -386,6 +424,25 @@ void install_menuimages(int &installed) {
         retarget_call(kCallSize2, fImageSize, reinterpret_cast<void *>(&image_size), "net image size (flag 0x80)")) {
         log("menu images: PS4 net.pak images measured at %.2f of their texture size (PS3 resolution)", double(net_image_scale));
         ++installed;
+    }
+    {   // the converter's prologue moves to a trampoline: push rbp; mov rbp,rsp; push r15; push r14;
+        // push r12; push rbx; sub rsp,0xe0 (18 bytes, position independent)
+        static const unsigned char head[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41,
+                                             0x54, 0x53, 0x48, 0x81, 0xec, 0xe0, 0x00, 0x00, 0x00};
+        unsigned char *tramp = image.matches(fConverter, head, sizeof head) ? near_stub(48) : nullptr;
+        if (tramp) {
+            std::memcpy(tramp, head, sizeof head);
+            const uint64_t back = uint64_t(uintptr_t(image.base + fConverter + sizeof head));
+            tramp[18] = 0xff;   // jmp [rip+0]; dq back
+            tramp[19] = 0x25;
+            std::memset(tramp + 20, 0, 4);
+            std::memcpy(tramp + 24, &back, 8);
+            converter_original = reinterpret_cast<ConverterFn>(tramp);
+            if (replace_function(fConverter, sizeof head, reinterpret_cast<void *>(&converter_logged), "image converter (size log)"))
+                ++installed;
+        } else {
+            log("menu images: converter 0x%llx differs, sizes not logged", (unsigned long long)fConverter);
+        }
     }
     if (image.matches(fLookup, lookup_bytes, sizeof lookup_bytes) &&
         replace_function(fLookup, 16, reinterpret_cast<void *>(&image_lookup), "menu image lookup (PS3 names)"))

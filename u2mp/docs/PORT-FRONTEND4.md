@@ -10,6 +10,10 @@ PS3 / GOTY copy in net-u2mp.pak only where PS4 lacks it.
 
 ## 1. Loading screen
 
+**Rejected in run 43** (invented layout, 1920x1080 coordinates where the 2D arena takes 1280x720
+menu units, copied text style). Off unless `UNCHARTED_U2MP_LOADING=1`. The PS3 trace and the status of
+each element: PORT-FRONTEND5.md. The text below describes the rejected version.
+
 ### PS3
 
 - The per-frame net display `0x447248` (called from the frame draw `0x76c80`, PS4 pair Draw `0x3fc0b0`)

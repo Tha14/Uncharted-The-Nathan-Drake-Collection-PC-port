@@ -162,3 +162,43 @@ Reading it: no `init` = the character never gets a mesh instance (spawn / look);
 `first submit` = it is culled or never queued (visibility, LOD, bounds); `first submit` with a zero or far
 transform = drawn off-screen; submits with a sane transform = drawn but invisible (skinning palette,
 shaders).
+
+### Run 43 and what run 44 logs
+
+Run 43: the spawn resolved `mp-hero-year-1`; MeshInstance::Init ran 4 times from 0xbe4bb8 (Prototype0..3,
+14/10/10/6 submeshes, capacity 4, identity transform, zero bounds, flags +c0 0046 +d8 d03b), and in 60 s
+none of the 4 was ever submitted to the binding walker. The user saw no character.
+
+The hero's instances come from the actor path: DrawControl::AddMesh 0x4b6e20 (game/drawcontrol.cpp,
+calls 0x4b6faf / 0x4b7007) -> 0xbe48d0, which makes the MeshInstance at actor +0x1c0 (Init at 0xbe4bb3),
+a scope-6 cbuffer list at actor +0x3c0 (= MeshInstance +0x200), and is torn down by 0xbe45e0
+(0xc3f4b0 at 0xbe46c5). Weapons and props use the same path.
+
+Run 44 diagnostics (render.cpp section 5):
+* references next to the hero: the last 8 other actors (path 0xbe4bb3) and the last 8 level instances
+  (0xc29a74). If they show submits, the counter counts drawn objects and the hero is really not queued.
+* the actor's +0x200 list is watched too; the first-submit line names the list that matched.
+* `destroy` lines from the teardown: an early destroy is a different diagnosis from "alive, not queued".
+* every summary repeats the hero's transform and bounds: still identity / zero after 10 s means nothing
+  positions or animates the character (upstream of the renderer: the character process or spawn).
+
+### Skin choice (unlocks.cpp)
+
+Runs 42-43 used `mp-hero-year-1` because the player's skin id (NetPlayerData 0x11474f8 +0x10c hero /
++0x110 villain, -1 when nothing is equipped) is not in the skin table, so 0x6144b0 takes a random
+unlocked record (0x64b430); with all 107 unlocked and the same PRNG state each start, that was year-1.
+Now, before 0x6144b0 (calls 0x5f2f49, 0x609551, 0x609c2b): an id that is not in the table becomes Drake
+(b095d270, the PS4 record at index 57), and `UNCHARTED_U2MP_SKIN=<package>` forces a skin for both
+sides (e.g. `mp-hero-navarro`, a PS4 retail file). Logged as `skins: hero id ... -> ...` and
+`skins: random pick ...`.
+
+Reading run 44: the actor references may all be the hero's own weapon and attachments; if the character
+is not shown, those may read 0 as well. The 8 level references then decide: level submits > 0 = the
+counter works. If every reference reads 0 too, re-run with `UNCHARTED_U2MP_RENDER_DIAG=all` (the summary
+line reports the list table fill; lists past 8192 are not watched).
+
+The skin choice is applied twice: once when our skin table is bound (unlocks_refresh, in the lobby,
+before LoadLevels requests the package) and again before every 0x6144b0 message. The equip code stores
+the store item id; the type-10 store items parsed from net-patch9 (7 of them; the store layout of the
+converted file was not fully parsed) all have ids that are skin record ids (+0x10), so an equipped skin
+is found and kept. The Drake default is written into NetPlayerData and may be saved with the profile.

@@ -11,7 +11,7 @@ namespace u2mp {
 // none; and a textured quad drawn into the frame's deferred 2D arena (screen units, white, alpha).
 uint8_t *menu_net_material(uint32_t id);
 void menu_draw_quad(uint8_t *material, float x, float y, float w, float h, float u0, float v0, float u1, float v1,
-                    float alpha);
+                    float alpha, float rgb = 1.0f);
 // loading.cpp: the multiplayer loading screen (PS3 0x4ae638); see PORT-FRONTEND4.md.
 void install_loading(int &installed);
 

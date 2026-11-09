@@ -334,9 +334,9 @@ In game: `keep_net_package` requests `net-u2mp` next to `net` when the file exis
 
 Details: PORT-FRONTEND4.md.
 
-- **Loading screen** (PS3 `0x4ae638`, absent on PS4): loading.cpp shows it from LoadLevels::Enter to
-  WaitReady::Exit with the PS4 net.pak materials `general/net/loading-screen:*`, the map picture, map
-  name, game type and a tip (fixed layout; the PS3 motion, coin animation and team rosters are not ported).
+- **Loading screen** (PS3 `0x4ae638`, absent on PS4): the fixed-layout version was rejected in run 43;
+  loading.cpp now follows PS3 element by element (fill, edges, rosters page, band, map name, game
+  description; not yet the fort.dds panels, coins and tip). On by default. PORT-FRONTEND5.md.
 - **Playlist pictures**: no two built playlists share a picture; PS4 net.pak pictures are used where PS4
   has them, net-u2mp.pak only for elimination, grab-bag, plunder, the-lab. The image lookup now prefers
   the PS4 net table over net-u2mp.pak for every net id.

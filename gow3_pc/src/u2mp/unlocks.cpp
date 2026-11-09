@@ -497,10 +497,126 @@ void *art_lookup(void *table, const char *name, const char *site) {
 U2MP_GUEST void *art_lookup_a(void *table, const char *name) { return art_lookup(table, name, "0x663280"); }
 U2MP_GUEST void *art_lookup_b(void *table, const char *name) { return art_lookup(table, name, "0x6636b0"); }
 
+// ---- the player's skin choice (test runs 42-43: always mp-hero-year-1) ---------------------------
+// 0x6144b0 (called at 0x5f2f49, 0x609551, 0x609c2b) builds the local player's data message: skin
+// bytes +0x10 hero / +0x11 villain = the index in 5a4731d2 of the record whose id (+0x10) equals
+// NetPlayerData 0x11474f8 +0x10c (hero) / +0x110 (villain). The equip code (0xa4d163 / 0xa4d1f8)
+// writes those two from the store item, -1 when none is equipped. When the id is not in the table the
+// index comes from 0x64b430(0x113b760, side) (calls 0x6145f5 / 0x614688): a random unlocked record of
+// that side. With every skin unlocked that is any of the 107, and the PRNG state 0x1542f28 starts the
+// same every time (year-1 in runs 42 and 43). The bytes then go to AssignTeams (member +0x145 / +0x146
+// -> tracker +0x138), and LoadLevels requests that record's actor package.
+// Here, just before 0x6144b0 runs: UNCHARTED_U2MP_SKIN=<package> (e.g. mp-hero-navarro) puts that
+// record's id into both slots (the lookup ignores the side, so any skin can be forced); otherwise an
+// id that is not in the table becomes Drake (b095d270: the PS4 record build_skins put over GOTY's
+// first record of that id), so the default is Drake, not a random skin. Every decision is logged.
+constexpr uint64_t fPlayerData = 0x6144b0, gNetPlayerData = 0x11474f8, fRandomSkin = 0x64b430;
+constexpr uint64_t kPlayerDataCalls[] = {0x5f2f49, 0x609551, 0x609c2b};
+constexpr uint64_t kRandomHero = 0x6145f5, kRandomVillain = 0x614688;
+constexpr uint32_t kDrakeId = 0xb095d270;
+using PlayerDataFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+using RandomSkinFn = uint64_t(U2MP_GUEST *)(void *, int32_t);
+std::string g_forced_skin;
+std::atomic<int> g_skin_log{32};
+
+bool skin_log_slot() {
+    if (g_skin_log.load(std::memory_order_relaxed) <= 0) return false;
+    g_skin_log.fetch_sub(1, std::memory_order_relaxed);
+    return true;
+}
+
+// Index of the record with this id (the search of 0x6145c3), -1 when none; `package` gets its package.
+int32_t skin_index(uint32_t id, const char **package) {
+    const uint8_t *t = dc_object(kSkinTable);
+    if (!t) return -1;
+    const int32_t n = rd<int32_t>(t, 0);
+    const uint8_t *recs = rd<const uint8_t *>(t, 8);
+    for (int32_t i = 0; recs && i < n && i < 512; ++i)
+        if (rd<uint32_t>(recs + SKIN_STRIDE * uint64_t(i), 0x10) == id) {
+            if (package) *package = rd<const char *>(recs + SKIN_STRIDE * uint64_t(i), 8);
+            return i;
+        }
+    return -1;
+}
+
+// The id of the first record whose package is `name`, 0 when none.
+uint32_t skin_id_of(const char *name) {
+    const uint8_t *t = dc_object(kSkinTable);
+    if (!t || !name || !*name) return 0;
+    const int32_t n = rd<int32_t>(t, 0);
+    const uint8_t *recs = rd<const uint8_t *>(t, 8);
+    for (int32_t i = 0; recs && i < n && i < 512; ++i) {
+        const uint8_t *r = recs + SKIN_STRIDE * uint64_t(i);
+        const char *pk = rd<const char *>(r, 8);
+        if (pk && std::strcmp(pk, name) == 0) return rd<uint32_t>(r, 0x10);
+    }
+    return 0;
+}
+
+void choose_skin(const char *side_name, uint64_t offset, uint32_t forced) {
+    uint32_t &slot = G<uint32_t>(gNetPlayerData + offset);
+    const uint32_t before = slot;
+    const char *pk = nullptr;
+    const int32_t at = skin_index(before, &pk);
+    const char *what = "kept";
+    if (forced) {
+        slot = forced;
+        what = "UNCHARTED_U2MP_SKIN";
+    } else if (at < 0) {
+        slot = kDrakeId;
+        what = "not in the table: Drake";
+    }
+    if (skin_log_slot()) {
+        const char *now = nullptr;
+        const int32_t now_at = skin_index(slot, &now);
+        log("skins: %s id %08x (index %d '%s') -> %08x (index %d '%s'): %s", side_name, before, at, pk ? pk : "-",
+            slot, now_at, now ? now : "-", what);
+    }
+}
+
+bool g_skin_hooks = false;   // install found 0x6144b0 as expected
+
+void apply_skin_choice(const char *when) {
+    if (!g_skin_hooks || !dc_object(kSkinTable)) return;
+    uint32_t forced = 0;
+    if (!g_forced_skin.empty()) {
+        forced = skin_id_of(g_forced_skin.c_str());
+        if (!forced && skin_log_slot())
+            log("skins: UNCHARTED_U2MP_SKIN=%s is not a package of the skin table; not forced", g_forced_skin.c_str());
+    }
+    if (skin_log_slot()) log("skins: choice applied (%s)", when);
+    choose_skin("hero", 0x10c, forced);
+    choose_skin("villain", 0x110, forced);
+}
+
+U2MP_GUEST uint64_t player_data_chosen(uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+    apply_skin_choice("player data message 0x6144b0");
+    return guest<PlayerDataFn>(fPlayerData)(a0, a1, a2, a3, a4, a5);
+}
+
+U2MP_GUEST uint64_t random_skin_logged(void *list, int32_t side) {
+    const uint64_t r = guest<RandomSkinFn>(fRandomSkin)(list, side);
+    if (skin_log_slot()) {
+        const uint8_t *t = dc_object(kSkinTable);
+        const char *pk = nullptr;
+        const int32_t i = int32_t(uint32_t(r));
+        if (t && i >= 0 && i < rd<int32_t>(t, 0)) pk = rd<const char *>(rd<const uint8_t *>(t, 8) + SKIN_STRIDE * uint64_t(i), 8);
+        log("skins: random pick (0x64b430), side %d -> index %d '%s'", side, i, pk ? pk : "-");
+    }
+    return r;
+}
+
 }  // namespace
 
 void unlocks_refresh() {
     if (!g_ready || !image.base || net_state() <= 1 || !G<uint64_t>(gHashBuckets)) return;
+    // the skin choice once our skin table is bound (in the lobby, before LoadLevels requests the
+    // package), so it does not depend on when 0x6144b0 builds the player data message
+    static bool skin_applied = false;
+    if (!skin_applied && g_skins && dc_object(kSkinTable) == g_skins) {
+        skin_applied = true;
+        apply_skin_choice("skin table bound");
+    }
     if (g_bound.load(std::memory_order_acquire)) {
         // cheap re-check: still ours (a later bind of all net-patch9 symbols would replace them)
         const uint8_t *skins = dc_object(kSkinTable), *boosters = dc_object(kBoosterTable);
@@ -606,6 +722,29 @@ void install_unlocks(int &installed) {
         ++installed;
     else
         log("unlocks: spawn model lookups (0x663339 / 0x663782) differ, no spawn log");
+
+    // the player's skin choice: default Drake, UNCHARTED_U2MP_SKIN=<package> forces one
+    if (const char *v = std::getenv("UNCHARTED_U2MP_SKIN"); v && *v) g_forced_skin = v;
+    static const unsigned char data_prologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55,
+                                                  0x41, 0x54, 0x53, 0x48, 0x83, 0xec, 0x18};
+    // 0x6145a7: mov ebx,[r15+0x10c]; mov edi,0x5a4731d2   0x614632: mov ebx,[r15+0x110]; mov edi,0x5a4731d2
+    static const unsigned char hero_read[] = {0x41, 0x8b, 0x9f, 0x0c, 0x01, 0x00, 0x00, 0xbf, 0xd2, 0x31, 0x47, 0x5a};
+    static const unsigned char villain_read[] = {0x41, 0x8b, 0x9f, 0x10, 0x01, 0x00, 0x00, 0xbf, 0xd2, 0x31, 0x47, 0x5a};
+    if (image.matches(fPlayerData, data_prologue, sizeof data_prologue) &&
+        image.matches(0x6145a7, hero_read, sizeof hero_read) && image.matches(0x614632, villain_read, sizeof villain_read)) {
+        int n = 0;
+        for (uint64_t c : kPlayerDataCalls)
+            n += retarget_call(c, fPlayerData, reinterpret_cast<void *>(&player_data_chosen), "skins: player data skin choice");
+        n += retarget_call(kRandomHero, fRandomSkin, reinterpret_cast<void *>(&random_skin_logged), "skins: random hero pick");
+        n += retarget_call(kRandomVillain, fRandomSkin, reinterpret_cast<void *>(&random_skin_logged),
+                           "skins: random villain pick");
+        if (n) ++installed;
+        g_skin_hooks = true;
+        log("skins: default skin Drake when none is equipped%s%s", g_forced_skin.empty() ? "" : "; forced: ",
+            g_forced_skin.c_str());
+    } else {
+        log("skins: player data 0x6144b0 differs, skin choice left alone");
+    }
 
     log("unlocks: %s", g_spoof ? "every multiplayer skin, booster, co-op weapon upgrade and taunt unlocked"
                                 : "spoof off (UNCHARTED_U2MP_UNLOCKS=off); GOTY tables only");
