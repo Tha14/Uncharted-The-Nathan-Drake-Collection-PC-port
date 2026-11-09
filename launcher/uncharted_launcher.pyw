@@ -4134,12 +4134,25 @@ class Launcher:
             else:
                 self.set_status("No update found.", f"Version {current} is the newest.")
 
+    IMPORT_BUSY = ("A multiplayer import or update is still running in the background. Wait until it has finished "
+                   "(Multiplayer tab), then press UPDATE again: the update replaces the files the import is using.")
+
+    def import_running(self):
+        """An Uncharted 3 or Uncharted 2 multiplayer import runs with the launcher's Python and tools."""
+        try:
+            return bool(self.u3mp_running() or (hasattr(self, "u2mp_running") and self.u2mp_running()))
+        except Exception:  # noqa: BLE001 - never block an update on a broken state file
+            return False
+
     def install_update(self):
         release = self.update_release
         if not release or self.update_busy:
             return
         if self.process:
             messagebox.showinfo(APP_TITLE, "Close the game first: the update replaces the game's runtime.")
+            return
+        if self.import_running():
+            messagebox.showinfo(APP_TITLE, self.IMPORT_BUSY)
             return
         version = updater.version_text(release["version"])
         if not messagebox.askyesno(APP_TITLE, f"Install version {version} ({release['size'] / 1e6:.0f} MB "
@@ -4169,6 +4182,14 @@ class Launcher:
             self.update_busy = False
             self.set_status("The update failed.", "The installed version is unchanged.")
             messagebox.showerror(APP_TITLE, f"The update could not be installed:\n\n{self.update_error}")
+            return
+        if self.update_staged and self.import_running():
+            # an import started while the update downloaded: it uses the launcher's Python, which the update
+            # replaces (Windows refuses to move files in use); the update is kept and installs at the next try
+            self.update_busy = False
+            self.update_staged = None
+            self.set_status("Update downloaded.", "Press UPDATE again when the multiplayer import has finished.")
+            messagebox.showinfo(APP_TITLE, self.IMPORT_BUSY)
             return
         if self.update_staged:
             self.set_status("Installing the update...", "The launcher starts again in a moment.")
