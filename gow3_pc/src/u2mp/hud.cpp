@@ -1115,10 +1115,16 @@ bool type7_layout_matches() {
 //   flag 8 (+0x78): the headshot icon (sid 2fb98f98 general/net/headshot, net table), 28 s square at
 //     (x - 4 s, y + 10 - 14 s), white; x += 30 s;
 //   text 2 at (x, y).
-// Left out on PS4: the badge box (0x4156cc, PS3's rounded rect, has no PS4 counterpart: the count is drawn
-// in the box colour instead of black on it) and the weapon icon (its record behind +0x68 is not mapped on
-// PS4); the icon's width is then 0, as PS3 when an entry has none.
+// PS4 has no 0x4156cc (PS3's rounded rect): the badge box is the net table's square image tinted (square
+// corners). The weapon icon record is mapped below (M_ICON).
 constexpr uint32_t kSidHeadshot = 0x2fb98f98, kTextCountPrefix = 0x9b5b3c66;
+constexpr uint64_t M_ICON = 0x68, fByName = 0x555140;
+constexpr float kMsgIconScale = 0.45f;
+struct NameHandle {
+    uint64_t idtable;
+    uint32_t index;
+};
+using ByNameFn = NameHandle(U2MP_GUEST *)(const char *, int);
 float draw_message_line(void *ctx, const uint8_t *e, float x, float y, float alpha, float s, bool measure) {
     const uint32_t flags = measure ? 12 : 8;
     auto colour = [&](uint64_t field) {
@@ -1137,7 +1143,15 @@ float draw_message_line(void *ctx, const uint8_t *e, float x, float y, float alp
         char badge[24];
         std::snprintf(badge, sizeof badge, "%s%i", prefix ? prefix : "", int(count));
         const V4 bc = argb(red ? 0xffd73e60u : 0xff5495bbu);
-        draw_text(x - 58.0f, y + 4.0f, 0.4f, V4{bc.x, bc.y, bc.z, alpha}, 1, 50.0f, 25.0f, badge);
+        // PS3 0x4156cc's filled box: the net table's plain square (12ffe6ae, the Turf War square) tinted with
+        // the badge colour; the count black on it, as PS3. Without that image the count keeps the box colour.
+        Handle sq;
+        const bool box = resolve(sid_handle(kSidTerritorySquare, 1), "message badge", sq);
+        if (box)
+            quad(ctx, sq, V4{bc.x, bc.y, bc.z, alpha}, V2{x - 58.0f, y - 1.0f}, V2{50.0f, 25.0f}, false,
+                 V2{0.0f, -1.0f}, V2{0.0f, 0.0f}, V2{1.0f, 1.0f}, "message badge");
+        draw_text(x - 58.0f, y + 4.0f, 0.4f, box ? V4{0.0f, 0.0f, 0.0f, alpha} : V4{bc.x, bc.y, bc.z, alpha}, 1, 50.0f,
+                  25.0f, badge);
     }
     const float ts = 0.5f * s;
     float cx = x;
@@ -1147,7 +1161,26 @@ float draw_message_line(void *ctx, const uint8_t *e, float x, float y, float alp
         cx += w1;
     }
     cx += 10.0f * s;                                                       // 0x8ab754 / 0x8ab768
-    if (eflags & 8) {                                                      // 0x8ab7d8: headshot icon
+    if (const uint8_t *icon = ptr_at(e, M_ICON)) {                         // 0x8ab760: the weapon icon
+        // PS4 record (hud-settings 9353ed16 +0x40 list, next +0x68; filled by 0x646560 from the weapon id):
+        // +0x10 image name (loaded with 0x555140(name, 0) like the icon element 0x562b06), +0x18 size x / y,
+        // +0x28 / +0x30 = PS3 +28 / +36 (advance = width * +36 / +28). PS3 draws it 0.45 s x size.
+        const char *name = reinterpret_cast<const char *>(uintptr_t(R<uint64_t>(icon, 0x10)));
+        const float sx = R<float>(icon, 0x18), sy = R<float>(icon, 0x1c);
+        if (name && name[0] && sx > 0.0f && sy > 0.0f && sx < 1024.0f && sy < 1024.0f) {
+            const float k = kMsgIconScale * s, w = sx * k, h = sy * k;
+            const float div = R<float>(icon, 0x28), mul = R<float>(icon, 0x30);
+            const float advance = (div > 0.0f && mul > 0.0f && mul / div < 4.0f) ? w * mul / div : w;
+            if (!measure) {
+                const NameHandle nh = reinterpret_cast<ByNameFn>(image.base + fByName)(name, 0);
+                const Handle hd{uint32_t(nh.idtable), uint32_t(nh.idtable >> 32), int32_t(nh.index)};
+                quad(ctx, hd, V4{1.0f, 1.0f, 1.0f, alpha}, V2{cx, y + 10.0f - h * 0.5f}, V2{w, h}, false,
+                     V2{0.0f, -1.0f}, V2{0.0f, 0.0f}, V2{1.0f, 1.0f}, "message weapon icon");
+            }
+            cx += advance + 10.0f * s;
+        }
+    }
+    if (eflags & 8) {                                                    // 0x8ab7d8: headshot icon
         const float hs = 28.0f * s;
         if (!measure)
             quad(ctx, sid_handle(kSidHeadshot, 1), V4{1.0f, 1.0f, 1.0f, alpha}, V2{cx - 4.0f * s, y + 10.0f - hs * 0.5f},
@@ -1192,6 +1225,116 @@ void draw_messages(void *ctx, const uint8_t *element, const uint8_t *set) {
     }
 }
 
+// ---- weapon panel on a weapon switch (hudweapon.cpp element, bits 0x8) ----
+// The weapon panel (icon, ammo, grenades; element vtable 0x103f760, Draw 0x563a20, widget 0x8632c9ad of
+// hud-settings 9353ed16) draws while HUD flag 0x8 is set. Only the weapon controller's ShowWeaponHud
+// (player+0x2768, vtable 0x1026d40 slot +0x2f0 = 0x954740 = PS3 0x69e538) sets it: it ORs 0x8, marks the
+// element and stores the fade. In matches the panel never appeared on a weapon switch (tests 50-67), so
+// here the multiplayer element's Draw (index 9 of the HUD loop 0x554710, before the weapon panel at 13)
+// calls that same function for kWeaponHudSeconds after the local player's current weapon changes
+// (player vtable slot +0x260 = 0x71dec0: the inventory entry at +0x4b8). The probe counts the game's own
+// calls (slot hook) and the panel's draws, and logs them with the multiplayer draw line.
+constexpr uint64_t kLocalPlayer = 0x115bd20;        // handle {cell *, id}; object id at +0x44 (0x9765d0)
+constexpr uint64_t P_WEAPON_CTRL = 0x2768, VT_CURRENT_WEAPON = 0x260, VT_SHOW_WEAPON_HUD = 0x2f0;
+constexpr uint64_t fCurrentWeapon = 0x71dec0, fShowWeaponHud = 0x954740;
+constexpr uint64_t vtWeaponCtrlShow = 0x1027030;    // vtable 0x1026d40 slot +0x2f0
+constexpr uint64_t vtWeaponPanelDraw = 0x103f768;   // vtable 0x103f760 slot 1
+constexpr uint64_t fWeaponPanelDraw = 0x563a20;
+constexpr float kWeaponHudSeconds = 3.0f, kWeaponHudArg = -100.0f;   // the player states pass -100 (0xe66364)
+using ShowWeaponHudFn = void(U2MP_GUEST *)(void *, float);
+using CurrentWeaponFn = void *(U2MP_GUEST *)(void *);
+using PanelDrawFn = void(U2MP_GUEST *)(void *, void *);
+
+bool g_weapon_hud = false;
+uint64_t g_game_shows = 0, g_own_shows = 0, g_panel_draws = 0, g_switches = 0;
+uint64_t g_show_callers[6] = {};
+uint64_t g_last_weapon = 0;
+int32_t g_show_until = 0;
+bool g_weapon_warned = false;
+
+U2MP_GUEST void weapon_ctrl_show_probe(void *ctrl, float arg) {
+    ++g_game_shows;
+    const uint64_t from = uint64_t(uintptr_t(__builtin_return_address(0))) - uint64_t(uintptr_t(image.base));
+    for (uint64_t &c : g_show_callers) {
+        if (c == from) break;
+        if (!c) { c = from; break; }
+    }
+    reinterpret_cast<ShowWeaponHudFn>(image.base + fShowWeaponHud)(ctrl, arg);
+}
+
+U2MP_GUEST void weapon_panel_draw_probe(void *element, void *ctx) {
+    ++g_panel_draws;
+    reinterpret_cast<PanelDrawFn>(image.base + fWeaponPanelDraw)(element, ctx);
+}
+
+uint8_t *local_player() {
+    const uint64_t cell = G<uint64_t>(kLocalPlayer);
+    const uint32_t id = G<uint32_t>(kLocalPlayer + 8);
+    if (!cell || !id) return nullptr;
+    uint8_t *obj = reinterpret_cast<uint8_t *>(uintptr_t(*reinterpret_cast<const uint64_t *>(uintptr_t(cell))));
+    if (!obj || R<uint32_t>(obj, 0x44) != id) return nullptr;
+    return obj;
+}
+
+void weapon_panel_tick() {
+    if (!g_weapon_hud) return;
+    uint8_t *player = local_player();
+    if (!player) { g_last_weapon = 0; return; }
+    const uint64_t pvt = R<uint64_t>(player, 0);
+    const uint64_t get = pvt ? *reinterpret_cast<const uint64_t *>(uintptr_t(pvt + VT_CURRENT_WEAPON)) : 0;
+    uint8_t *ctrl = const_cast<uint8_t *>(ptr_at(player, P_WEAPON_CTRL));
+    const uint64_t cvt = ctrl ? R<uint64_t>(ctrl, 0) : 0;
+    const uint64_t show = cvt ? *reinterpret_cast<const uint64_t *>(uintptr_t(cvt + VT_SHOW_WEAPON_HUD)) : 0;
+    const uint64_t base = uint64_t(uintptr_t(image.base));
+    if (get != base + fCurrentWeapon ||
+        (show != base + fShowWeaponHud && show != uint64_t(uintptr_t(&weapon_ctrl_show_probe)))) {
+        if (!g_weapon_warned) {
+            g_weapon_warned = true;
+            log("hud: weapon panel: player slot +0x260 0x%llx / controller slot +0x2f0 0x%llx not the expected "
+                "functions, weapon switch trigger off", (unsigned long long)(get ? get - base : 0),
+                (unsigned long long)(show ? show - base : 0));
+        }
+        return;
+    }
+    const uint64_t weapon = uint64_t(uintptr_t(reinterpret_cast<CurrentWeaponFn>(uintptr_t(get))(player)));
+    const int32_t now = G<int32_t>(kFrames);
+    if (weapon != g_last_weapon) {
+        if (weapon && g_last_weapon) ++g_switches;
+        g_last_weapon = weapon;
+        if (weapon) g_show_until = now + int32_t(kWeaponHudSeconds * kFramesPerSecond);
+    }
+    if (weapon && now - g_show_until < 0) {
+        ++g_own_shows;
+        reinterpret_cast<ShowWeaponHudFn>(image.base + fShowWeaponHud)(ctrl, kWeaponHudArg);
+    }
+}
+
+void install_weapon_panel() {
+    if (const char *env = std::getenv("UNCHARTED_U2MP_WEAPON_HUD"); env && env[0] == '0') {
+        log("hud: UNCHARTED_U2MP_WEAPON_HUD=0, weapon panel trigger off");
+        return;
+    }
+    // 0x954740: mov esi,0x2bbd20fa (booster check) / or [rax],0x8; 0x563a20 prologue + lookup 9353ed16
+    static const unsigned char show[] = {0x55, 0x48, 0x89, 0xe5, 0x48, 0x83, 0xec, 0x10, 0xc5, 0xfa, 0x11, 0x45,
+                                         0xfc, 0xbe, 0xfa, 0x20, 0xbd, 0x2b};
+    static const unsigned char orbit[] = {0x83, 0x08, 0x08};
+    static const unsigned char panel[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54};
+    if (!image.matches(fShowWeaponHud, show, sizeof show) || !image.matches(0x95477a, orbit, sizeof orbit) ||
+        !image.matches(fWeaponPanelDraw, panel, sizeof panel) || !image.matches(fCurrentWeapon,
+            reinterpret_cast<const unsigned char *>("\x48\x63\x8f\xb8\x04\x00\x00"), 7)) {
+        log("hud: weapon panel bytes differ, weapon switch trigger off");
+        return;
+    }
+    uint64_t &s1 = *image.at<uint64_t>(vtWeaponCtrlShow);
+    uint64_t &s2 = *image.at<uint64_t>(vtWeaponPanelDraw);
+    const uint64_t base = uint64_t(uintptr_t(image.base));
+    if (s1 == base + fShowWeaponHud) s1 = uint64_t(uintptr_t(&weapon_ctrl_show_probe));
+    if (s2 == base + fWeaponPanelDraw) s2 = uint64_t(uintptr_t(&weapon_panel_draw_probe));
+    g_weapon_hud = true;
+    log("hud: weapon panel: shown for %.0f s after a weapon switch (ShowWeaponHud 0x954740 from the "
+        "multiplayer draw), probes on", double(kWeaponHudSeconds));
+}
+
 // Slot 1 of the multiplayer HUD element (PS3 0x8aef68): (element, draw context). The PS3 order:
 //   competitive (not co-op 4/8/9/12), not type 11, flag 0x40000 (0x8af1fc): type 7 panel (0x8af960),
 //     type 10 panel (0x8af648), or the score panel (0x8af220) and, for types other than 1 / 2, the
@@ -1227,6 +1370,14 @@ U2MP_GUEST void net_hud_draw(void *element_v, void *ctx) {
             R<int32_t>(element + E_NAMES, NM_COUNT), R<int32_t>(element + E_MARKERS, 0), R<int32_t>(element + E_MSG_LIST, 0),
             ctx, material_table(0) ? unsigned(material_table(0)->count) : 0u,
             material_table(1) ? unsigned(material_table(1)->count) : 0u);
+    if (g_weapon_hud && (g_draws == 1 || g_draws % 600 == 0))
+        log("hud: weapon panel: %llu switches, ShowWeaponHud %llu by the game (from %llx %llx %llx %llx) / %llu "
+            "here, panel draws %llu, flags 0x%x",
+            (unsigned long long)g_switches, (unsigned long long)g_game_shows, (unsigned long long)g_show_callers[0],
+            (unsigned long long)g_show_callers[1], (unsigned long long)g_show_callers[2],
+            (unsigned long long)g_show_callers[3], (unsigned long long)g_own_shows,
+            (unsigned long long)g_panel_draws, flags);
+    weapon_panel_tick();
     if (!coop && type != 11 && (flags & kFlagScorePanel)) {
         if (type == 7) {
             draw_type7_panel(ctx, set, local);
@@ -1328,6 +1479,7 @@ void install_hud(int &installed) {
     slot = uint64_t(uintptr_t(&net_hud_draw));
     log("hud: multiplayer HUD draw (PS3 0x8aef68) -> C++ (vtable 0x%llx slot 1)", (unsigned long long)vtNetHud);
     ++installed;
+    install_weapon_panel();
 }
 
 }  // namespace u2mp
