@@ -1185,44 +1185,6 @@ bool patch_view_mask() {
     return true;
 }
 
-// ---- section 9: the view's "no dynamic objects" flag (tests 56-61) --------------------------------------
-// In a match the actors' draw data (hero, weapons, the level's banners) are collected every frame and put in
-// the draw lists (tests 59-61), but the draw-data loops of the view draws 0xcae4e0 (0xcaeb86) and 0xcafc10
-// (0xcaff53), and the view setup 0xcad5cb / 0xcadc0a, skip every draw data while byte +0xbf of the render
-// settings ([ctx+0xe8], global 0x1050d40) is set. 0x52ec66 sets it from the camera's focus object (anim data
-// +2 != 0 while camera +0xb7 is 0): in a match the player camera's focus is the player, so the flag is on for
-// the whole match and no actor is drawn (the level geometry has its own loop). The menu camera has no focus
-// object, so the menu's actors draw. The four skips are removed (0xcad568 is left: the list it guards is not
-// null-checked after it). UNCHARTED_U2MP_ACTOR_FLAG=0 keeps them.
-struct FlagSkip { uint64_t at; unsigned char bytes[6]; unsigned len; };
-const FlagSkip kFlagSkips[] = {
-    {0xcad5d2, {0x75, 0x16}, 2},
-    {0xcadc11, {0x0f, 0x85, 0x25, 0x01, 0x00, 0x00}, 6},
-    {0xcaeb93, {0x0f, 0x85, 0x16, 0x02, 0x00, 0x00}, 6},
-    {0xcaff5e, {0x0f, 0x85, 0xe9, 0x01, 0x00, 0x00}, 6},
-};
-int patch_flag_skips() {
-    if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_FLAG"); v && std::strcmp(v, "0") == 0) {
-        log("render: view flag +0xbf skips kept (UNCHARTED_U2MP_ACTOR_FLAG=0)");
-        return 0;
-    }
-    int done = 0;
-    for (const FlagSkip &f : kFlagSkips) {
-        if (!image.matches(f.at, f.bytes, f.len) || !image.executable(f.at, f.len)) {
-            log("render: view flag skip at 0x%llx differs, left alone", (unsigned long long)f.at);
-            continue;
-        }
-        unsigned char *code = image.base + f.at;
-        static const unsigned char nop2[] = {0x66, 0x90};
-        static const unsigned char nop6[] = {0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00};
-        std::memcpy(code, f.len == 2 ? nop2 : nop6, f.len);
-        ++done;
-    }
-    log("render: view flag +0xbf: %d of %zu actor-draw skips removed (actors drawn in matches)", done,
-        sizeof kFlagSkips / sizeof *kFlagSkips);
-    return done;
-}
-
 void actor_bounds_fix(uint64_t inst, uint64_t proto) {
     actor_cell_fix(inst);
     if (!actor_bounds_on) return;
@@ -1246,7 +1208,6 @@ void install_render(int &installed) {
     if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_BOUNDS"); v && std::strcmp(v, "0") == 0)
         actor_bounds_on = false;
     if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_CELL"); v && std::strcmp(v, "0") == 0) actor_cell_on = false;
-    if (patch_flag_skips()) ++installed;
     // patch_view_mask() is not installed: run 58 showed +0x298 + view * 8 is the instance's pass mask (+0xd8),
     // not a visibility mask; removing that test drew actors in passes they do not belong to.
     (void)&patch_view_mask;
