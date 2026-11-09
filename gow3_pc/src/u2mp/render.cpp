@@ -1153,6 +1153,30 @@ void actor_cell_fix(uint64_t inst) {
         log("render: actor cell fix: %p visibility cell 0 -> none (0xffff)", reinterpret_cast<const void *>(uintptr_t(inst)));
 }
 
+// Run 56: in a match no actor instance ever reached the visibility gate 0xc42430, while the menu's did. The
+// draw-data loop 0xcafc10 (calls the gate through 0xc431c0 at 0xcb00c7) first skips a draw data whose per-view
+// visible mask (+0x298 + view * 8) lacks the view's bit (0xcb0030: test [rdi+r9*8+0x298], r15; je 0xcb012c).
+// That mask comes from the level's visibility data, which the converted match levels do not give actors. The
+// jump is removed: actors go on to the gate (pass, cell, frustum tests) as in the menu.
+// UNCHARTED_U2MP_ACTOR_VIEWMASK=0 keeps the original.
+constexpr uint64_t cViewMaskSkip = 0xcb0038;
+bool patch_view_mask() {
+    if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_VIEWMASK"); v && std::strcmp(v, "0") == 0) {
+        log("render: actor view mask kept (UNCHARTED_U2MP_ACTOR_VIEWMASK=0)");
+        return false;
+    }
+    static const unsigned char test_je[] = {0x4e, 0x85, 0xbc, 0xcf, 0x98, 0x02, 0x00, 0x00, 0x0f, 0x84, 0xee, 0x00, 0x00, 0x00};
+    if (!image.matches(cViewMaskSkip - 8, test_je, sizeof test_je)) {
+        log("render: actor view mask test at 0x%llx differs, left alone", (unsigned long long)cViewMaskSkip);
+        return false;
+    }
+    unsigned char *code = image.base + cViewMaskSkip;
+    static const unsigned char nop6[] = {0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00};
+    std::memcpy(code, nop6, sizeof nop6);
+    log("render: actor view mask skip at 0x%llx removed (actors reach the visibility gate)", (unsigned long long)cViewMaskSkip);
+    return true;
+}
+
 void actor_bounds_fix(uint64_t inst, uint64_t proto) {
     actor_cell_fix(inst);
     if (!actor_bounds_on) return;
@@ -1176,6 +1200,7 @@ void install_render(int &installed) {
     if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_BOUNDS"); v && std::strcmp(v, "0") == 0)
         actor_bounds_on = false;
     if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_CELL"); v && std::strcmp(v, "0") == 0) actor_cell_on = false;
+    if (patch_view_mask()) ++installed;
     const bool diag = install_draw_diag(installed);
     // Section 7 rides on the MeshInstance::Init A hook; without the diagnostics it is installed alone
     // (mesh_init_logged applies the fix, then returns because diag_mode is 0).
