@@ -3121,7 +3121,15 @@ class Launcher:
         env.pop("UNCHARTED_U2MP", None)
         for key in ("UNCHARTED_U2MP_NAME", "UNCHARTED_U2MP_JOIN"):
             env.pop(key, None)
-        if not self.config.get("u2mp_menu", True):
+        # Like Uncharted 3: multiplayer is on by itself once an import has finished (no toggle), and off while
+        # there is none or it is running (user, 2026-11-09).
+        state = self.u2mp_state()
+        imported = U2MP_DIR / "import"
+        if state.get("status") not in ("imported", "partial") or not (imported / "u2data").is_dir():
+            print("Uncharted 2 multiplayer: no finished import, Uncharted 2 starts without it")
+            return
+        if self.u2mp_running():
+            print("Uncharted 2 multiplayer files are being imported or updated: Uncharted 2 starts without them")
             return
         try:
             sys.path.insert(0, str(ROOT / "u2mp" / "patcher"))
@@ -3131,14 +3139,10 @@ class Launcher:
             print(f"Uncharted 2 multiplayer files not made ({error}): Uncharted 2 starts without them")
             return
         # The imported PS3 assets (u2mp_import.py) come after the menu overlay; the first folder holding a file wins.
-        imported = U2MP_DIR / "import"
-        layers = [str(overlay)] + ([str(imported)] if (imported / "state.json").exists() and
-                                   (imported / "u2data").is_dir() else [])
+        layers = [str(overlay), str(imported)]
         env["UNCHARTED_U2MP_OVERLAY"] = os.pathsep.join(layers)
         env["UNCHARTED_U2MP"] = "1"  # the runtime's u2mp module (gow3_pc/src/u2mp): the restored functions
-        env["UNCHARTED_U2MP_NAME"] = str(self.config.get("u2mp_name", "") or "Drake")[:31]
-        if str(self.config.get("u2mp_join", "")).strip():
-            env["UNCHARTED_U2MP_JOIN"] = str(self.config["u2mp_join"]).strip()
+        env["UNCHARTED_U2MP_NAME"] = "Drake"   # the name and join rows were removed (user, 2026-11-09)
 
     def page_multiplayer(self):
         """Uncharted 2 multiplayer (u2mp), laid out like Uncharted 3's page (page_u3mp). Shown only while
@@ -3176,27 +3180,9 @@ class Launcher:
             label.pack(side="top", fill="x", pady=(0, self.px(10)))
             self.u2mp_labels[label_key] = label
 
-        def text_row(key, title, hint, default):
-            def factory(parent):
-                var = tk.StringVar(value=self.config.get(key, default))
-                entry = tk.Entry(parent, textvariable=var, width=18, font=self.f_body, bg=PANEL, fg=TEXT,
-                                 insertbackground=TEXT, relief="flat")
-                var.trace_add("write", lambda *_: self.change_config(key, var.get().strip()))
-                return entry
-            self.row(page, title, hint, factory)
-
         self.u2mp_labels = {}
         if not self.config.get("u2mp_ps3") and self.config.get("u3mp_ps3_u2"):
             self.config["u2mp_ps3"] = self.config["u3mp_ps3_u2"]   # the folder chosen for Uncharted 3's import
-        self.row(page, "Multiplayer in the Uncharted 2 menu",
-                 "On: Uncharted 2's main menu shows Multiplayer again. Off: the normal menu.",
-                 lambda parent: Toggle(parent, self.s, self.config.get("u2mp_menu", True),
-                                       lambda v: self.change_config("u2mp_menu", bool(v))))
-        text_row("u2mp_name", "Your name", "The name the other players see in the lobby and in matches.", "Drake")
-        text_row("u2mp_join", "Join a host",
-                 "Empty: this PC hosts the party when you open Multiplayer (UDP port 27210; Windows may ask to "
-                 "allow it). To join a friend, type their address (e.g. 192.168.1.20) before opening Multiplayer.",
-                 "")
         folder_row("PS3 Uncharted 2 folder",
                    "Your PS3 Uncharted 2 (e.g. NPUA80698 or BCES00757, the folder with USRDIR). The import takes "
                    "from it only what the PS4 game lacks: multiplayer skins, the Fort's missing parts, sounds, music.",
