@@ -87,3 +87,18 @@ Also check once with the DLL path removed: `online: off (...)` and LAN behaves a
 - To check in the game (launcher, signed in): boot.log `online: signed in as <name>`, `online: friends: N on the RPCN
   friend list` + one `friend` line each, `online: presence: ...`; Party Up shows the friends; Invites shows the number
   of invites and lists them first.
+
+## 2026-11-09: test 67 (player drawn) and the round after it (built, not run)
+
+- Test 67: `render: view flag +0xbf: 5 of 5 actor-draw skips removed`; the heroes are drawn in the match
+  (`hero ... walker submits` in the thousands); the player saw the character.
+- Next run, what to check (boot.log):
+  - weapon switch: the panel shows; `hud: weapon panel: N switches, ShowWeaponHud N by the game (...) / N here,
+    panel draws N` (panel draws > 0 after a switch);
+  - kill feed: weapon icon between the names, count badge on a box; no `image message weapon icon ... not
+    resolved` lines;
+  - a film: square shows the theater HUD (`hud: theater HUD: N cameras, N shown`), L1 / R1 move, Cross
+    switches (`hud: theater HUD: camera ...`), progress and times, speed line when not x1;
+  - Players Met: a row opens Add Friend (online) / View Profile;
+  - objective modes: carrier icon blinks while the flag is carried;
+  - online matchmaking: `online: matchmaking: room ...` lines; rooms near our rank picked first.
