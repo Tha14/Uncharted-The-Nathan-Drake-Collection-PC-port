@@ -185,9 +185,8 @@ receive button (6b2970e2) tells how many came.
 ## 6. Untested / open
 
 - Nothing here has run yet: first test = two PCs, both signed in (see TEST-LOG.md).
-- Is BUTTON_MULTIPLAYER_INVITES visible on PAGE_MULTIPLAYER / PAGE_LOBBY in the PS4 menu data? It is
-  the only entry to the join list (BUTTON_MULTIPLAYER_JOIN is on no PS4 page). If not, another button
-  must open it.
+- BUTTON_MULTIPLAYER_INVITES is on the PS4 pages (test 50 showed its label); Party Up's first row
+  "Browse Online Games" opens the join list as well.
 - Exact semantics of `u2o_open`'s return value and of `U2O_EV_MEMBER_LEFT`'s owner (read from
   `e.room` when present; the owner change is taken from `U2O_EV_ROOM_UPDATED`).
 - Search flag filter HIDDEN|CLOSED = 0: whether the service applies it as the PS3 server did.

@@ -1039,11 +1039,7 @@ void draw_type7_panel(void *ctx, const uint8_t *set, const uint8_t *local) {
 //   is the tracker whose id (PS3 tracker+280 = PS4 +0x120; PS3 0x4918e8) equals the flag's owner id PS3
 //   +800 = PS4 +0x440 (DcNetCaptureFlag PS3 0x4cdb84 = PS4 0x669a77); image set+0x18 without a carrier,
 //   +0x20 when the carrier is on the local team, +0x28 otherwise (PS3 set +12 / +16 / +20), at (0, 0).
-// Not ported:
-//   - the fallback when that handle is dead (0x8af3ac..0x8af414): the 10 trackers' character objects
-//     (PS3 tracker+16 / +20) searched for one holding a 310f465e (capture flag) process through character
-//     +44 bit 0x1000 (virtual slot 116 of +6696) or bit 0x200 (held object handle +7600, PS3 0x45da80);
-//     the PS4 character layout for +44 / +6696 / +7600 is not mapped;
+// The fallback when that handle is dead (0x8af3ac..0x8af414) is held_capture_flag below.
 // The 0.5 s blink (PS3 0x2b75c(flag) true: the flag's tag e9a3dd67) is ported in draw_carrier.
 constexpr uint64_t NGM_CARRY_SLOT = 0x1cc0, NGM_CARRY_ID = 0x1cc8, FLAG_OWNER = 0x440, T_ID = 0x120;
 constexpr uint64_t S_CARRY_NONE = 0x18, S_CARRY_OWN = 0x20, S_CARRY_OTHER = 0x28;
@@ -1065,12 +1061,37 @@ bool flag_tag_true(const uint8_t *process, uint32_t tag) {
     return false;
 }
 
+// PS3 0x8af3ac fallback when the ngm carry handle is dead: the 10 trackers' characters (handle tracker
+// +0x10 / id +0x18, process id +0x44) asked for their held object: PS3 character +6696 virtual slot 116 =
+// PS4 +0x2928 slot 0xe8 (as PS4 0x2b0e7e does), a capture flag when its type (+0x30, PS3 +40) is 310f465e.
+// The PS3 bit tests of character +44 (0x1000 for this path, 0x200 for the held handle +7600) are not
+// mapped on PS4; asking every character is the same answer for the 0x1000 path.
+const uint8_t *held_capture_flag() {
+    using HeldFn = const uint8_t *(U2MP_GUEST *)(const void *, int);
+    for (int i = 0; i < 10; ++i) {
+        const uint8_t *t = image.base + kNgm + 0x10 + 0x2c0 * uint64_t(i);
+        const uint8_t *hslot = ptr_at(t, 0x10);
+        const uint32_t hid = R<uint32_t>(t, 0x18);
+        const uint8_t *ch = hslot && hid ? ptr_at(hslot, 0) : nullptr;
+        if (!ch || R<uint32_t>(ch, 0x44) != hid) continue;
+        const uint8_t *obj = ptr_at(ch, 0x2928);
+        const uint64_t vt = obj ? R<uint64_t>(obj, 0) : 0;
+        if (!vt) continue;
+        const uint64_t fn = *reinterpret_cast<const uint64_t *>(uintptr_t(vt + 0xe8));
+        if (!fn) continue;
+        const uint8_t *held = reinterpret_cast<HeldFn>(uintptr_t(fn))(obj, 0);
+        if (held && R<uint32_t>(held, 0x30) == 0x310f465eu) return held;
+    }
+    return nullptr;
+}
+
 void draw_carrier(void *ctx, const uint8_t *set, int32_t team) {
     const uint8_t *slot = reinterpret_cast<const uint8_t *>(uintptr_t(G<uint64_t>(kNgm + NGM_CARRY_SLOT)));
     const uint32_t id = G<uint32_t>(kNgm + NGM_CARRY_ID);
-    if (!slot || !id) return;
-    const uint8_t *flag = ptr_at(slot, 0);
-    if (!flag || R<uint32_t>(flag, 0x44) != id) return;                          // 0x8af370..0x8af3a8
+    const uint8_t *flag = slot && id ? ptr_at(slot, 0) : nullptr;
+    if (flag && R<uint32_t>(flag, 0x44) != id) flag = nullptr;                    // 0x8af370..0x8af3a8
+    if (!flag) flag = held_capture_flag();                                         // 0x8af3ac..0x8af414
+    if (!flag) return;
     const int32_t owner = R<int32_t>(flag, FLAG_OWNER);                            // 0x8afea0
     const uint8_t *carrier = nullptr;
     for (int i = 0; i < 10; ++i) {                                                 // PS3 0x4918e8

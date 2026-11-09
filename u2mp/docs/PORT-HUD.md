@@ -448,9 +448,10 @@ buttons `0x14b7fb0`. Switch: `UNCHARTED_U2MP_NO_THEATER=1`.
 - Carrier icon: PS3 `0x8afec0` blinks the icon (shown while fmod(clock / 300, 1) < 0.5) when `0x2b75c(flag)`
   is true. That is the flag's tag `e9a3dd67`; PS4 inlines the lookup at `0x63e439` (tag table
   [[process+0x68]] = {entries of 0x10: u32 tag, +8 value; u32 count}, value {u16 type 1, +8 -> u32}).
-  Ported. Still left out: the fallback search through the trackers' characters when the ngm carry handle
-  is dead (PS3 `0x8af3ac`: character +44 bits 0x200 / 0x1000, held handle +7600 (`0x45da80`), object +6696
-  slot 116 with type `310f465e`); those PS4 character fields are not mapped.
+  Ported, and the fallback when the ngm carry handle is dead (PS3 `0x8af3ac`): every tracker's character
+  is asked for its held object (PS3 +6696 slot 116 = PS4 +0x2928 slot 0xe8, as PS4 `0x2b0e7e`), a capture
+  flag when its type +0x30 is `310f465e`. The PS3 pre-tests of character +44 (bits 0x1000 / 0x200, held
+  handle +7600) are not mapped and skipped.
 - Theater HUD: the speed line "x%2.1f" when the replay speed (PS3 `[0xe1558c]` = PS4 `0x104f1bc`,
   compared with 1.0 by RePlaying::Update `0x5e735d`) is not 1; the camera change sound `f57d53ce` through
   PS4 `0x3dd780` + `0x9b5c20` (PS3 `0x30fb28` + `0x7069c8`, the same pair `0x4ae0cc` uses).
