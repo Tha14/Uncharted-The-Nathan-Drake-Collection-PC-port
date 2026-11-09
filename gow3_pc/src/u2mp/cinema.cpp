@@ -403,7 +403,9 @@ U2MP_GUEST void delete_confirmed(void *) {
     if (count() == 0) message_no_files();
 }
 
-U2MP_GUEST void upload_button(void *) { log("cinema: no server to upload to"); }
+// PS3 uploaded to Naughty Dog's server, then friends got a pointer to it (0x43402c). PC: the button sends the
+// file itself to a friend over RPCN (remaining.cpp picks the friend, online.cpp sends).
+U2MP_GUEST void upload_button(void *) { cinema_pick_friend(); }
 
 U2MP_GUEST void start_cinema(void *) {
     finish_recording();
@@ -529,6 +531,52 @@ bool replace_stub(uint64_t at, void *host, const char *name) {
 
 void record_event(void *event) { record(event); }
 bool recording() { return recording_now; }
+
+bool read_selected(std::vector<uint8_t> &bytes, std::string &name) {
+    ensure_lists();
+    const int32_t i = selected();
+    if (i < 0 || i >= count()) return false;
+    name = entry_name(i);
+    std::FILE *f = std::fopen((dir() + "/" + name).c_str(), "rb");
+    if (!f) return false;
+    std::fseek(f, 0, SEEK_END);
+    const long n = std::ftell(f);
+    std::fseek(f, 0, SEEK_SET);
+    bool ok = n >= long(kHeaderSize) && n < (64l << 20);
+    if (ok) {
+        bytes.resize(size_t(n));
+        ok = std::fread(bytes.data(), 1, bytes.size(), f) == bytes.size();
+    }
+    std::fclose(f);
+    return ok && valid_header(bytes.data());
+}
+
+// PS3 0x43302c + thread 0x433360: make room, save under the sender's file name, refresh the list.
+int add_received(const uint8_t *data, size_t size, const std::string &wanted) {
+    if (!data || size < kHeaderSize || !valid_header(data)) return -1;
+    const std::string d = dir();
+    if (!ensure_dir(d)) return -1;
+    if (!make_room(d)) return 0;   // PS3 box 1e21ccb1 "no free slots"
+    std::string name = wanted;
+    bool safe = !name.empty() && name.size() < 64 && name.find_first_of("/\\:") == std::string::npos && name[0] != '.';
+    if (safe) {
+        std::FILE *t = std::fopen((d + "/" + name).c_str(), "rb");
+        if (t) { std::fclose(t); safe = false; }   // taken: a new name
+    }
+    if (!safe || name.size() < 9 || name.compare(name.size() - 9, 9, kExtension) != 0)
+        name = new_name(d, std::time(nullptr));
+    std::FILE *f = std::fopen((d + "/" + name).c_str(), "wb");
+    if (!f) return -1;
+    const bool ok = std::fwrite(data, 1, size, f) == size;
+    std::fclose(f);
+    if (!ok) {
+        std::remove((d + "/" + name).c_str());
+        return -1;
+    }
+    refresh();
+    log("cinema: received file saved as %s (%zu bytes)", name.c_str(), size);
+    return 1;
+}
 
 }  // namespace u2mp::cinema
 

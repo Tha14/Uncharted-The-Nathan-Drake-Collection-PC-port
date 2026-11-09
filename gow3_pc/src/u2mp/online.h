@@ -9,6 +9,7 @@
 #include <string>
 
 #include "net.h"
+#include "u2_online_abi.h"
 
 namespace u2mp::online {
 
@@ -74,6 +75,19 @@ bool friend_add(const std::string &npid);   // send a friend request (or accept 
 bool accept_request(int i);
 bool remove_friend(int i);           // unfriend / decline / cancel
 std::string profile_text(int i);     // View Profile: name, state, presence
+
+// ---- cinema files to and from friends (PS3 fe0e7de7 / 6b2970e2) ----
+bool send_cinema(const std::string &npid);   // the selected cinema of the cinema page
+int cinema_received();                       // files friends sent us this session
+
+// ---- rankings (RPCN score boards; PS3 NP Score) ----
+bool linked();                       // the online link is up (also outside Multiplayer)
+bool board_request(uint32_t board, int mode, uint32_t start, uint32_t count);   // mode 0 ranks, 1 friends, 2 me
+int board_state();                   // 1 loading, 0 ready, -1 failed
+int board_rows();
+uint32_t board_total();
+const U2oScore *board_row(int i);
+bool record_score(uint32_t board, int64_t score, const char *comment, const uint8_t *info = nullptr, uint32_t info_len = 0);
 
 // ---- stranger matchmaking (frontend3.cpp; PS3 0x4b0a58 search / join / create) ----
 enum { kMmIdle = 0, kMmBusy = 1, kMmHosting = 2, kMmJoined = 3, kMmFailed = 4 };

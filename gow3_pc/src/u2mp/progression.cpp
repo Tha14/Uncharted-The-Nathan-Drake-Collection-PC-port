@@ -258,9 +258,45 @@ void U2MP_GUEST player_info_update() {
 // Leave::Enter, after its stat updates: PS3 Leave recorded the scores and called Publish here.
 // No connect here: loading now would replace the match just added (PS3 also published only when
 // connected; 64e810 has connected at match start).
+// PS3 Leave::Enter 0x445608 -> RecordScore 0x4ab45c: career totals, 64-byte big-endian game info {badge,
+// seconds, deaths, losses}. Co-op types (4, 8, 9, 12): boards 303 (co-op points) and 301 (cash);
+// competitive, only after a matchmaking match (netInfo+0x34): 300 (kills), 301 (cash), 302 (wins).
+uint32_t board_id(int i) { return G<uint32_t>(kBoardTable + 12 * uint64_t(i)); }
+void record_online_scores() {
+    if (!online::linked()) return;
+    const LocalStats st = local_stats();
+    struct Table { int32_t count; int32_t pad; uint8_t *records; };
+    const auto *games = static_cast<const Table *>(dc_lookup(0x3b9a067d));   // *net-games*
+    const int16_t game = G<int16_t>(0x113b760 + 0x1ca0);
+    int32_t type = -1;
+    if (games && games->records && game >= 0 && game < games->count)
+        type = *reinterpret_cast<const int32_t *>(games->records + 0x90 * size_t(game) + 0x0c);
+    const bool coop = type == 4 || type == 8 || type == 9 || type == 12;
+    const bool matchmaking = G<int32_t>(0x104f1c8 + 0x34) != 0;
+    auto post = [&](int board, uint32_t score, uint32_t seconds) {
+        uint8_t info[64] = {};
+        const uint32_t words[] = {__builtin_bswap32(st.rank), __builtin_bswap32(seconds), __builtin_bswap32(st.deaths),
+                                  __builtin_bswap32(st.losses)};
+        std::memcpy(info, words, sizeof words);
+        online::record_score(board_id(board), int64_t(score), nullptr, info, sizeof info);
+    };
+    if (coop) {
+        post(3, st.coop_points, st.coop_seconds);
+        post(1, st.money, st.coop_seconds);
+    } else if (matchmaking) {
+        const uint32_t seconds = st.seconds + st.coop_seconds;
+        post(0, st.kills, seconds);
+        post(1, st.money, seconds);
+        post(2, st.wins, seconds);
+    } else {
+        log("rankings: custom game: no scores posted (PS3 posted matchmaking and co-op only)");
+    }
+}
+
 void *U2MP_GUEST leave_publish(uint32_t id) {
     record_match();
     publish();
+    record_online_scores();
     return dc_lookup(id);
 }
 
@@ -268,7 +304,106 @@ void *U2MP_GUEST leave_publish(uint32_t id) {
 alignas(16) uint8_t lb_rows[kRowsPerPage][0x80];   // PS3 SceNpScoreRankData: +0 name, +0x5c rank, +0x70 score
 alignas(16) uint8_t lb_info[kRowsPerPage][0x40];   // game info: +0 badge, +4 time, +8 deaths, +0xc losses
 
+// ---- online boards (RPCN score boards, PS3 thread 0x4aa170) ----
+struct OnlineFetch { int stage = 0; uint32_t board = 0; int32_t page = 0; double since = 0; } fetch_online;
+
+void finish_online(uint8_t *lb, uint32_t total, int32_t page, int first, int n) {
+    std::memset(lb_rows, 0, sizeof lb_rows);
+    std::memset(lb_info, 0, sizeof lb_info);
+    int k = 0;
+    for (int i = first; i < first + n && k < int(kRowsPerPage); ++i) {
+        const U2oScore *r = online::board_row(i);
+        if (!r) break;
+        std::memcpy(lb_rows[k], r->npid, std::min<size_t>(strnlen(r->npid, sizeof r->npid), kNameMax));
+        F<uint32_t>(lb_rows[k], 0x58) = r->rank;
+        F<uint32_t>(lb_rows[k], 0x5c) = r->rank;
+        F<uint32_t>(lb_rows[k], 0x60) = r->rank;
+        F<int64_t>(lb_rows[k], 0x70) = r->score;
+        F<uint64_t>(lb_rows[k], 0x78) = r->record_date;
+        uint32_t w[4] = {};
+        std::memcpy(w, r->info, std::min<size_t>(r->info_len, sizeof w));
+        for (int j = 0; j < 4; ++j) F<uint32_t>(lb_info[k], 4 * uint64_t(j)) = __builtin_bswap32(w[j]);
+        ++k;
+    }
+    F<uint8_t *>(lb, LB_ROWS) = &lb_rows[0][0];
+    F<uint8_t *>(lb, LB_INFO) = &lb_info[0][0];
+    F<uint32_t>(lb, LB_TOTAL) = total;
+    F<uint32_t>(lb, LB_COUNT) = uint32_t(k);
+    F<int32_t>(lb, LB_PAGE) = page;
+    F<uint32_t>(lb, LB_STATUS) = 0;
+    F<uint64_t>(lb, LB_BUSY) = 0;
+    fetch_online.stage = 0;
+}
+
+void fetch_local(uint8_t *lb, uint32_t board_index, int32_t request);
+
+// Called each list update while an online fetch runs; true while it still runs.
+bool online_fetch_tick(uint8_t *lb) {
+    if (!fetch_online.stage) return false;
+    const int st = online::board_state();
+    if (st == 1) return true;
+    if (st < 0) {   // the service failed: the local board, as before
+        log("rankings: online board %u failed: local board shown", fetch_online.board);
+        fetch_online.stage = 0;
+        F<uint64_t>(lb, LB_BUSY) = 0;
+        fetch_local(lb, F<uint32_t>(lb, LB_BOARD), fetch_online.page);
+        return false;
+    }
+    const uint32_t board = fetch_online.board;
+    if (fetch_online.stage == 1) {   // where we are: GetRankingByNpId([self])
+        const U2oScore *me = online::board_row(0);
+        const int32_t page = me && me->rank ? int32_t((me->rank - 1) / kRowsPerPage) : 0;
+        fetch_online.page = page;
+        fetch_online.stage = 2;
+        if (!online::board_request(board, 0, uint32_t(page) * kRowsPerPage + 1, kRowsPerPage)) finish_online(lb, 0, 0, 0, 0);
+        return true;
+    }
+    if (fetch_online.stage == 2) {   // GetRankingByRange
+        finish_online(lb, online::board_total(), fetch_online.page, 0, online::board_rows());
+        return false;
+    }
+    // friends and us (rows come sorted by rank), 11 a page; -1 = the page that holds us
+    const int n = online::board_rows();
+    int32_t page = fetch_online.page;
+    if (page < 0) {
+        page = 0;
+        const std::string me = online::my_npid_text();
+        for (int i = 0; i < n; ++i)
+            if (const U2oScore *r = online::board_row(i); r && me == r->npid) page = i / int(kRowsPerPage);
+    }
+    finish_online(lb, uint32_t(n), page, page * int(kRowsPerPage), int(kRowsPerPage));
+    return false;
+}
+
 void fetch_page(uint8_t *lb, uint32_t board_index, int32_t request) {
+    if (online::linked() && board_index < uint32_t(kBoards)) {
+        const uint32_t board = board_id(int(board_index));
+        const bool friends = F<uint8_t>(lb, LB_FRIENDS) != 0;
+        fetch_online = OnlineFetch{};
+        fetch_online.board = board;
+        fetch_online.page = request;
+        bool ok;
+        if (friends) {
+            fetch_online.stage = 3;
+            ok = online::board_request(board, 1, 0, 100);
+        } else if (request < 0) {
+            fetch_online.stage = 1;
+            ok = online::board_request(board, 2, 0, 1);
+        } else {
+            fetch_online.stage = 2;
+            ok = online::board_request(board, 0, uint32_t(request) * kRowsPerPage + 1, kRowsPerPage);
+        }
+        if (ok) {
+            F<uint64_t>(lb, LB_BUSY) = 1;   // the list and its callbacks wait (PS3: the fetch thread)
+            F<uint32_t>(lb, LB_COUNT) = 0;
+            return;
+        }
+        fetch_online.stage = 0;
+    }
+    fetch_local(lb, board_index, request);
+}
+
+void fetch_local(uint8_t *lb, uint32_t board_index, int32_t request) {
     ensure_connected();
     load_store();
     const Page pg = page(board(store, local_stats(), int(board_index)), request);
@@ -297,6 +432,7 @@ void fetch_page(uint8_t *lb, uint32_t board_index, int32_t request) {
 // 5b3000, the LIST_LEADERBOARD update, in C++ with the fetch PS3 0x411fd8 made at 0x4120f4.
 void U2MP_GUEST leaderboard_list_update(uint8_t *list) {
     uint8_t *lb = image.at<uint8_t>(kLeaderboard);
+    if (online_fetch_tick(lb)) return;
     if (F<uint64_t>(lb, LB_BUSY)) return;
     int32_t first = F<int32_t>(lb, LB_PAGE);
     F<int32_t>(list, L_PAGE) = first;

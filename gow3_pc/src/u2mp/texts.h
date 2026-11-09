@@ -17,6 +17,12 @@ void text_find_original(TextFindFn original);   // the hook's trampoline (the or
 const char *own_text(uint32_t id);
 // The text of U2MP_PC_TEXT_PLAYER (a player name and state; remaining.cpp's message box / popup title).
 void text_set_player(const char *text);
+// Eight changeable texts (popup options with names: the cinema friend picker).
+constexpr int kTextSlots = 8;
+constexpr uint32_t kTextSlot[kTextSlots] = {sid("U2MP_PC_TEXT_SLOT0"), sid("U2MP_PC_TEXT_SLOT1"), sid("U2MP_PC_TEXT_SLOT2"),
+                                            sid("U2MP_PC_TEXT_SLOT3"), sid("U2MP_PC_TEXT_SLOT4"), sid("U2MP_PC_TEXT_SLOT5"),
+                                            sid("U2MP_PC_TEXT_SLOT6"), sid("U2MP_PC_TEXT_SLOT7")};
+void text_set_slot(int slot, const char *text);
 
 // PC message box texts (own_text / text_find serve them).
 constexpr uint32_t kTextPlayer = sid("U2MP_PC_TEXT_PLAYER"), kTextStore = sid("U2MP_PC_TEXT_STORE"),

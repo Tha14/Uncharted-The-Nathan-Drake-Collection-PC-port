@@ -42,13 +42,17 @@ enum : int32_t {
     // ABI 2
     U2O_EV_FRIEND = 16,         // npid, state (U2O_FRIEND_*): the friend list changed; u2o_friends has the new list
     U2O_EV_MESSAGE = 17,        // message: a player sent us a message (an invite: main_type U2O_MSG_INVITE)
+    U2O_EV_SCORES = 18,         // u2o_get_scores: scores[count], total (records on the board); u2o_record_score:
+                                // error only, state = our rank on that board
 };
 
 // U2O_EV_FRIEND states
 enum : int32_t { U2O_FRIEND_LIST = 0, U2O_FRIEND_ADDED = 1, U2O_FRIEND_REMOVED = 2, U2O_FRIEND_ONLINE = 3,
                  U2O_FRIEND_OFFLINE = 4, U2O_FRIEND_PRESENCE = 5, U2O_FRIEND_REQUEST = 6 };
 // message main types (sceNpBasic)
-enum : int32_t { U2O_MSG_DATA = 0, U2O_MSG_GENERAL = 1, U2O_MSG_ADD_FRIEND = 2, U2O_MSG_INVITE = 3 };
+enum : int32_t { U2O_MSG_DATA = 0, U2O_MSG_GENERAL = 1, U2O_MSG_ADD_FRIEND = 2, U2O_MSG_INVITE = 3,
+                 U2O_MSG_CUSTOM_DATA = 4 };
+enum : uint32_t { U2O_MAX_BLOB = 6u << 20 };   // RPCN takes packets up to 8 MB
 
 enum : int32_t { U2O_PEER_INACTIVE = 0, U2O_PEER_PENDING = 1, U2O_PEER_ACTIVE = 2, U2O_PEER_DEAD = 3 };
 
@@ -153,7 +157,25 @@ struct U2oMessage {
     char subject[128];
     char body[512];
     uint8_t data[512];
-    uint32_t data_len;
+    uint32_t data_len;     // received: the whole attachment's length (data holds its first 512 bytes)
+    // A larger attachment (U2O_MSG_CUSTOM_DATA, at most U2O_MAX_BLOB): sending, it follows data[0..data_len);
+    // received, blob is the whole attachment (valid until the next u2o_poll) when it is longer than 512.
+    const uint8_t *blob;
+    uint32_t blob_len;
+    uint32_t pad2;
+};
+
+struct U2oScore {          // one leaderboard row
+    char npid[20];
+    char name[52];
+    uint32_t rank;         // 1-based
+    int32_t pc_id;
+    int64_t score;
+    uint64_t record_date;  // PSN time (microseconds since 0001-01-01)
+    char comment[64];
+    uint8_t info[64];      // the game info recorded with the score
+    uint32_t info_len;
+    uint32_t pad;
 };
 
 struct U2oEvent {
@@ -176,6 +198,7 @@ struct U2oEvent {
     char npid[20];
     const char *text;
     const U2oMessage *message;   // ABI 2: U2O_EV_MESSAGE
+    const U2oScore *scores;      // ABI 2: U2O_EV_SCORES
 };
 
 // ---- calls ----
@@ -222,5 +245,11 @@ typedef int(__cdecl *u2o_friend_requests_fn)(int in, char *out, int cap);
 // Accept a request / send one (add), decline / cancel / unfriend (remove). Result: U2O_EV_DONE.
 typedef uint64_t(__cdecl *u2o_add_friend_fn)(const char *npid);
 typedef uint64_t(__cdecl *u2o_remove_friend_fn)(const char *npid);
+// Score boards (this game's communication id; a board is made on its first score). record: our score (the
+// board keeps the best), comment <= 63 chars, game info <= 64 bytes; result U2O_EV_SCORES with error and our rank.
+typedef uint64_t(__cdecl *u2o_record_score_fn)(uint32_t board, int64_t score, const char *comment,
+                                               const uint8_t *info, uint32_t info_len);
+// get: mode 0 = ranks start.. (count <= 100), 1 = our friends and us, 2 = only us. Result U2O_EV_SCORES.
+typedef uint64_t(__cdecl *u2o_get_scores_fn)(uint32_t board, int mode, uint32_t start, uint32_t count);
 
 }  // extern "C"

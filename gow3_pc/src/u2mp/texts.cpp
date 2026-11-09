@@ -1462,8 +1462,11 @@ const char *imported_text(int language, uint32_t id) {
     return t == it->second.end() || placeholder(t->second.c_str()) ? nullptr : t->second.c_str();
 }
 
+char slot_text[kTextSlots][64];
 const char *own(uint32_t id, int language) {
     if (id == kTextPlayer) return player_text;
+    for (int i = 0; i < kTextSlots; ++i)
+        if (id == kTextSlot[i]) return slot_text[i];
     const int c = column(language);
     for (const Text &t : kOwn) {
         if (t.id != id) continue;
@@ -1540,5 +1543,8 @@ const char *own_text(uint32_t id) {
 }
 
 void text_set_player(const char *text) { std::snprintf(player_text, sizeof player_text, "%s", text); }
+void text_set_slot(int slot, const char *text) {
+    if (slot >= 0 && slot < kTextSlots) std::snprintf(slot_text[slot], sizeof slot_text[slot], "%s", text ? text : "");
+}
 
 }  // namespace u2mp

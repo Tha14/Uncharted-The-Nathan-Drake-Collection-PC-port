@@ -12,7 +12,10 @@
 // into the recorder) and sent events by hooks on SendNetEvent 0x644ab0 / NetSession 0x66a3d0.
 // Set UNCHARTED_U2MP_CINEMA=0 to turn recording off (playback stays available).
 #pragma once
+#include <cstddef>
 #include <cstdint>
+#include <string>
+#include <vector>
 
 namespace u2mp {
 
@@ -27,6 +30,12 @@ namespace cinema {
 void record_event(void *event);
 // True while a match is being recorded.
 bool recording();
+// The selected recording's whole file and its name (sharing with friends).
+bool read_selected(std::vector<uint8_t> &bytes, std::string &name);
+// A recording a friend sent: 1 saved, 0 no free slot (all protected), -1 invalid / write failed.
+int add_received(const uint8_t *data, size_t size, const std::string &name);
 }  // namespace cinema
+// remaining.cpp: BUTTON_CINEMA_UPLOAD -> "send to which friend?" popup.
+void cinema_pick_friend();
 
 }  // namespace u2mp

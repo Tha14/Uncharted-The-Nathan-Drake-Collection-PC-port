@@ -164,7 +164,24 @@ its own net id (its old slot reserved), the others join it asking for their old 
 and calls `0x5e9f30` (the new host at once, the others when they reach it). `UNCHARTED_U2MP_HOST_MIGRATION=0` turns it
 off. Untested; if it fails, the match ends as before.
 
-Not done: rankings (PS3 NP Score boards).
+## 5c. Rankings and cinema files
+
+**Rankings** (PS3 net-leaderboard 0x4a9e8c..0x4aba88, NP Score): boards 300 kills, 301 cash, 302 wins, 303 co-op
+points (table PS4 0xdef0a0), career totals with a 64-byte big-endian game info {rank badge, seconds, deaths, losses}.
+Leave::Enter (progression.cpp `leave_publish`) records them as PS3 did: co-op game types 303 + 301; competitive
+300 / 301 / 302 only after a matchmaking match (netInfo+0x34). The leaderboard list (5b3000 port) fetches online when
+the link is up: Global "my page" = GetScoreNpid(self) then GetScoreRange(page * 11 + 1, 11); a page = the range;
+Friends = GetScoreFriends(self included), 11 a page. The leaderboard object's busy word holds the list while the
+answer comes; a failed request shows the local board as before. Boards are made by RPCN on the first score
+(descending, normal update), shared with RPCS3 players of NPWR00462.
+
+**Cinema files** (PS3 fe0e7de7 0x43402c / 6b2970e2 0x433554): PS3 sent friends a 100-byte pointer to the copy on
+Naughty Dog's server. PC sends the file itself: PAGE_CINEMA's upload button (and fe0e7de7) opens a popup of the
+online RPCN friends; the message (main type 4 custom data, subject "Cinema File") carries {"U2CN", key, name, size}
+and the file (up to 6 MB, `U2oMessage.blob`). A received file is saved at once (PS3 0x43302c: make room, the
+sender's file name, the list refreshed; "no free slots" when all 20 are protected) and a message box says so; the
+receive button (6b2970e2) tells how many came.
+
 ## 6. Untested / open
 
 - Nothing here has run yet: first test = two PCs, both signed in (see TEST-LOG.md).

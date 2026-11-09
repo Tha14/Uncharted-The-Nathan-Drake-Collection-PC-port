@@ -43,6 +43,7 @@
 #endif
 #include <windows.h>
 
+#include "cinema.h"
 #include "frontend3.h"
 #include "online.h"
 #include "session_api.h"
@@ -139,6 +140,8 @@ struct Api {
     u2o_friend_requests_fn friend_requests = nullptr;
     u2o_add_friend_fn add_friend = nullptr;
     u2o_remove_friend_fn remove_friend = nullptr;
+    u2o_record_score_fn record_score = nullptr;
+    u2o_get_scores_fn get_scores = nullptr;
 } api;
 
 template <typename F> bool resolve(F &out, const char *name) {
@@ -185,7 +188,8 @@ bool load() {
                     resolve(api.set_presence, "u2o_set_presence") && resolve(api.send_message, "u2o_send_message") &&
                     resolve(api.set_owner_rank, "u2o_set_owner_rank") &&
                     resolve(api.friend_requests, "u2o_friend_requests") && resolve(api.add_friend, "u2o_add_friend") &&
-                    resolve(api.remove_friend, "u2o_remove_friend");
+                    resolve(api.remove_friend, "u2o_remove_friend") && resolve(api.record_score, "u2o_record_score") &&
+                    resolve(api.get_scores, "u2o_get_scores");
     if (ok && api.abi() != U2O_ABI) log("online: off (u2_online.dll ABI %d, this build needs %d): LAN only", api.abi(), int(U2O_ABI));
     if (!ok || api.abi() != U2O_ABI) {
         FreeLibrary(api.dll);
@@ -222,7 +226,7 @@ struct Room {
 
 enum class Req { World, CreateParty, CreateMatch, JoinList, JoinLeader, JoinMatchMember, Leave, Search, SetExternal,
                  SetInternal, SetMember, CreateMatchmaking, JoinMatchmaking, MmSearch, Presence, Message, OwnerRank,
-                 Rejoin };
+                 Rejoin, ScoreGet, ScoreRecord };
 struct Pending {
     Req kind;
     uint64_t room;
@@ -287,6 +291,16 @@ std::string sent_presence;     // status + data last published
 double next_presence = 0;
 char friend_text[64][128];
 char invite_text[16][128];
+
+// rankings (RPCN score boards; PS3 NP Score)
+struct BoardView {
+    uint32_t board = 0;
+    int mode = 0;
+    uint64_t req = 0;
+    bool loading = false, failed = false;
+    uint32_t total = 0;
+    std::vector<U2oScore> rows;
+} board_view;
 
 // stranger matchmaking (PORT-MATCHMAKING.md 3.3)
 enum class Mm { Idle, Searching, Joining, Creating, Hosting, Joined, Failed };
@@ -760,9 +774,45 @@ const U2oFriend *friend_by_npid(const std::string &npid) {
     return nullptr;
 }
 
+// A cinema file (PS3 0x449ae8 event 20 -> 0x43302c -> thread 0x433360): {"U2CN", key, name[64], size} + the file.
+constexpr uint32_t kCinemaMagic = 0x4e433255u;   // "U2CN"
+struct CinemaMeta {
+    uint32_t magic, key;
+    char name[64];
+    uint32_t size, pad;
+};
+static_assert(sizeof(CinemaMeta) == 80, "cinema meta");
+int cinemas_received = 0;
+
+void on_cinema(const U2oMessage &m, const std::string &from) {
+    CinemaMeta meta{};
+    const uint8_t *all = m.blob ? m.blob : m.data;
+    const uint32_t len = m.blob ? m.blob_len : std::min<uint32_t>(m.data_len, sizeof m.data);
+    if (len < sizeof meta) return;
+    std::memcpy(&meta, all, sizeof meta);
+    if (meta.magic != kCinemaMagic) return;
+    meta.name[sizeof meta.name - 1] = 0;
+    if (meta.size != len - sizeof meta) {
+        log("online: cinema from %s: %u bytes announced, %u came: dropped", from.c_str(), meta.size, unsigned(len - sizeof meta));
+        notice("A cinema file from " + from + " did not arrive whole.");
+        return;
+    }
+    const int r = cinema::add_received(all + sizeof meta, meta.size, meta.name);
+    log("online: cinema file %s (%u bytes) from %s: %s", meta.name, meta.size, from.c_str(),
+        r > 0 ? "saved" : r == 0 ? "no free slot" : "invalid");
+    if (r > 0) ++cinemas_received;
+    notice(r > 0 ? from + " sent you a cinema file. It is in your cinema list now."
+           : r == 0 ? from + " sent you a cinema file, but all 20 cinema slots are protected. You have no free slots available."
+                    : from + " sent a cinema file that could not be read.");
+}
+
 void on_invite(const U2oEvent &e) {
     const U2oMessage &m = *e.message;
     const std::string from = npid_text(m.npid);
+    if (m.main_type == U2O_MSG_CUSTOM_DATA) {
+        on_cinema(m, from);
+        return;
+    }
     PresenceData d{};
     if (m.main_type != U2O_MSG_INVITE || m.data_len < sizeof d) {
         log("online: message from %s (type %u) ignored", from.c_str(), unsigned(m.main_type));
@@ -1205,6 +1255,20 @@ void on_event(const U2oEvent &e) {
     }
     case U2O_EV_MESSAGE:
         if (e.message) on_invite(e);
+        break;
+    case U2O_EV_SCORES:
+        if (known && p.kind == Req::ScoreRecord) {
+            log("online: rankings: score on board %llu %s (rank %u)", (unsigned long long)p.room,
+                e.error ? "not kept" : "recorded", e.state);
+            break;
+        }
+        if (e.request != board_view.req) break;   // an older view
+        board_view.loading = false;
+        board_view.failed = e.error != 0;
+        board_view.total = e.total;
+        board_view.rows.assign(e.scores, e.scores + (e.scores ? e.count : 0));
+        log("online: rankings: board %u mode %d: %u row(s) of %u (error %d)", board_view.board, board_view.mode, e.count,
+            e.total, e.error);
         break;
     default:
         log("online: event %d (error %d) ignored", e.kind, e.error);
@@ -1829,5 +1893,68 @@ std::string npid_at(const net::Address &a) {
     const Peer *p = peer_at(a);
     return p ? p->npid : std::string();
 }
+
+// ---- rankings --------------------------------------------------------------------------------------
+bool board_request(uint32_t board, int mode, uint32_t start, uint32_t count) {
+    if (!api.get_scores || link_state != U2O_READY) return false;
+    board_view = BoardView{};
+    board_view.board = board;
+    board_view.mode = mode;
+    board_view.req = api.get_scores(board, mode, start, count);
+    board_view.loading = board_view.req != 0;
+    board_view.failed = !board_view.req;
+    request(board_view.req, Pending{Req::ScoreGet, board, 0, false, "scores"});
+    log("online: rankings: board %u mode %d from %u (request %llu)", board, mode, start, (unsigned long long)board_view.req);
+    return board_view.req != 0;
+}
+
+int board_state() { return board_view.loading ? 1 : board_view.failed ? -1 : 0; }
+int board_rows() { return int(board_view.rows.size()); }
+uint32_t board_total() { return board_view.total; }
+const U2oScore *board_row(int i) { return i >= 0 && size_t(i) < board_view.rows.size() ? &board_view.rows[size_t(i)] : nullptr; }
+
+bool record_score(uint32_t board, int64_t score, const char *comment, const uint8_t *info, uint32_t info_len) {
+    if (!api.record_score || link_state != U2O_READY) return false;
+    const uint64_t id = api.record_score(board, score, comment, info, info_len);
+    log("online: rankings: recording %lld on board %u (request %llu)", (long long)score, board, (unsigned long long)id);
+    request(id, Pending{Req::ScoreRecord, board, 0, false, "record score"});
+    return id != 0;
+}
+
+bool linked() { return api.dll && link_state == U2O_READY; }
+
+// ---- cinema files ------------------------------------------------------------------------------
+bool send_cinema(const std::string &npid) {
+    if (!linked() || !api.send_message) return false;
+    std::vector<uint8_t> file;
+    std::string name;
+    if (!cinema::read_selected(file, name)) {
+        notice("That cinema file could not be read.");
+        return false;
+    }
+    if (file.size() + sizeof(CinemaMeta) > U2O_MAX_BLOB) {
+        notice("That cinema file is too large to send (" + std::to_string(file.size() >> 20) + " MB).");
+        return false;
+    }
+    CinemaMeta meta{kCinemaMagic, room_key(), {}, uint32_t(file.size()), 0};
+    std::snprintf(meta.name, sizeof meta.name, "%s", name.c_str());
+    std::vector<uint8_t> blob(sizeof meta);
+    std::memcpy(blob.data(), &meta, sizeof meta);
+    blob.insert(blob.end(), file.begin(), file.end());
+    U2oMessage m{};
+    m.main_type = U2O_MSG_CUSTOM_DATA;   // PS3 mainType 4
+    std::snprintf(m.subject, sizeof m.subject, "Cinema File");
+    std::snprintf(m.body, sizeof m.body, "Check out this Uncharted 2 Cinema file!");
+    m.blob = blob.data();
+    m.blob_len = uint32_t(blob.size());
+    const char *to[] = {npid.c_str()};
+    const uint64_t id = api.send_message(to, 1, &m);   // the DLL copies the attachment
+    log("online: cinema %s (%zu bytes) to %s (request %llu)", name.c_str(), file.size(), npid.c_str(), (unsigned long long)id);
+    request(id, Pending{Req::Message, 0, 0, false, "cinema file"});
+    notice(id ? "Cinema file sent to " + npid + "." : "The cinema file could not be sent.");
+    return id != 0;
+}
+
+int cinema_received() { return cinemas_received; }
 
 }  // namespace u2mp::online

@@ -15,7 +15,9 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <vector>
 
+#include "cinema.h"
 #include "online.h"
 #include "session_api.h"
 #include "texts.h"
@@ -410,8 +412,52 @@ U2MP_GUEST void twitter_button(void *, void *, void *) { message_box(kTextTwitte
 
 // Cinema send to friend fe0e7de7 (PS3 0x43402c, sceNpBasicSendMessageGui) and receive 6b2970e2
 // (PS3 0x433554, sceNpBasicRecvMessageCustom).
-U2MP_GUEST void cinema_send(void *, void *, void *) { message_box(kTextCinemaSend); }
-U2MP_GUEST void cinema_receive(void *, void *, void *) { message_box(kTextCinemaReceive); }
+// PS3 sent a pointer to the server copy; on PC the file itself goes to an RPCN friend (online.cpp).
+// The PC has no server list, so the send lives on PAGE_CINEMA's upload button (cinema.cpp), here too.
+std::vector<std::string> pick_npids;
+void cinema_pick(int i) {
+    if (i < 0 || size_t(i) >= pick_npids.size()) return;
+    online::send_cinema(pick_npids[size_t(i)]);
+}
+template <int I> U2MP_GUEST void cinema_pick_cb(void *, void *, void *) { cinema_pick(I); }
+void *const kPickFns[kTextSlots] = {reinterpret_cast<void *>(&cinema_pick_cb<0>), reinterpret_cast<void *>(&cinema_pick_cb<1>),
+                                    reinterpret_cast<void *>(&cinema_pick_cb<2>), reinterpret_cast<void *>(&cinema_pick_cb<3>),
+                                    reinterpret_cast<void *>(&cinema_pick_cb<4>), reinterpret_cast<void *>(&cinema_pick_cb<5>),
+                                    reinterpret_cast<void *>(&cinema_pick_cb<6>), reinterpret_cast<void *>(&cinema_pick_cb<7>)};
+constexpr uint32_t kCbPick[kTextSlots] = {sid("U2MP_PC_CB_PICK0"), sid("U2MP_PC_CB_PICK1"), sid("U2MP_PC_CB_PICK2"),
+                                          sid("U2MP_PC_CB_PICK3"), sid("U2MP_PC_CB_PICK4"), sid("U2MP_PC_CB_PICK5"),
+                                          sid("U2MP_PC_CB_PICK6"), sid("U2MP_PC_CB_PICK7")};
+void pick_friend_for_cinema() {
+    if (!online::linked()) {
+        message_box(kTextCinemaSend);
+        return;
+    }
+    pick_npids.clear();
+    for (int i = 0; i < online::friend_count() && pick_npids.size() < size_t(kTextSlots); ++i)
+        if (online::friend_kind(i) == online::kRowFriend && online::friend_online(i)) pick_npids.push_back(online::friend_name(i));
+    if (pick_npids.empty()) {
+        show_notice("None of your RPCN friends is online to receive the cinema file.");
+        return;
+    }
+    Popup p{kTextPlayer, kPopupPage, 0, {}};
+    set_player_text("Send the cinema file to");
+    for (size_t i = 0; i < pick_npids.size(); ++i) {
+        text_set_slot(int(i), pick_npids[i].c_str());
+        if (register_callback(kCbPick[i], kPickFns[i])) p.add(kTextSlot[i], kCbPick[i]);
+    }
+    guest<void(U2MP_GUEST *)(void *, Popup *, uint32_t)>(fShowPopup)(image.at<void>(addr::menu_manager), &p, 1);
+}
+U2MP_GUEST void cinema_send(void *, void *, void *) { pick_friend_for_cinema(); }
+// Received cinema files are saved when they arrive (online.cpp); the button says how many came.
+U2MP_GUEST void cinema_receive(void *, void *, void *) {
+    if (!online::linked()) {
+        message_box(kTextCinemaReceive);
+        return;
+    }
+    const int n = online::cinema_received();
+    show_notice(n ? (std::to_string(n) + " cinema file(s) from friends are in your cinema list.").c_str()
+                  : "No cinema files from friends yet. Friends send them from a cinema's page.");
+}
 
 // NetStatGame match-start init (0x66c600, test run 16 crash): when the match host is a session member
 // it copies the host's name to NetStatGame+0xe (0x40 bytes, up to +0x4e) with
@@ -653,5 +699,7 @@ void show_notice(const char *text) {
     set_player_text(text);
     message_box(kTextPlayer);
 }
+
+void cinema_pick_friend() { pick_friend_for_cinema(); }
 
 }  // namespace u2mp
