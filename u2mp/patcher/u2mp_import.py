@@ -87,6 +87,7 @@ class Importer:
             self.state = json.load(open(self.state_file, encoding='utf-8'))
         except (OSError, ValueError):
             self.state = {}
+        self.prev_status = self.state.get('status')   # before this run
         self.items = self.state.setdefault('items', {})
         self.ps3 = self.ps4 = None
 
@@ -210,12 +211,15 @@ class Importer:
             f.write(out)
         return rel, []
 
+    def ps3_elf_path(self):
+        return self.a.ps3_elf or os.path.join(os.path.dirname(os.path.dirname(self.ps3.base_main)), 'EBOOT.elf')
+
     def havok_tables(self):
         """the Havok class tables (u2hkgen) are built from the player's executables on the first actor that needs
         them, into work/u2hkclasses.json; without them the Havok-dependent actors are skipped (unsupported)"""
         import u2havok
         import u2hkgen
-        elf = self.a.ps3_elf or os.path.join(os.path.dirname(os.path.dirname(self.ps3.base_main)), 'EBOOT.elf')
+        elf = self.ps3_elf_path()
         path = os.path.join(self.work, 'u2hkclasses.json')
         failed = []
 
@@ -344,6 +348,24 @@ class Importer:
         except FileNotFoundError as e:
             return self.finish('failed', error=str(e))
         log('PS3 archives: %d (%s)' % (len(self.ps3.archives), ', '.join(os.path.basename(x) for x in self.ps3.archives)))
+        # the decrypted PS3 EBOOT.elf is required: no import without it (decrypt it with RPCS3 first)
+        elf = self.ps3_elf_path()
+        try:
+            with open(elf, 'rb') as f:
+                ok = f.read(4) == b'\x7fELF'
+        except OSError:
+            ok = False
+        if not ok:
+            why = ('No decrypted PS3 Uncharted 2 EBOOT.elf: decrypt it with RPCS3 first (Utilities -> Decrypt PS3 '
+                   'Binaries, the game USRDIR/EBOOT.BIN; the EBOOT.elf it writes next to it is used), then import again')
+            if a.update and self.prev_status in ('imported', 'partial'):
+                # an automatic update of a working import: not applied, the current files stay playable (and it is
+                # not tried again at every launcher start for this version)
+                import u2mp_version
+                self.state['update_failed_for'] = u2mp_version.shipped_id()
+                return self.finish(self.prev_status, error='Update not applied: ' + why)
+            return self.finish('failed', error=why)
+        log('PS3 EBOOT.elf: %s' % elf)
         self.music_refs = self.ps4.music_refs()
         self.langs = set(l.strip() for l in a.speech_langs.split(',')) if a.speech_langs else set(SPEECH_LANGS.values())
         self.res = None

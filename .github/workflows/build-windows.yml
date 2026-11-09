@@ -57,6 +57,7 @@ jobs:
             sdl3:p fmt:p boost:p robin-map:p xxhash:p ffmpeg:p zydis:p
             spirv-tools:p spirv-headers:p spirv-cross:p
             opus:p
+            qt6-base:p qt6-declarative:p
 
       - name: Build the runtime
         run: |

@@ -10,6 +10,7 @@ switches), with the options below passed as environment variables.
 """
 import ctypes
 import json
+import math
 import os
 from pathlib import Path
 import queue
@@ -225,18 +226,23 @@ GAMES = [
      "exe": "big3-ps4_Shipping.elf", "log": "big3-ps4_Shipping"},
 ]
 
-# Palette: the Collection's parchment and gold over a dark leather brown.
-BG = "#120e0a"
-PANEL = "#1b1510"
-PANEL_HI = "#251d16"
-LINE = "#3a2e22"
-TEXT = "#f1e6cf"
-MUTED = "#a8977a"
-DIM = "#6f604b"
-GOLD = "#d4a24c"
-GOLD_HI = "#e9bc66"
-INK = "#2a1c0e"
-STOP_RED = "#b5533c"
+# Palette: near black with the Collection's yellow-gold accent. Pages group their rows in rounded
+# cards (CARD); controls inside a card sit on FIELD.
+BG = "#0c0c0e"
+PANEL = "#141417"
+PANEL_HI = "#1e1e23"
+CARD = "#151519"
+CARD_LINE = "#25252c"
+FIELD = "#222228"
+FIELD_HI = "#2c2c34"
+LINE = "#2f2f37"
+TEXT = "#f2efe8"
+MUTED = "#a3a09a"
+DIM = "#6c6a70"
+GOLD = "#e8b23e"
+GOLD_HI = "#f7c75e"
+INK = "#16110a"
+STOP_RED = "#c4553f"
 
 # At most 120: faster, the game's movement timing breaks (Drake's Fortune at 140-160 FPS: running
 # slows, Nate fell through the world). The runtime caps older, faster settings at 120 too.
@@ -1367,9 +1373,150 @@ def write_config(config):
 # Drawing helpers and widgets
 
 def round_rect(canvas, x1, y1, x2, y2, r, **kw):
-    points = [x1 + r, y1, x2 - r, y1, x2, y1, x2, y1 + r, x2, y2 - r, x2, y2, x2 - r, y2,
-              x1 + r, y2, x1, y2, x1, y2 - r, x1, y1 + r, x1, y1]
-    return canvas.create_polygon(points, smooth=True, **kw)
+    """A rectangle with true circular corners (polygon along quarter circles)."""
+    r = max(0, min(r, (x2 - x1) / 2, (y2 - y1) / 2))
+    points = []
+    steps = max(4, int(r / 2))
+    for cx, cy, start in ((x2 - r, y1 + r, -90), (x2 - r, y2 - r, 0), (x1 + r, y2 - r, 90), (x1 + r, y1 + r, 180)):
+        for i in range(steps + 1):
+            a = math.radians(start + 90 * i / steps)
+            points += [cx + r * math.cos(a), cy + r * math.sin(a)]
+    return canvas.create_polygon(points, **kw)
+
+
+def recolor(widget, mapping):
+    """Gives a widget and everything inside it the card colours (mapping: old bg -> new bg); the
+    launcher's canvas widgets draw themselves again."""
+    try:
+        bg = widget.cget("bg")
+        if bg in mapping:
+            widget.configure(bg=mapping[bg]) if not isinstance(widget, Pill) else tk.Canvas.configure(widget, bg=mapping[bg])
+    except tk.TclError:
+        pass
+    for child in widget.winfo_children():
+        recolor(child, mapping)
+    if hasattr(widget, "draw"):
+        try:
+            widget.draw()
+        except Exception:  # noqa: BLE001 - only looks
+            pass
+
+
+class Pill(tk.Canvas):
+    """A rounded button. kind: primary (yellow), secondary (dark), outline (yellow outline)."""
+
+    def __init__(self, parent, text, action, font, scale, kind="secondary", padx=16, pady=7):
+        self.font = tkfont.Font(font=font)
+        self.s, self.text, self.action, self.kind = scale, text, action, kind
+        self.padx, self.pady, self.hover, self.enabled = int(padx * scale), int(pady * scale), False, True
+        super().__init__(parent, bg=parent["bg"], highlightthickness=0, cursor="hand2")
+        self.bind("<Button-1>", lambda e: self.enabled and self.action())
+        self.bind("<Enter>", lambda e: self.set_hover(True))
+        self.bind("<Leave>", lambda e: self.set_hover(False))
+        self.layout()
+
+    def layout(self):
+        self.w = self.font.measure(self.text) + 2 * self.padx
+        self.h = self.font.metrics("linespace") + 2 * self.pady
+        tk.Canvas.configure(self, width=self.w, height=self.h)
+        self.draw()
+
+    def configure(self, cnf=None, **kw):
+        if cnf is None and not kw:
+            return tk.Canvas.configure(self)
+        kw = dict(cnf or {}, **kw)
+        if "text" in kw:
+            self.text = kw.pop("text")
+            self.layout()
+        kw.pop("fg", None)
+        if kw:
+            tk.Canvas.configure(self, **kw)
+    config = configure
+
+    def set_hover(self, hover):
+        self.hover = hover
+        self.draw()
+
+    def draw(self):
+        self.delete("all")
+        w, h, r = self.w, self.h, self.h // 2
+        if self.kind == "primary":
+            fill, outline, fg = (GOLD_HI if self.hover else GOLD), "", INK
+        elif self.kind == "outline":
+            fill, outline, fg = (FIELD if self.hover else self["bg"]), GOLD, GOLD
+        else:
+            fill, outline, fg = (FIELD_HI if self.hover else FIELD), LINE, TEXT
+        round_rect(self, 1, 1, w - 1, h - 1, r, fill=fill, outline=outline or fill)
+        self.create_text(w / 2, h / 2, text=self.text, font=self.font, fill=fg)
+
+
+class Card(tk.Canvas):
+    """A rounded box that groups rows (Launcher.organize packs a page's widgets into .inner)."""
+
+    def __init__(self, parent, scale, title=None, note=None, title_font=None, note_font=None, wrap=900):
+        super().__init__(parent, bg=parent["bg"], highlightthickness=0, height=10)
+        self.s, self.pad = scale, int(18 * scale)
+        self.inner = tk.Frame(self, bg=CARD)
+        self.window = self.create_window(self.pad, self.pad, window=self.inner, anchor="nw")
+        self.title, self.note = title or "", note or ""
+        if title:
+            head = tk.Frame(self.inner, bg=CARD)
+            head.card_head = True
+            head.pack(side="top", fill="x", pady=(0, int(10 * scale)))
+            accent = tk.Canvas(head, width=int(4 * scale), height=int(16 * scale), bg=CARD, highlightthickness=0)
+            accent.pack(side="left", padx=(0, int(10 * scale)))
+            round_rect(accent, 0, 0, int(4 * scale), int(16 * scale), int(2 * scale), fill=GOLD, outline=GOLD)
+            tk.Label(head, text=title, font=title_font, bg=CARD, fg=TEXT, anchor="w").pack(side="left")
+            if note:
+                note_label = tk.Label(self.inner, text=note, font=note_font, bg=CARD, fg=MUTED, anchor="w",
+                                      justify="left", wraplength=int(wrap * scale))
+                note_label.pack(side="top", fill="x", pady=(0, int(10 * scale)))
+                note_label.card_head = True
+        self.inner.bind("<Configure>", self.relayout)
+        self.bind("<Configure>", self.relayout)
+
+    def relayout(self, event=None):
+        w = self.winfo_width()
+        h = self.inner.winfo_reqheight() + 2 * self.pad
+        if int(self["height"]) != h:
+            self.configure(height=h)
+        if w > 1:
+            self.itemconfigure(self.window, width=w - 2 * self.pad)
+        self.delete("bg")
+        if w > 1:
+            round_rect(self, 1, 1, w - 1, h - 1, int(14 * self.s), fill=CARD, outline=CARD_LINE, tags="bg")
+            self.tag_lower("bg")
+
+
+class TabPill(tk.Canvas):
+    """A tab: a rounded pill, yellow while selected."""
+
+    def __init__(self, parent, text, font, scale, command):
+        self.font = tkfont.Font(font=font)
+        self.text, self.selected, self.hover = text, False, False
+        self.w = self.font.measure(text) + int(36 * scale)
+        self.h = self.font.metrics("linespace") + int(16 * scale)
+        super().__init__(parent, width=self.w, height=self.h, bg=parent["bg"], highlightthickness=0, cursor="hand2")
+        self.bind("<Button-1>", lambda e: command())
+        self.bind("<Enter>", lambda e: self.set(hover=True))
+        self.bind("<Leave>", lambda e: self.set(hover=False))
+        self.draw()
+
+    def set(self, selected=None, hover=None):
+        if selected is not None:
+            self.selected = selected
+        if hover is not None:
+            self.hover = hover
+        self.draw()
+
+    def draw(self):
+        self.delete("all")
+        if self.selected:
+            round_rect(self, 1, 1, self.w - 1, self.h - 1, self.h // 2, fill=GOLD, outline=GOLD)
+        elif self.hover:
+            round_rect(self, 1, 1, self.w - 1, self.h - 1, self.h // 2, fill=FIELD, outline=FIELD)
+        self.create_text(self.w / 2, self.h / 2, text=self.text, font=self.font,
+                         fill=INK if self.selected else (TEXT if self.hover else MUTED))
 
 
 class Toggle(tk.Canvas):
@@ -1427,35 +1574,58 @@ class Chip(tk.Canvas):
                          fill=INK if self.value else MUTED)
 
 
-class Segmented(tk.Frame):
-    """A row of choices; the selected one is gold."""
+class Segmented(tk.Canvas):
+    """A row of choices in a rounded track; the selected one is a yellow pill."""
 
     def __init__(self, parent, options, value, command, font, recommended=None):
-        super().__init__(parent, bg=LINE, padx=1, pady=1)
-        self.command, self.labels, self.value, self.recommended = command, {}, value, recommended
-        self.enabled = True
-        for option, label in options:
-            item = tk.Label(self, text=self.text(option, label), font=font, padx=12, pady=5, cursor="hand2", bd=0)
-            item.bind("<Button-1>", lambda e, v=option: self.enabled and self.set(v, notify=True))
-            item.bind("<Enter>", lambda e, w=item, v=option: self.enabled and v != self.value and w.config(bg=PANEL_HI))
-            item.bind("<Leave>", lambda e: self.restyle())
-            self.labels[option] = item
-        self.show(list(self.labels))
-        self.restyle()
+        self.s = max(1.0, parent.winfo_fpixels("1i") / 96.0)
+        self.font = tkfont.Font(font=font)
+        self.command, self.value, self.recommended = command, value, recommended
+        self.labels = {option: self.text(option, label) for option, label in options}
+        self.visible = list(self.labels)
+        self.enabled, self.hover, self.spans = True, None, []
+        super().__init__(parent, bg=parent["bg"], highlightthickness=0, cursor="hand2")
+        self.bind("<Button-1>", self.click)
+        self.bind("<Motion>", self.motion)
+        self.bind("<Leave>", lambda e: self.motion(None))
+        self.layout()
+
+    def layout(self):
+        pad, inset = int(12 * self.s), int(3 * self.s)
+        self.h = self.font.metrics("linespace") + int(12 * self.s) + 2 * inset
+        x, self.spans = inset, []
+        for option in self.visible:
+            w = self.font.measure(self.labels[option]) + 2 * pad
+            self.spans.append((option, x, x + w))
+            x += w
+        self.w = x + inset
+        tk.Canvas.configure(self, width=self.w, height=self.h)
+        self.draw()
+
+    def at(self, x):
+        return next((option for option, x1, x2 in self.spans if x1 <= x < x2), None)
+
+    def click(self, event):
+        option = self.at(event.x)
+        if self.enabled and option is not None:
+            self.set(option, notify=True)
+
+    def motion(self, event):
+        option = self.at(event.x) if event is not None else None
+        if option != self.hover:
+            self.hover = option
+            self.draw()
 
     def show(self, options):
         """Only these choices, in their order (FSR 1 has no Native AA)."""
-        for item in self.labels.values():
-            item.grid_forget()
-        for i, option in enumerate(options):
-            self.labels[option].grid(row=0, column=i, padx=(0 if i == 0 else 1, 0))
+        self.visible = [o for o in options if o in self.labels]
+        self.layout()
 
     def set_enabled(self, enabled):
         """A disabled row shows its choice greyed and takes no clicks."""
         self.enabled = enabled
-        for item in self.labels.values():
-            item.config(cursor="hand2" if enabled else "arrow")
-        self.restyle()
+        tk.Canvas.configure(self, cursor="hand2" if enabled else "arrow")
+        self.draw()
 
     def text(self, option, label):
         # The recommended choice carries a star.
@@ -1465,47 +1635,73 @@ class Segmented(tk.Frame):
         """New labels for the same choices (the resolutions at another aspect ratio)."""
         for option, label in options:
             if option in self.labels:
-                self.labels[option].config(text=self.text(option, label))
+                self.labels[option] = self.text(option, label)
+        self.layout()
 
     def set(self, value, notify=False):
         self.value = value
-        self.restyle()
+        self.draw()
         if notify:
             self.command(value)
 
     def restyle(self):
-        for option, item in self.labels.items():
+        self.draw()
+
+    def draw(self):
+        self.delete("all")
+        inset = int(3 * self.s)
+        round_rect(self, 1, 1, self.w - 1, self.h - 1, self.h // 2, fill=FIELD, outline=LINE)
+        for option, x1, x2 in self.spans:
             selected = option == self.value
-            if self.enabled:
-                item.config(bg=GOLD if selected else PANEL, fg=INK if selected else TEXT)
-            else:
-                item.config(bg=PANEL_HI if selected else PANEL, fg=MUTED)
+            if selected:
+                fill = GOLD if self.enabled else FIELD_HI
+                round_rect(self, x1, inset, x2, self.h - inset, (self.h - 2 * inset) // 2, fill=fill, outline=fill)
+            elif option == self.hover and self.enabled:
+                round_rect(self, x1, inset, x2, self.h - inset, (self.h - 2 * inset) // 2, fill=FIELD_HI,
+                           outline=FIELD_HI)
+            fg = (INK if selected else TEXT) if self.enabled else MUTED
+            self.create_text((x1 + x2) / 2, self.h / 2, text=self.labels[option], font=self.font, fill=fg)
 
 
-class Dropdown(tk.Label):
-    """A choice from a longer list: the current one, and a menu of all on click."""
+class Dropdown(tk.Canvas):
+    """A choice from a longer list: the current one in a rounded box, and a menu of all on click."""
 
     def __init__(self, parent, options, value, command, font):
-        super().__init__(parent, font=font, bg=PANEL, fg=TEXT, padx=12, pady=5, cursor="hand2", anchor="w",
-                         highlightthickness=1, highlightbackground=LINE)
+        self.s = max(1.0, parent.winfo_fpixels("1i") / 96.0)
         self.options, self.command, self.font = options, command, font
-        self.set(value)
+        self.tkfont = tkfont.Font(font=font)
+        self.hover = False
+        self.w = max([self.tkfont.measure(label) for _, label in options] or [40]) + int(52 * self.s)
+        self.h = self.tkfont.metrics("linespace") + int(16 * self.s)
+        super().__init__(parent, width=self.w, height=self.h, bg=parent["bg"], highlightthickness=0, cursor="hand2")
         self.bind("<Button-1>", lambda e: self.open())
-        self.bind("<Enter>", lambda e: self.config(bg=PANEL_HI))
-        self.bind("<Leave>", lambda e: self.config(bg=PANEL))
+        self.bind("<Enter>", lambda e: self.set_hover(True))
+        self.bind("<Leave>", lambda e: self.set_hover(False))
+        self.set(value)
+
+    def set_hover(self, hover):
+        self.hover = hover
+        self.draw()
 
     def set(self, value, notify=False):
         self.value = value
-        label = next((label for option, label in self.options if option == value), value)
-        self.config(text=f"{label}   \u25be")
+        self.label = next((label for option, label in self.options if option == value), value)
+        self.draw()
         if notify:
             self.command(value)
 
+    def draw(self):
+        self.delete("all")
+        fill = FIELD_HI if self.hover else FIELD
+        round_rect(self, 1, 1, self.w - 1, self.h - 1, int(10 * self.s), fill=fill, outline=LINE)
+        self.create_text(int(14 * self.s), self.h / 2, text=self.label, font=self.font, fill=TEXT, anchor="w")
+        self.create_text(self.w - int(16 * self.s), self.h / 2, text="▾", font=self.font, fill=GOLD)
+
     def open(self):
-        menu = tk.Menu(self, tearoff=0, bg=PANEL, fg=TEXT, activebackground=GOLD, activeforeground=INK,
+        menu = tk.Menu(self, tearoff=0, bg=PANEL_HI, fg=TEXT, activebackground=GOLD, activeforeground=INK,
                        font=self.font, bd=0)
         for option, label in self.options:
-            menu.add_command(label=("\u2713  " if option == self.value else "     ") + label,
+            menu.add_command(label=("✓  " if option == self.value else "     ") + label,
                              command=lambda v=option: self.set(v, notify=True))
         menu.tk_popup(self.winfo_rootx(), self.winfo_rooty() + self.winfo_height())
 
@@ -1673,6 +1869,7 @@ class Launcher:
         self.f_small = ("Segoe UI", 9)
         self.f_tab = ("Segoe UI Semibold", 10)
         self.f_caps = ("Segoe UI Semibold", 8)
+        self.f_section = ("Segoe UI Semibold", 12)
         self.f_play = ("Georgia", 17, "bold")
 
     # -- layout -----------------------------------------------------------------------------
@@ -1949,25 +2146,35 @@ class Launcher:
     def build_tabs(self):
         outer = tk.Frame(self.root, bg=BG)
         outer.pack(side="top", fill="both", expand=True, padx=self.px(40))
-        strip = tk.Frame(outer, bg=BG)
-        strip.pack(side="top", fill="x")
+        # The tabs: rounded pills in a dark rounded strip; the selected one is yellow.
+        strip_card = tk.Canvas(outer, bg=BG, highlightthickness=0, height=self.px(48))
+        strip_card.pack(side="top", fill="x")
+        strip = tk.Frame(strip_card, bg=PANEL)
+        strip_window = strip_card.create_window(self.px(6), self.px(6), window=strip, anchor="nw")
+
+        def strip_layout(event=None):
+            w, h = strip_card.winfo_width(), strip.winfo_reqheight() + self.px(12)
+            if int(strip_card["height"]) != h:
+                strip_card.configure(height=h)
+            strip_card.delete("bg")
+            if w > 1:
+                round_rect(strip_card, 1, 1, w - 1, h - 1, h // 2, fill=PANEL, outline=CARD_LINE, tags="bg")
+                strip_card.tag_lower("bg")
+                strip_card.itemconfigure(strip_window, width=w - self.px(12))
+        strip.bind("<Configure>", strip_layout)
+        strip_card.bind("<Configure>", strip_layout)
         self.tab_buttons = {}
         self.tab_cells = {}
         tabs = [("setup", "QUICK SETUP"), ("display", "DISPLAY"), ("performance", "PERFORMANCE"),
-                ("controls", "CONTROLS"), ("cheats", "CHEATS"), ("advanced", "ADVANCED"),
+                ("controls", "CONTROLS"), ("cheats", "CHEATS"), ("advanced", "ADVANCED"), ("tools", "TOOLS"),
                 ("u3mp", "MULTIPLAYER"), ("multiplayer", "MULTIPLAYER")]  # u3mp, or u2mp's while Uncharted 2 is chosen
         for name, label in tabs:
-            cell = tk.Frame(strip, bg=BG)
-            cell.pack(side="left", padx=(0, self.px(26)))
-            text = tk.Label(cell, text=label, font=self.f_tab, bg=BG, fg=MUTED, cursor="hand2")
-            text.pack(side="top", pady=(0, self.px(6)))
-            bar = tk.Frame(cell, bg=BG, height=max(2, self.px(2)))
-            bar.pack(side="top", fill="x")
-            for widget in (cell, text):
-                widget.bind("<Button-1>", lambda e, n=name: self.show_tab(n))
-            self.tab_buttons[name] = (text, bar)
+            cell = tk.Frame(strip, bg=PANEL)
+            cell.pack(side="left", padx=(0, self.px(4)))
+            pill = TabPill(cell, label, self.f_tab, self.s, lambda n=name: self.show_tab(n))
+            pill.pack(side="left")
+            self.tab_buttons[name] = pill
             self.tab_cells[name] = cell
-        tk.Frame(outer, bg=LINE, height=1).pack(side="top", fill="x")
         self.body = tk.Frame(outer, bg=BG, height=self.px(330))
         self.body.pack(side="top", fill="both", expand=True, pady=(self.px(14), 0))
         self.body.pack_propagate(False)
@@ -1984,6 +2191,9 @@ class Launcher:
             "u3mp": self.page_u3mp(),
             "multiplayer": self.page_multiplayer(),
         }
+        self.pages["tools"] = self.tools_page   # made by page_advanced (its shortcut, Steam and folder buttons)
+        for page in self.pages.values():
+            self.organize(page)
 
     def show_tab(self, name, save=True):
         if name == "multiplayer" and self.config.get("game") != "u2":
@@ -1994,9 +2204,8 @@ class Launcher:
         if save and self.config.get("tab") != name:
             self.config["tab"] = name
             write_config(self.config)
-        for tab, (text, bar) in self.tab_buttons.items():
-            text.config(fg=TEXT if tab == name else MUTED)
-            bar.config(bg=GOLD if tab == name else BG)
+        for tab, pill in self.tab_buttons.items():
+            pill.set(selected=tab == name)
         for tab, page in self.pages.items():
             holder = getattr(page, "holder", page)
             if tab == name:
@@ -2052,17 +2261,74 @@ class Launcher:
         inner.holder = holder
         return inner
 
+    def section(self, page, title, note=""):
+        """Starts a group of rows: organize() puts what follows (up to the next section) in a rounded card
+        with this heading."""
+        marker = tk.Frame(page, bg=BG, height=1)
+        marker.pack(side="top", fill="x")
+        marker.section = (title, note)
+        return marker
+
+    def organize(self, page):
+        """Moves a page's widgets into rounded cards, one per section() marker, in the same order and with
+        the same pack options; widgets before the first marker stay as they are. Rows in a card are
+        separated by a thin line."""
+        slaves = page.pack_slaves()
+        if not any(hasattr(w, "section") for w in slaves):
+            return
+        infos = [(w, w.pack_info()) for w in slaves]
+        for w, _ in infos:
+            w.pack_forget()
+        mapping = {BG: CARD, PANEL: FIELD, PANEL_HI: FIELD_HI}
+        card, last_row = None, False
+        for w, info in infos:
+            info = {k: v for k, v in info.items() if k != "in"}
+            if hasattr(w, "section"):
+                title, note = w.section
+                card = Card(page, self.s, title, note, self.f_section, self.f_small, wrap=820)
+                card.pack(side="top", fill="x", pady=(0, self.px(14)))
+                w.destroy()
+                last_row = False
+                continue
+            if card is None:
+                w.pack(in_=page, **info)
+                continue
+            is_row = getattr(w, "is_row", False)
+            if is_row and last_row:
+                line = tk.Frame(page, bg=CARD_LINE, height=1)
+                line.is_sep = True
+                line.pack(in_=card.inner, side="top", fill="x", pady=(0, self.px(10)))
+                line.lift(card)
+            if is_row and info.get("pady") in (0, "0", (0, self.px(10)), f"0 {self.px(10)}"):
+                info["pady"] = (0, self.px(10))
+            w.pack(in_=card.inner, **info)
+            w.tk.call("raise", w._w, card._w)
+            recolor(w, mapping)
+            last_row = is_row
+        # Widgets the page shows later (pack(after=...) into a card: upscaling quality, render size) are drawn
+        # above the cards too, in card colours.
+        for w in page.winfo_children():
+            if not isinstance(w, Card):
+                w.tk.call("raise", w._w)
+                if not w.winfo_manager():
+                    recolor(w, mapping)
+
     def row(self, page, title, hint, control_factory):
         row = tk.Frame(page, bg=BG)
         row.pack(side="top", fill="x", pady=(0, self.px(10)))
+        row.is_row = True
         text = tk.Frame(row, bg=BG)
         text.pack(side="left", fill="x", expand=True)
-        tk.Label(text, text=title, font=self.f_body_bold, bg=BG, fg=TEXT, anchor="w").pack(side="top", fill="x")
+        row.title_label = tk.Label(text, text=title, font=self.f_body_bold, bg=BG, fg=TEXT, anchor="w")
+        row.title_label.pack(side="top", fill="x")
+        row.hint_label = None
         if hint:
-            tk.Label(text, text=hint, font=self.f_small, bg=BG, fg=MUTED, anchor="w", justify="left",
-                     wraplength=self.px(560)).pack(side="top", fill="x")
+            row.hint_label = tk.Label(text, text=hint, font=self.f_small, bg=BG, fg=MUTED, anchor="w", justify="left",
+                                      wraplength=self.px(560))
+            row.hint_label.pack(side="top", fill="x")
         control = control_factory(row)
         control.pack(side="right", padx=(self.px(20), 0))
+        row.control = control   # qt_backend.py reads a row as title, hint and control
         return control
 
     def ini_toggle(self, page, key, title, hint):
@@ -2079,6 +2345,7 @@ class Launcher:
 
     def page_setup(self):
         page = self.page()
+        self.section(page, "Quality level")
         self.setup_intro = tk.Label(page, text="", font=self.f_body, bg=BG, fg=MUTED, anchor="w")
         self.setup_intro.pack(side="top", fill="x", pady=(0, self.px(12)))
         grid = tk.Frame(page, bg=BG)
@@ -2187,6 +2454,7 @@ class Launcher:
         def aspect(parent):
             return Segmented(parent, ASPECTS, self.game_settings().get("aspect", "16:9"),
                              self.change_aspect, self.f_small)
+        self.section(page, "Resolution and upscaling")
         self.widgets["aspect"] = self.row(
             page, "Aspect ratio",
             "For ultrawide monitors (21:9, 32:9), with Borderless or Fullscreen: the games show more at "
@@ -2239,6 +2507,7 @@ class Launcher:
             "Smooths jagged, shimmering edges, with upscaling Off or FSR 1. FSR 3.1, FSR 4 and DLSS do "
             "it themselves.", anti_aliasing)
         self.refresh_render_size()
+        self.section(page, "Picture")
         self.ini_choice(page, "display_mode", "Display mode",
                         "A normal window, a borderless window (quick Alt+Tab) or fullscreen.",
                         [("windowed", "Windowed"), ("borderless", "Borderless"), ("fullscreen", "Fullscreen")])
@@ -2251,6 +2520,7 @@ class Launcher:
                              value, self.change_sharpening, self.f_small)
         self.widgets["sharpening"] = self.row(page, "Sharpening", "Makes the final picture crisper (AMD FidelityFX RCAS).",
                                               sharpening)
+        self.section(page, "Performance counter")
         self.ini_toggle(page, "show_fps", "Show performance counter",
                         "FPS, temperatures and memory in a corner of the screen. Insert, then the Overlay "
                         "tab, changes it in the game too.")
@@ -2316,6 +2586,7 @@ class Launcher:
         page = self.page()
         tk.Label(page, text="★ marks the recommended choice.", font=self.f_small, bg=BG, fg=DIM,
                  anchor="w").pack(side="top", fill="x", pady=(0, self.px(6)))
+        self.section(page, "Frame rate")
         self.ini_choice(page, "fps_limit", "Frame rate limit",
                         "60 is how the games were made. Higher is smoother but experimental: if the game runs too "
                         "fast or Nate falls through the floor, go back to 60. With VSync, your monitor's refresh "
@@ -2325,6 +2596,7 @@ class Launcher:
                         "Keep 1. 2 can add a few FPS in heavy scenes, but in Uncharted 2 Nate and other "
                         "characters then float a little above the floor.",
                         [("1", "1"), ("2", "2"), ("0", "Unlimited")], recommended="1")
+        self.section(page, "Processor")
         self.ini_toggle(page, "async_shaders", "Compile shaders in the background",
                         "Fewer stutters when you reach new areas. Recommended on.")
 
@@ -2356,6 +2628,7 @@ class Launcher:
             return Segmented(parent, (("off", "Off"), ("on", "On"), ("auto", "Auto")),
                              value if value in ("auto", "on", "off") else "off",
                              lambda v: self.change_config("low_vram", v), self.f_small)
+        self.section(page, "Video memory")
         self.row(page, "Save video memory (experimental)",
                  "For graphics cards with 2-4 GB: smaller memory reserves, about 0.5 GB less video "
                  "memory (Uncharted 2 at 720p: 2.1 -> 1.5 GB). New and not yet tried on a real 2 GB "
@@ -2380,59 +2653,37 @@ class Launcher:
     def page_controls(self):
         page = self.page(scroll=False)
         settings = self.game_settings()
-        top = tk.Frame(page, bg=BG)
-        top.pack(side="top", fill="x")
-        tk.Label(top, text="Mouse", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
-        self.widgets["mouse"] = Toggle(top, self.s, settings.get("mouse", True),
-                                       lambda v: self.change_game_setting("mouse", v))
-        self.widgets["mouse"].pack(side="left", padx=(self.px(8), self.px(22)))
-        tk.Label(top, text="Sensitivity", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
-        self.widgets["mouse_sens"] = Segmented(top, MOUSE_SENSITIVITIES, settings.get("mouse_sens", "1.0"),
-                                               lambda v: self.change_game_setting("mouse_sens", v), self.f_small)
-        self.widgets["mouse_sens"].pack(side="left", padx=(self.px(8), self.px(22)))
-        tk.Label(top, text="Invert Y", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
-        self.widgets["mouse_invert"] = Toggle(top, self.s, settings.get("mouse_invert", False),
-                                              lambda v: self.change_game_setting("mouse_invert", v))
-        self.widgets["mouse_invert"].pack(side="left", padx=(self.px(8), 0))
-        self.flat_button(top, "Reset controls", self.reset_controls).pack(side="right")
-        aim = tk.Frame(page, bg=BG)
-        aim.pack(side="top", fill="x", pady=(self.px(10), 0))
-        tk.Label(aim, text="Aiming", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
-        self.widgets["mouse_aim_sens"] = Segmented(aim, MOUSE_AIM_FACTORS, settings.get("mouse_aim_sens", "1.0"),
-                                                   lambda v: self.change_game_setting("mouse_aim_sens", v),
-                                                   self.f_small)
-        self.widgets["mouse_aim_sens"].pack(side="left", padx=(self.px(8), self.px(22)))
-        tk.Label(aim, text="Up/down", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
-        self.widgets["mouse_vertical"] = Segmented(aim, MOUSE_FACTORS, settings.get("mouse_vertical", "1.0"),
-                                                   lambda v: self.change_game_setting("mouse_vertical", v),
-                                                   self.f_small)
-        self.widgets["mouse_vertical"].pack(side="left", padx=(self.px(8), self.px(22)))
-        tk.Label(aim, text="Invert X", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
-        self.widgets["mouse_invert_x"] = Toggle(aim, self.s, settings.get("mouse_invert_x", False),
-                                                lambda v: self.change_game_setting("mouse_invert_x", v))
-        self.widgets["mouse_invert_x"].pack(side="left", padx=(self.px(8), 0))
+        self.section(page, "Mouse")
+        def toggle(key, default):
+            return lambda parent: Toggle(parent, self.s, settings.get(key, default),
+                                         lambda v, k=key: self.change_game_setting(k, v))
+
+        def choice(key, options, default):
+            return lambda parent: Segmented(parent, options, settings.get(key, default),
+                                            lambda v, k=key: self.change_game_setting(k, v), self.f_small)
+        self.widgets["mouse"] = self.row(page, "Mouse", "", toggle("mouse", True))
+        self.widgets["mouse_sens"] = self.row(page, "Sensitivity", "", choice("mouse_sens", MOUSE_SENSITIVITIES, "1.0"))
+        self.widgets["mouse_aim_sens"] = self.row(page, "Aiming", "", choice("mouse_aim_sens", MOUSE_AIM_FACTORS, "1.0"))
+        self.widgets["mouse_vertical"] = self.row(page, "Up/down", "", choice("mouse_vertical", MOUSE_FACTORS, "1.0"))
+        self.widgets["mouse_invert"] = self.row(page, "Invert Y", "", toggle("mouse_invert", False))
+        self.widgets["mouse_invert_x"] = self.row(page, "Invert X", "", toggle("mouse_invert_x", False))
+        self.section(page, "Controller")
         # Controller vibration (#166): off stops every rumble.
-        rumble = tk.Frame(page, bg=BG)
-        rumble.pack(side="top", fill="x", pady=(self.px(10), 0))
-        tk.Label(rumble, text="Controller vibration", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
-        self.widgets["vibration"] = Toggle(rumble, self.s, settings.get("vibration", True),
-                                           lambda v: self.change_game_setting("vibration", v))
-        self.widgets["vibration"].pack(side="left", padx=(self.px(8), 0))
-        icons = tk.Frame(page, bg=BG)
-        icons.pack(side="top", fill="x", pady=(self.px(10), 0))
-        tk.Label(icons, text="Button icons", font=self.f_body_bold, bg=BG, fg=TEXT).pack(side="left")
-        self.widgets["prompts"] = Segmented(icons, PROMPT_MODES, settings.get("prompts", "auto"),
-                                            self.change_prompts, self.f_small)
-        self.widgets["prompts"].pack(side="left", padx=(self.px(8), self.px(12)))
-        tk.Label(icons, text="Auto follows the device you play with (a controller's own buttons).",
-                 font=self.f_small, bg=BG,
-                 fg=MUTED).pack(side="left")
+        self.widgets["vibration"] = self.row(page, "Controller vibration", "", toggle("vibration", True))
+        self.widgets["prompts"] = self.row(
+            page, "Button icons", "Auto follows the device you play with (a controller's own buttons).",
+            lambda parent: Segmented(parent, PROMPT_MODES, settings.get("prompts", "auto"), self.change_prompts,
+                                     self.f_small))
+        self.section(page, "Bindings")
         self.controls_hint = tk.Label(
             page, text="Click a slot, then press a key or a mouse button (right-click a slot to clear it). "
                        "In game the mouse is captured; Alt+Tab or Insert (menu) frees it. A controller "
                        "always works too.", font=self.f_small, bg=BG, fg=MUTED, anchor="w", justify="left",
             wraplength=self.px(1080))
-        self.controls_hint.pack(side="top", fill="x", pady=(self.px(6), self.px(4)))
+        self.controls_hint.pack(side="top", fill="x", pady=(0, self.px(6)))
+        reset = tk.Frame(page, bg=BG)
+        reset.pack(side="top", fill="x", pady=(0, self.px(8)))
+        self.flat_button(reset, "Reset controls", self.reset_controls).pack(side="left")
         holder = tk.Frame(page, bg=BG)
         holder.pack(side="top", fill="both", expand=True)
         canvas = tk.Canvas(holder, bg=BG, highlightthickness=0)
@@ -2684,6 +2935,7 @@ class Launcher:
 
     def page_cheats(self):
         page = self.page()
+        self.section(page, "Developer switches")
         tk.Label(page, text="The games' own developer switches, applied when a game starts. They need update 1.02.",
                  font=self.f_small, bg=BG, fg=MUTED, anchor="w").pack(side="top", fill="x", pady=(0, self.px(6)))
         for name, title, hint in CHEATS:
@@ -2700,6 +2952,7 @@ class Launcher:
             return Segmented(parent, (("1", "Profile 1"), ("2", "Profile 2"), ("3", "Profile 3")),
                              str(self.game_settings().get("save_profile", "1")),
                              lambda v: self.change_game_setting("save_profile", v), self.f_small)
+        self.section(page, "Game")
         self.widgets["save_profile"] = self.row(
             page, "Save profile",
             "Separate saves for this game: each profile keeps its own progress and in-game settings, "
@@ -2757,6 +3010,7 @@ class Launcher:
             return Segmented(parent, (("0", "Game"), ("4", "4x"), ("8", "8x"), ("16", "16x")),
                              str(self.config.get("anisotropy", "0")),
                              lambda v: self.change_config("anisotropy", v), self.f_small, recommended="16")
+        self.section(page, "Extra quality")
         self.row(page, "Texture filtering",
                  "Sharper ground and wall textures seen at an angle, in all three games. 16x costs "
                  "almost no frame rate. Game = as on the PS4.", anisotropy)
@@ -2792,6 +3046,7 @@ class Launcher:
         def unlock(parent):
             return Toggle(parent, self.s, self.config.get("unlock", False),
                           lambda v: self.change_config("unlock", v))
+        self.section(page, "Unlocks")
         self.row(page, "Unlock all chapters",
                  "Every chapter in Chapter Select and the Brutal difficulty from the start, in all three "
                  "games. Your saves and progress stay as they are. Needs update 1.02.", unlock)
@@ -2807,6 +3062,7 @@ class Launcher:
         def diagnostics(parent):
             return Toggle(parent, self.s, self.config.get("diagnostics", True),
                           lambda v: self.change_config("diagnostics", v))
+        self.section(page, "Launcher")
         self.row(page, "Performance log", "Writes frame rate statistics to the log every 5 seconds. Helps when "
                                           "you report a problem.", diagnostics)
 
@@ -2825,16 +3081,15 @@ class Launcher:
                  f"Installed: {updater.version_text(version) if version else 'source tree (updates with git)'}. "
                  "The launcher asks before it installs anything.", check_updates)
 
+        advanced = page
+        page = self.tools_page = self.page()   # the TOOLS tab
+
         def section(title, actions, note=""):
-            tk.Label(page, text=title, font=self.f_small, bg=BG, fg=GOLD, anchor="w").pack(
-                side="top", fill="x", pady=(self.px(10), self.px(4)))
+            self.section(page, title.capitalize(), note)
             line = tk.Frame(page, bg=BG)
             line.pack(side="top", fill="x")
             for label, action in actions:
                 self.flat_button(line, label, action).pack(side="left", padx=(0, self.px(10)))
-            if note:
-                tk.Label(line, text=note, font=self.f_small, bg=BG, fg=MUTED, anchor="w").pack(
-                    side="left", padx=(self.px(6), 0))
         section("SHORTCUTS", (("Desktop shortcut", self.desktop_shortcut), ("Game shortcuts", self.game_shortcuts)),
                 "Game shortcuts: one per game on the desktop, each starts its game directly.")
         section("STEAM", (("Add to Steam", lambda: self.add_to_steam(per_game=False)),
@@ -2853,24 +3108,21 @@ class Launcher:
         self.ini_label = tk.Label(page, text=f"Settings: {ini_file(self.config['game'])}", font=self.f_small,
                                   bg=BG, fg=DIM, anchor="w")
         self.ini_label.pack(side="top", fill="x")
-        section("GAME UPDATE", (("Choose update folder", self.choose_update_folder),
+        section("Game update", (("Choose update folder", self.choose_update_folder),
                                 ("Install from .pkg", self.install_game_update)),
                 "Your extracted update 1.02 folder, wherever it is, or the update's .pkg file.")
         section("TROUBLESHOOTING", (("Check for updates", lambda: self.check_updates(manual=True)),
                                     ("Clear shader cache", self.clear_cache), ("Reset all settings", self.reset)))
+        self.section(page, "Credits")
         # Credits for the anti-aliasing technologies (NVIDIA's DLSS license asks for its attribution).
         tk.Label(page, text=CREDITS, font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
                  wraplength=self.width - 2 * self.px(40) - self.px(30)).pack(side="top", fill="x",
                                                                               pady=(self.px(10), 0))
-        return page
+        return advanced
 
     def flat_button(self, parent, label, action):
-        button = tk.Label(parent, text=label, font=self.f_small, bg=PANEL, fg=TEXT, padx=self.px(12), pady=self.px(6),
-                          cursor="hand2", highlightthickness=1, highlightbackground=LINE)
-        button.bind("<Button-1>", lambda e: action())
-        button.bind("<Enter>", lambda e: button.config(bg=PANEL_HI))
-        button.bind("<Leave>", lambda e: button.config(bg=PANEL))
-        return button
+        """A secondary action: a dark rounded button."""
+        return Pill(parent, label, action, self.f_small, self.s, kind="secondary", padx=14, pady=7)
 
     # -- Uncharted 3 multiplayer (u3mp/patcher) ---------------------------------------------
 
@@ -3164,7 +3416,7 @@ class Launcher:
         Uncharted 2 is chosen (update_multiplayer_tab)."""
         page = self.page()
         banner = tk.Frame(page, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
-        banner.pack(side="top", fill="x", pady=(0, self.px(12)))
+        # the intro box is not shown (its status line is in the Import section)
         tk.Frame(banner, bg=GOLD, width=self.px(4)).pack(side="left", fill="y")
         about = tk.Frame(banner, bg=PANEL)
         about.pack(side="left", fill="both", expand=True, padx=self.px(18), pady=self.px(14))
@@ -3179,9 +3431,8 @@ class Launcher:
                              "with the launcher.",
                  font=self.f_small, bg=PANEL, fg=MUTED, anchor="w", justify="left",
                  wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(5), 0))
-        self.u2mp_status = tk.Label(about, text="", font=self.f_body_bold, bg=PANEL, fg=TEXT, anchor="w",
+        self.u2mp_status = tk.Label(page, text="", font=self.f_body_bold, bg=BG, fg=TEXT, anchor="w",
                                     justify="left", wraplength=self.px(760))
-        self.u2mp_status.pack(side="top", fill="x", pady=(self.px(8), 0))
 
         def folder_row(title, hint, label_key, actions):
             def factory(parent):
@@ -3198,22 +3449,23 @@ class Launcher:
         self.u2mp_labels = {}
         if not self.config.get("u2mp_ps3") and self.config.get("u3mp_ps3_u2"):
             self.config["u2mp_ps3"] = self.config["u3mp_ps3_u2"]   # the folder chosen for Uncharted 3's import
+        self.section(page, "Your PS3 game")
         folder_row("PS3 Uncharted 2 folder",
-                   "Your PS3 Uncharted 2 (e.g. NPUA80698 or BCES00757, the folder with USRDIR). The import takes "
-                   "from it only what the PS4 game lacks: multiplayer skins, the Fort's missing parts, sounds, music.",
+                   "Your PS3 Uncharted 2 folder (the one with USRDIR, e.g. NPUA80698).",
                    "u2mp_ps3", (("Choose", lambda: self.u2mp_choose("u2mp_ps3", "Choose the PS3 Uncharted 2 folder")),
                                 ("Clear", lambda: self.u2mp_set("u2mp_ps3", ""))))
         folder_row("RPCS3 game data folder",
-                   "RPCS3's dev_hdd0/game folder. It holds the data Uncharted 2 GOTY saves when started once in RPCS3 "
-                   "(NPUA80698DATA2: the server's weapon and match tables) and the maps' spawn points. Found by itself "
-                   "when your Uncharted 2 or Uncharted 3 folder is inside it.",
+                   "RPCS3's dev_hdd0/game folder (start the game once in RPCS3 first). Found by itself when your "
+                   "game folder is inside it.",
                    "u2mp_ps3_data", (("Choose", lambda: self.u2mp_choose("u2mp_ps3_data",
                                                                          "Choose RPCS3's dev_hdd0/game folder")),
                                      ("Clear", lambda: self.u2mp_set("u2mp_ps3_data", ""))))
+        self.section(page, "Storage")
         folder_row("Multiplayer data folder",
-                   "Where the import writes the files taken from your PS3 copy.",
+                   "Where the imported files go.",
                    "data", (("Open", lambda: self.u3mp_open(U2MP_DIR / "import")),))
 
+        self.section(page, "Import")
         actions = tk.Frame(page, bg=BG)
         actions.pack(side="top", fill="x", pady=(self.px(6), self.px(8)))
         self.u2mp_button = self.gold_button(actions, "IMPORT", self.u2mp_import)
@@ -3225,12 +3477,11 @@ class Launcher:
         self.u2mp_step.pack(side="left", fill="x", expand=True, padx=(self.px(14), 0))
         self.u2mp_bar = tk.Canvas(page, height=self.px(6), bg=PANEL, highlightthickness=0)
         self.u2mp_bar.pack(side="top", fill="x")
+        self.u2mp_status.pack(side="top", fill="x", pady=(self.px(8), 0))
         self.u2mp_log = tk.Text(page, height=9, font=("Consolas", 8), bg=PANEL, fg=MUTED, relief="flat",
                                 highlightthickness=1, highlightbackground=LINE, wrap="none", state="disabled")
-        self.u2mp_log.pack(side="top", fill="x", pady=(self.px(8), 0))
-        tk.Label(page, text="The PS4 game is the launcher's game folder (Advanced -> Folders). The import runs on "
-                            "this PC and can run while you play other games. Uncharted 2 then starts with the "
-                            "imported files.",
+        # (the log box is not shown: the progress bar and Open import log say it all)
+        tk.Label(page, text="Runs in the background, even while you play.",
                  font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
                  wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(8), 0))
         self.u2mp_proc = None
@@ -3240,6 +3491,7 @@ class Launcher:
         self.u2mp_refresh()
         self.root.after(1000, self.u2mp_poll)
         self.root.after(4500, self.u2mp_auto_update)
+        self.section(page, "RPCN online play")
         self.u2mp_extension(page)
         return page
 
@@ -3611,7 +3863,7 @@ class Launcher:
         then Uncharted 3 starts with the restored multiplayer."""
         page = self.page()
         banner = tk.Frame(page, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
-        banner.pack(side="top", fill="x", pady=(0, self.px(12)))
+        # the intro box is not shown (its status line is in the Import section)
         tk.Frame(banner, bg=GOLD, width=self.px(4)).pack(side="left", fill="y")
         about = tk.Frame(banner, bg=PANEL)
         about.pack(side="left", fill="both", expand=True, padx=self.px(18), pady=self.px(14))
@@ -3628,9 +3880,8 @@ class Launcher:
                              f"{release['game'] if release else '?'}.",
                  font=self.f_small, bg=PANEL, fg=MUTED, anchor="w", justify="left",
                  wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(5), 0))
-        self.u3mp_status = tk.Label(about, text="", font=self.f_body_bold, bg=PANEL, fg=TEXT, anchor="w",
+        self.u3mp_status = tk.Label(page, text="", font=self.f_body_bold, bg=BG, fg=TEXT, anchor="w",
                                     justify="left", wraplength=self.px(760))
-        self.u3mp_status.pack(side="top", fill="x", pady=(self.px(8), 0))
 
         def folder_row(title, hint, label_key, actions):
             def factory(parent):
@@ -3645,16 +3896,15 @@ class Launcher:
             self.u3mp_labels[label_key] = label
 
         self.u3mp_labels = {}
+        self.section(page, "Your PS3 game")
         folder_row("PS3 Uncharted 3 folders",
-                   "Your PS3 game folder (the disc's PS3_GAME/USRDIR or an extracted ISO) and RPCS3's dev_hdd0/game "
-                   "folder (update 1.19, the game data install and the DLC map packs). Add both.",
+                   "Your PS3 game folder and RPCS3's dev_hdd0/game folder (update, game data, map packs). Add both.",
                    "ps3_u3", (("Add folder", self.u3mp_add_folder), ("Clear", self.u3mp_clear_folders)))
-        folder_row("PS3 Uncharted 2 folder (optional)",
-                   "Not needed today: no multiplayer file comes from Uncharted 2. Kept for later builds.",
-                   "ps3_u2", (("Choose", self.u3mp_choose_u2), ("Clear", lambda: self.u3mp_set("u3mp_ps3_u2", ""))))
+        # (no PS3 Uncharted 2 folder row: no multiplayer file comes from Uncharted 2 today; a folder chosen before
+        # still goes to the import)
         folder_row("Decrypted PS3 EBOOT (update 1.19)",
-                   "For the characters' collision data. In RPCS3: Utilities -> Decrypt PS3 Binaries, pick "
-                   "dev_hdd0/game/BCES01670 (EU), BCES01692 (UK), BCUS99086 (US) or BCAS25014 (Asia)/USRDIR/EBOOT.BIN; the EBOOT.elf it writes there is found by itself.",
+                   "Required. In RPCS3: Utilities > Decrypt PS3 Binaries, then pick the game's USRDIR/EBOOT.BIN. "
+                   "The EBOOT.elf it writes is found by itself.",
                    "ps3_elf", (("Choose file", self.u3mp_choose_elf),
                                ("Clear", lambda: self.u3mp_set("u3mp_ps3_elf", ""))))
         def dns_entry(parent):
@@ -3666,28 +3916,28 @@ class Launcher:
                 self.change_config("u3mp_dns", var.get().strip())
             var.trace_add("write", save)
             return entry
+        self.section(page, "Community server")
         self.row(page, "Community server DNS",
-                 "The server's DNS address (IPv4), the same as on the in-game RPCN page. The import uses it to "
-                 "download the game data the PS3 game gets online (network table, Lab maps) when your RPCS3 copy "
-                 "is missing or out of date. Empty: taken from your in-game RPCN settings, if set.", dns_entry)
+                 "Same as on the RPCN page. Used to download missing game data. Empty: taken from your RPCN "
+                 "settings.", dns_entry)
+        self.section(page, "Storage")
         folder_row("Multiplayer data folder",
-                   "Where the import writes the converted files (about 9 GB) and the multiplayer image.",
+                   "Where the converted files go (about 9 GB).",
                    "data", (("Change", self.u3mp_choose_data), ("Open", lambda: self.u3mp_open(self.u3mp_data()))))
 
         def keep_toggle(parent):
             self.u3mp_keep_widget = Toggle(parent, self.s, self.config.get("u3mp_keep_ps3", False), self.u3mp_keep_ps3)
             return self.u3mp_keep_widget
         self.row(page, "Keep only the PS3 files updates need (saves space)",
-                 "Only for saving disk space; it changes nothing in the game. Keeps just the PS3 Uncharted 3 files "
-                 "the import reads (about 14 GB of the about 51 GB) in the multiplayer data folder, so you can delete "
-                 "your PS3 Uncharted 3 folders afterwards and updates still work. Leave it off if you keep the PS3 "
-                 "game anyway. A later update that needs a PS3 file not kept asks for your PS3 folders again.",
+                 "Saves disk space only. Keeps the PS3 files updates need (about 14 GB of 51 GB), so you can "
+                 "delete your PS3 Uncharted 3 folders.",
                  keep_toggle)
         label = tk.Label(page, text="", font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
                          wraplength=self.px(760))
         label.pack(side="top", fill="x", pady=(0, self.px(10)))
         self.u3mp_labels["keep_ps3"] = label
 
+        self.section(page, "Import")
         actions = tk.Frame(page, bg=BG)
         actions.pack(side="top", fill="x", pady=(self.px(6), self.px(8)))
         self.u3mp_button = self.gold_button(actions, "IMPORT", self.u3mp_import)
@@ -3699,13 +3949,12 @@ class Launcher:
         self.u3mp_step.pack(side="left", fill="x", expand=True, padx=(self.px(14), 0))
         self.u3mp_bar = tk.Canvas(page, height=self.px(6), bg=PANEL, highlightthickness=0)
         self.u3mp_bar.pack(side="top", fill="x")
+        self.u3mp_status.pack(side="top", fill="x", pady=(self.px(8), 0))
         self.u3mp_log = tk.Text(page, height=9, font=("Consolas", 8), bg=PANEL, fg=MUTED, relief="flat",
                                 highlightthickness=1, highlightbackground=LINE, wrap="none", state="disabled")
-        self.u3mp_log.pack(side="top", fill="x", pady=(self.px(8), 0))
-        tk.Label(page, text="The PS4 game is the launcher's game folder (Advanced -> Folders). The import takes "
-                            "a long time (hours for the map and character conversions) and can run while you play "
-                            "other games; closing the launcher does not stop it. After a launcher update the import "
-                            "updates itself in the background: only what changed is redone.",
+        # (the log box is not shown: the progress bar and Open import log say it all)
+        tk.Label(page, text="Takes a few hours and keeps running when the launcher is closed. After a launcher "
+                            "update only what changed is redone.",
                  font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
                  wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(8), 0))
         self.u3mp_proc = None
@@ -3715,6 +3964,7 @@ class Launcher:
         self.u3mp_refresh()
         self.root.after(1000, self.u3mp_poll)
         self.root.after(4000, self.u3mp_auto_update)
+        self.section(page, "RPCN online play")
         self.u3mp_extension(page)
         return page
 
@@ -3861,9 +4111,10 @@ class Launcher:
             self.u3mp_status.config(text=text + " Uncharted 3 starts without multiplayer until then.")
         folders = self.config.get("u3mp_ps3_u3", [])
         self.u3mp_labels["ps3_u3"].config(text="\n".join(folders) if folders else "None chosen yet.")
-        self.u3mp_labels["ps3_u2"].config(text=self.config.get("u3mp_ps3_u2") or "Not used.")
+        if "ps3_u2" in self.u3mp_labels:
+            self.u3mp_labels["ps3_u2"].config(text=self.config.get("u3mp_ps3_u2") or "Not used.")
         self.u3mp_labels["ps3_elf"].config(text=self.config.get("u3mp_ps3_elf") or
-                                           state.get("ps3_elf") or "Looked for in the PS3 folders when importing.")
+                                           state.get("ps3_elf") or "Not chosen: looked for in your PS3 folders.")
         self.u3mp_labels["data"].config(text=str(self.u3mp_data()))
         kept = state.get("ps3_kept") or {}
         if not self.config.get("u3mp_keep_ps3", False):
@@ -4089,13 +4340,9 @@ class Launcher:
         return well
 
     def gold_button(self, parent, label, action, small=False):
-        """A main action (Host, Join): gold, like the PLAY button."""
-        button = tk.Label(parent, text=label, font=self.f_tab if small else self.f_body_bold, bg=GOLD, fg=INK,
-                          padx=self.px(12 if small else 20), pady=self.px(4 if small else 8), cursor="hand2")
-        button.bind("<Button-1>", lambda e: action())
-        button.bind("<Enter>", lambda e: button.config(bg=GOLD_HI))
-        button.bind("<Leave>", lambda e: button.config(bg=GOLD))
-        return button
+        """A main action (Import, Host, Join): a yellow rounded button, like PLAY."""
+        return Pill(parent, label, action, self.f_tab if small else self.f_body_bold, self.s, kind="primary",
+                    padx=14 if small else 22, pady=5 if small else 9)
 
     def caps_label(self, parent, text, bg=PANEL):
         return tk.Label(parent, text=text, font=self.f_caps, bg=bg, fg=DIM, anchor="w")
@@ -4122,10 +4369,8 @@ class Launcher:
         self.play_button.bind("<Enter>", lambda e: self.draw_play(hover=True))
         self.play_button.bind("<Leave>", lambda e: self.draw_play())
         self.draw_play()
-        self.update_button = tk.Label(inner, text="UPDATE", font=self.f_body_bold, bg=PANEL_HI, fg=GOLD,
-                                      padx=self.px(16), pady=self.px(10), cursor="hand2",
-                                      highlightthickness=1, highlightbackground=GOLD)
-        self.update_button.bind("<Button-1>", lambda e: self.install_update())
+        self.update_button = Pill(inner, "UPDATE", self.install_update, self.f_body_bold, self.s, kind="outline",
+                                  padx=18, pady=11)
         self.set_status(f"Ready to play {self.current_game()['name']}." if self.config.get("game") else "Ready.")
 
     def draw_play(self, hover=False):

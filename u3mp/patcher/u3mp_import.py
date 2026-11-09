@@ -503,8 +503,14 @@ def main():
         log('PS3 1.19 EBOOT.elf: %s%s' % (ps3_elf, '' if mpimage.sha256_file(ps3_elf) == PS3_ELF_SHA256 else
                                            ' (differs from the tested 1.19 EBOOT.elf)'))
     else:
-        log('No decrypted PS3 1.19 EBOOT.elf found: decrypt it with RPCS3 (Utilities -> Decrypt PS3 Binaries, '
-            'dev_hdd0/game/BCES01670, BCES01692, BCUS99086 or BCAS25014/USRDIR/EBOOT.BIN); the Havok tables step is skipped without it')
+        # required: no import without the decrypted EBOOT.elf (the player decrypts it with RPCS3 first)
+        why = ('No decrypted PS3 1.19 EBOOT.elf: decrypt it with RPCS3 first (Utilities -> Decrypt PS3 Binaries, '
+               'dev_hdd0/game/BCES01670, BCES01692, BCUS99086 or BCAS25014/USRDIR/EBOOT.BIN), then import again')
+        log('ERROR: ' + why)
+        if old.get('status') in ('imported', 'partial'):
+            # an update of a working import: not applied, the current files stay playable
+            return finish(old['status'], error='Update not applied: ' + why, failed_at='inputs')
+        return finish('failed', error=why, failed_at='inputs')
     data2_pending = '' if a.only else ensure_data2(a, data, ps3_elf)
     if data2_pending:
         log('game data: ' + data2_pending)

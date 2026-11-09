@@ -97,6 +97,52 @@ mkdir -p "$stage/tools/pkgtool"
 cp tools/pkgtool/PkgTool.exe tools/pkgtool/LibOrbisPkg.dll "$stage/tools/pkgtool/"
 # Every launcher module and data file.
 cp launcher/*.py launcher/*.pyw "$stage/launcher/"
+# The launcher's window (launcher-qt: Qt 6, C++ and QML; it runs launcher\qt_backend.py), built with CLANG64's
+# Qt (mingw-w64-clang-x86_64-qt6-base, -qt6-declarative) and deployed with its Qt modules and every DLL it loads.
+# Without Qt the package keeps the launcher's own window (the starter falls back to it).
+qt_dlls=()
+if [[ -f $msys/clang64/bin/windeployqt6.exe ]]; then
+    qt_build=dist/stage/qt-build
+    cmake -S launcher-qt -B "$qt_build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang \
+        -DCMAKE_CXX_COMPILER=clang++ > /dev/null
+    ninja -C "$qt_build" UnchartedLauncher > "$qt_build.log" 2>&1 || { tail -40 "$qt_build.log" >&2; exit 1; }
+    mkdir -p "$stage/launcher-qt"
+    llvm-strip -o "$stage/launcher-qt/UnchartedLauncher.exe" "$qt_build/UnchartedLauncher.exe"
+    # qmlimportscanner lives in CLANG64's share/qt6/bin
+    PATH="$msys/clang64/share/qt6/bin:$PATH" windeployqt6 --qtpaths "$msys/clang64/bin/qtpaths6.exe" --release \
+        --qmldir launcher-qt/qml --no-translations --no-system-d3d-compiler --no-opengl-sw --no-compiler-runtime \
+        "$stage/launcher-qt/UnchartedLauncher.exe" > "$qt_build-deploy.log" 2>&1 \
+        || { tail -40 "$qt_build-deploy.log" >&2; exit 1; }
+    # the QML modules' plugin DLLs windeployqt leaves out of CLANG64's layout (QtQuick.Controls ...)
+    qml_src=$msys/clang64/share/qt6/qml
+    (cd "$stage/launcher-qt/qml" && find . -type d) | while read -r dir; do
+        for plugin in "$qml_src/$dir"/*.dll; do
+            if [[ -f $plugin && ! -f $stage/launcher-qt/qml/$dir/$(basename -- "$plugin") ]]; then
+                cp "$plugin" "$stage/launcher-qt/qml/$dir/"
+            fi
+        done
+    done
+    # the window always uses the Basic style: the other Quick Controls styles do not ship
+    for style in FluentWinUI3 Fusion Imagine Material Universal Windows; do
+        rm -rf "$stage/launcher-qt/qml/QtQuick/Controls/$style"
+        rm -f "$stage/launcher-qt"/Qt6QuickControls2"$style"*.dll
+    done
+    rm -rf "$stage/launcher-qt/qmltooling"
+    # its Qt files are its own folder's, never an installed Qt's
+    printf '[Paths]\r\nPrefix = .\r\nPlugins = .\r\nQmlImports = qml\r\n' > "$stage/launcher-qt/qt.conf"
+    # the CLANG64 DLLs Qt and its plugins load (windeployqt copies Qt's own only)
+    find "$stage/launcher-qt" \( -name '*.exe' -o -name '*.dll' \) -print0 | xargs -0 -n 20 ldd 2>/dev/null \
+        | awk '/clang64/ {print $3}' | sort -u | while read -r dll; do
+        [[ -f $stage/launcher-qt/$(basename -- "$dll") ]] || cp "$dll" "$stage/launcher-qt/"
+    done
+    for dll in "$stage"/launcher-qt/*.dll; do
+        qt_dlls+=("$(cygpath -m "$msys/clang64/bin/$(basename -- "$dll")")")
+    done
+    echo "launcher window: launcher-qt ($(du -sh "$stage/launcher-qt" | cut -f1))"
+else
+    echo "Note: no Qt 6 in $msys/clang64 (pacman -S mingw-w64-clang-x86_64-qt6-declarative): the package keeps" \
+         "the launcher's own window" >&2
+fi
 # The package's version (tools/VERSION; the launcher's updates compare it with the releases).
 cp tools/VERSION "$stage/VERSION"
 cp launcher/assets/uncharted.ico launcher/assets/icon.png "$stage/launcher/assets/"
@@ -134,6 +180,8 @@ dlls=()
 for dll in "$stage"/gow3_pc/out/*.dll; do
     dlls+=("$(cygpath -m "$msys/clang64/bin/$(basename -- "$dll")")")
 done
+# The launcher window's Qt and CLANG64 DLLs (launcher-qt).
+dlls+=("${qt_dlls[@]}")
 # The multiplayer import's programs and their DLLs (u3mp/bin).
 for file in "${u3mp_bin[@]}"; do
     dlls+=("$(cygpath -m "$file")")
