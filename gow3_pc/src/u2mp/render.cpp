@@ -532,24 +532,30 @@ int list_find(uint64_t list, int *code) {
 void log_instance(const char *what, const uint8_t *inst) {
     const float *m = reinterpret_cast<const float *>(inst + 0x10);
     const float *bb = reinterpret_cast<const float *>(inst + 0xa0);
+    const float *sp = reinterpret_cast<const float *>(inst + 0x90);   // cull sphere (section 7)
     log("render diag: %s %p transform [%.3g %.3g %.3g | %.3g %.3g %.3g | %.3g %.3g %.3g | pos %.3f %.3f %.3f] "
-        "bounds %.3f %.3f %.3f .. %.3f %.3f %.3f, flags +c0 %04x +d8 %llx", what, static_cast<const void *>(inst),
-        m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10], m[12], m[13], m[14], bb[0], bb[1], bb[2], bb[4],
-        bb[5], bb[6], *reinterpret_cast<const uint16_t *>(inst + 0xc0),
+        "bounds %.3f %.3f %.3f .. %.3f %.3f %.3f, sphere %.3f %.3f %.3f r %.3f, flags +c0 %04x +d4 %x +d8 %llx",
+        what, static_cast<const void *>(inst), m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10], m[12], m[13],
+        m[14], bb[0], bb[1], bb[2], bb[4], bb[5], bb[6], sp[0], sp[1], sp[2], sp[3],
+        *reinterpret_cast<const uint16_t *>(inst + 0xc0), *reinterpret_cast<const uint32_t *>(inst + 0xd4),
         (unsigned long long)*reinterpret_cast<const uint64_t *>(inst + 0xd8));
 }
 
 using MeshInitFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
                                           uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 
-// MeshInstance::Init(instance, -, -, prototype, desc, -, 7 stack words): forwarded unchanged.
+void actor_bounds_fix(uint64_t inst, uint64_t proto);   // section 7
+
+// MeshInstance::Init(instance, -, -, prototype, desc, -, 7 stack words): forwarded unchanged. Also the
+// section-7 cull fix for actor instances (installed on call A even when the diagnostics are off).
 U2MP_GUEST uint64_t mesh_init_logged(uint64_t inst, uint64_t a1, uint64_t a2, uint64_t proto, uint64_t desc,
                                      uint64_t a5, uint64_t s0, uint64_t s1, uint64_t s2, uint64_t s3, uint64_t s4,
                                      uint64_t s5, uint64_t s6) {
     const uint64_t r = reinterpret_cast<MeshInitFn>(image.base + fMeshInit)(inst, a1, a2, proto, desc, a5, s0, s1,
                                                                              s2, s3, s4, s5, s6);
-    if (!diag_mode || bad_pointer(inst) || bad_pointer(proto)) return r;
     const uint64_t from = uint64_t(uintptr_t(__builtin_return_address(0))) - uint64_t(uintptr_t(image.base));
+    if (from == cInitA + 5 && !bad_pointer(inst)) actor_bounds_fix(inst, proto);
+    if (!diag_mode || bad_pointer(inst) || bad_pointer(proto)) return r;
     const bool actor = from == cInitA + 5, geo = from == cInitB + 5;
     char name[48];
     if (!readable_string(*reinterpret_cast<const char *const *>(uintptr_t(proto) + 0x10), name, sizeof name))
@@ -970,6 +976,22 @@ void log_hero_state(const char *when) {
         (unsigned long long)u[1], (unsigned long long)u[2], (unsigned long long)(u[2] - reported[2]),
         (unsigned long long)u[3], (unsigned long long)__atomic_load_n(&anim_updates_total, __ATOMIC_RELAXED));
     for (int i = 0; i < 4; ++i) reported[i] = u[i];
+    // Section 7: the anim bounds (+0xf0 -> {min, max, sphere}, written by the bounds command 0x514c0761,
+    // 0xb57b20) next to the world transform (+0xb0..+0xe0) and the first skin matrix (+0x108, 3x4 rows:
+    // the translation is the w of each row). Bounds near 0,0,0 with a far world pos = object space; a
+    // skin translation near the world pos = world-space skinning (then the transform should be identity).
+    const uint64_t bp = q(0xf0), sk = q(0x108);
+    if (!bad_pointer(bp)) {
+        const float *b = reinterpret_cast<const float *>(uintptr_t(bp));
+        float s[12] = {};
+        if (!bad_pointer(sk)) std::memcpy(s, reinterpret_cast<const void *>(uintptr_t(sk)), sizeof s);
+        const float *x = reinterpret_cast<const float *>(a + 0xb0);
+        log("render: hero %s anim bounds %.2f %.2f %.2f .. %.2f %.2f %.2f, sphere %.2f %.2f %.2f r %.2f; transform "
+            "x %.2f %.2f %.2f y %.2f %.2f %.2f z %.2f %.2f %.2f; skin[0] rows %.2f %.2f %.2f %.2f | %.2f %.2f %.2f "
+            "%.2f | %.2f %.2f %.2f %.2f",
+            when, b[0], b[1], b[2], b[4], b[5], b[6], b[8], b[9], b[10], b[11], x[0], x[1], x[2], x[4], x[5], x[6],
+            x[8], x[9], x[10], s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11]);
+    }
 }
 
 U2MP_GUEST uint64_t spawn_hero_shown(uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
@@ -999,11 +1021,69 @@ U2MP_GUEST uint64_t spawn_hero_shown(uint64_t a0, uint64_t a1, uint64_t a2, uint
     return obj;
 }
 
+// ---- 7. Actor instances are culled with a world-space sphere that holds object-space bounds ---------
+// Test run 47: the hero (and the actors spawned with it) is collected, animated and skinned every frame
+// but never reaches the per-instance draw job 0xc419d0. The path from the collect:
+//   0xbd6540/0x4b99b8 collect -> 0xbd65c0 (per draw data 0xbe6530: snapshot of the draw data's first
+//   0x190 bytes) -> render side 0xbd69a0 (per draw data 0xbe6750: snapshot -> MeshInstance: transform
+//   rec+0x10.. -> +0x10 / +0x50, box rec+0x90 / +0xa0 -> +0xa0 / +0xb0 and every sub-element +0x300 /
+//   +0x310, sphere rec+0xb0 -> +0x90) -> 0xca7520 distance pass -> 0xbe3930 -> 0xc42820 (per instance:
+//   0xc42430 visibility, LOD, per-submesh tests, 0xc3a7d0 per draw, then the renderable +0x150 is queued
+//   for the draw job). 0xc42430 tests an instance against the frustum in one of two ways, chosen by
+//   MeshInstance +0xc0 bit 0x200 (0xc424d6):
+//     set:   the box (+0xa0 / +0xb0, or the sub-element box when there is one sub-element) transformed by
+//            the instance transform +0x50.. (0xc4268f / 0xc424e3) -- level instances (+c0 x206);
+//     clear: 0xb2b060(frustum, +0x90): the sphere as it is, i.e. in world space (0xc4266f).
+// MeshInstance::Init (0xc3b6f0) sets the bit from its stack argument 6 (0xc3b7cd), and the actor path
+// 0xbe48d0 passes 0 (0xbe4b9b), so every actor uses the untransformed sphere. The draw data's box and
+// sphere come from the render object's anim bounds (+0xf0, 0xbd5913 -> 0xbd5927 / 0xbd590b), written by
+// the anim bounds command (0x514c0761 -> 0xb57b20) from the joints in the object's space. That is world
+// space only for actors whose render-object transform (+0xb0..) is identity: the level pigeons (run 47:
+// transform identity, box -72 24 -21, submitted). The MP hero has its world transform there (pos 16.5
+// -3.7 -46) and an object-space box (-0.71 -0.25 -0.44 .. 0.42 1.69 0.76), so its sphere sits at the map
+// origin and the frustum test drops it every frame: 0 draw jobs.
+// The fix: actor instances get +0xc0 bit 0x200 right after Init, so they take the transformed-box test.
+// For an identity transform (pigeons) it is the same test as before; for the hero it tests the
+// object-space box where the instance is. be6750 only touches bits 1-2 of +0xc0, so the bit stays.
+// The 0xc42820 submesh tests also use the bit (r12, 0xc42a80: sub-element boxes transformed the same way).
+// UNCHARTED_U2MP_ACTOR_BOUNDS=0 turns it off; the hero summary logs the anim bounds, the sphere and the
+// first skin matrix so the next run shows whether the skinning is in object space (expected) or world
+// space (then the character draws offset by its own position and the transform is what is wrong).
+bool actor_bounds_on = true;
+uint32_t actor_bounds_count = 0;
+
+void actor_bounds_fix(uint64_t inst, uint64_t proto) {
+    if (!actor_bounds_on) return;
+    uint16_t *flags = reinterpret_cast<uint16_t *>(uintptr_t(inst) + 0xc0);
+    const uint16_t before = *flags;
+    if (before & 0x200) return;
+    *flags = uint16_t(before | 0x200);
+    const uint32_t n = __atomic_add_fetch(&actor_bounds_count, 1, __ATOMIC_RELAXED);
+    char name[48] = "?";
+    if (!bad_pointer(proto)) readable_string(*reinterpret_cast<const char *const *>(uintptr_t(proto) + 0x10), name,
+                                             sizeof name);
+    if (n <= 8 || std::strstr(name, "mp_hero"))
+        log("render: actor cull fix #%u: %p '%s' +c0 %04x -> %04x (box transformed by the instance)", n,
+            reinterpret_cast<const void *>(uintptr_t(inst)), name, before, *flags);
+}
+
 }  // namespace
 
 // Called from install_nullsites (nullsites.cpp), so install.cpp needs no line of its own.
 void install_render(int &installed) {
+    if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_BOUNDS"); v && std::strcmp(v, "0") == 0)
+        actor_bounds_on = false;
     const bool diag = install_draw_diag(installed);
+    // Section 7 rides on the MeshInstance::Init A hook; without the diagnostics it is installed alone
+    // (mesh_init_logged applies the fix, then returns because diag_mode is 0).
+    if (actor_bounds_on && !diag) {
+        diag_mode = 0;
+        if (retarget_call(cInitA, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged),
+                          "render: actor cull fix (MeshInstance::Init A)"))
+            ++installed;
+    }
+    log("render: actor cull fix %s", actor_bounds_on ? "on (actor instances use the transformed box)"
+                                                     : "off (UNCHARTED_U2MP_ACTOR_BOUNDS=0)");
     if (const char *v = std::getenv("UNCHARTED_U2MP_HERO_SHOW"); v && std::strcmp(v, "0") == 0) hero_show = false;
     if ((hero_show || diag) &&
         retarget_call(cSpawnHero, fSpawnProcess, reinterpret_cast<void *>(&spawn_hero_shown),

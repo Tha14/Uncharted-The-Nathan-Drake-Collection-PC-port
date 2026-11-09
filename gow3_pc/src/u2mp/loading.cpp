@@ -15,8 +15,8 @@
 //
 // Ported, in PS3 order: the fade (0x4aefe4..), the black full-screen fill (type 0x1b, 0x4ae850), the
 // two edge quads (0x4ae944..0x4aead0), the team rosters (PAGE_MULTIPLAYER_LOADING drawn in place,
-// PS3 0x423410: PS4 page object menu+0x370[], page draw 0x5a6000 as 0x5d12f0 calls it, with the PS3
-// slide-in and fade-in), the title-back band (0x4aeb68), the map name (0x4aec24, MenuColor cac46a80
+// PS3 0x423410: PS4 page object menu+0x370[], layout 0x5a2670 and item render only, no frame or prompts,
+// with the PS3 slide-in and fade-in), the title-back band (0x4aeb68), the map name (0x4aec24, MenuColor cac46a80
 // = 0xffcd4100, scale 1.4) and the game description (0x4aed68, PS3 0x49b5f0 = PS4 0x64abd0, MenuColor
 // f1758b4d = 0xffdfcf8f), and the card systems (section "cards" below, PORT-FRONTEND5.md 7): the four
 // particle systems of the loading object (start 0x4ad600, spawn 0x4ac9f4, frame 0x4ac7d8, camera
@@ -47,7 +47,9 @@ constexpr uint64_t fDraw2D = 0x554340, cDraw2D = 0x3fc52d;
 constexpr uint64_t fTextFind = 0xcddc00, kTextDb = 0x1066660, fDcLookup = 0xa15e70;
 constexpr uint64_t fItemText = 0x5b5450;      // PS3 0x4153d0
 constexpr uint64_t fItemDesc = 0x5b5920;      // PS3 0x4156cc
-constexpr uint64_t fPageDraw = 0x5a6000;      // (context, desc, page, alpha), as 0x5d12f0 calls it
+// PS4 0x5a6000 (context, desc, page, alpha) is the full page draw 0x5d12f0 uses; not called (draw_page)
+constexpr uint64_t fPageLayout = 0x5a2670;    // PS3 0x408928 (page, desc)
+constexpr uint64_t kItemFade = 0x1050e58, kFadeScale = 0x104ed74, PAGE_FLAGS = 0xb0, PAGE_FADE = 0xf4;
 constexpr uint64_t fGameText = 0x64abd0;      // PS3 0x49b5f0 "%s - %s - %s"
 constexpr uint64_t kNgm = 0x113b760, NGM_GAME = 0x1ca0, NGM_OVERRIDES = 0x21b4;   // PS3 ngm+7220
 constexpr uint64_t MENU_PAGES = 0x370, MENU_PAGE_COUNT = 200, PAGE_ID = 0x10, MENU_CTX = 0x10, MENU_17A4 = 0x17a4;
@@ -493,7 +495,22 @@ void draw_page(uint32_t id, float alpha, float x, float y, float dt) {
     d.time = float(G<int32_t>(kFrameCounter)) * (1.0f / 300.0f);
     d.state12 = 1;   // PS3 0x4234f8: stb 1 at desc+64
     d.v17a4 = G<int32_t>(menu + MENU_17A4);
-    guest<void(U2MP_GUEST *)(void *, void *, void *, float)>(fPageDraw)(nullptr, &d, page, alpha);
+    // PS3 0x423410 does not use the full page draw 0x409428 (frame 0x405318, background 0x4156cc, button
+    // prompts 0x4074a0): it calls only the layout 0x408928 and the item render 0x4062fc, so the loading
+    // screen shows the team lists alone. PS4 0x5a6000 is the full draw (background fill 0x5bc290 /
+    // 0x5b56d0, layout 0x5a2670, frame 0x5b8710 / 0x5bb830, prompts 0x5a4f10, then the render, page
+    // vtable +0x18 = PS3 vtable +12). Only its layout and render are called here, with the two things
+    // 0x5a6000 does around them: the 0.75 scale of pages with flag 0x80000 (0x5a6090) and the item fade
+    // 0x1050e58 = (1 - page +0xf4) * (flag 0x800 ? 1 : [0x104ed74]) (0x5a60bb..0x5a60f5, restored after).
+    const uint32_t flags = *reinterpret_cast<const uint32_t *>(page + PAGE_FLAGS);
+    if (flags & 0x80000) d.x[0] *= 0.75f;
+    float &item_fade = G<float>(kItemFade);
+    const float saved_fade = item_fade;
+    item_fade = (1.0f - *reinterpret_cast<const float *>(page + PAGE_FADE)) * ((flags & 0x800) ? 1.0f : G<float>(kFadeScale));
+    guest<void(U2MP_GUEST *)(void *, void *)>(fPageLayout)(page, &d);
+    using RenderFn = void(U2MP_GUEST *)(void *, void *, void *);
+    reinterpret_cast<RenderFn>(vt[0x18 / 8])(page, nullptr, &d);
+    item_fade = saved_fade;
     // logged on the first frame after show and on the first fully visible one
     if (page_log_first.exchange(false)) log_page(page, "updated and drawn (first frame)");
     if (alpha >= 1.0f && page_log_visible.exchange(false)) log_page(page, "updated and drawn (visible)");
@@ -949,7 +966,7 @@ void install_loading(int &installed) {
     if (const char *v = std::getenv("UNCHARTED_U2MP_LOADING_TIP"); v && std::strcmp(v, "0") == 0) with_tip = false;
     // the PS4 calls this port makes (prologue push rbp; mov rbp,rsp)
     static const unsigned char prologue[] = {0x55, 0x48, 0x89, 0xe5};
-    for (uint64_t f : {fItemText, fItemDesc, fPageDraw, fGameText})
+    for (uint64_t f : {fItemText, fItemDesc, fPageLayout, fGameText})
         if (!image.matches(f, prologue, sizeof prologue)) {
             log("loading screen: 0x%llx is not a function start, not installed", (unsigned long long)f);
             return;
