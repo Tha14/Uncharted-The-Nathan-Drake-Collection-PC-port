@@ -399,6 +399,12 @@ def run_recipe(a, data, ps4_elf, ps3_elf, out=None):
             steps[current]['status'] = 'ok'
             event(phase='recipe', id=current, status='ok', note=s)
             current = None
+        elif current and s.startswith('SKIP, script found an input missing'):
+            # the step's script found an input missing (e.g. no decrypted EBOOT.elf): it runs again at the next import
+            steps[current]['status'] = 'unavailable'
+            steps[current]['note'] = s[:300]
+            event(phase='recipe', id=current, status='unavailable', note=s[:300])
+            current = None
         elif current and s.startswith('FAILED'):
             steps[current]['status'] = 'failed'
             steps[current]['note'] = s[:500]
@@ -511,7 +517,9 @@ def main():
     unavailable = [sid for sid, s in r['steps'].items() if s['status'] == 'unavailable']
     # steps the recipe marks "NOT REPRODUCIBLE HERE" can run on no PC yet (known gaps, the same for every player):
     # they are listed, but an import that has only those is complete, not "partial"
-    missing_input = [sid for sid in unavailable if not r['steps'][sid].get('note', '').startswith('NOT REPRODUCIBLE')]
+    # a step whose own script found an input missing ("SKIP, script found an input missing") is not counted: the steps that need
+    # its result fail and are counted (so an import without the decrypted EBOOT.elf keeps the same failed count)
+    missing_input = [sid for sid in unavailable if not r['steps'][sid].get('note', '').startswith(('NOT REPRODUCIBLE', 'SKIP, script found'))]
     failed += missing_input if not a.only else []
     if staged:
         state.pop('staging', None)

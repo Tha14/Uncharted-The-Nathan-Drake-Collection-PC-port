@@ -22,6 +22,6 @@
  "must_write": false,
  "status": "needs-input",
  "applied": "2026-11-01 14:38..14:42 (maps-batch/tools/mkhk.py + 5 patches, recovered from the transcript)",
- "notes": "Writes toolsets/*/data/hk2010_ps3.json + hk2011_ps4.json in the rendered actor33 job (never shipped: derived from the executables). Inputs: RECIPE_PS3_ELF (decrypted 1.19 EBOOT.elf; the 1.10 disc EBOOT gives different tables) and RECIPE_PS4_ELF (decrypted PS4 eboot), objdump (GNU binutils) for the PS4 constructor scan. Exit 3 = inputs missing: the actor paks with their own Havok collision (Lab boxes, breakable props) then fail in convert-actors. Verified 2026-11-05: both tables sha256-identical to the 11-01 ones (359/306 PS3, 490/341 PS4 classes).",
+ "notes": "Exit 3 is no longer recorded as applied (recipe 1.10.3): before, an import without the EBOOT.elf never ran this step again once the file was added. Writes toolsets/*/data/hk2010_ps3.json + hk2011_ps4.json in the rendered actor33 job (never shipped: derived from the executables). Inputs: RECIPE_PS3_ELF (decrypted 1.19 EBOOT.elf; the 1.10 disc EBOOT gives different tables) and RECIPE_PS4_ELF (decrypted PS4 eboot), objdump (GNU binutils) for the PS4 constructor scan. Exit 3 = inputs missing: the actor paks with their own Havok collision (Lab boxes, breakable props) then fail in convert-actors. Verified 2026-11-05: both tables sha256-identical to the 11-01 ones (359/306 PS3, 490/341 PS4 classes).",
  "recipe_version_added": "1.4.0"
 }

@@ -41,6 +41,10 @@ import recipe_lib as R
 sys.dont_write_bytecode = True
 
 
+class InputMissing(Exception):
+    """A step exited with an accepted non-zero code (in its ok_codes): an input it needs is not there yet."""
+
+
 def main():
     ap = argparse.ArgumentParser(add_help=True, formatter_class=argparse.RawDescriptionHelpFormatter, description=__doc__)
     ap.add_argument('--ps4')
@@ -175,6 +179,11 @@ def main():
             outputs = run_step(s, inp, out, values, langs, log)
             state.mark(sid, outputs, 'ok', fp=fp)
             log('        ok  %d file(s)  %.1f s' % (len(outputs), time.time() - t0)); counts['ok'] += 1
+        except InputMissing as e:
+            # an accepted non-zero exit (e.g. 3 = an input such as the decrypted EBOOT.elf is not there yet): not
+            # recorded as applied, so the step runs again at the next import once the input is there
+            state.mark(sid, {}, 'unavailable', str(e)[:500])
+            log('        SKIP, script found an input missing (%s)' % e); counts['unavailable'] += 1
         except Exception as e:
             state.mark(sid, {}, 'failed', str(e)[:500])
             log('        FAILED after %.1f s: %s' % (time.time() - t0, e)); counts['failed'] += 1
@@ -356,6 +365,8 @@ def step_script(s, inp, out, values, log):
             log('          | ' + line[:220])
         if p.returncode not in s.get('ok_codes', [0]):
             raise RuntimeError('%s exited %d' % (os.path.basename(argv[1] if len(argv) > 1 else argv[0]), p.returncode))
+        if p.returncode:
+            raise InputMissing('%s exited %d' % (os.path.basename(argv[1] if len(argv) > 1 else argv[0]), p.returncode))
         if s.get('expect') and not any(s['expect'] in line for line in tail):
             raise RuntimeError('expected %r in the output of %s' % (s['expect'], argv[1:3]))
     outputs = {}
