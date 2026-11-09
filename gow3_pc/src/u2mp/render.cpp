@@ -405,7 +405,9 @@ struct Tracked {
     uint64_t draw_jobs;       // 0xc419d0 calls for this instance
     uint64_t draw_jobs_reported;
     bool loop_off_logged;
-    uint64_t gate_calls, gate_pass;   // 0xc42430 per instance (run 55: the actor path's gate)
+    uint64_t gate_calls, gate_pass;
+    uint64_t in_view_list[16];   // 0xcafc10 calls whose draw-data list (5th arg) holds this draw data, by pass
+    uint64_t view_lists_seen;   // 0xc42430 per instance (run 55: the actor path's gate)
     uint64_t loop_calls;      // 0xbe3930 calls (frame loop 0xcaea00 / 0xb90f17) for the render object's +0xf0
 };
 Tracked tracked[kTracked];
@@ -537,7 +539,44 @@ U2MP_GUEST uint64_t gate_counted(uint64_t inst, uint64_t a1, uint64_t a2, uint64
     return r;
 }
 
+// 0xcafc10 (calls 0xc9d148, 0xca16ea) draws a view's objects: its 5th argument is the view's draw-data list
+// {u32 count; dd*[]}, read at 0xcaff7a; the 7th (stack +8) is the pass. Run 59: is the hero's draw data there?
+constexpr uint64_t fViewDraw = 0xcafc10;
+const uint64_t cViewDraw[] = {0xc9d148, 0xca16ea};
+using ViewDrawFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+                                          uint64_t, uint64_t);
+uint64_t view_draw_calls = 0, view_list_max = 0;
+U2MP_GUEST uint64_t view_draw_counted(uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t list, uint64_t a5,
+                                      uint64_t s0, uint64_t pass, uint64_t s2, uint64_t s3) {
+    __atomic_add_fetch(&view_draw_calls, 1, __ATOMIC_RELAXED);
+    if (list && !bad_pointer(list)) {
+        const uint32_t n = *reinterpret_cast<const uint32_t *>(uintptr_t(list));
+        if (n > view_list_max) view_list_max = n;
+        const uint64_t *e = reinterpret_cast<const uint64_t *>(uintptr_t(list) + 8);
+        for (int i = 0; i < kTracked; ++i) {
+            const uint64_t inst = __atomic_load_n(&tracked[i].instance, __ATOMIC_RELAXED);
+            if (!inst) continue;
+            ++tracked[i].view_lists_seen;
+            for (uint32_t k = 0; k < n && k < 0x2000; ++k)
+                if (e[k] == inst - 0x1c0) {
+                    ++tracked[i].in_view_list[pass & 15];
+                    break;
+                }
+        }
+    }
+    return reinterpret_cast<ViewDrawFn>(image.base + fViewDraw)(a0, a1, a2, a3, list, a5, s0, pass, s2, s3);
+}
+
 void log_gate(const Tracked &t, uint64_t inst) {
+    {
+        char by[160] = "";
+        size_t at = 0;
+        for (int p = 0; p < 16; ++p)
+            if (t.in_view_list[p] && at + 20 < sizeof by) at += size_t(std::snprintf(by + at, sizeof by - at, " pass %d: %llu", p, (unsigned long long)t.in_view_list[p]));
+        log("render diag: %s %p in the view draw-data lists of 0xcafc10:%s (of %llu lists; longest list %llu)", t.kind,
+            reinterpret_cast<const void *>(uintptr_t(inst)), at ? by : " never", (unsigned long long)t.view_lists_seen,
+            (unsigned long long)view_list_max);
+    }
     const uint8_t *dd = reinterpret_cast<const uint8_t *>(uintptr_t(inst - 0x1c0));
     // the draw-data loop 0xcafc10's own tests before the gate (0xcaffbc..0xcb0078): +0x1b8 / +0x1b9 flags, the
     // per-view mask +0x298, +0x324 != 0, +0x280 & 6 (run 57: actors still never reach the gate)
@@ -692,6 +731,8 @@ U2MP_GUEST uint64_t mesh_init_logged(uint64_t inst, uint64_t a1, uint64_t a2, ui
     t.loop_calls = 0;
     t.loop_off_logged = false;
     t.gate_calls = t.gate_pass = 0;
+    std::memset(t.in_view_list, 0, sizeof t.in_view_list);
+    t.view_lists_seen = 0;
     __atomic_store_n(&t.instance, inst, __ATOMIC_RELEASE);
     const uint8_t *in = reinterpret_cast<const uint8_t *>(uintptr_t(inst));
     list_insert(inst + 0x170, slot, 0, gen);
@@ -809,6 +850,8 @@ bool install_draw_diag(int &installed) {
     n += retarget_call(cInitA, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init A");
     n += retarget_call(cInitB, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init B");
     n += retarget_call(cInitC, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init C");
+    for (const uint64_t c : cViewDraw)
+        n += retarget_call(c, fViewDraw, reinterpret_cast<void *>(&view_draw_counted), "render diag: view draw 0xcafc10 counted");
     for (const uint64_t c : cGates)
         n += retarget_call(c, fGate, reinterpret_cast<void *>(&gate_counted), "render diag: visibility gate 0xc42430 counted");
     n += retarget_call(cFreeActor, fMeshFree, reinterpret_cast<void *>(&mesh_free_logged), "render diag: actor mesh teardown");
