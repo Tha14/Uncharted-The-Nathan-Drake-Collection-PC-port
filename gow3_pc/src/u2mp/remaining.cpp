@@ -321,6 +321,38 @@ U2MP_GUEST void friends_row(void *arg, void *, void *) {   // list row
     else friend_options(row - 1);
 }
 
+// LIST_PLAYERSMET row (callback 369314b2, PS4 0x5ebdf0 = PS3 0x4b8638's row action): PS4 shows a popup with
+// Add Friend (20d51153, PS3 sceNpBasicAddFriend) and View Profile (e1810202, sceNpProfileCallGui) for a row
+// of the NP players-met list 0x113b668, which nothing fills on PC. The rows here are the local recent
+// players (menus.cpp, progression store, newest first): online, Add Friend sends the RPCN friend request
+// (players are named by their RPCN online name); View Profile shows what the store knows about them.
+constexpr uint32_t kCbMetAdd = sid("U2MP_PC_CB_MET_ADD"), kCbMetProfile = sid("U2MP_PC_CB_MET_PROFILE");
+std::string selected_met;
+U2MP_GUEST void met_add(void *, void *, void *) {
+    if (!online::friend_add(selected_met)) {
+        show_notice("The friend request could not be sent.");
+        return;
+    }
+    show_notice((std::string("Friend request sent to ") + selected_met + ".").c_str());
+}
+U2MP_GUEST void met_profile(void *, void *, void *) { show_notice(progression_player_summary(selected_met).c_str()); }
+U2MP_GUEST void players_met_row(void *arg, void *, void *) {
+    const int row = int(arg32(arg, 4));
+    const std::vector<std::string> names = progression_recent_players(50);
+    if (row < 0 || size_t(row) >= names.size()) return;
+    selected_met = names[size_t(row)];
+    set_player_text(selected_met);
+    if (!register_callback(kCbMetAdd, reinterpret_cast<void *>(&met_add)) ||
+        !register_callback(kCbMetProfile, reinterpret_cast<void *>(&met_profile))) {
+        message_box(kTextPlayer);
+        return;
+    }
+    Popup p{kTextPlayer, kPopupPage, 0, {}};
+    if (online::active()) p.add(kTextAddFriend, kCbMetAdd);
+    p.add(kTextViewProfile, kCbMetProfile);
+    guest<void(U2MP_GUEST *)(void *, Popup *, uint32_t)>(fShowPopup)(image.at<void>(addr::menu_manager), &p, 1);
+}
+
 // 7cc46b94 (PS3 0x439cf8): KickoutRoomMember(party, selected member).
 U2MP_GUEST void kick_selected(void *, void *, void *) {
     if (!selected_id || !session::kick(selected_id)) log("Kick From Party: net id %u not kicked", selected_id);
@@ -689,6 +721,14 @@ void install_remaining(int &installed) {
             ++installed;
     } else {
         log("BUTTON_MULTIPLAYER_INVITES query at 0x%llx differs, left alone", (unsigned long long)qInvites);
+    }
+    // LIST_PLAYERSMET row 0x5ebdf0: push rbp; mov rbp,rsp; push rbx; sub rsp,0x58; mov rbx,[rip..]
+    static const unsigned char met_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x53, 0x48, 0x83, 0xec, 0x58, 0x48, 0x8b, 0x1d};
+    if (popup_ok && image.matches(0x5ebdf0, met_bytes, sizeof met_bytes)) {
+        if (replace_function(0x5ebdf0, 5, reinterpret_cast<void *>(&players_met_row), "LIST_PLAYERSMET row (369314b2)"))
+            ++installed;
+    } else {
+        log("LIST_PLAYERSMET row at 0x5ebdf0 differs, left alone");
     }
     int done = 0;
     for (const auto &s : stubs) {

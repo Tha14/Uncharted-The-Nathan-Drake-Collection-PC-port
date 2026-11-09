@@ -424,8 +424,8 @@ U2MP_GUEST void friends_query(uint8_t *q) {
 // ---- cond 39: LIST_PLAYERSMET (0x65bcd0 = PS3 0x4b8638) ---------------------------------------------
 // Intact, but its rows (0x113b668: +0x10 count, +0x18 rows of 0x28) came from the PS3 NP "players
 // met" fetch (0x48f79c, absent). Here: the players of recent matches from the local progression
-// store (progression.cpp records them on Leave). Selecting a row stays a no-op (0x5ebdf0 reads the
-// empty NP list), as on PS3 without PSN.
+// store (progression.cpp records them on Leave). Selecting a row: remaining.cpp replaces 0x5ebdf0
+// (Add Friend online / View Profile).
 QueryFn orig_players_met = nullptr;
 int met_current = 0;
 std::vector<std::string> met_names;

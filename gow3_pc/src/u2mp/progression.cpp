@@ -34,6 +34,7 @@
 #include "progression.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -499,6 +500,18 @@ std::vector<std::string> progression_recent_players(size_t max) {
     for (const PlayerStats *p : by_time)
         if (names.size() < max) names.push_back(p->name);
     return names;
+}
+
+std::string progression_player_summary(const std::string &name) {
+    load_store();
+    for (const PlayerStats &p : store.recent) {
+        if (p.name != name) continue;
+        char t[256];
+        std::snprintf(t, sizeof t, "%s: %u matches with you, %u kills, %u deaths, %u wins, %u losses, rank %u.",
+                      p.name.c_str(), p.matches, p.kills, p.deaths, p.wins, p.losses, p.rank);
+        return t;
+    }
+    return name;
 }
 
 void install_progression(int &installed) {

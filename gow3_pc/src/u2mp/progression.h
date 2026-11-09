@@ -16,6 +16,7 @@ void progression_publish();
 
 // The players this PC met in recent matches (local store), most recently seen first, at most `max`.
 std::vector<std::string> progression_recent_players(size_t max);
+std::string progression_player_summary(const std::string &name);   // Players Met: View Profile
 
 // clantag.cpp: BUTTON_CLANTAG's text box (NetPlayerData +0x1a8).
 bool edit_clan_tag();
