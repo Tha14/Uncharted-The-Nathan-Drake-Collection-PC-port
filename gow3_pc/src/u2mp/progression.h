@@ -19,5 +19,7 @@ std::vector<std::string> progression_recent_players(size_t max);
 
 // clantag.cpp: BUTTON_CLANTAG's text box (NetPlayerData +0x1a8).
 bool edit_clan_tag();
+// Per frame of the profile page: takes the clan tag once the text input closes.
+void clan_tag_frame();
 
 }  // namespace u2mp

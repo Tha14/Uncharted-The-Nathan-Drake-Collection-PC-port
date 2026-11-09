@@ -307,6 +307,78 @@ std::string label_of(const char *package) {
     return out;
 }
 
+// Skins the hero / villain lists (0x6595a0, cond 40/41) lack. The lists walk only the MP store's sections
+// 681022f5 (heroes) / 4252add5 (villains) and show an item when a skin record has its id, so each needs a store
+// item too (build_store). The first two have a GOTY record but no store item (net-patch9 swapped their ids with
+// the "ND" / "Doughnut" twins); the next three are campaign costumes with no MP skin; the last two are GOTY MP
+// skins without a store item. Photos / icons of a close twin where the costume has none.
+struct CampaignSkin { const char *package; uint32_t id, name, photo, icon; bool villain; };
+const CampaignSkin kCampaignSkins[] = {
+    {"mp-hero-lazarevic", 0x345329d1, 0xe2ce50df, 0xeabed4cf, 0xffa8b107, true},              // Zoran Lazarevic
+    {"mp-hero-pirate", 0x5a2e4839, 0xc0f12cfd, 0x9f8d3fe9, 0xb980d32e, true},                 // Prakoso
+    {"costume-hero-lazarevic-healed", 0x1c14ad7b, 0x899e21dd, 0xeabed4cf, 0xffa8b107, true},  // Lazarevic - Healed
+    {"hero-dirty-beatup", 0x1b3af509, 0x1d8dbe6a, 0x05a8ba5f, 0x14c66775, false},           // Drake - Dirty and Beat-up
+    {"costume-hero-skeleton-sir-francis", 0x7a66b9bb, 0xba9eb65d, 0x200eed64, 0x3160304e, false},   // Sir Francis Drake
+    {"mp-hero-nd", 0x258034ff, 0x9b7568c5, 0xaa7dcc3a, 0x2534f068, false},                  // ND Drake
+    {"mp-hero-frosty", 0xf0d8079a, 0xaacd3194, 0x01bf230e, 0xb58cceaa, false},              // Santa Drake
+};
+constexpr size_t kCampaignSkinCount = sizeof kCampaignSkins / sizeof *kCampaignSkins;
+constexpr uint32_t kSecHeroSkins = 0x681022f5, kSecVillainSkins = 0x4252add5;
+uint8_t *g_store = nullptr;   // our copy of 92c6db02 with the added skin items
+
+// The MP store (92c6db02) with a store item for every kCampaignSkins entry that has none: the sections array
+// copied, the hero / villain item arrays copied and extended (a sibling item as the template: no condition).
+void build_store() {
+    const uint8_t *store = dc_object(kStoreTable);
+    if (!store || store == g_store) return;
+    const int32_t sections = rd<int32_t>(store, 0);
+    const uint8_t *sec = rd<const uint8_t *>(store, 8);
+    if (sections <= 0 || sections > 32 || !sec) return;
+    auto *mem = static_cast<uint8_t *>(netheap_alloc(0x10 + SEC_STRIDE * uint64_t(sections), 16));
+    if (!mem) return;
+    std::memset(mem, 0, 0x10);
+    uint8_t *secs = mem + 0x10;
+    std::memcpy(secs, sec, SEC_STRIDE * uint64_t(sections));
+    int added = 0;
+    for (int32_t s = 0; s < sections; ++s) {
+        uint8_t *e = secs + SEC_STRIDE * uint64_t(s);
+        const uint32_t id = rd<uint32_t>(e, 0);
+        if (id != kSecHeroSkins && id != kSecVillainSkins) continue;
+        const bool villain = id == kSecVillainSkins;
+        const int32_t n = rd<int32_t>(e, 8);
+        const uint8_t *items = rd<const uint8_t *>(e, 0x10);
+        if (n <= 0 || n > 200 || !items) continue;
+        std::vector<const CampaignSkin *> add;
+        for (const CampaignSkin &c : kCampaignSkins) {
+            if (c.villain != villain) continue;
+            bool have = false;
+            for (int32_t i = 0; i < n && !have; ++i) have = rd<uint32_t>(items + ITEM_STRIDE * uint64_t(i), 8) == c.id;
+            if (!have) add.push_back(&c);
+        }
+        if (add.empty()) continue;
+        auto *arr = static_cast<uint8_t *>(netheap_alloc(ITEM_STRIDE * uint64_t(n + int32_t(add.size())), 16));
+        if (!arr) continue;
+        std::memcpy(arr, items, ITEM_STRIDE * uint64_t(n));
+        const uint8_t *tmpl = items + ITEM_STRIDE * uint64_t(n - 1);
+        for (size_t k = 0; k < add.size(); ++k) {
+            uint8_t *it = arr + ITEM_STRIDE * uint64_t(n + int32_t(k));
+            std::memcpy(it, tmpl, ITEM_STRIDE);   // owned bit, flags +0x28 / +0x30 / +0x38 of a sibling
+            wr<uint32_t>(it, 4, 10);
+            wr<uint32_t>(it, 8, add[k]->id);
+            wr<uint64_t>(it, 0x18, 0);             // no unlock condition
+            wr<uint64_t>(it, 0x40, uint64_t(uintptr_t(add[k]->package)));
+            wr<uint64_t>(it, 0x48, add[k]->id);
+            ++added;
+        }
+        wr<int32_t>(e, 8, n + int32_t(add.size()));
+        wr<uint64_t>(e, 0x10, uint64_t(uintptr_t(arr)));
+    }
+    wr<int32_t>(mem, 0, sections);
+    wr<uint64_t>(mem, 8, uint64_t(uintptr_t(secs)));
+    g_store = mem;
+    log("unlocks: MP store copied with %d added skin item(s) (hero / villain lists)", added);
+}
+
 // The merged skin table: net-patch9's records in PS4 layout, the PS4 records in place of the first
 // GOTY record of their id (or appended).
 bool build_skins(const uint8_t *ps4_table) {
@@ -329,7 +401,7 @@ bool build_skins(const uint8_t *ps4_table) {
     // the PS4 stub has 2 records; anything larger is not the stub (e.g. a table bound by
     // UNCHARTED_U2MP_NETPATCH=all), and its pointers are not followed
     const bool ps4_ok = ps4_n > 0 && ps4_n <= 8 && skin_layout(ps4_recs, ps4_n, SKIN_STRIDE, true, false);
-    const int32_t total = n + (ps4_ok ? ps4_n : 0) + 1;   // + Baseball Shirt Drake (below)
+    const int32_t total = n + (ps4_ok ? ps4_n : 0) + 1 + int32_t(kCampaignSkinCount);   // + Baseball Shirt Drake, campaign skins
     auto *mem = static_cast<uint8_t *>(netheap_alloc(0x10 + SKIN_STRIDE * uint64_t(total), 16));
     if (!mem) return false;
     std::memset(mem, 0, 0x10 + SKIN_STRIDE * uint64_t(total));
@@ -389,6 +461,23 @@ bool build_skins(const uint8_t *ps4_table) {
         wr<uint32_t>(o, 0x18, 0x9a88ecdcu);
         wr<uint32_t>(o, 0x1c, 0xdafcd51bu);
         wr<uint32_t>(o, 0x20, 0xc283da48u);
+        ++appended;
+    }
+    // Campaign costumes of the PS4 game with no multiplayer skin (store.bin 855a9c58 "Character Skins"): their
+    // actor27 packages share the MP skeleton, so the package name goes straight into +8. Appended after the
+    // above, so every earlier position (the crossplay byte index) stays.
+    for (const CampaignSkin &c : kCampaignSkins) {
+        bool have = false;
+        for (int32_t i = 0; i < count && !have; ++i) have = rd<uint32_t>(out + SKIN_STRIDE * uint64_t(i), 0x10) == c.id;
+        if (have) continue;
+        uint8_t *o = out + SKIN_STRIDE * uint64_t(count++);
+        wr<uint32_t>(o, 0, uint32_t(count - 1));
+        wr<uint32_t>(o, 4, c.villain ? 1u : 0u);
+        wr<uint64_t>(o, 8, uint64_t(uintptr_t(c.package)));
+        wr<uint64_t>(o, 0x10, c.id);
+        wr<uint32_t>(o, 0x18, c.name);
+        wr<uint32_t>(o, 0x1c, c.photo);
+        wr<uint32_t>(o, 0x20, c.icon);
         ++appended;
     }
     wr<int32_t>(mem, 0, count);
@@ -896,7 +985,8 @@ void unlocks_refresh() {
         const uint8_t *skins = dc_object(kSkinTable), *boosters = dc_object(kBoosterTable);
         bool extras_ours = true;
         for (const Extra &e : g_extra) extras_ours = extras_ours && (!e.ours || dc_object(e.sid) == e.ours);
-        if ((!g_skins || skins == g_skins) && (!g_boosters || boosters == g_boosters) &&
+        if ((!g_skins || skins == g_skins) && (!g_store || dc_object(kStoreTable) == g_store) &&
+            (!g_boosters || boosters == g_boosters) &&
             (!g_boosters || booster_list_ours()) && extras_ours)
             return;
     }
@@ -914,12 +1004,13 @@ void unlocks_refresh() {
             return;
         }
         build_skins(ps4_skins);
+        build_store();
         build_boosters();
         if (g_extra_on) build_extras();
         else log("unlocks: UNCHARTED_U2MP_GOTY_TABLES=off: the other net.bin stubs stay");
         bool any_extra = false;
         for (const Extra &e : g_extra) any_extra = any_extra || e.ours;
-        if (!g_skins && !g_boosters && !any_extra) {
+        if (!g_skins && !g_boosters && !g_store && !any_extra) {
             g_given_up = true;
             g_bound.store(true, std::memory_order_release);
             return;
@@ -932,6 +1023,18 @@ void unlocks_refresh() {
         if (dc_object(kSkinTable) != g_skins) --binds_left;   // only ineffective binds count (review)
         log("unlocks: skin table 0x%08x bound (%d records)%s", kSkinTable, rd<int32_t>(g_skins, 0),
             dc_object(kSkinTable) == g_skins ? "" : " - NOT effective");
+    }
+    if (g_store && dc_object(kStoreTable) != g_store && binds_left > 0) {
+        // the PS4 net.bin may have been reloaded: our copy points into it, so copy the current one again
+        static int rebuilds = 0;
+        if (rebuilds < 4) {
+            ++rebuilds;
+            build_store();
+        }
+        const uint64_t v = uint64_t(uintptr_t(g_store));
+        bind(kStoreTable, &v);
+        if (dc_object(kStoreTable) != g_store) --binds_left;
+        log("unlocks: MP store 0x%08x bound%s", kStoreTable, dc_object(kStoreTable) == g_store ? "" : " - NOT effective");
     }
     if (g_boosters && dc_object(kBoosterTable) != g_boosters && binds_left > 0) {
         const uint64_t v = uint64_t(uintptr_t(g_boosters));

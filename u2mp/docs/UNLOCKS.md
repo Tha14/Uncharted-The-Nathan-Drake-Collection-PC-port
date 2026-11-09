@@ -176,3 +176,16 @@ PS4 game / import overlay; name table N entries, name listed / NOT listed` (firs
 logs `skin actors: N records from the PS4 game, M from the import overlay, missing: ...`. A NULL result with
 "name NOT listed" = the name table `0x14705f0` lacks the actor; non-NULL = the model object exists and the
 problem is in the actor file or its drawing.
+
+## 7. Campaign skins in the Profile lists (2026-11-09)
+
+The hero / villain lists (cond 40/41, `0x6595a0`, reset op `0x6597b7`) walk only the MP store sections `681022f5`
+(heroes) and `4252add5` (villains) and show an item when a skin record has its id; the record's side is not read.
+unlocks.cpp now binds a copy of `92c6db02` whose two skin sections carry an item (a sibling as template, no
+condition) for each skin that had none, and appends their records after Baseball Shirt Drake:
+Zoran Lazarević (`mp-hero-lazarevic`) and Prakoso (`mp-hero-pirate`) (records without items: net-patch9 swapped
+their ids with the ND / Doughnut twins), the campaign costumes Lazarević - Healed (`costume-hero-lazarevic-healed`,
+villain), Drake - Dirty and Beat-up (`hero-dirty-beatup`, hero), Sir Francis Drake
+(`costume-hero-skeleton-sir-francis`, hero: a guess, as Marco Polo), and the GOTY MP skins ND Drake and Santa
+Drake. Every other campaign costume (store.bin `855a9c58`) already has an MP twin in the lists. The campaign packages
+share the MP skeleton (LOD0 only); not yet spawned in a match. The table order changed: every PC needs this build.

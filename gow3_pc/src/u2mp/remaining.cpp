@@ -396,6 +396,7 @@ U2MP_GUEST void clan_tag(void *, void *, void *) {
     if (!edit_clan_tag()) message_box(kTextClanTag);
 }
 U2MP_GUEST void player_options_page(void *arg, void *, void *) {
+    if (arg32(arg, 0) == 6) clan_tag_frame();   // the clan tag text input (PS3 polled its keyboard here)
     if (arg32(arg, 0) == 6 && state() < 2) pop_page();
 }
 

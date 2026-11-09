@@ -332,3 +332,12 @@ Reading run 48 together with the run-47 draw-job counter:
 * m_pAnimControl 0: identity matrices.
 * world pos 0,0,0 while the object locator is elsewhere: the hero is drawn at the map origin.
 * no updates: the manager bits show why (not live, excluded, or a bucket above 5).
+
+### Run 50: every actor is culled in a match (fix: actor cell)
+
+In the match every actor-path instance (the hero, its weapons, the Gompa prayer banners and streamers) had 0
+walker submits while the menu's actors drew. The visibility gate `0xc42430` tests the instance's cell (+0xd4, set
+once by MeshInstance::Init from its descriptor at `0xc3b934`) against the frame's visible-cell bitset unless it is
+0xffff. Actors get cell 0 (init log: `+d4 0`); the menu level's cell 0 is visible, the match level's is not. Now an
+actor instance with cell 0 gets 0xffff at init (no cell test; the frustum test still runs). Log: `render: actor
+cell fix`; off switch `UNCHARTED_U2MP_ACTOR_CELL=0`. Not yet seen in a match.
