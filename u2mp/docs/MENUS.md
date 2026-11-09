@@ -126,11 +126,14 @@ not available on PC (remaining.cpp).
 ### 3.4 Store ("Rewards"): PAGE_MULTIPLAYER_STORE, PAGE_MULTIPLAYER_STORE_ITEMS
 
 LIST_MP_STORE_SECTIONS (action 25) and LIST_STORE_ITEMS (action 26) are list classes, not query
-conditions; the store module (`0xa4bcb0..0xa4dc50`) buys boosters, skins and taunts with cash from
-NetPlayerData and the `store.bin` / `unlockables.bin` DC data, which PS4 ships. Its code is present
-(`0xa4b4c0..0xa4def0` all have bodies except a 16-byte `ret` at `0xa4dec0`, not examined); with
-NetPlayerData loaded the purchasable items should appear (not verified in the game). The PSN store
-button (sceNpCommerce2) explains it is not available (remaining.cpp).
+conditions. With NET_SM > 1 the store shows the multiplayer item table `0x92c6db02` of net.bin (Hero
+Skins, Villain Skins, Boosters Slot 1 / 2, Co-op Weapon Upgrades, Taunts), else the single-player Rewards
+`0x855a9c58` (store.bin); columns: name (`0x5aef40`), description (`0x5af1a0`), LOCKED / UNLOCKED from
+the item state `0xa4c390`, picture `0x5b0070`. Every multiplayer item is reported unlocked (IsLocked
+`0xa4bb40` and the co-op upgrade level `0xa4d280` ported, unlocks.cpp). Skin and booster rows were blank
+because the PS4 net.bin skin / booster tables are 2-record stubs; the GOTY tables from net-patch9 are bound
+over them (unlocks.cpp). Details: `UNLOCKS.md`. The PSN store button (sceNpCommerce2) explains it is not
+available (remaining.cpp).
 
 ### 3.5 PAGE_MULTIPLAYER_FRIENDS_LIST ("Party Up") and PAGE_FRIENDACTIONS
 

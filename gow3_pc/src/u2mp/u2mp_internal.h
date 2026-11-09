@@ -58,6 +58,7 @@ void install_natives(int &installed);   // natives.cpp: the co-op / net script n
 void install_remaining(int &installed); // remaining.cpp: the last stubbed callbacks and Applies
 void install_menus(int &installed);     // menus.cpp: the multiplayer menu queries (u2mp/docs/MENUS.md)
 void install_menuimages(int &installed); // menuimages.cpp: net image ids, lost menu image types (MENUS.md 7)
+void install_unlocks(int &installed); // unlocks.cpp: every MP item unlocked, GOTY skin/booster tables (UNLOCKS.md)
 void install_dlc(int &installed);       // dlc.cpp: DLC maps offered only when imported (u2mp/docs/DLC.md)
 void install_menudraw(int &installed);  // menudraw.cpp: 2D command arena 192 KiB -> 2 MiB (PORT-MENUDRAW.md)
 void install_frontend2(int &installed); // frontend2.cpp: partial menu functions vs PS3 (PORT-FRONTEND2.md)

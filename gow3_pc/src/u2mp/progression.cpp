@@ -44,6 +44,7 @@
 
 #include "progression_store.h"
 #include "u2mp_internal.h"
+#include "unlocks.h"
 
 extern "C" const char *runtime_file_user_dir(void);
 
@@ -245,6 +246,7 @@ void record_match() {
 // had NetPlayerData connected and published.
 void U2MP_GUEST player_info_update() {
     if (net_state() > 1) {
+        unlocks_refresh();   // GOTY skin / booster tables (unlocks.cpp) before the menus read them
         ensure_connected();
         publish_if_changed();
     }

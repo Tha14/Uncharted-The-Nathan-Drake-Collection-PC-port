@@ -21,6 +21,7 @@
 #include "session_api.h"
 #include "voice.h"
 #include "u2mp_internal.h"
+#include "unlocks.h"
 
 extern "C" int runtime_file_translate(const char *guest, char *out, size_t size);
 
@@ -208,7 +209,8 @@ U2MP_GUEST const char *text_find(void *db, uint32_t id) {
         if (t.id == id) return t.text;
     if (const char *text = extra_text(id)) return text;
     if (const char *text = orig_text_find(db, id)) return text;
-    return import_text(static_cast<const uint8_t *>(db), id);
+    if (const char *text = import_text(static_cast<const uint8_t *>(db), id)) return text;
+    return unlocks_text(id);   // GOTY DLC skin names no bank has: a label from the package name
 }
 
 // Hooks a function whose first `length` bytes are whole position-independent instructions: they

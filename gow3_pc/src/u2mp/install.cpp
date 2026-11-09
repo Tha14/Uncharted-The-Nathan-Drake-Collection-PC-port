@@ -159,6 +159,7 @@ extern "C" int u2mp_install(unsigned char *base, uint64_t size, const uint64_t *
     install_remaining(installed);
     install_menus(installed);
     install_menuimages(installed);
+    install_unlocks(installed);
     install_dlc(installed);
     install_menudraw(installed);
     install_frontend2(installed);
