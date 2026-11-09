@@ -85,6 +85,11 @@ constexpr uint64_t gUnlockAll = 0x1114178;    // debug "unlock all" byte (menu 0
 constexpr uint64_t gNetState = 0x14ce97c;     // NET_SM
 constexpr uint64_t kBoosterList = 0x113a788;  // {u32 count; pad; rec *recs[64]} (netinit.cpp)
 constexpr uint32_t kStoreTable = 0x92c6db02, kSkinTable = 0x5a4731d2, kBoosterTable = 0x916e03b0;
+constexpr uint32_t kRedId = 0x76474d48;   // sid("mp-hero-red"), hero store item 5
+static_assert(sid("mp-hero-red") == kRedId, "skin id");
+// The other net.bin stubs net-patch9 fills (UNLOCKS.md 3.1)
+constexpr uint32_t kCharAttrs = 0x42d1ec02, kSpeakers = 0xbdf0cfd6, kMaterialParams = 0xef68c757,
+                   kNpcInfo = 0xa977dad3, kDefaultSettings = 0x1ad223b4;
 constexpr uint32_t kBoosterNone0 = 0x05454b23, kBoosterNone1 = 0x01845694;   // the two "None" boosters
 constexpr uint32_t kRootType = 0x916aa605;
 constexpr const char *kNetPatch = "/app0/u2data/build/main/dc1/ps4/net-patch9.bin";
@@ -324,7 +329,7 @@ bool build_skins(const uint8_t *ps4_table) {
     // the PS4 stub has 2 records; anything larger is not the stub (e.g. a table bound by
     // UNCHARTED_U2MP_NETPATCH=all), and its pointers are not followed
     const bool ps4_ok = ps4_n > 0 && ps4_n <= 8 && skin_layout(ps4_recs, ps4_n, SKIN_STRIDE, true, false);
-    const int32_t total = n + (ps4_ok ? ps4_n : 0);
+    const int32_t total = n + (ps4_ok ? ps4_n : 0) + 1;   // + Baseball Shirt Drake (below)
     auto *mem = static_cast<uint8_t *>(netheap_alloc(0x10 + SKIN_STRIDE * uint64_t(total), 16));
     if (!mem) return false;
     std::memset(mem, 0, 0x10 + SKIN_STRIDE * uint64_t(total));
@@ -366,9 +371,40 @@ bool build_skins(const uint8_t *ps4_table) {
             }
         }
     }
+    // Hero store item 5 (PS4 store, id 76474d48 = sid("mp-hero-red")) has no record in the PS4 stub or in
+    // net-patch9 (GOTY's patch put mp-hero-nd at that index). The GOTY base net.bin (dc1.psarc) has it:
+    // {index 1, hero, "mp-hero-red", 76474d48, name 9a88ecdc "Baseball Shirt Drake", photo dafcd51b
+    // general/net/player-photos/hero-red, icon c283da48 general/net/player-icons/hero-red, 0}. The PS4 game
+    // has every piece (mp-hero-red.pak, both net.pak images, the text in its networking bank). Appended
+    // at the end, so the indices of every other record stay those of net-patch9's order.
+    bool have_red = false;
+    for (int32_t i = 0; i < count && !have_red; ++i) have_red = rd<uint32_t>(out + SKIN_STRIDE * uint64_t(i), 0x10) == kRedId;
+    if (!have_red) {
+        uint8_t *o = out + SKIN_STRIDE * uint64_t(count++);
+        static const char kRedPackage[] = "mp-hero-red";
+        wr<uint32_t>(o, 0, 1);
+        wr<uint32_t>(o, 4, 0);
+        wr<uint64_t>(o, 8, uint64_t(uintptr_t(kRedPackage)));
+        wr<uint64_t>(o, 0x10, kRedId);
+        wr<uint32_t>(o, 0x18, 0x9a88ecdcu);
+        wr<uint32_t>(o, 0x1c, 0xdafcd51bu);
+        wr<uint32_t>(o, 0x20, 0xc283da48u);
+        ++appended;
+    }
     wr<int32_t>(mem, 0, count);
     wr<uint64_t>(mem, 8, uint64_t(uintptr_t(out)));
     g_skins = mem;
+    // Crossplay: the player data message carries a skin as the record's position in this table (a byte,
+    // 0x6145a7 / 0x614632; the receiver reads the same position, 0x641aa0). The order is net-patch9's,
+    // then the PS4 replacements in place and the appended records, so it is the same on every PC with
+    // the same import. The fingerprint (CRC of the ids in order) must match between the PCs of a match.
+    uint32_t fp = 0;
+    for (int32_t i = 0; i < count; ++i) {
+        char buf[16];
+        std::snprintf(buf, sizeof buf, "%08x", rd<uint32_t>(out + SKIN_STRIDE * uint64_t(i), 0x10));
+        fp = sid(buf, fp);
+    }
+    log("unlocks: skin table order fingerprint %08x (%d records; every PC of a match must log the same)", fp, count);
     // labels for the name ids (served only when no bank has the id)
     std::vector<std::pair<uint32_t, std::string>> names;
     for (int32_t i = 0; i < count; ++i) {
@@ -449,6 +485,244 @@ bool booster_list_ours() {
     const uint32_t n = G<uint32_t>(kBoosterList);
     if (n == 0 || n > uint32_t(kMaxBoosters)) return false;
     return in_np9(reinterpret_cast<const void *>(uintptr_t(G<uint64_t>(kBoosterList + 8))), BOOST_STRIDE);
+}
+
+// ---- the other net.bin stubs (UNLOCKS.md 3.1) ----------------------------------------------------
+// The PS4 net.bin keeps these five symbols as stubs; GOTY's net-patch9 has the full data (the readers
+// are intact PS4 code; netpatch.cpp binds only the symbols the PS4 game lacks, so the stubs stayed):
+//   a977dad3 net-npc-info, {s32 n; pad; rec *} of 12 bytes {+0 archetype sid, +4 class sid, +8 co-op
+//     points}: GetCoopPointsForKill 0x5decf0 (moneymanager.cpp) and 0x645d5e / 0x645e9b / 0x64ab78. An
+//     archetype that is not listed hits an assert (int 0x41 at 0x5dedac / 0x5dedd8): with the 1-record
+//     stub every co-op kill of another NPC type. GOTY 56 records (= the GOTY base net.bin's 56).
+//   42d1ec02 character attributes by actor name, 0x20 {+0 actor name*, +8 key = sid(actor name),
+//     +0x10, +0x14 rig variant (2 / 3), +0x18 class 1..5 (tables 0xdef540 / 0xdef560), +0x1c base sid of
+//     "<x>-phys-fx"}; searched after 74bfa7d0 by 0x5fdbc0 (phys-fx, default 0x474e00), 0x725480,
+//     0x725820, 0x94f61f, 0x94fbc0, 0x9579e1, 0x964fc1, 0x965b05, 0x97863f, 0x9786ff. Stub: mp-hero and
+//     mp-hero-eddie only; GOTY 98. net-patch9 as converted packs the 4-byte fields after the id
+//     ({ptr, id, a, b, c, sid, pad}); re-laid out here.
+//   bdf0cfd6 speakers, sorted 0x10 {u32 key, pad, value*} (binary search, unsigned), value {name*, line
+//     prefix*, *, *}; multiplayer supplement of 1b405df2 at 0x474c08 / 0x725564. Stub 1, GOTY 52 (PS3
+//     records have a fifth u32 the PS4 reader never reads; the converter keeps it after the four pointers).
+//   ef68c757 material parameter set, 0x30 {material path*, parameter*, type (1), from*, to*, cache*},
+//     applied by 0x9f3b70 (from 0x64b926, value from the map record +0x34) through 0xbe78d0, which
+//     follows +0x28 only when set. Stub 1 (Drake's outfit), GOTY 98 (the converted layout is the PS4 one).
+//   1ad223b4 default game settings (type 2209c8ff, *net-games* +0x64 when a game names none): +0 player
+//     health (0x5fd853, scaled by the health booster 9a925faf), floats +4..+0x30. Stub = the GOTY base
+//     value 80; net-patch9 90. The two per-game settings (63e35446, ac1dedb5) are equal in both.
+struct Extra {
+    uint32_t sid;
+    const char *what;
+    const uint8_t *ps4 = nullptr;   // the PS4 stub, captured before anything of ours is bound
+    uint8_t *ours = nullptr;
+};
+Extra g_extra[] = {{kNpcInfo, "net-npc-info"}, {kCharAttrs, "character attributes"}, {kSpeakers, "speakers"},
+                   {kMaterialParams, "material parameter set"}, {kDefaultSettings, "default game settings"}};
+bool g_extra_on = true;   // UNCHARTED_U2MP_GOTY_TABLES=off
+
+bool np9_string(const void *p) {
+    const char *s = static_cast<const char *>(p);
+    for (int i = 0; i < 256; ++i) {
+        if (!in_np9(s + i)) return false;
+        if (!s[i]) return i > 0;
+    }
+    return false;
+}
+
+uint8_t *new_table(int32_t count, uint64_t stride) {
+    const uint64_t bytes = 0x10 + stride * uint64_t(count);
+    auto *mem = static_cast<uint8_t *>(netheap_alloc(bytes, 16));
+    if (!mem) return nullptr;
+    std::memset(mem, 0, bytes);
+    wr<int32_t>(mem, 0, count);
+    wr<uint64_t>(mem, 8, uint64_t(uintptr_t(mem + 0x10)));
+    return mem;
+}
+
+// {s32 count; pad; rec *} of net-patch9 with `stride`-byte records inside our copy; NULL when not.
+const uint8_t *np9_table(uint32_t s, uint64_t stride, int32_t &n, const char *what) {
+    const uint8_t *t = np9_symbol(s);
+    n = t ? rd<int32_t>(t, 0) : 0;
+    const uint8_t *recs = t ? rd<const uint8_t *>(t, 8) : nullptr;
+    if (!t || n <= 0 || n > 1024 || !in_np9(recs, stride * uint64_t(n))) {
+        log("unlocks: net-patch9 %s 0x%08x missing or out of range (%d records); PS4 stub kept", what, s, n);
+        return nullptr;
+    }
+    return recs;
+}
+
+// a977dad3: as converted (all 4-byte fields), PS4 records whose archetype GOTY lacks appended.
+uint8_t *build_npc_info(const uint8_t *ps4) {
+    int32_t n = 0;
+    const uint8_t *recs = np9_table(kNpcInfo, 12, n, "net-npc-info");
+    if (!recs) return nullptr;
+    for (int32_t i = 0; i < n; ++i)
+        if (!rd<uint32_t>(recs, 12 * i)) {
+            log("unlocks: net-npc-info record %d has no archetype; PS4 stub kept", i);
+            return nullptr;
+        }
+    const int32_t pn = ps4 ? rd<int32_t>(ps4, 0) : 0;
+    const uint8_t *pr = ps4 ? rd<const uint8_t *>(ps4, 8) : nullptr;
+    const bool ps4_ok = pn > 0 && pn <= 8 && pr;
+    uint8_t *t = new_table(n + (ps4_ok ? pn : 0), 12);
+    if (!t) return nullptr;
+    uint8_t *out = t + 0x10;
+    std::memcpy(out, recs, 12 * size_t(n));
+    int32_t count = n;
+    for (int32_t j = 0; ps4_ok && j < pn; ++j) {
+        bool have = false;
+        for (int32_t i = 0; i < n && !have; ++i) have = rd<uint32_t>(out, 12 * i) == rd<uint32_t>(pr, 12 * j);
+        if (!have) std::memcpy(out + 12 * count++, pr + 12 * j, 12);
+    }
+    wr<int32_t>(t, 0, count);
+    log("unlocks: net-npc-info: %d GOTY records + %d PS4", n, count - n);
+    return t;
+}
+
+// 42d1ec02: re-laid out to the PS4 record; the PS4 records replace the first GOTY record of their key
+// (the PS4 asset rule, as the skins), others appended; their name strings copied (net.bin may reload).
+uint8_t *build_char_attrs(const uint8_t *ps4) {
+    int32_t n = 0;
+    const uint8_t *recs = np9_table(kCharAttrs, 0x20, n, "character attributes");
+    if (!recs) return nullptr;
+    bool converted = true, ps4_layout = true;
+    for (int32_t i = 0; i < n; ++i) {
+        const uint8_t *r = recs + 0x20 * uint64_t(i);
+        if (!np9_string(rd<const void *>(r, 0)) || !rd<uint32_t>(r, 8)) converted = ps4_layout = false;
+        if (rd<uint32_t>(r, 0x1c) != 0 || rd<uint32_t>(r, 0x18) == 0) converted = false;   // sid at +0x18
+        if (rd<uint32_t>(r, 0xc) != 0 || rd<uint32_t>(r, 0x1c) == 0) ps4_layout = false;  // sid at +0x1c
+    }
+    if (!converted && !ps4_layout) {
+        log("unlocks: net-patch9 character attributes (%d records): unknown layout; PS4 stub kept", n);
+        return nullptr;
+    }
+    const int32_t pn = ps4 ? rd<int32_t>(ps4, 0) : 0;
+    const uint8_t *pr = ps4 ? rd<const uint8_t *>(ps4, 8) : nullptr;
+    const bool ps4_ok = pn > 0 && pn <= 8 && pr;
+    uint8_t *t = new_table(n + (ps4_ok ? pn : 0), 0x20);
+    if (!t) return nullptr;
+    uint8_t *out = t + 0x10;
+    for (int32_t i = 0; i < n; ++i) {
+        const uint8_t *r = recs + 0x20 * uint64_t(i);
+        uint8_t *o = out + 0x20 * uint64_t(i);
+        if (ps4_layout) {
+            std::memcpy(o, r, 0x20);
+            continue;
+        }
+        wr<uint64_t>(o, 0, rd<uint64_t>(r, 0));
+        wr<uint32_t>(o, 8, rd<uint32_t>(r, 8));
+        for (int k = 0; k < 4; ++k) wr<uint32_t>(o, 0x10 + 4 * k, rd<uint32_t>(r, 0xc + 4 * k));
+    }
+    int32_t count = n, replaced = 0;
+    for (int32_t j = 0; ps4_ok && j < pn; ++j) {
+        const uint8_t *p = pr + 0x20 * uint64_t(j);
+        int32_t at = -1;
+        for (int32_t i = 0; i < n && at < 0; ++i)
+            if (rd<uint32_t>(out + 0x20 * uint64_t(i), 8) == rd<uint32_t>(p, 8)) at = i;
+        if (at < 0) at = count++;
+        else ++replaced;
+        uint8_t *o = out + 0x20 * uint64_t(at);
+        std::memcpy(o, p, 0x20);
+        if (const char *nm = rd<const char *>(p, 0)) {
+            const size_t len = std::strlen(nm);
+            if (auto *copy = static_cast<char *>(netheap_alloc(len + 1, 16))) {
+                std::memcpy(copy, nm, len + 1);
+                wr<uint64_t>(o, 0, uint64_t(uintptr_t(copy)));
+            }
+        }
+    }
+    wr<int32_t>(t, 0, count);
+    log("unlocks: character attributes: %d GOTY records (%s layout), PS4 %d replaced, %d appended", n,
+        ps4_layout ? "PS4" : "converted", replaced, count - n);
+    return t;
+}
+
+// bdf0cfd6: sorted by key; GOTY's records (values in our copy), PS4 keys GOTY lacks are logged.
+uint8_t *build_speakers(const uint8_t *ps4) {
+    int32_t n = 0;
+    const uint8_t *recs = np9_table(kSpeakers, 0x10, n, "speakers");
+    if (!recs) return nullptr;
+    for (int32_t i = 0; i < n; ++i) {
+        const uint8_t *r = recs + 0x10 * uint64_t(i);
+        const uint8_t *v = rd<const uint8_t *>(r, 8);
+        bool ok = rd<uint32_t>(r, 4) == 0 && in_np9(v, 0x20) && (i == 0 || rd<uint32_t>(r, 0) > rd<uint32_t>(r, -0x10));
+        for (int k = 0; ok && k < 4; ++k) ok = in_np9(rd<const void *>(v, 8 * k));
+        if (!ok) {
+            log("unlocks: net-patch9 speakers record %d is not a sorted {key, value} record; PS4 stub kept", i);
+            return nullptr;
+        }
+    }
+    uint8_t *t = new_table(n, 0x10);
+    if (!t) return nullptr;
+    std::memcpy(t + 0x10, recs, 0x10 * size_t(n));
+    int missing = 0;
+    const int32_t pn = ps4 ? rd<int32_t>(ps4, 0) : 0;
+    const uint8_t *pr = ps4 ? rd<const uint8_t *>(ps4, 8) : nullptr;
+    for (int32_t j = 0; pr && pn > 0 && pn <= 8 && j < pn; ++j) {
+        bool have = false;
+        for (int32_t i = 0; i < n && !have; ++i) have = rd<uint32_t>(recs, 0x10 * i) == rd<uint32_t>(pr, 0x10 * j);
+        missing += have ? 0 : 1;
+    }
+    log("unlocks: speakers: %d GOTY records%s", n, missing ? " (a PS4 stub key is not among them)" : "");
+    return t;
+}
+
+// ef68c757: the converted records are the PS4 layout; a new header over our copy's records.
+uint8_t *build_material_params(const uint8_t *) {
+    int32_t n = 0;
+    const uint8_t *recs = np9_table(kMaterialParams, 0x30, n, "material parameter set");
+    if (!recs) return nullptr;
+    for (int32_t i = 0; i < n; ++i) {
+        const uint8_t *r = recs + 0x30 * uint64_t(i);
+        const uint32_t type = rd<uint32_t>(r, 0x10);
+        const uint64_t need = type == 3 ? 12 : 4;
+        if (!np9_string(rd<const void *>(r, 0)) || !np9_string(rd<const void *>(r, 8)) || (type != 1 && type != 3) ||
+            !in_np9(rd<const void *>(r, 0x18), need) || !in_np9(rd<const void *>(r, 0x20), need) ||
+            rd<uint64_t>(r, 0x28) != 0) {
+            log("unlocks: net-patch9 material parameter record %d has an unknown layout; PS4 stub kept", i);
+            return nullptr;
+        }
+    }
+    uint8_t *t = static_cast<uint8_t *>(netheap_alloc(0x10, 16));
+    if (!t) return nullptr;
+    wr<int32_t>(t, 0, n);
+    wr<int32_t>(t, 4, 0);
+    wr<uint64_t>(t, 8, uint64_t(uintptr_t(recs)));
+    log("unlocks: material parameter set: %d GOTY records", n);
+    return t;
+}
+
+// 1ad223b4: the PS4 object with net-patch9's fields +0..+0x34.
+uint8_t *build_default_settings(const uint8_t *ps4) {
+    const uint8_t *g = np9_symbol(kDefaultSettings);
+    if (!g || !ps4 || !in_np9(g, 0x34)) {
+        log("unlocks: default game settings: %s; PS4 values kept", g ? "no PS4 object" : "not in net-patch9");
+        return nullptr;
+    }
+    const int32_t health = rd<int32_t>(g, 0);
+    if (health <= 0 || health > 1000) {
+        log("unlocks: net-patch9 default game settings: health %d out of range; PS4 values kept", health);
+        return nullptr;
+    }
+    auto *t = static_cast<uint8_t *>(netheap_alloc(0x40, 16));
+    if (!t) return nullptr;
+    std::memset(t, 0, 0x40);
+    std::memcpy(t, ps4, 0x38);
+    std::memcpy(t, g, 0x34);
+    log("unlocks: default game settings: player health %d (PS4 %d)", health, rd<int32_t>(ps4, 0));
+    return t;
+}
+
+void build_extras() {
+    for (Extra &e : g_extra) {
+        switch (e.sid) {
+        case kNpcInfo: e.ours = build_npc_info(e.ps4); break;
+        case kCharAttrs: e.ours = build_char_attrs(e.ps4); break;
+        case kSpeakers: e.ours = build_speakers(e.ps4); break;
+        case kMaterialParams: e.ours = build_material_params(e.ps4); break;
+        case kDefaultSettings: e.ours = build_default_settings(e.ps4); break;
+        default: break;
+        }
+    }
 }
 
 // ---- spawn diagnostics (test run 41: no player model) ---------------------------------------------
@@ -620,8 +894,10 @@ void unlocks_refresh() {
     if (g_bound.load(std::memory_order_acquire)) {
         // cheap re-check: still ours (a later bind of all net-patch9 symbols would replace them)
         const uint8_t *skins = dc_object(kSkinTable), *boosters = dc_object(kBoosterTable);
+        bool extras_ours = true;
+        for (const Extra &e : g_extra) extras_ours = extras_ours && (!e.ours || dc_object(e.sid) == e.ours);
         if ((!g_skins || skins == g_skins) && (!g_boosters || boosters == g_boosters) &&
-            (!g_boosters || booster_list_ours()))
+            (!g_boosters || booster_list_ours()) && extras_ours)
             return;
     }
     std::lock_guard<std::mutex> lock(g_tables_lock);
@@ -630,6 +906,7 @@ void unlocks_refresh() {
     if (!g_np9) {
         static const uint8_t *ps4_skins = nullptr;
         ps4_skins = dc_object(kSkinTable);   // the PS4 stub (before anything of ours is bound)
+        for (Extra &e : g_extra) e.ps4 = dc_object(e.sid);
         if (!load_np9()) {
             log("unlocks: %s not imported: the PS4 skin / booster tables stay (2 skins, no boosters)", kNetPatch);
             g_given_up = true;
@@ -638,7 +915,11 @@ void unlocks_refresh() {
         }
         build_skins(ps4_skins);
         build_boosters();
-        if (!g_skins && !g_boosters) {
+        if (g_extra_on) build_extras();
+        else log("unlocks: UNCHARTED_U2MP_GOTY_TABLES=off: the other net.bin stubs stay");
+        bool any_extra = false;
+        for (const Extra &e : g_extra) any_extra = any_extra || e.ours;
+        if (!g_skins && !g_boosters && !any_extra) {
             g_given_up = true;
             g_bound.store(true, std::memory_order_release);
             return;
@@ -659,6 +940,13 @@ void unlocks_refresh() {
         log("unlocks: booster table 0x%08x bound (%d records)%s", kBoosterTable, g_booster_count,
             dc_object(kBoosterTable) == g_boosters ? "" : " - NOT effective");
     }
+    for (const Extra &e : g_extra) {
+        if (!e.ours || dc_object(e.sid) == e.ours || binds_left <= 0) continue;
+        const uint64_t v = uint64_t(uintptr_t(e.ours));
+        bind(e.sid, &v);
+        if (dc_object(e.sid) != e.ours) --binds_left;
+        log("unlocks: %s 0x%08x bound%s", e.what, e.sid, dc_object(e.sid) == e.ours ? "" : " - NOT effective");
+    }
     if (g_boosters && !booster_list_ours()) fill_booster_list();
     g_bound.store(true, std::memory_order_release);
 }
@@ -672,6 +960,7 @@ const char *unlocks_text(uint32_t id) {
 
 void install_unlocks(int &installed) {
     if (const char *v = std::getenv("UNCHARTED_U2MP_UNLOCKS"); v && std::strcmp(v, "off") == 0) g_spoof = false;
+    if (const char *v = std::getenv("UNCHARTED_U2MP_GOTY_TABLES"); v && std::strcmp(v, "off") == 0) g_extra_on = false;
     // 0xa4bb40: push rbp; mov rbp,rsp; push r15..rbx; sub rsp,0x28; mov r14,rsi; mov r15,rdi
     static const unsigned char locked_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54,
                                                  0x53, 0x48, 0x83, 0xec, 0x28, 0x49, 0x89, 0xf6, 0x49, 0x89, 0xff};

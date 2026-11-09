@@ -105,4 +105,5 @@ The ported types (0x1e, 0x22, 0x24, 0x25, 0x27) draw into the box the converter 
 - Session (not changed here; session.cpp is not this job's): the package preload log of run 41 says
   `0 requested, 1 already present, 20 not created`: RequestPackage `0x56ad90` creates nothing for the
   weapon and anim-proto packages (they are actor packages, not pak22 levels). The PS3 preload therefore
-  has no effect yet; the request path for actor packages is open.
+  has no effect. Not needed (2026-11-09): on PS4 these are actor packages the level loads itself
+  (PORT-FRONTEND6.md 4).

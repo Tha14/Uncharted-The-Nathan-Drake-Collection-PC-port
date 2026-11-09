@@ -262,3 +262,35 @@ Switches: `UNCHARTED_U2MP_LOADING_PARTICLES=0` (no cards and no gallery request)
   calls the default draw and does not count the glyph.
 - Inferred, to check in a run: the PS4 colour byte order (from the renderer swap) and the 0x10 flag.
 - Switch: `UNCHARTED_U2MP_LOADING_TIP=0` (also off with `UNCHARTED_U2MP_LOADING_TEXT=0`).
+
+### 7.7 Team rosters (run 46: not visible)
+
+Run 46 showed every element but the rosters. Three differences from PS3 were found and fixed:
+
+1. **The page update was not called.** PS3 `0x423410` calls the page's update (vtable +8) with
+   `{menu, 0, frame time}` every frame before the layout `0x408928` and the render `0x4062fc`. On PS4
+   the page update is vtable +0x10 with `{menu (8 bytes), event (4), time (4)}`: the menu update calls
+   it so for the current page (`0x5cfb06..0x5cfb32`, page `[menu+0x9b8]`, PS3 `0x428c1c..0x428c4c` with
+   menu+1084). Only the current page gets it from the menu manager, so PAGE_MULTIPLAYER_LOADING's two
+   team lists never ran their update. The port now calls it every frame, then `0x5a6000` (= PS3
+   `0x409428`: layout `0x5a2670` + render, what `0x5d12f0` uses).
+2. **The refresh `0x4233c4` was missing.** Page +216 = 2 is not a list refresh: it is the counter the
+   layout reads to set item positions instead of animating them, decremented per layout (PS3
+   `0x408c8c`, `0x408edc..0x408eec`). PS4: page +0xf8 (`0x5a2ad4`, `0x5a330c`, `0x5a337e..0x5a338c`).
+   Set to 2 on show. The PS3 descriptor byte +64 is forced to 1 (`0x4234f8`): PS4 desc +0x44 = 1.
+3. **Show / hide was not per frame.** PS3 polls `0xf119c5` once a frame; LoadLevels::Exit and
+   WaitReady::Enter set and clear it in the same frame, so PS3 never restarts. The port applied each
+   state hook at once: in run 46 the screen restarted at WaitReady::Enter (timer, cards, and the
+   rosters' 3 s delay). The hooks now only record the request; `apply_show()` applies it per frame.
+
+The list rows themselves come from the intact action-23 queries (cond 0 / 1, column set `dcae45f4`,
+NetGameManager trackers; MENUS.md 3.7), so menus.cpp needs no change for this page.
+
+Not ported: PS3 `0x423410` draws only while `[menu+1460] == 0`; its PS4 field was not identified (it
+is not the page stack index, PS4 +0x1010 = PS3 +1456).
+
+Log lines for the next run: `rosters page b9df67d6 found, refreshed (+0xf8 = 2)` (or `NOT FOUND`) at
+show; `rosters page updated and drawn (first frame): N items` and again `(visible)` at full alpha, each
+followed by one line per item: for the team list controls (class vtable `0x1007910`) the list object
++0x18 and its range from the list's own getters (slot 0 current, 0x30 first, 0x38 last row, the values
+the control clamps with in `0x58c6a0`).

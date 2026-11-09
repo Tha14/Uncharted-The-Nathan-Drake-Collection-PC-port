@@ -80,6 +80,8 @@ Ammo, weapon, grenade count and reticle belong to the shared (single-player) HUD
 
 ### 4.1 Ported: the message list (kill feed, multi-kill / medal lines), PS3 0x8abc68 + 0x8ab600
 
+The line layout below (score-widget copies in a 220-unit column) is replaced by section 6.3.
+
 The data is intact on PS4. The list is at element+0x40: `{s32 count; entry[16] of 0x80 at +8}`. It is
 filled by `0x55d140` (PS3 AddMessage; called by the net event Applies at `0x611160`, `0x612770`,
 `0x61e710`, `0x61eb90`, `0x622d60`, `0x6236b0`, `0x625890`) and expired by the Update `0x55abe0`.
@@ -275,9 +277,123 @@ with the cinema port (cinema.cpp).
 
 ### 5.7 Unverified
 
-- Placement on screen depends on the HUD's 1280 x 720 space (PS3 `[0x10288a4]`), which is assumed.
+- (Placement: checked in section 6.2. Text, images and the projection all use 1280 x 720.)
 - The DrawText state is built from `0x5555a0` and read from `0xcc9a70`, not tested.
 - The HUD alpha `[0x104ed0c]` is taken as PS3 `[0xe1a660]` by analogy.
 - The sids used here (a2a60dcf, 68951e57, 12ffe6ae, bda0f568, f1b63553, ffa98ec5) are PS3 net-table
   sids. menuimages.cpp's lookup finds them among the PS4 names, or in net-u2mp; if neither has one, that
   quad is skipped.
+
+## 6. Fourth pass: why no HUD image drew, layout check (run 46)
+
+Static analysis only; nothing was built or run. Run 46 (Village deathmatch, the core panel build) showed
+the score texts in the right places but no frame / background image.
+
+### 6.1 The cause: the draw context is NULL on PS4
+
+The HUD manager's frame update is called as `0x554340(hud, 0, 0)` (`0x3fc529 xor esi,esi`,
+`0x3fc52d call 0x554340`), and the element loop `0x554710` passes that rsi (r12) to every slot 1 Draw.
+So the second argument of every PS4 HUD Draw is NULL. It is the draw list: `0x555c60` copies it into
+`{list, 0, 0, 0, 0, 0}` for `0xbdce90`, and a NULL list is the deferred 2D arena (as `menu_draw_quad`
+uses it). The SP timer `0x559770` hands it on unchanged. hud.cpp returned early on `!ctx` in
+`frame_image`, `quad`, `quad4`, the ring meter, the boosters and the co-op panel, so not one HUD image was
+drawn. The texts draw through `0x5555a0`, which takes no context, and so they showed.
+
+Fix: no ctx test is left; NULL is passed through as PS4 passes it.
+
+The images themselves are in the PS4 data:
+
+| PS3 sid | PS3 name (g-net.pak) | PS4 net.pak / hud.pak | used by |
+|---|---|---|---|
+| (widget) | general/net/mini-score/default, /tow | net.pak `mini-score:default` (index 0 in the table dump of run 46), `:tow` | frames, carrier icons (set +0x18..+0x28, +0x58, +0x60) |
+| (widget) | general/net/message-back/default | net.pak `message-back:default` | kill feed back (set +0xb8) |
+| (widget) | general/net/coop-icons/meter-back | net.pak `coop-icons:meter-back` | co-op panel (set +0xd0) |
+| a2a60dcf | general/net/icon-glow/circle | net.pak `icon-glow:circle` | names status glow |
+| 68951e57 | general/net/coop-icons/meter | net.pak `coop-icons:meter` | ring meters |
+| 12ffe6ae | general/net/flag-icons/territory | net.pak `flag-icons:territory` | Turf War squares |
+| bda0f568 | general/net/rank-badges/default | net.pak `rank-badges:default` | rank icons 59..63 |
+| f1b63553 | general/net/rank-badges/default2 | not in PS4; net-u2mp | rank icons above 63 |
+| ffa98ec5 | general/net/mic/default | net.pak `mic:default` | talk icon |
+| 2fb98f98 | general/net/headshot/default | net.pak `headshot:default` | kill feed headshot |
+| 6927b434 | general/hud/alpha-icon/default | hud.pak `alpha-icon:default` | emblem (not drawn) |
+
+PS4 names its materials "set:name" and gives them the CRC of that name as id; a PS3 sid is the CRC of
+"set/name". An image widget loads its own id by name (`0x555140` turns the last '/' into ':'), so the
+dc widgets find the PS4 ids. The sids built in code are found by `0x5558c0` (menuimages.cpp: PS4 id, then
+the PS3 name, then net-u2mp). hud.cpp now resolves each handle once per material table (pointer, count)
+and replaces a PS3 sid with the PS4 id and index (the PS4 asset is used). Each image that does not resolve
+is logged once:
+- `hud: image <part> id <id> table <n> (<hud|net>) index <i> not resolved: <table> table set|NULL, <n> materials`
+  (code-built handles);
+- `hud: image <part> (widget <material name>) id <id> table <n> ... not resolved ...` (dc image widgets,
+  checked after `0x5559f0` cached its id and index).
+
+A PS3 sid that maps to a PS4 id is logged once as `-> PS4 id`. The draw log (`hud: multiplayer draw #n`)
+now also prints the draw list pointer, the message count and the hud / net material table sizes.
+
+### 6.2 Layout: what the data says
+
+**The widget set is PS3's.** PS4 `dc1/ps4/hud-settings.bin` record 9353ed16 (+0x90) and PS3 hud-settings
+record 9353ed16 (+0x58) hold the same values (positions, sizes, scales, colours, uvs):
+
+| set PS4 (PS3) | widget | values (1280 x 720) |
+|---|---|---|
+| +0x08 (+4) | own score text | (555, 59) box 60, right, scale 0.85, colour 0.80 0.98 0.63 |
+| +0x10 (+8) | other score text | (687, 59) box 60, left, 0.85, colour 1 0.69 0.60 |
+| +0x30 (+24) | limit / round value | (770, 69) box 60, centre, 0.6 |
+| +0x38 (+28) | label (GOAL / ROUND) | (770, 60) box 60, centre, 0.3 |
+| +0x40 / +0x48 (+32 / +36) | minutes / seconds | (433, 62) right 0.7 / (494, 66) left 0.6 |
+| +0x58 (+44) | frame image mini-score:default | (440, 50) 400 x 60.94, uv 0,0..1,0.6094, white alpha 0.5 |
+| +0x60 (+48) | Turf War frame mini-score:tow | same place and size |
+| +0x18..+0x28 (+12..+20) | carrier icons, mini-score sub-images | (627, 56) 49.92 x 37.44 |
+| +0xb8 (+100) | kill feed back message-back:default | 350 x 26 |
+
+- **Units.** All three use 1280 x 720, as PS3:
+  - Text: `0x5555a0` passes widget pos + pos to DrawText as is, and run 46's texts sit where these
+    numbers put them (e.g. "0:41" ends at x = 493 x 0.75 = 370 of 960).
+  - Images: PS4 changed one hud widget (set 7) to a full-screen image of 1280 x 720 at (0, 0).
+  - Projection: `0x5566b0` maps to (640, 360) +- (640, 360).
+- **Fonts and scales.** Neither PS3 `0x8a0f04` nor PS4 `0x5555a0` reads the widget's font word (+0x28).
+  Both use the default font, the widget scale (+0x14) and the box width (+0x08). The float argument of
+  both is an alpha factor, not a scale. So the texts are drawn as PS3 drew them.
+- **Quad orientation.** PS3 `0x89ff3c` and PS4 `0x555c60` turn a centred quad by 3pi/2 - atan2(-dir.y,
+  dir.x) (PS3 TOC 4.712389 at `0x8a0054`, PS4 `0xe610b0`), so the PS3 dir arguments carry over.
+
+The panel looked small and badly spaced in run 46 only because its frame was missing. The frame spans
+440..840 x 50..111, and the numbers are placed inside it.
+
+### 6.3 The kill feed line, ported from PS3 0x8ab600
+
+The first port drew each name as a copy of the score widget, right-aligned in a 220-unit column at
+scale 0.55. Those values were not from PS3. `draw_message_line` / `draw_messages` now follow PS3 (TOC
+values at `0xdd0bxx`):
+- **List (`0x8abc68`).** Per line:
+  - measure it at scale 1;
+  - s = 350 / width when it is wider than 350, else 1;
+  - draw the back widget (set +0xb8) at (x - 8, y - 2) with the line alpha;
+  - draw the line at scale s.
+
+  The alpha includes the HUD alpha (`[0xe1a660]` -> `[0x104ed0c]`).
+- **Line.** Each text is DrawText at scale 0.5 s, box 999999 x 40, flags 8 (12 to measure), in the entry
+  colour. In order:
+  - text 1;
+  - a gap of 10 s;
+  - the weapon icon;
+  - with flag 8 the headshot icon (28 s at (x - 4 s, y + 10 - 14 s)), then 30 s;
+  - text 2.
+- **Count badge (`0x8ab8b0`).** With a count and flags & 6, a badge is drawn at (x - 58, y - 1): a 50 x 25
+  box in 0x5495bb / 0xd73e60 (flag 2) with "%s%i" of TextDb 9b5b3c66 (or "") and the count, scale 0.4,
+  centred.
+
+Left out:
+- the badge box (PS3 `0x4156cc` has no PS4 counterpart). The count is drawn in the box colour instead of
+  black on the box;
+- the weapon icon (`0x8a0260` by name from the record at +0x68, 0.45 s high; that record's PS4 layout is
+  not mapped). Its width is then 0, as on PS3 for an entry without an icon.
+
+### 6.4 Still to check in a test
+
+- Any `hud: image ... not resolved` lines, and the `-> PS4 id` lines.
+- That the frame now shows behind the score (440..840 x 50..111 at 1280 x 720).
+- Names, markers, boosters, the co-op and Turf War panels in their own game types. They draw with the
+  same quad path, so the ctx fix applies to them too.

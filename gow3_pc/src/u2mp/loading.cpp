@@ -345,16 +345,34 @@ void prepare() {   // the net game's map name (level record +4) and its descript
     game_text[sizeof game_text - 1] = 0;
 }
 
-void show(bool on, const char *why) {   // 0x4adaf8
-    if (!enabled || showing.load() == on) return;
+// PS3 polls the flag 0xf119c5 once per frame (0x447248 -> 0x4adaf8(obj, flag)); the state functions only
+// set it. LoadLevels::Exit and WaitReady::Enter run in the same frame, so PS3 never sees the screen
+// hidden between them and nothing restarts (run 46 restarted the timer, the cards and the rosters'
+// 3 s delay there). The hooks therefore only record the request; apply_show() runs per frame.
+std::atomic<int> requested{-1};   // -1 nothing new, else 0 / 1
+const char *requested_why = "";
+void refresh_page(uint32_t id);   // 0x4233c4, below
+
+void show(bool on, const char *why) {
+    if (!enabled) return;
+    requested_why = why;
+    requested = on ? 1 : 0;
+    log("loading screen: %s requested (%s)", on ? "show" : "hide", why);
+}
+
+void apply_show() {   // 0x4adaf8 (obj+4 0 -> 1: 0x4ad600 and 0x4233c4)
+    const int r = requested.exchange(-1);
+    if (r < 0 || showing.load() == (r == 1)) return;
+    const bool on = r == 1;
     if (on) {
         prepare();
         shown_at = std::chrono::steady_clock::now();
         if (with_cards && cards_ready) start_cards();   // 0x4adb88 -> 0x4ad600
         tip_reset();                                    // 0x4adb98: obj+24 = obj+28 = 0
+        refresh_page(kPageLoading);                     // 0x4adba0 -> 0x4233c4
     }
     showing = on;
-    log("loading screen: %s (%s)", on ? "shown" : "hidden", why);
+    log("loading screen: %s (%s)", on ? "shown" : "hidden", requested_why);
 }
 
 // ---- the PS4 item calls ------------------------------------------------------------------------------
@@ -384,19 +402,75 @@ void item_fill(const Xform &x, float rx, float ry, float rw, float rh) {
                                                                                           rect, 1, 1);
 }
 
-// PS3 0x423410(menu, id, alpha, pos): the page object (PS4 menu+0x370[i], id +0x10) drawn as 0x5d12f0
-// draws the top page: 0x5a6000(context, desc, page, alpha), desc = {menu+0x10, transform, screen rect
-// {0, 0, 1280, 720} (0xe34290), frame time / 300 (0x5d132d), menu state 1..2, menu+0x17a4}.
-void draw_page(uint32_t id, float alpha, float x, float y) {
+// The page object by id: PS3 menu+720[90] (id +12), PS4 menu+0x370[200] (id +0x10), as ShowPage 0x5cb9c0.
+uint8_t *find_page(uint32_t id) {
+    const uint64_t menu = addr::menu_manager;
+    for (uint64_t i = 0; i < MENU_PAGE_COUNT; ++i) {
+        uint8_t *p = G<uint8_t *>(menu + MENU_PAGES + 8 * i);
+        if (!p) break;
+        if (*reinterpret_cast<const uint32_t *>(p + PAGE_ID) == id) return p;
+    }
+    return nullptr;
+}
+
+// PS3 0x4233c4(menu, id): page +216 = 2, the counter the layout 0x408928 reads (positions set, not
+// animated, while it is not 0) and decrements; PS4 page +0xf8 (layout 0x5a2ad4 / 0x5a337e).
+constexpr uint64_t PAGE_SNAP = 0xf8, PAGE_ITEM_COUNT = 0xb4, PAGE_ITEMS = 0xb8;
+std::atomic<bool> page_log_first{false}, page_log_visible{false};
+void refresh_page(uint32_t id) {
+    uint8_t *page = find_page(id);
+    if (page) *reinterpret_cast<int32_t *>(page + PAGE_SNAP) = 2;
+    log("loading screen: rosters page %08x %s%s", id, page ? "found, refreshed (+0xf8 = 2)" : "NOT FOUND",
+        with_rosters ? "" : " (rosters off)");
+    page_log_first = page_log_visible = true;
+}
+
+// Diagnostics: the page's items and, for list controls (kind 10, class vtable 0x1007910), the list
+// object (+0x18) range the control itself clamps with (0x58c6a0: slot 0 current, 0x30 first, 0x38 last).
+void log_page(uint8_t *page, const char *when) {
+    const int32_t n = *reinterpret_cast<const int32_t *>(page + PAGE_ITEM_COUNT);
+    uint8_t **items = *reinterpret_cast<uint8_t ***>(page + PAGE_ITEMS);
+    log("loading screen: rosters page %s: %d items", when, n);
+    const uint64_t kList10 = uint64_t(uintptr_t(image.base)) + 0x1007910;
+    for (int32_t i = 0; i < n && i < 8 && items; ++i) {
+        uint8_t *c = items[i];
+        if (!c) continue;
+        const uint64_t vt = *reinterpret_cast<const uint64_t *>(c);
+        if (vt != kList10) {
+            log("loading screen:   item %d vtable 0x%llx", i, (unsigned long long)(vt - uint64_t(uintptr_t(image.base))));
+            continue;
+        }
+        uint8_t *list = *reinterpret_cast<uint8_t **>(c + 0x18);
+        int32_t cur = -9, first = -9, last = -9;
+        if (list) {
+            using Get = int32_t(U2MP_GUEST *)(void *);
+            const uint64_t *lvt = *reinterpret_cast<const uint64_t *const *>(list);
+            cur = reinterpret_cast<Get>(lvt[0])(list);
+            first = reinterpret_cast<Get>(lvt[0x30 / 8])(list);
+            last = reinterpret_cast<Get>(lvt[0x38 / 8])(list);
+        }
+        log("loading screen:   item %d: team list (cond %d), list %p: rows %d..%d (current %d)", i,
+            *reinterpret_cast<const int32_t *>(c + 0x10), static_cast<void *>(list), first, last, cur);
+    }
+}
+
+// PS3 0x423410(menu, id, alpha, pos): finds the page; desc = 0x422b18(menu, xform with alpha [4]) with
+// byte desc+64 = 1 and the position composed in ([8] [9]); page->update({menu, 0, frame time})
+// (vtable +8); layout 0x408928; render 0x4062fc. PS4: the update is page vtable +0x10 with {menu (8),
+// event (4), time (4)} (the menu update 0x5cfb06 calls the current page so); 0x5a6000(context, desc,
+// page, alpha) is the page draw 0x5d12f0 uses (PS3 0x409428: layout 0x5a2670 + render). desc =
+// {menu+0x10, transform, screen rect {0, 0, 1280, 720} (0xe34290), frame / 300 (0x5d132d), +0x44 (PS3
+// desc+64) = 1, menu+0x17a4}.
+void draw_page(uint32_t id, float alpha, float x, float y, float dt) {
     if (!with_rosters) return;
     const uint64_t menu = addr::menu_manager;
-    void *page = nullptr;
-    for (uint64_t i = 0; i < MENU_PAGE_COUNT && !page; ++i) {
-        void *p = G<void *>(menu + MENU_PAGES + 8 * i);
-        if (!p) break;
-        if (*reinterpret_cast<const uint32_t *>(static_cast<uint8_t *>(p) + PAGE_ID) == id) page = p;
-    }
+    uint8_t *page = find_page(id);
     if (!page) return;
+    struct Update { void *menu; int32_t event; float time; } u{image.at<void>(menu), 0, dt};
+    static_assert(offsetof(Update, event) == 8 && offsetof(Update, time) == 12, "update args");
+    using UpdateFn = void(U2MP_GUEST *)(void *, Update *);
+    const uint64_t *vt = *reinterpret_cast<const uint64_t *const *>(page);
+    reinterpret_cast<UpdateFn>(vt[0x10 / 8])(page, &u);
     struct alignas(8) Desc {
         void *ctx;
         float x[10];          // +0x08 (the transform, unaligned here as in 0x5d12f0's frame)
@@ -417,10 +491,12 @@ void draw_page(uint32_t id, float alpha, float x, float y) {
     d.screen[2] = 1280.0f;
     d.screen[3] = 720.0f;
     d.time = float(G<int32_t>(kFrameCounter)) * (1.0f / 300.0f);
-    const int32_t st = G<int32_t>(menu);
-    d.state12 = uint8_t(uint32_t(st - 1) < 2);
+    d.state12 = 1;   // PS3 0x4234f8: stb 1 at desc+64
     d.v17a4 = G<int32_t>(menu + MENU_17A4);
     guest<void(U2MP_GUEST *)(void *, void *, void *, float)>(fPageDraw)(nullptr, &d, page, alpha);
+    // logged on the first frame after show and on the first fully visible one
+    if (page_log_first.exchange(false)) log_page(page, "updated and drawn (first frame)");
+    if (alpha >= 1.0f && page_log_visible.exchange(false)) log_page(page, "updated and drawn (visible)");
 }
 
 // ---- cards: the gallery picture (0x4aef94..0x4aefdc) -------------------------------------------------
@@ -796,7 +872,7 @@ void draw_screen(float dt) {
     }
     // 3. rosters (0x4aeb60): alpha a * clamp(t - 3, 0, 1), y = 200 * (1 - clamp((t - 2) * 0.6667, 0, 1))^2
     const float slide = 1.0f - std::clamp((t - 2.0f) * 0.6666667f, 0.0f, 1.0f);
-    draw_page(kPageLoading, a * std::clamp(t - 3.0f, 0.0f, 1.0f), 0, slide * slide * 200.0f);
+    draw_page(kPageLoading, a * std::clamp(t - 3.0f, 0.0f, 1.0f), 0, slide * slide * 200.0f, dt);
     // 4. the band (0x4aeb68): {128, 22, 1152, 278}, colour a, alpha a * 0.75
     if (uint8_t *m = menu_net_material(sid("general/net/loading-screen/title-back")))
         menu_draw_quad(m, 128, 22, 1152, 278, 0, 0, 1, 1, a * 0.75f, a);
@@ -829,6 +905,7 @@ U2MP_GUEST uint64_t draw_2d(void *tables, uint64_t a, uint64_t b) {
     const float dt = have_frame ? std::min(std::chrono::duration<float>(now - last_frame).count(), 0.1f) : 0.0f;
     last_frame = now;
     have_frame = true;
+    apply_show();   // the per-frame poll of 0x447248
     if (showing.load(std::memory_order_relaxed) || fade > 0) draw_screen(dt);
     return r;
 }

@@ -35,6 +35,7 @@
 #include <vector>
 
 #include "frontend3.h"
+#include "frontend6.h"
 #include "session_api.h"
 #include "u2mp_internal.h"
 
@@ -86,6 +87,8 @@ enum : uint8_t { kMmStart = 0x10,        // 0x107 leader -> party: follow into m
                  kMmResult = 0x14,       // 0x109 host -> all: {s16 game, u32 ticks left}
                  kMmLeave = 0x15,        // matchmaking ends for the party
                  kLeaderBack = 0x16 };   // 0x115 the leader backed out
+// 0x17 = frontend6::kStartingMessage (0x114, the "Starting in" popup)
+static_assert(frontend6::kStartingMessage == kLeaderBack + 1, "session message numbers");
 
 template <typename T> T &G(uint64_t offset) { return *image.at<T>(offset); }
 template <typename F> F guest(uint64_t offset) { return reinterpret_cast<F>(image.base + offset); }
@@ -177,6 +180,7 @@ void open_vote(int16_t a, int16_t b, uint32_t left) {
     v.game[1] = b;
     G<int32_t>(kNetInfo + NI_PHASE) = kPhaseVote;
     set_deadline(left);
+    frontend6::preload_net_game(true, true, true);   // PS3 0x4b0840 (member) / 0x4b0a28 (host)
 }
 
 void start_vote() {   // host: SERVER_LOBBY -> SERVER_VOTE_SCREEN (PS3 0x4b35c0)
@@ -201,6 +205,7 @@ void apply_result(int16_t game, uint32_t left) {
     set_net_game(game);
     G<int32_t>(kNetInfo + NI_PHASE) = kPhaseStart;
     set_deadline(left);
+    frontend6::preload_net_game(true, true, false);   // PS3 0x4affe0 (host) / 0x4b1fd4 (member): the winner's levels
 }
 
 void finish_vote() {   // host: the winner (PS3 mailbox 0x109)
@@ -470,7 +475,10 @@ void on_message(uint8_t from, const uint8_t *d, size_t n) {
         else if (from == 0) leave(false);
         break;
     case kLeaderBack:   // PS3 0x439b80: the member's "Starting in" popup closes
-        if (!host && from == 0 && top_page() == kMessageBoxPage) pop_page();
+        if (!host && from == 0 && (frontend6::popup_up() || top_page() == kMessageBoxPage)) pop_page();
+        break;
+    case frontend6::kStartingMessage:   // PS3 0x43a444 on mailbox 0x114: the "Starting in" popup (frontend6.cpp)
+        if (!host && from == 0) frontend6::member_starting();
         break;
     default:
         break;

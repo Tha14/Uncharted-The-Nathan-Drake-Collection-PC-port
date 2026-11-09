@@ -59,9 +59,7 @@ game lacks, so the stubs stayed):
 | `5a4731d2` skins, PS4 record 0x30: `+0` index, `+4` side, `+8` package name*, `+0x10` id (8 bytes), `+0x18` name, `+0x1c` photo, `+0x20` icon, `+0x24`, `+0x28` | 2 (Drake, Eddy Raja) | 107 | store name `0x5aefe8` (`+0x18`), store picture `0x5b00bf` (`+0x1c`), skin lists `0x6595a0`, spawn `0x6632e5` (`+8`), party icons `0x65b749` (`+0x20`) |
 | `916e03b0` boosters, 0x20: `+0` name, `+4` description, `+8` picture, `+0xc` id, `+0x10` slot, `+0x14` amount, `+0x18`, `+0x1c` | 2 ("None" x2) | 32 | booster list `0x113a788` (netinit.cpp; store name `0x5af04e`, picture `0x5b0117`, amounts `0x5f6410`), player booster index -> id `0x5e99a9`, `0x662df5` |
 
-Other PS4 stubs next to them (not store data, left as they are): `42d1ec02` (2 vs 98 per-skin records,
-`0x5fdc1f`, has a default path), `bdf0cfd6` (1 vs 52), `ef68c757` (1 vs 98), `a977dad3` (1 vs 56, money
-awards, `0x5ded06`), `1ad223b4` (80 vs 90).
+Other PS4 stubs next to them are bound too (section 3.1).
 
 `unlocks_refresh()` (first call while NET_SM > 1: 0x64e810 or the first IsLocked) loads its own copy of
 net-patch9, relocates it with `0xa19a00` and binds with `0xa16d70` (byte-checked as in netpatch.cpp):
@@ -75,6 +73,23 @@ net-patch9, relocates it with `0xa19a00` and binds with `0xa16d70` (byte-checked
   record of their id (GOTY's first Drake record is the server's holiday model `mp-hero-frosty`).
 - Re-checked on every 0x64e810 call; rebound if something replaced them. A missing / bad file: logged, PS4
   tables kept, no crash.
+
+### 3.1 The other net.bin stubs (2026-11-09)
+
+Five more symbols are stubs in the PS4 `net.bin` and full in net-patch9. Every reader is intact PS4 code;
+`unlocks_refresh()` builds a table of its own for each from its net-patch9 copy (the converted layout is
+checked record by record against the PS4 readers) and binds it with the skins and boosters. Off switch:
+`UNCHARTED_U2MP_GOTY_TABLES=off`. Log: `unlocks: net-npc-info: ...`, `character attributes: ...`,
+`speakers: ...`, `material parameter set: ...`, `default game settings: player health 90 (PS4 80)`,
+`... 0x<sid> bound`.
+
+| symbol | what (PS4 readers) | PS4 stub / GOTY | effect of the stub | PC |
+|---|---|---|---|---|
+| `a977dad3` net-npc-info | 12-byte `{archetype sid, class sid, co-op points}`; GetCoopPointsForKill `0x5decf0` (moneymanager.cpp), `0x645d5e`, `0x645e9b`, `0x64ab78` | 1 / 56 (= GOTY base net.bin) | an archetype not in the list hits the assert `int 0x41` (`0x5dedac` / `0x5dedd8`): every co-op kill of another NPC type | GOTY records as converted (same layout), PS4 records appended if GOTY lacks their archetype |
+| `42d1ec02` character attributes | 0x20 `{actor name*, +8 key = sid(actor name), +0x10, +0x14 rig variant 2 / 3, +0x18 class 1..5 (tables 0xdef540 / 0xdef560), +0x1c base sid of "<x>-phys-fx"}`, searched after `74bfa7d0`: `0x5fdbc0` (phys-fx, else default `0x474e00`), `0x725480`, `0x725820`, `0x94f61f`, `0x94fbc0`, `0x9579e1`, `0x964fc1`, `0x965b05`, `0x97863f`, `0x9786ff` | 2 (mp-hero, mp-hero-eddie) / 98 | every other skin gets default rig variant, class and no phys-fx | re-laid out (the converter packed `{ptr, id, a, b, c, sid, pad}`); the two PS4 records replace GOTY's of the same key |
+| `bdf0cfd6` speakers | sorted 0x10 `{key, pad, value*}`, value `{name*, line prefix*, *, *}` ("Multiplayer Hero (sullivan...)", "mlb-"); binary search after `1b405df2` at `0x474c08`, `0x725564` (multiplayer only) | 1 / 52 | other skins get no speaker entry | GOTY records (checked sorted, values inside our copy; PS3's fifth u32 stays after the four pointers, unread) |
+| `ef68c757` material parameter set | 0x30 `{material path*, parameter*, type 1, from*, to*, cache*}`, applied by `0x9f3b70` (from `0x64b926`, value by the map record `+0x34`) through `0xbe78d0` (follows +0x28 only when set) | 1 (Drake's outfit cloth) / 98 | only Drake's outfit gets `g_fTileMaskStrength` | GOTY records (converted layout = PS4 layout) |
+| `1ad223b4` default game settings | type `2209c8ff` used when a `*net-games*` record names none (`+0x64`): `+0` player health (`0x5fd853`, scaled by the health booster `9a925faf`), floats `+4..+0x30` | 80 (= GOTY base) / 90 | 80 health instead of GOTY's 90 | PS4 object with net-patch9's `+0..+0x34`. The per-game settings `63e35446`, `ac1dedb5` are equal in both |
 
 Every picture id of the store skins and boosters exists in the PS4 `net.pak` or in the imported
 `net-u2mp.pak` (u2netimg.py: player photos / icons of Platzor, Glowzor, Rika, Pinkerton, Lazarevic, Cole,
@@ -113,8 +128,19 @@ Skin descriptions: the PS4 store shows none for skins (the description column of
 
 ## 5. Still missing
 
-- Hero item index 5 (`76474d48`, package `mp-hero-red`, a PS4-only actor) has no skin record in the PS4 or
-  the GOTY tables (GOTY had `mp-hero-nd` there): its store row stays blank and it is not in the hero list.
+- Hero item index 5 (`76474d48` = sid("mp-hero-red")): no record in the PS4 stub or net-patch9 (GOTY's patch put
+  `mp-hero-nd` at index 1, where the GOTY base `net.bin` of `dc1.psarc` has it). **Added** from the GOTY base
+  record: `{index 1, hero, "mp-hero-red", 76474d48, name 9a88ecdc "Baseball Shirt Drake", photo dafcd51b, icon
+  c283da48}`. All of it is PS4's: `mp-hero-red.pak`, `player-photos:hero-red` / `player-icons:hero-red` in the PS4
+  net.pak, the name in the PS4 networking bank. It is appended at the end of the merged table, so every other
+  index is unchanged. Its character attributes record is GOTY's (3.1).
+- Skin index vs id between PCs: the player data message sends a skin as its position in `5a4731d2` (byte,
+  `0x6145a7` / `0x614632`), and the receiver reads the same position (`0x641aa0`, bounds-checked). The merged table's
+  order is fixed (net-patch9's order, PS4 records in place, Baseball Shirt Drake appended), so it is the same on
+  every PC with the same import. The log line `unlocks: skin table order fingerprint XXXXXXXX (N records ...)` must
+  be equal on the PCs of a match. A PC without the import (2 + 1 records) maps the indices differently: the
+  remote skin is then out of range (no model) or another record. Sending ids instead would change the game's own
+  message (0x6144b0); not done.
 - The 15 names above are labels, not the PS3 DLC texts (not in any GOTY file).
 - Not verified in the game. Log (`u2mp: unlocks:`): `skin table: 107 GOTY records (0x28-byte converted
   layout) + PS4 2 (2 replaced, 0 appended) = 107`, `booster table: 32 GOTY records`, `... bound`,

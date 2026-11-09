@@ -63,6 +63,8 @@ void install_loading(int &installed);  // loading.cpp: PS3 match loading screen 
 void install_dlc(int &installed);       // dlc.cpp: DLC maps offered only when imported (u2mp/docs/DLC.md)
 void install_menudraw(int &installed);  // menudraw.cpp: 2D command arena 192 KiB -> 2 MiB (PORT-MENUDRAW.md)
 void install_frontend2(int &installed); // frontend2.cpp: partial menu functions vs PS3 (PORT-FRONTEND2.md)
+void install_frontend6(int &installed); // frontend6.cpp: "Starting in" popup, vote level preload (PORT-FRONTEND6.md)
+void install_netanim(int &installed);   // netanim.cpp: snapshot clip phases + NetAnimCmdGenerator slot 4, PS3 0x453c10 (PORT-NETANIM.md)
 void install_frontend3(int &installed); // frontend3.cpp: matchmaking, vote, leader back-out (PORT-FRONTEND3.md)
 void install_spawn(int &installed);     // spawn.cpp: spawner lookup at match start (PORT-SPAWN.md)
 void install_gameplay2(int &installed); // gameplay2.cpp: connection event Applies (PORT-GAMEPLAY2.md)

@@ -8,8 +8,9 @@ namespace u2mp {
 // Hooks the unlock-condition check (0xa4bb40) and the co-op weapon upgrade level (0xa4d280).
 void install_unlocks(int &installed);
 
-// Binds the GOTY skin (5a4731d2) and booster (916e03b0) tables from net-patch9 over the PS4 stubs and
-// lists every booster in 0x113a788. Idempotent and cheap once done; only acts while NET_SM > 1 (call it
+// Binds the GOTY skin (5a4731d2) and booster (916e03b0) tables from net-patch9 over the PS4 stubs (plus
+// net-npc-info, character attributes, speakers, material parameters and default settings: UNLOCKS.md 3.1)
+// and lists every booster in 0x113a788. Idempotent and cheap once done; only acts while NET_SM > 1 (call it
 // whenever the multiplayer menus are up: progression.cpp does, from 0x64e810).
 void unlocks_refresh();
 

@@ -218,7 +218,7 @@ per language ("texts: no text for ...", "texts: ... shown in English").
 - "[A] daily players" (69cbee70) was a count from Naughty Dog's server; the party size is shown with it.
 - PAGE_FRIENDACTIONS, the MOTD/EULA pages and the PSN friend card (cond 38) are not restored (no PC
   counterpart). The matchmaking machine `64e910` is restored on the party (frontend3.cpp); the PS3
-  5 s "Starting in [A]..." popup before it is not (no PS4 counterpart).
+  5 s "Starting in [A]..." popup before it is ported too (frontend6.cpp, PORT-FRONTEND6.md 1).
 - `dd2d35e7` (a net event's text, `62f250`) is absent from both tables; not a menu text, left.
 - Not verified in the running game (static analysis only): the k23 panel and k19 rank widget
   drawing (`59ddb0`, `59bf50`) and the action-23 list classes are intact by size and callees, and
@@ -295,8 +295,8 @@ as the type 3 case does. Descriptor value = `+0x10` (query `+0x18`). From PS3 `0
 | 0x24, 0x25 playlist | `0x41f418` | ngm playlist with that id, image `+0x10` (menus.cpp sets it), u 0.0703..0.9297 |
 | 0x23 | `0x41cd34` | not needed: its only PS3 producer is the MOTD query (cond 96, `0x4ba660`, at `0x4ba760`), whose server page PS4 / PC never shows; the PS4 MOTD query `65e2e0` no longer produces it, and no other PS4 query sets 0x23 |
 
-Not ported details: the PS3 overlay drawn when descriptor `+0x20` is set (0x22, 0x24/0x25) and the
-0x25 bottom-edge adjustment.
+The 0x25 bottom-edge adjustment is ported (50 units, PS3 `0x41f4f4`). The PS3 overlay drawn when
+descriptor `+0x20` is non-zero is not needed: no PS4 producer sets it (PORT-FRONTEND6.md 4).
 
 Profile page empty: all its controls are k0 headers, k19 (cond 105, rank badge 0x27), k8 rich rows
 (boosters, hero / villain portraits: type 3) and k13 settings; the queries are intact and the page

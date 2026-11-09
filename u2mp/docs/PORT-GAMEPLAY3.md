@@ -91,6 +91,16 @@ SESSION-INTERFACE.md).
 
 ## 3. NetAnimList::AddAnim 0x45212c / generator slot 0x453c10 (open item of PORT-GAMEPLAY2)
 
+**Superseded 2026-11-09 by PORT-NETANIM.md (ported, `netanim.cpp`).** The conclusion below was wrong:
+slot 4 is called every frame by the engine anim layer (vptr `0xffca20`, update `0x391570`: generator
+slot 6, then slot 4), which holds the generator at layer+0x40 (set at `0x601cc1`). PS4 also dropped the
+clip phases from the snapshot stream (writer `0x634970`, reader `0x66b430`); netanim.cpp restores both.
+The vtable pairings of section 2 are corrected in PORT-NULLSITES.md ("Typed pass over the MP vtable
+stubs"): `0x100b570` is the base visitor (PS3 `0xd71e88`), `0x100b430` = PS3 `0xd71c48`, `0x100adf0` /
+`0x100b370` / `0x100b2f0` = the NetCharacter states PS3 `0xd70788` / `0xd70b48` / `0xd70b08`.
+
+Old text:
+
 - PS3 NetAnimCmdGenerator vtable `0xd705a8`: 0 `452d80`, 1 `4520f0`, 2 `451e38` (return 7),
   3 `45319c` CreateAnimCmds, 4 `452fd4`, 5 **`453c10`**, 6 `452e24`, 7 `452a6c`.
   PS4 `0x103fab0`: 0 `5f53c0`, 1 `5f53a0`, 2 `5f3ca0`, 3 `5f3f70`, 4 **`5f48d0` (ret)**, 5 `5f38e0`,
@@ -138,7 +148,7 @@ GoShowRoundResults +0x190, GoPreResetting +0x170, GoLeave +0x198), same globals 
   and clients in 17 (SESSION-INTERFACE.md 3.4 / step 7). That is session.cpp's job; nothing in the
   PS4 state machine is missing for it.
 - Server-side stats (SQS), TUS publish, NP room skill data, PS3 voice volume reset: no PC counterpart.
-- NetAnimCmdGenerator slot `0x453c10` (section 3).
+- ~~NetAnimCmdGenerator slot `0x453c10` (section 3)~~: ported, PORT-NETANIM.md.
 - Untested: the countdown restores the PS3 10 s results screen; the host then leaves through
   GoLeave and clients on message 0x105, both unchanged PS4 code.
 

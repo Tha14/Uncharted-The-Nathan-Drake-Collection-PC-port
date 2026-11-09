@@ -21,6 +21,7 @@ extern "C" int runtime_file_translate(const char *guest, char *out, size_t size)
 #include <vector>
 
 #include "frontend3.h"
+#include "frontend6.h"
 #include "gamenet.h"
 #include "progression.h"
 #include "net.h"
@@ -90,6 +91,7 @@ struct Member {
     uint32_t net_id = 0;
     std::string name;
     uint8_t rank = 0;   // rank badge index (PS3 room member data +8, roster query 0x4bc728)
+    uint8_t team = 0;   // custom game team preference 1 / 2, 0 none (PS3 room member data +9)
 };
 Member members[net::kMaxPeers + 1];   // by transport slot; slot 0 = the host
 net::Transport transport;
@@ -103,6 +105,7 @@ unsigned frames = 0;
 bool kicked = false;   // the host kicked us: leave the party after this pump
 bool lost_host = false;   // the host is gone: close the transport after this pump (PS3 teardown 0x4386d0)
 uint8_t sent_rank = 0xff;   // the rank this PC last published
+uint8_t sent_team = 0xff;   // the team preference this PC last published
 double next_rate_log = 0;
 
 uint32_t id_of_slot(uint8_t slot) { return uint32_t(slot) + 1; }
@@ -120,6 +123,13 @@ uint8_t local_rank() {
     for (int32_t i = 0; i < last; ++i)
         if (t->thresholds[i] <= money && t->thresholds[i + 1] > money) return uint8_t(std::min(i, 255));
     return uint8_t(std::min(last, 255));
+}
+
+// This PC's custom game team preference: NetPlayerData +0x114, written by the PAGE_LOBBY team
+// carousel 0x657a6b (values 1 and 2, as PS3's room member data +9 that the roster query read).
+uint8_t local_team() {
+    const int32_t t = G<int32_t>(0x11474f8 + 0x114);
+    return t == 1 || t == 2 ? uint8_t(t) : 0;
 }
 
 void session_set(uint64_t s, uint64_t ctx, uint32_t me, uint32_t host) {
@@ -228,7 +238,8 @@ void mailbox_post(uint32_t code, uint32_t sender, const void *data, uint32_t siz
 }
 
 // ---- our session messages (transport tag kSessionMessage) ------------------------------------
-enum : uint8_t { kInfo = 1, kRoster = 2, kMode = 3, kFollow = 4, kKick = 5 };
+enum : uint8_t { kInfo = 1, kRoster = 2, kMode = 3, kFollow = 4, kKick = 5,
+                 kTeams = 6 };   // host -> clients: {slot, team}... (PS3 room member data +9)
 // types >= session::kFrontendMessages (frontend3.h) belong to frontend3.cpp (matchmaking)
 
 void send_session(int slot, std::vector<uint8_t> body, int except = -1) {
@@ -240,13 +251,27 @@ void send_session(int slot, std::vector<uint8_t> body, int except = -1) {
             if (members[s].used && s != except) transport.send(s, true, body.data(), body.size());
 }
 
-// kInfo: {len, name, rank} (client -> host).
+// kInfo: {len, name, rank, team} (client -> host; a host of an older build reads up to rank).
 void send_info() {
     std::vector<uint8_t> b{kInfo, uint8_t(std::min<size_t>(my_name.size(), 31))};
     b.insert(b.end(), my_name.begin(), my_name.begin() + b[1]);
     sent_rank = local_rank();
     b.push_back(sent_rank);
+    sent_team = local_team();
+    b.push_back(sent_team);
     send_session(0, b);
+}
+
+// kTeams (host -> clients): the members' team preferences, a message of its own so that the roster
+// format stays as it was.
+void broadcast_teams() {
+    std::vector<uint8_t> b{kTeams};
+    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot)
+        if (members[slot].used) {
+            b.push_back(slot);
+            b.push_back(members[slot].team);
+        }
+    send_session(-1, b);
 }
 
 void broadcast_roster() {
@@ -274,21 +299,31 @@ void on_session_message(uint8_t from, const uint8_t *d, size_t n) {
         if (hosting && from >= 1 && from <= net::kMaxPeers && n >= 2) {
             members[from].name.assign(reinterpret_cast<const char *>(d + 2), std::min<size_t>(d[1], n - 2));
             if (n >= size_t(2) + d[1] + 1) members[from].rank = d[2 + d[1]];
+            if (n >= size_t(2) + d[1] + 2) members[from].team = d[3 + d[1]];
             refresh_sessions();
             broadcast_roster();
+            broadcast_teams();
         }
         break;
     case kRoster:   // host -> clients: everyone in the party
         if (!hosting) {
+            uint8_t teams[net::kMaxPeers + 1];
+            for (size_t i = 0; i <= net::kMaxPeers; ++i) teams[i] = members[i].team;
             for (auto &m : members) m = Member{};
             for (size_t at = 1; at + 3 <= n;) {
                 const uint8_t slot = d[at], len = d[at + 1], rank = d[at + 2];
                 if (slot > net::kMaxPeers || at + 3 + len > n) break;
-                members[slot] = Member{true, id_of_slot(slot), std::string(reinterpret_cast<const char *>(d + at + 3), len), rank};
+                const uint8_t team = teams[slot];   // kTeams sets it
+                members[slot] = Member{true, id_of_slot(slot), std::string(reinterpret_cast<const char *>(d + at + 3), len), rank, team};
                 at += 3 + len;
             }
             refresh_sessions();
         }
+        break;
+    case kTeams:   // host -> clients: {slot, team}...
+        if (!hosting)
+            for (size_t at = 1; at + 2 <= n; at += 2)
+                if (d[at] <= net::kMaxPeers) members[d[at]].team = d[at + 1];
         break;
     case kMode:   // host -> clients: the multiplayer mode (PAGE_LOBBY takes it from message 0x110)
         if (!hosting && n >= 5) {
@@ -811,7 +846,26 @@ void roster_query(uint8_t *query) {
     if (op == 7) *reinterpret_cast<uint32_t *>(query + 4) = m ? 1 : 0;
     else if (op == 3) {
         // PS3 0x4bc9f0: image 0 (+4 == 0) is the member's rank badge, type 0x27 (menuimages.cpp draws
-        // it) with the rank at +0x18 (PS3 +16); image 1 was the cellVoice talking icon (not here).
+        // it) with the rank at +0x18 (PS3 +16); image 1 is the voice icon (below).
+        if (m && *reinterpret_cast<uint32_t *>(query + 4) == 1) {
+            // PS3 0x4bca08 / 0x4bcb38: a member whose voice is on shows general/net/mic/default while
+            // cellVoice reports energy (attribute 1001), a muted member general/net/mic/mute, else
+            // nothing. PC: voice.cpp (heard in the last 300 ms, local mute). Type 3 net image as PS4
+            // builds it (0x655f11): +0x1c {id, selector 1 = net}, +0x24 index -1 (looked up by id).
+            const uint32_t icon = voice::talking(m->net_id) ? 0xffa98ec5u   // sid("general/net/mic/default")
+                                  : voice::muted(m->net_id) ? 0x7a5f5bf1u   // sid("general/net/mic/mute")
+                                                            : 0u;
+            if (icon) {
+                *reinterpret_cast<uint32_t *>(query + 0x08) = 3;
+                *reinterpret_cast<uint64_t *>(query + 0x10) = 0;
+                *reinterpret_cast<uint32_t *>(query + 0x18) = 0;
+                *reinterpret_cast<uint64_t *>(query + 0x1c) = uint64_t(icon) | (uint64_t(1) << 32);
+                *reinterpret_cast<int32_t *>(query + 0x24) = -1;
+                *reinterpret_cast<uint32_t *>(query + 0x28) = 0;
+                *reinterpret_cast<int32_t *>(query + 0x2c) = -1;
+                *reinterpret_cast<float *>(query + 0x30) = 1.0f;
+            }
+        }
         if (m && *reinterpret_cast<uint32_t *>(query + 4) == 0) {
             *reinterpret_cast<uint32_t *>(query + 0x08) = 0x27;
             *reinterpret_cast<uint64_t *>(query + 0x10) = 0;
@@ -822,6 +876,34 @@ void roster_query(uint8_t *query) {
             *reinterpret_cast<int32_t *>(query + 0x2c) = -1;
             *reinterpret_cast<float *>(query + 0x30) = 1.0f;
         }
+    } else if (op == 17) {
+        // PS3 0x4bc934: the team colour, only on PAGE_LOBBY's rows (table arg 10..19) of a custom game
+        // (netInfo mode 2) whose game type is a team type (0x4a0bcc: not 4, 8, 9, 12), from the member's
+        // team (room member data +9: 1 -> team 0, 2 -> team 1) through GetTeamColor 0x495cf0 (PS4
+        // 0x64aeb0(out, ngm, team, variant), colour at out+0xc): (colour & 0xffffff) | 0x20000000 into
+        // the query colour (PS3 +44, PS4 +0x3c).
+        const uint64_t arg = *reinterpret_cast<uint64_t *>(query + 0x48);
+        if (!m || arg <= 9 || G<int32_t>(kNetInfo + NI_MODE) != 2 || (m->team != 1 && m->team != 2)) return;
+        struct Table { int32_t count; int32_t pad; uint8_t *records; };
+        const auto *games = fn<Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70)(0x3b9a067d);   // *net-games*
+        const int16_t game = G<int16_t>(kNgm + NGM_GAME);
+        if (!games || !games->records || game < 0 || game >= games->count) return;
+        const int32_t type = *reinterpret_cast<const int32_t *>(games->records + 0x90 * size_t(game) + 0x0c);
+        if (type == 4 || type == 8 || type == 9 || type == 12) return;   // free for all
+        // GetTeamColor 0x64aeb0: its argument moves (team edx, variant ecx) and the team table init.
+        static const bool team_colour_ok = [] {
+            static const unsigned char args[] = {0x89, 0xcb, 0x41, 0x89, 0xd6, 0x49, 0x89, 0xf5, 0x49, 0x89, 0xfc};
+            static const unsigned char table[] = {0xc7, 0x05, 0xc7, 0x3f, 0xe8, 0x00, 0x4b, 0x2a, 0x02, 0x6a};
+            const bool ok = image.matches(0x64aec1, args, sizeof args) && image.matches(0x64af57, table, sizeof table);
+            if (!ok) log("party rows: GetTeamColor 0x64aeb0 differs, no team colours");
+            return ok;
+        }();
+        if (!team_colour_ok) return;
+        alignas(16) uint8_t out[0x20] = {};
+        fn<void(U2MP_GUEST *)(void *, void *, int32_t, int32_t)>(0x64aeb0)(out, image.at<void>(kNgm), m->team - 1, 0);
+        uint32_t colour;
+        std::memcpy(&colour, out + 0xc, 4);
+        *reinterpret_cast<uint32_t *>(query + 0x3c) = (colour & 0xffffffu) | 0x20000000u;
     } else if (op == 1) {
         std::snprintf(roster_text[mslot], sizeof roster_text[mslot], "%s", m ? m->name.c_str() : "");
         *reinterpret_cast<uint64_t *>(query + 0x40) = m ? uint64_t(uintptr_t(roster_text[mslot])) : uint64_t(uintptr_t(""));
@@ -840,8 +922,10 @@ U2MP_GUEST void start_match(void *, void *, void *) {
     // (PS4 0x64e910 = ret), ported in frontend3.cpp (gather, vote, countdown; it then calls
     // create_match). Without that port: the host picks a random game of the playlist here
     // (PS3's random pick 0x49bb00 has no PS4 pair; SetNetGame 0x63dc30).
+    // PS3 0x43aab0 first sent party mailbox 0x114 and showed the 5 s "Starting in [A]..." popup; its
+    // done callback (4055f45f / e2707dbe) starts matchmaking or creates the game (frontend6.cpp).
     if (G<int32_t>(kNetInfo + NI_MODE) == 1 && matchmaking::installed()) {
-        matchmaking::leader_start();
+        if (!frontend6::leader_starting(true)) matchmaking::leader_start();
         return;
     }
     if (G<int32_t>(kNetInfo + NI_MODE) == 1) {
@@ -862,6 +946,8 @@ U2MP_GUEST void start_match(void *, void *, void *) {
                 log("matchmaking: net game %d of %zu of type %d", pick, same.size(), type);
             }
         }
+    } else if (frontend6::leader_starting(false)) {
+        return;   // the popup's done callback e2707dbe creates the match
     }
     create_match_now();
 }
@@ -1025,11 +1111,16 @@ void tick() {
     }
     if (frames % 120 == 7) {   // the rank badge of the party rows (PS3: room member data +8)
         const uint8_t r = local_rank();
+        const uint8_t t = local_team();   // and the team colour (PS3: room member data +9)
         if (hosting && members[0].used && members[0].rank != r) {
             members[0].rank = r;
             broadcast_roster();
-        } else if (!hosting && my_id && r != sent_rank) {
+        } else if (!hosting && my_id && (r != sent_rank || t != sent_team)) {
             send_info();
+        }
+        if (hosting && members[0].used && members[0].team != t) {
+            members[0].team = t;
+            broadcast_teams();
         }
     }
     if (hosting) {   // the party leader's mode reaches the members (PS3: party data)

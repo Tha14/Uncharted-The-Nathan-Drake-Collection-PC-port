@@ -167,3 +167,42 @@ Recording is on unless `UNCHARTED_U2MP_CINEMA=0`.
 - Events whose Read/Write are still stubs record and replay empty (see blocker 1).
 - Duration is wall-clock seconds between WaitReady::Exit and finish (PS3 used a game timer).
 - `0x104f1b9` (local/server list flag) is forced to 1; the server list stays empty.
+
+## 7. Theater HUD (PS3 0x8af620): traced, not ported (2026-11-09)
+
+PS3 Draw `0x8aef68` (PS4 slot 1 of vtable `0x103f550`, now hud.cpp's `net_hud_draw`) calls, while a film
+plays (ngm+7076 = PS4 ngm+0x209c), with HUD flag 0x100000 and `[[0xe1eb1c]+16] == 0`:
+`0x8a8ed8(element+6372)` (camera selector update) and `0x8ac3f0(element+6372)` (draw). The PS4 sub-object
+is element+0x1928 (ctor `0x55d690` = PS3 `0x8a7c64`, Reset `0x55abb0`).
+
+What is known (PS3 -> PS4):
+
+| PS3 | PS4 | note |
+|---|---|---|
+| camera table sub+12, 24-byte entries, count sub+252 | sub+0xc, 0x18-byte entries `{+0 callback id, +4 release id, +8 image {sid, table, index}, +0x14 name text}`, count sub+0xfc | 10 cameras: c1f65aeb 682c6868 a65c61ba 43348860 953b8f2a e8184ce8 (release 9eb9632d) 3cf5deed ff502160 806c9824 887c7d6e |
+| shown list sub+256 (10 ptrs), count +296, fade +300, hide time +304, handle +308 | sub+0x100 (10 x 8), count +0x150, fade +0x154 (Reset 1.0), time +0x158, handle +0x15c | sub+0 selected index (Reset 3), sub+4 smoothed index (3.0), sub+8 pending release id |
+| filter by cinema mode `[0xf1b590+1640]` | `[0x113a990+0x678]` | 3cf5deed always, e8184ce8 never, ff502160 mode 1, 806c9824 mode 2, 887c7d6e mode 0 |
+| frame counter `[0xe60a00+236]` | `[0x1116180+0x104]` | |
+| pad pressed `[0xe60a00+2068]` (pad object `0xe61180` = +1920) | `[0x1116180+0x864]` | RePlaying::Update clears it (PS3 `0x436678`, PS4 `0x5e6d95`) |
+| capture gate `[0xfc3aa8]+17` | probably `[0x144e6e0]+0x13` (RePlaying::Update `0x5e6b1b`) | unverified pairing |
+| camera switch `0x426dbc(menu, id, 0)` | DoCallback `0x5c8840` | the ids are handled on PS4 (`0x5e9049`, `0x5ecf8d`) |
+| HUD flag 0x100000 | set by RePlaying::Update `0x5e6dca` (task+0x16c, toggled by pad 0x8000) | the gate is reachable |
+
+Why it is not ported:
+
+1. **Draw primitives.** `0x8ac3f0` (0xc28 bytes) draws the camera carousel, names, progress bar and
+   "x%2.1f" with PS3 low-level 2D calls: quad `0x89ff3c`, material `0x12c070`, prim batch `0x8b0220` /
+   `0x8b1600` / `0x8b0de8` / `0x8b12b8`, DrawText `0x73cf20`, colour `0x3cf18`, layout `0x420f58` /
+   `0x421018` / `0x4156cc`. None has a PS4 counterpart (PORT-HUD.md 4.1 found the same for DrawText and the
+   quad); hud.cpp draws with copied widgets through `0x5555a0` / `0x5559f0`, whose helpers are private to
+   hud.cpp. A port needs those helpers exported (text at a position with a font/colour, solid and textured
+   quads) - that is hud.cpp's owner's change - and the replay position / length (`0x462fbc`, cinema +456).
+2. **Buttons.** The selector uses pad repeat `0xaac38(pad, 4 / 8, 0.2, 0.1)` and confirm 0x80 (0x20 when
+   `[0xe61ed8+8664] == 1`). The PS4 game word is in scePad bit order (menu mapper `0x5d0be0` = PS3 `0x4227c8`:
+   PS3 0x20 -> PS4 0x2000, 0x40 -> 0x8000, 0x10 -> 0x1000), PS4 has no `0xaac38` (the repeat is inlined, table
+   `[0x1116180+0x88c]`), and PS4 RePlaying::Update already binds 0x8000 (the PS3 square) to the theater HUD
+   toggle. PS3 bits 4 / 8 have no verified PS4 bit; a guess would break the cinema toggle.
+3. Sound `0x30fb28` / `0x7069c8` (f57d53ce on camera change): PS4 pair not found.
+
+Without it a film plays from the camera the replay picks; the camera ids are still reachable from any
+PS4 control that sends them.

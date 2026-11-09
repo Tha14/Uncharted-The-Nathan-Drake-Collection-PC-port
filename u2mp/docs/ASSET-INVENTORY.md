@@ -190,4 +190,4 @@ net-u2mp.pak. `metal-shield.bnk` / `glass.bnk` (asked for in game) exist in no c
 
 - PS4 `ruins-multi.pak` (24.9 MB) is the base-game version: its `-ingame10` (390 KB) is the base one's size (PS3 base 355 KB, map pack 1 768 KB) and lacks the DLC props (`mp-ruins-heli-blade`). The PS4 registry lists the DLC actor set anyway. The import keeps it and adds the map pack wide / sky / npc levels (IMPORT.md gap 11).
 - Many PS4 `*-multi-npc-ingame10.pak` sizes match the dlc-map2 versions more closely than the base versions.
-- The PS4 executable may need its session/lobby layer replaced, as was done for U3.
+- ~~The PS4 executable may need its session/lobby layer replaced, as was done for U3.~~ Done: session.cpp / net.cpp / gamenet.cpp (SESSION-INTERFACE.md, TRANSPORT-INTERFACE.md).

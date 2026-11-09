@@ -31,7 +31,7 @@
 //   "(no pat found)" PS3 0x45e728: inlined into the PS4 NetCharacter update 0x5fe4b0 (0x5ff30c..).
 //   HashTable::Init PS3 0x494ee0 / 0x4950f0: inlined on PS4; netinit.cpp builds both tables.
 //   NetAnimList::AddAnim PS3 0x45212c: only caller PS3 0x453c10, whose PS4 slot is a ret stub
-//   (0x5f48d0) - left open, see the notes.
+//   (0x5f48d0): ported in netanim.cpp (u2mp/docs/PORT-NETANIM.md).
 #include <cstdint>
 #include <cstring>
 

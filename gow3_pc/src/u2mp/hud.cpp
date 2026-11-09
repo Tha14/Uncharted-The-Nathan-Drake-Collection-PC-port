@@ -137,12 +137,48 @@ void label(const uint8_t *set, uint64_t field, uint32_t id) {
     const Pos pos;
     reinterpret_cast<TextFn>(image.base + fText)(w, &pos, "%s", kScale, s);
 }
-void frame_image(void *ctx, const uint8_t *set, uint64_t field) {
-    const uint8_t *w = ptr_at(set, field);
-    if (!w || !ctx) return;
-    const Pos pos;
-    reinterpret_cast<ImageFn>(image.base + fImage)(ctx, w, &pos, kScale);
+
+// ---- image resolution and its log ------------------------------------------------------------------
+// The draw context. The HUD manager's frame update 0x554340 is called with rsi = 0 (0x3fc529 xor esi,esi;
+// 0x3fc52d call), and the element loop 0x554710 hands that r12 to every slot 1 Draw. So `ctx` is NULL on
+// PS4 for every HUD element (the SP timer 0x559770 passes it on to 0x5559f0 as it is): it is the draw
+// list, and NULL means the deferred 2D arena (0xbdce90 takes NULL, as menu_draw_quad does). The first
+// port returned early on `!ctx` in every image path, so no HUD image was ever drawn (run 46: the score
+// texts without their mini-score frame). Nothing here tests ctx any more.
+//
+// Every image this file draws is resolved once per (id, table, index) and material table (pointer and
+// count), through 0x5558c0 (menuimages.cpp's port: PS4 id, then the PS3 name read the PS3 way, then
+// net-u2mp). A PS3 sid found among the PS4 names is replaced by the PS4 id and index, so the draw finds it
+// directly (the PS4 asset; menuimages.cpp's rule). An image that does not resolve is logged once per
+// (id, table) with its table's state ("hud: image ... not resolved"), and skipped.
+constexpr uint64_t kImageTables = 0x1130008;   // +0x68 hud, +0x70 net, +0x78 menu material tables
+constexpr uint32_t kTagNet = 0x4240ef2e;       // sid("net"): an image widget's +0x10 tag -> table 1, else 0
+
+struct MatTable {   // {u16 ?, u16 count at +2, entries of 0x28 at +8 (+8 in an entry: its id)}
+    uint16_t pad, count;
+    uint32_t pad2;
+    const uint8_t *entries;
+};
+const MatTable *material_table(uint32_t table) {
+    if (table > 2) return nullptr;
+    return reinterpret_cast<const MatTable *>(uintptr_t(G<uint64_t>(kImageTables + 0x68 + 8 * uint64_t(table))));
 }
+const char *table_name(uint32_t table) { return table == 0 ? "hud" : table == 1 ? "net" : table == 2 ? "menu" : "?"; }
+
+struct Logged {
+    uint32_t id, table;
+};
+Logged g_logged[96];
+int g_logged_n = 0;
+// true the first time (id, table) is seen (bounded: later ones are not logged)
+bool first_time(uint32_t id, uint32_t table) {
+    for (int i = 0; i < g_logged_n; ++i)
+        if (g_logged[i].id == id && g_logged[i].table == table) return false;
+    if (g_logged_n >= int(sizeof g_logged / sizeof g_logged[0])) return false;
+    g_logged[g_logged_n++] = Logged{id, table};
+    return true;
+}
+
 
 // PS3 0x49e0e8 + 0x8af878: time left as "%i:" minutes, "%02i" seconds, when the game has a time limit.
 void time_left(const uint8_t *set, uint64_t start_field) {
@@ -163,10 +199,9 @@ void time_left(const uint8_t *set, uint64_t start_field) {
 //   [0x1116180+0x44] / 300. Colours are 0x00RRGGBB (PS3 0x8ab700: clrlwi 8, or alpha, rotlwi 8).
 // PS3 layout (0x8abcec..0x8abef0): appear = clamp((now - start) * 2.2222), vanish = clamp((end - now) * 2),
 // x = 120 - 200 * (1 - appear)^2, alpha = appear * vanish, lines of 25 from y = 650 - sum(vanish * 25),
-// newest on top. PS3 drew the lines with its low-level text and quad calls (0x73cf20, 0x89ff3c, weapon
-// icon 0x8a0260), which have no PS4 counterpart; here each text is a HUD text widget built from the
-// score widget (font, colour model) and drawn with 0x5555a0. The weapon icon between the two names is
-// not drawn; a count (+0x7c, multi kills / medal repeats, PS3 "%s%i") is appended as "x<n>".
+// newest on top. Each line is PS3 0x8ab600, ported in draw_message_line below (DrawText 0x73cf20 = PS4
+// 0xcc9a70, quads 0x89ff3c = 0x555c60): measured first (r7 = 1), scaled down to fit 350 units, its
+// background image (set PS3 +100 = PS4 +0xb8, general/net/message-back) at (x - 8, y - 2), then drawn.
 constexpr uint64_t E_MSG_LIST = 0x40, MSG_ENTRIES = 0x8, MSG_SIZE = 0x80;
 constexpr uint64_t M_TEXT1 = 0x00, M_COLOR1 = 0x30, M_TEXT2 = 0x34, M_COLOR2 = 0x64, M_START = 0x70, M_END = 0x74,
                    M_COUNT = 0x7c;
@@ -175,7 +210,8 @@ constexpr uint64_t kClock = 0x1116180 + 0x44;
 constexpr uint32_t kFlagMessages = 0x80000;   // PS3 rlwinm 0,25,0,12,12
 constexpr float kMsgBaseY = 650.0f, kMsgLine = 25.0f, kMsgX = 120.0f, kMsgSlide = -200.0f, kMsgAppear = 2.2222223f,
                 kMsgVanish = 2.0f;                 // PS3 0xdd0c18 / c38 / c30 / c28 / c20, fadds f13,f13
-constexpr float kMsgScale = 0.55f, kMsgNameWidth = 220.0f, kMsgGap = 14.0f;
+constexpr float kMsgMaxWidth = 350.0f, kMsgBackX = 8.0f, kMsgBackY = 2.0f;   // PS3 0xdd0c40 / c48 / c50
+constexpr uint64_t S_MSG_BACK = 0xb8;                                        // PS3 set +100
 
 struct alignas(16) TextWidget {   // dc HUD text widget (identical on PS3 and PS4, 0x2c bytes)
     float x, y, w, h;
@@ -256,15 +292,87 @@ V4 vec4_at(const uint8_t *p) {
 
 Handle sid_handle(uint32_t sid, uint32_t table = 1) { return Handle{sid, table, -1}; }
 Handle handle_at(const uint8_t *p) { return Handle{R<uint32_t>(p, 0), R<uint32_t>(p, 4), R<int32_t>(p, 8)}; }
-void quad(void *ctx, const Handle &h, const V4 &rgba, V2 pos, V2 size, bool centred = false, V2 dir = {0.0f, -1.0f},
-          V2 uv0 = {0.0f, 0.0f}, V2 uv1 = {1.0f, 1.0f}) {
-    if (!ctx || !h.id || rgba.w <= 0.0f) return;
+
+// Resolution cache (see "image resolution" above): key (id, table, index) + the table's pointer / count.
+struct Resolved {
+    Handle key, out;
+    const MatTable *table;
+    uint16_t count;
+    bool ok;
+};
+Resolved g_resolved[64];
+int g_resolved_n = 0, g_resolved_next = 0;
+
+// The handle to draw `h` with (PS4 id / index when the image is a PS4 net.pak / hud.pak one), or false
+// when the image is not there. `what` names the HUD part in the log.
+bool resolve(const Handle &h, const char *what, Handle &out) {
+    if (!h.id) return false;
+    const MatTable *t = material_table(h.table);
+    const uint16_t count = t ? t->count : 0;
+    for (int i = 0; i < g_resolved_n; ++i) {
+        Resolved &r = g_resolved[i];
+        if (r.key.id == h.id && r.key.table == h.table && r.key.index == h.index && r.table == t && r.count == count) {
+            out = r.out;
+            return r.ok;
+        }
+    }
+    const uint8_t *m = t ? static_cast<const uint8_t *>(reinterpret_cast<MaterialFn>(image.base + fMaterial)(
+                               uint64_t(h.id) | uint64_t(h.table) << 32, h.index))
+                         : nullptr;
+    Resolved r{h, h, t, count, m != nullptr};
+    if (m && t && t->entries && m >= t->entries && m < t->entries + 0x28 * size_t(count)) {
+        r.out.index = int32_t((m - t->entries) / 0x28);
+        r.out.id = R<uint32_t>(m, 8);   // the PS4 id (differs from a PS3 sid found by its PS3 name)
+    }
+    if (!m && first_time(h.id, h.table))
+        log("hud: image %s id %08x table %u (%s) index %d not resolved: %s table %s, %u materials%s", what, h.id, h.table,
+            table_name(h.table), h.index, table_name(h.table), t ? "set" : "NULL", unsigned(count),
+            h.table == 1 ? " (PS4 net.pak by id and by PS3 name, then net-u2mp)" : "");
+    else if (m && h.id != r.out.id && first_time(h.id, h.table))
+        log("hud: image %s id %08x table %u -> PS4 id %08x index %d", what, h.id, h.table, r.out.id, r.out.index);
+    if (g_resolved_n < int(sizeof g_resolved / sizeof g_resolved[0]))
+        g_resolved[g_resolved_n++] = r;
+    else
+        g_resolved[g_resolved_next++ % g_resolved_n] = r;
+    out = r.out;
+    return r.ok;
+}
+
+void quad(void *ctx, const Handle &h0, const V4 &rgba, V2 pos, V2 size, bool centred = false, V2 dir = {0.0f, -1.0f},
+          V2 uv0 = {0.0f, 0.0f}, V2 uv1 = {1.0f, 1.0f}, const char *what = "quad") {
+    Handle h;
+    if (rgba.w <= 0.0f || !resolve(h0, what, h)) return;
     reinterpret_cast<QuadFn>(image.base + fQuad)(ctx, uint64_t(h.id) | uint64_t(h.table) << 32, h.index, &rgba, centred,
                                                  true, pos, size, dir, uv0, uv1);
 }
 // PS3 0x8b1600 + 0x8b1598: an axis-aligned rect p0..p1.
-void rect(void *ctx, const Handle &h, const V4 &rgba, V2 p0, V2 p1, V2 uv0 = {0.0f, 0.0f}, V2 uv1 = {1.0f, 1.0f}) {
-    quad(ctx, h, rgba, p0, V2{p1.x - p0.x, p1.y - p0.y}, false, V2{0.0f, -1.0f}, uv0, uv1);
+void rect(void *ctx, const Handle &h, const V4 &rgba, V2 p0, V2 p1, V2 uv0 = {0.0f, 0.0f}, V2 uv1 = {1.0f, 1.0f},
+          const char *what = "rect") {
+    quad(ctx, h, rgba, p0, V2{p1.x - p0.x, p1.y - p0.y}, false, V2{0.0f, -1.0f}, uv0, uv1, what);
+}
+
+// An image widget of the dc set (PS3 0x8a10fc = PS4 0x5559f0(ctx, widget, pos, alpha)): the PS4 function
+// resolves it itself (tag +0x10 "net" -> table 1, else 0; id +0x14, loaded by name +0 through 0x555140
+// when 0, as "set:name"; index +0x18) and caches id / index in the widget. Afterwards the cached handle is
+// checked here so a missing image is logged once with the widget's material name.
+void widget_image(void *ctx, const uint8_t *w, const Pos &pos, float alpha, const char *what) {
+    if (!w) return;
+    reinterpret_cast<ImageFn>(image.base + fImage)(ctx, w, &pos, alpha);
+    const uint32_t table = R<uint32_t>(w, 0x10) == kTagNet ? 1 : 0;
+    const Handle h{R<uint32_t>(w, 0x14), table, R<int32_t>(w, 0x18)};
+    if (h.index >= 0) return;   // found in its table by the PS4 code
+    const uint8_t *m = h.id ? static_cast<const uint8_t *>(reinterpret_cast<MaterialFn>(image.base + fMaterial)(
+                                  uint64_t(h.id) | uint64_t(table) << 32, -1))
+                            : nullptr;
+    if (m || !first_time(h.id ? h.id : uint32_t(uintptr_t(w)), table | 0x100)) return;
+    const MatTable *t = material_table(table);
+    const char *name = reinterpret_cast<const char *>(uintptr_t(R<uint64_t>(w, 0)));
+    log("hud: image %s (widget %s) id %08x table %u (%s) not resolved: %s table %s, %u materials", what,
+        name ? name : "(no name)", h.id, table, table_name(table), table_name(table), t ? "set" : "NULL",
+        t ? unsigned(t->count) : 0u);
+}
+void frame_image(void *ctx, const uint8_t *set, uint64_t field, const char *what = "frame") {
+    widget_image(ctx, ptr_at(set, field), Pos{}, kScale, what);
 }
 
 // 4-vertex quad with free corners (PS3 hudquad 0x8b0de8): material of the handle drawn by 0xbdce90 with
@@ -279,8 +387,10 @@ struct alignas(16) QBuf {
     uint32_t tail, pad[3];
 };
 static_assert(sizeof(QVert) == 0x40 && sizeof(QBuf) == 0x110, "hud quad layout");
-void quad4(void *ctx, const Handle &h, const V4 &rgba, const float (&xy)[4][2], const float (&uv)[4][2]) {
-    if (!ctx || !h.id || rgba.w <= 0.0f) return;
+void quad4(void *ctx, const Handle &h0, const V4 &rgba, const float (&xy)[4][2], const float (&uv)[4][2],
+           const char *what = "quad4") {
+    Handle h;
+    if (rgba.w <= 0.0f || !resolve(h0, what, h)) return;
     void *m = reinterpret_cast<MaterialFn>(image.base + fMaterial)(uint64_t(h.id) | uint64_t(h.table) << 32, h.index);
     if (!m) return;
     alignas(16) uint64_t c[6] = {uint64_t(uintptr_t(ctx)), 0, 0, 0, 0, 0};
@@ -346,7 +456,7 @@ void edge_arrow(void *ctx, const Handle &h, V2 pos, uint32_t color, float scale,
     const float size = scale * 40.0f, back = size * (turned ? -0.25f : -0.5f);
     const V2 dir = turned ? V2{std::cos(angle - kHalfPi), -std::sin(angle - kHalfPi)} : V2{0.0f, -1.0f};
     const V2 at{pos.x + back * -std::cos(angle), pos.y + back * std::sin(angle)};
-    quad(ctx, h, argb(color), at, V2{size, size}, true, dir);
+    quad(ctx, h, argb(color), at, V2{size, size}, true, dir, V2{0.0f, 0.0f}, V2{1.0f, 1.0f}, "arrow");
 }
 
 // PS3 0x8a9e48: a ring meter made of n textured segments around `centre`, from angle pi/2 (straight
@@ -361,7 +471,8 @@ void edge_arrow(void *ctx, const Handle &h, V2 pos, uint32_t color, float scale,
 // Vertex order inner a0, outer a0, outer a1, inner a1; each segment is one quad4().
 void meter_8a9e48(void *ctx, const V2 &centre, const Handle &h, V4 rgba, float scale, float fill, float r_inner,
                   float r_outer) {
-    if (!ctx || !h.id) return;
+    Handle hr;
+    if (!resolve(h, "ring meter", hr)) return;
     const float t = clamp01(fill);
     const int32_t n = int32_t((scale > 1.0f ? scale : 1.0f) * ((1.0f - t) * 10.0f + t * 30.0f));   // fctiwz
     if (n <= 0) return;
@@ -380,7 +491,7 @@ void meter_8a9e48(void *ctx, const V2 &centre, const Handle &h, V4 rgba, float s
                                 {0.5f + uv_out * c0, 0.5f + uv_out * s0},
                                 {0.5f + uv_out * c1, 0.5f + uv_out * s1},
                                 {0.5f + uv_in * c1, 0.5f + uv_in * s1}};
-        quad4(ctx, h, rgba, xy, uv);
+        quad4(ctx, hr, rgba, xy, uv, "ring meter");
     }
 }
 
@@ -439,10 +550,11 @@ void draw_markers(void *ctx, const uint8_t *element, const uint8_t *set) {
         const Handle second = handle_at(rec + 0x0c);
         if (second.id) {                                                   // 0x8ad7c4: pulsing icon
             const float ps = size * ((1.0f - pulse) * 1.5f + pulse * 2.5f);
-            quad(ctx, second, col, V2{p.pos.x - ps * 0.5f, p.pos.y - ps * 0.5f}, V2{ps, ps});
+            quad(ctx, second, col, V2{p.pos.x - ps * 0.5f, p.pos.y - ps * 0.5f}, V2{ps, ps}, false, V2{0.0f, -1.0f}, V2{0.0f, 0.0f}, V2{1.0f, 1.0f}, "marker pulse");
         }
         const V4 icon_col = rec[0x1c] ? V4{0.0f, 0.0f, 0.0f, alpha} : V4{c.x, c.y, c.z, alpha};   // 0x8ad3d0
-        quad(ctx, handle_at(rec), icon_col, V2{p.pos.x - size * 0.5f, p.pos.y - size * 0.5f}, V2{size, size});
+        quad(ctx, handle_at(rec), icon_col, V2{p.pos.x - size * 0.5f, p.pos.y - size * 0.5f}, V2{size, size}, false,
+             V2{0.0f, -1.0f}, V2{0.0f, 0.0f}, V2{1.0f, 1.0f}, "marker icon");
         if (p.clamped) {                                                   // 0x8ad9b8: off-screen arrow
             const float q = clamp01(1.0f - std::fabs(std::cos(t * 8.0f)));
             const float push = s * 30.0f * ((1.0f - q) * 0.8f + q * 1.1f);
@@ -592,10 +704,11 @@ void booster_pair(void *ctx, const uint8_t *a, const uint8_t *b, float fade) {
     const V2 size{76.8f, 38.4f};
     float y = 150.0f;
     if (a && R<uint32_t>(a, 0xc) != kBoosterNone1) {
-        quad(ctx, sid_handle(R<uint32_t>(a, 8), 1), white, V2{x, 150.0f}, size);
+        quad(ctx, sid_handle(R<uint32_t>(a, 8), 1), white, V2{x, 150.0f}, size, false, V2{0.0f, -1.0f}, V2{0.0f, 0.0f}, V2{1.0f, 1.0f}, "booster");
         y = 180.72f;
     }
-    if (b && R<uint32_t>(b, 0xc) != kBoosterNone2) quad(ctx, sid_handle(R<uint32_t>(b, 8), 1), white, V2{x, y}, size);
+    if (b && R<uint32_t>(b, 0xc) != kBoosterNone2) quad(ctx, sid_handle(R<uint32_t>(b, 8), 1), white, V2{x, y}, size, false, V2{0.0f, -1.0f}, V2{0.0f, 0.0f}, V2{1.0f, 1.0f},
+                                                            "booster");
 }
 
 // Both booster call sites of PS3 0x8aef68, in its order:
@@ -605,7 +718,7 @@ void booster_pair(void *ctx, const uint8_t *a, const uint8_t *b, float fade) {
 //     allowed: the local loadout's two boosters by id.
 // `local` is the local tracker (ngm+0); the fade is element+0x1920.
 void draw_boosters(void *ctx, const uint8_t *element, const uint8_t *local, bool coop, uint32_t flags) {
-    if (!ctx || !element) return;
+    if (!element) return;
     const float fade = R<float>(element, E_FADE);
     if (G<uint8_t>(kNgm + NGM_FILM) && (flags & kFlagFilmBoosters) && G<int32_t>(kCinemaMgr + CINEMA_MODE) != 0 && local)
         booster_pair(ctx, booster_by_index(R<int32_t>(local, T_BOOSTER_INDEX)),
@@ -648,13 +761,12 @@ float coop_wave_left() {
 // at set+0xc0, and a ring meter of the wave time left in the text widget's colour.
 void draw_coop_panel(void *ctx, const uint8_t *element, const uint8_t *set, uint32_t flags) {
     (void)element;   // PS3 read the ring handle at element+6344; it is the constant sid built below
-    if (!ctx || !set || !(flags & kFlagCoopPanel)) return;
+    if (!set || !(flags & kFlagCoopPanel)) return;
     const uint8_t *game = net_game_record();
     if (!game || R<int32_t>(game, 0xc) != 9) return;
     if (G<float>(kWaveScreen + WAVE_ALPHA) != 0.0f) return;
     const Pos *pos = reinterpret_cast<const Pos *>(set + S_COOP_POS);
-    if (const uint8_t *img = ptr_at(set, S_COOP_IMAGE))
-        reinterpret_cast<ImageFn>(image.base + fImage)(ctx, img, pos, kScale);
+    widget_image(ctx, ptr_at(set, S_COOP_IMAGE), *pos, kScale, "co-op meter back");
     const uint8_t *txt = ptr_at(set, S_COOP_TEXT);
     const int32_t money = reinterpret_cast<CoopMoneyFn>(image.base + fCoopMoney)(image.base + kNgm);
     if (txt) reinterpret_cast<TextFn>(image.base + fText)(txt, pos, "x%i", kScale, money);
@@ -778,8 +890,10 @@ void draw_name(void *ctx, const uint8_t *sub, const uint8_t *e) {
         const float pulse = big * ((1.0f - p) * 3.5f + p * 5.0f), still = big * 4.5f;
         const V2 dir{std::cos(t), std::sin(t)};                                       // turning with the clock
         const Handle glow = handle_at(sub + NM_PULSE);
-        quad(ctx, glow, V4{c.x, c.y, c.z, col.w * 0.75f}, status_at, V2{pulse, pulse}, true, dir);   // 0x8ae170
-        quad(ctx, glow, V4{0.0f, 0.0f, 0.0f, col.w}, status_at, V2{still, still}, true, dir);       // 0x8ae22c
+        quad(ctx, glow, V4{c.x, c.y, c.z, col.w * 0.75f}, status_at, V2{pulse, pulse}, true, dir, V2{0.0f, 0.0f}, V2{1.0f, 1.0f},
+             "name status glow");   // 0x8ae170
+        quad(ctx, glow, V4{0.0f, 0.0f, 0.0f, col.w}, status_at, V2{still, still}, true, dir, V2{0.0f, 0.0f}, V2{1.0f, 1.0f},
+             "name status glow");       // 0x8ae22c
         meter_8a9e48(ctx, status_at, handle_at(sub + NM_RING), ring, s, fill, 30.0f, 50.0f);         // 0x8ae29c
         const float r = s * 30.0f;                                                   // 0x8aea2c / 0x8aedb8
         const uint64_t hflags = G<uint64_t>(kHud + HUD_FLAGS_PTR);
@@ -989,26 +1103,75 @@ bool type7_layout_matches() {
            image.matches(0x669a77, flag_owner, sizeof flag_owner);
 }
 
-void msg_text(const TextWidget &tpl, float x, float y, uint32_t align, uint32_t color, float alpha, const char *s) {
-    if (!s[0] || alpha <= 0.0f) return;
-    TextWidget w = tpl;
-    w.x = x, w.y = y, w.w = kMsgNameWidth, w.h = kMsgLine;
-    w.align = align;
-    w.scale = kMsgScale;
-    w.r = float((color >> 16) & 0xff) / 255.0f, w.g = float((color >> 8) & 0xff) / 255.0f, w.b = float(color & 0xff) / 255.0f;
-    w.a = 1.0f;
-    const Pos pos;
-    reinterpret_cast<TextFn>(image.base + fText)(&w, &pos, "%s", alpha, s);
+// PS3 0x8ab600(entry, pos, f1 alpha, f2 scale s, r7 measure): one message line, left to right; returns
+// its width. Every text is DrawText with the HUD message font, scale 0.5 s, box 999999 x 40, flags 8
+// (12 when measuring), colour = the entry colour (0x00RRGGBB) with alpha * 255:
+//   0x8ab8b0 (drawing only, count +0x7c != 0 and flags +0x78 & 6): a badge left of the line, a 50 x 25
+//     box at (x - 58, y - 1) in 0x5495bb (flag 2 clear) or 0xd73e60 (flag 2 set) drawn by 0x4156cc, with
+//     "%s%i" of TextDb 9b5b3c66 (flag 2 clear) or "" and the count, scale 0.4, centred in the box at
+//     (x - 58, y + 4), black;
+//   text 1 at (x, y); x += its width + 10 s;
+//   the weapon icon +0x68 (0x8aba60; a hud.pak image by name, 0.45 s high), x += its width + 10 s;
+//   flag 8 (+0x78): the headshot icon (sid 2fb98f98 general/net/headshot, net table), 28 s square at
+//     (x - 4 s, y + 10 - 14 s), white; x += 30 s;
+//   text 2 at (x, y).
+// Left out on PS4: the badge box (0x4156cc, PS3's rounded rect, has no PS4 counterpart: the count is drawn
+// in the box colour instead of black on it) and the weapon icon (its record behind +0x68 is not mapped on
+// PS4); the icon's width is then 0, as PS3 when an entry has none.
+constexpr uint32_t kSidHeadshot = 0x2fb98f98, kTextCountPrefix = 0x9b5b3c66;
+float draw_message_line(void *ctx, const uint8_t *e, float x, float y, float alpha, float s, bool measure) {
+    const uint32_t flags = measure ? 12 : 8;
+    auto colour = [&](uint64_t field) {
+        const uint32_t c = R<uint32_t>(e, field);
+        return V4{float((c >> 16) & 0xff) / 255.0f, float((c >> 8) & 0xff) / 255.0f, float(c & 0xff) / 255.0f, alpha};
+    };
+    char t1[49], t2[49];
+    std::memcpy(t1, e + M_TEXT1, 48), t1[48] = 0;
+    std::memcpy(t2, e + M_TEXT2, 48), t2[48] = 0;
+    const uint32_t eflags = R<uint32_t>(e, 0x78);
+    const int32_t count = R<int32_t>(e, M_COUNT);
+    if (!measure && count != 0 && (eflags & 6)) {                          // 0x8ab8b0: count badge
+        const bool red = eflags & 2;
+        const char *prefix = red ? "" : reinterpret_cast<FindFn>(image.base + fTextFind)(image.base + kTextDb,
+                                                                                         kTextCountPrefix);
+        char badge[24];
+        std::snprintf(badge, sizeof badge, "%s%i", prefix ? prefix : "", int(count));
+        const V4 bc = argb(red ? 0xffd73e60u : 0xff5495bbu);
+        draw_text(x - 58.0f, y + 4.0f, 0.4f, V4{bc.x, bc.y, bc.z, alpha}, 1, 50.0f, 25.0f, badge);
+    }
+    const float ts = 0.5f * s;
+    float cx = x;
+    if (t1[0]) {
+        const float w1 = draw_text(cx, y, ts, colour(M_COLOR1), 12, 999999.0f, 40.0f, t1).w;
+        if (!measure) draw_text(cx, y, ts, colour(M_COLOR1), flags, 999999.0f, 40.0f, t1);
+        cx += w1;
+    }
+    cx += 10.0f * s;                                                       // 0x8ab754 / 0x8ab768
+    if (eflags & 8) {                                                      // 0x8ab7d8: headshot icon
+        const float hs = 28.0f * s;
+        if (!measure)
+            quad(ctx, sid_handle(kSidHeadshot, 1), V4{1.0f, 1.0f, 1.0f, alpha}, V2{cx - 4.0f * s, y + 10.0f - hs * 0.5f},
+                 V2{hs, hs}, false, V2{0.0f, -1.0f}, V2{0.0f, 0.0f}, V2{1.0f, 1.0f}, "message headshot");
+        cx += 2.0f * s + hs;
+    }
+    float w2 = 0.0f;
+    if (t2[0]) {
+        w2 = draw_text(cx, y, ts, colour(M_COLOR2), 12, 999999.0f, 40.0f, t2).w;
+        if (!measure) draw_text(cx, y, ts, colour(M_COLOR2), flags, 999999.0f, 40.0f, t2);
+    }
+    return cx + w2 - x;
 }
 
-void draw_messages(const uint8_t *element, const uint8_t *set) {
+// PS3 0x8abc68 (list element+0x40): per entry appear / vanish as above, alpha = appear * vanish * HUD alpha
+// ([0xe1a660] -> [0x104ed0c]); from the newest (count - 1) to the oldest at y = 650 - sum(vanish * 25),
+// +25 per line: width = line(measure, scale 1); s = width > 350 ? 350 / width : 1; the background widget
+// (0x8a10fc = 0x5559f0) at (x - 8, y - 2) with the line's alpha; the line at (x, y) with scale s.
+void draw_messages(void *ctx, const uint8_t *element, const uint8_t *set) {
     const uint8_t *list = element + E_MSG_LIST;
     const int32_t count = R<int32_t>(list, 0);
-    const uint8_t *tpl_src = ptr_at(set, W_SCORE);
-    if (count <= 0 || count > kMaxMessages || !tpl_src) return;
-    TextWidget tpl{};
-    std::memcpy(&tpl, tpl_src, 0x2c);
+    if (count <= 0 || count > kMaxMessages) return;
     const float now = float(G<int32_t>(kClock)) * (1.0f / kFramesPerSecond);
+    const float hud_alpha = G<float>(kHudAlpha);
     float xs[kMaxMessages], alphas[kMaxMessages], used = 0.0f;
     for (int i = 0; i < count; ++i) {
         const uint8_t *e = list + MSG_ENTRIES + MSG_SIZE * i;
@@ -1016,25 +1179,16 @@ void draw_messages(const uint8_t *element, const uint8_t *set) {
         const float vanish = clamp01((R<float>(e, M_END) - now) * kMsgVanish);
         used += vanish * kMsgLine;
         xs[i] = kMsgX + kMsgSlide * (1.0f - appear) * (1.0f - appear);
-        alphas[i] = appear * vanish;
+        alphas[i] = appear * vanish * hud_alpha;
     }
+    const uint8_t *back = set ? ptr_at(set, S_MSG_BACK) : nullptr;
     float y = kMsgBaseY - used;
     for (int i = count - 1; i >= 0; --i, y += kMsgLine) {
         const uint8_t *e = list + MSG_ENTRIES + MSG_SIZE * i;
-        char t1[49], t2[64];
-        std::memcpy(t1, e + M_TEXT1, 48), t1[48] = 0;
-        std::memcpy(t2, e + M_TEXT2, 48), t2[48] = 0;
-        const int32_t n = R<int32_t>(e, M_COUNT);
-        if (n > 1 && n < 1000) {
-            const size_t l = std::strlen(t2);
-            std::snprintf(t2 + l, sizeof t2 - l, t2[0] ? " x%d" : "x%d", int(n));
-        }
-        if (t1[0] && t2[0]) {   // "killer  victim": a column around x + width
-            msg_text(tpl, xs[i], y, 2, R<uint32_t>(e, M_COLOR1), alphas[i], t1);
-            msg_text(tpl, xs[i] + kMsgNameWidth + kMsgGap, y, 0, R<uint32_t>(e, M_COLOR2), alphas[i], t2);
-        } else {
-            msg_text(tpl, xs[i], y, 0, R<uint32_t>(e, t1[0] ? M_COLOR1 : M_COLOR2), alphas[i], t1[0] ? t1 : t2);
-        }
+        const float w = draw_message_line(ctx, e, xs[i], y, alphas[i], 1.0f, true);
+        const float s = w > kMsgMaxWidth ? kMsgMaxWidth / w : 1.0f;
+        if (back) widget_image(ctx, back, Pos{xs[i] - kMsgBackX, y - kMsgBackY}, alphas[i], "message back");
+        draw_message_line(ctx, e, xs[i], y, alphas[i], s, false);
     }
 }
 
@@ -1067,10 +1221,12 @@ U2MP_GUEST void net_hud_draw(void *element_v, void *ctx) {
     const int32_t team = R<int32_t>(local, T_TEAM);
     if (++g_draws == 1 || g_draws % 600 == 0)
         log("hud: multiplayer draw #%llu: type %d, flags 0x%x, team %d, scores %u/%u, limit %d, time limit %.0f s, "
-            "names %d, markers %d",
+            "names %d, markers %d, messages %d; draw list %p, image tables hud %u / net %u",
             (unsigned long long)g_draws, type, flags, team, team_score(team), team_score(team == 0),
             G<int32_t>(kNgm + NGM_SCORE_LIMIT), double(G<float>(kNgm + NGM_TIME_LIMIT)),
-            R<int32_t>(element + E_NAMES, NM_COUNT), R<int32_t>(element + E_MARKERS, 0));
+            R<int32_t>(element + E_NAMES, NM_COUNT), R<int32_t>(element + E_MARKERS, 0), R<int32_t>(element + E_MSG_LIST, 0),
+            ctx, material_table(0) ? unsigned(material_table(0)->count) : 0u,
+            material_table(1) ? unsigned(material_table(1)->count) : 0u);
     if (!coop && type != 11 && (flags & kFlagScorePanel)) {
         if (type == 7) {
             draw_type7_panel(ctx, set, local);
@@ -1092,7 +1248,7 @@ U2MP_GUEST void net_hud_draw(void *element_v, void *ctx) {
     }
     draw_coop_panel(ctx, element, set, flags);                   // 0x8af150: type 9 only (checked inside)
     draw_boosters(ctx, element, local, coop, flags);              // 0x8af158 film site, 0x8af1a0 loadout site
-    if (!coop && type != 11 && (flags & kFlagMessages)) draw_messages(element, set);   // 0x8af424
+    if (!coop && type != 11 && (flags & kFlagMessages)) draw_messages(ctx, element, set);   // 0x8af424
     if (flags & kFlagNames) {                                     // 0x8af1d4
         draw_names(ctx, element);
         draw_markers(ctx, element, set);

@@ -17,6 +17,7 @@
 //    renderer 0x41a790 (cases at 0x41aa48, 0x41c2d8, 0x41eb50, 0x41f418) and draws with the PS4's own
 //    textured quad call (0xbdce90: draw context, {material, 0, 0, 0}, 4 vertices of 0x40 bytes) as the
 //    type 3 case does (0x5bdff9).
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -365,12 +366,18 @@ U2MP_GUEST void draw_missing_type(uint8_t *desc, uint8_t *frame, uint32_t c2, ui
         draw_quad(f, m, f.x, f.y, f.w, f.h, 0.08984375f, 0, 0.91015625f, 1);
         break;
     case 0x24:
-    case 0x25:     // playlist picture (PS3 0x41f418), cropped to u 0.0703..0.9297
+    case 0x25: {   // playlist picture (PS3 0x41f418), cropped to u 0.0703..0.9297
+        // PS3 0x41f4f4: type 0x25 ends 50 units above the box's bottom ([0xdb7690-32120] = 50.0), 0x24
+        // fills it. The overlay PS3 drew after the quad when the float at descriptor +0x20 (PS3 +24) is
+        // non-zero (0x41f5e0, 0x8b1540; 0x22: 0x41ecec, 0x8b0920) is never reached here: every PS4
+        // producer of 0x22 / 0x24 / 0x25 (0x656397, 0x657fe1, 0x658338, 0x65ac49, 0x65afa9) writes 0.
         id = playlist_image(value);
         m = net_material(id);
-        draw_quad(f, m, f.x, f.y, f.w, f.h, 0.0703125f, 0, 0.9296875f, 1);
+        const float h = type == 0x25 ? std::max(0.0f, f.h - 50.0f) : f.h;
+        draw_quad(f, m, f.x, f.y, f.w, h, 0.0703125f, 0, 0.9296875f, 1);
         break;
-    default:       // 0x23 (PS3 0x41cd34: several materials and text) is not ported
+    }
+    default:       // 0x23 (PS3 0x41cd34: the MOTD picture; no PS4 query produces it) is not needed
         break;
     }
     if (draw_log_budget.load(std::memory_order_relaxed) > 0) {

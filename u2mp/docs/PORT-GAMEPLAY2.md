@@ -48,7 +48,7 @@ handshake.
 | "(no pat found)" PS3 0x45e728 | Inlined on PS4. Its only caller PS3 0x45f7c0 is NetCharacter vtable 0xd709a0 slot 10 = PS4 vtable 0x100b010 slot 12 = 0x5fe4b0 (slots aligned by 0x45b8c8/0x601f40, 0x45dad0/0x600230, 0x45ce80/0x6016b0, 0x45f3d0/0x5fdef0, 0x45c124/0x6001a0). After the same three virtual calls (PS3 this+7768, PS4 +0x2cb0) PS4 runs the three ground-probe reads at +0x2d70 / +0x2df0 / +0x2e70 and stores the surface pattern to +0x2ef0.. (PS3 probes +7952/+8048/+8144, results +8240/+8244/+8248). Only the debug text (flag 0xf52d75) is gone. |
 | HashTable::Init PS3 0x494ee0 / 0x4950f0 | Called only by NetGameManager::Init 0x49c740 (absent on PS4). Every PS4 instance is inlined; netinit.cpp already builds both tables (ngm+0x1ba0, +0x1c10; NETINIT.md). |
 
-## Open: NetAnimList::AddAnim PS3 0x45212c
+## NetAnimList::AddAnim PS3 0x45212c (resolved 2026-11-09: ported, PORT-NETANIM.md)
 
 - AddAnim(list, anim, b, float, byte): 16-byte entries {+0 anim, +4 b, +8 float, +0xc byte, +0xd 0},
   count at list+0x100, at most 16 (assert "m_numAnims < kMaxAnims"). No inlined copy on PS4 (no

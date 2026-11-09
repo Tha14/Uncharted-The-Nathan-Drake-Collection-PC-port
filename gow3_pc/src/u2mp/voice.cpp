@@ -192,6 +192,7 @@ bool Gate::update(const int16_t *pcm, int samples) {
 #include <SDL3/SDL.h>
 
 #include <atomic>
+#include <chrono>
 #include <cstdlib>
 #include <deque>
 #include <memory>
@@ -240,6 +241,12 @@ bool audio_open = false, audio_failed = false, sdl_audio = false;
 uint16_t send_sequence = 0;
 bool mutes[kMaxSpeakers] = {};
 bool present[kMaxSpeakers] = {};   // members seen last frame (to forget the ones who left)
+// When each net id was last heard (ms of the steady clock; the local id: last frame sent). PS3 read
+// cellVoice's energy level per port (attribute 1001) for the roster rows' talking icon.
+std::atomic<int64_t> heard_ms[kMaxSpeakers];
+int64_t now_ms() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 
 // capture thread -> game thread
 std::atomic<bool> ptt_down{false};
@@ -387,6 +394,7 @@ void frame() {
         batch.swap(outgoing);
     }
     if (!others || !me || me >= kMaxSpeakers) return;
+    if (!batch.empty()) heard_ms[me].store(now_ms(), std::memory_order_relaxed);
     std::vector<uint8_t> message;
     for (const auto &packet : batch) {
         message.assign({gamenet::kVoice, uint8_t(me), uint8_t(send_sequence), uint8_t(send_sequence >> 8)});
@@ -414,12 +422,19 @@ void receive(uint8_t slot, const uint8_t *data, size_t size) {
     if (!enabled() || !playback || !speaker || speaker >= kMaxSpeakers || speaker == session::local_id() || mutes[speaker])
         return;
     const uint16_t sequence = uint16_t(data[1] | data[2] << 8);
+    heard_ms[speaker].store(now_ms(), std::memory_order_relaxed);
     std::lock_guard<std::mutex> lock(play_mutex);
     if (!speakers[speaker]) speakers[speaker] = std::make_unique<Speaker>();
     speakers[speaker]->jitter.push(sequence, data + 3, size - 3);
 }
 
 bool muted(uint32_t net_id) { return net_id < kMaxSpeakers && mutes[net_id]; }
+
+bool talking(uint32_t net_id) {
+    if (!net_id || net_id >= kMaxSpeakers || !enabled()) return false;
+    const int64_t last = heard_ms[net_id].load(std::memory_order_relaxed);
+    return last && now_ms() - last < 300;
+}
 
 bool toggle_mute(uint32_t net_id) {
     if (!net_id || net_id >= kMaxSpeakers) return false;

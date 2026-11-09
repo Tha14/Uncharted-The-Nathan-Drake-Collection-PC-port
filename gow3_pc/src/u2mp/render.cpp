@@ -856,11 +856,75 @@ const char *state_name(uint64_t p) {
     return nullptr;
 }
 
+// ---- run 48: is the hero's animation updated? -------------------------------------------------------
+// Run 46 read anim data byte +0 bit 0x80 as "animation updated". It is not, for a character: the anim
+// update 0xb53250 sets it (0xb53a2d) only when byte +5+phase lacks bit 2 and clears it (0xb53e4a) when
+// that bit is set; update type 3 (characters, 0xb4f680: +3..+6 = 01 02 03 05) has +5 = 3, so phase 0
+// always clears it and phase 1 (+4 = 2) takes the stage-2 branch (0xb53d20) that leaves it alone. A
+// type-3 character never has 0x80, the drawn references (type 2, +5 = 5) always do. The hero's 0x38 is
+// the expected value. Also, the per-frame collect 0xbd6d00 (run 45: the hero is collected every frame)
+// is only reached through 0xbd6240, which skips anim data with skin matrices (+0x108) == 0, and the
+// only writers of +0x108 are the anim update (0xb535d4 / 0xb53b5f) and AnimateDisabledObjectJob
+// (0xb54517, for anim data in the manager's "disabled" set +0x600, which nothing in this build sets).
+// So the hero's animation has been updated. This probe counts it per frame to settle it:
+//   * the 5 calls of 0xb53250 (0xb5258a in the manager update 0xb50ff0; the jobs 0xb52d70 x2,
+//     0xb531d0, 0xb54580) go through anim_update_counted, which counts calls for the hero's anim data
+//     by phase (record +4) and second pass (record +0xa);
+//   * log_hero_state adds the anim data's update bytes, m_pAnimControl (+0x10, 0 = the update only
+//     writes identity matrices, 0xb53507), skin matrices (+0x108, a new frame allocation per update),
+//     the world position (+0xe0) next to the object's locator (+0xf0), and its bits in the anim manager
+//     0x123e980 (+0 new, +0x200 live, +0x400 freed, +0x600 disabled, +0x800 excluded, +0x1000 + 0x200 *
+//     bucket; the frame updates buckets 0-5, 0x3fdb00).
+// Reading run 48: phase-1 updates rising and +0x108 changing = animated and skinned every frame, so the
+// drop is after the collect (draw jobs, run-47 counter); world position at 0,0,0 while the locator is
+// elsewhere = drawn at the origin; no updates = not in a bucket 0-5 / excluded (the bits say which).
+constexpr uint64_t fAnimUpdate = 0xb53250, kAnimMgr = 0x123e980;
+constexpr uint64_t cAnimUpdate[] = {0xb5258a, 0xb52dc1, 0xb52df8, 0xb5321e, 0xb545d4};
+uint64_t hero_anim = 0;
+uint64_t hero_updates[4];            // [phase * 2 + second pass]
+uint64_t anim_updates_total = 0;
+
+using AnimUpdateFn = void(U2MP_GUEST *)(uint64_t);
+// 0xb53250(record): record +4 phase (u32), +8 / +9 / +0xa flags (u8, +0xa = second pass), +0x10 job
+// data, +0x18 the anim data. Forwarded unchanged.
+U2MP_GUEST void anim_update_counted(uint64_t rec) {
+    __atomic_add_fetch(&anim_updates_total, 1, __ATOMIC_RELAXED);
+    const uint64_t hero = __atomic_load_n(&hero_anim, __ATOMIC_RELAXED);
+    if (hero && *reinterpret_cast<const uint64_t *>(uintptr_t(rec) + 0x18) == hero) {
+        const uint32_t phase = *reinterpret_cast<const uint32_t *>(uintptr_t(rec) + 4) & 1u;
+        const uint32_t second = *reinterpret_cast<const uint8_t *>(uintptr_t(rec) + 0xa) ? 1u : 0u;
+        __atomic_add_fetch(&hero_updates[phase * 2 + second], 1, __ATOMIC_RELAXED);
+    }
+    reinterpret_cast<AnimUpdateFn>(image.base + fAnimUpdate)(rec);
+}
+
+// The anim data's bits in the manager: "N" new, "L" live, "F" freed, "D" disabled, "X" excluded, then
+// the bucket digits it is in.
+void anim_manager_bits(uint64_t anim, char *out, size_t n) {
+    const uint8_t *mgr = image.base + kAnimMgr;
+    const uint64_t pool = *reinterpret_cast<const uint64_t *>(mgr + 0x2000);
+    if (bad_pointer(pool) || anim < pool || ((anim - pool) & 0x1ff) || ((anim - pool) >> 9) >= 0x1000) {
+        std::snprintf(out, n, "not in the pool %llx", (unsigned long long)pool);
+        return;
+    }
+    const uint64_t idx = (anim - pool) >> 9;
+    auto bit = [&](uint32_t off) {
+        return (*reinterpret_cast<const uint64_t *>(mgr + off + 8 * (idx >> 6)) >> (idx & 63)) & 1;
+    };
+    char buckets[9] = "";
+    int nb = 0;
+    for (uint32_t b = 0; b < 8; ++b)
+        if (bit(0x1000 + 0x200 * b)) buckets[nb++] = char('0' + b);
+    buckets[nb] = 0;
+    std::snprintf(out, n, "index %llu %s%s%s%s%s bucket %s", (unsigned long long)idx, bit(0) ? "N" : "-",
+                  bit(0x200) ? "L" : "-", bit(0x400) ? "F" : "-", bit(0x600) ? "D" : "-", bit(0x800) ? "X" : "-",
+                  nb ? buckets : "none");
+}
+
 // The hero object: its class (vtable), state machine (+0x50: the Go<State> functions write the pending
-// state at +8), and its anim data (+0x190 -> +8 = the render object). Anim data byte +0 bit 0x80 is set
-// by the anim update 0xb53250 (0xb53a2d) when the joints were computed; every drawn actor has it, the
-// hero (run 46) does not. Bytes +2..+6 are the update type set by 0xb4f680 (type 2: 02 01 00 05 00 =
-// the pool default, drawn props; type 3: 03 01 02 03 05 = what character Inits ask for, 0x995ed0(obj, 3)).
+// state at +8), and its anim data (+0x190 -> +8 = the render object). Bytes +2..+6 of the anim data are
+// the update type set by 0xb4f680 (type 2: 02 01 00 05 00 = the pool default, drawn props; type 3:
+// 03 01 02 03 05 = what character Inits ask for, 0x995ed0(obj, 3)); bit 0x80 of +0: see run 48 above.
 void log_hero_state(const char *when) {
     const uint64_t obj = hero_object;
     if (!obj || bad_pointer(obj)) return;
@@ -886,11 +950,36 @@ void log_hero_state(const char *when) {
     log("render: hero %s %p: vtable %llx, +34 %02x %02x %02x, state machine %llx:%s; anim data %llx +0 %016llx",
         when, static_cast<const void *>(o), (unsigned long long)(vt - uint64_t(uintptr_t(image.base))), o[0x34],
         o[0x35], o[0x36], (unsigned long long)sm, smtext, (unsigned long long)anim, (unsigned long long)ad0);
+    if (bad_pointer(anim)) return;
+    __atomic_store_n(&hero_anim, anim, __ATOMIC_RELAXED);
+    const uint8_t *a = reinterpret_cast<const uint8_t *>(uintptr_t(anim));
+    auto q = [&](uint32_t off) { return (unsigned long long)*reinterpret_cast<const uint64_t *>(a + off); };
+    const float *wp = reinterpret_cast<const float *>(a + 0xe0);
+    const float *lp = reinterpret_cast<const float *>(o + 0xf0);
+    char bits[96];
+    anim_manager_bits(anim, bits, sizeof bits);
+    static uint64_t reported[4] = {0, 0, 0, 0};
+    uint64_t u[4];
+    for (int i = 0; i < 4; ++i) u[i] = __atomic_load_n(&hero_updates[i], __ATOMIC_RELAXED);
+    log("render: hero %s anim data: type %02x %02x %02x %02x %02x, m_pAnimControl %llx, +18 %llx, +98 %llx, "
+        "skin matrices +108 %llx (previous %llx), callback +160 %llx; world pos %.2f %.2f %.2f, object locator "
+        "%.2f %.2f %.2f; manager %s; anim updates phase 0 %llu (+%llu) / second pass %llu, phase 1 %llu (+%llu) / "
+        "second pass %llu, all objects %llu",
+        when, a[2], a[3], a[4], a[5], a[6], q(0x10), q(0x18), q(0x98), q(0x108), q(0x110), q(0x160), wp[0], wp[1],
+        wp[2], lp[0], lp[1], lp[2], bits, (unsigned long long)u[0], (unsigned long long)(u[0] - reported[0]),
+        (unsigned long long)u[1], (unsigned long long)u[2], (unsigned long long)(u[2] - reported[2]),
+        (unsigned long long)u[3], (unsigned long long)__atomic_load_n(&anim_updates_total, __ATOMIC_RELAXED));
+    for (int i = 0; i < 4; ++i) reported[i] = u[i];
 }
 
 U2MP_GUEST uint64_t spawn_hero_shown(uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
     const uint64_t obj = reinterpret_cast<SpawnProcessFn>(image.base + fSpawnProcess)(a0, a1, a2, a3, a4, a5);
-    if (!hero_show || bad_pointer(obj)) return obj;
+    if (bad_pointer(obj)) return obj;
+    if (!hero_show) {   // only the run-48 probe
+        hero_object = obj;
+        log_hero_state("spawned");
+        return obj;
+    }
     uint32_t before_or = 0, after_or = 0;
     const int n = for_each_draw_data(obj, [&](uint32_t *flags) {
         before_or |= *flags;
@@ -914,11 +1003,19 @@ U2MP_GUEST uint64_t spawn_hero_shown(uint64_t a0, uint64_t a1, uint64_t a2, uint
 
 // Called from install_nullsites (nullsites.cpp), so install.cpp needs no line of its own.
 void install_render(int &installed) {
-    install_draw_diag(installed);
+    const bool diag = install_draw_diag(installed);
     if (const char *v = std::getenv("UNCHARTED_U2MP_HERO_SHOW"); v && std::strcmp(v, "0") == 0) hero_show = false;
-    if (hero_show && retarget_call(cSpawnHero, fSpawnProcess, reinterpret_cast<void *>(&spawn_hero_shown),
-                                   "render: local hero spawn (draw data shown)"))
+    if ((hero_show || diag) &&
+        retarget_call(cSpawnHero, fSpawnProcess, reinterpret_cast<void *>(&spawn_hero_shown),
+                      hero_show ? "render: local hero spawn (draw data shown)" : "render: local hero spawn (logged)"))
         ++installed;
+    if (diag) {   // run 48: count the hero's anim updates (section 6)
+        int n = 0;
+        for (const uint64_t site : cAnimUpdate)
+            n += retarget_call(site, fAnimUpdate, reinterpret_cast<void *>(&anim_update_counted),
+                               "render diag: anim update 0xb53250 counted");
+        installed += n;
+    }
     static const unsigned char add_prologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55};
     static const unsigned char init_prologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x53};
     static const unsigned char make_prologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55};

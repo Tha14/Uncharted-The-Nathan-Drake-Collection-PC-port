@@ -45,3 +45,18 @@ From run 38 on, fixes are batched (render root cause, remaining gameplay/menu fu
 | 43 | Fort/Shambhala match to game over; hero mesh instances created, 0 submits; skin year-1 | render diag, skin default |
 | 44 | Warzone: assert GetDeltaSeconds (ss-track-group.cpp 667, net-timer scripts) 14 s into the match; hero 0 submits, probe validated by references | scripttime.cpp (clocks[7] delta) |
 | 45 | two full Warzone matches with the 60 s limit, results, back to the lobby, no crash; MP HUD draw ran; loading screen (cards, tip) shown; hero render object collected every frame but never submitted, draw data flags 0x6a00 vs 0x2000 on drawn actors | hero flag bits to the render port |
+
+## Open after run 45 (sweep 2026-11-09)
+
+Run 39's Gompa leave reason was the match-over byte (fixed in run 40). Built since run 45 and not yet run;
+each needs a check in the next runs:
+
+| Area | What to look at | Doc |
+|---|---|---|
+| remote animations (two PCs) | remote players play clips, footsteps / anim sounds fire; both PCs on this build (snapshot format changed) | PORT-NETANIM.md |
+| "Starting in [A]..." popup | leader and member see the 5 s countdown; Back cancels on both | PORT-FRONTEND6.md 1 |
+| vote level preload | `level preload (PS3 0x4a12e8)` at vote and result, then the match loads | PORT-FRONTEND6.md 2 |
+| party rows | mic / mute icon, team colours in a custom team game | PORT-FRONTEND6.md 3 |
+| GOTY stub tables | co-op kills of every NPC type (no assert at `0x5dedac`), health 90, Baseball Shirt Drake in the store | UNLOCKS.md 3.1, 5 |
+| visibility probe (two PCs) | enemy name tags in line of sight and behind walls (filter {26, 0}) | PORT-GAMEPLAY3.md 7 |
+| player character drawn, HUD, loading rosters | other ports in progress | PORT-RENDER.md, PORT-HUD.md, PORT-FRONTEND5.md |

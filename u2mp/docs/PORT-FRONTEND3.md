@@ -168,7 +168,7 @@ rank at +0x18 (PS3 +16), the rest as PS3 (+0x24 = +0x2c = -1). The rank travels 
 messages: kInfo `{len, name, rank}`, kRoster entries `{slot, len, rank, name}` (format change; both
 PCs need this build), refreshed every 2 s when it changes. Local rank: PS3 `0x0cfa58` over
 NetPlayerData +0xd8 (cash) and the rank table `c85e199d` (as progression.cpp). Image 1 (the cellVoice
-talking icon) and op 17 (team colour) are not ported.
+talking icon) and op 17 (team colour): ported, PORT-FRONTEND6.md 3.
 
 ## 8. Net clock rate
 
@@ -178,16 +178,15 @@ game frames (60/s), so every countdown read from the clock ran 5x slow. Now 300 
 (steady clock) from the clock's creation. `session::net_ticks()` returns it (also before the clock
 exists).
 
-## 9. Not ported
+## 9. Not ported (updated 2026-11-09, PORT-FRONTEND6.md)
 
-- The 5 s "Starting in [A]..." popup before matchmaking / custom create (PS3 `0x42a0b8`, text
-  `73a73dd8`): PS4 has no counterpart of the countdown popup and no reference to the text. Start Match
-  goes straight to matchmaking / the create path. Its cancel callbacks are ported anyway (section 1).
-- The level preload during the vote countdown (PS3 `0x4a12e8`(ngm,1,1,0), PS4 `641690`): the match
-  start loads the levels as before.
-- PS3 member data shown in the vote / player rows that came from Matching2 (ping, bandwidth).
-- party+0xb50 (PS4's remnant of "member leaves the party" on PAGE_MULTIPLAYER close and in-match Leave
-  Game) is not acted on: the PC member stays in the party.
+- ~~The 5 s "Starting in [A]..." popup~~: **ported** (frontend6.cpp). PS4 kept the popup page and its
+  update; only the opener `0x42a0b8` and its callers were gone. PORT-FRONTEND6.md 1.
+- ~~The level preload during the vote countdown~~ (PS3 `0x4a12e8` = PS4 `641690`): **ported** at the four
+  PS3 call points of the vote (frontend3.cpp `open_vote` / `apply_result`). PORT-FRONTEND6.md 2.
+- PS3 member data shown in the vote / player rows that came from Matching2 (ping, bandwidth): not
+  needed (no Matching2 room).
+- party+0xb50 (PS3 `0x4c36c8`, "member leaves the party"): not needed on PC; reason in PORT-FRONTEND6.md 4.
 - Image type 0x23: its only PS3 producer is the MOTD query (cond 96, PS3 `0x4ba660` at `0x4ba760`), whose
   page (server message of the day) is never shown on PS4 / PC and whose PS4 query (`65e2e0`) no longer
   produces it. Nothing to port.

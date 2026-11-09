@@ -284,3 +284,51 @@ Run 47 logs:
   Ragdoll are named), and whether anim data bit 0x80 ever appears.
 * `render diag: hero ...: N draw jobs (0xc419d0)` - the per-instance draw job entry is hooked (trampoline)
   and counted per tracked instance: collects but no draw jobs = dropped before the job list.
+
+### Static review after run 46: the hero's animation is updated (run-48 probe)
+
+Bit 0x80 of the anim data's byte +0 does not mean "animation updated" for a character. The anim update
+0xb53250 sets it (0xb53a2d) only when byte +5+phase lacks bit 2 and clears it (0xb53e4a) when the bit is
+set. Update type 3 (characters: +3..+6 = 01 02 03 05) has +5 = 3, so phase 0 always clears it, and phase 1
+(+4 = 2) takes the stage-2 branch at 0xb53d20, which does not touch it. Every type-3 character keeps 0x38.
+The drawn references (type 2, +5 = 5) always get 0xb8. Run 46 compared a character with props.
+
+The hero is animated, as far as the code shows:
+* The collect 0xbd6d00 (run 45: the hero collected every frame) is only called through 0xbd6240 (from the
+  frame's draw build 0x4b90d0 and 0xbd6540). 0xbd6240 skips anim data whose skin matrices (+0x108) are 0.
+  Only two places write +0x108: the anim update (0xb535d4 / 0xb53b5f, a new frame allocation each time)
+  and AnimateDisabledObjectJob 0xb54517 (for the manager's "disabled" set +0x600).
+* Manager 0x123e980 (job names: AnimMgr_Async_AnimBlend 0xb52d70, _JointBlend 0xb531d0, _AnimBlend_Post
+  0xb54580, AnimateDisabledObjectJob 0xb543e0). It has bitsets of 0x1000 entries: +0 new this frame,
+  +0x200 live, +0x400 freed, +0x600 disabled, +0x800 excluded, and +0x1000 + 0x200 * bucket. The update
+  0xb50ff0(bucket) runs bucket & ~new & ~disabled & ~excluded. No code in the image sets +0x600 or +0x800
+  (no stores with those displacements and no rip references to them). So nothing can switch a character's
+  animation off.
+* Alloc 0xb500c0 puts new anim data in bucket 2. ChangeParentProcess 0x9967f0 (and AnimControl init
+  0x3918f0) moves it to the bucket of its top-level process tree: process manager 0x115f1a0 +0xc48 / c50 /
+  c58 / c60 / c90 / c98 = buckets 0-5. The frame (0x3fdb00) runs all 6 buckets, each as process update
+  0x9b8d50 -> anim 0xb50ff0 -> skinning 0xbd4720 (phase 0, then phase 1). The local spawn 0x976300 parents
+  the hero to +0xc68, a child of +0xc60, which is bucket 3.
+* m_pAnimControl (+0x10) is set by NdGameObject::InitAnimControl 0x9938f0 (0x993ab9), the player
+  vtables' slot +0x18. Without it the update only writes identity matrices (0xb53507). The probe logs it.
+
+So "the hero's animation is never updated" is not the cause. Where the hero is lost is still open. It is
+after the collect, or in what the skinning or matrices produce: identity matrices, or a world position
+that is not where the player is. No missing PS3 step was found on this path.
+
+Run 48 logs (render.cpp section 6, diagnostics on):
+* the 5 calls of 0xb53250 go through `anim_update_counted`, which counts the hero's updates by phase and
+  second pass, and all updates as a check that the counter works;
+* `render: hero <when> anim data: type .., m_pAnimControl .., skin matrices +108 .. (previous ..),
+  callback +160 ..; world pos x y z, object locator x y z; manager index N NLFDX bucket B; anim updates
+  phase 0 .. phase 1 ..`, at spawn and with every summary. The hero object is recorded even with
+  `UNCHARTED_U2MP_HERO_SHOW=0`.
+
+Reading run 48 together with the run-47 draw-job counter:
+* phase-1 updates rising and +0x108 changing between summaries: animated and skinned. The drop is after
+  the collect.
+  * draw jobs 0: the hero is lost between the frame list and 0xc419d0.
+  * draw jobs > 0 but no walker submits: lost inside the job.
+* m_pAnimControl 0: identity matrices.
+* world pos 0,0,0 while the object locator is elsewhere: the hero is drawn at the map origin.
+* no updates: the manager bits show why (not live, excluded, or a bucket above 5).
