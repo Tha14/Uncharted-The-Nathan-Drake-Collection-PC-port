@@ -42,7 +42,7 @@ constexpr uint64_t fDraw2D = 0x554340, cDraw2D = 0x3fc52d;
 constexpr uint64_t fTextFind = 0xcddc00, kTextDb = 0x1066660, fDcLookup = 0xa15e70;
 constexpr uint64_t kNgm = 0x113b760, NGM_GAME = 0x1ca0;
 constexpr uint32_t kNetGames = 0x3b9a067d, kLevels = 0x0dec97a4, kGameTypes = 0xf985c7b6, kTips = 0xb25ab071;
-constexpr size_t kStyleSize = 0xa0;
+constexpr size_t kStyleSize = 0xb0;   // 0xbda9c0 reads up to +0xa8 (review 2026-11-09)
 constexpr float kScreenW = 1920.0f, kScreenH = 1080.0f;
 
 template <typename T> T &G(uint64_t offset) { return *image.at<T>(offset); }

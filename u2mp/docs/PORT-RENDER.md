@@ -123,3 +123,42 @@ to be bumped (e.g. `'u2ag2'`), or the import run with `--force`. Levels (pak22) 
   which skips a pointer no game allocator owns, and the original InitCbList block is not freed. Per undersized
   instance per map load. Fix later with the game allocator (0xb333f0, tag 0x39) and 0xb356d0 for the old block.
   After the actor re-import (u2ag2) no list should need to grow.
+
+## Runs 41-42: the player character is not seen (open)
+
+The spawn resolves the model (`skins: spawn 0x663280: model 'mp-hero-year-1' -> ...`, package state 7), and
+there are no render repairs, no crash and no lasting "Draws without a pipeline" after the spawn. Nothing
+draws the character.
+
+### Structure compared with retail (retail mp-hero-navarro, costume-hero-nd; import builds mp-hero, mp-hero-year-1)
+
+| structure | import build vs retail |
+|---|---|
+| FOREGROUND_SECTION_2 x4 | same layout: prototype, skeleton 0x27e57f43 / hierarchy 0xef94465d, the same 0x40-byte list at +0x10, LOD distances 0 / 6 / 15 / 20 |
+| ARTGROUP_DATA | same layout, 8 keys: sid('geo.' + FG name) for the 4 sections + 4 others, same as retail |
+| tags | 4 vis_sphere (0,0,0,1.25), 3 lod_distance, 4 vis_joint_index (0) like retail; login order differs (harmless) |
+| prototypes | same fields; flags byte 3 is 1 (retail mostly 0, mp-hero-udf 1); +0x30 capacity fixed (4) |
+| submeshes | same 0x88 record, 230 joints, stream formats 00000c06 / 01000422 / 0200080a / 0300080a (+0c000422 / 0400080a on swapped twin submeshes) like retail |
+| skinning | same {0, n, counts, offsets, joint/weight pairs, weights} layout; weights sorted the other way (harmless) |
+| skeleton | the hero skeleton (JOINT_HIERARCHY 'skel' in proto.pak) loads in the frontend |
+
+Nothing found in the paks explains a whole character that does not draw. Note that the twin build's LOD0
+(mp-hero) is the PS4 campaign mesh unchanged. Not proven either way: whether retail skins draw in a
+match. **Test: pick a skin the PS4 game ships (Navarro, Elena, Sullivan, Merc ...) in the character menu.**
+If it doesn't draw either, the cause is in the runtime (spawn / show of the net player), not in the converter.
+
+### Runtime evidence added (render.cpp section 5, `render diag:` lines)
+
+* `init <instance> prototype '<name>'`: MeshInstance::Init (calls 0xbe4bb3, 0xc29a74, 0xd256b7) for every
+  prototype whose name contains `mp_hero`: submesh count, cbuffer capacity, sub-elements, transform, bounds,
+  flags.
+* `first submit of <instance>`: the binding walker 0xc25670 (hooked at its entry with a trampoline) ran
+  for one of that instance's cbuffer lists, i.e. the renderer submitted it. Logged with the override table
+  (per-draw data, e.g. the skinning palette) and the transform at that time. After that, counts of submits
+  every 0x40000 walker calls.
+* `UNCHARTED_U2MP_RENDER_DIAG=all` records every prototype; `=0` turns it off.
+
+Reading it: no `init` = the character never gets a mesh instance (spawn / look); `init` without
+`first submit` = it is culled or never queued (visibility, LOD, bounds); `first submit` with a zero or far
+transform = drawn off-screen; submits with a sane transform = drawn but invisible (skinning palette,
+shaders).

@@ -596,14 +596,30 @@ void skip_missing_level_pak() {
     const uint32_t id = sid(name);
     if (find_package(id)) return;
     // The import writes the server spawn data as pak22/ps4/<map>-pak-ingame10.pak and registers the level:
-    // then the package is only not created *yet* (assets audit 2026-11-09), so it must be waited for.
+    // then the package is only not created *yet* (assets audit 2026-11-09), so it is waited for - up to 20 s,
+    // in case no registry entry creates it (older import), which would bring back the run-21 hang (review).
     {
-        char host[1024];
-        const std::string guest = std::string("/app0/u2data/build/main/pak22/ps4/") + name + "-ingame10.pak";
-        if (runtime_file_translate(guest.c_str(), host, sizeof host) == 0) {
-            if (std::FILE *f = std::fopen(host, "rb")) {
-                std::fclose(f);
-                return;
+        static uint32_t seen_id = 0;
+        static bool file_exists = false;
+        static std::chrono::steady_clock::time_point first;
+        if (seen_id != id) {
+            seen_id = id;
+            first = std::chrono::steady_clock::now();
+            char host[1024];
+            const std::string guest = std::string("/app0/u2data/build/main/pak22/ps4/") + name + "-ingame10.pak";
+            file_exists = false;
+            if (runtime_file_translate(guest.c_str(), host, sizeof host) == 0)
+                if (std::FILE *f = std::fopen(host, "rb")) {
+                    std::fclose(f);
+                    file_exists = true;
+                }
+        }
+        if (file_exists && std::chrono::steady_clock::now() - first < std::chrono::seconds(20)) return;
+        if (file_exists) {
+            static uint32_t timed_out = 0;
+            if (timed_out != id) {
+                timed_out = id;
+                log("load levels: %s has a file but no package after 20 s (not registered?): not waited for", name);
             }
         }
     }

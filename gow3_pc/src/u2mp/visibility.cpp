@@ -155,7 +155,7 @@ void kick_one(int i, const uint8_t *local) {
     slot_fn<SetRadiusFn>(probe, 32)(probe, 0, kRadius);
     uint64_t filter_obj = G<uint64_t>(kDefaultFilterObj);
     slot_fn<SetFilterFn>(probe, 9)(probe, 0, kFilterA, kFilterB, &filter_obj);
-    slot_fn<KickFn>(probe, 2)(probe, G<uint64_t>(kSiteA), G<uint32_t>(kSiteB), G<uint64_t>(kSiteC), 0, 0);
+    slot_fn<KickFn>(probe, 2)(probe, G<uint64_t>(kSiteA), G<uint32_t>(kSiteB), G<uint64_t>(kSiteC), 0, 1);   // r8 = PS3's r7 0; r9 = 1 as PS4's own kick 0x97eedb (review)
     kicked[i] = true;
     if (++g_kicks == 1) log("visibility: first probe kicked (tracker %d, net id %u)", i, id);
 }

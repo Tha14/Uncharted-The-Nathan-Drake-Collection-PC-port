@@ -357,6 +357,14 @@ bool build_skins(const uint8_t *ps4_table) {
             ++replaced;
         }
         std::memcpy(out + SKIN_STRIDE * uint64_t(at), p, SKIN_STRIDE);
+        // +8 points into the PS4 net.bin module, which may be reloaded: keep our own copy (review 2026-11-09)
+        if (const char *pkg = reinterpret_cast<const char *>(uintptr_t(rd<uint64_t>(p, 8)))) {
+            const size_t len = std::strlen(pkg);
+            if (auto *copy = static_cast<char *>(netheap_alloc(len + 1, 16))) {
+                std::memcpy(copy, pkg, len + 1);
+                wr<uint64_t>(out + SKIN_STRIDE * uint64_t(at), 8, uint64_t(uintptr_t(copy)));
+            }
+        }
     }
     wr<int32_t>(mem, 0, count);
     wr<uint64_t>(mem, 8, uint64_t(uintptr_t(out)));
@@ -475,7 +483,7 @@ void *art_lookup(void *table, const char *name, const char *site) {
     const uint8_t *pkg = id ? package_by_id(id) : nullptr;
     int entries = 0, alias = 0;
     const int32_t n = G<int32_t>(kArtCount);
-    for (int32_t i = 0; i < n && i < 4096; ++i) {
+    for (int32_t i = 0; i < n && i < 512; ++i) {   // 0x7000 / 0x38 entries
         const uint8_t *e = image.at<uint8_t>(kArtTable + ART_STRIDE * uint64_t(i));
         ++entries;
         if (rd<uint32_t>(e, 0x20) == id) alias = i + 1;
@@ -524,14 +532,14 @@ void unlocks_refresh() {
     if (g_skins && dc_object(kSkinTable) != g_skins && binds_left > 0) {
         const uint64_t v = uint64_t(uintptr_t(g_skins));
         bind(kSkinTable, &v);
-        --binds_left;
+        if (dc_object(kSkinTable) != g_skins) --binds_left;   // only ineffective binds count (review)
         log("unlocks: skin table 0x%08x bound (%d records)%s", kSkinTable, rd<int32_t>(g_skins, 0),
             dc_object(kSkinTable) == g_skins ? "" : " - NOT effective");
     }
     if (g_boosters && dc_object(kBoosterTable) != g_boosters && binds_left > 0) {
         const uint64_t v = uint64_t(uintptr_t(g_boosters));
         bind(kBoosterTable, &v);
-        --binds_left;
+        if (dc_object(kBoosterTable) != g_boosters) --binds_left;
         log("unlocks: booster table 0x%08x bound (%d records)%s", kBoosterTable, g_booster_count,
             dc_object(kBoosterTable) == g_boosters ? "" : " - NOT effective");
     }

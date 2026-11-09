@@ -31,6 +31,7 @@
 //
 // Addresses are Uncharted 2 PS4 1.02 image offsets. Every patch checks the bytes it replaces first.
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -364,10 +365,219 @@ U2MP_GUEST void *bind_copy_checked(const void **res, uint64_t size, void *out) {
     return reinterpret_cast<BindCopy>(image.base + fBindCopy)(res, size, out);
 }
 
+// ---- 5. Character draw diagnostics (test runs 41-42: the player model is not seen) -------------------
+// Three questions for the next test, logged as `render diag:`:
+//   a. does MeshInstance::Init (0xc3b6f0) run for the player's prototypes (name contains "mp_hero")?
+//      -> logged per instance: prototype, sub-element count, flags, bounds and transform.
+//   b. does the binding walker (0xc25670, run for every instance the renderer submits) see one of their
+//      cbuffer lists (instance +0x170 / +0x1b0, sub-element +0x340)? -> the first submit is logged per
+//      instance, then counts every 0x40000 walker calls. No submit = culled or never queued.
+//   c. at the first submit: the transform and the walker's override table (count, first entries), which
+//      carries per-draw data such as the skinning palette. A zero / far transform = drawn off-screen.
+// UNCHARTED_U2MP_RENDER_DIAG=0 turns it off; =all records every prototype, not only mp_hero ones.
+constexpr uint64_t fMeshInit = 0xc3b6f0, fWalker = 0xc25670;
+constexpr uint64_t cInitA = 0xbe4bb3, cInitB = 0xc29a74, cInitC = 0xd256b7;
+constexpr int kTracked = 128;
+constexpr int kListSlots = 4096;
+
+struct Tracked {
+    uint64_t instance;
+    char name[48];
+    uint64_t submits;
+    uint64_t submits_reported;
+    bool logged_first;
+};
+Tracked tracked[kTracked];
+uint32_t tracked_next = 0;
+uint64_t list_key[kListSlots];     // list address
+int16_t list_owner[kListSlots];    // index into tracked
+int diag_mode = 1;                 // 0 off, 1 mp_hero prototypes, 2 all
+uint64_t walker_calls = 0;
+
+bool readable_string(const char *s, char *out, size_t n) {
+    if (bad_pointer(uint64_t(uintptr_t(s)))) return false;
+    size_t i = 0;
+    for (; i + 1 < n && s[i]; ++i) {
+        if (static_cast<unsigned char>(s[i]) < 0x20 || static_cast<unsigned char>(s[i]) > 0x7e) return false;
+        out[i] = s[i];
+    }
+    out[i] = 0;
+    return i > 0;
+}
+
+uint32_t list_hash(uint64_t list) { return uint32_t((list >> 4) * 0x9e3779b1u) & (kListSlots - 1); }
+
+void list_insert(uint64_t list, int owner) {
+    uint32_t h = list_hash(list);
+    for (int probe = 0; probe < kListSlots; ++probe, h = (h + 1) & (kListSlots - 1)) {
+        const uint64_t k = __atomic_load_n(&list_key[h], __ATOMIC_ACQUIRE);
+        if (k == list || k == 0) {
+            list_owner[h] = int16_t(owner);
+            __atomic_store_n(&list_key[h], list, __ATOMIC_RELEASE);
+            return;
+        }
+    }
+}
+int list_find(uint64_t list) {
+    uint32_t h = list_hash(list);
+    for (int probe = 0; probe < 64; ++probe, h = (h + 1) & (kListSlots - 1)) {
+        const uint64_t k = __atomic_load_n(&list_key[h], __ATOMIC_ACQUIRE);
+        if (k == list) return list_owner[h];
+        if (k == 0) return -1;
+    }
+    return -1;
+}
+
+void log_instance(const char *what, const uint8_t *inst) {
+    const float *m = reinterpret_cast<const float *>(inst + 0x10);
+    const float *bb = reinterpret_cast<const float *>(inst + 0xa0);
+    log("render diag: %s %p transform [%.3g %.3g %.3g | %.3g %.3g %.3g | %.3g %.3g %.3g | pos %.3f %.3f %.3f] "
+        "bounds %.3f %.3f %.3f .. %.3f %.3f %.3f, flags +c0 %04x +d8 %llx", what, static_cast<const void *>(inst),
+        m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10], m[12], m[13], m[14], bb[0], bb[1], bb[2], bb[4],
+        bb[5], bb[6], *reinterpret_cast<const uint16_t *>(inst + 0xc0),
+        (unsigned long long)*reinterpret_cast<const uint64_t *>(inst + 0xd8));
+}
+
+using MeshInitFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+                                          uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+
+// MeshInstance::Init(instance, -, -, prototype, desc, -, 7 stack words): forwarded unchanged.
+U2MP_GUEST uint64_t mesh_init_logged(uint64_t inst, uint64_t a1, uint64_t a2, uint64_t proto, uint64_t desc,
+                                     uint64_t a5, uint64_t s0, uint64_t s1, uint64_t s2, uint64_t s3, uint64_t s4,
+                                     uint64_t s5, uint64_t s6) {
+    const uint64_t r = reinterpret_cast<MeshInitFn>(image.base + fMeshInit)(inst, a1, a2, proto, desc, a5, s0, s1,
+                                                                             s2, s3, s4, s5, s6);
+    if (!diag_mode || bad_pointer(inst) || bad_pointer(proto)) return r;
+    char name[48];
+    if (!readable_string(*reinterpret_cast<const char *const *>(uintptr_t(proto) + 0x10), name, sizeof name))
+        std::strcpy(name, "?");
+    if (diag_mode == 1 && !std::strstr(name, "mp_hero")) return r;
+    const uint32_t slot = __atomic_fetch_add(&tracked_next, 1, __ATOMIC_RELAXED) % kTracked;
+    Tracked &t = tracked[slot];
+    t.instance = inst;
+    std::memcpy(t.name, name, sizeof t.name);
+    t.submits = t.submits_reported = 0;
+    t.logged_first = false;
+    const uint8_t *in = reinterpret_cast<const uint8_t *>(uintptr_t(inst));
+    list_insert(inst + 0x170, int(slot));
+    list_insert(inst + 0x1b0, int(slot));
+    const int32_t nsub = *reinterpret_cast<const int32_t *>(in + 0x164);
+    const uint64_t subs = *reinterpret_cast<const uint64_t *>(in + 0x168);
+    for (int32_t i = 0; i < nsub && i < 64 && !bad_pointer(subs); ++i)
+        list_insert(subs + 0x3a0 * uint64_t(i) + 0x340, int(slot));
+    const uint32_t *pw = reinterpret_cast<const uint32_t *>(uintptr_t(proto));
+    log("render diag: init %p prototype '%s' (%u submeshes, cbuffer capacity %u), %d sub-elements, %u instance "
+        "cbuffers, called from %llx", static_cast<const void *>(in), name, pw[1], pw[12], nsub,
+        *reinterpret_cast<const uint32_t *>(in + 0x170),
+        (unsigned long long)(uint64_t(uintptr_t(__builtin_return_address(0))) - uint64_t(uintptr_t(image.base))));
+    log_instance("init", in);
+    return r;
+}
+
+using WalkerFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+unsigned char *walker_original = nullptr;
+
+// The walker (list, -, -, -, flag, override table, override count): forwarded unchanged.
+U2MP_GUEST uint64_t walker_logged(uint64_t list, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t table,
+                                  uint64_t count) {
+    const uint64_t calls = __atomic_add_fetch(&walker_calls, 1, __ATOMIC_RELAXED);
+    const int owner = list_find(list);
+    if (owner >= 0) {
+        Tracked &t = tracked[owner];
+        __atomic_add_fetch(&t.submits, 1, __ATOMIC_RELAXED);
+        if (!t.logged_first) {
+            t.logged_first = true;
+            const int32_t n = int32_t(uint32_t(count));
+            char ids[200] = "";
+            size_t at = 0;
+            for (int32_t i = 0; i < n && i < 8 && !bad_pointer(table); ++i) {
+                const uint32_t *e = reinterpret_cast<const uint32_t *>(uintptr_t(table) + 16 * uint64_t(i));
+                const int w = std::snprintf(ids + at, sizeof ids - at, " %u/%08x->%llx", e[0], e[1],
+                                            (unsigned long long)*reinterpret_cast<const uint64_t *>(e + 2));
+                if (w < 0 || size_t(w) >= sizeof ids - at) break;
+                at += size_t(w);
+            }
+            log("render diag: first submit of %p '%s' (list %llx, walker call %llu), override table %d entries:%s",
+                reinterpret_cast<const void *>(uintptr_t(t.instance)), t.name, (unsigned long long)list,
+                (unsigned long long)calls, n, ids);
+            log_instance("submit", reinterpret_cast<const uint8_t *>(uintptr_t(t.instance)));
+        }
+    }
+    if ((calls & 0x3ffff) == 0) {
+        for (int i = 0; i < kTracked; ++i) {
+            Tracked &t = tracked[i];
+            if (!t.instance) continue;
+            const uint64_t s = __atomic_load_n(&t.submits, __ATOMIC_RELAXED);
+            log("render diag: %p '%s': %llu walker submits (+%llu)",
+                reinterpret_cast<const void *>(uintptr_t(t.instance)), t.name, (unsigned long long)s,
+                (unsigned long long)(s - t.submits_reported));
+            t.submits_reported = s;
+        }
+    }
+    return reinterpret_cast<WalkerFn>(walker_original)(list, a1, a2, a3, a4, table, count);
+}
+
+bool install_draw_diag(int &installed) {
+    if (const char *v = std::getenv("UNCHARTED_U2MP_RENDER_DIAG")) {
+        if (std::strcmp(v, "0") == 0) diag_mode = 0;
+        else if (std::strcmp(v, "all") == 0) diag_mode = 2;
+    }
+    if (!diag_mode) {
+        log("render diag: off (UNCHARTED_U2MP_RENDER_DIAG=0)");
+        return false;
+    }
+    static const unsigned char init_prologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55,
+                                                  0x41, 0x54, 0x53, 0x48, 0x81, 0xe4};
+    // push rbp; mov rbp,rsp; push r15; push r14; push r13; push r12; push rbx (13 bytes, no rip use); sub rsp,0x78
+    static const unsigned char walker_prologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41,
+                                                    0x55, 0x41, 0x54, 0x53, 0x48, 0x83, 0xec, 0x78};
+    if (!image.matches(fMeshInit, init_prologue, sizeof init_prologue) ||
+        !image.matches(fWalker, walker_prologue, sizeof walker_prologue) || !image.executable(fWalker, 13)) {
+        log("render diag: MeshInstance::Init / walker bytes differ, left alone");
+        return false;
+    }
+    int n = 0;
+    n += retarget_call(cInitA, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init A");
+    n += retarget_call(cInitB, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init B");
+    n += retarget_call(cInitC, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init C");
+    installed += n;
+    // walker: trampoline = its 13-byte prologue + jmp back to 0xc2567d; the entry jumps to the host
+    unsigned char *tramp = near_stub(32);
+    unsigned char *entry = near_stub(16);
+    const int64_t delta = entry ? int64_t(uintptr_t(entry)) - int64_t(uintptr_t(image.base + fWalker + 5)) : 0;
+    if (!tramp || !entry || delta < INT32_MIN || delta > INT32_MAX) {
+        log("render diag: no stub memory for the walker hook");
+        return n > 0;
+    }
+    std::memcpy(tramp, walker_prologue, 13);
+    tramp[13] = 0xff;   // jmp [rip+0]
+    tramp[14] = 0x25;
+    std::memset(tramp + 15, 0, 4);
+    const uint64_t back = uint64_t(uintptr_t(image.base + fWalker + 13));
+    std::memcpy(tramp + 19, &back, 8);
+    walker_original = tramp;
+    const uint64_t host = uint64_t(uintptr_t(&walker_logged));
+    entry[0] = 0x48;    // mov rax, host ; jmp rax   (rax carries no argument)
+    entry[1] = 0xb8;
+    std::memcpy(entry + 2, &host, 8);
+    entry[10] = 0xff;
+    entry[11] = 0xe0;
+    const int32_t rel = int32_t(delta);
+    unsigned char *c = image.base + fWalker;
+    c[0] = 0xe9;
+    std::memcpy(c + 1, &rel, 4);
+    std::memset(c + 5, 0x90, 8);
+    ++installed;
+    log("render diag: MeshInstance::Init and the binding walker logged for %s prototypes",
+        diag_mode == 2 ? "all" : "mp_hero");
+    return true;
+}
+
 }  // namespace
 
 // Called from install_nullsites (nullsites.cpp), so install.cpp needs no line of its own.
 void install_render(int &installed) {
+    install_draw_diag(installed);
     static const unsigned char add_prologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55};
     static const unsigned char init_prologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x53};
     static const unsigned char make_prologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55};
