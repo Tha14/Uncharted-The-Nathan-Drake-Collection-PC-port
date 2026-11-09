@@ -143,11 +143,28 @@ game that links later.
 | Host leaves (lobby, party, matchmaking) | party room: the server's next owner leads (auto grant); custom lobby: everyone left (host-migration.md) | every room has OWNER_AUTO_GRANT; a client that loses its host outside a match waits (15 s) for the room's new owner: that player hosts the transport, the others join it. Matchmaking goes on in the same room; party and custom lobby go back to PAGE_MULTIPLAYER as a party |
 | Promote To Party Leader (`2d32c8b0`) | GrantRoomOwner `0x4d3a10` (no RPCN command) | online: owner succession = the chosen member (`u2o_set_owner_rank`), the leader leaves and joins the room again; the members follow through the migration path |
 
-Not done: host migration *during* a running match (PS3: WaitReady turns auto grant on and the new host resets
-the round; needs the star transport rebuilt with every net id kept, see the research notes) - a host leaving a
-running match still ends it as over LAN. No profile viewer, no friend requests from the game (the launcher does
-those; a request that arrives is shown).
+Friend requests (ABI 2, `u2o_friend_requests` / `u2o_add_friend` / `u2o_remove_friend` = RPCN AddFriend 8 /
+RemoveFriend 9 through the launcher's session): Party Up lists the requests to us ("Friend request": Add Friend /
+Decline) and ours ("Request sent": Cancel) after the friends; every friend row also has View Profile (name, state,
+presence; PS3 sceNpProfileCallGui) and Remove Friend. Our own popup callbacks are registered in the menu callback
+table (remaining.cpp).
 
+## 5b. Host migration in a running match
+
+PS3 (host-migration research): WaitReady turns OWNER_AUTO_GRANT on when the match starts (not in co-op: game types 4,
+8, 9, 12, `0x4a5548`); when the host leaves, the room's next owner gets RoomOwnerChanged -> listener slot 6
+(`0x440334` = PS4 `0x5e9f30`, intact): NGM host = that player's tracker, event `0x15f1cf05`, and the intact reset
+states restart the round on the same map under the new host.
+
+PC: at the match start the host sets the room's owner succession (the other players, `u2o_set_owner_rank`), and with
+every roster it sends `kIds` (net id -> NpId). A client that loses the host while NET_SM is 26 and the game type is
+not co-op waits for the room's new owner (15 s). Every player keeps its net id: the new host hosts the transport with
+its own net id (its old slot reserved), the others join it asking for their old slot (`Transport::join_link`
+`want_slot`, carried in the hello); everyone applies NetEventPlayerLeft for the old host, sets match session +0xb04,
+and calls `0x5e9f30` (the new host at once, the others when they reach it). `UNCHARTED_U2MP_HOST_MIGRATION=0` turns it
+off. Untested; if it fails, the match ends as before.
+
+Not done: rankings (PS3 NP Score boards).
 ## 6. Untested / open
 
 - Nothing here has run yet: first test = two PCs, both signed in (see TEST-LOG.md).

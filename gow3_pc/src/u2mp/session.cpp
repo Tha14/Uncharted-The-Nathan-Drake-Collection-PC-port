@@ -15,6 +15,7 @@
 #include <utility>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 #include <string>
 
 extern "C" int runtime_file_translate(const char *guest, char *out, size_t size);
@@ -109,7 +110,12 @@ uint8_t sent_rank = 0xff;   // the rank this PC last published
 uint8_t sent_team = 0xff;   // the team preference this PC last published
 double next_rate_log = 0;
 
-uint32_t id_of_slot(uint8_t slot) { return uint32_t(slot) + 1; }
+// The host's net id: 1, except after a host migration in a match, where every player keeps its net id
+// (trackers, scores) and the new host keeps its own (PORT-ONLINE.md 5b).
+uint32_t host_net_id = 1;
+bool rehost_pending = false;   // a migrated match: listener slot 6 once the new host is reached
+std::map<uint32_t, std::string> npid_of_id;   // online: net id -> NpId (kIds from the host)
+uint32_t id_of_slot(uint8_t slot) { return slot ? uint32_t(slot) + 1 : host_net_id; }
 
 void set_state(int32_t s) { G<int32_t>(kNetState) = s; }
 int32_t state() { return G<int32_t>(kNetState); }
@@ -192,7 +198,7 @@ void add_net_player(uint32_t net_id, const std::string &name, bool local) {
     G<uint8_t>(t + T_CONNECTED) = 1;      // what ConnectionDone's Apply did (PS3 0x43dcd8)
     G<uint8_t>(t + T_TALKS_TO_ALL) = 1;   // every client reaches the others through the host
     if (local) G<uint64_t>(ngm + NGM_LOCAL) = guest(t);
-    if (net_id == 1) G<uint64_t>(ngm + NGM_HOST) = guest(t);
+    if (net_id == host_net_id) G<uint64_t>(ngm + NGM_HOST) = guest(t);
     log("player %s: net id %u, slot %d%s", name.c_str(), net_id, slot, local ? " (local)" : "");
 }
 
@@ -240,6 +246,7 @@ void mailbox_post(uint32_t code, uint32_t sender, const void *data, uint32_t siz
 
 // ---- our session messages (transport tag kSessionMessage) ------------------------------------
 enum : uint8_t { kInfo = 1, kRoster = 2, kMode = 3, kFollow = 4, kKick = 5,
+                 kIds = 8,       // host -> clients, online: {net id, len, NpId}... (who succeeds whom in a migration)
                  kTeams = 6 };   // host -> clients: {slot, team}... (PS3 room member data +9)
 // types >= session::kFrontendMessages (frontend3.h) belong to frontend3.cpp (matchmaking)
 
@@ -286,6 +293,22 @@ void broadcast_roster() {
         b.insert(b.end(), n.begin(), n.begin() + std::min<size_t>(n.size(), 31));
     }
     send_session(-1, b);
+    if (!online::active()) return;
+    std::vector<uint8_t> ids{kIds};
+    npid_of_id.clear();
+    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) {
+        if (!members[slot].used) continue;
+        std::string npid;
+        net::Address a;
+        if (slot == 0) npid = online::my_npid_text();
+        else if (transport.peer_address(slot, a)) npid = online::npid_at(a);
+        if (npid.empty()) continue;
+        npid_of_id[members[slot].net_id] = npid;
+        ids.push_back(uint8_t(members[slot].net_id));
+        ids.push_back(uint8_t(std::min<size_t>(npid.size(), 16)));
+        ids.insert(ids.end(), npid.begin(), npid.begin() + std::min<size_t>(npid.size(), 16));
+    }
+    send_session(-1, ids);
 }
 
 void refresh_sessions() {
@@ -364,6 +387,17 @@ void on_session_message(uint8_t from, const uint8_t *d, size_t n) {
             mailbox_post(kMsgPartyHostJoined, 1, &yes, 1);   // JOINING 12 -> 14 -> 17
         }
         break;
+    case kIds:   // host -> clients: net id -> NpId (a migration picks the new host by the room's new owner)
+        if (!hosting) {
+            npid_of_id.clear();
+            for (size_t at = 1; at + 2 <= n;) {
+                const uint8_t id = d[at], len = d[at + 1];
+                if (at + 2 + len > n) break;
+                npid_of_id[id] = std::string(reinterpret_cast<const char *>(d + at + 2), len);
+                at += 2 + len;
+            }
+        }
+        break;
     case kOnlineMessage:   // online.cpp (the party follows its leader into another room)
         online::on_message(from, d + 1, n - 1);
         break;
@@ -412,11 +446,18 @@ void on_peer(uint8_t slot, bool joined) {
     if (slot != 0) return;
     if (joined) {   // we reached the host
         my_id = id_of_slot(transport.local_slot());
-        session_set(kParty, kRoomContext, my_id, 1);
-        gamenet::attach(0, 1, true);
+        session_set(kParty, kRoomContext, my_id, host_net_id);
+        gamenet::attach(0, host_net_id, true);
         send_info();
         log("party: joined the host as net id %u", my_id);
         online::on_host_reached(my_id);
+        if (rehost_pending) {   // a migrated match: the new host's reset round (PS3 slot 6 0x440334)
+            rehost_pending = false;
+            session_set(kMatch, kRoomContext, my_id, host_net_id);
+            session_members(kMatch);
+            fn<void(U2MP_GUEST *)(void *)>(0x5e9f30)(nullptr);
+            log("match migration: reached the new host (net id %u); the round restarts under it", host_net_id);
+        }
     } else if (online::host_change_expected()) {   // online: the party follows its leader to another room
         log("online: the old host closed the link; following the leader to its new room");
         gamenet::detach(0);
@@ -452,6 +493,7 @@ bool start_transport() {
         if (!transport.host_link(link)) return false;
         hosting = true;
         my_id = 1;
+        host_net_id = 1;
         members[0] = Member{true, 1, my_name, local_rank()};
         log("online: hosting a party on the online link as %s", my_name.c_str());
         return true;
@@ -1237,6 +1279,8 @@ void online_reopen(net::Link *link, const net::Address *owner) {
     transport.close();
     for (auto &m : members) m = Member{};
     kicked = lost_host = false;
+    host_net_id = 1;
+    rehost_pending = false;
     if (!owner) {
         hosting = transport.host_link(link);
         my_id = 1;
@@ -1296,6 +1340,58 @@ void online_migrated(bool host, bool mm) {
     }
     G<uint8_t>(kMatch + M_CREATED) = 0;
     session_clear(kMatch);
+}
+
+uint32_t net_id_of(const std::string &npid) {
+    for (const auto &e : npid_of_id)
+        if (e.second == npid) return e.first;
+    return 0;
+}
+
+// Host migration in a running match (PS3: WaitReady turned OWNER_AUTO_GRANT on; RoomOwnerChanged -> slot 6
+// 0x440334 = PS4 0x5e9f30: NGM host = the owner's tracker, event 0x15f1cf05 -> the reset round under the new
+// host). Off in co-op (PS3 0x4a5548: game types 4, 8, 9, 12) and before the match runs.
+bool match_migration_ok() {
+    if (!active || hosting || !online::active()) return false;
+    if (const char *v = std::getenv("UNCHARTED_U2MP_HOST_MIGRATION"); v && *v == '0') return false;
+    if (state() != 26) return false;   // NET_SM UPDATE: the match is running
+    struct Table { int32_t count; int32_t pad; uint8_t *records; };
+    const auto *games = fn<Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70)(0x3b9a067d);   // *net-games*
+    const int16_t game = G<int16_t>(kNgm + NGM_GAME);
+    if (games && games->records && game >= 0 && game < games->count) {
+        const int32_t type = *reinterpret_cast<const int32_t *>(games->records + 0x90 * size_t(game) + 0x0c);
+        if (type == 4 || type == 8 || type == 9 || type == 12) return false;
+    }
+    return true;
+}
+
+void online_rehost(net::Link *link, const net::Address *owner, uint32_t new_host) {
+    const uint32_t old_host = host_net_id;
+    log("match migration: host net id %u left; net id %u hosts now%s", old_host, new_host, owner ? "" : " (this PC)");
+    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) gamenet::detach(slot);
+    transport.close();
+    for (auto &m : members) m = Member{};
+    kicked = lost_host = false;
+    host_net_id = new_host;
+    if (!owner) {
+        hosting = transport.host_link(link);
+        transport.reserve_slot(uint8_t(my_id - 1));   // newcomers never get our old slot (= our net id)
+        members[0] = Member{true, my_id, my_name, local_rank(), local_team()};
+    } else {
+        hosting = false;
+        transport.join_link(link, *owner, uint8_t(my_id - 1));   // the same slot = the same net id
+    }
+    session_set(kParty, kRoomContext, my_id, new_host);
+    session_set(kMatch, kRoomContext, my_id, new_host);
+    player_left(old_host);   // the old host's tracker goes (PS3 NetEventPlayerLeft)
+    active = true;
+    sent_mode = -1;
+    if (!owner) {
+        session_members(kMatch);
+        fn<void(U2MP_GUEST *)(void *)>(0x5e9f30)(nullptr);   // NGM host = us, the reset round starts
+    } else {
+        rehost_pending = true;
+    }
 }
 
 void online_host_gone() {

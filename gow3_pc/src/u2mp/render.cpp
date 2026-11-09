@@ -469,6 +469,17 @@ void log_gate(const Tracked &t, uint64_t inst) {
         return;
     }
     const uint8_t *o = reinterpret_cast<const uint8_t *>(uintptr_t(ro));
+    // The frame's draw loop 0xcaea00 calls 0xbe3930 for an entry only when (+0x120 & 6) == 2 and +0xf0 != 0
+    // (0xcaeb00..0xcaeb19; +0x11c / +0x120 are the two frame halves of one flag word): logged for the
+    // instance and its draw data, hero against the drawn references.
+    const uint64_t f0 = *reinterpret_cast<const uint64_t *>(uintptr_t(inst) + 0xf0);
+    const uint64_t dd_f0 = *reinterpret_cast<const uint64_t *>(dd + 0xf0);
+    log("render diag: %s %p loop gate: instance +11c %04x +120 %04x +f0 %llx (+44 %u); draw data +11c %04x +120 %04x +f0 %llx",
+        t.kind, reinterpret_cast<const void *>(uintptr_t(inst)), *reinterpret_cast<const uint16_t *>(uintptr_t(inst) + 0x11c),
+        *reinterpret_cast<const uint16_t *>(uintptr_t(inst) + 0x120), (unsigned long long)f0,
+        f0 && !bad_pointer(f0) ? *reinterpret_cast<const uint32_t *>(uintptr_t(f0) + 0x44) : 0u,
+        *reinterpret_cast<const uint16_t *>(dd + 0x11c), *reinterpret_cast<const uint16_t *>(dd + 0x120),
+        (unsigned long long)dd_f0);
     log("render diag: %s %p draw data flags +1b8 %08x; render object %p: %llu collects (+%llu), +0 %016llx "
         "%016llx +f8 %u/%u", t.kind, reinterpret_cast<const void *>(uintptr_t(inst)),
         *reinterpret_cast<const uint32_t *>(dd + 0x1b8), static_cast<const void *>(o),

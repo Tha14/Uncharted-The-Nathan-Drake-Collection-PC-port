@@ -249,6 +249,8 @@ void Transport::close() {
     link_ = nullptr;
     for (Connection &c : peers_) c.reset();
     hosting_ = false;
+    want_slot_ = 0;
+    reserved_ = 0;
     local_slot_ = 0;
     hello_sent_ = -1;
 }
@@ -277,13 +279,14 @@ bool Transport::host_link(Link *link) {
     return true;
 }
 
-bool Transport::join_link(Link *link, const Address &host_address) {
+bool Transport::join_link(Link *link, const Address &host_address, uint8_t want_slot) {
     close();
     if (!link) return false;
     link_ = link;
     hosting_ = false;
     host_address_ = host_address;
     hello_sent_ = -1;
+    want_slot_ = want_slot <= kMaxPeers ? want_slot : 0;
     return true;
 }
 
@@ -330,8 +333,10 @@ void Transport::handle(const Address &from, const uint8_t *packet, size_t size, 
     if (kind == kHello && hosting_) {
         Connection *c = find(from);
         if (!c) {
+            const uint8_t want = size > kHeader ? packet[kHeader] : 0;   // the slot asked for (0 = any)
+            if (want >= 1 && want <= kMaxPeers && !peers_[want].connected) c = &peers_[want];
             for (uint8_t slot = 1; slot <= kMaxPeers && !c; ++slot)
-                if (!peers_[slot].connected) c = &peers_[slot];
+                if (!peers_[slot].connected && slot != reserved_) c = &peers_[slot];
             if (!c) return;   // full
             c->reset();
             c->address = from;
@@ -390,7 +395,7 @@ void Transport::pump(double now) {
         handle(from, buffer, size_t(n), now);
     }
     if (!hosting_ && !peers_[0].connected && (hello_sent_ < 0 || now - hello_sent_ >= kHelloRetry)) {
-        send_control(host_address_, kHello, 0);
+        send_control(host_address_, kHello, want_slot_);
         hello_sent_ = now;
     }
     std::vector<uint8_t> packet;

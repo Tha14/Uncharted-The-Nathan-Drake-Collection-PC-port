@@ -257,13 +257,54 @@ U2MP_GUEST void match_player(void *arg, void *, void *) { player_options(int(arg
 // Online the rows are RPCN friends (PS3 0x43f830): the PAGE_FRIENDACTIONS options as a popup, titled with
 // the friend's name and state: Join Party (in this game with room for us), Invite To Party (online).
 int selected_friend = -1;
+
+// Our own menu callbacks (menu +0x18ec count, +0x18f0 entries {u32 id, fn, arg}; frontend3.cpp does the same).
+bool register_callback(uint32_t id, void *fn) {
+    const uint64_t menu = addr::menu_manager;
+    uint32_t &count = G<uint32_t>(menu + 0x18ec);
+    for (uint32_t i = 0; i < count && i < 128; ++i)
+        if (G<uint32_t>(menu + 0x18f0 + i * 0x18) == id) {
+            G<uint64_t>(menu + 0x18f0 + i * 0x18 + 8) = uint64_t(uintptr_t(fn));
+            return true;
+        }
+    if (count >= 128) return false;
+    const uint64_t e = menu + 0x18f0 + count * 0x18;
+    G<uint32_t>(e) = id;
+    G<uint64_t>(e + 8) = uint64_t(uintptr_t(fn));
+    G<uint64_t>(e + 0x10) = 0;
+    ++count;
+    return true;
+}
+constexpr uint32_t kCbAccept = sid("U2MP_PC_CB_FRIEND_ACCEPT"), kCbRemove = sid("U2MP_PC_CB_FRIEND_REMOVE"),
+                   kCbProfile = 0x3fe6f70e;   // View Profile (PS3 dispatcher 0x443248 -> sceNpProfileCallGui)
+constexpr uint32_t kTextViewProfile = 0x4040b706, kTextAddFriend = 0x910fb4f9;
+U2MP_GUEST void friend_accept(void *, void *, void *) { online::accept_request(selected_friend); }
+U2MP_GUEST void friend_remove(void *, void *, void *) { online::remove_friend(selected_friend); }
+U2MP_GUEST void friend_profile(void *, void *, void *) {
+    set_player_text(online::profile_text(selected_friend));
+    message_box(kTextPlayer);
+}
+
 void friend_options(int row) {
     if (row < 0 || row >= online::friend_count()) return;
     selected_friend = row;
     set_player_text(online::friend_row(row));
+    const bool cbs = register_callback(kCbAccept, reinterpret_cast<void *>(&friend_accept)) &&
+                     register_callback(kCbRemove, reinterpret_cast<void *>(&friend_remove)) &&
+                     register_callback(kCbProfile, reinterpret_cast<void *>(&friend_profile));
     Popup p{kTextPlayer, kPopupPage, 0, {}};
-    if (online::friend_joinable(row)) p.add(kTextJoinParty, kCbJoinParty);
-    if (online::friend_online(row)) p.add(kTextInviteToParty, kCbInviteToParty);
+    const int kind = online::friend_kind(row);
+    if (kind == online::kRowRequestIn) {
+        if (cbs) p.add(kTextAddFriend, kCbAccept);
+        if (cbs) p.add(kTextDeclineRequest, kCbRemove);
+    } else if (kind == online::kRowRequestOut) {
+        if (cbs) p.add(kTextCancelRequest, kCbRemove);
+    } else {
+        if (online::friend_joinable(row)) p.add(kTextJoinParty, kCbJoinParty);
+        if (online::friend_online(row)) p.add(kTextInviteToParty, kCbInviteToParty);
+        if (cbs) p.add(kTextViewProfile, kCbProfile);
+        if (cbs) p.add(kTextRemoveFriend, kCbRemove);
+    }
     if (!p.count) {
         message_box(kTextPlayer);
         return;

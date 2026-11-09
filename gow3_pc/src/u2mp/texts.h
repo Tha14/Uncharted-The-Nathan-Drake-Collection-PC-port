@@ -24,6 +24,9 @@ constexpr uint32_t kTextPlayer = sid("U2MP_PC_TEXT_PLAYER"), kTextStore = sid("U
                    kTextInvite = sid("U2MP_PC_TEXT_INVITE"), kTextClanTag = sid("U2MP_PC_TEXT_CLANTAG"),
                    kTextTwitter = sid("U2MP_PC_TEXT_TWITTER"), kTextCinemaSend = sid("U2MP_PC_TEXT_CINEMA_SEND"),
                    kTextCinemaReceive = sid("U2MP_PC_TEXT_CINEMA_RECEIVE"), kTextYou = sid("U2MP_PC_TEXT_YOU"),
-                   kTextMuted = sid("U2MP_PC_TEXT_MUTED"), kTextUnmuted = sid("U2MP_PC_TEXT_UNMUTED");
+                   kTextMuted = sid("U2MP_PC_TEXT_MUTED"), kTextUnmuted = sid("U2MP_PC_TEXT_UNMUTED"),
+                   kTextDeclineRequest = sid("U2MP_PC_TEXT_DECLINE_REQUEST"),
+                   kTextCancelRequest = sid("U2MP_PC_TEXT_CANCEL_REQUEST"),
+                   kTextRemoveFriend = sid("U2MP_PC_TEXT_REMOVE_FRIEND");
 
 }  // namespace u2mp

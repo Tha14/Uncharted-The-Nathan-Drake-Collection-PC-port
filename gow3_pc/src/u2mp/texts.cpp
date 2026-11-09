@@ -535,6 +535,11 @@ const Text kOwn[] = {
      "lyd slået til", "com som", "niet gedempt", "ミュート解除", "음소거 해제됨", "mykistys poistettu", "ikke dempet", "ljud på",
      "已取消靜音", "звук включен", "wyciszenie wyłączone", nullptr, "som ativado", "χωρίς σίγαση", "ztlumení zrušeno",
      "sesi açık"}},
+    {kTextDeclineRequest, {"Decline Friend Request", "Refuser la demande d'ami", "Rifiuta richiesta di amicizia",
+     "Freundschaftsanfrage ablehnen", "Rechazar solicitud de amistad"}},
+    {kTextCancelRequest, {"Cancel Friend Request", "Annuler la demande d'ami", "Annulla richiesta di amicizia",
+     "Freundschaftsanfrage zurückziehen", "Cancelar solicitud de amistad"}},
+    {kTextRemoveFriend, {"Remove Friend", "Retirer l'ami", "Rimuovi amico", "Freund entfernen", "Eliminar amigo"}},
     // ---- GOTY soccer skins (net-patch9 skin table)
     {0xafb61295u, {"Soccer Drake (Argentina)", "Drake footballeur (Argentine)", "Drake calciatore (Argentina)",
      "Fußball-Drake (Argentinien)", "Drake futbolista (Argentina)", "Fodbold-Drake (Argentina)",
@@ -1390,7 +1395,7 @@ const MenuText kMenu[] = {
 TextFindFn orig_text_find = nullptr;
 thread_local int find_depth = 0;   // TextDb::Find calls itself for the next bank: only the outer call
 std::atomic<int> current_language{-1};
-char player_text[96];
+char player_text[256];
 
 std::mutex text_lock;
 // imported banks by language, loaded once each and never freed (the game keeps the pointers)

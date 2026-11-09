@@ -217,5 +217,10 @@ typedef uint64_t(__cdecl *u2o_set_presence_fn)(const char *title, const char *st
 typedef uint64_t(__cdecl *u2o_send_message_fn)(const char *const *npids, uint32_t count, const U2oMessage *m);
 // The owner succession of a room we own: the first member id still present becomes the owner when we leave.
 typedef uint64_t(__cdecl *u2o_set_owner_rank_fn)(uint64_t room_id, const uint16_t *member_ids, uint32_t count);
+// Friend requests: in = 1 the ones to us, 0 ours; names NUL-separated into out; returns how many there are.
+typedef int(__cdecl *u2o_friend_requests_fn)(int in, char *out, int cap);
+// Accept a request / send one (add), decline / cancel / unfriend (remove). Result: U2O_EV_DONE.
+typedef uint64_t(__cdecl *u2o_add_friend_fn)(const char *npid);
+typedef uint64_t(__cdecl *u2o_remove_friend_fn)(const char *npid);
 
 }  // extern "C"

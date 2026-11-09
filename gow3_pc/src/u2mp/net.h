@@ -87,7 +87,11 @@ public:
     bool join(const Address &host_address, uint16_t local_port = 0);
     // The same over a Link instead of a socket of our own (the link stays the caller's).
     bool host_link(Link *link);
-    bool join_link(Link *link, const Address &host_address);
+    // want_slot (1..kMaxPeers, 0 = any): the slot asked for in the hello (a host migration keeps every
+    // player's slot, hence its net id); the host grants it when it is free.
+    bool join_link(Link *link, const Address &host_address, uint8_t want_slot = 0);
+    // Host: a slot no newcomer gets (the new host of a migration keeps its old net id = that slot + 1).
+    void reserve_slot(uint8_t slot) { reserved_ = slot; }
     void close();
     // Once per frame: receive everything, time out silent peers, send.
     void pump(double now);
@@ -111,6 +115,8 @@ private:
     Connection peers_[kMaxPeers + 1];   // index = slot (0 = host when we are a client)
     Address host_address_;
     double hello_sent_ = -1;
+    uint8_t want_slot_ = 0;
+    uint8_t reserved_ = 0;
     bool open(uint16_t port);
     bool is_open() const { return socket_ != ~uintptr_t(0) || link_; }
     void send_raw(const Address &to, const std::vector<uint8_t> &packet);

@@ -136,6 +136,9 @@ struct Api {
     u2o_set_presence_fn set_presence = nullptr;
     u2o_send_message_fn send_message = nullptr;
     u2o_set_owner_rank_fn set_owner_rank = nullptr;
+    u2o_friend_requests_fn friend_requests = nullptr;
+    u2o_add_friend_fn add_friend = nullptr;
+    u2o_remove_friend_fn remove_friend = nullptr;
 } api;
 
 template <typename F> bool resolve(F &out, const char *name) {
@@ -180,7 +183,9 @@ bool load() {
                     resolve(api.send, "u2o_send") && resolve(api.recv, "u2o_recv") &&
                     resolve(api.identity, "u2o_identity") && resolve(api.friends, "u2o_friends") &&
                     resolve(api.set_presence, "u2o_set_presence") && resolve(api.send_message, "u2o_send_message") &&
-                    resolve(api.set_owner_rank, "u2o_set_owner_rank");
+                    resolve(api.set_owner_rank, "u2o_set_owner_rank") &&
+                    resolve(api.friend_requests, "u2o_friend_requests") && resolve(api.add_friend, "u2o_add_friend") &&
+                    resolve(api.remove_friend, "u2o_remove_friend");
     if (ok && api.abi() != U2O_ABI) log("online: off (u2_online.dll ABI %d, this build needs %d): LAN only", api.abi(), int(U2O_ABI));
     if (!ok || api.abi() != U2O_ABI) {
         FreeLibrary(api.dll);
@@ -268,6 +273,7 @@ bool in_match = false;
 // identity, friends, invites, presence (ABI 2)
 std::string online_name;       // the RPCN online name (Login reply), once the link is ready
 std::vector<U2oFriend> friend_list;
+std::vector<std::string> requests_in, requests_out;   // friend requests to us / ours
 bool friends_dirty = true;
 struct Invite {
     std::string npid;
@@ -291,6 +297,7 @@ std::vector<uint64_t> mm_bad_rooms;   // rooms that did not work out this sessio
 
 // host migration / promote (PORT-MATCHMAKING.md 3.7)
 bool migrating = false;
+bool migrating_match = false;  // the host left a running match: the match goes on (session::online_rehost)
 double migrate_deadline = 0;
 uint64_t migrate_room = 0;
 std::string migrate_old_owner; // the npid of the host that left
@@ -673,6 +680,13 @@ void refresh_friends() {
     const int n = std::min(api.friends(nullptr, 0), 64);
     friend_list.assign(size_t(std::max(n, 0)), U2oFriend{});
     if (n > 0) api.friends(friend_list.data(), n);
+    for (int in = 1; in >= 0; --in) {
+        std::vector<std::string> &v = in ? requests_in : requests_out;
+        v.clear();
+        char names[2048] = {};
+        api.friend_requests(in, names, int(sizeof names));
+        for (const char *p = names; *p && p < names + sizeof names && v.size() < 32; p += std::strlen(p) + 1) v.push_back(p);
+    }
 }
 
 bool presence_of(const U2oFriend &f, PresenceData &d) {
@@ -843,6 +857,27 @@ void finish_migration(Room &r, const Member &owner) {
     migrating = false;
     const bool mine = r.owned();
     const uint64_t room_id = r.id;
+    if (migrating_match) {
+        migrating_match = false;
+        const uint32_t id = mine ? session::local_id() : session::net_id_of(owner.npid);
+        log("online: match migration: %s (%s, net id %u) owns room %llx now%s", owner.name.c_str(), owner.npid.c_str(), id,
+            (unsigned long long)room_id, mine ? " (this PC)" : "");
+        if (!id) {
+            log("online: match migration: the new owner's net id is unknown: the match ends");
+            session::online_host_gone();
+            return;
+        }
+        if (mine) {
+            host_npid = my_npid;
+            session::online_rehost(&link, nullptr, id);
+        } else {
+            host_npid = owner.npid;
+            waiting_room = room_id;
+            const net::Address a = address_of(peer_index(owner.npid, true));
+            session::online_rehost(&link, &a, id);
+        }
+        return;
+    }
     log("online: host migration: %s (%s) owns %s room %llx now%s", owner.name.c_str(), owner.npid.c_str(), kind_name(r.kind),
         (unsigned long long)r.id, mine ? " (this PC)" : "");
     // A custom game lobby without its host goes on as a party (its members are in no party room).
@@ -888,6 +923,7 @@ void migration_tick(double t) {
         log("online: host migration: no new owner of room %llx in %.0f s: the party ends", (unsigned long long)migrate_room,
             kMigrateTimeout);
         migrating = false;
+        migrating_match = false;
         session::online_host_gone();
     }
 }
@@ -1197,7 +1233,20 @@ void room_state() {
         last_net_state = s;
     }
     const bool ended = in_match && !match_running;
+    const bool began = !in_match && match_running;
     in_match = match_running;
+    if (began && link_state == U2O_READY && match_room_.owned()) {
+        // PS3 HostRank 0x4d4868 (the remote players in slot order) + HostMigrate: who takes the room over
+        std::vector<uint16_t> ids;
+        for (const Member &m : match_room_.members)
+            if (m.id != match_room_.my_id && ids.size() < U2O_MAX_MEMBERS) ids.push_back(m.id);
+        if (!ids.empty()) {
+            const uint64_t id = api.set_owner_rank(match_room_.id, ids.data(), uint32_t(ids.size()));
+            log("online: match room %llx: owner succession of %zu player(s) (request %llu)", (unsigned long long)match_room_.id,
+                ids.size(), (unsigned long long)id);
+            request(id, Pending{Req::OwnerRank, match_room_.id, match_room_.kind, false, "owner succession"});
+        }
+    }
     if (link_state != U2O_READY) return;
     for (Room *r : {&party_room, &match_room_}) {
         if (!r->owned()) continue;
@@ -1524,10 +1573,17 @@ void member_data_changed() {
 bool on_host_lost() {
     if (!started || link_state != U2O_READY) return false;
     const int32_t s = G<int32_t>(kNetState);
-    if (in_match || match_running(s)) return false;   // a running match: see session.cpp (match migration)
-    Room *r = room_by_id(waiting_room);
+    migrating_match = false;
+    if (in_match || match_running(s)) {
+        if (!session::match_migration_ok()) return false;   // co-op, or not running yet: the match ends (PS3)
+        migrating_match = true;
+    }
+    Room *r = migrating_match && match_room_.id && !match_room_.owned() ? &match_room_ : room_by_id(waiting_room);
     if (!r) r = party_room.id && !party_room.owned() ? &party_room : match_room_.id && !match_room_.owned() ? &match_room_ : nullptr;
-    if (!r || r->owned()) return false;
+    if (!r || r->owned()) {
+        migrating_match = false;
+        return false;
+    }
     migrating = true;
     migrate_room = r->id;
     migrate_old_owner = host_npid;
@@ -1569,10 +1625,39 @@ bool promote(uint32_t net_id) {
 }
 
 // ---- friends ------------------------------------------------------------------------------------
-int friend_count() { return api.dll && link_state == U2O_READY ? int(friend_list.size()) : 0; }
+// Rows: the friends (online first), then friend requests to us, then ours still waiting.
+int friend_count() {
+    if (!api.dll || link_state != U2O_READY) return 0;
+    return int(std::min<size_t>(friend_list.size() + requests_in.size() + requests_out.size(), 64));
+}
+
+int friend_kind(int i) {
+    if (i < 0) return -1;
+    if (size_t(i) < friend_list.size()) return kRowFriend;
+    i -= int(friend_list.size());
+    if (size_t(i) < requests_in.size()) return kRowRequestIn;
+    i -= int(requests_in.size());
+    return size_t(i) < requests_out.size() ? kRowRequestOut : -1;
+}
+
+std::string request_name(int i) {
+    i -= int(friend_list.size());
+    if (i >= 0 && size_t(i) < requests_in.size()) return requests_in[size_t(i)];
+    i -= int(requests_in.size());
+    return i >= 0 && size_t(i) < requests_out.size() ? requests_out[size_t(i)] : std::string();
+}
 
 const char *friend_row(int i) {
-    if (i < 0 || size_t(i) >= friend_list.size() || i >= 64) return "";
+    if (i < 0 || i >= 64) return "";
+    if (friend_kind(i) == kRowRequestIn) {
+        std::snprintf(friend_text[i], sizeof friend_text[i], "%.20s - Friend request", request_name(i).c_str());
+        return friend_text[i];
+    }
+    if (friend_kind(i) == kRowRequestOut) {
+        std::snprintf(friend_text[i], sizeof friend_text[i], "%.20s - Request sent", request_name(i).c_str());
+        return friend_text[i];
+    }
+    if (size_t(i) >= friend_list.size()) return "";
     const U2oFriend &f = friend_list[size_t(i)];
     const char *state = !f.online ? "Offline" : f.same_game && f.status[0] ? f.status : f.title[0] ? f.title : "Online";
     std::snprintf(friend_text[i], sizeof friend_text[i], "%.20s - %.90s", f.npid, state);
@@ -1580,8 +1665,56 @@ const char *friend_row(int i) {
 }
 
 std::string friend_name(int i) {
-    if (i < 0 || size_t(i) >= friend_list.size()) return {};
+    if (i < 0) return {};
+    if (size_t(i) >= friend_list.size()) return request_name(i);
     return npid_text(friend_list[size_t(i)].npid);
+}
+
+// Friend requests (RPCN AddFriend / RemoveFriend through the launcher's session).
+bool friend_add(const std::string &npid) {
+    if (!api.add_friend || link_state != U2O_READY || npid.empty()) return false;
+    const uint64_t id = api.add_friend(npid.c_str());
+    log("online: friends: add %s (request %llu)", npid.c_str(), (unsigned long long)id);
+    request(id, Pending{Req::Message, 0, 0, false, "add friend"});
+    friends_dirty = true;
+    return id != 0;
+}
+
+bool accept_request(int i) {
+    const std::string n = friend_name(i);
+    const bool ok = friend_kind(i) == kRowRequestIn && friend_add(n);
+    notice(ok ? n + " is your friend now." : "The friend request could not be answered.");
+    return ok;
+}
+
+bool remove_friend(int i) {
+    const std::string n = friend_name(i);
+    const int kind = friend_kind(i);
+    if (kind < 0 || !api.remove_friend || link_state != U2O_READY) return false;
+    const uint64_t id = api.remove_friend(n.c_str());
+    log("online: friends: remove %s (%s, request %llu)", n.c_str(),
+        kind == kRowFriend ? "friend" : kind == kRowRequestIn ? "declined" : "request cancelled", (unsigned long long)id);
+    request(id, Pending{Req::Message, 0, 0, false, "remove friend"});
+    friends_dirty = true;
+    notice(!id ? "That did not work." : kind == kRowFriend ? n + " was removed from your friends."
+                                     : kind == kRowRequestIn ? "Friend request declined." : "Friend request cancelled.");
+    return id != 0;
+}
+
+std::string profile_text(int i) {
+    const int kind = friend_kind(i);
+    const std::string n = friend_name(i);
+    if (kind == kRowRequestIn) return n + " wants to be your friend.";
+    if (kind == kRowRequestOut) return n + " has not answered your friend request yet.";
+    if (kind != kRowFriend) return {};
+    const U2oFriend &f = friend_list[size_t(i)];
+    std::string t = n + ": " + (f.online ? "Online" : "Offline");
+    if (f.online && f.title[0]) t += std::string(". ") + f.title;
+    if (f.online && f.status[0]) t += std::string(". ") + f.status;
+    if (f.online && f.comment[0]) t += std::string(". ") + f.comment;
+    PresenceData d;
+    if (presence_of(f, d) && d.key != room_key()) t += ". Plays another version of the game.";
+    return t;
 }
 
 bool friend_online(int i) { return i >= 0 && size_t(i) < friend_list.size() && friend_list[size_t(i)].online; }
@@ -1690,4 +1823,11 @@ void mm_leave() {
 }
 
 int mm_players() { return match_room_.kind == kKindMatchmaking ? int(match_room_.members.size()) : 0; }
+std::string my_npid_text() { return my_npid; }
+
+std::string npid_at(const net::Address &a) {
+    const Peer *p = peer_at(a);
+    return p ? p->npid : std::string();
+}
+
 }  // namespace u2mp::online

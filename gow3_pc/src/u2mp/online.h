@@ -53,6 +53,9 @@ void member_data_changed();
 // A client lost its host outside a running match: true when online takes it (the room's new owner hosts
 // the party; online then calls session::online_reopen / online_migrated, or online_host_gone).
 bool on_host_lost();
+// This PC's NpId, and the NpId behind a transport address of the online link ("" when unknown).
+std::string my_npid_text();
+std::string npid_at(const net::Address &a);
 // The leader hands the party to the member with this net id. False: not possible (offline, no room).
 bool promote(uint32_t net_id);
 
@@ -65,6 +68,12 @@ bool friend_joinable(int i);         // in this game, in a party / lobby with ro
 bool join_friend(int i);             // Join Party (0ace8463)
 bool invite_friend(int i);           // Invite To Party (45a9c65b)
 int invite_count();                  // invites waiting (shown on BUTTON_MULTIPLAYER_INVITES)
+enum { kRowFriend = 0, kRowRequestIn = 1, kRowRequestOut = 2 };
+int friend_kind(int i);              // what row i is (-1 none)
+bool friend_add(const std::string &npid);   // send a friend request (or accept one)
+bool accept_request(int i);
+bool remove_friend(int i);           // unfriend / decline / cancel
+std::string profile_text(int i);     // View Profile: name, state, presence
 
 // ---- stranger matchmaking (frontend3.cpp; PS3 0x4b0a58 search / join / create) ----
 enum { kMmIdle = 0, kMmBusy = 1, kMmHosting = 2, kMmJoined = 3, kMmFailed = 4 };
@@ -97,6 +106,12 @@ bool member_address(uint32_t net_id, net::Address &out);
 void online_migrated(bool host, bool matchmaking);
 // online.cpp -> session.cpp: the host is gone and nobody took over: the old "host lost" path.
 void online_host_gone();
+// A running match may go on under a new host (PS3 HostMigrate at the match start, not in co-op).
+bool match_migration_ok();
+// The net id of the player with this NpId (from the host's kIds), 0 unknown.
+uint32_t net_id_of(const std::string &npid);
+// Match host migration: every player keeps its net id; owner NULL = this PC hosts now.
+void online_rehost(net::Link *link, const net::Address *owner, uint32_t new_host_net_id);
 // Session message type of online.cpp (below session::kFrontendMessages).
 constexpr uint8_t kOnlineMessage = 7;
 }  // namespace u2mp::session
