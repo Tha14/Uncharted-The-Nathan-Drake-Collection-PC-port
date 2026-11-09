@@ -446,6 +446,47 @@ uint64_t render_object_of(uint64_t drawdata) {
 
 using CollectFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 unsigned char *collect_original = nullptr;
+// ---- section 9: the "no dynamic objects" view flag (test 61) ------------------------------------------------
+// Even with the actors' draw data in the main lists (section 8) the draw-data loops never reached the visibility
+// gate: before them, 0xcae4e0 (0xcaeb86), 0xcafc10 (0xcaff53) and the view setup 0xcad55d / 0xcad5cb / 0xcadc0a
+// skip every draw data when byte +0xbf of the view's settings ([ctx+0xe8], the global render options 0x1050d40)
+// is set. 0x52ec66 sets it from the camera's focus object (its anim data +2 != 0 while camera +0xb7 is 0), and
+// in a match the player camera's focus is the player, so the flag is on for the whole match: no actor is drawn,
+// the level geometry (its own loop) still is. Four skips are removed (0xcad55d is left: the list it guards is not
+// checked for NULL after it; the others are, or get a list from section 8). UNCHARTED_U2MP_ACTOR_FLAG=0 keeps them.
+struct FlagSkip { uint64_t at; unsigned char bytes[6]; unsigned len; };
+const FlagSkip kFlagSkips[] = {
+    {0xcad5d2, {0x75, 0x16}, 2},
+    {0xcadc11, {0x0f, 0x85, 0x25, 0x01, 0x00, 0x00}, 6},
+    {0xcaeb93, {0x0f, 0x85, 0x16, 0x02, 0x00, 0x00}, 6},
+    {0xcaff5e, {0x0f, 0x85, 0xe9, 0x01, 0x00, 0x00}, 6},
+};
+int patch_flag_skips() {
+    if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_FLAG"); v && std::strcmp(v, "0") == 0) {
+        log("render: view flag +0xbf skips kept (UNCHARTED_U2MP_ACTOR_FLAG=0)");
+        return 0;
+    }
+    int done = 0;
+    for (const FlagSkip &f : kFlagSkips) {
+        if (!image.matches(f.at, f.bytes, f.len)) {
+            log("render: view flag skip at 0x%llx differs, left alone", (unsigned long long)f.at);
+            continue;
+        }
+        unsigned char *code = image.base + f.at;
+        if (f.len == 2) {
+            code[0] = 0x66;
+            code[1] = 0x90;
+        } else {
+            static const unsigned char nop6[] = {0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00};
+            std::memcpy(code, nop6, 6);
+        }
+        ++done;
+    }
+    log("render: view flag +0xbf: %d of %zu actor-draw skips removed (actors drawn in matches)", done,
+        sizeof kFlagSkips / sizeof *kFlagSkips);
+    return done;
+}
+
 // ---- section 8: actors into every view's draw-data list (tests 50-60) ------------------------------------
 // In a match the actors' draw data (hero, weapons, the level's banners) are collected every frame (0xbd6d00) and
 // reach the pass-15 lists of 0xcafc10, but never the draw-data list of the main view draws 0xcae4e0 (10 call
@@ -489,7 +530,21 @@ U2MP_GUEST uint64_t view_main_injected(uint64_t a0, uint64_t a1, uint64_t a2, ui
                                        uint64_t s6, uint64_t s7, uint64_t s8, uint64_t s9, uint64_t s10, uint64_t s11,
                                        uint64_t s12, uint64_t s13, uint64_t s14) {
     const auto original = reinterpret_cast<ViewMainFn>(image.base + fViewMain);
-    if (!actor_inject_on || !list || bad_pointer(list))
+    {
+        static int flag_logs = 0;
+        if (flag_logs < 6 && s4 && !bad_pointer(s4)) {
+            const uint64_t settings = *reinterpret_cast<const uint64_t *>(uintptr_t(s4) + 0xe8);
+            if (settings && !bad_pointer(settings)) {
+                ++flag_logs;
+                log("render diag: main view draw: settings %llx +be %u +bf %u", (unsigned long long)settings,
+                    *reinterpret_cast<const uint8_t *>(uintptr_t(settings) + 0xbe),
+                    *reinterpret_cast<const uint8_t *>(uintptr_t(settings) + 0xbf));
+            }
+        }
+    }
+    static const uint64_t empty_list[2] = {0, 0};   // a view without a list (the flag skipped it): an empty one
+    if (!list) list = uint64_t(uintptr_t(empty_list));
+    if (!actor_inject_on || bad_pointer(list))
         return original(a0, a1, a2, a3, a4, a5, s0, s1, list, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14);
     thread_local uint64_t *copy = nullptr;
     thread_local uint32_t seen_stamp = 0;
@@ -1367,6 +1422,7 @@ void install_render(int &installed) {
     if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_BOUNDS"); v && std::strcmp(v, "0") == 0)
         actor_bounds_on = false;
     if (const char *v = std::getenv("UNCHARTED_U2MP_ACTOR_CELL"); v && std::strcmp(v, "0") == 0) actor_cell_on = false;
+    if (patch_flag_skips()) ++installed;
     // patch_view_mask() is not installed: run 58 showed +0x298 + view * 8 is the instance's pass mask (+0xd8),
     // not a visibility mask; removing that test drew actors in passes they do not belong to.
     (void)&patch_view_mask;
