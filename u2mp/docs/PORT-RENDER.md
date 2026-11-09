@@ -202,3 +202,33 @@ before LoadLevels requests the package) and again before every 0x6144b0 message.
 the store item id; the type-10 store items parsed from net-patch9 (7 of them; the store layout of the
 converted file was not fully parsed) all have ids that are skin record ids (+0x10), so an equipped skin
 is found and kept. The Drake default is written into NetPlayerData and may be saved with the profile.
+
+### Run 44 and the run-45 gate probe
+
+Run 44 proved the probe: reference actors (pigeon-fma, temple-cloth-banner, title-vine) and level
+instances were submitted (28 first submits, actors 12,000-18,000 submits before teardown). The pigeons
+have the hero's init state exactly (identity transform, zero bounds, +c0 0046, +d8 d03b), so the init
+flags, bounds and transform are not what keeps the hero out. Run 43: 0 hero submits in 60 s.
+
+How an actor's mesh gets drawn (static):
+* DrawControl::AddMesh 0x4b6e20 -> 0xbd3bc0(manager 0x1248600, render object) allocates a 0x4b0-byte
+  draw data (manager +0x400 array) and adds its index to the render object (+0xf8 capacity, +0xfc
+  count, +0x100 indices). 0xbe48d0 builds it: flags +0x1b8 |= 0x2000 (and |= 1 for an empty prototype),
+  MeshInstance at +0x1c0.
+* DrawControl (game object +0x180 for a NetCharacter): +0x328 mesh count, meshes 0x50 apart, each with
+  its LOD draw data list (+0x8/+0x10 stride 0x10, count +0x48) and a shown byte +0x50. Show/Hide
+  (0x4b7720 / 0x4b7850, inlined in the NetCharacter update 0x605070 at 0x605aaa / 0x605c0a) clear / set
+  bit 2 of every draw data's +0x1b8. The NetCharacter shows itself when +0x2f03 is set (it is set back
+  to 1 every frame; 0x602a00 clears it), remembering the last state in +0x2f04.
+* Per frame 0xbd4f80 walks render objects and skips those whose per-frame byte (+5 at the frame offset)
+  lacks bit 4; 0xbd6d00 collects a render object's draw data, skipping flags & 7. Collected draw data
+  reach the per-instance draw job (0xc42250 -> 0xc419d0) and the binding walker.
+* The PS3 local spawn 0x4c9b58 and PS4 0x663280 do the same steps after the spawn (0x6b84f4 / 0x976300:
+  position, 0x497e60 = the field reset PS4 inlines at 0x6635c3, 0x61fa18 -> 0x70f068 = PS4 0x9be760 on
+  the handle 0x11579c8). No stripped call there.
+
+Run 45 logs, per tracked instance (`render diag: ... draw data flags +1b8 ...; render object ...:
+N collects`): the render object from AddMesh (0xbd3bc0 calls 0x4b6faf / 0x4b7163 hooked), the draw data
+flags, and how often 0xbd6d00 ran for that render object (entry hooked with a trampoline). Hero with
+collects > 0 but no submits = draw data flags (bit 2 = hidden: the NetCharacter's +0x2f03 / Show path);
+collects == 0 = the render object is never visible (the object-level visibility of the player process).

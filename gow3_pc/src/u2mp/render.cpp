@@ -399,8 +399,68 @@ struct Tracked {
     uint64_t submits;
     uint64_t submits_reported;
     bool logged_first;
+    uint64_t render_object;   // the AddMesh owner (0x1248600 render object), 0 = not known
+    uint64_t collects;        // 0xbd6d00 calls for that render object
+    uint64_t collects_reported;
 };
 Tracked tracked[kTracked];
+
+// ---- run 45: the render object gate ----------------------------------------------------------------
+// DrawControl::AddMesh (0x4b6e20) gets each mesh's draw data from the manager 0x1248600 with
+// 0xbd3bc0(manager, render object) (calls 0x4b6faf / 0x4b7163): draw data are 0x4b0-byte records in
+// manager +0x400, the MeshInstance is draw data +0x1c0, flags at +0x1b8 (0xbe4ad3: +0x2000 on creation,
+// +1 for an empty prototype; DrawControl Show/Hide clear/set +2). Per frame 0xbd6d00(render object,
+// out list) collects a render object's draw data (+0xfc count, +0x100 index list), skipping those with
+// flags & 7, and 0xbd4f80 skips render objects whose per-frame byte (+5 at the frame offset) lacks 4.
+// Logged here: the render object of every tracked instance, the draw data flags, and how often 0xbd6d00
+// ran for that render object. Hero instances never submitted with collects > 0 = the draw data gate
+// (flags); collects == 0 = the render object is never visible (object-level gate: process / show).
+constexpr uint64_t fDrawDataNew = 0xbd3bc0, cDrawDataA = 0x4b6faf, cDrawDataB = 0x4b7163;
+constexpr uint64_t fCollect = 0xbd6d00;
+constexpr int kPairs = 1024;
+uint64_t pair_drawdata[kPairs], pair_object[kPairs];
+uint32_t pair_next = 0;
+
+using DrawDataNewFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t);
+U2MP_GUEST uint64_t drawdata_new_logged(uint64_t manager, uint64_t object) {
+    const uint64_t r = reinterpret_cast<DrawDataNewFn>(image.base + fDrawDataNew)(manager, object);
+    const uint32_t i = __atomic_fetch_add(&pair_next, 1, __ATOMIC_RELAXED) % kPairs;
+    pair_object[i] = object;
+    __atomic_store_n(&pair_drawdata[i], r, __ATOMIC_RELEASE);
+    return r;
+}
+
+uint64_t render_object_of(uint64_t drawdata) {
+    for (int i = 0; i < kPairs; ++i)
+        if (__atomic_load_n(&pair_drawdata[i], __ATOMIC_ACQUIRE) == drawdata) return pair_object[i];
+    return 0;
+}
+
+using CollectFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+unsigned char *collect_original = nullptr;
+U2MP_GUEST uint64_t collect_logged(uint64_t object, uint64_t out, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+    for (int i = 0; i < kTracked; ++i)
+        if (tracked[i].render_object == object && __atomic_load_n(&tracked[i].instance, __ATOMIC_RELAXED))
+            __atomic_add_fetch(&tracked[i].collects, 1, __ATOMIC_RELAXED);
+    return reinterpret_cast<CollectFn>(collect_original)(object, out, a2, a3, a4, a5);
+}
+
+void log_gate(const Tracked &t, uint64_t inst) {
+    const uint8_t *dd = reinterpret_cast<const uint8_t *>(uintptr_t(inst - 0x1c0));
+    const uint64_t ro = t.render_object;
+    if (!ro || bad_pointer(ro)) {
+        log("render diag: %s %p draw data flags +1b8 %08x, render object unknown", t.kind,
+            reinterpret_cast<const void *>(uintptr_t(inst)), *reinterpret_cast<const uint32_t *>(dd + 0x1b8));
+        return;
+    }
+    const uint8_t *o = reinterpret_cast<const uint8_t *>(uintptr_t(ro));
+    log("render diag: %s %p draw data flags +1b8 %08x; render object %p: %llu collects (+%llu), +0 %016llx "
+        "%016llx +f8 %u/%u", t.kind, reinterpret_cast<const void *>(uintptr_t(inst)),
+        *reinterpret_cast<const uint32_t *>(dd + 0x1b8), static_cast<const void *>(o),
+        (unsigned long long)t.collects, (unsigned long long)(t.collects - t.collects_reported),
+        (unsigned long long)*reinterpret_cast<const uint64_t *>(o), (unsigned long long)*reinterpret_cast<const uint64_t *>(o + 8),
+        *reinterpret_cast<const uint32_t *>(o + 0xfc), *reinterpret_cast<const uint32_t *>(o + 0xf8));
+}
 uint32_t hero_next = 0, actor_next = 0, geo_next = 0, generation_next = 0;
 uint64_t list_key[kListSlots];      // list address
 int16_t list_owner[kListSlots];     // index into tracked
@@ -503,6 +563,8 @@ U2MP_GUEST uint64_t mesh_init_logged(uint64_t inst, uint64_t a1, uint64_t a2, ui
     t.born = __atomic_load_n(&walker_calls, __ATOMIC_RELAXED);
     t.submits = t.submits_reported = 0;
     t.logged_first = false;
+    t.render_object = actor ? render_object_of(inst - 0x1c0) : 0;
+    t.collects = t.collects_reported = 0;
     __atomic_store_n(&t.instance, inst, __ATOMIC_RELEASE);
     const uint8_t *in = reinterpret_cast<const uint8_t *>(uintptr_t(inst));
     list_insert(inst + 0x170, slot, 0, gen);
@@ -579,6 +641,8 @@ U2MP_GUEST uint64_t walker_logged(uint64_t list, uint64_t a1, uint64_t a2, uint6
                 (unsigned long long)(s - t.submits_reported));
             t.submits_reported = s;
             if (i < kHeroSlots) log_instance("now", reinterpret_cast<const uint8_t *>(uintptr_t(inst)));
+            if (t.render_object || i < kActorBase + kActorRefs) log_gate(t, inst);
+            t.collects_reported = t.collects;
         }
     }
     return reinterpret_cast<WalkerFn>(walker_original)(list, a1, a2, a3, a4, table, count);
@@ -608,6 +672,39 @@ bool install_draw_diag(int &installed) {
     n += retarget_call(cInitB, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init B");
     n += retarget_call(cInitC, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init C");
     n += retarget_call(cFreeActor, fMeshFree, reinterpret_cast<void *>(&mesh_free_logged), "render diag: actor mesh teardown");
+    n += retarget_call(cDrawDataA, fDrawDataNew, reinterpret_cast<void *>(&drawdata_new_logged), "render diag: AddMesh draw data A");
+    n += retarget_call(cDrawDataB, fDrawDataNew, reinterpret_cast<void *>(&drawdata_new_logged), "render diag: AddMesh draw data B");
+    // 0xbd6d00: mov r8d,[rsi]; mov eax,0x800 (8 bytes, no rip use) -> trampoline, entry jumps to the host
+    static const unsigned char collect_prologue[] = {0x44, 0x8b, 0x06, 0xb8, 0x00, 0x08, 0x00, 0x00, 0x44, 0x29, 0xc0};
+    if (image.matches(fCollect, collect_prologue, sizeof collect_prologue) && image.executable(fCollect, 8)) {
+        unsigned char *ctramp = near_stub(32);
+        unsigned char *centry = near_stub(16);
+        const int64_t cdelta = centry ? int64_t(uintptr_t(centry)) - int64_t(uintptr_t(image.base + fCollect + 5)) : 0;
+        if (ctramp && centry && cdelta >= INT32_MIN && cdelta <= INT32_MAX) {
+            std::memcpy(ctramp, collect_prologue, 8);
+            ctramp[8] = 0xff;
+            ctramp[9] = 0x25;
+            std::memset(ctramp + 10, 0, 4);
+            const uint64_t cback = uint64_t(uintptr_t(image.base + fCollect + 8));
+            std::memcpy(ctramp + 14, &cback, 8);
+            collect_original = ctramp;
+            const uint64_t chost = uint64_t(uintptr_t(&collect_logged));
+            centry[0] = 0x48;
+            centry[1] = 0xb8;
+            std::memcpy(centry + 2, &chost, 8);
+            centry[10] = 0xff;
+            centry[11] = 0xe0;
+            const int32_t crel = int32_t(cdelta);
+            unsigned char *cc = image.base + fCollect;
+            cc[0] = 0xe9;
+            std::memcpy(cc + 1, &crel, 4);
+            std::memset(cc + 5, 0x90, 3);
+            ++n;
+            log("render diag: render object collect 0xbd6d00 counted");
+        }
+    } else {
+        log("render diag: 0xbd6d00 differs, render object collects not counted");
+    }
     installed += n;
     // walker: trampoline = its 13-byte prologue + jmp back to 0xc2567d; the entry jumps to the host
     unsigned char *tramp = near_stub(32);
