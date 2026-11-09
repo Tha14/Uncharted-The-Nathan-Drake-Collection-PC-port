@@ -685,6 +685,16 @@ template <size_t I> U2MP_GUEST uint64_t state_update(void *state) {
         if (kStateUpdates[I].update == 0x5eff30) log_leave_reason("leave");
     }
     if (kStateUpdates[I].update == 0x5f2dc0) skip_missing_level_pak();
+    // Test runs 39-40: the match-over byte 0x104f1c0 is 1 in the image's data and only Leave::Enter
+    // (0x5f00bb, with 0x14ce978) and the replay Leave clear it, so the first match of a session saw it
+    // set and Playing went to Leave at once (later matches were fine). Clear both while the match is
+    // being set up, as Leave::Enter leaves them for the next match.
+    if (kStateUpdates[I].update == 0x5f2ea0 && (G<uint8_t>(0x104f1c0) || G<uint8_t>(0x14ce978))) {
+        log("match setup: match-over flag was %u (0x14ce978 %u), cleared", unsigned(G<uint8_t>(0x104f1c0)),
+            unsigned(G<uint8_t>(0x14ce978)));
+        G<uint8_t>(0x104f1c0) = 0;
+        G<uint8_t>(0x14ce978) = 0;
+    }
     // Test run 24: LoadLevels::Enter (0x5f2e50 -> 0x640fc0) resets the NetGameManager, so the players
     // Start Match registered are gone (ngm+8, the host tracker, NULL) and LoadLevels / WaitReady go to
     // Leave. PS3's session layer registered them again; here the party's members are put back while

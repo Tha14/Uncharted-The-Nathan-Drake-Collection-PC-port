@@ -87,6 +87,38 @@ bool install_stream_start() {
 // render.cpp grows full lists, repairs a bad entry with a real cbuffer resource and gives lookups that
 // find nothing a zeroed cbuffer (u2mp/docs/PORT-RENDER.md). The stopgaps that were here moved there.
 
+// ---- 3. Scratch heap of memory context 0x45 in the net player sort (test run 40) --------------------
+// The Fort reached Playing, then NetGameManager::Update (0x63e782 -> 0x66c4a0) asserted in
+// GetAllocator 0xb2f280 ("pAllocator->BP_GetAllocatorTypeForDebug() == ...HeapAllocator",
+// corelib/memory/allocator-heap.cpp) for context 0x45. On PS4 that context resolves to a non-heap
+// allocator on the game thread. The two callers (calls at 0x66d413 and 0x66d510) only take the heap's
+// HeapArena (+0x50) as scratch space for a sort: 0x6700c0 sorts into [current, stack) and writes
+// `current` back unchanged (0x6701f0). Both calls get an allocator stand-in whose arena covers a
+// buffer of our own: {current, stack, memory, info = size << 2 | 2 (external modification allowed)}.
+constexpr uint64_t fGetAllocator = 0xb2f280;
+constexpr uint64_t cScratchCalls[] = {0x66d413, 0x66d510};
+constexpr size_t kScratchBytes = 0x40000;
+alignas(64) unsigned char scratch_memory[kScratchBytes];
+struct ScratchHeap {
+    uint64_t head[10];   // allocator object up to +0x50 (not read by these callers)
+    uint64_t current, stack, memory, info;
+} scratch_heap;
+
+U2MP_GUEST void *scratch_allocator(const uint32_t *context) {
+    static bool said = false;
+    if (!said) {
+        said = true;
+        log("scratch heap: context 0x%x for the net player sort gets a %zu KiB arena of its own",
+            context ? *context : 0u, kScratchBytes / 1024);
+    }
+    const uint64_t base = uint64_t(uintptr_t(scratch_memory));
+    scratch_heap.current = base;
+    scratch_heap.stack = base + kScratchBytes;
+    scratch_heap.memory = base;
+    scratch_heap.info = (uint64_t(kScratchBytes) << 2) | 2;
+    return &scratch_heap;
+}
+
 }  // namespace
 
 void install_render(int &installed);   // render.cpp: cbuffer list guard, entry repair, lookup fallback
@@ -94,6 +126,10 @@ void install_render(int &installed);   // render.cpp: cbuffer list guard, entry 
 void install_nullsites(int &installed) {
     if (install_stream_start()) ++installed;
     install_render(installed);
+    for (uint64_t call : cScratchCalls)
+        if (retarget_call(call, fGetAllocator, reinterpret_cast<void *>(&scratch_allocator),
+                          "scratch heap (context 0x45, net player sort)"))
+            ++installed;
 }
 
 }  // namespace u2mp

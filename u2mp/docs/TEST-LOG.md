@@ -39,3 +39,4 @@ From run 38 on, fixes are batched (render root cause, remaining gameplay/menu fu
 | Run | Result | Fix |
 |---|---|---|
 | 39 | first run without a crash: Gompa reached Playing (no render repairs needed), Leave about 5 s later, back to the menu cleanly; the Fort then waited in LoadLevels for `sky-fort-multi` and `the-fort-multi-wide` | Fort pieces imported again (group B); the Gompa leave reason is open |
+| 40 | Gompa: the match-over byte 0x104f1c0 is 1 in the image data (cleared only by Leave::Enter), so the first match left at once; the Fort (second match, all pieces) reached Playing, then GetAllocator(0x45) asserted in the net player sort (0x66d413) | byte cleared at match setup (session.cpp); scratch arena for the sort (nullsites.cpp section 3) |
