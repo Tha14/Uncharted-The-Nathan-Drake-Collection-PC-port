@@ -165,7 +165,9 @@ def main():
             continue
         if rec and rec.get('status') == 'ok' and rec.get('fp') != fp:
             log(head + ': updated since it last ran, running it again')
-        ref_files = s['kind'] == 'script' and not a.force and at_reference_state(s, out, manifest, hcache, hidden_rel)
+        # "reference_check": false = a step newer than manifest.tsv: its files at the reference state still need it
+        ref_files = s['kind'] == 'script' and not a.force and s.get('reference_check', True) \
+            and at_reference_state(s, out, manifest, hcache, hidden_rel)
         if ref_files:
             # every file this step may write already equals the reference build: nothing to do
             state.mark(sid, ref_files, 'ok', 'files already at the reference state', fp)

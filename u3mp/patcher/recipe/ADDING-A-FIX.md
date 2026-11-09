@@ -84,6 +84,9 @@ Fields:
 * `writes`: globs (relative to the output root) of the files the step may change; the driver hashes
   them before and after to record what changed. `must_write: false` lets a step succeed when it
   changes nothing (already applied).
+  A step whose `writes` files all equal `manifest.tsv` is skipped as "already at the reference state". A new
+  step that changes files the manifest predates must set `reference_check: false` (or update the manifest),
+  or it never runs on a build that matches the reference (recipe 1.11.0's map-lighting was skipped that way).
 * `status`: `reproducible`, `needs-converted-base` (works only once the converted paks exist),
   `needs-build` (ships the build script but not its output), `blocked-lost-tool`,
   `not-reproducible-locally`. Informational, printed by `--list`.

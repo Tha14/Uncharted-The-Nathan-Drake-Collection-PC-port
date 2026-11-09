@@ -1,0 +1,28 @@
+{
+ "id": "map-lighting",
+ "title": "London Underground library sun shadow blockers + Fort stairs / plaster panel materials; the other paks recipe 1.11.0 changed restored from backup (map-lighting/apply_map_lighting.py)",
+ "kind": "script",
+ "job": "map-lighting",
+ "family": "overlay-r3/pak23",
+ "needs": [
+  "ps4"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/apply_map_lighting.py",
+   "--work",
+   "{{WORK}}",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/pak23/ps4/*.pak"
+ ],
+ "must_write": false,
+ "reference_check": false,
+ "status": "needs-converted-base",
+ "applied": "2026-11-09 (backup-map-lighting)",
+ "notes": "By 33martyr (PR #3). Since recipe 1.12.0 only ldn-train-multi-lit, fort-multi and fort-multi-stage are changed: blockers (material shadowblocker / ik-only / canopy-shadow) get +0x20 |= 0x10000 and +0x24 |= 0x101 (London library lighting); Fort stone-steps layer swap + PS3 spec terms, plaster-cream border tint, template metalness removed. The 16 other paks recipe 1.11.0 changed are copied back from work/backup-map-lighting (then moved to backup-map-lighting/restored, so once only). In place, no size change, idempotent.",
+ "recipe_version_added": "1.11.0"
+}
