@@ -1044,11 +1044,26 @@ void draw_type7_panel(void *ctx, const uint8_t *set, const uint8_t *local) {
 //     (PS3 tracker+16 / +20) searched for one holding a 310f465e (capture flag) process through character
 //     +44 bit 0x1000 (virtual slot 116 of +6696) or bit 0x200 (held object handle +7600, PS3 0x45da80);
 //     the PS4 character layout for +44 / +6696 / +7600 is not mapped;
-//   - the 0.5 s blink (fmod([[0xf116d4]+12] / 300, 1) < 0.5) when PS3 0x2b75c(flag) is false: 0x2b75c
-//     (virtual slot 80 of the flag, tag e9a3dd67, a camera distance test) is inlined on PS4 (0x63e439,
-//     0x649879) and not ported; the icon is drawn steadily.
+// The 0.5 s blink (PS3 0x2b75c(flag) true: the flag's tag e9a3dd67) is ported in draw_carrier.
 constexpr uint64_t NGM_CARRY_SLOT = 0x1cc0, NGM_CARRY_ID = 0x1cc8, FLAG_OWNER = 0x440, T_ID = 0x120;
 constexpr uint64_t S_CARRY_NONE = 0x18, S_CARRY_OWN = 0x20, S_CARRY_OTHER = 0x28;
+constexpr uint32_t kTagCarryBlink = 0xe9a3dd67;
+
+bool flag_tag_true(const uint8_t *process, uint32_t tag) {
+    const uint8_t *tbl = process ? ptr_at(process, 0x68) : nullptr;
+    const uint8_t *entries = tbl ? ptr_at(tbl, 0) : nullptr;
+    const uint32_t n = tbl ? R<uint32_t>(tbl, 8) : 0;
+    if (!entries || n == 0 || n > 4096) return false;
+    for (uint32_t i = 0; i < n; ++i) {
+        const uint8_t *e = entries + 0x10 * uint64_t(i);
+        if (R<uint32_t>(e, 0) != tag) continue;
+        const uint8_t *v = ptr_at(e, 8);
+        if (!v || R<uint16_t>(v, 0) != 1) return false;
+        const uint8_t *b = ptr_at(v, 8);
+        return b && R<uint32_t>(b, 0) != 0;
+    }
+    return false;
+}
 
 void draw_carrier(void *ctx, const uint8_t *set, int32_t team) {
     const uint8_t *slot = reinterpret_cast<const uint8_t *>(uintptr_t(G<uint64_t>(kNgm + NGM_CARRY_SLOT)));
@@ -1066,6 +1081,11 @@ void draw_carrier(void *ctx, const uint8_t *set, int32_t team) {
         }
     }
     const uint64_t w = !carrier ? S_CARRY_NONE : R<int32_t>(carrier, T_TEAM) == team ? S_CARRY_OWN : S_CARRY_OTHER;
+    // 0.5 s blink while the flag's tag e9a3dd67 is true (PS3 0x8afec0 -> 0x8b0040: 0x2b75c; PS4 inlines
+    // the same lookup at 0x63e439: tag table [[process+0x68]] = {entries (0x10: u32 tag, +8 value), u32
+    // count}, value {u16 type 1, +8 -> u32}). Without a carrier PS3 draws the plain icon (0x8b0090).
+    if (carrier && flag_tag_true(flag, kTagCarryBlink) && std::fmod(float(G<int32_t>(kFrames)) / kFramesPerSecond, 1.0f) >= 0.5f)
+        return;
     frame_image(ctx, set, w);                                                      // 0x8aff04 / 0x8b0088 / 0x8b0090
 }
 
@@ -1352,18 +1372,23 @@ void install_weapon_panel() {
 // panel at the bottom, the camera icons 64 x 32 (step 72) around the smoothed index with alpha falling off
 // by 0.3 per step, the selected camera's name above, the film position / length as m:ss with a progress
 // bar (PS3 0x462fbc: position = (clock [+0x204] - cinema +0x6a0) / 300; length = header +0x10 = cinema
-// +0x1d8, PS3 +456). The PS3 sound on a camera change (0x30fb28 / 0x7069c8, f57d53ce) and the "x%2.1f"
-// speed line (PS3 [0xe1558c], no PS4 pair found) are left out. Pad: raw OrbisPadData buttons 0x14b7fb0.
+// +0x1d8, PS3 +456), the "x%2.1f" speed line and the sound on a camera change (f57d53ce). Pad: raw OrbisPadData buttons 0x14b7fb0.
 constexpr uint64_t E_THEATER = 0x1928;
 constexpr uint64_t TH_SEL = 0x0, TH_SMOOTH = 0x4, TH_RELEASE = 0x8, TH_CAMS = 0xc, TH_CAM_SIZE = 0x18,
                    TH_CAM_COUNT = 0xfc, TH_SHOWN = 0x100, TH_SHOWN_COUNT = 0x150, TH_FADE = 0x154, TH_TIME = 0x158;
-constexpr uint64_t CIN_CLOCK = 0x6a0, CIN_DURATION = 0x1c8 + 0x10;
+constexpr uint64_t CIN_CLOCK = 0x6a0, CIN_DURATION = 0x1c8 + 0x10, kReplaySpeed = 0x104f1bc;
 constexpr uint64_t kPadButtonsRaw = 0x14b7fb0, kMenuMgr = 0x1136640, fDoCallback = 0x5c8840;
 constexpr uint32_t kFlagTheater = 0x100000;
 constexpr uint32_t kPadL1 = 0x400, kPadR1 = 0x800, kPadCross = 0x4000;
 constexpr uint32_t kCamAlways = 0x3cf5deed, kCamNever = 0xe8184ce8, kCamMode1 = 0xff502160, kCamMode2 = 0x806c9824,
                    kCamMode0 = 0x887c7d6e;
 using DoCallbackFn = void(U2MP_GUEST *)(void *, uint32_t, uint32_t);
+// One-shot sound: PS3 0x30fb28(buf, sid, 0) + 0x7069c8(buf, 0) = PS4 0x3dd780 + 0x9b5c20 (as 0x4ae0cc plays
+// the same f57d53ce).
+constexpr uint64_t fSoundInit = 0x3dd780, fSoundPlay = 0x9b5c20;
+constexpr uint32_t kSoundCamera = 0xf57d53ce;
+using SoundInitFn = void(U2MP_GUEST *)(void *, uint32_t, uint32_t);
+using SoundPlayFn = void(U2MP_GUEST *)(void *, uint32_t);
 uint32_t g_theater_last_buttons = 0;
 bool g_theater_logged = false;
 
@@ -1412,6 +1437,11 @@ void draw_theater(void *ctx, const uint8_t *element) {
     }
     if (sel > n - 1) sel = n - 1;
     if (sel < 0) sel = 0;
+    if (sel != R<int32_t>(sub, TH_SEL)) {   // PS3 0x8a90d8: sound f57d53ce (0x30fb28 + 0x7069c8)
+        alignas(16) uint8_t snd[0x200] = {};
+        reinterpret_cast<SoundInitFn>(image.base + fSoundInit)(snd, kSoundCamera, 0);
+        reinterpret_cast<SoundPlayFn>(image.base + fSoundPlay)(snd, 0);
+    }
     Wr<int32_t>(sub, TH_SEL, sel);
     const float smooth = R<float>(sub, TH_SMOOTH) * 0.5f + float(sel) * 0.5f;
     Wr<float>(sub, TH_SMOOTH, smooth);
@@ -1454,6 +1484,14 @@ void draw_theater(void *ctx, const uint8_t *element) {
         fmt_mss(t, sizeof t, length);
         draw_text(850.0f, 666.0f, 0.5f, V4{1.0f, 1.0f, 1.0f, a}, 1, 50.0f, 20.0f, t);
     }
+    // PS3 0x8acf8c: "x%2.1f" of the replay speed when it is not 1 (PS3 [0xe1558c] = PS4 0x104f1bc, which
+    // RePlaying::Update 0x5e735d compares with 1.0 and applies to the clocks +0x7c / +0x3c).
+    const float speed = G<float>(kReplaySpeed);
+    if (speed != 1.0f && speed > 0.0f && speed < 100.0f) {
+        char sp[16];
+        std::snprintf(sp, sizeof sp, "x%2.1f", double(speed));
+        draw_text(905.0f, 666.0f, 0.5f, V4{1.0f, 1.0f, 1.0f, a}, 1, 50.0f, 20.0f, sp);
+    }
 }
 
 // Slot 1 of the multiplayer HUD element (PS3 0x8aef68): (element, draw context). The PS3 order:
@@ -1461,7 +1499,7 @@ void draw_theater(void *ctx, const uint8_t *element) {
 //     type 10 panel (0x8af648), or the score panel (0x8af220) and, for types other than 1 / 2, the
 //     objective carrier icon (0x8af360);
 //   type 9: the co-op money / wave panel (0x8af4e0; flag 0x8000, wave screen hidden);
-//   a film playing (ngm+0x209c): the theater HUD (0x8af620, flag 0x100000; not ported, see the notes),
+//   a film playing (ngm+0x209c): the theater HUD (0x8af620, flag 0x100000; draw_theater),
 //     then the watched player's boosters (0x8af180; flag 0x40000, cinema mode);
 //   competitive: the loadout boosters (0x8af440; flag 0x10) and, not type 11, the message list (0x8af424;
 //     flag 0x80000);
