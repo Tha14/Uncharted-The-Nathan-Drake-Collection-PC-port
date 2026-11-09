@@ -232,3 +232,26 @@ N collects`): the render object from AddMesh (0xbd3bc0 calls 0x4b6faf / 0x4b7163
 flags, and how often 0xbd6d00 ran for that render object (entry hooked with a trampoline). Hero with
 collects > 0 but no submits = draw data flags (bit 2 = hidden: the NetCharacter's +0x2f03 / Show path);
 collects == 0 = the render object is never visible (the object-level visibility of the player process).
+
+### Run 45: the hero's draw data flags, and the fix (render.cpp section 6)
+
+Run 45: the hero's render object is collected every frame, but its draw data flags are 0x6a00
+(= 0x2000 + 0x4000 + 0x0800 + 0x0200) where every drawn actor has 0x2000.
+
+| bit | set by | cleared by (campaign) | effect |
+|---|---|---|---|
+| 0x0200 | Character::Init 0x473f80 (0x474003, object +0x155 \|= 2) for every character | the active-state enters: NdGameObject 0x987840 / 0x988c00 (states 0x9ad5f0 / 0x9adbb0), the player 0x260920 (0x260c33) | the draw preparation 0xc47790 skips the draw data (0xc47db1: `test byte +0x1b9, 2`) |
+| 0x0800 | the player Init 0x724b70 (0x724cf3, also 0x200 at 0x724ca3); player events 0x7edd80 (with 0x20, "hide") | the player event handler / weapon code (0xadada3: `& ~0x820`) | hide |
+| 0x4000 | NetCharacter::Init 0x5fd443 / 0x45ba83 / 0xb21bf3 (object +0x154 \|= 2) | NetCharacter state enter 0x5f9750, player 0x260920 / 0x7a1d80 | spawning / dead hide |
+
+The local hero is spawned by 0x663280 through 0x976300 (its only caller, 0x6634de; the process type sid
+0x42a5be7f is the player, not NetCharacter f2c86c22). It never runs a clearing state enter, so its draw
+data keep 0x200 and are dropped at 0xc47db1 before the binding walker. PS3 1.10's local spawn 0x4c9b58
+makes the same calls after the spawn (0x6b84f4); the clearing belongs to the object's state machine,
+whose missing transition was not located.
+
+Fix: the call at 0x6634de is retargeted; right after 0x976300 returns the hero, 0x4000 / 0x800 / 0x200 are
+cleared on every draw data of its DrawControl (object +0x180), and object +0x154 / +0x155 bit 2 with them
+(the effect of the active-state enter). Logged as `render: hero spawned ...: N draw data, flags A -> B`.
+`UNCHARTED_U2MP_HERO_SHOW=0` turns it off. If the log shows 0 draw data at that point (meshes added
+later), or the run-45 style summary shows the bits back, the clearing has to move later (next step).

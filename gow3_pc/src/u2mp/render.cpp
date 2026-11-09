@@ -738,11 +738,80 @@ bool install_draw_diag(int &installed) {
     return true;
 }
 
+// ---- 6. The local hero's draw data stay "not drawable" (test runs 41-45: the player is never drawn) --
+// Run 45: the hero's render object is collected every frame (0xbd6d00), but its draw data flags (+0x1b8)
+// are 0x6a00 where every drawn actor has 0x2000. The extra bits come from the spawn's init chain:
+//   0x0200  Character::Init 0x473f80 (0x474003, with object +0x155 |= 2) on every mesh. The per-instance
+//           draw preparation 0xc47790 skips a draw data with it (0xc47db1: test byte +0x1b9, 2). The
+//           campaign clears it when the object goes active: the NdGameObject active-state enters
+//           0x987840 / 0x988c00 (0x9880c3, 0x989023, via the states 0x9ad5f0 / 0x9adbb0) and the player's
+//           active state 0x260920 (0x260c33, which also clears 0x4000 and object +0x154 bit 2).
+//   0x0800  the player Init 0x724b70 (0x724cf3, with 0x200 at 0x724ca3); the player event handler
+//           0x7edd80 sets / clears it with 0x20 ("hide" events, 0x7ee1f6), the weapon code clears 0x820.
+//   0x4000  the spawning / dead hide (NetCharacter::Init 0x5fd443 with object +0x154 |= 2, cleared by
+//           its state enter 0x5f9750; the player's 0x260920 / 0x7a1d80 clear it the same way).
+// The local MP hero is spawned by 0x663280 with 0x976300 (its only caller, 0x6634de) and never runs
+// one of those clearing enters, so it stays hidden. PS3 1.10's local spawn 0x4c9b58 has the same calls
+// after the spawn (0x6b84f4); the clearing comes from the object's state machine, which is not ported
+// here. What is done: right after 0x976300 returns the hero, the three bits are cleared on all its draw
+// data and the matching object bits (+0x154 / +0x155 bit 2) are cleared too, i.e. the effect of the
+// active-state enter. Logged with the flags before and after. UNCHARTED_U2MP_HERO_SHOW=0 turns it off.
+constexpr uint64_t fSpawnProcess = 0x976300, cSpawnHero = 0x6634de;
+constexpr uint32_t kHeroHideBits = 0x4000 | 0x0800 | 0x0200;
+using SpawnProcessFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+
+// Every draw data of a game object's DrawControl (object +0x180: +0x328 meshes, 0x50 apart from +8,
+// each {+0x48 count, draw data list at +0 of 0x10-byte entries}). Returns the number visited.
+template <typename F> int for_each_draw_data(uint64_t object, F &&f) {
+    const uint64_t dc = *reinterpret_cast<const uint64_t *>(uintptr_t(object) + 0x180);
+    if (bad_pointer(dc)) return -1;
+    const uint32_t meshes = *reinterpret_cast<const uint32_t *>(uintptr_t(dc) + 0x328);
+    if (meshes > 64) return -1;
+    int n = 0;
+    for (uint32_t m = 0; m < meshes; ++m) {
+        const uint8_t *mesh = reinterpret_cast<const uint8_t *>(uintptr_t(dc) + 8 + 0x50 * uint64_t(m));
+        const uint32_t lods = *reinterpret_cast<const uint32_t *>(mesh + 0x40);   // DC + i*0x50 + 0x48
+        for (uint32_t l = 0; l < lods && l < 16; ++l) {
+            const uint64_t dd = *reinterpret_cast<const uint64_t *>(mesh + 0x10 * uint64_t(l));
+            if (bad_pointer(dd)) continue;
+            f(reinterpret_cast<uint32_t *>(uintptr_t(dd) + 0x1b8));
+            ++n;
+        }
+    }
+    return n;
+}
+
+bool hero_show = true;
+
+U2MP_GUEST uint64_t spawn_hero_shown(uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+    const uint64_t obj = reinterpret_cast<SpawnProcessFn>(image.base + fSpawnProcess)(a0, a1, a2, a3, a4, a5);
+    if (!hero_show || bad_pointer(obj)) return obj;
+    uint32_t before_or = 0, after_or = 0;
+    const int n = for_each_draw_data(obj, [&](uint32_t *flags) {
+        before_or |= *flags;
+        __atomic_and_fetch(flags, ~kHeroHideBits, __ATOMIC_RELAXED);
+        after_or |= *flags;
+    });
+    uint8_t *o = reinterpret_cast<uint8_t *>(uintptr_t(obj));
+    const uint8_t b154 = o[0x154], b155 = o[0x155];
+    if (n > 0) {
+        o[0x154] = uint8_t(b154 & ~2u);
+        o[0x155] = uint8_t(b155 & ~2u);
+    }
+    log("render: hero spawned %p: %d draw data, flags (or of all) %08x -> %08x, object +154 %02x +155 %02x -> %02x %02x",
+        reinterpret_cast<void *>(uintptr_t(obj)), n, before_or, after_or, b154, b155, o[0x154], o[0x155]);
+    return obj;
+}
+
 }  // namespace
 
 // Called from install_nullsites (nullsites.cpp), so install.cpp needs no line of its own.
 void install_render(int &installed) {
     install_draw_diag(installed);
+    if (const char *v = std::getenv("UNCHARTED_U2MP_HERO_SHOW"); v && std::strcmp(v, "0") == 0) hero_show = false;
+    if (hero_show && retarget_call(cSpawnHero, fSpawnProcess, reinterpret_cast<void *>(&spawn_hero_shown),
+                                   "render: local hero spawn (draw data shown)"))
+        ++installed;
     static const unsigned char add_prologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55};
     static const unsigned char init_prologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x53};
     static const unsigned char make_prologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55};
