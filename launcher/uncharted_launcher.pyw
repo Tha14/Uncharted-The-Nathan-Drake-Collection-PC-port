@@ -3957,9 +3957,10 @@ class Launcher:
                 self.change_config("u3mp_dns", var.get().strip())
             var.trace_add("write", save)
             return entry
-        # the RPCN section's DNS Server box sets this one too (one DNS for both); only a package without the online
-        # section shows the import's own box
-        if self.u3mp_extension_module() is None:
+        # only a package without the online section shows the import's own DNS box. Checked by the file, never by
+        # loading the module here: an extra load here left two copies of it, and play() then asked the copy without
+        # the signed-in session (no relay: the game signed in itself, "already signed in elsewhere").
+        if not (U3MP_DIR / "online" / "u3_online.py").is_file():
             self.section(page, "Community server")
             self.row(page, "Community server DNS",
                      "The server's address. Used to download missing game data.", dns_entry)

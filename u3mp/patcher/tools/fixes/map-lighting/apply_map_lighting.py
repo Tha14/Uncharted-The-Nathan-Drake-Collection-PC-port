@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """apply_map_lighting.py (job map-lighting): multiplayer map lighting fixes, in place, no size change.
 
-Recipe 1.12.0: applied to London (ldn-train-multi-lit) and Fort (fort-multi, fort-multi-stage) only; the other paks
-that recipe 1.11.0 changed are restored from the backup (see KEEP).
+Recipe 1.13.0: every pak again (KEEP = None). Recipe 1.12.0 kept London (ldn-train-multi-lit) and Fort (fort-multi,
+fort-multi-stage) only and restored the other paks from the backup; with KEEP = None nothing is restored.
 
-1. Sun shadow blockers (KEEP paks only since 1.12.0).
+1. Sun shadow blockers (every pak; recipe 1.12.0 only: London and Fort).
    A blocker instance-submesh (material name contains shadowblocker, ik-only or canopy-shadow) must be
    shadow-only: +0x20 |= 0x10000 (ik-only: 0x1010000) and +0x24 |= 0x101 (the retail hidden-blocker word,
    38/38 lib-shadowblocker in retail). Converted paks had +0x20 = 0 on some of them, so the blocker went to
@@ -38,7 +38,8 @@ PAK23 = os.path.join('overlay-r3', 'u3data', 'build', 'main', 'pak23', 'ps4')
 # recipe 1.12.0: only London and Fort keep these changes. Recipe 1.11.0 (launcher 0.10.38) changed 16 more paks;
 # those are put back from <work>/backup-map-lighting/ (the state before 1.11.0), and each restored backup is moved
 # to backup-map-lighting/restored/ so it is restored once only (a later fix to that pak is never undone).
-KEEP = ('ldn-train-multi-lit.pak', 'fort-multi.pak', 'fort-multi-stage.pak')
+# recipe 1.13.0: None = every pak (the user's choice, 2026-11-09, after an in-game check on this PC)
+KEEP = None
 BORDER_TINT = (0.34935078, 0.33464769, 0.31090671)
 
 
@@ -159,7 +160,7 @@ def main():
     # undo recipe 1.11.0 on every pak outside KEEP
     for b in sorted(glob.glob(os.path.join(bak, '*.pak'))):
         name = os.path.basename(b)
-        if name in KEEP: continue
+        if KEEP is None or name in KEEP: continue
         path = os.path.join(root, name)
         same = os.path.exists(path) and open(path, 'rb').read() == open(b, 'rb').read()
         print('%s %s from backup-map-lighting' % ('already restored:' if same else ('restore' if a.apply else 'would restore'), name))
@@ -173,7 +174,7 @@ def main():
         os.replace(b, dst)
     for path in sorted(glob.glob(os.path.join(root, '*.pak'))):
         name = os.path.basename(path)
-        if name not in KEEP: continue
+        if KEEP is not None and name not in KEEP: continue
         try:
             q = Pak(open(path, 'rb').read())
             W = [(o, struct.pack('<I', old), struct.pack('<I', new), 'blocker ' + m) for o, old, new, m in blocker_writes(q)]
