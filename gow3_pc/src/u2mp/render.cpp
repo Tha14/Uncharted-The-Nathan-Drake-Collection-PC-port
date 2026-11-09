@@ -405,6 +405,7 @@ struct Tracked {
     uint64_t draw_jobs;       // 0xc419d0 calls for this instance
     uint64_t draw_jobs_reported;
     bool loop_off_logged;
+    uint64_t gate_calls, gate_pass;   // 0xc42430 per instance (run 55: the actor path's gate)
     uint64_t loop_calls;      // 0xbe3930 calls (frame loop 0xcaea00 / 0xb90f17) for the render object's +0xf0
 };
 Tracked tracked[kTracked];
@@ -500,6 +501,28 @@ U2MP_GUEST uint64_t loop_draw_counted(uint64_t obj, uint64_t a1, uint64_t a2, ui
     return reinterpret_cast<LoopDrawFn>(image.base + fLoopDraw)(obj, a1, a2, a3, a4, a5, s0, s1, s2, s3);
 }
 
+// The visibility gate 0xc42430(instance, ...) (calls 0xc42872 in 0xc42820, 0xc43206, 0xc43954): called and
+// passed counts per tracked instance; the first refusal logs the arguments.
+constexpr uint64_t fGate = 0xc42430;
+const uint64_t cGates[] = {0xc42872, 0xc43206, 0xc43954};
+using GateFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+U2MP_GUEST uint64_t gate_counted(uint64_t inst, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+    const uint64_t r = reinterpret_cast<GateFn>(image.base + fGate)(inst, a1, a2, a3, a4, a5);
+    for (int i = 0; i < kTracked; ++i) {
+        if (__atomic_load_n(&tracked[i].instance, __ATOMIC_RELAXED) != inst) continue;
+        const uint64_t n = __atomic_add_fetch(&tracked[i].gate_calls, 1, __ATOMIC_RELAXED);
+        if (r & 0xff) __atomic_add_fetch(&tracked[i].gate_pass, 1, __ATOMIC_RELAXED);
+        else if (n <= 2)
+            log("render diag: gate 0xc42430 refused %s %p: pass %u, list %llx, frustum %llx, +c1 %02x +d4 %x +d8 %llx",
+                tracked[i].kind, reinterpret_cast<const void *>(uintptr_t(inst)), unsigned(a2), (unsigned long long)a3,
+                (unsigned long long)a1, *reinterpret_cast<const uint8_t *>(uintptr_t(inst) + 0xc1),
+                *reinterpret_cast<const uint32_t *>(uintptr_t(inst) + 0xd4),
+                (unsigned long long)*reinterpret_cast<const uint64_t *>(uintptr_t(inst) + 0xd8));
+        break;
+    }
+    return r;
+}
+
 void log_gate(const Tracked &t, uint64_t inst) {
     const uint8_t *dd = reinterpret_cast<const uint8_t *>(uintptr_t(inst - 0x1c0));
     const uint64_t ro = t.render_object;
@@ -522,9 +545,9 @@ void log_gate(const Tracked &t, uint64_t inst) {
         (unsigned long long)dd_f0);
     {   // the frame loop 0xcaea00's entries may be render objects: their +0x11c / +0x120 / +0xf0 too (run 52)
         const uint64_t of0 = *reinterpret_cast<const uint64_t *>(o + 0xf0);
-        log("render diag: %s %p render object +f0 %llx: %llu frame-loop draws 0xbe3930 (of %llu)", t.kind,
-            reinterpret_cast<const void *>(uintptr_t(inst)), (unsigned long long)of0, (unsigned long long)t.loop_calls,
-            (unsigned long long)__atomic_load_n(&loop_calls_total, __ATOMIC_RELAXED));
+        log("render diag: %s %p: visibility gate 0xc42430 called %llu, passed %llu", t.kind,
+            reinterpret_cast<const void *>(uintptr_t(inst)), (unsigned long long)t.gate_calls, (unsigned long long)t.gate_pass);
+        (void)of0;
     }
     log("render diag: %s %p draw data flags +1b8 %08x; render object %p: %llu collects (+%llu), +0 %016llx "
         "%016llx +f8 %u/%u", t.kind, reinterpret_cast<const void *>(uintptr_t(inst)),
@@ -646,6 +669,7 @@ U2MP_GUEST uint64_t mesh_init_logged(uint64_t inst, uint64_t a1, uint64_t a2, ui
     t.draw_jobs = t.draw_jobs_reported = 0;
     t.loop_calls = 0;
     t.loop_off_logged = false;
+    t.gate_calls = t.gate_pass = 0;
     __atomic_store_n(&t.instance, inst, __ATOMIC_RELEASE);
     const uint8_t *in = reinterpret_cast<const uint8_t *>(uintptr_t(inst));
     list_insert(inst + 0x170, slot, 0, gen);
@@ -760,8 +784,8 @@ bool install_draw_diag(int &installed) {
     n += retarget_call(cInitA, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init A");
     n += retarget_call(cInitB, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init B");
     n += retarget_call(cInitC, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init C");
-    n += retarget_call(cLoopDrawA, fLoopDraw, reinterpret_cast<void *>(&loop_draw_counted), "render diag: frame loop draw A");
-    n += retarget_call(cLoopDrawB, fLoopDraw, reinterpret_cast<void *>(&loop_draw_counted), "render diag: frame loop draw B");
+    for (const uint64_t c : cGates)
+        n += retarget_call(c, fGate, reinterpret_cast<void *>(&gate_counted), "render diag: visibility gate 0xc42430 counted");
     n += retarget_call(cFreeActor, fMeshFree, reinterpret_cast<void *>(&mesh_free_logged), "render diag: actor mesh teardown");
     n += retarget_call(cDrawDataA, fDrawDataNew, reinterpret_cast<void *>(&drawdata_new_logged), "render diag: AddMesh draw data A");
     n += retarget_call(cDrawDataB, fDrawDataNew, reinterpret_cast<void *>(&drawdata_new_logged), "render diag: AddMesh draw data B");
