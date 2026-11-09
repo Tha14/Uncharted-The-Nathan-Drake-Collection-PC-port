@@ -166,6 +166,24 @@ bool pack_available(int32_t pack) {
     return pack >= 0 && pack < 3 && pack_present[pack];
 }
 
+// Ruins (map ids d9be0a6d, 37be4d69) is marked map pack 1 in net.bin, but the base game ships it: the PS4
+// game and GOTY both have the base ruins-multi with its spawn pak. Without the map pack it is offered as
+// the base map (assets audit 2026-11-09, GOTY-only import); with the map pack it is the flooded one.
+bool map_available(const uint8_t *rec) {
+    const uint32_t map = *reinterpret_cast<const uint32_t *>(rec);
+    const int32_t pack = *reinterpret_cast<const int32_t *>(rec + MAP_PACK);
+    if (pack_available(pack)) return true;
+    if (map == 0xd9be0a6du || map == 0x37be4d69u) {
+        static int base_ruins = -1;
+        if (base_ruins < 0) {
+            base_ruins = guest_file_exists(std::string(kRoot) + "pak22/ps4/ruins-multi.pak") ? 1 : 0;
+            log("dlc: Ruins %s as the base map (map pack 1 not imported)", base_ruins ? "offered" : "hidden");
+        }
+        return base_ruins == 1;
+    }
+    return false;
+}
+
 // ---- the map table without the absent packs (for 0x654c80) -------------------------------------
 // The builder stores pointers to the records it finds (slot +0x18) and the menu reads them later,
 // so the copy lives in static memory and is rewritten in place on every lookup: same dc data, same
@@ -182,7 +200,7 @@ U2MP_GUEST void *list_map_lookup(uint32_t id) {
     int kept = 0;
     for (int32_t i = 0; i < table->count; ++i) {
         const uint8_t *rec = table->records + MAP_STRIDE * uint64_t(i);
-        if (!pack_available(*reinterpret_cast<const int32_t *>(rec + MAP_PACK))) continue;
+        if (!map_available(rec)) continue;
         std::memcpy(filtered_records + MAP_STRIDE * uint64_t(kept), rec, MAP_STRIDE);
         ++kept;
     }
@@ -203,7 +221,7 @@ bool dlc_net_game_available(int32_t index) {
     for (int32_t i = 0; i < maps->count; ++i) {
         const uint8_t *rec = maps->records + MAP_STRIDE * uint64_t(i);
         if (*reinterpret_cast<const uint32_t *>(rec) == map)
-            return pack_available(*reinterpret_cast<const int32_t *>(rec + MAP_PACK));
+            return map_available(rec);
     }
     return true;   // unknown map: the game itself decides (0x654c80 skips it)
 }

@@ -16,6 +16,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+
+extern "C" int runtime_file_translate(const char *guest, char *out, size_t size);
 #include <vector>
 
 #include "frontend3.h"
@@ -593,6 +595,18 @@ void skip_missing_level_pak() {
     if (n < 4 || std::strcmp(name + n - 4, "-pak") != 0) return;
     const uint32_t id = sid(name);
     if (find_package(id)) return;
+    // The import writes the server spawn data as pak22/ps4/<map>-pak-ingame10.pak and registers the level:
+    // then the package is only not created *yet* (assets audit 2026-11-09), so it must be waited for.
+    {
+        char host[1024];
+        const std::string guest = std::string("/app0/u2data/build/main/pak22/ps4/") + name + "-ingame10.pak";
+        if (runtime_file_translate(guest.c_str(), host, sizeof host) == 0) {
+            if (std::FILE *f = std::fopen(host, "rb")) {
+                std::fclose(f);
+                return;
+            }
+        }
+    }
     const uint64_t table = uint64_t(uintptr_t(image.at<uint8_t>(0x1130390)));
     const uint32_t count = *reinterpret_cast<const uint32_t *>(uintptr_t(table + 0x5a98));
     auto *e = *reinterpret_cast<uint8_t **>(uintptr_t(table + 0x5aa0));

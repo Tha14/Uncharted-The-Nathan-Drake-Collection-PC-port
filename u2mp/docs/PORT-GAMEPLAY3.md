@@ -141,3 +141,119 @@ GoShowRoundResults +0x190, GoPreResetting +0x170, GoLeave +0x198), same globals 
 - NetAnimCmdGenerator slot `0x453c10` (section 3).
 - Untested: the countdown restores the PS3 10 s results screen; the host then leaves through
   GoLeave and clients on message 0x105, both unchanged PS4 code.
+
+## 6. In-match audit (after test run 41)
+
+Run 41 (boot.log): three solo deathmatches (Gompa, Fort, Treasure, game type 0) reached Playing and
+ran 51 s / 118 s / 39 s. Each time `leave flag 1` (the pause menu's Leave Game), so the limits were
+never reached. ShowResults::Enter and the countdown were installed (cinema's finish chained after it).
+
+### 6.1 Match end (new: `matchend.cpp`, `install_matchend`)
+
+The game-over code is in NetGameManager::Update `0x63e6a0` from `0x63f31d` (field map in the
+`matchend.cpp` header): it needs at least 1500 frames after ngm+0x1d60, then time limit (ngm+0x21b8
+seconds x 300 against frames - ngm+0x1d5c, skipped for type 10 or when debug byte `0x104f4f8` is
+set; it is 0 in the image), score limit (ngm+0x21b4 against the u16 team scores at
+`[0x104ae70] + 0x3dee`), elimination rounds (ngm+0x21c0 / +0x1d74). The reason goes to the EndGame
+sender `0x60c7f0`; its Apply `0x62c9f0` sets ngm+0x1e84/+0x1e88, which Playing::Update reads. All of
+it is PS4 code that was never stripped; it was simply not reached.
+
+`matchend.cpp` wraps the Playing::Update slot (after session.cpp's wrapper) and logs those values
+every 10 s and whenever ngm+0x1e80/0x1e84/0x1e88 change. `UNCHARTED_U2MP_TIME_LIMIT=<10..3600>`
+sets the time limit for test runs, so a solo match reaches the time-limit game over, then
+ShowResults (10 s countdown) and Leave.
+
+### 6.2 Scans
+
+| Scan | Result |
+|---|---|
+| Every script native, the whole image (`u2_func_match.py natives`: 852 PS3 natives, all present on PS4) | 33 stubs: the 6 net natives natives.cpp ports, plus print/display/jetski/E3 debug natives (empty on purpose). HUD natives (`hud-set-timer`, `hud-set-counter`, `display-button-hud`, `net-hud-set-grapple-indicator`), booster natives (`net-get-booster-amount` 0x668820, `net-booster-enabled?` 0x668810), spawn/flag/territory natives: alive |
+| PS4 ret stubs paired to a PS3 body across all 5565 matched pairs (`g3/stubpairs.txt`) | only destructors (PS4 dtors are `ret`), menu callbacks and natives already handled |
+| Non-zero image-data globals read by MP code that no code ever sets back (`g3/initval.py` over full.dis) | `0x104f1c0` (fixed in session.cpp), `0x104f1c1` (PAGE_MULTIPLAYER_CONNECTING only; when 1 the page skips its own "net" request, which the Multiplayer button already makes), `0x104f1b9` (cinema), `0x1050638` (TSC frequency), `0x105e370` (menu). netInfo `0x104f1c8` keeps the PS3 constructor values (`+0x3c = 6`, `+0x58 = 12` = PS3 `0x4a9d64` +60/+80) |
+| Allocator contexts used by MP code (calls to `0xb332a0` / GetAllocator `0xb2f280` with a constant context) | 0x14 (173 calls: netheap.cpp), 0x45 (alloc at `0x668e09` only; GetAllocator at `0x66d413`/`0x66d510` fixed in nullsites.cpp). No other context |
+| PS3 IsMultiplayer callers (`0x4384b0`, 310) whose PS4 pair lost every NET_SM test | PostProcessUpdate (PS3 `0x21db8` = PS4 `0x3f5620`) and `0x19b710` = `0x293d90` only |
+
+### 6.3 Found: NetGameManager::KickVisibilityJob (PS3 0x494c38) is not called on PS4 (ported: section 7)
+
+PS3 PostProcessUpdate `0x21db8`, when multiplayer, calls NdiNetUpdate `0x449e88` (transport, voice,
+party: replaced by session.cpp/voice.cpp) and **KickVisibilityJob `0x494c38`(g_netGameManager)**.
+The job kicks, for every remote player with a character, an asynchronous line-of-sight probe from the
+camera to the player into the tracker's probe object (PS3 tracker+408; collision kick `0x6c2d58`).
+UpdatePlayerTrackerVisibility (PS3 `0x494608`, inlined in PS4 `0x63e6a0` at `0x63e78d`, sid `c032f430`)
+reads the probe through `0x666160` (PS3 `0x4c9748`), keeps the per-tracker visibility state
+(+0x230, PS3 +488) and sends the spotted event `0x611fa0` (PS3 `0x48cc58`). PS4 PostProcessUpdate has
+no multiplayer branch, and no PS4 code writes the probe's frame (tracker+0x1c8) or handle (+0x1d4)
+apart from the reset at `0x6626ec`. So the probe never runs on PS4.
+
+Effect: only with remote players (enemy name tags / spotting). Solo runs cannot show it. Not ported
+yet: it needs the PS4 equivalents of the PS3 collision-probe kick `0x6c2d58`, its setup `0x6c1a4c`,
+and the camera/position helpers `0x6b2ba4` (= PS4 `0x9e8c50`), `0x4c7df8`, `0x8a2388`, `0x39d120` and
+`0x93820`. `0x666160` reads the probe through a job table (`[0x14a6678]`) with a different layout
+than PS3. Next step: find the PS4 kick that writes probe +0x18 (frame) and +0x24 (handle) in another
+probe user. Then port `0x494c38` as a C++ call once per frame from the Playing::Update wrapper.
+
+### 6.4 Checked, nothing missing on PS4
+
+- Boosters: `net-booster-enabled?` = `0x5f6080`: compares the two equipped booster ids of NetPlayerData
+  (`0x11474f8 + 0x4c/+0x50`) after the game-type gate. `net-get-booster-amount` = `0x5f6410` reads the
+  booster list `0x113a788` (netinit.cpp/unlocks.cpp: 32 records) and the co-op table `b4bcce62`.
+  Both are intact. Boosters apply once the loadout's ids are in `+0x4c/+0x50` (menus / progression).
+- Respawn and spawn: `0x642d20` (PS3 `0x4a6008`), GetSpawnLocator `0x662fa0` (spawn.cpp), NetCharacter
+  death and ragdoll (`player-death.cpp`, `net-character-death.cpp`): intact. No stub on that path.
+- Modes: every territory, hidden-treasure and NPC event serializer is ported (events.cpp). The
+  senders are present (TerritorySetTimer vptr store `0x6156cb`, TerritorySpawn `0x615601` /
+  `0x64c2b5`) and the co-op natives are ported (natives.cpp). Co-op arena wave complete = `0x647650`.
+- XP / cash: the match tallies (`0x1147bd0`, NetPlayerData `0x11474f8`) are still updated in Playing and Leave::Enter
+  `0x5f00d0`. progression.cpp's Leave publish (call at `0x5f0952`) runs after them. matchend.cpp logs
+  the cash every 10 s so the next run shows whether it moves.
+- HUD: the multiplayer HUD is driven by the DC scripts through the natives above (all alive) and by
+  the event Applies (kill info, medals, money) that events.cpp / remaining.cpp complete. The scans
+  above found no stripped HUD update or draw function. Medal and XP pop-ups need kills, so a solo
+  run will not show them.
+- Taunts: an animation state (`kStateTaunt`) plus the unlock flags (unlocks.cpp). No net function.
+
+## 7. KickVisibilityJob port (`visibility.cpp`, `install_visibility`)
+
+The probe at tracker+0x1b0 is a sphere collision probe. The tracker constructor `0x662660` builds it
+with vptr `0x1004180` (`0x662797`). Its vtable keeps the PS3 slot numbers:
+
+| slot | PS4 | PS3 use in 0x494c38 / 0x6c2d58 |
+|---|---|---|
+| 1 Init(count, hits, flags, type, buffer, size) | `0x4f1dc0` | `0x39d120(probe, 1, 32, 0, 13, 0, 0)` |
+| 7 SetRayDir(idx, start, dir, length) | `0x4f25b0` | slot 7, length 1.0 (`0xdc0f04`) |
+| 32 SetRadius(idx, r) | `0x4f2600` | slot 32, 0.01 (`0xdb1e14`) |
+| 9 SetFilter(idx, a, b, &obj) | `0x4f26c0` | slot 9, {26, 0}, default object `[0xf70c58]` = `[0x151f048]` |
+| 11 | `ret` on PS4 | slot 11 with 0.0 |
+| 2 Kick(site a, b, c, count, 0) | `0x4f2130` (writes +0x18 frame, +0x24 handle) | slot 2 with `0xf71140..48` = `0x151f058/60/68` |
+| 12 IsActive / 5 Release | `0x4f2850` / `0x4f2490` | (Init releases the previous job itself) |
+
+PS4 `0x97ec30` (= PS3 `0x6c3990`) has the same Init/SetRay/SetFilter/Kick sequence inlined for a
+stack probe, which confirms the order and the arguments. The other helpers come from the intact reader
+`0x666160`: player position `0x665f70(out, tracker)` (PS3 `0x4c7df8`), view test
+`0x5566b0(out, 0.0f, &pos)` with the reject flag at out+0x2c (PS3 `0x8a2388`, flag at +44), and the camera
+position `0x104e820` (PS3 `0xee0170`). PS3 `0x6b2ba4` (local player check) is replaced by the local tracker
+ngm+0, which `0x63e782` checks before the read.
+
+Per frame (`visibility_kick()`, called by matchend.cpp right after Playing::Update, the place where PS3
+PostProcessUpdate ran it), only when NET_SM >= 2, the collision world exists and ngm+0 is set: for each
+used, not excluded, non-local tracker whose probe has the sphere-probe vptr, and whose view test passes,
+the port runs Init, SetRayDir(camera, player - camera, 1.0), SetRadius 0.01, SetFilter {26, 0} and Kick.
+The next frame's NetGameManager::Update reads the probe through `0x666160` (frame check: kick frame =
+current - 1). With no remote player nothing runs. A tracker that is freed or excluded gets its probe
+released. Playing::Exit (slot `0x100ab90` -> `0x5f2350`, wrapped) releases every kicked probe, and no
+probe is kicked again in the frame of that Exit, so the tracker reset in LoadLevels (`0x662660`
+zeroes the probe without releasing it) never drops a running job. Install checks: the seven vtable
+slots, the prologues of `0x665f70` / `0x5566b0`, the reader's probe offsets at `0x66618c`, the
+constructor's vptr store at `0x662797` and the read call at `0x63e813`.
+
+Unverified: the filter values {26, 0} are the PS3 collision layers. If PS4 renumbered the layers, the
+probe hits too much (remote players never visible) or too little (always visible). It needs a
+two-player run: look at the enemy name tags in line of sight and behind walls.
+
+### 7.1 0x293d90 (the second IsMultiplayer mismatch): nothing to port
+
+The pairing PS3 `0x19b710` -> PS4 `0x293d90` rests on one string id (`16a66ef3`). `0x293d90` is only the
+type switch of the PS3 function (the type ids into +0x40d0). The multiplayer part of `0x19b710` (an
+NPC set-up that builds a NetAnimCmdGenerator with `0x19a130` when IsMultiplayer) is in PS4
+`0x2168d0`. It has its own NET_SM test at `0x216d24` and stores the generator vptr at `0x216e3c`. It is
+intact.

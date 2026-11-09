@@ -180,6 +180,12 @@ Every gap above against the import result (`scratch/u2mp/import-test`, status `i
 The 7 levels the registry step does not add (gompa / shambhala / village / warzone-multi-npc, ice-cave-multi,
 ruins-multi, the-fort-multi) are defined in the PS4 registry with exactly the PS3 lines.
 
+GOTY-only import (default since 2026-11-08, audit 2026-11-09 in IMPORT.md): groups C / D are skipped, so the map
+pack levels, the DLC Ruins and the 4 map pack props the retail ruins-multi entry lists are absent (the overlay
+registry leaves those 4 lines out). The HUD, menu, net, particle, bank, music, vox, actor and dc comparison against
+GOTY finds nothing else PS4 and the overlay lack; the 96 net.pak images PS4 lacks have no PS4 equivalent and are in
+net-u2mp.pak. `metal-shield.bnk` / `glass.bnk` (asked for in game) exist in no copy.
+
 ## Open points
 
 - PS4 `ruins-multi.pak` (24.9 MB) is the base-game version: its `-ingame10` (390 KB) is the base one's size (PS3 base 355 KB, map pack 1 768 KB) and lacks the DLC props (`mp-ruins-heli-blade`). The PS4 registry lists the DLC actor set anyway. The import keeps it and adds the map pack wide / sky / npc levels (IMPORT.md gap 11).

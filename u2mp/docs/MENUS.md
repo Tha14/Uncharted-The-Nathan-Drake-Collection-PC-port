@@ -184,32 +184,34 @@ Restored: the page title MENU_TITLE_TROPHIES (85ed01cc "TROPHIES") and the butto
 
 Unchanged here; see `CINEMA.md`.
 
-## 4. Texts (TextDb::Find hook, remaining.cpp; import u2text.py)
+## 4. Texts (TextDb::Find hook, texts.cpp; import u2text.py; details in TEXTS.md)
 
-The multiplayer code and menu.bin use 26 text ids that no PS4 text bank has. All of them are in the PS3
-1.10 dlc-patch7 networking bank (checked id by id against every PS3 bank: base, all-patches, dlc-patch2..7):
+The multiplayer code and menu.bin use 26 text ids that no PS4 text bank has (the PS3 game got them from
+title updates and its server; they are in the BCUS dlc-patch7 networking bank, which is not a source):
 
-| ids | used by | PS3 text |
+| ids | used by | text (ours, English) |
 |---|---|---|
-| f67d9ad2, 70c81d2e, c0cd1b00 | profile panel k23 (`59ddb0`) stat labels | Competitive Wins / Competitive Kills / Money |
-| 47a936dc, c21027d1 | mode 4 label / mode 4 and 5 description (`0xdef390`) | Leaderboards / Check out your stats |
+| f67d9ad2, 70c81d2e, c0cd1b00 | profile panel k23 (`59ddb0`) stat labels | Competitive Wins / Competitive Kills / Cash |
+| 47a936dc, c21027d1 | mode 4 label / mode 4 and 5 description (`0xdef390`) | Leaderboards (GOTY base bank: "Rankings") / View your stats |
 | f1b9728c, 85ed01cc | mode 5 label, MENU_TITLE_TROPHIES | Trophies / TROPHIES |
 | 780b62e0, e663a74e, b9602dbb, 966fa9ae, 4915c4b7, 7d24a9f9 | stats ticker k24 (`5b3240`) | Time Played, Global, Wins, Losses, Ratio, Rank |
-| 320a6fc8, 8994a031, 5ba2fdfb, d82785e7 | help bar table `0x1041560` (leaderboard footer) | Top of List, Next, Prev, Filter |
-| 69cbee70 | status line, cond 49 | [A] daily players |
+| 320a6fc8, 8994a031, 5ba2fdfb, d82785e7 | help bar table `0x1041560` (leaderboard footer) | Go to Top, Next, Previous, Filter |
+| 69cbee70 | status line, cond 49 | [A] players today |
 | d4143b18, 639e0fa8 | NET_CLANTAG label, clan tag query `6609e0` | Clan Tag / Enter Clan Tag... |
-| 64370402, 9b0dd3c2, e012d5e3 | scoreboard countdown `65cc80`, leave-game confirm `65e750` | Quit Penalty [A]... / Leaving the game will result in ... |
-| 9811415d, b7e89ee7, 6cff3670, c4c378d1, bde6ab5b | DLC notes and messages | DLC / Requires ... / We noticed ... |
+| 64370402, 9b0dd3c2, e012d5e3 | scoreboard countdown `65cc80`, leave-game confirm `65e750` | Quit Penalty [A]... / If you leave now, you will get a [TEXT] second wait penalty ... |
+| 9811415d, b7e89ee7, 6cff3670, c4c378d1, bde6ab5b | DLC notes and messages | DLC / Requires the ... Pack / You didn't finish your last game ... |
 
 (`067e1f80`, which earlier versions served as a text, is the Trophies **icon** id of the mode table.)
 
-The import writes `text1/ps4/<lang>.networking` and `.common` = the PS4 bank plus the PS3 ids it lacks
-(u2text.merge; PS4 strings never change). The game reads its banks from `core.psarc` (loader `0xcdd960`,
-path `"%s/%s%i.%s"`), so it does not open those loose files: the TextDb::Find hook answers a miss from
-them (`/app0/u2data/build/main/text1/ps4/<n>.<category>`, `<n>` from the loaded bank: `+0x28` language
-index, table `0x1450d18 + 0x38 * index + 0x14`; English when the language has no merged bank). No game
-text is in the source any more; without the import the ids stay missing (the game prints its fallback).
-Only the PC-only message boxes (store, voice, invites ...) are our own text.
+47a936dc comes from the GOTY base bank (the import merges every GOTY archive). The other 25 are our own texts in
+all 22 languages (texts.cpp `kOwn`), with the other ids no bank has: 041a85ca (DLC pack bought), 63801125
+(Guardians), the three DLC map titles, the Siege description, net-patch9's game type variants, playlists and 48
+skin names, the five server playlist texts of `kPlaylistDefs` (were `extra_text` in menus.cpp) and the PC message
+boxes. The import writes `text1/ps4/<lang>.networking` and `.common` (u2text.complete: PS4 bank + GOTY of the same
+language + sam-spanish <- spanish, brazilian <- portuguese for their `_` placeholders; English always). The game
+reads its banks from `core.psarc` (loader `0xcdd960`), so it does not open those files: the TextDb::Find hook
+answers a miss or a `_` from them, then from our texts, then English, and logs every id it can't answer once
+per language ("texts: no text for ...", "texts: ... shown in English").
 
 ## 5. Gaps
 
@@ -327,3 +329,17 @@ In game: `keep_net_package` requests `net-u2mp` next to `net` when the file exis
 (0x5558c0 port) answers a net id that neither the net table nor its PS3-name pass finds from the
 `net-u2mp` package's material table (`+0x940`, once the package state is 7). Log:
 `menu images: net-u2mp.pak imported`, `net-u2mp table ..., N materials`, `-> found in net-u2mp`.
+
+## 9. Loading screen, playlist pictures, image sizes (2026-11-09)
+
+Details: PORT-FRONTEND4.md.
+
+- **Loading screen** (PS3 `0x4ae638`, absent on PS4): loading.cpp shows it from LoadLevels::Enter to
+  WaitReady::Exit with the PS4 net.pak materials `general/net/loading-screen:*`, the map picture, map
+  name, game type and a tip (fixed layout; the PS3 motion, coin animation and team rosters are not ported).
+- **Playlist pictures**: no two built playlists share a picture; PS4 net.pak pictures are used where PS4
+  has them, net-u2mp.pak only for elimination, grab-bag, plunder, the-lab. The image lookup now prefers
+  the PS4 net table over net-u2mp.pak for every net id.
+- **Image sizes**: PS4 net.pak textures are twice the PS3 resolution and a type 3 image takes its size
+  from its texture, so on the multiplayer pages (PS3 layout) every PS4 net image was twice the PS3
+  size. Those images are now measured at half their texture size.

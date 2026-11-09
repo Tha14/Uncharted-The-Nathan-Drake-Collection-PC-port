@@ -199,6 +199,7 @@ U2MP_GUEST int32_t upgrade_level(void *, uint8_t *weapon) {
 }
 
 // ---- the GOTY tables ------------------------------------------------------------------------------
+const char *actor_source(const char *name);   // spawn diagnostics below
 std::mutex g_tables_lock;
 bool g_ready = false;        // install checked the loader functions
 bool g_given_up = false;     // the file is missing or bad: not retried
@@ -370,6 +371,18 @@ bool build_skins(const uint8_t *ps4_table) {
         for (const auto &e : names) have = have || e.first == name;
         if (!have) names.emplace_back(name, label_of(rd<const char *>(o, 8)));
     }
+    // where each skin's actor comes from (the PS4 game, the import overlay, nowhere)
+    int from_ps4 = 0, from_overlay = 0;
+    std::string missing;
+    for (int32_t i = 0; i < count; ++i) {
+        const char *pk = rd<const char *>(out + SKIN_STRIDE * uint64_t(i), 8);
+        const char *src = actor_source(pk);
+        if (std::strcmp(src, "PS4 game") == 0) ++from_ps4;
+        else if (std::strcmp(src, "import overlay") == 0) ++from_overlay;
+        else if (missing.size() < 400 && missing.find(pk) == std::string::npos) missing += std::string(" ") + pk;
+    }
+    log("unlocks: skin actors: %d records from the PS4 game, %d from the import overlay, missing:%s", from_ps4,
+        from_overlay, missing.empty() ? " none" : missing.c_str());
     g_names = std::move(names);
     g_names_ready.store(true, std::memory_order_release);
     log("unlocks: skin table: %d GOTY records (%s layout) + PS4 %d (%d replaced, %d appended) = %d", n,
@@ -429,6 +442,52 @@ bool booster_list_ours() {
     if (n == 0 || n > uint32_t(kMaxBoosters)) return false;
     return in_np9(reinterpret_cast<const void *>(uintptr_t(G<uint64_t>(kBoosterList + 8))), BOOST_STRIDE);
 }
+
+// ---- spawn diagnostics (test run 41: no player model) ---------------------------------------------
+// The net player's model: tracker +0x138 = skin index into 5a4731d2 (AssignTeams 0x640a08 copies it
+// from the member bytes +0x145 hero / +0x146 villain; those come from 0x6145a7, the index of
+// NetPlayerData +0x10c / +0x110 in the table). LoadLevels requests rec +8 (0x641adf -> 0x56d170) and the
+// spawn (0x663280 / 0x6636b0) resolves it with 0x56a980(package table, name) into tracker +0x290: the
+// name's sid is looked up in the table at 0x14705f0 (count 0x14775f0, entries 0x38: +0x20 sid, +0x28
+// package name), then that package in the package table. A NULL result = no model. Both calls
+// (0x663339, 0x663782) are retargeted to log the name, the result, the package state and where the
+// actor file comes from (the PS4 game or the import overlay).
+constexpr uint64_t fArtLookup = 0x56a980, kArtCallA = 0x663339, kArtCallB = 0x663782;
+constexpr uint64_t kArtTable = 0x14705f0, kArtCount = 0x14775f0, ART_STRIDE = 0x38;
+using ArtFn = void *(U2MP_GUEST *)(void *, const char *);
+std::atomic<int> g_art_log{32};
+
+const char *actor_source(const char *name) {
+    char host[1024];
+    const std::string guest_path = std::string("/app0/u2data/build/main/actor27/ps4/") + name + ".pak";
+    if (runtime_file_translate(guest_path.c_str(), host, sizeof host) != 0) return "no file";
+    std::FILE *f = std::fopen(host, "rb");
+    if (!f) return "no file";
+    std::fclose(f);
+    return std::strstr(host, "CUSA02320") ? "PS4 game" : "import overlay";
+}
+
+void *art_lookup(void *table, const char *name, const char *site) {
+    void *r = guest<ArtFn>(fArtLookup)(table, name);
+    if (g_art_log.load(std::memory_order_relaxed) <= 0) return r;
+    g_art_log.fetch_sub(1, std::memory_order_relaxed);
+    const uint32_t id = name ? sid(name) : 0;
+    const uint8_t *pkg = id ? package_by_id(id) : nullptr;
+    int entries = 0, alias = 0;
+    const int32_t n = G<int32_t>(kArtCount);
+    for (int32_t i = 0; i < n && i < 4096; ++i) {
+        const uint8_t *e = image.at<uint8_t>(kArtTable + ART_STRIDE * uint64_t(i));
+        ++entries;
+        if (rd<uint32_t>(e, 0x20) == id) alias = i + 1;
+    }
+    log("skins: spawn %s: model '%s' -> %p; package %08x %s (state %d), actor file from %s; name table %d "
+        "entries, %s", site, name ? name : "(null)", r, id, pkg ? "loaded" : "not loaded",
+        pkg ? rd<int32_t>(pkg, 0x30) : -1, name ? actor_source(name) : "-", entries,
+        alias ? "name listed" : "name NOT listed");
+    return r;
+}
+U2MP_GUEST void *art_lookup_a(void *table, const char *name) { return art_lookup(table, name, "0x663280"); }
+U2MP_GUEST void *art_lookup_b(void *table, const char *name) { return art_lookup(table, name, "0x6636b0"); }
 
 }  // namespace
 
@@ -533,6 +592,12 @@ void install_unlocks(int &installed) {
         ++installed;
     else
         log("unlocks: co-op upgrade level 0xa4d280 differs, upgrades stay as bought");
+
+    if (retarget_call(kArtCallA, fArtLookup, reinterpret_cast<void *>(&art_lookup_a), "spawn model lookup A") &&
+        retarget_call(kArtCallB, fArtLookup, reinterpret_cast<void *>(&art_lookup_b), "spawn model lookup B"))
+        ++installed;
+    else
+        log("unlocks: spawn model lookups (0x663339 / 0x663782) differ, no spawn log");
 
     log("unlocks: %s", g_spoof ? "every multiplayer skin, booster, co-op weapon upgrade and taunt unlocked"
                                 : "spoof off (UNCHARTED_U2MP_UNLOCKS=off); GOTY tables only");

@@ -66,8 +66,9 @@ def build_registry(ps4_text, new_levels, have_pak, have_actor, have_bank, failed
     """new_levels: {name: PS3 txt}.  -> (text, added [names], skipped {name: why}, dropped {name: [...]})"""
     levels, order = parse(ps4_text)
     ts = mp_package_ts(levels)
+    ps4_text, dropped = prune_actors(ps4_text, have_actor)
     text = ps4_text if ps4_text.endswith('\n') else ps4_text + '\n'
-    added, skipped, dropped = [], {}, {}
+    added, skipped = [], {}
     for name in sorted(new_levels):
         if name in levels:
             # kept as PS4 has it; say whether the PS3 entry would have read differently
@@ -95,6 +96,28 @@ def build_registry(ps4_text, new_levels, have_pak, have_actor, have_bank, failed
         if d:
             dropped[name] = d
     return text, added, skipped, dropped
+
+
+MP_LEVEL = re.compile(r'multi|coop')
+
+
+def prune_actors(ps4_text, have_actor):
+    """The retail PS4 entries of the multiplayer / co-op levels with the 'actor' lines removed whose actor pak exists
+    neither on PS4 nor in the overlay. Retail ruins-multi lists the 4 map pack 1 props (mp-ruins-heli-blade,
+    plankbridge-break-lod0, plankbridge-colblocker, railing-destructible) although it ships the base-game Ruins,
+    whose GOTY entry and data name none of them; without the map pack nothing provides them. Every other line stays
+    byte for byte.  -> (text, {'<level> (PS4 entry)': ['actor x', ...]})"""
+    out, pruned, cur = [], {}, None
+    for line in ps4_text.splitlines(keepends=True):
+        parts = line.strip().split(None, 1)
+        if len(parts) == 2 and parts[0] == 'level-name':
+            cur = parts[1].strip()
+        elif len(parts) == 2 and parts[0] == 'actor' and cur and MP_LEVEL.search(cur) and \
+                not have_actor(parts[1].strip()):
+            pruned.setdefault('%s (PS4 entry)' % cur, []).append(('actor', parts[1].strip()))
+            continue
+        out.append(line)
+    return ''.join(out), pruned
 
 
 def build_banks_txt(ps4_text, new_banks):

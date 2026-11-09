@@ -160,12 +160,15 @@ extern "C" int u2mp_install(unsigned char *base, uint64_t size, const uint64_t *
     install_menus(installed);
     install_menuimages(installed);
     install_unlocks(installed);
+    install_loading(installed);
     install_dlc(installed);
     install_menudraw(installed);
     install_frontend2(installed);
     install_frontend3(installed);
     install_spawn(installed);
     install_nullsites(installed);
+    install_matchend(installed);     // after install_frontend: wraps session.cpp's Playing slot
+    install_visibility(installed);   // per-frame call comes from matchend
     install_netpatch(installed);   // after install_cinema: only a fallback when cinema's stream hook is absent
     log("%d functions restored", installed);
     return installed;

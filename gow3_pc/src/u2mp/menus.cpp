@@ -178,7 +178,7 @@ constexpr uint32_t kTextMachinima = 0x5614c769;   // the cinema game type: not a
 
 // The PS3 server playlists (live data of PS3 1.10, from the PS3 reference screenshots): name and
 // description texts (the PS4 networking bank still has most; the four only the server sent are
-// served by extra_text below), picture (general/net/playlists/<name>, in the PS4 net.pak or, for
+// served in every language by texts.cpp), picture (general/net/playlists/<name>, in the PS4 net.pak or, for
 // the-lab, net-u2mp.pak) and the game types (by their name texts; two ids where the bank has two).
 namespace text {
 constexpr uint32_t Deathmatch = 0xa30341e7, Deathmatch2 = 0x8dfdede9, Elimination = 0x3b8de400, Plunder = 0x3d9470a5,
@@ -194,9 +194,15 @@ constexpr uint32_t kTextAllCompetitive = sid("u2mp/playlist/all-competitive"),
 struct PlaylistDef {
     const char *key;
     uint32_t name, desc;   // desc 0: the first game type's description
-    const char *picture;
+    const char *picture;   // preferred pictures, ','-separated: the first one no earlier playlist took
     uint32_t types[8];     // game type name texts, 0-terminated
 };
+// The PS3 playlist pictures (general/net/playlists/<name>): the PS4 net.pak has deathmatch, objective,
+// coop, survival, mlg and default; elimination, grab-bag, plunder and the-lab come from net-u2mp.pak
+// (the GOTY net.pak, the only place PS4 lacks them; menuimages.cpp looks the PS4 one up first).
+// Ten pictures for eleven playlists: each playlist takes the first of its list that no earlier
+// playlist took, so no two playlists built here share one (only the eleventh, when every one is
+// playable, can repeat one).
 const PlaylistDef kPlaylistDefs[] = {
     {"all-competitive", kTextAllCompetitive, kTextAllCompetitiveDesc, "grab-bag",
      {text::Deathmatch, text::Deathmatch2, text::Plunder, text::TurfWar, text::KingOfTheHill, text::ChainReaction,
@@ -210,11 +216,27 @@ const PlaylistDef kPlaylistDefs[] = {
      {text::Plunder, text::TurfWar, text::KingOfTheHill, text::ChainReaction, text::ChainReaction2}},
     {"plunder", text::Plunder, 0x32cc1acb, "plunder", {text::Plunder}},
     {"coop-objective", text::CoopObjective, 0xc35e16e8, "coop", {text::CoopObjective}},
-    {"coop-arena", text::CoopArena, 0, "coop", {text::CoopArena}},
-    {"gold-rush", text::GoldRush, 0, "survival", {text::GoldRush, text::GoldRush2}},
-    {"survival", text::Survival, 0, "survival", {text::Survival, text::Survival2}},
-    {"the-lab", kTextTheLab, kTextTheLabDesc, "the-lab", {text::Deathmatch, text::Deathmatch2}},
+    {"coop-arena", text::CoopArena, 0, "coop,survival,default", {text::CoopArena}},
+    {"gold-rush", text::GoldRush, 0, "default,survival,coop", {text::GoldRush, text::GoldRush2}},
+    {"survival", text::Survival, 0, "survival,default,coop", {text::Survival, text::Survival2}},
+    {"the-lab", kTextTheLab, kTextTheLabDesc, "the-lab,default", {text::Deathmatch, text::Deathmatch2}},
 };
+
+// The first picture of `list` no playlist built so far uses (else the first of the list).
+uint32_t pick_picture(const char *list) {
+    uint32_t first = 0;
+    for (const char *p = list; *p;) {
+        const char *e = std::strchr(p, ',');
+        const std::string name(p, e ? size_t(e - p) : std::strlen(p));
+        const uint32_t id = sid(("general/net/playlists/" + name).c_str());
+        if (!first) first = id;
+        bool used = false;
+        for (int i = 0; i < playlist_count; ++i) used = used || playlists[i].image == id;
+        if (!used) return id;
+        p = e ? e + 1 : p + name.size();
+    }
+    return first;
+}
 
 void build_playlists() {
     uint32_t &count = G<uint32_t>(kNgm + NGM_PLAYLIST_COUNT);
@@ -251,10 +273,11 @@ void build_playlists() {
         pl.name = d.name;
         pl.desc = d.desc ? d.desc : *reinterpret_cast<const uint32_t *>(types->records + 0x44 * pl.type + 4);
         pl.id = sid((std::string("u2mp/playlist/") + d.key).c_str());
-        pl.image = sid((std::string("general/net/playlists/") + d.picture).c_str());
+        pl.image = pick_picture(d.picture);
         pl.pad0[1] = pl.image;   // +0x10: the picture the renderer's type 0x24/0x25 reads (menuimages.cpp)
         pl.skill = -1;
         playlists[playlist_count++] = pl;
+        log("menus: playlist %s -> picture %08x", d.key, pl.image);
     }
     if (playlist_count > 0) {
         for (int p = 0; p < playlist_count; ++p)
@@ -453,16 +476,6 @@ bool wrap_query(uint32_t cond, uint64_t expected_fn, QueryFn host, QueryFn *orig
 }
 
 }  // namespace
-
-// The PS3 playlist texts only the server sent (English; every language shows these).
-const char *extra_text(uint32_t id) {
-    if (id == kTextAllCompetitive) return "All Competitive Modes";
-    if (id == kTextAllCompetitiveDesc) return "An assortment of Deathmatch and Objective based game types";
-    if (id == kTextTheLab) return "The Lab";
-    if (id == kTextTheLabDesc) return "Various Experimental Game Types";
-    if (id == kTextEliminationDesc) return "Elimination Matches Only.";
-    return nullptr;
-}
 
 // Matchmaking Start Match: a random game type of the chosen playlist (-1: none chosen / not ours).
 int32_t playlist_pick_type() {

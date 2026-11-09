@@ -119,3 +119,34 @@ Skin descriptions: the PS4 store shows none for skins (the description column of
 - Not verified in the game. Log (`u2mp: unlocks:`): `skin table: 107 GOTY records (0x28-byte converted
   layout) + PS4 2 (2 replaced, 0 appended) = 107`, `booster table: 32 GOTY records`, `... bound`,
   `booster list 0x113a788: 32 boosters`, `multiplayer items reported unlocked`.
+
+## 6. Test run 41: no player model (open; diagnostics added)
+
+How the PS4 build picks and loads the player's model (all present, no stub):
+
+1. `0x6145a7` builds the member data: hero / villain skin = the index in `5a4731d2` of NetPlayerData
+   `+0x10c` / `+0x110` (byte; not found -> random skin `0x64b430`).
+2. AssignTeams (`0x640a08`, `0x640e14`) copies tracker `+0x145` (hero) / `+0x146` (villain) to `+0x138`.
+3. LoadLevels' request list (`0x641aa0..0x641b1e`): for every tracker, record `+8` (package name) is
+   requested (`0x56d170`, flag = record `+0x24 != 0`).
+4. The spawn (`0x663280`, `0x6636b0`) resolves the name with `0x56a980` (sid looked up in the table
+   `0x14705f0`, then the package) into tracker `+0x290` (record index invalid, or byte
+   `0x1059640+0x4975` set: "proto-mesh").
+
+Run 41: the local player was the default Drake (`b095d270`): the merged table maps it to the PS4 Drake
+record (index 63, package `mp-hero`) and LoadLevels requested and loaded `mp-hero`. So the rebinding did not
+change what the selection resolves to: before it the PS4 stub (index 0) named the same package. But PS4
+ships no `mp-hero.pak`: the file is the import's (u2twin from `costume-hero-nd`, 9/14 LOD0 submeshes and
+9/15 materials from PS4, the rest converted). Every run so far used that one skin. No PS4 asset is the same
+model (PS3 texture names: `costume-hero-nd` 80/85, `hero-default` 76/85; the mesh check matched 37 %), so
+under the PS4-asset rule it stays the import's build. The 15 PS4 `mp-hero-*.pak` (Eddy Raja, Navarro,
+Roman, UDF Drake, Wetsuit Drake / Elena, Borneo Chloe / Sullivans, Prakoso, Javier, Glowzor, Platzor ...)
+are named by the GOTY records under their own names and come from the PS4 game (the import writes none of
+them).
+
+Diagnostics (unlocks.cpp): the two `0x56a980` calls (`0x663339`, `0x663782`) are retargeted to log
+`skins: spawn ...: model '<package>' -> <result>; package <id> loaded / not loaded (state), actor file from
+PS4 game / import overlay; name table N entries, name listed / NOT listed` (first 32), and the table build
+logs `skin actors: N records from the PS4 game, M from the import overlay, missing: ...`. A NULL result with
+"name NOT listed" = the name table `0x14705f0` lacks the actor; non-NULL = the model object exists and the
+problem is in the actor file or its drawing.

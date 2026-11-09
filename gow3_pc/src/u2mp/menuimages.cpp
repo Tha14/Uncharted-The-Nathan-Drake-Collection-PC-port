@@ -20,12 +20,14 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <mutex>
 #include <system_error>
 #include <vector>
 
+#include "frontend3.h"
 #include "u2mp_internal.h"
 
 extern "C" int runtime_file_translate(const char *guest, char *out, size_t size);
@@ -162,9 +164,10 @@ U2MP_GUEST uint8_t *image_lookup(uint64_t id_sel, int32_t index) {
         if (sel != 1 && sel != 2) return nullptr;
         for (unsigned i = 0; i < t->count; ++i)
             if (rd<uint32_t>(t->entries + 0x28 * size_t(i), 8) == id) return t->entries + 0x28 * i;
-        // net-u2mp first: it holds the PS3-only images and the PS3 ones preferred over PS4's (u2netimg)
-        uint8_t *extra = sel == 1 ? extra_lookup(id) : nullptr;
-        index = extra ? -1 : find_by_slash_id(int(sel), t, id);
+        // The PS4 image first (its name read the PS3 way), net-u2mp only for what PS4 lacks: the
+        // user's rule (2026-11-09) is that an asset PS4 has is always the PS4 one.
+        index = find_by_slash_id(int(sel), t, id);
+        uint8_t *extra = index < 0 && sel == 1 ? extra_lookup(id) : nullptr;
         if (log_budget.load(std::memory_order_relaxed) > 0) {
             log_budget.fetch_sub(1, std::memory_order_relaxed);
             log("menu images: lookup %s id %08x -> %s (%d)", sel == 1 ? "net" : "menu", id,
@@ -178,6 +181,33 @@ U2MP_GUEST uint8_t *image_lookup(uint64_t id_sel, int32_t index) {
 }
 
 uint8_t *net_material(uint32_t id) { return id ? image_lookup(uint64_t(1) << 32 | id, -1) : nullptr; }
+
+// ---- image sizes: PS4 net.pak textures are twice the PS3 resolution --------------------------------
+// A type 3 image is as large as its largest texture times the descriptor scale (PS4 converter
+// 0x5bc290 type 3 -> 0x5bcc1a call 0x5bbd90; PS3 0x41fd18 case 3 -> 0x419d08, the same rule), in the
+// menu's layout units, which menu.bin keeps from PS3 (the multiplayer pages have the same widths on
+// both, e.g. 0x140). Every texture of the PS4 net.pak that PS3 also has is exactly twice the PS3 one
+// (mode buttons 256 / 128, player portraits 512 / 256, playlists and map cards 1024x512 / 512x256,
+// rank badges 1024 / 512: PS4 net.pak against the PS3 copies in net-u2mp.pak). PS4 never shipped
+// these pages, so nothing corrected it: the Profile page portraits and booster icons, the mode
+// buttons and the cards drew at twice the PS3 size. An image from the PS4 net table is measured at
+// half its texture size; net-u2mp images (PS3 textures) and the hud / menu tables are unchanged.
+// UNCHARTED_U2MP_NET_IMAGE_SCALE=1 turns it off.
+constexpr uint64_t fImageSize = 0x5bbd90;      // (float out[2], material) -> out
+constexpr uint64_t kCallSize1 = 0x5bcc1a, kCallSize2 = 0x5bdb30;
+bool in_ps4_net_table(const uint8_t *m) {
+    const auto *t = G<const MaterialTable *>(kImageTables + 0x70);
+    return m && t && t->entries && m >= t->entries && m < t->entries + 0x28 * size_t(t->count);
+}
+float net_image_scale = 0.5f;
+U2MP_GUEST float *image_size(float *out, uint8_t *material) {
+    guest<float *(U2MP_GUEST *)(float *, uint8_t *)>(fImageSize)(out, material);
+    if (out && in_ps4_net_table(material)) {
+        out[0] *= net_image_scale;
+        out[1] *= net_image_scale;
+    }
+    return out;
+}
 
 void *dc_lookup(uint32_t id) { return guest<void *(U2MP_GUEST *)(uint32_t)>(fDcLookup)(id); }
 
@@ -314,6 +344,19 @@ U2MP_GUEST void draw_missing_type(uint8_t *desc, uint8_t *frame, uint32_t c2, ui
 
 }  // namespace
 
+uint8_t *menu_net_material(uint32_t id) { return net_material(id); }
+
+// A textured quad outside the renderer (the overlay of loading.cpp): the deferred 2D arena takes it
+// with a NULL draw list, as the menu primitives (menudraw.cpp). Screen units as the renderer's boxes.
+void menu_draw_quad(uint8_t *material, float x, float y, float w, float h, float u0, float v0, float u1, float v1,
+                    float alpha) {
+    Frame f{};
+    f.list = nullptr;
+    for (float &c : f.color) c = 1.0f;
+    f.color[3] = alpha;
+    draw_quad(f, material, x, y, w, h, u0, v0, u1, v1);
+}
+
 const char *extra_net_package() {
     static const int present = [] {
         char host[1024];
@@ -338,6 +381,12 @@ void install_menuimages(int &installed) {
                                                    0x8d, 0x0d, 0x4e, 0x56, 0x00, 0x00};
     static const unsigned char exit_bytes[] = {0x48, 0x8b, 0x05, 0x48, 0x91, 0xa8, 0x00};
 
+    if (const char *v = std::getenv("UNCHARTED_U2MP_NET_IMAGE_SCALE"); v && std::atof(v) > 0) net_image_scale = float(std::atof(v));
+    if (net_image_scale != 1.0f && retarget_call(kCallSize1, fImageSize, reinterpret_cast<void *>(&image_size), "net image size (type 3)") &&
+        retarget_call(kCallSize2, fImageSize, reinterpret_cast<void *>(&image_size), "net image size (flag 0x80)")) {
+        log("menu images: PS4 net.pak images measured at %.2f of their texture size (PS3 resolution)", double(net_image_scale));
+        ++installed;
+    }
     if (image.matches(fLookup, lookup_bytes, sizeof lookup_bytes) &&
         replace_function(fLookup, 16, reinterpret_cast<void *>(&image_lookup), "menu image lookup (PS3 names)"))
         ++installed;

@@ -124,7 +124,7 @@ in the pak, so converted paks are larger than retail.
 | props, anims, Havok actors | `u2actor.convert_prop` (section "Props and animated actors"): props through the skin path plus skeleton, anims, collision, sound banks; animation paks and loose ragdolls on their own | the actor27 reference pairs, below |
 | level background paks | `u2level` stage: mkplan (materials by name from retail U2 paks, otherwise the closest retail background material) -> fxextract -> ps4stage (+ u2light, u2vis, u2coll, u2water) -> stagecheck + U2 login order + u2coll.check_ps4 | sky/wide pairs, collision and water pairs: see Validation |
 | level data paks (`-ingame10`, `-npc-ingame10`, `*-npc`) | `u2ingame` (U3 ps4ingame + U2 scripts / FEATURE_DB_2 + u2nav) | 6 retail pairs block by block; nav meshes: 4 pairs |
-| text banks | `u2text`: `text1/ps4/<lang>.networking` and `.common` = the PS4 bank (from `core.psarc`) plus the ids only PS3 (newest copy) has; PS4 strings are never changed. The game reads `core.psarc`; the runtime serves the added ids (remaining.cpp, MENUS.md section 4) | |
+| text banks | `u2text.complete`: `text1/ps4/<lang>.networking` and `.common` = the PS4 bank (from `core.psarc`) completed: ids it lacks or has only as the placeholder `_` from the GOTY bank of that language (every GOTY archive, newest first), then sam-spanish from spanish and brazilian from portuguese; English always written. A real PS4 string is never changed. The game reads `core.psarc`; the runtime answers misses and placeholders from these banks, its own texts, then English (texts.cpp, TEXTS.md) | |
 | registry | `pak22_ps4.txt` = retail file + appended levels from the PS3 per-level `.txt` (only for levels whose package converted; package/actor/bank lines kept when the file exists on PS4 or in the overlay; the 8 MP `package-ts texturedict1/...` lines added). A level the PS4 registry already defines keeps its PS4 entry; the log and `state.json` say whether the PS3 entry reads the same. The 7 such levels (`the-fort-multi`, `ruins-multi`, `ice-cave-multi`, `gompa/shambhala/village/warzone-multi-npc`) have exactly the PS3 (patch / map pack) lines, so "7 not added" is correct and nothing is lost | every package / actor / sound-bank line of the 112 MP and co-op levels of the result resolves to a PS4 or overlay file (bank names also in banks.txt), apart from `sniper-towers-multi-ingame` and `train-wreck-multi-tdm-ingame`, which no PS3 or PS4 copy has |
 
 ## Props and animated actors (`u2actor` + `u2actorparts`, `u2anim`, `u2skel`, `u2actorcoll`, `u2havok`)
@@ -394,8 +394,60 @@ the spawn paks are found. All validate checks match retail. The text banks gain 
 stats ticker, leaderboard footer, daily players, Clan Tag, quit penalty, DLC notes) are missing again: GOTY got
 them from the PS3 server. The game shows its fallback for them.
 
+Update 2026-11-09 (texts, TEXTS.md): the step took only the newest GOTY bank (all-patches), and "Leaderboards"
+(47a936dc) is only in the GOTY base `text1.psarc`: every GOTY archive is merged now. The BCUS title update path is
+gone (GOTY only). The 25 other section 4 ids, and every other id no bank has, are the runtime's own texts in all
+22 languages (texts.cpp); sam-spanish / brazilian get the spanish / portuguese PS4 texts for their 497 placeholders.
+
 Update 2026-11-09: group B is on again (default `A,B,C,D,E`). Test run 39 showed the Fort hangs in LoadLevels
 without `sky-fort-multi` and `the-fort-multi-wide`, and GOTY has all the Fort pieces. GOTY's `ruins-multi.pak`
 (32.8 MB) is the base map, byte-identical in size to the BCUS base disc. The flooded map pack Ruins (78 MB,
 `dlc-map1.psarc`) is not in GOTY, so it is not shipped. Run: ok 1,534, ps4 11, skipped 2,139, missing 101 (map
 packs only), failed 0.
+
+### Audit of what MP / co-op still lacks (2026-11-09, test run 41 + GOTY data)
+
+Import changes:
+* Map pack rows (groups C, D) without `--ps3-dlc` are now `skipped` ("map pack not given: GOTY-only import"),
+  not `missing`, so a GOTY-only import ends `imported` instead of `partial`.
+* The registry step rebuilds the `<map>-pak` spawn levels and `net-u2mp` from the step records. Before, a resumed
+  import that skipped the unchanged net-images / net-spawn-paks steps but redid the registry wrote a
+  `pak22_ps4.txt` without those 14 levels (seen while testing this change; run 41's registry was complete).
+* The retail PS4 `ruins-multi` entry lists the 4 map pack 1 props (`mp-ruins-heli-blade`, `plankbridge-break-lod0`,
+  `plankbridge-colblocker`, `railing-destructible`). GOTY's Ruins is the base map, and neither its `.txt` nor its
+  data names them. Without the map pack no file provides them, so the overlay registry leaves those 4 `actor`
+  lines out (`registry.prune_actors`: only actor lines of MP / co-op levels whose pak exists nowhere; logged as
+  "dropped from ruins-multi (PS4 entry)").
+
+Result in `scratch/u2mp/import-goty` (`--ps3` = RPCS3 `dev_hdd0/game/NPUA80698`, no `--ps3-dlc`): **ok 1,534,
+ps4 11, skipped 2,240 (2,139 as before + 101 map pack rows), missing 0, failed 0**; status `imported`. The registry
+adds 18 levels (the Fort's 4, 13 `<map>-pak`, `net-u2mp`); `banks.txt` gains `fort-multi.bnk`, `ruins-multi.bnk`.
+Every package / actor / bank line of the 84 MP and co-op levels resolves, except `sniper-towers-multi-ingame` and
+`train-wreck-multi-tdm-ingame`, which no copy has.
+
+Run 41's "-> not found" opens:
+* `sound1/banks/ps4/metal-shield.bnk` (23), `glass.bnk` (2): per-surface sound banks (the PS4 set is
+  `metal-bright.bnk`, `tile.bnk`, `ice.bnk` ...), asked for when a riot shield / glass surface is involved. Neither
+  exists in GOTY, the BCUS copy or PS4, and neither PS3 nor PS4 `banks.txt` names them. The surface sounds
+  themselves are in banks the game has (`bullet-hit-metal-shield` in `hud.bnk`; `bull30-hit-glass`, `fiat-glass-*`
+  in `hud.bnk` / `car-destruction.bnk`). Nothing to import or map; the open is a harmless retail probe.
+* `effect1/*.bin`, `lut0/default-color-gray.dds`: the PS4 game has no `effect1` or `lut0` folder at all.
+* `bpdata1/*.json` (MP levels, menu, hud, net, particle): PS4 has 208 json files, all for campaign levels and
+  `menu-temple`; none for any MP level, including the base maps it ships. Normal.
+* `sound1/config/banks.txt`: the PS3 path, tried before `sound1/config/ps4/banks.txt`.
+
+What GOTY MP / co-op has, checked against PS4 + the overlay (the PS4 copy kept wherever it exists):
+| area | result |
+|---|---|
+| HUD (`hud.pak`) | all 138 GOTY materials are in the PS4 hud.pak |
+| menus (`menu.pak`) | all 9 in PS4 |
+| net.pak (kill feed / scoreboard icons, medals, gametypes, loading screen, map photos, player icons) | 251 PS4; the 96 GOTY ones PS4 lacks (+3 preferred mode buttons) are `net-u2mp.pak`. None has a PS4 twin: their GOTY texels equal no PS3 texture of any material PS4 keeps in net / hud / menu / particle (only shared frames / masks). Loading screen (`loading-screen/coins, money, edge, title-back`), coop icons, flag icons, territory / treasure icons: PS4 |
+| `rank-badges/default` (run 41 "image bda0f568 missing") | PS4 has it as `rank-badges:default`; the runtime finds it by PS3 name once net.pak is loaded. The 24 misses are draws before the net package was ready |
+| particles (`particle.pak`) | 314 PS4 of 321; the 7 missing (electricity-flipbook / -02, helghast-flare, fire08-hard-fog, rain-fall, rain-04, a stray `cgfxshader`) are named only by the GOTY `part-multi-character` / `part-ruins-multi` / `rain-snow` modules; the PS4 part modules (dc2) do not name them (Bluepoint replaced those effects), except `rain-04` in the campaign `rain-snow` |
+| medal / XP / HUD sounds (`hud.bnk`) | the 481 sound names of the GOTY bank are all in the PS4 hud.bnk |
+| other MP / co-op banks | same sound names as GOTY |
+| music cues | every track name in `music-settings.bin` has a file (PS4 or overlay: win / lose stingers, co-op) |
+| announcer / MP vox | every GOTY English line is in the PS4 speech archive except the 356 Pinkerton / Rika lines (imported) and 13 campaign / trailer lines |
+| per-mode actors (capture-chest, capture-idol-gold, territory-marker, riot-shield, propane-tank ...) | PS4; every actor any PS4 dc module names (454) exists on PS4 or in the overlay |
+| dc modules | PS4 has every MP / co-op module; `net-patch9` imported; `net-beta` not needed |
+| text: tips, tutorial, mode texts | PS4 networking banks hold every GOTY networking id; common / subtitles: 1 id each that only GOTY has (`Warzone Treasure 1`; the subtitle "Oh, what a shame.") |

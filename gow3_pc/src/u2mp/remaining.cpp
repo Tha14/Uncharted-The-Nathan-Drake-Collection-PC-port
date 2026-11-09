@@ -14,16 +14,12 @@
 // 0x5fb7a0, 0x604e80 and 0x673900 are not stubs: they return constants like their PS3 pairs.
 #include <cstdio>
 #include <cstring>
-#include <mutex>
 #include <string>
-#include <unordered_map>
 
 #include "session_api.h"
+#include "texts.h"
 #include "voice.h"
 #include "u2mp_internal.h"
-#include "unlocks.h"
-
-extern "C" int runtime_file_translate(const char *guest, char *out, size_t size);
 
 namespace u2mp {
 namespace {
@@ -73,25 +69,7 @@ constexpr uint32_t kTextOk = 0xc6467f2d, kTextMute = 0xffbbac12, kTextKickFromPa
 constexpr uint32_t kCbMute = 0x6547d63c, kCbKick = 0x7cc46b94;   // popup option callbacks (PS3)
 static_assert(kPageLobby == 0xb99a3235u, "string id");
 
-// Our texts, served by the TextDb::Find hook.
-constexpr uint32_t kTextPlayer = sid("U2MP_PC_TEXT_PLAYER"), kTextStore = sid("U2MP_PC_TEXT_STORE"),
-                   kTextVoice = sid("U2MP_PC_TEXT_VOICE"), kTextLeader = sid("U2MP_PC_TEXT_LEADER"),
-                   kTextInvite = sid("U2MP_PC_TEXT_INVITE"), kTextClanTag = sid("U2MP_PC_TEXT_CLANTAG"),
-                   kTextTwitter = sid("U2MP_PC_TEXT_TWITTER"), kTextCinemaSend = sid("U2MP_PC_TEXT_CINEMA_SEND"),
-                   kTextCinemaReceive = sid("U2MP_PC_TEXT_CINEMA_RECEIVE");
-char player_text[96];
-const struct { uint32_t id; const char *text; } kTexts[] = {
-    {kTextPlayer, player_text},
-    {kTextStore, "The PlayStation Store is not available on PC."},
-    {kTextVoice, "Voice chat is turned off (UNCHARTED_U2MP_VOICE=off)."},
-    {kTextLeader, "On PC the player who hosts the party leads it. The leader can't be changed."},
-    {kTextInvite, "Invites are not used on PC. To join the party, a friend starts the game with "
-                  "UNCHARTED_U2MP_JOIN set to the party leader's address and selects Multiplayer."},
-    {kTextClanTag, "Clan tags are not available on PC."},
-    {kTextTwitter, "Twitter is not available on PC."},
-    {kTextCinemaSend, "Sending cinema files to friends is not available on PC."},
-    {kTextCinemaReceive, "Receiving cinema files from friends is not available on PC."},
-};
+// Our texts (texts.h: kTextPlayer, kTextStore ...) are served by the TextDb::Find hook, texts.cpp.
 
 template <typename T> T &G(uint64_t offset) { return *image.at<T>(offset); }
 template <typename F> F guest(uint64_t offset) { return reinterpret_cast<F>(image.base + offset); }
@@ -130,88 +108,6 @@ struct Popup {
     }
 };
 static_assert(sizeof(Popup) == 0x13 * 4, "popup descriptor");
-
-// ---- TextDb::Find hook: our texts by id, everything else from the game ------------------------
-using TextFindFn = const char *(U2MP_GUEST *)(void *db, uint32_t id);
-TextFindFn orig_text_find = nullptr;
-
-// ---- the strings only PS3 title updates carried (u2mp/docs/MENUS.md section 4) -----------------
-// The multiplayer menus use about 25 text ids that are in no PS4 text bank: the stat labels of the
-// profile panel (f67d9ad2 "Competitive Wins" ...), the leaderboard footer, "Time Played", "[A] daily
-// players", "Clan Tag" ... PS3 1.10 has them in the dlc-patch7 networking bank. The import writes
-// text1/ps4/<lang>.<category> = the PS4 bank plus the PS3 strings it lacks (u2text.py), but the game
-// reads its banks from core.psarc, so a loose bank is never opened. Here: a TextDb::Find miss is
-// answered from those imported banks (the player's own PS3 copy). Nothing is answered without them.
-// Bank object (loader 0xcdd960): +0x20 category name, +0x28 loaded language index (-1 none),
-// +0x58 next bank; language table 0x1450d18 (0x38 per language, +0x14 the file number).
-constexpr uint64_t kLanguageTable = 0x1450d18, TB_LANGUAGE = 0x28, TB_NEXT = 0x58;
-constexpr const char *kTextDir = "/app0/u2data/build/main/text1/ps4/";
-std::mutex import_text_lock;
-int import_text_language = -2;   // -2: not loaded yet
-std::unordered_map<uint32_t, std::string> import_texts;
-
-int bank_language(const uint8_t *bank) {
-    for (int guard = 0; bank && guard < 8; ++guard, bank = *reinterpret_cast<uint8_t *const *>(bank + TB_NEXT)) {
-        const int32_t index = field<int32_t>(bank, TB_LANGUAGE);
-        if (index >= 0 && index < 64) return G<int32_t>(kLanguageTable + uint64_t(index) * 0x38 + 0x14);
-    }
-    return -1;
-}
-
-uint32_t be32(const uint8_t *p) { return uint32_t(p[0]) << 24 | uint32_t(p[1]) << 16 | uint32_t(p[2]) << 8 | p[3]; }
-
-// A bank file (big-endian: u32 count; count x {u32 id, u32 offset}; NUL-terminated strings).
-bool load_bank(const std::string &guest) {
-    char host[1024];
-    if (runtime_file_translate(guest.c_str(), host, sizeof host) != 0) return false;
-    std::FILE *f = std::fopen(host, "rb");
-    if (!f) return false;
-    std::string d;
-    char buffer[65536];
-    for (size_t n; (n = std::fread(buffer, 1, sizeof buffer, f)) > 0;) d.append(buffer, n);
-    std::fclose(f);
-    const auto *p = reinterpret_cast<const uint8_t *>(d.data());
-    if (d.size() < 4) return false;
-    const uint32_t count = be32(p);
-    const uint64_t blob = 4 + 8 * uint64_t(count);
-    if (blob > d.size()) return false;
-    for (uint32_t i = 0; i < count; ++i) {
-        const uint32_t id = be32(p + 4 + 8 * i), off = be32(p + 8 + 8 * i);
-        if (blob + off >= d.size()) continue;
-        const char *s = d.data() + blob + off;
-        import_texts[id].assign(s, strnlen(s, d.size() - size_t(blob + off)));
-    }
-    return true;
-}
-
-const char *import_text(const uint8_t *db, uint32_t id) {
-    const int language = bank_language(db);
-    std::lock_guard<std::mutex> lock(import_text_lock);
-    if (language != import_text_language) {
-        import_text_language = language;
-        import_texts.clear();
-        int files = 0;
-        // common first: the networking bank (dlc-patch7, the newest) wins for ids both have.
-        for (const char *category : {"common", "networking"}) {
-            const std::string number = std::to_string(language >= 0 ? language : 2);
-            if (load_bank(kTextDir + number + "." + category) ||
-                (number != "2" && load_bank(std::string(kTextDir) + "2." + category)))
-                ++files;
-        }
-        log("texts: %zu strings from %d imported bank(s) for language %d", import_texts.size(), files, language);
-    }
-    const auto it = import_texts.find(id);
-    return it == import_texts.end() ? nullptr : it->second.c_str();
-}
-
-U2MP_GUEST const char *text_find(void *db, uint32_t id) {
-    for (const auto &t : kTexts)
-        if (t.id == id) return t.text;
-    if (const char *text = extra_text(id)) return text;
-    if (const char *text = orig_text_find(db, id)) return text;
-    if (const char *text = import_text(static_cast<const uint8_t *>(db), id)) return text;
-    return unlocks_text(id);   // GOTY DLC skin names no bank has: a label from the package name
-}
 
 // Hooks a function whose first `length` bytes are whole position-independent instructions: they
 // move to a trampoline (then jmp back) and the entry jumps to `host`. `original` = trampoline.
@@ -319,7 +215,7 @@ U2MP_GUEST void kick_griefer_apply(void *ev, void *) {
 // PS3 kept the selected player's NpId (0xf11a40); here its net id.
 uint32_t selected_id = 0;
 
-void set_player_text(const std::string &text) { std::snprintf(player_text, sizeof player_text, "%s", text.c_str()); }
+void set_player_text(const std::string &text) { text_set_player(text.c_str()); }
 
 // PARTY_PLAYERn (PS3 0x4417f0) / PLAYERn (PS3 0x440620) / LIST_FRIENDS rows (PS3 0x43f830): the
 // options popup of one player, titled with the name. PS3 offered mute / unmute, and to the party
@@ -334,7 +230,7 @@ void player_options(int row) {
     }
     selected_id = id;
     if (id == session::local_id()) {
-        set_player_text(name + " (you)");
+        set_player_text(name + " " + own_text(kTextYou));
         message_box(kTextPlayer);
         return;
     }
@@ -365,7 +261,7 @@ U2MP_GUEST void toggle_mute(void *, void *, void *) {
         return;
     }
     if (!session::member_name(selected_id, name)) return;   // left meanwhile
-    set_player_text(name + (voice::toggle_mute(selected_id) ? ": muted" : ": unmuted"));
+    set_player_text(name + ": " + own_text(voice::toggle_mute(selected_id) ? kTextMuted : kTextUnmuted));
     message_box(kTextPlayer);
 }
 // 2d32c8b0 (PS3 0x439c7c): GrantRoomOwner(party, selected), then PAGE_LOBBY.
@@ -571,7 +467,7 @@ void install_remaining(int &installed) {
     static const unsigned char find_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x56, 0x53, 0x89, 0xf3, 0x49, 0x89, 0xfe};
     void *orig = nullptr;
     if (detour(fTextFind, find_bytes, sizeof find_bytes, reinterpret_cast<void *>(&text_find), &orig, "TextDb::Find")) {
-        orig_text_find = reinterpret_cast<TextFindFn>(orig);
+        text_find_original(reinterpret_cast<TextFindFn>(orig));
         ++installed;
     } else {
         log("PC texts unavailable: the PC message boxes will show the game's fallback text");

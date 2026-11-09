@@ -59,12 +59,15 @@ void install_remaining(int &installed); // remaining.cpp: the last stubbed callb
 void install_menus(int &installed);     // menus.cpp: the multiplayer menu queries (u2mp/docs/MENUS.md)
 void install_menuimages(int &installed); // menuimages.cpp: net image ids, lost menu image types (MENUS.md 7)
 void install_unlocks(int &installed); // unlocks.cpp: every MP item unlocked, GOTY skin/booster tables (UNLOCKS.md)
+void install_loading(int &installed);  // loading.cpp: PS3 match loading screen (PORT-FRONTEND4.md)
 void install_dlc(int &installed);       // dlc.cpp: DLC maps offered only when imported (u2mp/docs/DLC.md)
 void install_menudraw(int &installed);  // menudraw.cpp: 2D command arena 192 KiB -> 2 MiB (PORT-MENUDRAW.md)
 void install_frontend2(int &installed); // frontend2.cpp: partial menu functions vs PS3 (PORT-FRONTEND2.md)
 void install_frontend3(int &installed); // frontend3.cpp: matchmaking, vote, leader back-out (PORT-FRONTEND3.md)
 void install_spawn(int &installed);     // spawn.cpp: spawner lookup at match start (PORT-SPAWN.md)
 void install_gameplay2(int &installed); // gameplay2.cpp: connection event Applies (PORT-GAMEPLAY2.md)
+void install_visibility(int &installed); // visibility.cpp: PS3 KickVisibilityJob 0x494c38 (PORT-GAMEPLAY3.md 7)
+void install_matchend(int &installed); // matchend.cpp: match-end watch, test time limit (PORT-GAMEPLAY3.md 6)
 void install_gameplay3(int &installed); // gameplay3.cpp: ShowResults::Enter + results countdown (PORT-GAMEPLAY3.md)
 void install_nullsites(int &installed); // nullsites.cpp: replay stream fallback at WaitReady::Exit (PORT-NULLSITES.md)
 void install_netpatch(int &installed);  // netpatch.cpp: the PS3 server live-data module net-patch9 (PORT-NETPATCH.md)
@@ -82,8 +85,6 @@ void netinit_dump(const char *when);   // diagnostics: the tables as the game fi
 const uint8_t *package_by_id(uint32_t id);
 // menuimages.cpp: "net-u2mp" when the import wrote pak22/ps4/net-u2mp.pak (PS3 menu images), else NULL.
 const char *extra_net_package();
-// menus.cpp: texts only the PS3 server sent (playlist names / descriptions), NULL for other ids.
-const char *extra_text(uint32_t id);
 // menus.cpp: a random game type of the chosen matchmaking playlist, -1 when none.
 int32_t playlist_pick_type();
 // ShowPage(menu manager, page id, 0) in the guest.

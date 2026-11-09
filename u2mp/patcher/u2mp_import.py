@@ -514,6 +514,11 @@ class Importer:
             try:
                 entry, data = self.source(row)
             except LookupError as e:
+                if row['group'][:1] in 'CD' and not a.ps3_dlc and not self.ps3.candidates(key):
+                    # map pack rows without --ps3-dlc (the launcher's GOTY-only import): not part of this import
+                    self.items[key] = dict(status='skipped', group=row['group'], conv=CONV_VERSION,
+                                           note='map pack %s not given (--ps3-dlc): GOTY-only import' % row['group'][:1])
+                    continue
                 self.items[key] = dict(status='missing', group=row['group'], note=str(e), conv=CONV_VERSION)
                 log('MISSING %s: %s' % (key, e))
                 continue
@@ -762,6 +767,19 @@ class Importer:
     def registries(self, level_txt):
         """pak22_ps4.txt and banks.txt of the overlay (from the PS4 files + what was converted)"""
         import registry
+        net_pak = 'net-u2mp.pak'     # u2netimg.OUT_NAME (not imported here: it needs numpy)
+        # the levels of the net-images / net-spawn-paks steps: those steps add them to level_txt only when they run,
+        # and a resumed import skips them when nothing changed (the registry then lost the 13 '<map>-pak' spawn
+        # levels and net-u2mp), so they are rebuilt here from the step records
+        level_txt = dict(level_txt)
+        for k, it in self.items.items():
+            m = re.match(r'^pak22/(.+-pak)-ingame10\.pak$', k)
+            if m and it.get('status') in ('ok', 'ps4') and (
+                    it.get('status') == 'ps4' or os.path.isfile(os.path.join(self.out, it.get('out', '')))):
+                level_txt.setdefault(m.group(1), 'level-id %s\npackage %s-ingame\n' % (m.group(1), m.group(1)))
+        net_u2mp = net_pak[:-4]
+        if os.path.isfile(os.path.join(self.main, 'pak22', 'ps4', net_pak)):
+            level_txt.setdefault(net_u2mp, 'level-id %s\npackage %s\n' % (net_u2mp, net_u2mp))
 
         def in_overlay(rel):
             return os.path.isfile(os.path.join(self.main, *rel.split('/')))
@@ -794,6 +812,8 @@ class Importer:
             log('pak22_ps4.txt: %d levels added %s; %d not added' % (len(added), added, len(skipped)))
             for name, why in sorted(skipped.items()):
                 log('        not added %s: %s' % (name, why))
+            for name, lines in sorted(dropped.items()):
+                log('        dropped from %s (no such file): %s' % (name, ', '.join('%s %s' % x for x in lines)))
         bank_dir = os.path.join(self.main, 'sound1', 'banks', 'ps4')
         new_banks = [f for f in os.listdir(bank_dir) if f.endswith('.bnk')] if os.path.isdir(bank_dir) else []
         if new_banks and os.path.isfile(self.ps4.banks_txt):
@@ -807,49 +827,46 @@ class Importer:
         self.save()
 
     def texts(self):
-        """text1/ps4/<lang>.<category>: the PS4 bank plus the PS3 strings it lacks, u2text. networking: the DLC map
-        titles and the ~25 multiplayer menu texts only PS3 title updates carried (stat labels, leaderboard footer,
-        Time Played, daily players, Clan Tag ...); common: the two base-game ids PS4 dropped. The game
-        reads its banks from core.psarc; the runtime answers TextDb misses from these files (remaining.cpp)."""
+        """text1/ps4/<lang>.<category> (common, networking) for every PS4 language: the PS4 bank completed by
+        u2text.complete: ids it lacks or has only as the placeholder '_' from the GOTY bank of the language (all GOTY
+        archives, newest first: 'Leaderboards' is only in the base text1), then the related PS4 language (sam-spanish
+        <- spanish, brazilian <- portuguese); English is always written (the runtime's last resort). GOTY data only
+        (no BCUS title update). The game reads its banks from core.psarc; the runtime answers TextDb misses and
+        placeholders from these files (texts.cpp)."""
         import u2text
         from psarc_lib import Psarc
         core = os.path.join(self.ps4.main, 'core.psarc')
         if not os.path.isfile(core):
             return
         arc = Psarc(core)
-        added, tu_ids = {}, {}
+        banks = {}   # category -> {language: PS4 bank}
         for i, n in enumerate(arc.names):
             m = re.match(r'text1/ps4/(\d+)\.(networking|common)$', n)
-            if not m:
-                continue
-            c = self.ps3.candidates('text1/%s.%s' % m.groups())
-            rel = 'text1/ps4/%s.%s' % m.groups()
-            out = os.path.join(self.main, *rel.split('/'))
-            if not c:
-                continue
-            # the GOTY bank first; then the ids only the newest BCUS title update has (the DLC map titles and the
-            # menu texts of MENUS.md section 4 exist in no GOTY bank: GOTY took them from the PS3 server)
-            goty = [e for e in c if e.source in GOTY_SOURCES][:1]
-            tu = [e for e in c if e.source not in GOTY_SOURCES][:1]
-            data, ids, from_tu = arc.read(i + 1), [], 0
-            for e in goty + tu:
-                d, new = u2text.merge(data, e.read())
-                if d is not None:
-                    data, ids = d, ids + new
-                    from_tu += len(new) if e in tu else 0
-            if not ids:
-                if os.path.exists(out):
-                    os.remove(out)
-                continue
-            with open(self.out_path(rel), 'wb') as f:
-                f.write(data)
-            added[rel] = len(ids)
-            if from_tu:
-                tu_ids[rel] = (from_tu, tu[0].source)
+            if m:
+                banks.setdefault(m.group(2), {})[int(m.group(1))] = arc.read(i + 1)
+        added, counts = {}, {}
+        for category, ps4 in sorted(banks.items()):
+            goty = {}
+            for lang in ps4:
+                c = self.ps3.candidates('text1/%d.%s' % (lang, category))
+                goty[lang] = [e.read() for e in c if e.source in GOTY_SOURCES]
+            for lang, (data, n) in sorted(u2text.complete(ps4, goty).items()):
+                rel = 'text1/ps4/%d.%s' % (lang, category)
+                out = os.path.join(self.main, *rel.split('/'))
+                counts[rel] = n
+                if data is None:
+                    if os.path.exists(out):
+                        os.remove(out)
+                    continue
+                with open(self.out_path(rel), 'wb') as f:
+                    f.write(data)
+                added[rel] = n['goty'] + n['related']
         self.state['text'] = added
-        self.state['text_title_update'] = {k: '%d from %s' % v for k, v in tu_ids.items()}
-        log('text banks: %d written (%s strings added; %s from a BCUS title update)' % (
-            len(added), sorted(set(added.values())), sorted({'%d from %s' % v for v in tu_ids.values()}) or 'none'))
+        self.state['text_sources'] = counts
+        self.state.pop('text_title_update', None)
+        log('text banks: %d written (%d texts from GOTY, %d from the related language; still English: %s)' % (
+            len(added), sum(n['goty'] for n in counts.values()), sum(n['related'] for n in counts.values()),
+            ', '.join('%s %d' % (k.split('/')[-1], n['left']) for k, n in sorted(counts.items()) if n['left']) or 'none'))
         self.save()
 
     def finish(self, status, **kw):
