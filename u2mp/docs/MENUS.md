@@ -137,11 +137,12 @@ available (remaining.cpp).
 
 ### 3.5 PAGE_MULTIPLAYER_FRIENDS_LIST ("Party Up") and PAGE_FRIENDACTIONS
 
-- **PS3:** LIST_FRIENDS = PSN friends, titled "[A] players in party", rows name + presence; selecting
+- **PS3:** LIST_FRIENDS = PSN friends (label "Friends" from menu.bin; `ba8db526` "[A] players in party" is a friend's detail line), rows name + presence; selecting
   one opened PAGE_FRIENDACTIONS (friend card cond 38 + actions). LIST_PLAYERSMET = NP "players met".
 - **PS4 as shipped:** LIST_FRIENDS query and callback `ret`; players met intact but its source
   (`0x113b668`, PS3 fetch `0x48f79c`) never filled.
-- **Restored:** LIST_FRIENDS lists the party (leader marked "Party Leader"), title "N players in
+- **Online (PORT-ONLINE.md 5a):** the RPCN friends with Join Party / Invite To Party.
+- **Restored (LAN):** LIST_FRIENDS lists the party (leader marked "Party Leader"), title "N players in
   party"; selecting a row opens the player popup (remaining.cpp friends_row, same row order).
   LIST_PLAYERSMET lists the players of recent matches from the local progression store, most recent
   first. PAGE_FRIENDACTIONS (cond 37/38) stays as is: nothing on PC opens it.

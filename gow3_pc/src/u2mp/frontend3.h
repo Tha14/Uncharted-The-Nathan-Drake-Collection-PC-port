@@ -41,6 +41,10 @@ bool installed();
 void leader_start();
 // A session message of type >= session::kFrontendMessages from transport slot `from`.
 void on_message(uint8_t from, const uint8_t *data, size_t size);
+// Host, online: a player reached the transport (a stranger joined our matchmaking room).
+void on_peer_joined(uint8_t slot);
+// Online: the matchmaking room's host left and the room goes on under a new one (host = this PC).
+void on_migrated(bool host);
 }  // namespace matchmaking
 
 }  // namespace u2mp

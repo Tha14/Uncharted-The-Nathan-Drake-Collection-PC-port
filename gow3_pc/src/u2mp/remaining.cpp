@@ -68,6 +68,12 @@ constexpr uint32_t kPopupPage = 0x99ab57c2;          // PS3 0x422028 default, PS
 constexpr uint32_t kPageLobby = sid("PAGE_LOBBY");
 constexpr uint32_t kTextOk = 0xc6467f2d, kTextMute = 0xffbbac12, kTextKickFromParty = 0x1e2955af;
 constexpr uint32_t kCbMute = 0x6547d63c, kCbKick = 0x7cc46b94;   // popup option callbacks (PS3)
+constexpr uint32_t kCbPromote = 0x2d32c8b0, kTextPromote = 0x9fdf8887;   // "Promote To Party Leader"
+// PAGE_FRIENDACTIONS options (PS3 0x43f830): Join Party / Invite To Party
+constexpr uint32_t kTextJoinParty = 0xb1600ce3, kCbJoinParty = 0x0ace8463, kTextInviteToParty = 0x4a555973,
+                   kCbInviteToParty = 0x45a9c65b;
+constexpr uint64_t fInviteToParty = 0x5ebee0;   // 45a9c65b (PS3 0x440050): the send is gone on PS4
+constexpr uint64_t qInvites = 0x659b50;         // cond 48 BUTTON_MULTIPLAYER_INVITES (PS3 0x4b8e08)
 static_assert(kPageLobby == 0xb99a3235u, "string id");
 
 // Our texts (texts.h: kTextPlayer, kTextStore ...) are served by the TextDb::Find hook, texts.cpp.
@@ -238,6 +244,7 @@ void player_options(int row) {
     set_player_text(name);
     Popup p{kTextPlayer, kPopupPage, 0, {}};
     p.add(kTextMute, kCbMute);
+    if (session::is_host() && online::active()) p.add(kTextPromote, kCbPromote);   // online: RPCN owner succession
     if (session::is_host()) p.add(kTextKickFromParty, kCbKick);
     guest<void(U2MP_GUEST *)(void *, Popup *, uint32_t)>(fShowPopup)(image.at<void>(addr::menu_manager), &p, 1);
 }
@@ -247,7 +254,27 @@ uint32_t arg32(const void *arg, uint64_t off) { return arg ? field<uint32_t>(arg
 // PS3 arg+8 = n; PAGE_LOBBY's rows count on from 10 (cond 26..35), PS3 takes n % 10 (0x4417f0).
 U2MP_GUEST void party_player(void *arg, void *, void *) { player_options(int(arg32(arg, 8) % 10)); }
 U2MP_GUEST void match_player(void *arg, void *, void *) { player_options(int(arg32(arg, 8))); }
-U2MP_GUEST void friends_row(void *arg, void *, void *) { player_options(int(arg32(arg, 4))); }   // list row
+// Online the rows are RPCN friends (PS3 0x43f830): the PAGE_FRIENDACTIONS options as a popup, titled with
+// the friend's name and state: Join Party (in this game with room for us), Invite To Party (online).
+int selected_friend = -1;
+void friend_options(int row) {
+    if (row < 0 || row >= online::friend_count()) return;
+    selected_friend = row;
+    set_player_text(online::friend_row(row));
+    Popup p{kTextPlayer, kPopupPage, 0, {}};
+    if (online::friend_joinable(row)) p.add(kTextJoinParty, kCbJoinParty);
+    if (online::friend_online(row)) p.add(kTextInviteToParty, kCbInviteToParty);
+    if (!p.count) {
+        message_box(kTextPlayer);
+        return;
+    }
+    guest<void(U2MP_GUEST *)(void *, Popup *, uint32_t)>(fShowPopup)(image.at<void>(addr::menu_manager), &p, 1);
+}
+U2MP_GUEST void friends_row(void *arg, void *, void *) {   // list row
+    const int row = int(arg32(arg, 4));
+    if (online::active()) friend_options(row);
+    else player_options(row);
+}
 
 // 7cc46b94 (PS3 0x439cf8): KickoutRoomMember(party, selected member).
 U2MP_GUEST void kick_selected(void *, void *, void *) {
@@ -266,7 +293,10 @@ U2MP_GUEST void toggle_mute(void *, void *, void *) {
     message_box(kTextPlayer);
 }
 // 2d32c8b0 (PS3 0x439c7c): GrantRoomOwner(party, selected), then PAGE_LOBBY.
-U2MP_GUEST void promote_leader(void *, void *, void *) { message_box(kTextLeader); }
+U2MP_GUEST void promote_leader(void *, void *, void *) {
+    if (selected_id && online::promote(selected_id)) return;   // online: the room's owner succession
+    message_box(kTextLeader);
+}
 // 56126d00 (PS3 0x438638): IsHost(party session).
 U2MP_GUEST uint8_t party_is_host(void *, void *, void *) { return is_host(kParty) ? 1 : 0; }
 // 37c9cb76 (PS3 0x438a10): only a debug print.
@@ -279,7 +309,34 @@ U2MP_GUEST void invites(void *, void *, void *) {
     if (G<int32_t>(kNetInfo + NI_MODE) != 0) show_page(kPageLobby);
     message_box(kTextInvite);
 }
-U2MP_GUEST void invite_friend(void *, void *, void *) { message_box(kTextInvite); }
+// 0ace8463 Join Party (PS3 0x43ff60: NP message 0x10b to the friend, who answers with its party room).
+U2MP_GUEST void join_party(void *, void *, void *) {
+    if (online::active() && selected_friend >= 0) {
+        online::join_friend(selected_friend);
+        return;
+    }
+    message_box(kTextInvite);
+}
+// 45a9c65b Invite To Party (PS3 0x440050 -> 0x4400bc -> 0x43a164: an NP invite with the party room).
+U2MP_GUEST void invite_to_party(void *, void *, void *) {
+    if (online::active() && selected_friend >= 0) {
+        online::invite_friend(selected_friend);
+        return;
+    }
+    message_box(kTextInvite);
+}
+// cond 48: the Invites label stays (PS4 blanked it with no invites); column 1 = the invites waiting.
+char invites_count_text[16];
+U2MP_GUEST void invites_query(uint8_t *q) {
+    const uint32_t op = field<uint32_t>(q, 0);
+    if (op == 2 && field<uint32_t>(q, 0x54) == 1) {
+        const int n = online::invite_count();
+        if (n > 0) {
+            std::snprintf(invites_count_text, sizeof invites_count_text, "%d", n);
+            *reinterpret_cast<uint64_t *>(q + 0x40) = uint64_t(uintptr_t(invites_count_text));
+        }
+    }
+}
 
 // BUTTON_CLANTAG (PS3 0x441440): the on-screen keyboard for the clan tag; PAGE_MULTIPLAYER_PLAYER_OPTIONS
 // (PS3 0x4443f8) polled it (events 2/3 free it, 6 stores the tag) and closed itself when signed out.
@@ -506,7 +563,7 @@ void install_remaining(int &installed) {
         {0x5ecb70, reinterpret_cast<void *>(&party_is_host), "party IsHost (56126d00)", false},
         {0x5ebdd0, reinterpret_cast<void *>(&save_print), "Save (37c9cb76)", false},
         {0x5ebea0, reinterpret_cast<void *>(&invites), "BUTTON_MULTIPLAYER_INVITES", false},
-        {0x5ec000, reinterpret_cast<void *>(&invite_friend), "invite friend (0ace8463)", false},
+        {0x5ec000, reinterpret_cast<void *>(&join_party), "Join Party (0ace8463)", false},
         {0x5ed8a0, reinterpret_cast<void *>(&clan_tag), "BUTTON_CLANTAG", false},
         {0x5ed8b0, reinterpret_cast<void *>(&player_options_page), "PAGE_MULTIPLAYER_PLAYER_OPTIONS", false},
         {0x5ed8c0, reinterpret_cast<void *>(&store_browse), "store browse", false},
@@ -516,6 +573,24 @@ void install_remaining(int &installed) {
         {0x5e4510, reinterpret_cast<void *>(&cinema_send), "cinema send to friend (fe0e7de7)", false},
         {0x5e4520, reinterpret_cast<void *>(&cinema_receive), "cinema receive from friend (6b2970e2)", false},
     };
+    // Invite To Party 0x5ebee0 kept its "Creating Party..." box (party session +0xc8 / +0x10 checks) but
+    // not the send: push rbp; mov rbp,rsp; push rbx; push rax; lea rax,[party session]; cmp byte [rax+0xc8],0
+    static const unsigned char invite_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x53, 0x50, 0x48, 0x8d, 0x05, 0xcb, 0x30, 0xa7, 0x00,
+                                                 0x80, 0xb8, 0xc8, 0x00, 0x00, 0x00, 0x00};
+    if (image.matches(fInviteToParty, invite_bytes, sizeof invite_bytes)) {
+        if (replace_function(fInviteToParty, 5, reinterpret_cast<void *>(&invite_to_party), "Invite To Party (45a9c65b)"))
+            ++installed;
+    } else {
+        log("Invite To Party at 0x%llx differs, left alone", (unsigned long long)fInviteToParty);
+    }
+    // cond 48: push rbp; mov rbp,rsp; push rbx; push rax; mov rbx,rdi; mov eax,[rbx]; cmp eax,2
+    static const unsigned char invq_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x53, 0x50, 0x48, 0x89, 0xfb, 0x8b, 0x03, 0x83, 0xf8, 0x02};
+    if (image.matches(qInvites, invq_bytes, sizeof invq_bytes)) {
+        if (replace_function(qInvites, 5, reinterpret_cast<void *>(&invites_query), "BUTTON_MULTIPLAYER_INVITES query (cond 48)"))
+            ++installed;
+    } else {
+        log("BUTTON_MULTIPLAYER_INVITES query at 0x%llx differs, left alone", (unsigned long long)qInvites);
+    }
     int done = 0;
     for (const auto &s : stubs) {
         if (s.needs_popup && !popup_ok) {
@@ -530,6 +605,12 @@ void install_remaining(int &installed) {
         if (replace_function(s.at, 5, s.fn, s.name)) ++done;
     }
     installed += done;
+}
+
+void show_notice(const char *text) {
+    if (!text || !*text) return;
+    set_player_text(text);
+    message_box(kTextPlayer);
 }
 
 }  // namespace u2mp

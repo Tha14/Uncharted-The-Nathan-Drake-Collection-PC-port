@@ -14,7 +14,7 @@
 extern "C" {
 
 enum : int32_t {
-    U2O_ABI = 1,
+    U2O_ABI = 2,              // 2: friends, presence, messages (invites), identity
     U2O_MAX_MEMBERS = 16,
     U2O_MAX_ROOMS = 20,
 };
@@ -39,7 +39,16 @@ enum : int32_t {
     U2O_EV_PEER_STATE = 13,     // npid, state (U2O_PEER_*), rtt_us: signaling with that player changed
     U2O_EV_MEMBERS_EXT = 14,    // u2o_members_external: members[count] (npid, name, owner flag only)
     U2O_EV_PUBLIC_ADDRESS = 15, // ip, port: how the room service sees our datagram socket (first time / changes)
+    // ABI 2
+    U2O_EV_FRIEND = 16,         // npid, state (U2O_FRIEND_*): the friend list changed; u2o_friends has the new list
+    U2O_EV_MESSAGE = 17,        // message: a player sent us a message (an invite: main_type U2O_MSG_INVITE)
 };
+
+// U2O_EV_FRIEND states
+enum : int32_t { U2O_FRIEND_LIST = 0, U2O_FRIEND_ADDED = 1, U2O_FRIEND_REMOVED = 2, U2O_FRIEND_ONLINE = 3,
+                 U2O_FRIEND_OFFLINE = 4, U2O_FRIEND_PRESENCE = 5, U2O_FRIEND_REQUEST = 6 };
+// message main types (sceNpBasic)
+enum : int32_t { U2O_MSG_DATA = 0, U2O_MSG_GENERAL = 1, U2O_MSG_ADD_FRIEND = 2, U2O_MSG_INVITE = 3 };
 
 enum : int32_t { U2O_PEER_INACTIVE = 0, U2O_PEER_PENDING = 1, U2O_PEER_ACTIVE = 2, U2O_PEER_DEAD = 3 };
 
@@ -123,6 +132,30 @@ struct U2oSearch {
     uint32_t max;          // 1..20
 };
 
+struct U2oFriend {
+    char npid[20];
+    uint8_t online;
+    uint8_t same_game;     // its presence is this game's communication id
+    uint8_t pad[2];
+    char title[128];       // presence: game title
+    char status[192];      //           status line
+    char comment[64];
+    uint8_t data[128];     //           game data (this game: what it is doing, which room)
+    uint32_t data_len;
+};
+
+struct U2oMessage {
+    char npid[20];         // the sender (received) - ignored when sending
+    uint16_t main_type;    // U2O_MSG_*
+    uint16_t sub_type;
+    uint32_t features;
+    uint64_t msg_id;
+    char subject[128];
+    char body[512];
+    uint8_t data[512];
+    uint32_t data_len;
+};
+
 struct U2oEvent {
     int32_t kind;
     int32_t error;         // 0 = success, else the room service's error number (14 no such room, 16 full, ...)
@@ -142,6 +175,7 @@ struct U2oEvent {
     uint8_t ip[4];
     char npid[20];
     const char *text;
+    const U2oMessage *message;   // ABI 2: U2O_EV_MESSAGE
 };
 
 // ---- calls ----
@@ -170,5 +204,18 @@ typedef int(__cdecl *u2o_peer_state_fn)(const char *npid, uint32_t *rtt_us);
 typedef int(__cdecl *u2o_send_fn)(const char *npid, uint16_t dst_vport, uint16_t src_vport, const uint8_t *data, uint32_t len);
 // recv: one datagram for src... returns its length (0 none, -1 buffer too small); npid of the sender
 typedef int(__cdecl *u2o_recv_fn)(uint16_t vport, uint8_t *data, uint32_t cap, char npid[20]);
+
+// ---- ABI 2 ----
+// Our NpId and online name (from the launcher's session); 1 when known.
+typedef int(__cdecl *u2o_identity_fn)(char npid[20], char name[52]);
+// The friend list: fills up to cap entries (online ones first), returns how many friends there are.
+typedef int(__cdecl *u2o_friends_fn)(U2oFriend *out, int cap);
+// Our presence for friends (this game's communication id): title, status line, comment, game data (<= 128).
+typedef uint64_t(__cdecl *u2o_set_presence_fn)(const char *title, const char *status, const char *comment,
+                                               const uint8_t *data, uint32_t len);
+// A message to friends (npids[count], 1..16); an invite needs main_type U2O_MSG_INVITE. Result: U2O_EV_DONE.
+typedef uint64_t(__cdecl *u2o_send_message_fn)(const char *const *npids, uint32_t count, const U2oMessage *m);
+// The owner succession of a room we own: the first member id still present becomes the owner when we leave.
+typedef uint64_t(__cdecl *u2o_set_owner_rank_fn)(uint64_t room_id, const uint16_t *member_ids, uint32_t count);
 
 }  // extern "C"

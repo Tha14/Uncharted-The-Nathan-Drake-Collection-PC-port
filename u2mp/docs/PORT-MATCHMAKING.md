@@ -424,6 +424,16 @@ InvitationDialog import only at system level; the U2 paths are absent / ret (`0x
 
 ### 3.7 Host migration
 
+**Correction (later reading):** `0x4409c4` is WaitReady::Update and `0x440478` LoadLevels::Update; their "HOST %s
+LEFT" branch leaves the room and goes to Leave, it never migrates. `0x48a13c` sends NetEventStartGame. HostMigrate
+`0x4d4b28` is called by the host when the match starts (WaitReady, start time reached) and turns OWNER_AUTO_GRANT on
+for the running match, unless the game type is co-op (`0x4a5548`: types 4, 8, 9, 12); Leave::Enter turns it off.
+In a running match the server's new owner then gets RoomOwnerChanged -> slot 6 (event `0x15f1cf05`, NGM host =
+the owner's tracker), and the PS4-intact reset states (PreResetting / Resetting / ResettingReady, StartGame from
+the new host) restart the round on the same map. In the lobby nobody takes over (custom lobby: everyone leaves;
+party room: the next owner leads). HostRank = the remote trackers in slot order, canTalkToAll first. The text
+below is the first reading.
+
 - Match rooms are created without OWNER_AUTO_GRANT. At "Connections done" the host publishes the
   owner order (HostRank `0x4d4868`, members sorted by link quality in `0x440f90`).
 - When the host leaves during a match, the state's host-left handler (`0x4409c4` / `0x440478`, "*****

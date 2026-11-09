@@ -292,6 +292,12 @@ bool Transport::connected() const {
     return peers_[0].connected;
 }
 
+bool Transport::peer_address(uint8_t slot, Address &out) const {
+    if (slot > kMaxPeers || !peers_[slot].connected) return false;
+    out = peers_[slot].address;
+    return true;
+}
+
 void Transport::send_raw(const Address &to, const std::vector<uint8_t> &packet) {
     if (link_) {
         link_->send(to, packet.data(), packet.size());

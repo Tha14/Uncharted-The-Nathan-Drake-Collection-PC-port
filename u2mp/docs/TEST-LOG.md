@@ -78,3 +78,12 @@ Two PCs, this build on both, both signed in to RPCN in the launcher (online exte
 | 8 | party: B joins A's party row from the list while A is on PAGE_MULTIPLAYER, then A starts a custom game | | B: `joined party room`, then `joining the leader's match room` |
 
 Also check once with the DLL path removed: `online: off (...)` and LAN behaves as before.
+
+## 2026-11-09: online ABI 2 (friends, presence, invites, stranger matchmaking, lobby migration, promote)
+
+- Built; `u2mp-net-test` passes. `u2_online.dll` ABI 2 checked against a local fake relay (Login friend list, friend
+  status / presence / request notifications, an invite message; SetPresence, SendMessage and the owner succession
+  bodies decoded back; ResetState and Terminate reach the relay on close). No real RPCN server was used.
+- To check in the game (launcher, signed in): boot.log `online: signed in as <name>`, `online: friends: N on the RPCN
+  friend list` + one `friend` line each, `online: presence: ...`; Party Up shows the friends; Invites shows the number
+  of invites and lists them first.

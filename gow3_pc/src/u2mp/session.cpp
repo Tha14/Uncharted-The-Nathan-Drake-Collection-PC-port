@@ -397,6 +397,7 @@ void on_peer(uint8_t slot, bool joined) {
                     log("online: slot %u joined while the lobby is up: sending the follow", slot);
                     send_session(slot, follow_body());
                 }
+                matchmaking::on_peer_joined(slot);   // a stranger reached our matchmaking room
             }
         } else {
             log("party: %s left", members[slot].name.c_str());
@@ -418,6 +419,9 @@ void on_peer(uint8_t slot, bool joined) {
         online::on_host_reached(my_id);
     } else if (online::host_change_expected()) {   // online: the party follows its leader to another room
         log("online: the old host closed the link; following the leader to its new room");
+        gamenet::detach(0);
+    } else if (online::on_host_lost()) {   // online, not in a match: the room's next owner leads the party
+        log("party: lost the host; the room's new owner takes over");
         gamenet::detach(0);
     } else {        // host gone: every multiplayer page falls back to the error box
         log("party: lost the host");
@@ -1260,6 +1264,45 @@ void online_match_ready(uint64_t room_id) {
     log("online: Start Match goes on (match room %llx)", (unsigned long long)room_id);
     G<uint8_t>(kMatch + M_CREATED) = 1;   // 0x6093f0: 3 -> 10 -> 16 -> PlayTask("deathmatch")
     send_session(-1, follow_body());
+}
+
+void set_local_name(const std::string &name) {
+    if (name.empty()) return;
+    const std::string n = name.substr(0, 31);
+    if (n == my_name && local_name() == n) return;
+    my_name = n;
+    _putenv_s("UNCHARTED_U2MP_NAME", n.c_str());   // local_name() and progression read it
+    log("player name: %s (RPCN)", n.c_str());
+    if (!active) return;
+    if (hosting && members[0].used) {
+        members[0].name = n;
+        refresh_sessions();
+        broadcast_roster();
+    } else if (!hosting && my_id) {
+        send_info();
+    }
+}
+
+bool member_address(uint32_t net_id, net::Address &out) {
+    if (!active || !hosting || net_id < 2 || net_id > net::kMaxPeers + 1) return false;
+    return transport.peer_address(uint8_t(net_id - 1), out);
+}
+
+void online_migrated(bool host, bool mm) {
+    log("party: new leader (%s)%s", host ? "this PC" : "another player", mm ? ", matchmaking goes on" : "");
+    if (mm) {
+        matchmaking::on_migrated(host);
+        return;
+    }
+    G<uint8_t>(kMatch + M_CREATED) = 0;
+    session_clear(kMatch);
+}
+
+void online_host_gone() {
+    if (!active || hosting) return;
+    log("party: lost the host (nobody took over)");
+    G<uint8_t>(kNetInfo + NI_ERROR) = 1;
+    lost_host = true;
 }
 
 uint32_t member_rank(uint32_t net_id) {

@@ -6,6 +6,7 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 #include "net.h"
 
@@ -48,7 +49,39 @@ bool select_join(int row);
 // ---- progression.cpp (0x64e810, PS3 0x4af240): NetPlayerData changed, publish the member blob 0x59 ----
 void member_data_changed();
 
+// ---- host migration and promote (PS3 RoomOwnerChanged / GrantRoomOwner) ----
+// A client lost its host outside a running match: true when online takes it (the room's new owner hosts
+// the party; online then calls session::online_reopen / online_migrated, or online_host_gone).
+bool on_host_lost();
+// The leader hands the party to the member with this net id. False: not possible (offline, no room).
+bool promote(uint32_t net_id);
+
+// ---- friends and invites (RPCN; PS3 NP Basic) ----
+int friend_count();
+const char *friend_row(int i);       // "name - status"
+std::string friend_name(int i);
+bool friend_online(int i);
+bool friend_joinable(int i);         // in this game, in a party / lobby with room for us
+bool join_friend(int i);             // Join Party (0ace8463)
+bool invite_friend(int i);           // Invite To Party (45a9c65b)
+int invite_count();                  // invites waiting (shown on BUTTON_MULTIPLAYER_INVITES)
+
+// ---- stranger matchmaking (frontend3.cpp; PS3 0x4b0a58 search / join / create) ----
+enum { kMmIdle = 0, kMmBusy = 1, kMmHosting = 2, kMmJoined = 3, kMmFailed = 4 };
+bool mm_online();                    // online with a world: matchmaking finds strangers
+void mm_begin(uint32_t playlist);    // host in NET_SM 19: search, then join a room or create one
+int mm_step();
+void mm_reset();
+void mm_research();                  // nobody came: leave our gather room, search again
+void mm_leave();                     // matchmaking ends for this PC
+int mm_players();                    // players in our matchmaking room
+
 }  // namespace u2mp::online
+
+namespace u2mp {
+// remaining.cpp: a one-button message box with this text (online notices: invites, migration).
+void show_notice(const char *text);
+}  // namespace u2mp
 
 namespace u2mp::session {
 // online.cpp -> session.cpp: closes the transport and opens it again on `link`, as the host of a new
@@ -56,6 +89,14 @@ namespace u2mp::session {
 void online_reopen(net::Link *link, const net::Address *owner);
 // online.cpp -> session.cpp: the match room exists (room_id) or could not be made (0): finish Start Match.
 void online_match_ready(uint64_t room_id);
+// online.cpp -> session.cpp: this player's name is the RPCN online name.
+void set_local_name(const std::string &name);
+// online.cpp -> session.cpp: the transport address of the member with this net id.
+bool member_address(uint32_t net_id, net::Address &out);
+// online.cpp -> session.cpp: the party has a new leader (host = this PC); matchmaking: the room goes on.
+void online_migrated(bool host, bool matchmaking);
+// online.cpp -> session.cpp: the host is gone and nobody took over: the old "host lost" path.
+void online_host_gone();
 // Session message type of online.cpp (below session::kFrontendMessages).
 constexpr uint8_t kOnlineMessage = 7;
 }  // namespace u2mp::session

@@ -9,7 +9,7 @@ Code: `gow3_pc/src/u2mp/online.cpp` (+ `online.h`), with small hooks in `session
 `menus.cpp`, `remaining.cpp`, `frontend2.cpp`, `progression.cpp`. The only interface to the room service
 is `u2_online_abi.h`. Nothing about the service's wire protocol is in this repository.
 
-Status: **built, not run yet** (no two-PC test so far). See "Untested / open" at the end.
+Status: **built, not run on two PCs yet**. Friends / presence / invites / matchmaking / migration: section 5a. See "Untested / open" at the end.
 
 ---
 
@@ -123,6 +123,30 @@ All online lines start with `u2mp: online:`. In order of a test:
 | match | `online: NET_SM 26: match running`, `online: custom game room <id> hidden and closed (match running)`; after: `online: NET_SM 16: back from the match`, `... shown and open again (lobby)`, `... state 0x53 = 0` |
 | leave | `online: the transport closed (Multiplayer left): leaving every room`, `online: leaving ... room <id> (...)`, `online: left room <id>: error 0 (ok)`; other PC: `online: <name> (<npid>) left room <id> (cause 1: left)`, `online: room <id> owner changed ...` |
 | failures | `online: joining room <id> failed: error E (...)`, `online: join refused: room <id> has F free slot(s), the party needs P`, `online: the room owner was not reached in 20 s ...`, `online: link lost (...)`, `online: creating the ... room failed: error E` |
+
+## 5a. Friends, presence, invites, matchmaking, migration (ABI 2)
+
+`u2_online.dll` ABI 2 adds the player's identity, the RPCN friend list (from the launcher's Login reply plus the
+friend news it forwards), presence and messages. The launcher relay also replays friend presence changes to a
+game that links later.
+
+| Piece | PS3 | PC |
+|---|---|---|
+| Player name | NP online id (netInfo+0x288) | the RPCN online name (`u2o_identity`) replaces UNCHARTED_U2MP_NAME once the link is ready: profile panel, rosters, room names |
+| LIST_FRIENDS (cond 36, `0x65bbb0`) | PSN friends, label "Friends", detail line per friend (PS3 `0x4c1fe0`) | online: the RPCN friends, online ones first, "name - status" (offline / another game / what they do in Uncharted 2); LAN: the party as before |
+| Friend row (`0x5ebde0`) | PAGE_FRIENDACTIONS popup (PS3 `0x43f830`): Join Party `0ace8463`, Invite To Party `45a9c65b`, View Profile | a popup with Join Party (friend in this game, in a party / lobby / matchmaking room with room for us) and Invite To Party (friend online); no profile viewer |
+| Presence | `sceNpBasicSetPresenceDetails` (NetFriends `0x48f16c` / `0x490338`), 88 bytes with the party room id | `u2o_set_presence` on every change (2 s apart at most): title "Uncharted 2: Among Thieves", status line, 32 bytes `U2MP` {state, members, max, key, kind, room id}; empty when the game closes |
+| Invite To Party (`0x5ebee0`, PS4 kept only the "Creating Party..." box) | `0x440050` -> `0x43a164` sceNpBasicSendMessageGui, 16-byte attachment {version, -, u64 party room} | `u2o_send_message` main type INVITE, the same 32 bytes as the presence (the room we are in) |
+| Invites inbox (BUTTON_MULTIPLAYER_INVITES, cond 48 `0x659b50`) | system inbox; count in netInfo+0x14 | the invites (10 minutes, one per sender) are the first rows of the join list ("Invite from X - Party (n/max)"); the button shows their number; a message box says when one arrives (menus only, never in a match) |
+| Join Party (`0x5ec000`) | `0x43ff60`: NP message 0x10b, the friend answers 0x10c with its party room | join the room from the friend's presence directly (free slots checked; a leader takes its party along) |
+| Find Match (strangers) | `0x4b0a58` states 19 -> 5/6/7 or 3 -> 16 | NET_SM 19: search kind-3 rooms of the same key and playlist (0x51), join the fullest with room for the party (the party follows); none: create one and gather (16): vote when 10 players, or after 20 s with everyone ready / 40 s with at least 2 players (UNCHARTED_U2MP_MM_MIN); alone after 45..60 s: leave the room and search again (PS3 "time out %i players"). Players who arrive get the page and the open vote. A member backing out leaves only itself |
+| Host leaves (lobby, party, matchmaking) | party room: the server's next owner leads (auto grant); custom lobby: everyone left (host-migration.md) | every room has OWNER_AUTO_GRANT; a client that loses its host outside a match waits (15 s) for the room's new owner: that player hosts the transport, the others join it. Matchmaking goes on in the same room; party and custom lobby go back to PAGE_MULTIPLAYER as a party |
+| Promote To Party Leader (`2d32c8b0`) | GrantRoomOwner `0x4d3a10` (no RPCN command) | online: owner succession = the chosen member (`u2o_set_owner_rank`), the leader leaves and joins the room again; the members follow through the migration path |
+
+Not done: host migration *during* a running match (PS3: WaitReady turns auto grant on and the new host resets
+the round; needs the star transport rebuilt with every net id kept, see the research notes) - a host leaving a
+running match still ends it as over LAN. No profile viewer, no friend requests from the game (the launcher does
+those; a request that arrives is shown).
 
 ## 6. Untested / open
 

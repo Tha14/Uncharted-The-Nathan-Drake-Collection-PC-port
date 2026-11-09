@@ -36,6 +36,7 @@
 
 #include "frontend3.h"
 #include "frontend6.h"
+#include "online.h"
 #include "session_api.h"
 #include "u2mp_internal.h"
 
@@ -78,7 +79,10 @@ enum : int32_t { kStateServerLobby = 16, kStateClientLobby = 17, kStateChooseHos
 enum : int32_t { kPhaseSearch = 1, kPhaseVote = 2, kPhaseStart = 3 };
 // times in net-clock ticks (300 per second)
 constexpr uint32_t kTicks = 300, kGatherMin = 3 * kTicks, kGatherMax = 10 * kTicks, kVoteTicks = 4500,
-                   kStartTicks = 10 * kTicks, kStartAt = 2 * kTicks, kTipTicks = 8 * kTicks;
+                   kStartTicks = 10 * kTicks, kStartAt = 2 * kTicks, kTipTicks = 8 * kTicks,
+                   // online gather (PS3 0xb40710 "time out %i players"): wait for strangers, then vote
+                   kOnlineGather = 20 * kTicks, kOnlineGatherMax = 40 * kTicks, kResearchMin = 45 * kTicks;
+constexpr uint64_t kNpd = 0x11474f8, NPD_PLAYLIST = 0x104;   // NetPlayerData: the chosen playlist
 // session messages (session::kFrontendMessages and up); PS3 mailbox code in the comment
 enum : uint8_t { kMmStart = 0x10,        // 0x107 leader -> party: follow into matchmaking
                  kMmReady = 0x11,        // member -> host: my matchmaking page is up
@@ -113,6 +117,10 @@ struct Machine {
     uint32_t next_tip = 0;
     int32_t logged_state = -1;
     int32_t last_phase = 0;
+    // online (strangers, online.cpp): our gather room, when to look for another room, retry pacing
+    bool online_room = false;
+    uint32_t research_at = 0;
+    uint32_t retry_at = 0;
 };
 Machine mm;
 bool hooks_installed = false;
@@ -224,6 +232,7 @@ void finish_vote() {   // host: the winner (PS3 mailbox 0x109)
 void leave(bool tell) {
     if (tell) send(session::is_host() ? -1 : 0, {kMmLeave});
     log("matchmaking: leaving%s", tell ? "" : " (the party left)");
+    online::mm_leave();   // a stranger's room: back to a party of our own
     vote_block() = VoteBlock{};
     G<int32_t>(kNetInfo + NI_PHASE) = 0;
     G<uint32_t>(kNetInfo + NI_DEADLINE) = 0;
@@ -322,13 +331,56 @@ void update() {
         return;
     }
     switch (st) {
-    case kStateStartMatchmaking:   // PS3: search / create the room; here the party is the room
-        set_net_state(kStateServerLobby);
+    case kStateStartMatchmaking:   // PS3 0x4b0f48: search a room, join it (5 -> 6 -> 7) or create one (3)
+        if (online::mm_online()) {
+            switch (online::mm_step()) {
+            case online::kMmIdle:
+                if (int32_t(now() - mm.retry_at) >= 0) {
+                    const uint32_t playlist = G<uint32_t>(kNpd + NPD_PLAYLIST);
+                    log("matchmaking: looking for players online (playlist 0x%x)", playlist);
+                    online::mm_begin(playlist);
+                }
+                break;
+            case online::kMmHosting:   // our own room: gather (16)
+                mm.online_room = true;
+                mm.gather_since = now();
+                mm.research_at = now() + kResearchMin + uint32_t(std::rand() % 15) * kTicks;
+                set_net_state(kStateServerLobby);
+                break;
+            case online::kMmJoined:    // another player's room: its host takes us in (kMmStart)
+                break;
+            case online::kMmFailed:
+                online::mm_reset();
+                mm.retry_at = now() + 3 * kTicks;
+                break;
+            default:
+                break;   // searching / joining / creating
+            }
+            break;
+        }
+        set_net_state(kStateServerLobby);   // LAN: the party is the room
         break;
     case kStateServerLobby: {      // PS3 "GATHER": wait for the players
         int ready = 0;
         for (uint32_t s = 0; s < 32; ++s) ready += (mm.ready_slots >> s) & 1;
         const uint32_t waited = now() - mm.gather_since;
+        if (mm.online_room) {
+            const int players = session::member_count();
+            static const int min_players = [] {
+                const char *v = std::getenv("UNCHARTED_U2MP_MM_MIN");
+                const int n = v ? std::atoi(v) : 2;
+                return n >= 1 && n <= 10 ? n : 2;
+            }();
+            if (players >= 10 || (players >= min_players && ((waited >= kOnlineGather && ready >= players) || waited >= kOnlineGatherMax))) {
+                start_vote();
+            } else if (players < min_players && int32_t(now() - mm.research_at) >= 0) {
+                log("matchmaking: %d player(s) after %u s: looking for another room", players, waited / kTicks);
+                online::mm_research();
+                mm.online_room = false;
+                set_net_state(kStateStartMatchmaking);
+            }
+            break;
+        }
         if (waited >= kGatherMax || (waited >= kGatherMin && ready >= session::member_count())) start_vote();
         break;
     }
@@ -426,6 +478,36 @@ namespace matchmaking {
 
 bool installed() { return hooks_installed; }
 
+void on_peer_joined(uint8_t slot) {
+    if (!mm.running || !session::is_host() || top_page() != kPageMatchmaking) return;
+    // A player reached our matchmaking room: into the page, and into the vote if one is open (PS3 0x4b1e44).
+    send(slot, {kMmStart});
+    const int32_t phase = G<int32_t>(kNetInfo + NI_PHASE);
+    const VoteBlock &v = vote_block();
+    if (phase == kPhaseVote && v.active) {
+        std::vector<uint8_t> m{kMmVoteOptions};
+        put16(m, int16_t(v.game[0]));
+        put16(m, int16_t(v.game[1]));
+        put32(m, ticks_left());
+        send(slot, m);
+    } else if (phase == kPhaseStart) {
+        std::vector<uint8_t> m{kMmResult};
+        put16(m, G<int16_t>(kNgm + NGM_GAME));
+        put32(m, ticks_left());
+        send(slot, m);
+    }
+    log("matchmaking: slot %u joined the room (phase %d)", slot, phase);
+}
+
+void on_migrated(bool host) {
+    log("matchmaking: the room has a new host (%s)", host ? "this PC" : "another player");
+    mm = Machine{};
+    vote_block() = VoteBlock{};
+    G<int32_t>(kNetInfo + NI_PHASE) = kPhaseSearch;
+    online::mm_reset();
+    set_net_state(host ? kStateStartMatchmaking : kStateClientLobby);
+}
+
 void leader_start() {
     if (!session::is_host()) return;
     log("matchmaking: the leader starts matchmaking (%d players)", session::member_count());
@@ -471,6 +553,10 @@ void on_message(uint8_t from, const uint8_t *d, size_t n) {
         break;
     case kMmLeave:
         if (!mm.running && top_page() != kPageMatchmaking) break;
+        if (host && mm.online_room) {   // online a member who backs out only leaves (strangers stay)
+            log("matchmaking: a player left matchmaking");
+            break;
+        }
         if (host) leave(true);   // a member left: matchmaking ends for the party (PC: party = match)
         else if (from == 0) leave(false);
         break;

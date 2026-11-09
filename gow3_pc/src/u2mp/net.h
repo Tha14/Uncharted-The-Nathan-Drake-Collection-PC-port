@@ -96,6 +96,8 @@ public:
     bool is_host() const { return hosting_; }
     uint8_t local_slot() const { return local_slot_; }
     bool connected() const;
+    // The address of the peer in `slot` (slot 0 = the host when we are a client); false when nobody is there.
+    bool peer_address(uint8_t slot, Address &out) const;
     Deliver on_message;
     PeerEvent on_peer;
     uint16_t bound_port() const { return port_; }

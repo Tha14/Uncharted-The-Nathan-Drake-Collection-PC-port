@@ -387,6 +387,21 @@ int friends_current = 0;
 char friends_title[96];
 char friends_rows[16][96];
 U2MP_GUEST void friends_query(uint8_t *q) {
+    if (online::active()) {   // online: the RPCN friends (PS3 0x4c1fe0: the PSN friends, label "Friends")
+        const int n = online::friend_count();
+        if (Q<uint32_t>(q, 0) == kTitle) {
+            int on = 0;
+            for (int i = 0; i < n; ++i) on += online::friend_online(i) ? 1 : 0;
+            std::snprintf(friends_title, sizeof friends_title, "Friends (%d of %d online)", on, n);
+            set_text(q, friends_title);
+            return;
+        }
+        list_query(q, n ? n : 1, friends_current, [n](int r) -> const char * {
+            if (!n) return "No RPCN friends yet. Add friends in the launcher.";
+            return online::friend_row(r);
+        });
+        return;
+    }
     const int count = session::member_count();
     if (Q<uint32_t>(q, 0) == kTitle) {
         format_count(friends_title, sizeof friends_title, kTextPlayersInParty, count);
