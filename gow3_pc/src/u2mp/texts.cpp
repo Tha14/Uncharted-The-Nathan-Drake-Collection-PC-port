@@ -16,9 +16,11 @@
 //  2. an alias: an id whose text is another id's (net-patch9 ids for PS4 texts / our playlists);
 //  3. the imported bank of the language (text1/ps4/<n>.<category>, u2text.py: the PS4 bank completed
 //     from the GOTY PS3 bank of that language, sam-spanish from spanish, brazilian from portuguese);
-//  4. our own text (kOwn, every language; kMenu: greek, czech and turkish menu texts);
+//  4. our own text (kOwn, every language; kMenu: greek, czech and turkish for every text their PS4
+//     banks have only as "_": the 96 common menu texts and the 396 networking texts);
 //  5. unlocks_text (a label from a GOTY skin's package name);
-//  6. the imported English bank (an untranslated text: logged once per id and language);
+//  6. the imported English bank (an untranslated text: logged once per id and language; for
+//     multiplayer texts only the ids English alone has, e.g. "Buy Game");
 //  7. nothing: logged once per id and language ("texts: no text"), the game shows its fallback.
 // Language numbers are the bank file numbers: the loaded bank's +0x28 language index, table
 // 0x1450d18 (0x38 per language, +0x14 the number); 2 english ... 18 polish as on PS3, 7 is a second
@@ -353,7 +355,7 @@ const Text kOwn[] = {
     {0x2bd5ef65u, {"No Boosters", "Pas d'optimisations", "Niente potenziamenti", "Keine Booster",
      "Sin potenciadores", "Ingen forstærkere", "Sem turbos", "Geen boosters", "ブースターなし", "부스터 없음", "Ei tehostuksia",
      "Ingen boostere", "Inga boosters", "無助力器", "Без модификаторов", "Bez dopalaczy", nullptr, nullptr,
-     "Χωρίς ενισχυτές", "Bez vylepšení", "Güçlendirici Yok"}},
+     "Χωρίς ενισχύσεις", "Bez vylepšení", "Eklenti Yok"}},
     {0x763e0e75u, {"M32 - Hammer Only", "Lance-grenades M32 uniquement", "Solo M32 Hammer", "Nur M32-Hammer",
      "Solo M32 - Hammer", "Kun M32-hammer", "Só M32 - Martelo", "Alleen M32 - Hammer", "M32ハンマーのみ", "M32 - Hammer만",
      "Vain M32 - Hammer", "Kun M32 - Hammer", "Endast M32 - Hammer", "僅限 M32 戰鎚", "Только гранатомет M32 - Hammer",
@@ -505,7 +507,7 @@ const Text kOwn[] = {
      "Отправка файлов роликов друзьям недоступна на ПК.", "Wysyłanie plików kina znajomym nie jest dostępne na PC.",
      nullptr, "O envio de arquivos de cinema para amigos não está disponível no PC.",
      "Η αποστολή αρχείων κινηματογράφου σε φίλους δεν είναι διαθέσιμη στο PC.",
-     "Odesílání souborů kina přátelům není na PC k dispozici.",
+     "Odesílání souborů biografu přátelům není na PC k dispozici.",
      "Arkadaşlara sinema dosyası gönderme PC'de kullanılamaz."}},
     {kTextCinemaReceive, {"Receiving cinema files from friends is not available on PC.",
      "La réception de fichiers cinéma d'amis n'est pas disponible sur PC.",
@@ -522,7 +524,7 @@ const Text kOwn[] = {
      "Odbieranie plików kina od znajomych nie jest dostępne na PC.", nullptr,
      "O recebimento de arquivos de cinema de amigos não está disponível no PC.",
      "Η λήψη αρχείων κινηματογράφου από φίλους δεν είναι διαθέσιμη στο PC.",
-     "Přijímání souborů kina od přátel není na PC k dispozici.",
+     "Přijímání souborů biografu od přátel není na PC k dispozici.",
      "Arkadaşlardan sinema dosyası alma PC'de kullanılamaz."}},
     {kTextYou, {"(you)", "(vous)", "(tu)", "(Sie)", "(tú)", "(dig)", "(tu)", "(jij)", "（あなた）", "(나)", "(sinä)",
      "(deg)", "(du)", "（你）", "(вы)", "(ty)", nullptr, "(você)", "(εσύ)", "(vy)", "(sen)"}},
@@ -738,7 +740,11 @@ const struct { uint32_t id, to; } kAliases[] = {
     {0xc020db25u, 0x3f4b6279u},   // net-patch9 3v3 (second id)
 };
 
-// Greek, Czech and Turkish for the multiplayer menu texts their PS4 common bank has only as "_".
+// Greek, Czech and Turkish for the texts their PS4 banks have only as "_" (common: the multiplayer menu,
+// networking: every multiplayer text), our own wording from the PS4 English. Used only when the game's
+// text is "_" (czech has 3 common and 9 networking texts of its own). Terms follow the PS4 common banks
+// of these languages: booster = ενίσχυση / vylepšení / eklenti, medal = μετάλλιο / medaile / madalya,
+// Co-op = Συνεταιρικό / kooperativní / Eşli, Villains = Αντίπαλοι / Padouši / Kötüler.
 struct MenuText {
     uint32_t id;
     const char *el, *cs, *tr;
@@ -746,12 +752,12 @@ struct MenuText {
 const MenuText kMenu[] = {
     {0x8c850436u, "Αποδοχή", "Přijmout", "Kabul Et"},   // Accept
     {0x910fb4f9u, "Προσθήκη φίλου", "Přidat přítele", "Arkadaş Ekle"},   // Add Friend
-    {0xe50f12bau, "Ενισχυτές", "Vylepšení", "Güçlendiriciler"},   // Boosters
+    {0xe50f12bau, "Ενισχύσεις", "Vylepšení", "Eklentiler"},   // Boosters
     {0x2ef3c8b1u, "ΟΠΛΑ ΣΥΝΕΡΓΑΣΙΑΣ", "ZBRANĚ PRO KOOPERACI", "ORTAK OYUN SİLAHLARI"},   // CO-OP WEAPONS
     {0x81493ae7u, "Ακύρωση", "Zrušit", "İptal"},   // Cancel
     {0x61bf0714u, "Χαρακτήρας", "Postava", "Karakter"},   // Character
-    {0x249f5194u, "Διάλεξε τους ενισχυτές σου!", "Vyberte si vylepšení!", "Güçlendiricilerini seç!"},   // Choose your boosters!
-    {0xcb379354u, "Κινηματογράφος", "Kino", "Sinema"},   // Cinema
+    {0x249f5194u, "Διάλεξε τις ενισχύσεις σου!", "Vyberte si vylepšení!", "Eklentilerini seç!"},   // Choose your boosters!
+    {0xcb379354u, "Κινηματογράφος", "Biograf", "Sinema"},   // Cinema
     {0xb0ac49b5u, "Κατηγορία", "Třída", "Sınıf"},   // Class
     {0xad9f50d9u, "Σύνδεση...", "Připojování...", "Bağlanılıyor..."},   // Connecting...
     {0xa7304dd3u, "Δημιούργησε ένα παιχνίδι για τους φίλους σου", "Vytvořte hru pro své přátele",
@@ -816,13 +822,13 @@ const MenuText kMenu[] = {
     {0xb3911b0du, "Αναζήτηση παικτών...", "Hledání hráčů...", "Oyuncu aranıyor..."},   // Searching for players...
     {0xec92411au, "Ορισμός ομάδας: Αυτόματα", "Nastavit tým: Automaticky", "Takım Seç: Otomatik"},   // Set Team: Auto
     {0xb1b5b7a4u, "Ορισμός ομάδας: Ήρωες", "Nastavit tým: Hrdinové", "Takım Seç: Kahramanlar"},   // Set Team: Heroes
-    {0x4a2dbbdau, "Ορισμός ομάδας: Κακοί", "Nastavit tým: Padouši", "Takım Seç: Kötüler"},   // Set Team: Villains
+    {0x4a2dbbdau, "Ορισμός ομάδας: Αντίπαλοι", "Nastavit tým: Padouši", "Takım Seç: Kötüler"},   // Set Team: Villains
     {0x75d524d8u, "Ρυθμίσεις", "Nastavení", "Ayarlar"},   // Settings
     {0x094c9a82u, "Θέση 1", "Pozice 1", "Yuva 1"},   // Slot 1
     {0x0d8d8735u, "Θέση 2", "Pozice 2", "Yuva 2"},   // Slot 2
     {0x7c8c4672u, "Κοινωνικό (χωρίς κατάταξη)", "Společenská (nehodnocená)", "Sosyal (Derecesiz)"},   // Social (Not Ranked)
     {0xf1de63c9u, "Έναρξη", "Začít", "Başlat"},   // Start
-    {0x02237f2fu, "Έναρξη κινηματογράφου", "Spustit kino", "Sinemayı Başlat"},   // Start Cinema
+    {0x02237f2fu, "Έναρξη κινηματογράφου", "Spustit biograf", "Sinemayı Başlat"},   // Start Cinema
     {0x92db2b96u, "Έναρξη παιχνιδιού", "Začít hru", "Oyunu Başlat"},   // Start Game
     {0x69deab50u, "Έναρξη παιχνιδιού...", "Spouštění hry...", "Oyun başlatılıyor..."},   // Starting Game...
     {0x41aaf999u, "Συγχρονισμός...", "Synchronizace...", "Eşitleniyor..."},   // Syncing...
@@ -834,7 +840,7 @@ const MenuText kMenu[] = {
     {0xfcac898du, "Παραλλαγή", "Varianta", "Varyasyon"},   // Variation
     {0xa332b573u, "Βέτο", "Veto", "Veto"},   // Veto
     {0x4040b706u, "Προβολή προφίλ", "Zobrazit profil", "Profili Görüntüle"},   // View Profile
-    {0x659991a9u, "Κακός", "Padouch", "Kötü"},   // Villain
+    {0x659991a9u, "Αντίπαλος", "Padouch", "Kötü"},   // Villain
     {0x81cc5e93u, "Ψήφος", "Hlasovat", "Oy Ver"},   // Vote
     {0x747a57c3u, "Η ψηφοφορία λήγει σε [A]...", "Hlasování skončí za [A]...", "Oylama [A] içinde bitiyor..."},   // Voting ends in [A]...
     {0x63091cd0u, "Αναμονή για τον αρχηγό της ομάδας...", "Čekání na vůdce skupiny...", "Grup lideri bekleniyor..."},   // Waiting for Party Leader...
@@ -844,6 +850,541 @@ const MenuText kMenu[] = {
     {0xe8cf79e7u, "Ο συμπαίκτης σου, [TEXT], σε σκότωσε πολλές φορές.", "Váš spoluhráč [TEXT] vás několikrát zabil.",
      "Takım arkadaşın [TEXT] seni birçok kez öldürdü."},   // Your teammate, [TEXT], has killed you multiple times.
     {0xec840854u, "[A] παίκτες σε σύνδεση", "Hráči online: [A]", "[A] oyuncu çevrimiçi"},   // [A] players online
+    // ---- networking bank
+    {0x58023afcu, "Έναν παίκτη που τον πνίγουν πρέπει να τον σώσουν οι άλλοι παίκτες.",
+     "Hráče, kterého někdo škrtí, musí zachránit ostatní hráči.",
+     "Boğulan bir oyuncuyu diğer oyuncular kurtarmalıdır."},   // A player being choked must be rescued by the other_players.
+    {0x682e6699u, "Η σκόπευση είναι πάντα πιο εύστοχη από το να τρέχεις και να πυροβολείς.",
+     "Míření je vždy přesnější než střelba za běhu.",
+     "Nişan almak, koşarken ateş etmekten her zaman daha isabetlidir."},   // Aiming is always more accurate than running and_gunning.
+    {0x3f6bbbddu, "Πρέπει να είναι παρόντα όλα τα μέλη της ομάδας", "Musí být přítomni všichni členové skupiny",
+     "Tüm grup üyeleri hazır olmalı"},   // All party members must be present
+    {0xfc8dd900u, "Ένας συνδυασμός τύπων Αγώνα Θανάτου.", "Mix her typu Deathmatch.",
+     "Çeşitli Ölüm Maçı oyun türleri."},   // An assortment of Deathmatch game types.
+    {0x675ef552u, "Ένας συνδυασμός παιχνιδιών με αποστολές.", "Mix her s úkoly.",
+     "Çeşitli görev tabanlı oyun türleri."},   // An assortment of Objective based game types.
+    {0xa48d8b9au, "Σίγουρα θέλεις να το διαγράψεις;", "Opravdu chcete odstranit?", "Silmek istediğine emin misin?"},   // Are you sure you want to delete?
+    {0x52f3ac2bu, "Επίθεση", "Útok", "Saldırı"},   // Assault
+    {0x293ac7e7u, "Βοήθειες", "Asistence", "Asistler"},   // Assists
+    {0x30c29caeu, "Παράσημο Τιμής: Μισή υγεία", "Čestný odznak: Poloviční zdraví", "Onur Nişanı: Yarım Sağlık"},   // Badge of Honor: Half Health
+    {0x02d1b22fu, "Παράσημο Τιμής: Λιγότερες σφαίρες σε κάθε γεμιστήρα", "Čestný odznak: Méně nábojů v zásobníku",
+     "Onur Nişanı: Her şarjörde daha az mermi"},   // Badge of Honor: Less bullets in each clip
+    {0x82f94e80u, "Παράσημο Τιμής: Οι κοντινοί εχθροί βλέπουν το όνομά σου μέσα από τους τοίχους",
+     "Čestný odznak: Blízcí nepřátelé vidí vaše jméno skrz zdi",
+     "Onur Nişanı: Yakındaki düşmanlar adını duvarların ardından görür"},   // Badge of Honor: Nearby enemies see your name through walls
+    {0xff392194u, "Παράσημο Τιμής: Χωρίς στόχαστρο στα τυφλά πυρά",
+     "Čestný odznak: Bez zaměřovače při střelbě naslepo", "Onur Nişanı: Körlemesine ateşte nişangâh yok"},   // Badge of Honor: No Blindfire Reticle
+    {0x3cc23bd2u, "Παράσημο Τιμής: Διπλή ζημιά από επιθέσεις σώμα με σώμα",
+     "Čestný odznak: Dvojnásobné zranění od útoků zblízka", "Onur Nişanı: Yakın dövüş saldırılarından iki kat hasar"},   // Badge of Honor: Take double damage from hand-to-hand attacks
+    {0xb73e0c82u, "Φυσιγγιοθήκη", "Bandalír", "Fişeklik"},   // Bandoleer
+    {0x11073e7eu, "Ανταγωνιστική λίστα beta", "Soutěžní seznam her beta", "Beta Rekabetçi Oyun Listesi"},   // Beta Competitive Playlist
+    {0xd3519643u, "Συνεταιρική λίστα beta", "Kooperativní seznam her beta", "Beta Eşli Oyun Listesi"},   // Beta Cooperative Playlist
+    {0x595cd97eu, "Καλύτερη ευστοχία στη σκόπευση με τυφέκια", "Vyšší přesnost při míření dlouhými zbraněmi",
+     "Uzun namlulu silahlarla nişan alırken daha iyi isabet"},   // Better accuracy when aiming long guns
+    {0x9ce505a1u, "Καλύτερη ευστοχία στη σκόπευση με πιστόλια", "Vyšší přesnost při míření pistolemi",
+     "Tabancalarla nişan alırken daha iyi isabet"},   // Better accuracy when aiming pistols
+    {0xf15f8a73u, "Χωρισμός", "Rozchod", "Ayrılık"},   // Break Up
+    {0x32cc1acbu, "Φέρε τον θησαυρό πίσω στη βάση σου", "Doneste poklad na svou základnu",
+     "Hazineyi üssüne geri getir"},   // Bring the treasure back to your base
+    {0x43b07fd4u, "Μετάφερε τον θησαυρό σου απέναντι στον χάρτη.", "Doneste svůj poklad přes celou mapu.",
+     "Hazineni haritanın öbür ucuna taşı."},   // Bring your treasure accross the map.
+    {0x9528faecu, "Ο εικονολήπτης Jeff", "Kameraman Jeff", "Kameraman Jeff"},   // Cameraman Jeff
+    {0xe6087158u, "Κατάλαβε και κράτησε τις ζώνες", "Obsaďte a udržte zóny", "Bölgeleri ele geçir ve tut"},   // Capture and hold the zones
+    {0x953f7955u, "Κατάλαβε την περιοχή", "Obsaďte území", "Bölgeyi Ele Geçir"},   // Capture the Territory
+    {0x0c9287e5u, "Κατάλαβε τον θησαυρό.", "Získejte poklad.", "Hazineyi ele geçir."},   // Capture the treasure.
+    {0x4d6c148au, "Κατάλαβε τις ζώνες με τη σειρά.", "Obsaďte zóny v pořadí.", "Bölgeleri sırayla ele geçir."},   // Capture the zones in order.
+    {0xf6618b0cu, "Καταλήψεις", "Obsazení", "Ele Geçirmeler"},   // Captures
+    {0xed900acdu, "Μεταφέρεις μια επιπλέον χειροβομβίδα", "Jeden granát navíc", "Fazladan bir el bombası taşı"},   // Carry an extra grenade
+    {0x81bd1955u, "Μεταφέρεις περισσότερα πυρομαχικά", "Více střeliva", "Daha fazla cephane taşı"},   // Carry more ammo
+    {0xf625a024u, "Αλυσιδωτή Αντίδραση", "Řetězová reakce", "Zincirleme Tepki"},   // Chain Reaction
+    {0x71ede2dcu, "Αλυσιδωτή Αντίδραση", "Řetězová reakce", "Zincirleme Tepki"},   // Chain Reaction
+    {0x4162699bu, "Δες αυτό το αρχείο κινηματογράφου του Uncharted 2!",
+     "Podívejte se na tento soubor biografu z Uncharted 2!", "Bu Uncharted 2 Sinema dosyasına bir bak!"},   // Check out this Uncharted 2 Cinema file!
+    {0x8561d1c8u, "Σημείο ελέγχου", "Kontrolní bod", "Kontrol Noktası"},   // Checkpoint
+    {0xe028d51bu, "Σημείο ελέγχου", "Kontrolní bod", "Kontrol Noktası"},   // Checkpoint
+    {0x98a8b0a7u, "Σημεία ελέγχου", "Kontrolní body", "Kontrol Noktaları"},   // Checkpoints
+    {0x21e7724eu,
+     "Τα σημεία ελέγχου επαναφέρουν στη ζωή όλους τους πεσμένους συμπαίκτες. Βέβαια, καλύτερα να μην τους αφήσεις να πέσουν από την αρχή.",
+     "Kontrolní body oživí všechny padlé spoluhráče. Samozřejmě jste je ale vůbec neměli nechat padnout.",
+     "Kontrol noktaları düşen tüm takım arkadaşlarını hayata döndürür. Tabii en başta düşmelerine izin vermemeliydin."},   // Checkpoints bring back all fallen teammates back to life.  O
+    {0x3dd23662u, "Chloe Frazer", "Chloe Frazer", "Chloe Frazer"},   // Chloe Frazier
+    {0x51800192u, "Όσους πνίγουν μπορείς να τους χτυπήσεις μόνο από πίσω.", "Škrtiče lze udeřit jen zezadu.",
+     "Boğan düşmanlara yalnızca arkadan yumruk atılabilir."},   // Chokers can only be punched from_behind.
+    {0x1a587883u, "Αρχείο κινηματογράφου", "Soubor biografu", "Sinema Dosyası"},   // Cinema File
+    {0xdb64ce56u, "Σκαρφαλώνεις γρηγορότερα", "Rychlejší šplhání", "Daha hızlı tırman"},   // Climb faster
+    {0x1dbaf8b3u, "Κοντινή Μάχη", "Boj zblízka", "Yakın Mesafe"},   // Close Quarters
+    {0x2ee192abu, "Συνεταιρική Αρένα", "Kooperativní aréna", "Eşli Arena"},   // Co-op Arena
+    {0x42f2ce6fu, "Συνεταιρική δυσκολία", "Kooperativní obtížnost", "Eşli Oyun Zorluğu"},   // Co-op Difficulty
+    {0x5136a578u, "Συνεταιρική Αποστολή", "Kooperativní úkol", "Eşli Görev"},   // Co-op Objective
+    {0xaaf8fb47u, "Αναβάθμιση συνεταιρικού όπλου", "Vylepšení kooperativní zbraně", "Eşli Oyun Silah Geliştirmesi"},   // Co-op Weapon Upgrade
+    {0x25a005abu, "Μολών Λαβέ", "Pojď si pro to", "Gel Biraz Al"},   // Come Get Some
+    {0x7eb5a5c4u, "Περιέχει παιχνίδια Κατάληψης Σημαίας και Αγώνα Θανάτου",
+     "Obsahuje hry typu Ukradni vlajku i Deathmatch", "Hem Bayrak Kapmaca hem Ölüm Maçı türü oyunlar içerir"},   // Contains Both CTF and Deathmatch Style Games
+    {0xf49e6c49u, "Αδυσώπητο", "Drtivá", "Ezici"},   // Crushing
+    {0xa0345923u, "ΗΤΤΑ", "PORÁŽKA", "YENİLGİ"},   // DEFEAT
+    {0x21fe8a6eu, "Νεκρός Εξερευνητής", "Mrtvý průzkumník", "Ölü Kâşif"},   // Dead Explorer
+    {0xa30341e7u, "Αγώνας Θανάτου", "Deathmatch", "Ölüm Maçı"},   // Deathmatch
+    {0x8dfdede9u, "Αγώνας Θανάτου", "Deathmatch", "Ölüm Maçı"},   // Deathmatch
+    {0x0bfa3d45u, "Αγώνες Θανάτου με παραλλαγές στα όπλα και στους κανόνες",
+     "Hry typu Deathmatch s obměnami zbraní a pravidel", "Silah ve kural değişiklikleri olan Ölüm Maçı oyunları"},   // Deathmatch Games with Variations to Weapons and Rules
+    {0x57fc82aau, "Αγώνες Θανάτου και παιχνίδια με αποστολές. Καταγράφεται το επίπεδο δεξιότητας.",
+     "Hry typu Deathmatch a hry s úkoly. Zaznamenává se úroveň dovednosti.",
+     "Ölüm Maçı ve görev türü oyunlar. Beceri seviyesi kaydedilir."},   // Deathmatch and Objective game types. Skill Level tracked.
+    {0x1ca241b4u, "Λειτουργίες Αγώνα Θανάτου και Λεηλασίας", "Herní režimy Deathmatch a Rabování",
+     "Ölüm Maçı ve Yağma Oyun Modları"},   // Deathmatch and Plunder Game Modes
+    {0xcd3394e9u, "Θάνατοι", "Smrti", "Ölümler"},   // Deaths
+    {0xad203afeu, "Χάρτης αποσφαλμάτωσης", "Ladicí mapa", "Hata Ayıklama Haritası"},   // Debug Map
+    {0x44edfab7u, "Δοκιμαστικός χάρτης αποσφαλμάτωσης", "Ladicí testovací mapa", "Hata Ayıklama Test Haritası"},   // Debug Test Map
+    {0xaf2201fau, "Λίστα αποσφαλμάτωσης μόνο για δοκιμές", "Ladicí seznam her jen pro testování",
+     "Yalnızca test için hata ayıklama listesi"},   // Debug playlist for testing only
+    {0x395bc3e7u, "Μείωση ζημιάς από εκρήξεις", "Menší zranění od výbuchů", "Patlamalardan Alınan Hasarı Azalt"},   // Decrease Damage from Explosions
+    {0x4935b394u, "Μείωση χρόνου κατάληψης και διατήρησης περιοχών", "Kratší doba obsazení a držení území",
+     "Bölge Ele Geçirme ve Tutma Sürelerini Azalt"},   // Decrease Territory Capture and Hold Times
+    {0x8fda1e6du, "Νίκησε τον αρχηγό", "Porazte vůdce", "Elebaşını hakla"},   // Defeat the ringleader
+    {0xc2335ee0u, "Νίκησε τους στρατιώτες για να εξασφαλίσεις τον θησαυρό.", "Porazte vojáky a zajistěte poklad.",
+     "Hazineyi güvenceye almak için askerleri hakla."},   // Defeat the soldiers to secure the treasure.
+    {0x4b064c20u,
+     "Κάθε όπλο δίνει διαφορετικούς πόντους όταν νικάς εχθρούς. Πειραματίσου για τα καλύτερα αποτελέσματα.",
+     "Za poražení nepřátel různými zbraněmi získáte různý počet bodů. Experimentujte pro nejlepší výsledky.",
+     "Düşmanları farklı silahlarla haklamak farklı puanlar kazandırır. En iyi sonuç için dene."},   // Defeating enemies with different guns results in different p
+    {0xd1fbd1e3u, "Υπεράσπισε τον θησαυρό", "Braňte poklad", "Hazineyi savun"},   // Defend the treasure
+    {0xcbdc2a22u, "Κατάθεση", "Uložit", "Teslim Et"},   // Deposit
+    {0xefa450a3u, "Βάθος πεδίου", "Hloubka ostrosti", "Alan Derinliği"},   // Depth of Field
+    {0x3eec4b3fu, "Αποκορεσμός", "Odbarvení", "Doygunluk Azaltma"},   // Desaturation
+    {0x7788ec2au,
+     "Το ήξερες; Στο πρώτο μέρος κάθε συνεταιρικού επιπέδου υπάρχει ένα πιστόλι Desert-5. Προσπάθησε να το βρεις!",
+     "Víte, že v první části každé kooperativní úrovně je pistole Desert-5? Zkuste ji najít!",
+     "Biliyor muydun? Her eşli bölümün ilk kısmında bir Desert-5 tabanca var. Bulmaya çalış!"},   // Did you know? There is a Desert-5 pistol in the first part o
+    {0x61ac5df7u, "Το ήξερες; Για να μαζέψεις πυρομαχικά γρηγορότερα, κάνε κυβίστηση πάνω τους και πάτησε |T|.",
+     "Víte, že střelivo seberete rychleji, když se přes něj překulíte a stisknete |T|?",
+     "Biliyor muydun? Cephaneyi daha hızlı almak için üzerinden yuvarlan ve |T| tuşuna bas."},   // Did you know? To pick up ammo faster, roll over it and press
+    {0x28654920u, "Το ήξερες; Μπορείς να αγοράσεις αναβαθμίσεις όπλων για το Συνεταιρικό στο Κατάστημα!",
+     "Víte, že vylepšení zbraní pro kooperaci lze koupit v obchodě?",
+     "Biliyor muydun? Eşli oyun için silah geliştirmelerini Mağaza'dan alabilirsin!"},   // Did you know? Weapon upgrades can be purchased for Co-op in 
+    {0xd8b32bc0u, "Σκάψιμο", "Kopání", "Kazı"},   // Dig
+    {0xc767dd31u, "Απόσταση από το θέμα", "Vzdálenost od objektu", "Nesneye Uzaklık"},   // Distance to Subject
+    {0x444ab84du, "Διπλά χρήματα μέχρι το Επίπεδο 10", "Dvojnásobek peněz do úrovně 10",
+     "10. Seviyeye kadar İki Kat Para"},   // Double Money until Level 10
+    {0x22ca3cf2u, "Drake με Ντόνατ", "Kobliha Drake", "Çörekçi Drake"},   // Doughnut Drake
+    {0x9572fc51u, "Κάτω τα Όπλα", "Zbraně dolů", "Silahları İndir"},   // Down the Irons
+    {0x6c51a743u, "Πεσμένος", "Sražen", "Yere Düştü"},   // Downed
+    {0xf1e0390bu, "Λήψη στα τοπικά αρχεία...", "Stahování do místních souborů...", "Yerel Dosyalara İndiriliyor..."},   // Downloading to Local Files...
+    {0x7039261fu, "Dragan", "Dragan", "Dragan"},   // Dragan
+    {0x398edb0cu, "Drake", "Drake", "Drake"},   // Drake
+    {0x1e9aa6aeu, "Αφήνεις ενεργή χειροβομβίδα όταν πεθαίνεις", "Po smrti upustíte odjištěný granát",
+     "Ölünce pimi çekilmiş bir el bombası bırak"},   // Drop a live grenade upon death
+    {0xda32c701u, "Περισσότερα χρήματα από μετάλλια αποστολών", "Více peněz za medaile za úkoly",
+     "Görev madalyalarından daha fazla para kazan"},   // Earn more money for objective medals
+    {0x5754a7e8u, "Elena Fisher", "Elena Fisher", "Elena Fisher"},   // Elena Fisher
+    {0xbb8baf42u, "Εξόντωσε την άλλη ομάδα.", "Zlikvidujte druhý tým.", "Diğer takımı yok et."},   // Eliminate the other team.
+    {0x3b8de400u, "Εξόντωση", "Eliminace", "Eleme"},   // Elimination
+    {0x1220854eu, "Αποφυγή", "Úhyb", "Kaçınma"},   // Evasion
+    {0x415aeaa7u, "Ειδικός στα Εκρηκτικά", "Expert na výbušniny", "Patlayıcı Uzmanı"},   // Explosive Expert
+    {0xb07f4a22u, "ΑΠΕΤΥΧΕ", "NEÚSPĚCH", "BAŞARISIZ"},   // FAILED
+    {0x4268b9e5u, "Δοκιμή παρατάξεων", "Test frakcí", "Hizip Testi"},   // Factions Test
+    {0x2c053d10u, "Γρήγορη κίνηση εμπρός", "Přetočit vpřed", "İleri Sar"},   // Fast Forward
+    {0x0a1eb8beu, "Γρηγορότερη αναπλήρωση υγείας", "Rychlejší obnova zdraví", "Daha Hızlı Sağlık Yenilenmesi"},   // Faster Health Regeneration
+    {0xc6f2064eu, "Γρηγορότερη επαναφόρτωση τυφεκίων", "Rychlejší přebíjení dlouhých zbraní",
+     "Uzun namlulu silahları daha hızlı doldur"},   // Faster long-gun reloading
+    {0x4f667313u, "Γρηγορότερη επαναφόρτωση πιστολιών", "Rychlejší přebíjení pistolí", "Tabancaları daha hızlı doldur"},   // Faster pistol reloading
+    {0x185afbe2u, "Πολέμησε για τον θησαυρό.", "Bojujte o poklad.", "Hazine için savaş."},   // Fight for the Treasure.
+    {0xc0759450u, "Εύρεση παίκτη...", "Hledání hráče...", "Oyuncu Aranıyor..."},   // Finding Player...
+    {0xca175b38u, "Γροθοπατινάδα", "Pěstní souboj", "Yumruk Yumruğa"},   // Fisticuffs
+    {0x837848fau, "Γοργοπόδαρος", "Lehká noha", "Çevik Ayak"},   // Fleet Foot
+    {0xb666a543u, "Φιγούρα", "Svaly", "Kas Gösterisi"},   // Flex
+    {0x151363e3u, "Καταιγισμός", "Smršť", "Yaylım"},   // Flurry
+    {0x1924d576u, "Πρόκληση «Καταιγισμός»", "Provokace Smršť", "Yaylım alayı"},   // Flurry taunt
+    {0x956b09d8u, "Εστιακό εύρος", "Ohniskový rozsah", "Odak Aralığı"},   // Focal Range
+    {0x3b613ffcu,
+     "Για την εύρεση αντιπάλων στο Συνεταιρικό, μπορείς να επιλέξεις την προτίμηση δυσκολίας στο Προφίλ σου.",
+     "Pro vytváření kooperativních her si můžete zvolit obtížnost ve svém profilu.",
+     "Eşli oyun eşleştirmesi için zorluk tercihini Profil'inden seçebilirsin."},   // For Co-op Matchmaking, you can select your preference for di
+    {0xd08e0327u, "Φρούριο", "Pevnost", "Kale"},   // Fort
+    {0xa91680a8u, "Βρέθηκε παίκτης", "Hráč nalezen", "Oyuncu Bulundu"},   // Found Player
+    {0x9b7aa1a9u, "Φίλια πυρά", "Palba do vlastních", "Dost Ateşi"},   // Friendly Fire
+    {0x25266ff9u, "Τα φίλια πυρά είναι ενεργά στο Δύσκολο και στο Αδυσώπητο. Καλή τύχη, θα τη χρειαστείς.",
+     "Na těžkou a drtivou obtížnost je zapnutá palba do vlastních. Hodně štěstí, budete ho potřebovat.",
+     "Dost ateşi Zor ve Ezici zorlukta açıktır. Bol şans, ihtiyacın olacak."},   // Friendly fire is active on Hard and Crushing difficulty.  Go
+    {0x97450a1au, "Από το Ισχίο", "Od boku", "Kalçadan"},   // From The Hip
+    {0xd38a7d18u, "ΣΤΟΧΟΣ", "CÍL", "HEDEF"},   // GOAL
+    {0x819b0348u, "Τζένγκις Χαν", "Čingischán", "Cengiz Han"},   // Genghis Khan
+    {0x31a791f5u, "Περισσότερα πυρομαχικά από κάθε συλλογή", "Více střeliva z každého sebrání",
+     "Her alışta daha fazla cephane al"},   // Get more ammo from each pickup
+    {0x87fa8aeeu, "Βγες από το στενό", "Dostaňte se z uličky", "Sokaktan çık"},   // Get out of the alley 
+    {0x93de85dcu, "Πάρε τα εισιτήριά σου για το σόου των όπλων", "Lístky na přehlídku zbraní",
+     "Silah gösterisine biletini al"},   // Get your tickets to the gun show
+    {0xa23ee558u, "Γυάλινο Σαγόνι", "Skleněná čelist", "Cam Çene"},   // Glass Jaw
+    {0x61c14068u, "Πήγαινε να διεκδικήσεις τη χρυσή σου λεία", "Jděte si pro svou zlatou kořist",
+     "Git ve altın ganimetini al"},   // Go and claim your bounty of gold
+    {0x00248bb5u, "Πυρετός του Χρυσού", "Zlatá horečka", "Altına Hücum"},   // Gold Rush
+    {0xe9995f4cu, "Πυρετός του Χρυσού", "Zlatá horečka", "Altına Hücum"},   // Gold Rush
+    {0xb8a9d6edu, "Χρυσά Όπλα", "Zlaté zbraně", "Altın Silahlar"},   // Golden Guns
+    {0x73baf91au, "Βαρύτητα", "Gravitace", "Yerçekimi"},   // Gravity
+    {0x50dee705u, "Πράσινη οθόνη", "Zelené plátno", "Yeşil Perde"},   // Green Screen
+    {0xd64d6a88u, "Μισογεμάτος", "Poloviční zásobník", "Yarım Dolu"},   // Half Loaded
+    {0xcabc423fu, "Harry Flynn", "Harry Flynn", "Harry Flynn"},   // Harry Flynn
+    {0x94c99eeeu, "Κατευθύνσου προς την κόκκινη, καλοφτιαγμένη πόρτα", "Jděte k červeným, pěkně zdobeným dveřím",
+     "Kırmızı ve özenle işlenmiş kapıya doğru git"},   // Head towards the red, and well textured, door
+    {0x0abdc1eeu, "Κατευθύνσου προς την αγορά", "Jděte k tržišti", "Pazara doğru git"},   // Heads towards the market
+    {0x99e71e1bu, "Βολές στο κεφάλι", "Zásahy do hlavy", "Kafadan Vuruşlar"},   // Headshots
+    {0x0b8e5a64u, "Drake διαρρήκτης", "Lupič Drake", "Soyguncu Drake"},   // Heist Drake
+    {0xcf9558c0u, "Flynn διαρρήκτης", "Lupič Flynn", "Soyguncu Flynn"},   // Heist Flynn
+    {0x965c5c6eu, "Πύρινη Κόλαση", "Pekelný oheň", "Cehennem Ateşi"},   // Hell Blazer
+    {0x9ba36948u, "Βοηθήστε ο ένας τον άλλον να φτάσετε στην άλλη πλευρά των δρόμων",
+     "Pomozte si navzájem dostat se na druhou stranu ulic",
+     "Birbirinize sokakların öbür tarafına ulaşmak için yardım edin"},   // Help each reach the other side of the streets
+    {0x4fc75197u,
+     "Μετά τον θάνατό σου βοήθησε τους συμπαίκτες σου λέγοντας πού είναι οι εχθροί. Χρησιμοποίησε το |D-PAD| για να αλλάξεις κάμερες.",
+     "Po smrti pomáhejte spoluhráčům hlášením pozic nepřátel. Pomocí |D-PAD| přepínáte kamery.",
+     "Öldükten sonra düşman konumlarını bildirerek takım arkadaşlarına yardım et. Kameralar arasında geçiş için |D-PAD| kullan."},   // Help your teammates after death by calling out enemy positio
+    {0x856e4bb2u, "Έρχονται...", "Už jdou...", "İşte geliyorlar..."},   // Here they come...
+    {0x6a022a4bu, "Ήρωες", "Hrdinové", "Kahramanlar"},   // Heroes
+    {0x26ec10ceu, "Νίκησαν οι Ήρωες!", "Vyhráli hrdinové!", "Kahramanlar Kazandı!"},   // Heroes Win!
+    {0x8f16bbc2u, "Κράτησε όσες περισσότερες ζώνες μπορείς.", "Udržte co nejvíce zón.",
+     "Tutabildiğin kadar çok bölge tut."},   // Hold as many zones as you can.
+    {0x9c45e621u, "Κράτησε τον λόφο.", "Udržte kopec.", "Tepeyi tut."},   // Hold the hill.
+    {0xf8b79f98u,
+     "Κράτα πατημένο το |L1| για σκόπευση και πάτησε το |L2| για να ρίξεις χειροβομβίδα εκεί που δείχνει το στόχαστρο.",
+     "Podržením |L1| míříte a klepnutím na |L2| hodíte granát tam, kam ukazuje zaměřovač.",
+     "Nişan almak için |L1| tuşunu basılı tut, nişangâhın gösterdiği yere el bombası atmak için |L2| tuşuna dokun."},   // Hold |L1| to aim and tap |L2| to throw a grenade where your 
+    {0xfc76822fu,
+     "Κράτα πατημένο το |L2| για να εμφανιστεί ένα τόξο που δείχνει πού ακριβώς θα πέσει η χειροβομβίδα.",
+     "Podržením |L2| zobrazíte oblouk, který ukazuje, kam přesně granát dopadne.",
+     "El bombasının tam olarak nereye düşeceğini gösteren yayı görmek için |L2| tuşunu basılı tut."},   // Hold |L2| to display an arc that shows exactly where your gr
+    {0xe231d22au, "Κράτα πατημένο το |L2| για να δεις πού θα πεταχτεί το αντικείμενο που κρατάς.",
+     "Podržením |L2| uvidíte, kam neseným předmětem hodíte.",
+     "Taşıdığın eşyanın nereye atılacağını görmek için |L2| tuşunu basılı tut."},   // Hold |L2| to see where a carried item will be_thrown.
+    {0x9c96a51au, "Όταν κρατάς θησαυρό, κράτα πατημένο το |L2| για να δεις πού θα πεταχτεί.",
+     "Když nesete poklad, podržením |L2| uvidíte, kam ho hodíte.",
+     "Hazine taşırken nereye atılacağını görmek için |L2| tuşunu basılı tut."},   // Hold |L2| when carrying a Treasure to see where it will be_t
+    {0x5cc3274bu, "Κράτα πατημένο το |T| για να αναστήσεις έναν πεσμένο συνεργάτη.",
+     "Podržením |T| oživíte sraženého parťáka.", "Yere düşen bir ortağı canlandırmak için |T| tuşunu basılı tut."},   // Hold |T| to revive a downed_partner.
+    {0xac610c4bu, "Ο οικοδεσπότης αποχώρησε", "Hostitel odešel", "Kurucu Ayrıldı"},   // Host Left
+    {0x4284774eu, "Αν όλη η ομάδα σου αποτύχει 3 φορές, το παιχνίδι τελειώνει.",
+     "Pokud celý váš tým třikrát selže, hra končí.", "Bütün takımın 3 kez başarısız olursa oyun biter."},   // If your entire team fails 3 times, the game is_over.
+    {0xc749762du, "Ανοσία στην Επίγνωση Κατάστασης", "Odolnost vůči Přehledu o situaci",
+     "Durum Farkındalığına Bağışıklık"},   // Immunity to Situational Awareness
+    {0x84041d79u, "Στην αίθουσα αναμονής", "V předsálí", "Lobide"},   // In lobby
+    {0xac91c910u, "Αύξηση ζημιάς χειροβομβίδων", "Větší zranění granáty", "El Bombası Hasarını Artır"},   // Increase Grenade Damage
+    {0xa85c17f8u, "Αύξηση ακτίνας έκρηξης χειροβομβίδων", "Větší dosah výbuchu granátů",
+     "El Bombası Patlama Alanını Artır"},   // Increase Grenade Explosion Radius
+    {0xbb4568b9u, "Αύξηση απόστασης ρίψης χειροβομβίδων", "Delší hod granátem", "El Bombası Atış Mesafesini Artır"},   // Increase Grenade Throw Distance
+    {0xcbed2252u, "Αύξηση ευστοχίας τυφεκίων στα τυφλά πυρά", "Vyšší přesnost dlouhých zbraní při střelbě naslepo",
+     "Uzun Namlulu Silahlarda Körlemesine Ateş İsabetini Artır"},   // Increase Long Gun Blindfire Accuracy
+    {0x3c231dc4u, "Αύξηση μέγιστης υγείας", "Vyšší maximální zdraví", "Azami Sağlığı Artır"},   // Increase Max Health
+    {0x0a482f2cu, "Αύξηση ευστοχίας πιστολιών στα τυφλά πυρά", "Vyšší přesnost pistolí při střelbě naslepo",
+     "Tabancalarda Körlemesine Ateş İsabetini Artır"},   // Increase Pistol Blindfire Accuracy
+    {0x773ec9c8u, "Αύξηση ζημιάς πιστολιών", "Větší zranění pistolemi", "Tabanca Hasarını Artır"},   // Increase Pistol Damage
+    {0x4471443au, "Αύξηση ζημιάς τυφεκίων", "Větší zranění puškami", "Tüfek Hasarını Artır"},   // Increase Rifle Damage
+    {0x4e067c1fu, "Αύξηση ζημιάς τυφεκίων ελεύθερου σκοπευτή", "Větší zranění odstřelovacími puškami",
+     "Keskin Nişancı Tüfeği Hasarını Artır"},   // Increase Sniper Rifle Damage
+    {0xd87fe73bu, "Μεγαλύτερη χωρητικότητα πυρομαχικών για το M32-Hammer", "Větší kapacita střeliva M32-Hammer",
+     "M32-Hammer için daha fazla cephane kapasitesi"},   // Increased M32-Hammer ammo capacity
+    {0x085bf21fu, "Μεγαλύτερη χωρητικότητα πυρομαχικών για το RPG_-_7", "Větší kapacita střeliva RPG_-_7",
+     "RPG_-_7 için daha fazla cephane kapasitesi"},   // Increased RPG_-_7 ammo capacity
+    {0x1baa6a2eu, "Μεγαλύτερη ζημιά σε αντικείμενα που σπάνε", "Větší poškození rozbitných předmětů",
+     "Kırılabilir nesnelere daha fazla hasar"},   // Increased damage to breakable objects
+    {0x9a223ee3u, "inFAMOUS - Cole", "inFAMOUS - Cole", "inFAMOUS - Cole"},   // Infamous - Cole
+    {0x8f3bc4cbu, "inFAMOUS - Κακός Cole", "inFAMOUS - Zlý Cole", "inFAMOUS - Kötü Cole"},   // Infamous - Cole Evil
+    {0xbedb2632u, "Αναπηρία", "Invalida", "Hastalıklı"},   // Invalid
+    {0xe2069b80u, "Έλα στην ομάδα μου στο Uncharted 2 Πολλοί παίκτες!",
+     "Přidejte se k mé skupině ve hře více hráčů Uncharted 2!", "Uncharted 2 Çok Oyunculu grubuma katıl!"},   // Join my Uncharted 2 Multiplayer Party!
+    {0xaf4c6db2u, "Ταχυδακτυλουργός", "Žonglér", "Hokkabaz"},   // Juggler
+    {0xad40639du, "Karl Schäfer", "Karl Schäfer", "Karl Schäfer"},   // Karl Schäfer
+    {0x16d028c6u, "Συνέχισε να Πυροβολείς", "Nepřestávej pálit", "Ateşe Devam"},   // Keep Firing
+    {0x49f5e231u, "Εξοντώσεις", "Zabití", "Leşler"},   // Kills
+    {0x13f76fccu, "Βασιλιάς του Λόφου", "Král kopce", "Tepenin Kralı"},   // King of the Hill
+    {0x37621ab4u, "Φιλί", "Polibek", "Öpücük"},   // Kiss
+    {0x12da3a2bu, "Φιλί του Θανάτου", "Polibek smrti", "Ölüm Öpücüğü"},   // Kiss of Death
+    {0x0a7e5b3au, "Τελευταία προσπάθεια", "Poslední pokus", "Son Deneme"},   // Last Try
+    {0xe94ef6ecu, "Γέλιο", "Smích", "Kahkaha"},   // Laugh
+    {0x2cb274b2u, "Εκτοξευτής", "Odpalovač", "Fırlatıcı"},   // Launch Man
+    {0x800a7a54u, "Υπολοχαγός Draza", "Poručík Draza", "Teğmen Draza"},   // Lieutenant Draza
+    {0x0a7f93d8u, "Μεγάλη Απόσταση", "Dlouhý dosah", "Uzun Menzil"},   // Long Range
+    {0x0f915f15u, "Lovac", "Lovac", "Lovac"},   // Lovac
+    {0x5614c769u, "Machinima", "Machinima", "Machinima"},   // Machinima
+    {0xe289e135u, "Λειτουργία Machinima", "Režim Machinima", "Machinima modu"},   // Machinima mode
+    {0x9799b4bcu, "Πεπρωμένο", "Zjevný osud", "Kader"},   // Manifest Destiny
+    {0xc4dede6bu, "Δοκιμή εστίασης Μαρτίου", "Březnový test", "Mart Odak Testi"},   // March Focus Test
+    {0x1c288c37u, "Μάρκο Πόλο", "Marco Polo", "Marco Polo"},   // Marco Polo
+    {0x93ac6446u, "Ο αγώνας τελειώνει σε [TIME]", "Zápas skončí za [TIME]", "Maç [TIME] içinde bitiyor"},   // Match ends in [TIME]
+    {0x558f6c67u, "Έφτασες τον μέγιστο αριθμό διαδικτυακών αρχείων!", "Dosažen maximální počet on-line souborů!",
+     "Azami Çevrimiçi Dosya sayısına ulaşıldı!"},   // Maximum number of Online Files reached!
+    {0xa3b60175u, "Μετάλλιο", "Medaile", "Madalya"},   // Medal
+    {0x3fb98809u, "Μετάλλια", "Medaile", "Madalyalar"},   // Medals
+    {0x1842529cu, "Μηνύματα", "Zprávy", "Mesajlar"},   // Messages
+    {0xf99ecaecu, "Μεταφορά οικοδεσπότη...", "Přenášení hostitele...", "Kurucu Taşınıyor..."},   // Migrating Host...
+    {0x3b377961u, "Η αποστολή ολοκληρώθηκε σε [CLOCK]", "Mise dokončena za [CLOCK]", "Görev [CLOCK] içinde tamamlandı"},   // Mission Completed in [CLOCK]
+    {0x6327a51au, "Η αποστολή απέτυχε στον γύρο [A]", "Mise selhala v kole [A]", "Görev [A]. turda başarısız oldu"},   // Mission Failed at Round [A]
+    {0x169c9ab4u, "Η αποστολή απέτυχε!", "Mise selhala!", "Görev Başarısız!"},   // Mission Failed!
+    {0x2b43bf87u, "Μοναστήρι", "Klášter", "Manastır"},   // Monastary
+    {0xf2a350bcu, "Άνθρωπος Μαϊμού", "Opičák", "Maymun Adam"},   // Monkey Man
+    {0x669ec424u, "Περισσότερη XP για ολοκληρωμένες αποστολές", "Více XP za splněné úkoly",
+     "Tamamlanan görevler için daha fazla XP"},   // More XP for completed objectives
+    {0x5a4d01bdu, "Περισσότερες σφαίρες σε κάθε γεμιστήρα", "Více nábojů v zásobníku", "Her şarjörde daha fazla mermi"},   // More bullets in each clip
+    {0xbab7700bu, "Κινείσαι γρηγορότερα όταν σκοπεύεις", "Rychlejší pohyb při míření",
+     "Nişan alırken daha hızlı hareket et"},   // Move faster while aiming
+    {0x0b9188b3u, "Κινείσαι γρηγορότερα με το GAU_-_19", "Rychlejší pohyb s GAU_-_19",
+     "GAU_-_19 ile daha hızlı hareket et"},   // Move faster with the GAU_-_19
+    {0xf2b5a7dau, "Κινείσαι γρηγορότερα με την ασπίδα", "Rychlejší pohyb se štítem",
+     "Çevik kuvvet kalkanıyla daha hızlı hareket et"},   // Move faster with the Riot Shield
+    {0x1725c461u, "Κινείσαι γρηγορότερα με τον θησαυρό", "Rychlejší pohyb s pokladem",
+     "Hazineyle daha hızlı hareket et"},   // Move faster with the Treasure
+    {0x6df770eeu, "Πολλαπλασιαστής", "Násobič", "Çarpan"},   // Multiplier
+    {0x9b7568c5u, "ND Drake", "ND Drake", "ND Drake"},   // ND Drake
+    {0x8246cbf7u, "Πειρατής ND", "Pirát ND", "ND Korsanı"},   // ND Pirate
+    {0x8ca7d6edu, "Υπάλληλος της Naughty Dog", "Zaměstnanec Naughty Dog", "Naughty Dog Çalışanı"},   // Naughty Dog Employee
+    {0x35d85e1fu, "Εμπόλεμη ζώνη του Νεπάλ", "Válečná zóna v Nepálu", "Nepal Savaş Bölgesi"},   // Nepal Warzone
+    {0x9ddb8c8fu, "Επίπεδο δοκιμής δικτύου", "Úroveň pro test sítě", "Ağ Test Bölümü"},   // Network Test Level
+    {0xfa1c0a7au, "Νέος λόφος", "Nový kopec", "Yeni Tepe"},   // New Hill
+    {0x81da48e3u, "Ξεκλειδώθηκε νέα δυσκολία!", "Odemknuta nová obtížnost!", "Yeni zorluk açıldı!"},   // New difficulty unlocked!
+    {0x0516aef4u, "Χωρίς επανεμφάνιση", "Bez oživení", "Yeniden Doğma Yok"},   // No Respawn
+    {0x0a301d33u, "Χωρίς χρονικό μπόνους", "Bez časového bonusu", "Zaman Bonusu Yok"},   // No Time Bonus
+    {0x37e7c290u, "Δεν πέφτεις από τις εκρήξεις", "Výbuchy vás nesrazí", "Patlamalar seni yere düşürmez"},   // No knockdown from explosions
+    {0xed22a97du, "Χωρίς κίνηση πρόκλησης", "Bez animace provokace", "Alay animasyonu yok"},   // No taunt animation
+    {0xc89a89e2u, "Κανένα", "Žádné", "Yok"},   // None
+    {0xc63da515u, "Κανένα", "Žádné", "Yok"},   // None
+    {0x53f6e665u, "Δεν έχει εξοπλιστεί τίποτα", "Nic není vybaveno", "Hiçbir Şey Kuşanılmadı"},   // Nothing Equipped
+    {0x8f86cb5fu, "Αποστολή", "Úkol", "Görev"},   // Objective
+    {0x970feb2cu, "Συνεταιρική λειτουργία αποστολών", "Kooperativní režim s úkoly", "Eşli Görev Modu"},   // Objective Cooperative Mode
+    {0x4bf30e73u, "Αποστολές", "Úkoly", "Görevler"},   // Objectives
+    {0x4bdabbd1u, "Τίμιος", "Na úrovni", "Dürüst"},   // On the Level
+    {0x82c61354u, "Πρόσκληση σε ομάδα", "Pozvánka do skupiny", "Grup Daveti"},   // Party Invite
+    {0x2c6bd0c7u, "Παύση", "Pozastavit", "Duraklat"},   // Pause
+    {0xe6f0cf9du, "Σήκωσε φιάλες προπανίου με το |T| και πέτα τες με το |L2|.",
+     "Propanové lahve seberete pomocí |T| a hodíte pomocí |L2|.", "Propan tüplerini |T| ile al ve |L2| ile at."},   // Pick up propane tanks with |T| and throw them with_|L2|.
+    {0x91d583c3u, "Σήκωσε τον θησαυρό με το |T| και πέτα τον με το |L2|.",
+     "Poklad seberete pomocí |T| a hodíte pomocí |L2|.", "Hazineyi |T| ile al ve |L2| ile at."},   // Pick up the Treasure with |T| and throw it with_|L2|.
+    {0x7349f19du, "Μάζεψε τους θησαυρούς που λάμπουν για να αυξήσεις τον μετρητή συνδυασμών.",
+     "Sbírejte třpytivé poklady a zvyšte si ukazatel komba.",
+     "Kombo göstergeni artırmak için parlayan hazineleri topla."},   // Pick up the sparkling treasures to increase your combo_meter
+    {0xfbb2d6a3u, "Πιστόλια και χειροβομβίδες", "Pistole a granáty", "Tabancalar ve El Bombaları"},   // Pistols & Grenades
+    {0x26e4add9u, "Αναπαραγωγή", "Přehrát", "Oynat"},   // Play
+    {0x77f62775u, "Παίζει παιχνίδι ενός παίκτη", "Hraje hru pro jednoho hráče", "Tek Oyunculu Oynuyor"},   // Playing Single-Player
+    {0x953825d0u, "Παίζει άλλο παιχνίδι", "Hraje jinou hru", "Başka bir oyun oynuyor"},   // Playing another game
+    {0xcf292b57u, "Παίζει αγώνα", "Hraje zápas", "Maç oynuyor"},   // Playing match
+    {0x3d9470a5u, "Λεηλασία", "Rabování", "Yağma"},   // Plunder
+    {0x1645995du, "Σημάδεψε και Πυροβόλησε", "Zamiř a střílej", "Nişan Al ve Vur"},   // Point and Shoot
+    {0x3c666c2eu, "Πόντοι", "Body", "Puan"},   // Points
+    {0xf2083786u, "Πόντοι", "Body", "Puan"},   // Points
+    {0x3f4a4219u, "Τρόμπα", "Pumpa", "Pompa"},   // Pump
+    {0x1af26286u, "Δώσ' του", "Pumpuj", "Gaza Bas"},   // Pump it up
+    {0x2594bd65u, "Γρήγορος Γεμιστήρας", "Rychlý zásobník", "Hızlı Şarjör"},   // Quick Clip
+    {0x9f107953u, "Γρήγορα Χέρια", "Rychlé ruce", "Hızlı Eller"},   // Quick Hands
+    {0xe1167dfau, "ΓΥΡΟΣ", "KOLO", "TUR"},   // ROUND
+    {0x392f8928u, "RPG", "RPG", "RPG'ler"},   // RPG's
+    {0x47b24464u, "Με κατάταξη", "Hodnocená", "Dereceli"},   // Ranked
+    {0x0146986bu, "Ταχύτατα Χέρια", "Bleskové ruce", "Seri Eller"},   // Rapid Hands
+    {0xb88fc6a6u, "Λιγότερο τρέμουλο από πόνο όταν σκοπεύεις με διόπτρα",
+     "Menší otřes při zranění během míření optikou", "Dürbünle bakarken acıdan daha az sarsılma"},   // Reduced pain wobble while scoped in
+    {0x2f709c13u, "Χαλαρή κίνηση", "Uvolněný pohyb", "Rahat Hareket"},   // Relaxed Movement
+    {0xebb3e944u, "Θυμήσου να γεμίζεις με το |R2| όποτε έχεις την ευκαιρία.",
+     "Nezapomeňte při každé příležitosti přebít pomocí |R2|.", "Her fırsatta |R2| ile şarjör değiştirmeyi unutma."},   // Remember to reload using |R2| every chance you_get.
+    {0x6cef7b2eu,
+     "Θυμήσου να σκέφτεσαι και κάθετα. Όλα τα επίπεδα έχουν πολλά σημεία για να σκαρφαλώσεις και να κρυφτείς ψηλά.",
+     "Myslete i vertikálně. Všechny úrovně mají mnoho míst, kam lze vyšplhat a schovat se nad zemí.",
+     "Dikey düşünmeyi unutma. Tüm bölümlerde tırmanıp yerden yüksekte saklanacak birçok yer var."},   // Remember to think vertically. All levels have many places to
+    {0xa251dfd5u, "Επανεμφάνιση σε [A]...", "Oživení za [A]...", "[A] içinde yeniden doğacaksın..."},   // Respawn in [A]...
+    {0x61f6f20du, "Επανεμφάνιση", "Oživování", "Yeniden Doğuyor"},   // Respawning
+    {0x11d63f40u, "Εκδίκηση", "Pomsta", "İntikam"},   // Revenge
+    {0x2951e0f7u, "Πρόωρη πρόσβαση στην ενίσχυση «Εκδίκηση»", "Předčasný přístup k vylepšení Pomsta",
+     "İntikam Eklentisine Erken Erişim"},   // Revenge Booster Early Access
+    {0x5f0bcd65u, "Αναστάσεις", "Oživení", "Canlandırmalar"},   // Revives
+    {0x3fa0224bu, "Όταν αναστήνεις έναν πεσμένο συμπαίκτη, γεμίζει η υγεία σου. Βγες εκεί έξω και σώσ' τους!",
+     "Oživení sraženého spoluhráče vám doplní zdraví. Jděte a zachraňte je!",
+     "Yere düşen bir takım arkadaşını canlandırmak sağlığını doldurur. Çık ve onları kurtar!"},   // Reviving a teammate from a downed state refills your health.
+    {0xa39eb442u, "Επιστροφή στην αρχή", "Přetočit na začátek", "Başa Sar"},   // Rewind to Beginning
+    {0xa43921abu, "XP τυφεκιοφόρου", "XP střelce", "Tüfekçi XP"},   // Rifleman XP
+    {0x8c7e1d6du, "Ο Άνθρωπος Ρουκέτα", "Raketový muž", "Roket Adam"},   // Rocket Man
+    {0x584327dfu, "Γύρος", "Kolo", "Tur"},   // Round
+    {0x2aff2f55u, "Γύρος [A]", "Kolo [A]", "[A]. Tur"},   // Round [A]
+    {0xeea064c4u, "Ο γύρος [A] ολοκληρώθηκε", "Kolo [A] dokončeno", "[A]. Tur Tamamlandı"},   // Round [A] Complete
+    {0xfe71bcecu, "Γύρος [A]: Νίκησαν οι Ήρωες", "Kolo [A]: Vyhráli hrdinové", "[A]. Tur: Kahramanlar Kazandı"},   // Round [A]: Heroes Win
+    {0xe2c9d42cu, "Γύρος [A]: Ισοπαλία", "Kolo [A]: Remíza", "[A]. Tur: Berabere"},   // Round [A]: Tie
+    {0xf9875feau, "Γύρος [A]: Νίκησαν οι Αντίπαλοι", "Kolo [A]: Vyhráli padouši", "[A]. Tur: Kötüler Kazandı"},   // Round [A]: Villains Win
+    {0x686c1461u, "Γύροι", "Kola", "Turlar"},   // Rounds
+    {0xd043ee47u, "Ερείπια", "Ruiny", "Harabeler"},   // Ruins
+    {0x02d279ccu, "Sark", "Sark", "Sark"},   // Sark
+    {0xd47103d2u, "Ρακοσυλλέκτης", "Mrchožrout", "Leş Toplayıcı"},   // Scavenger
+    {0xde88b467u, "Χαιρεκακία", "Škodolibost", "Başkasının Acısı"},   // Schadenfreude
+    {0x48ecac62u, "Με διόπτρα", "Zaměřeno optikou", "Dürbünde"},   // Scoped In
+    {0xe50f5f44u, "Βαθμολογία", "Skóre", "Skor"},   // Score
+    {0xeb6201abu, "Αναζήτηση οποιουδήποτε παιχνιδιού", "Hledání libovolné hry", "Herhangi Bir Oyun Aranıyor"},   // Searching for Any Game
+    {0xefa31c1cu, "Αναζήτηση κοντινού παιχνιδιού", "Hledání blízké hry", "Yakın Oyun Aranıyor"},   // Searching for Close Game
+    {0xe2e03ac5u, "Αναζήτηση ιδανικού παιχνιδιού", "Hledání optimální hry", "En Uygun Oyun Aranıyor"},   // Searching for Optimal Game
+    {0x1307a11fu, "Επιλέξιμη στολή για πολλούς παίκτες", "Volitelný vzhled pro hru více hráčů",
+     "Seçilebilir çok oyunculu görünüm"},   // Selectable multiplayer skin
+    {0xee98504cu, "Πυροβόλα τους εχθρούς σου στο πρόσωπο.", "Střílejte nepřátele do obličeje.",
+     "Düşmanlarını yüzünden vur."},   // Shoot your enemies in the face.
+    {0xe3f66a73u, "Αφεντικό με Καραμπίνα", "Boss s brokovnicí", "Pompalı Patron"},   // Shotgun Boss
+    {0xafad7c9au, "XP καραμπίνας", "XP brokovnice", "Pompalı XP"},   // Shotgunner XP
+    {0x92b2cdc8u, "Αθόρυβη κίνηση", "Tichý pohyb", "Sessiz hareket"},   // Silent movement
+    {0x35b56be9u, "Επίγνωση Κατάστασης", "Přehled o situaci", "Durum Farkındalığı"},   // Situational Awareness
+    {0x0c69b8bbu, "Skelzor", "Skelzor", "Skelzor"},   // Skelzor
+    {0x15834349u, "Αργά", "Pomalu", "Yavaş"},   // Slow
+    {0x1c3b8e33u, "Τυφέκιο ελεύθερου σκοπευτή και Pistole", "Odstřelovací puška a Pistole",
+     "Keskin Nişancı Tüfeği ve Pistole"},   // Sniper Rifle & Pistole
+    {0xeb4fc45cu, "Τυφέκια ελεύθερου σκοπευτή και Pistole", "Odstřelovací pušky a Pistole",
+     "Keskin Nişancı Tüfekleri ve Pistole'lar"},   // Sniper Rifles & Pistole's
+    {0xbb9145e2u, "XP ελεύθερου σκοπευτή", "XP odstřelovače", "Keskin Nişancı XP"},   // Sniper XP
+    {0x6a805befu, "Σκηνή", "Scéna", "Sahne"},   // Stage
+    {0x22a276ecu, "Κανονικό", "Standardní", "Standart"},   // Standard
+    {0x62b38e06u, "Κλέψε τον θησαυρό από τους στρατιώτες.", "Ukradněte vojákům poklad.", "Hazineyi askerlerden çal."},   // Steal the treasure from the soldiers.
+    {0x0ccf39d0u, "Κρυφή κίνηση", "Plíživý pohyb", "Gizli Hareket"},   // Stealth Movement
+    {0x9125b4f3u, "Βήμα εμπρός", "Krok vpřed", "Bir Adım İleri"},   // Step Forward
+    {0x981b5d11u, "Αυτοκτονίες", "Sebevraždy", "İntiharlar"},   // Suicides
+    {0x511c120eu, "Σταθερό Βήμα", "Jistý krok", "Sağlam Adım"},   // Sure Foot
+    {0x72f80f1bu, "Σίγουρη Βολή", "Jistá rána", "Tam İsabet"},   // Sure Shot
+    {0xb81a7c18u, "Επιβίωση", "Přežití", "Hayatta Kalma"},   // Survival
+    {0x2959eca4u, "Επιβίωση", "Přežití", "Hayatta Kalma"},   // Survival
+    {0xe1ae2796u, "Επιβίωσε από την επίθεση!", "Přežijte nápor!", "Saldırıdan sağ kurtul!"},   // Survive the onslaught!
+    {0xbf990995u, "Επιβίωσε από τα κύματα στρατιωτών.", "Přežijte vlny vojáků.", "Asker dalgalarından sağ kurtul."},   // Survive the waves of soldiers.
+    {0x656749edu, "Επιβίωσε μαζί με τους φίλους σου.", "Přežijte se svými přáteli.", "Arkadaşlarınla hayatta kal."},   // Survive with your friends.
+    {0x4db8b2d3u, "Λήψη στιγμιότυπου", "Pořídit snímek obrazovky", "Ekran Görüntüsü Al"},   // Take a Screenshot
+    {0xd73d494eu, "Πάτησε το |T| ενώ σκοπεύεις για να αλλάξεις όπλο.",
+     "Klepnutím na |T| během míření přepnete zbraň.", "Silah değiştirmek için nişan alırken |T| tuşuna dokun."},   // Tap |T| while aiming to switch_weapons.
+    {0x7028a1ecu, "Πρόκληση", "Provokace", "Alay"},   // Taunt
+    {0xdc2bdac5u, "Ομάδα", "Tým", "Takım"},   // Team
+    {0x8eef517fu, "Εξοντώσεις συμπαικτών", "Zabití spoluhráčů", "Takım Arkadaşı Öldürme"},   // Team Kills
+    {0x277cea5cu, "XP ομάδας", "XP týmu", "Takım XP"},   // Team XP
+    {0x46456af9u, "Η ομαδική δουλειά είναι ο καλύτερος δρόμος προς την επιτυχία.",
+     "Týmová spolupráce je nejlepší cestou k úspěchu.", "Takım çalışması başarının en iyi yoludur."},   // Teamwork is the best way to_succeed.
+    {0x85353c9eu, "Νευρική κίνηση", "Napjatý pohyb", "Gergin Hareket"},   // Tense Movement
+    {0x02329021u, "Tenzin", "Tenzin", "Tenzin"},   // Tenzin
+    {0xc05bd881u, "Περιοχή", "Území", "Bölge"},   // Territory
+    {0x66628784u, "Περιοχή", "Území", "Bölge"},   // Territory
+    {0x7bedc4b2u, "Δοκιμή", "Test", "Test"},   // Test
+    {0x7d7a00c6u, "Tetram", "Tetram", "Tetram"},   // Tetram
+    {0x1dcca0f1u, "Η Παγωμένη Σπηλιά", "Ledová jeskyně", "Buz Mağarası"},   // The Ice Cave
+    {0x9ddf8b90u, "Η Χαμένη Πόλη", "Ztracené město", "Kayıp Şehir"},   // The Lost City
+    {0x6a1d2af2u, "Οι Θεοί των Πολλών Παικτών κατακεραύνωσαν τον", "Bohové hry více hráčů ztrestali hráče",
+     "Çok Oyunculu Tanrıları çarptı:"},   // The Multiplayer Gods smote
+    {0x23480697u, "Η Πλατεία", "Náměstí", "Meydan"},   // The Plaza
+    {0xb5b2acd0u, "Το Άδυτο", "Svatyně", "Sığınak"},   // The Sanctuary
+    {0x45206309u, "Η Σκηνή", "Scéna", "Sahne"},   // The Stage
+    {0x8f4a3a42u, "Ο Ναός", "Chrám", "Tapınak"},   // The Temple
+    {0x3af91b54u, "Τα Συντρίμμια του Τρένου", "Zničený vlak", "Tren Enkazı"},   // The Train Wreck
+    {0xa036040eu, "Το Χωριό", "Vesnice", "Köy"},   // The Village
+    {0x82d1f51fu, "Το σεντούκι κατάληψης δεν είναι πάντα στο έδαφος.", "Truhla pro obsazení není vždy na zemi.",
+     "Ele geçirme sandığı her zaman yerde değildir."},   // The capture chest is not always at ground_level.
+    {0x32e30492u, "Ο μετρητής συνδυασμών αυξάνεται σε κάθε επίπεδο δυσκολίας.",
+     "Ukazatel komba roste s každou úrovní obtížnosti.", "Kombo göstergesi her zorluk seviyesinde artar."},   // The combo meter increases with each level of_difficulty. 
+    {0x8610e8a8u, "Αν πετάς τον θησαυρό, τον μετακινείς στον χάρτη γρηγορότερα απ' ό,τι αν τον κουβαλάς.",
+     "Házením se poklad dostane přes mapu rychleji než nošením.",
+     "Hazineyi atmak, onu haritada taşımaktan daha hızlı ilerletir."},   // Throwing the Treasure can move it across the map faster than
+    {0x5516c27fu, "Ισοπαλία!", "Remíza!", "Berabere!"},   // Tie Game!
+    {0x451f9742u, "Χρονικό μπόνους!    Πολλαπλασιαστής πόντων x[A]", "Časový bonus!    Násobič bodů x[A]",
+     "Zaman Bonusu!    x[A] Puan Çarpanı"},   // Time Bonus!    x[A] Point Multiplier
+    {0x07774a0du, "Χρονικό όριο", "Časový limit", "Süre Sınırı"},   // Time Limit
+    {0xf135a4f6u, "Για να ρίξεις χειροβομβίδα στα τυφλά, πάτησε το |L2| προς την κατεύθυνση της κάμερας.",
+     "Granát naslepo hodíte klepnutím na |L2| ve směru kamery.",
+     "Körlemesine el bombası atmak için kameranın baktığı yönde |L2| tuşuna dokun."},   // To blindfire a grenade, tap |L2| in the direction the camera
+    {0xcaa6cd51u, "Σύνολο", "Celkem", "Toplam"},   // Total
+    {0x70fa1751u, "Σύνολο", "Celkem", "Toplam"},   // Total
+    {0x6b62220cu, "Φορέας Θησαυρού", "Nosič pokladu", "Hazine Taşıyıcı"},   // Treasure Bearer
+    {0xdd7c8e56u, "Απόσπαση Θησαυρού", "Vynesení pokladu", "Hazine Çıkarma"},   // Treasure Extraction
+    {0x0544e6f6u, "Πόλεμος Περιοχών", "Válka o území", "Bölge Savaşı"},   // Turf War
+    {0xa269aa23u, "Χελώνα", "Želva", "Kaplumbağa"},   // Turtle
+    {0xd39f8dd7u, "Αναβάθμιση", "Vylepšení", "Geliştirme"},   // Upgrade
+    {0xed42bfdbu, "Αναβάθμισε το [TEXT] με καλύτερη ευστοχία.", "Vylepšete [TEXT] o vyšší přesnost.",
+     "[TEXT] silahını daha iyi isabetle geliştir."},   // Upgrade [TEXT] with better accuracy.
+    {0xe983a26cu, "Αναβάθμισε το [TEXT] με γρηγορότερη επαναφόρτωση.", "Vylepšete [TEXT] o rychlejší přebíjení.",
+     "[TEXT] silahını daha hızlı doldurmayla geliştir."},   // Upgrade [TEXT] with faster reloading.
+    {0xe0019902u, "Αναβάθμισε το [TEXT] με μεγαλύτερη χωρητικότητα πυρομαχικών.",
+     "Vylepšete [TEXT] o větší kapacitu střeliva.", "[TEXT] silahını daha fazla cephane kapasitesiyle geliştir."},   // Upgrade [TEXT] with more ammo capacity.
+    {0x2edffcc5u, "Χρησιμοποίησε ένα RPG-7 για να ανατινάξεις την πόρτα", "Vyhoďte dveře do vzduchu pomocí RPG-7",
+     "Kapıyı havaya uçurmak için bir RPG-7 kullan"},   // Use an RPG-7 to blow out the door
+    {0xa7567efau, "Χρησιμοποίησε ένα RPG-7 για να γκρεμίσεις τον τοίχο", "Zničte zeď pomocí RPG-7",
+     "Duvarı yıkmak için bir RPG-7 kullan"},   // Use an RPG-7 to take out the wall structure
+    {0xeb793b5du, "Χρησιμοποίησε συντονισμένες κρυφές επιθέσεις για να προχωρήσεις",
+     "Postupujte pomocí koordinovaných útoků ze zálohy", "İlerlemek için koordineli gizli saldırılar kullan"},   // Use coordinate stealth attacks to proceed 
+    {0xd3fc54f9u, "Χρησιμοποίησε το |D-PAD-LR| για να αλλάξεις όπλο.", "Pomocí |D-PAD-LR| přepnete zbraň.",
+     "Silah değiştirmek için |D-PAD-LR| kullan."},   // Use |D-PAD-LR| to switch_weapons.
+    {0xef72f4f3u, "Όταν κουβαλάς φιάλη προπανίου, σκόπευσε με το |L1| και πυροβόλησε με το πιστόλι σου με το |R1|.",
+     "Když nesete propanovou lahev, míříte pomocí |L1| a z pistole střílíte pomocí |R1|.",
+     "Propan tüpü taşırken nişan almak için |L1|, tabancanla ateş etmek için |R1| kullan."},   // Use |L1| to aim and |R1| to fire your pistol weapon while ca
+    {0x9857b8adu, "Όταν κουβαλάς τον θησαυρό, σκόπευσε με το |L1| και πυροβόλησε με το πιστόλι σου με το |R1|.",
+     "Když nesete poklad, míříte pomocí |L1| a z pistole střílíte pomocí |R1|.",
+     "Hazineyi taşırken nişan almak için |L1|, tabancanla ateş etmek için |R1| kullan."},   // Use |L1| to aim and |R1| to fire your pistol while carrying 
+    {0x656d4040u, "Χρησιμοποίησε το |RA| για ζουμ με τα τυφέκια.", "Pomocí |RA| přibližujete u pušek.",
+     "Tüfeklerde yakınlaştırmak için |RA| kullan."},   // Use |RA| to zoom rifles.
+    {0x2ca45497u, "Η μάχη σώμα με σώμα με θωρακισμένους εχθρούς είναι επικίνδυνη τακτική. Πρόσεχε.",
+     "Boj zblízka proti obrněným nepřátelům je nebezpečná taktika. Buďte opatrní.",
+     "Zırhlı düşmanlara karşı yakın dövüş tehlikeli bir taktiktir. Dikkatli ol."},   // Using melee against armored enemies is a dangerous tactic.  
+    {0x077cca82u, "Άστοχος", "Zahalený", "Üstü Kapalı"},   // Veiled
+    {0x15484e0du, "Victor Sullivan", "Victor Sullivan", "Victor Sullivan"},   // Victor Sullivan
+    {0x759ae9beu, "Κάμερα παρακολούθησης", "Sledovací kamera", "Takip Kamerası"},   // View Follow Camera
+    {0x4471e9dcu, "Ελεύθερη κάμερα", "Volná kamera", "Serbest Kamera"},   // View Free Camera
+    {0xdb83632bu, "Περιστροφική κάμερα", "Orbitální kamera", "Yörünge Kamerası"},   // View Orbit Camera
+    {0xdf6b09c2u, "Πυρετός του Χρυσού στο Χωριό", "Zlatá horečka ve vesnici", "Köyde Altına Hücum"},   // Village Gold Rush
+    {0x6ec337fcu, "Αντίπαλοι", "Padouši", "Kötüler"},   // Villains
+    {0x222d0d79u, "Νίκησαν οι Αντίπαλοι!", "Vyhráli padouši!", "Kötüler Kazandı!"},   // Villains Win!
+    {0x3f94b955u, "Οπτικές ρυθμίσεις", "Vizuální úpravy", "Görsel Ayarlar"},   // Visual Tweaks
+    {0xd0cbb810u, "Vodnik", "Vodnik", "Vodnik"},   // Vodnik
+    {0xff92a836u, "Κίνηση με βάδισμα", "Chůze", "Yürüme Hareketi"},   // Walk Movement
+    {0x317a1e2du, "Ελαφρύ Βήμα", "Tichý krok", "Sessiz Adım"},   // Walk Softly
+    {0xea3bb70eu, "Παρακολουθεί κινηματογράφο", "Sleduje biograf", "Sinema izliyor"},   // Watching a cinema
+    {0xa81b8e3fu, "Το κύμα 1 ολοκληρώθηκε", "Vlna 1 dokončena", "1. Dalga Tamamlandı"},   // Wave 1 Complete
+    {0xa558a8e6u, "Το κύμα 2 ολοκληρώθηκε", "Vlna 2 dokončena", "2. Dalga Tamamlandı"},   // Wave 2 Complete
+    {0xa199b551u, "Το κύμα 3 ολοκληρώθηκε", "Vlna 3 dokončena", "3. Dalga Tamamlandı"},   // Wave 3 Complete
+    {0xbfdee554u, "Το κύμα 4 ολοκληρώθηκε", "Vlna 4 dokončena", "4. Dalga Tamamlandı"},   // Wave 4 Complete
+    {0xbb1ff8e3u, "Το κύμα 5 ολοκληρώθηκε", "Vlna 5 dokončena", "5. Dalga Tamamlandı"},   // Wave 5 Complete
+    {0xb65cde3au, "Το κύμα 6 ολοκληρώθηκε", "Vlna 6 dokončena", "6. Dalga Tamamlandı"},   // Wave 6 Complete
+    {0xb29dc38du, "Το κύμα 7 ολοκληρώθηκε", "Vlna 7 dokončena", "7. Dalga Tamamlandı"},   // Wave 7 Complete
+    {0x8ad27e30u, "Το κύμα 8 ολοκληρώθηκε", "Vlna 8 dokončena", "8. Dalga Tamamlandı"},   // Wave 8 Complete
+    {0x8e136387u, "Το κύμα 9 ολοκληρώθηκε", "Vlna 9 dokončena", "9. Dalga Tamamlandı"},   // Wave 9 Complete
+    {0xc70beaa3u,
+     "Καλώς ήρθες στο Uncharted 2: Among Thieves Πολλοί παίκτες!\\\\Ευχαριστούμε που παίζεις!\\\\Δες τα στατιστικά σου και τα τελευταία νέα στο www.naughtydog.com\\Διασκέδασε με τη beta και απόκτησε το πλήρες παιχνίδι για ακόμα περισσότερους χάρτες και λειτουργίες!\\\\Ευχαριστούμε και καλή διασκέδαση!",
+     "Vítejte ve hře více hráčů Uncharted 2: Among Thieves!\\\\Děkujeme, že hrajete!\\\\Své statistiky a nejnovější zprávy najdete na www.naughtydog.com\\Užijte si betu a pořiďte si plnou hru s dalšími mapami a režimy!\\\\Děkujeme a bavte se!",
+     "Uncharted 2: Among Thieves Çok Oyunculu'ya hoş geldin!\\\\Oynadığın için teşekkürler!\\\\İstatistiklerine ve en son haberlere www.naughtydog.com adresinden göz at\\Beta'nın tadını çıkar ve daha fazla harita ve mod için oyunun tamamını edin!\\\\Teşekkürler, iyi eğlenceler!"},   // Welcome to Uncharted 2: Among Thieves Multiplayer!  Thanks f
+    {0x307e3705u,
+     "Καλώς ήρθες στο Uncharted 2: Among Thieves Πολλοί παίκτες!\\\\Ευχαριστούμε που παίζεις!\\\\Δες τα στατιστικά σου και τα τελευταία νέα στο www.naughtydog.com\\Θα ενημερώνουμε το παιχνίδι τακτικά, οπότε έχε τον νου σου εδώ για νέα.\\\\Ευχαριστούμε και καλή διασκέδαση!",
+     "Vítejte ve hře více hráčů Uncharted 2: Among Thieves!\\\\Děkujeme, že hrajete!\\\\Své statistiky a nejnovější zprávy najdete na www.naughtydog.com\\Hru budeme pravidelně aktualizovat, sledujte proto toto místo.\\\\Děkujeme a bavte se!",
+     "Uncharted 2: Among Thieves Çok Oyunculu'ya hoş geldin!\\\\Oynadığın için teşekkürler!\\\\İstatistiklerine ve en son haberlere www.naughtydog.com adresinden göz at\\Oyunu düzenli olarak güncelleyeceğiz, yenilikler için burayı takip et.\\\\Teşekkürler, iyi eğlenceler!"},   // Welcome to Uncharted 2: Among Thieves Multiplayer!  Thanks f
+    {0xf03b77d4u, "Όταν στέκεσαι ακίνητος, πάτησε το πάνω κουμπί για να βλέπεις τους εχθρούς μέσα από τους τοίχους",
+     "Když stojíte, stiskem tlačítka nahoru uvidíte nepřátele skrz zdi",
+     "Hareketsiz dururken düşmanları duvarların ardından görmek için yukarı tuşuna bas"},   // When standing still, press the up button to see enemies thro
+    {0x886d2c42u, "Χειμερινή Chloe", "Zimní Chloe", "Kışlık Chloe"},   // Winter Chloe
+    {0x65ab2ef0u, "Χειμερινός Drake", "Zimní Drake", "Kışlık Drake"},   // Winter Drake
+    {0x7cfd4e4du, "Χειμερινή Elena", "Zimní Elena", "Kışlık Elena"},   // Winter Elena
+    {0x158d9966u, "Χειμερινός Flynn", "Zimní Flynn", "Kışlık Flynn"},   // Winter Flynn
+    {0xde9a9177u, "Εξαφάνισε τα εχθρικά κύματα", "Zlikvidujte nepřátelské vlny", "Düşman dalgalarını sil süpür"},   // Wipe the enemy waves
+    {0x7dd166dfu, "Ναι", "Ano", "Evet"},   // Yes
+    {0x44022562u, "Ναιιιι", "Jóóó", "Evettt"},   // Yessss
+    {0x99f0d970u, "Νίκησες!", "Vyhráli jste!", "Kazandın!"},   // You Win!
+    {0xc35e16e8u, "Εσύ και οι φίλοι σου ενάντια σε όλο τον κόσμο!", "Vy a vaši přátelé proti celému světu!",
+     "Sen ve arkadaşların dünyaya karşı!"},   // You and your friends against the world!
+    {0x1e21ccb1u, "Δεν έχεις ελεύθερες θέσεις.", "Nemáte žádnou volnou pozici.", "Boş yuvan yok."},   // You have no free slots available.
+    {0x47512c0bu, "Γεμίζεις τα τυφέκια γρηγορότερα", "Rychleji přebíjíte dlouhé zbraně",
+     "Uzun namlulu silahları daha hızlı doldurursun"},   // You reload long guns faster
+    {0x8ba95edfu, "Γεμίζεις τα πιστόλια γρηγορότερα", "Rychleji přebíjíte pistole",
+     "Tabancaları daha hızlı doldurursun"},   // You reload pistols faster
+    {0xe2ce50dfu, "Zoran Lazarević", "Zoran Lazarević", "Zoran Lazarević"},   // Zoran Lazarević
+    {0x4701ecf9u, "Zorskel", "Zorskel", "Zorskel"},   // Zorskel
+    {0xb9ce5fc4u, "Απομένουν [A] προσπάθειες", "Zbývající pokusy: [A]", "[A] Deneme Kaldı"},   // [A] Tries Remaining
+    {0x25616124u, "[A] κατάληψη", "[A] obsazení", "[A] ele geçirme"},   // [A] capture
+    {0x9b537455u, "[A] καταλήψεις", "[A] obsazení", "[A] ele geçirme"},   // [A] captures
+    {0x4afc6214u, "[A] εξοντώσεις", "Zabití: [A]", "[A] leş"},   // [A] kills
+    {0xba8db526u, "[A] παίκτες στην ομάδα", "Hráči ve skupině: [A]", "Grupta [A] oyuncu"},   // [A] players in party
+    {0x2b3077c4u, "[A] πόντος", "[A] bod", "[A] puan"},   // [A] point
+    {0xf6cb345fu, "[A] πόντοι", "Body: [A]", "[A] puan"},   // [A] points
+    {0x5c0f6a01u, "Ο [TEXT] σκόραρε!", "[TEXT] skóroval!", "[TEXT] sayı yaptı!"},   // [TEXT] Scored!
+    {0x7b4d4744u, "κατέλαβε μια ζώνη", "obsadil/a zónu", "bir bölgeyi ele geçirdi"},   // captured a zone
+    {0x79e31b79u, "κατέλαβε τον θησαυρό", "získal/a poklad", "hazineyi ele geçirdi"},   // captured the treasure
+    {0xe45fc8a8u, "έκλεψε", "podváděl/a", "hile yaptı"},   // cheated
+    {0xf685fae1u, "άφησε τον θησαυρό", "upustil/a poklad", "hazineyi düşürdü"},   // dropped the treasure
+    {0xdd8bb2dbu, "αποχώρησε από το παιχνίδι", "opustil/a hru", "oyundan ayrıldı"},   // left the game
+    {0xfcfed5d0u, "έχασε μια ζώνη", "ztratil/a zónu", "bir bölgeyi kaybetti"},   // lost a zone
+    {0x156e815fu, "σήκωσε τον θησαυρό", "sebral/a poklad", "hazineyi aldı"},   // picked up the treasure
+    {0x9f4fd672u, "αποβλήθηκε επειδή σκότωσε συμπαίκτη", "byl/a vyhozen/a za zabití spoluhráče",
+     "bir takım arkadaşını öldürdüğü için atıldı"},   // was kicked for killing a teammate
+    {0x8187843du, "|C|", "|C|", "|C|"},   // |C|
+    {0x40133004u, "|R1|", "|R1|", "|R1|"},   // |R1|
+    {0xe2186a0cu, "|SELECT| Πίνακας βαθμολογίας    |D-PAD| Κάμερα", "|SELECT| Výsledková tabulka    |D-PAD| Kamera",
+     "|SELECT| Skor Tablosu    |D-PAD| Kamera"},   // |SELECT| Scoreboard    |D-PAD| Camera
+    {0x660f6bdau, "|S|", "|S|", "|S|"},   // |S|
+    {0x97bf5532u, "|S| ή |C|", "|S| nebo |C|", "|S| veya |C|"},   // |S| or |C|
+    {0xa4d72e3eu, "|S| ή |C| ή |R1|", "|S| nebo |C| nebo |R1|", "|S|, |C| veya |R1|"},   // |S| or |C| or |R1|
 };
 
 TextFindFn orig_text_find = nullptr;
@@ -926,9 +1467,15 @@ const char *own(uint32_t id, int language) {
         if (c == PTBR && t.text[PT]) return t.text[PT];
         return t.text[EN];
     }
-    if (c == EL || c == CS || c == TR)
-        for (const MenuText &m : kMenu)
-            if (m.id == id) return c == EL ? m.el : c == CS ? m.cs : m.tr;
+    if (c == EL || c == CS || c == TR) {
+        static const std::unordered_map<uint32_t, const MenuText *> menu = [] {
+            std::unordered_map<uint32_t, const MenuText *> m;
+            for (const MenuText &t : kMenu) m.emplace(t.id, &t);
+            return m;
+        }();
+        const auto it = menu.find(id);
+        if (it != menu.end()) return c == EL ? it->second->el : c == CS ? it->second->cs : it->second->tr;
+    }
     return nullptr;
 }
 
@@ -968,6 +1515,9 @@ U2MP_GUEST const char *text_find(void *db, uint32_t id) {
     const char *game = orig_text_find(db, id);
     --find_depth;
     if (game && !placeholder(game)) return game;
+    // sid("none") (0xf114b39d) is the game's "no text" id: most readers test for it (0x5da851, 0x5aceaa),
+    // one in-match path looked it up (run 42). It is empty text, not a missing one.
+    if (id == 0xf114b39du) return "";
     int language = bank_language(static_cast<const uint8_t *>(db));
     if (language < 0) language = kEnglish;
     current_language.store(language, std::memory_order_relaxed);

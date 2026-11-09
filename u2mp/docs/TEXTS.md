@@ -36,7 +36,10 @@ The hook (`text_find`, texts.cpp; installed by remaining.cpp) answers, in this o
    that language (every GOTY archive, newest first) for ids it lacks or has as `_`, and for sam-spanish and
    brazilian with the spanish and portuguese PS4 banks. A real PS4 string is never changed. GOTY data only;
 4. our own text (`kOwn`: every language, `nullptr` = es-419 -> es, pt-BR -> pt, else English; `kMenu`:
-   greek / czech / turkish for the 96 multiplayer menu texts their common bank has as `_`);
+   greek / czech / turkish for every text their PS4 banks have as `_`: 96 common (menu) and 396
+   networking texts, our own wording from the PS4 English, terms as in their PS4 common banks: booster =
+   ενίσχυση / vylepšení / eklenti, medal = μετάλλιο / medaile / madalya, Co-op = Συνεταιρικό / kooperativní /
+   Eşli, Villains = Αντίπαλοι / Padouši / Kötüler, Deathmatch = Αγώνας Θανάτου / Deathmatch / Ölüm Maçı);
 5. `unlocks_text` (a label from a GOTY skin's package name);
 6. the imported English bank (logged once per id and language: "texts: <id> shown in English (language n)");
 7. nothing: logged once per id and language ("texts: no text for <id> (language n)"); the game shows
@@ -60,17 +63,14 @@ text anywhere. All 98, the 5 playlist texts and the 11 PC texts are in `kOwn` (1
 | 2 english | 2677 | 2 | 114 | - |
 | 3..18 (not 7) | 2671 (11, 12, 16: 2674-2675) | 2-5 | 114 | 2-3 |
 | 19 sam-spanish, 20 brazilian | 2176 | 500 (spanish / portuguese) | 114 | 3 |
-| 21 greek, 23 turkish | 2176 | 0 | 114 + 96 menu | 405 |
-| 22 czech | 2189 | 0 | 114 + 93 menu | 395 |
+| 21 greek, 23 turkish | 2176 | 0 | 114 + 492 (`kMenu`) | 3 (+ 5 blank texts) |
+| 22 czech | 2189 | 0 | 114 + 479 (`kMenu`) | 3 (+ 5 blank texts) |
 
 "Still English" in 3..20: `Buy Game`, `BUY GAME` and the copyright line (only English has them; not
-multiplayer). In greek, czech and turkish: the 397 (czech 388) networking texts (medals, boosters, game
-modes, match messages) and the 2 blank common texts.
+multiplayer), in every language; in greek, czech and turkish also the texts that are blank in English too.
 
 ## 4. Left
 
-- Greek, Czech and Turkish networking texts show English. They need our own translation (texts.cpp `kMenu`
-  holds the menu ones; the same table form fits the networking ones).
 - PS4's own untranslated strings are kept (rule: a real PS4 string is never changed), e.g. the Japanese and
   Chinese common banks have some English labels ("Competitive", "Competitive Stats").
 - Ids no bank has and no static scan finds (texts the PS3 server sent at run time) show up only in the log.

@@ -201,21 +201,30 @@ void install_loading(int &installed) {
     }
     if (const char *v = std::getenv("UNCHARTED_U2MP_LOADING_TEXT"); v && std::strcmp(v, "0") == 0) with_text = false;
     const uint64_t base = uint64_t(uintptr_t(image.base));
-    for (const Slot &s : kSlots)
-        if (G<uint64_t>(s.vtable_slot) != base + s.fn) {
-            log("loading screen: state vtable slot 0x%llx is not 0x%llx, not installed", (unsigned long long)s.vtable_slot,
+    // A slot may already hold another port's hook (run 42: cinema.cpp wraps WaitReady::Exit 0x100abd0);
+    // then that hook is chained instead of the PS4 function. Anything else is left alone.
+    int chained = 0;
+    for (const Slot &s : kSlots) {
+        const uint64_t cur = G<uint64_t>(s.vtable_slot);
+        if (cur == base + s.fn) continue;
+        if (!cur || (cur >= base && cur < base + image.size)) {
+            log("loading screen: state vtable slot 0x%llx holds 0x%llx, not 0x%llx: not installed",
+                (unsigned long long)s.vtable_slot, (unsigned long long)(cur >= base ? cur - base : cur),
                 (unsigned long long)s.fn);
             return;
         }
+        ++chained;
+    }
     if (!retarget_call(cDraw2D, fDraw2D, reinterpret_cast<void *>(&draw_2d), "loading screen draw (Draw 0x3fc52d)")) return;
     if (with_text && !retarget_call(cRendererText, fTextDraw, reinterpret_cast<void *>(&renderer_text), "menu text style capture"))
         with_text = false;
     static const auto fns = make_fns(std::make_index_sequence<kSlotCount>{});
     for (size_t i = 0; i < kSlotCount; ++i) {
-        original[i] = reinterpret_cast<StateFn>(base + kSlots[i].fn);
+        original[i] = reinterpret_cast<StateFn>(G<uint64_t>(kSlots[i].vtable_slot));   // PS4 function or a host hook
         G<uint64_t>(kSlots[i].vtable_slot) = uint64_t(uintptr_t(fns[i]));
     }
-    log("loading screen: installed (%zu state hooks%s)", kSlotCount, with_text ? ", text" : ", no text");
+    log("loading screen: installed (%zu state hooks, %d chained to an earlier hook%s)", kSlotCount, chained,
+        with_text ? ", text" : ", no text");
     ++installed;
 }
 
