@@ -1,0 +1,27 @@
+{
+ "id": "map-lighting",
+ "title": "Sun shadow blockers made shadow-only in 19 MP/coop paks (London Underground library lighting) + Fort stairs / plaster panel materials (map-lighting/apply_map_lighting.py)",
+ "kind": "script",
+ "job": "map-lighting",
+ "family": "overlay-r3/pak23",
+ "needs": [
+  "ps4"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/apply_map_lighting.py",
+   "--work",
+   "{{WORK}}",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/pak23/ps4/*.pak"
+ ],
+ "must_write": false,
+ "status": "needs-converted-base",
+ "applied": "2026-11-09 (backup-map-lighting)",
+ "notes": "Blockers (material shadowblocker / ik-only / canopy-shadow) get +0x20 |= 0x10000 and +0x24 |= 0x101, the retail hidden-blocker rule; without it the sun floods interiors (London library: bright floor, dark walls, hard shafts). Confirmed in game on London. Fort: stone-steps layer swap + PS3 spec terms, plaster-cream border tint, template metalness removed. In place, no size change, idempotent.",
+ "recipe_version_added": "1.11.0"
+}

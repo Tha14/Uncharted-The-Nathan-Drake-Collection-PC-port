@@ -50,5 +50,6 @@ shade-npc-paks
 coop-voice-all
 london-fade
 airport-igc3
+map-lighting
 vram-gap
 registry-final
