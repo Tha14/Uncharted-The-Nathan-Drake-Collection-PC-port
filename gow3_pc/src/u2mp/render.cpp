@@ -402,6 +402,8 @@ struct Tracked {
     uint64_t render_object;   // the AddMesh owner (0x1248600 render object), 0 = not known
     uint64_t collects;        // 0xbd6d00 calls for that render object
     uint64_t collects_reported;
+    uint64_t draw_jobs;       // 0xc419d0 calls for this instance
+    uint64_t draw_jobs_reported;
 };
 Tracked tracked[kTracked];
 
@@ -443,6 +445,19 @@ U2MP_GUEST uint64_t collect_logged(uint64_t object, uint64_t out, uint64_t a2, u
         if (tracked[i].render_object == object && __atomic_load_n(&tracked[i].instance, __ATOMIC_RELAXED))
             __atomic_add_fetch(&tracked[i].collects, 1, __ATOMIC_RELAXED);
     return reinterpret_cast<CollectFn>(collect_original)(object, out, a2, a3, a4, a5);
+}
+
+// 0xc419d0(MeshInstance, ...) is the per-instance draw job (reached through the thunk 0xc42250 of the
+// renderable interface at MeshInstance +0x150); the binding walker runs inside it. Counted per tracked
+// instance: a hero with collects but no draw jobs is dropped between 0xbd6d00 and the job list.
+constexpr uint64_t fDrawJob = 0xc419d0;
+using DrawJobFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+unsigned char *drawjob_original = nullptr;
+U2MP_GUEST uint64_t drawjob_logged(uint64_t inst, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
+    for (int i = 0; i < kTracked; ++i)
+        if (__atomic_load_n(&tracked[i].instance, __ATOMIC_RELAXED) == inst)
+            __atomic_add_fetch(&tracked[i].draw_jobs, 1, __ATOMIC_RELAXED);
+    return reinterpret_cast<DrawJobFn>(drawjob_original)(inst, a1, a2, a3, a4, a5);
 }
 
 void log_gate(const Tracked &t, uint64_t inst) {
@@ -565,6 +580,7 @@ U2MP_GUEST uint64_t mesh_init_logged(uint64_t inst, uint64_t a1, uint64_t a2, ui
     t.logged_first = false;
     t.render_object = actor ? render_object_of(inst - 0x1c0) : 0;
     t.collects = t.collects_reported = 0;
+    t.draw_jobs = t.draw_jobs_reported = 0;
     __atomic_store_n(&t.instance, inst, __ATOMIC_RELEASE);
     const uint8_t *in = reinterpret_cast<const uint8_t *>(uintptr_t(inst));
     list_insert(inst + 0x170, slot, 0, gen);
@@ -599,6 +615,7 @@ U2MP_GUEST uint64_t mesh_free_logged(uint64_t inst, uint64_t a1, uint64_t a2, ui
 
 using WalkerFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 unsigned char *walker_original = nullptr;
+void log_hero_state(const char *when);   // section 6
 
 // The walker (list, -, -, -, flag, override table, override count): forwarded unchanged.
 U2MP_GUEST uint64_t walker_logged(uint64_t list, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t table,
@@ -640,9 +657,16 @@ U2MP_GUEST uint64_t walker_logged(uint64_t list, uint64_t a1, uint64_t a2, uint6
                 reinterpret_cast<const void *>(uintptr_t(inst)), t.name, (unsigned long long)s,
                 (unsigned long long)(s - t.submits_reported));
             t.submits_reported = s;
+            if (i == 0) log_hero_state("summary");
             if (i < kHeroSlots) log_instance("now", reinterpret_cast<const uint8_t *>(uintptr_t(inst)));
             if (t.render_object || i < kActorBase + kActorRefs) log_gate(t, inst);
             t.collects_reported = t.collects;
+            if (i < kHeroSlots && t.draw_jobs != t.draw_jobs_reported) {
+                log("render diag: %s %p: %llu draw jobs (0xc419d0) (+%llu)", t.kind,
+                    reinterpret_cast<const void *>(uintptr_t(inst)), (unsigned long long)t.draw_jobs,
+                    (unsigned long long)(t.draw_jobs - t.draw_jobs_reported));
+            }
+            t.draw_jobs_reported = t.draw_jobs;
         }
     }
     return reinterpret_cast<WalkerFn>(walker_original)(list, a1, a2, a3, a4, table, count);
@@ -704,6 +728,38 @@ bool install_draw_diag(int &installed) {
         }
     } else {
         log("render diag: 0xbd6d00 differs, render object collects not counted");
+    }
+    // 0xc419d0: the same 13-byte prologue as the walker, then and rsp,-32 (48 81 e4 e0 ff ff ff)
+    static const unsigned char job_prologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41,
+                                                 0x55, 0x41, 0x54, 0x53, 0x48, 0x81, 0xe4, 0xe0};
+    if (image.matches(fDrawJob, job_prologue, sizeof job_prologue) && image.executable(fDrawJob, 13)) {
+        unsigned char *jtramp = near_stub(32);
+        unsigned char *jentry = near_stub(16);
+        const int64_t jdelta = jentry ? int64_t(uintptr_t(jentry)) - int64_t(uintptr_t(image.base + fDrawJob + 5)) : 0;
+        if (jtramp && jentry && jdelta >= INT32_MIN && jdelta <= INT32_MAX) {
+            std::memcpy(jtramp, job_prologue, 13);
+            jtramp[13] = 0xff;
+            jtramp[14] = 0x25;
+            std::memset(jtramp + 15, 0, 4);
+            const uint64_t jback = uint64_t(uintptr_t(image.base + fDrawJob + 13));
+            std::memcpy(jtramp + 19, &jback, 8);
+            drawjob_original = jtramp;
+            const uint64_t jhost = uint64_t(uintptr_t(&drawjob_logged));
+            jentry[0] = 0x48;
+            jentry[1] = 0xb8;
+            std::memcpy(jentry + 2, &jhost, 8);
+            jentry[10] = 0xff;
+            jentry[11] = 0xe0;
+            const int32_t jrel = int32_t(jdelta);
+            unsigned char *jc = image.base + fDrawJob;
+            jc[0] = 0xe9;
+            std::memcpy(jc + 1, &jrel, 4);
+            std::memset(jc + 5, 0x90, 8);
+            ++n;
+            log("render diag: per-instance draw job 0xc419d0 counted");
+        }
+    } else {
+        log("render diag: 0xc419d0 differs, draw jobs not counted");
     }
     installed += n;
     // walker: trampoline = its 13-byte prologue + jmp back to 0xc2567d; the entry jumps to the host
@@ -782,6 +838,55 @@ template <typename F> int for_each_draw_data(uint64_t object, F &&f) {
 }
 
 bool hero_show = true;
+uint64_t hero_object = 0;
+
+// NetCharacter / player state descriptors (the Go<State> functions register these statics)
+struct StateName {
+    uint64_t desc;
+    const char *name;
+};
+const StateName kStates[] = {{0x14ced60, "NetCharacter Active"}, {0x14ced88, "NetCharacter Idle"},
+                             {0x14cedb0, "NetCharacter NetMove"}, {0x14cedd8, "NetCharacter NetFight"},
+                             {0x14cee00, "NetCharacter Script"}, {0x14cec18, "NetCharacter Dead"},
+                             {0x14cec40, "NetCharacter Ragdoll"}};
+
+const char *state_name(uint64_t p) {
+    for (const auto &s : kStates)
+        if (p == uint64_t(uintptr_t(image.base + s.desc))) return s.name;
+    return nullptr;
+}
+
+// The hero object: its class (vtable), state machine (+0x50: the Go<State> functions write the pending
+// state at +8), and its anim data (+0x190 -> +8 = the render object). Anim data byte +0 bit 0x80 is set
+// by the anim update 0xb53250 (0xb53a2d) when the joints were computed; every drawn actor has it, the
+// hero (run 46) does not. Bytes +2..+6 are the update type set by 0xb4f680 (type 2: 02 01 00 05 00 =
+// the pool default, drawn props; type 3: 03 01 02 03 05 = what character Inits ask for, 0x995ed0(obj, 3)).
+void log_hero_state(const char *when) {
+    const uint64_t obj = hero_object;
+    if (!obj || bad_pointer(obj)) return;
+    const uint8_t *o = reinterpret_cast<const uint8_t *>(uintptr_t(obj));
+    const uint64_t vt = *reinterpret_cast<const uint64_t *>(o);
+    const uint64_t sm = *reinterpret_cast<const uint64_t *>(o + 0x50);
+    char smtext[256] = "-";
+    if (!bad_pointer(sm)) {
+        const uint64_t *w = reinterpret_cast<const uint64_t *>(uintptr_t(sm));
+        size_t at = 0;
+        for (int i = 0; i < 6; ++i) {
+            const char *nm = state_name(w[i]);
+            const int k = std::snprintf(smtext + at, sizeof smtext - at, " +%x=%llx%s%s%s", i * 8,
+                                        (unsigned long long)w[i], nm ? " (" : "", nm ? nm : "", nm ? ")" : "");
+            if (k < 0 || size_t(k) >= sizeof smtext - at) break;
+            at += size_t(k);
+        }
+    }
+    uint64_t anim = 0, ad0 = 0;
+    const uint64_t ac = *reinterpret_cast<const uint64_t *>(o + 0x190);
+    if (!bad_pointer(ac)) anim = *reinterpret_cast<const uint64_t *>(uintptr_t(ac) + 8);
+    if (!bad_pointer(anim)) ad0 = *reinterpret_cast<const uint64_t *>(uintptr_t(anim));
+    log("render: hero %s %p: vtable %llx, +34 %02x %02x %02x, state machine %llx:%s; anim data %llx +0 %016llx",
+        when, static_cast<const void *>(o), (unsigned long long)(vt - uint64_t(uintptr_t(image.base))), o[0x34],
+        o[0x35], o[0x36], (unsigned long long)sm, smtext, (unsigned long long)anim, (unsigned long long)ad0);
+}
 
 U2MP_GUEST uint64_t spawn_hero_shown(uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5) {
     const uint64_t obj = reinterpret_cast<SpawnProcessFn>(image.base + fSpawnProcess)(a0, a1, a2, a3, a4, a5);
@@ -800,6 +905,8 @@ U2MP_GUEST uint64_t spawn_hero_shown(uint64_t a0, uint64_t a1, uint64_t a2, uint
     }
     log("render: hero spawned %p: %d draw data, flags (or of all) %08x -> %08x, object +154 %02x +155 %02x -> %02x %02x",
         reinterpret_cast<void *>(uintptr_t(obj)), n, before_or, after_or, b154, b155, o[0x154], o[0x155]);
+    hero_object = obj;
+    log_hero_state("spawned");
     return obj;
 }
 

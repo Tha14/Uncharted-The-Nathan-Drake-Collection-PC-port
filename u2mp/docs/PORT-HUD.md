@@ -56,28 +56,25 @@ store `0x55ab94`, the ret stub at `0x55c5b0` and the vtable slot value. Test swi
 `UNCHARTED_U2MP_HUD=0` leaves the stub. The log prints `hud: multiplayer draw #1 ...` at the first
 call, then every 600th call (type, flags, team, scores, limits). That line proves the element is drawn.
 
-## 3. Not ported yet (the rest of 0x8aef68; PS3 addresses, PS4 element offsets)
+## 3. The rest of 0x8aef68: status
 
-| Part | PS3 | Gate | PS4 data |
-|---|---|---|---|
-| type 7 panel: per-player list with score bars (`0x8a015c`, `0x8a1f88`, `0x8a9e48`, `0x12c070`) | `0x8af960..0x8afe6c` | type 7 | set +0x60 (PS3 +48) |
-| objective carrier icon (ngm+6412/6416 handle, per-tracker loop `310f465e`) | `0x8af360..0x8af41c`, `0x8afe70..` | competitive | set +0x28 (PS3 +20) |
-| co-op type 9 money / wave (`49cca8` "x%i", `49cae8`, `0x8a9e48`) | `0x8af4e0..0x8af5c0` | type 9, flag 0x8000 | set +0xd0.. (PS3 +104/+112/+116) |
-| booster icons (`0x45536c`/`0x45543c`/`0x4552b8` or tracker +608/+612, `0x4551b0`, draw `0x8a9bbc`) | `0x8af440`, `0x8af5c4` | flag 0x10 clear / 0x40000 | booster manager `0x113a788` |
-| recording / multiplier indicator (`0x8a8ed8`, `0x8ac3f0`, "x%2.1f") | `0x8af620` | flag 0x100000 | element +0x1928 |
-| kill feed / messages (`0x8abc68` -> `0x8ab600`; 16 entries of 124 bytes, PS4 0x800 bytes at +0x48) | `0x8af424` | flag 0x80000, not type 11 | element +0x40 |
-| player names over heads, draw half (`0x8aeeb0` -> `0x8adb60`, 0x1350 bytes; the update half is intact in `0x55abe0`) | `0x8af4c4` | flag 0x20000 | element +0x860 |
-| world markers (`0x8ad018`, 0xb48; projects with `0x8a2388` = PS4 `0x5566b0`) | `0x8af4d8` | flag 0x20000 | element +0x1560 |
-| list `0x8ab4d0` | `0x8af1e8` | flag 0x20000 | element +0x1a90 |
-| DrawText flush `0x73bf94(0)` | tail | - | not needed: PS4 HUD texts are queued by `0x5555a0` like the SP elements |
+The third pass (section 5) ported the parts listed here. Their PS3 order, gates and PS4 data:
 
-These need the same kind of mapping per helper. Ammo, weapon, grenade count and reticle belong to
-the shared (single-player) HUD elements (vtables `0x103f360..0x103f510`). No stub was found among their
-slots, but that was not checked against PS3 slot by slot. The medal and XP pop-ups were not located.
+| Part | PS3 | Gate | PS4 data | State |
+|---|---|---|---|---|
+| type 7 (Turf War) territory panel | `0x8af960..0x8afe6c`, `0x8aff14` | type 7, flag 0x40000 | set +0x60 / rect +0x68 / text +0x78; territories ngm+0x1d80 | ported (5.5) |
+| objective carrier icon | `0x8af360..0x8af41c`, `0x8afe70..0x8b00b8` | score panel branch, not types 1 / 2 | ngm+0x1cc0 / +0x1cc8; set +0x18 / +0x20 / +0x28 | ported, two pieces left (5.5) |
+| co-op type 9 money / wave | `0x8af4e0..0x8af5c0` | type 9, flag 0x8000, wave screen hidden | set +0xc0 / +0xc8 / +0xd0 | ported (5.4) |
+| booster icons `0x8a9bbc` | `0x8af5c4` (film), `0x8af440` (loadout) | film: ngm+0x209c, flag 0x40000, cinema mode; loadout: competitive, flag 0x10 **set** | tracker +0x2a0 / +0x2a4; loadout 0x11474f8+0x4c | ported (5.4) |
+| theater HUD (`0x8a8ed8` camera selector, `0x8ac3f0` camera name / progress / "x%2.1f" speed) | `0x8af620` | film, flag 0x100000, `[0xe1eb2c]` == 0 | element +0x1928 | not ported (5.6) |
+| message list / kill feed | `0x8af424` | competitive, not type 11, flag 0x80000 | element +0x40 | ported (4.1) |
+| names over heads `0x8aeeb0` -> `0x8adb60` | `0x8af4c4` | flag 0x20000 | element +0x860 | ported (5.2) |
+| world markers `0x8ad018` | `0x8af4d8` | flag 0x20000 | element +0x1560 | ported (5.3) |
+| centre message `0x8ab4d0` | `0x8af1e0` | none: drawn every frame (the doc said 0x20000; `0x8af1d4` branches around the names only) | element +0x1a90 | ported (5.3) |
+| DrawText flush `0x73bf94(0)` | tail | - | not needed: PS4 HUD texts are queued in order | - |
 
-Unverified: nothing was run. Whether `0x5555a0` places the texts where PS3 did depends on the widget
-data (positions come from the dc widget, the pos argument is {0, 0} as on PS3). Team scores for a
-free-for-all game are the scores of team 0 / 1 as on PS3.
+Ammo, weapon, grenade count and reticle belong to the shared (single-player) HUD elements (vtables
+`0x103f360..0x103f510`), see 4.3.
 
 ## 4. Second pass
 
@@ -123,15 +120,164 @@ function except the multiplayer Draw `0x55c5b0`. The `ret` slots are destructors
 function-by-function comparison of their bodies was not done (the matcher pairs only 3 of them). The
 PS4 Draw functions with a multiplayer branch keep it (`0x557f10`: 3 NET_SM tests).
 
-### 4.4 Still not ported, and why
+### 4.4 (superseded by section 5)
 
-All of these draw with the PS3 low-level primitives (`0x73cf20` text, `0x89ff3c` / `0x8a015c` /
-`0x8a1f88` quads and icons, `0x8b0220` / `0x8b0de8` / `0x8b12b8` / `0x8b1600` meters, `0x12c070`
-transforms) that PS4 does not have as functions. Their PS4 data layouts (element +0x860 names, +0x1560
-markers, +0x1928 indicator) are only known from the inlined Update `0x55abe0`:
+The second pass found no PS4 counterpart for the PS3 low-level primitives. Section 5.1 maps them.
 
-| part | PS3 | what is needed |
+## 5. Third pass: the rest of the Draw
+
+Static analysis only; nothing was built or run. `net_hud_draw` now follows the PS3 order of `0x8aef68`
+(section 3). New install checks are in `layout_matches()`, `boosters_layout_matches()` and
+`type7_layout_matches()`, about 40 byte checks. If any fails, the whole Draw stays the PS4 stub, as before.
+
+### 5.1 PS3 primitives -> PS4
+
+| PS3 | PS4 | Notes |
 |---|---|---|
-| names over heads (draw half) | `0x8aeeb0` -> `0x8adb60` (count +3200, entries of 160 at +2080) | PS4 entry layout at element+0x860 (written by `0x55abe0` after the two `0x5566b0` projections at `0x55b6d5` / `0x55b6ec`); then text widgets like 4.1 |
-| world markers | `0x8ad018` | entries at element+0x1560; icon drawing |
-| type 7 panel, objective carrier icon, co-op type 9 panel, booster icons `0x8a9bbc`, indicator `0x8a8ed8` / `0x8ac3f0`, list `0x8ab4d0` | see section 3 | an image / quad primitive. The intact one is `0x5559f0`, which draws a dc image widget (material name pointer +0, id +0x10 (compared with 4240ef2e at `0x555a1f`), -1 at +0x18, rect x / y / w / h at +0x1c); synthesized image widgets would work like the text widgets in 4.1 |
+| textured quad `0x89ff3c` | `0x555c60(ctx, handle, index, &rgba, centred, global alpha, pos, size, dir, uv0, uv1)` | The image widget draw `0x5559f0` = `0x8a10fc` ends in it. Centred: pos is the centre and dir turns the quad; PS3 passes (0, -1) for upright (`0x8aa42c`). Global alpha: x `[0x104ed0c]` (PS3 `[0xe1a660]`). |
+| handle `{id, table, index}` (`0x8a015c` sid, `0x8a0260` name) | same 12 bytes; `0x555140` by name | Table 0/1/2 = hud+0x68/+0x70/+0x78; index -1 = look it up. menuimages.cpp's `0x5558c0` port resolves PS3 sids in the net table. |
+| material `0x8a1f88` | `0x5558c0` | Replaced by menuimages.cpp, so its prologue is not checked. |
+| hudquad batch `0x8b0220` / `0x8b0de8` / `0x8b12b8`, rects `0x8b1600` + `0x8b1540` / `0x8b1598` | none | An axis-aligned rect becomes `rect()` = `quad()`, so callers pass the colour without the HUD alpha. A free quad becomes `quad4()` = `0x5558c0` + `0xbdce90(ctx, {material,0,0,0}, 4 vertices of 0x40)`, in the vertex layout of `0x555c60`. |
+| DrawText `0x73cf20(state, text)` | `0xcc9a70(state, text)` | Only `0x5555a0` calls it. The state layout is in hud.cpp `draw_text`. PS3 +116 align/flags = PS4 +0x34 (4 = measure only, no glyphs, `0xcca558`). The box +120/+124 = +0x94/+0x98. Measuring writes the width to +0x9c (PS3 +128) and the height to +0x98. DrawText does not apply the HUD alpha. |
+| projection `0x8a2388` | `0x5566b0(out of 0x30, &world, margin)` | The out block is pos, dir, angle, dist, scale, clamped. |
+| ring meter `0x8a9e48`, edge arrow `0x8aa210`, ramp `0x89fd8c` | none | Reimplemented: `meter_8a9e48`, `edge_arrow`, `ramp`. |
+| sin/cos `0xabc6ec(x, 0/1)`, fmod `0xabb130` | `std::sin` / `std::cos` / `std::fmod` | |
+| clocks `[0xe60a00]` (112 B each from +12) | `[0x1116180]` (0x80 each from +0x04) | +124/+136/+236/+460 -> +0x84/+0x90/+0x104/+0x204 |
+| HUD flags struct `[[hud+56]]` +1608 / +1612 | `[[hud+0x60]]` +0x408 / +0x40c | +0x40c is set at `0x8921bb` (= PS3 `0x61baa0` stb at `0x61c104`) |
+
+### 5.2 Names over heads (PS3 0x8aeeb0 -> 0x8adb60)
+
+The data is intact. The names sub-object is PS4 element+0x860 (PS3 +2080) and keeps the PS3 offsets:
+- entries of 0xa0 at +0, count at +0xc80;
+- handles at +0xca8 player-arrow, +0xcb4 player-ex, +0xcc0 triangle button, +0xccc knocked-down,
+  +0xcd8 grapple, +0xce4 sid a2a60dcf and +0xcf0 sid 68951e57 (init `0x55d4f0` = PS3 `0x8a9340`).
+
+The Update `0x55abe0` fills each entry with:
+- +0 screen x / y and +8 distance scale s;
+- +0xc side (0 above, 1 left, 2 right, 3 on screen);
+- +0x10 arrow (0 player-ex, 1/2 arrow);
+- +0x20 colour (team colour, name fade);
+- +0x30 status (1 down, 2 grappled) and +0x34 fill;
+- +0x38 name (64 chars) and +0x80 name colour.
+
+The pointer grew past +0x90: +0x90 emblem pointer (PS3 +144), +0x98 talking (PS3 +148), +0x9c rank
+(PS3 +152).
+
+`draw_name` follows `0x8adb60`:
+- **Measuring and placement.** The name is measured with flags 12 in a box of 99999 x 40, giving W and
+  H. The icon is 50 s when there is an emblem or the rank is > 58; the talk icon is 40 s. The
+  group [icon][name] is centred on x and clamped to 128 .. 1280 - 128.
+- **Arrow.** Its place, size and angle come from the side: (cx, y - 25s - H) 1.5 pi/2; left edge - 10
+  1.2 pi; right edge + 10 (+ talk/2 + 6 when the name shows) 1.2 0; (cx, y - 25s) 1.5 -pi/2. With a
+  status it bobs by clamp(1 - |cos 8t|) x 20, and an on-screen entry with a status draws no arrow.
+- **Status.** At (cx, y - 145s):
+  - a glow (sid a2a60dcf) in red (down) or blue (grappled) at 0.75 alpha, sized 50s x lerp(3.5, 5,
+    |cos 4t|) and turning with the clock;
+  - a black one at 225s;
+  - the ring meter (radii 30 / 50, white blink below 0.25 fill);
+  - the triangle-button / knocked-down (flags +0x40c) or grapple icon, 60s square.
+- **Rank icon.** Above 58: 8 x 8 atlas bda0f568 (f1b63553 above 63) at (left + icon/2 - 8s,
+  y - 25s - H + icon/2 - 4s).
+- **Name and talk icon.** The name is drawn at (left + icon, y - 25s - H) with flags 8, in the name
+  colour x HUD alpha. The talk icon is ffa98ec5.
+
+Left out: the emblem (PS3 `0x8ae2cc`). It is material 6927b434 with the emblem texture passed into the
+hudquad begin `0x8b0220(material, emblem+16)`, and PS4 has no call that takes that texture. Its space
+is kept.
+
+### 5.3 World markers (PS3 0x8ad018) and the centre message (PS3 0x8ab4d0)
+
+The world markers are in PS4 element+0x1560 (init `0x55c5c0`), which keeps the PS3 layout:
+- up to 8 entries of 0x40 at +0x10: id, type, world position, colour and ring colour (0xAARRGGBB), fade
+  +0x2c, fade target +0x30, ring fill +0x34, frames +0x38 / +0x3c;
+- 11 type records of 0x24 at +0x210: icon, pulsing icon, size, dark flag, number label;
+- the arrow handle at +0x39c and the ring handle at +0x3a8.
+
+`0x555340` (= PS3 `0x8a9980`) adds or refreshes a marker every frame. Its callers include
+DcNetDrawObjectiveIcon `0x669250`.
+
+`draw_markers` follows the PS3 steps in order:
+1. Skips a type whose bit is clear in the mask `[0x104f4b0+0x14]`.
+2. Zeroes a marker that was not set for 300 frames.
+3. Moves the fade toward the target by +-4 dt and resets the target.
+4. Projects the marker with margin 100.
+5. Draws, in this order:
+   - the pulsing icon, scaled by lerp(1.5, 2.5, |cos 4t|);
+   - the icon, black when the dark flag is set;
+   - the edge arrow when the point is clamped;
+   - the ring meter at 1.75 s when the fill is not 0;
+   - the "%i" label (DrawText scale 2s, box 400 x 400, centred).
+
+The centre message is at element+0x1a90: text[128], start +0x80 (clock 2), colour +0x84. It is set
+inline at `0x649b91` / `0x6470b9` and drawn every frame, centred in 800 x 20 at (240, 288) at scale
+1.2. PS3 fades each glyph (callback `0x8a7a38`). The PS4 DrawText has no per-glyph hook, so the string
+fades in with the first glyph's curve and out with the last glyph's. It is cleared when PS3 clears it.
+
+### 5.4 Boosters, co-op type 9 panel
+
+The booster icons (`0x8a9bbc`) are 76.8 x 38.4 quads at x = hud+0x340 + 90, y = 150 and 180.72, white
+at fade x 0.75. They are drawn at two sites:
+- **Film site:** ngm+0x209c, flag 0x40000, cinema mode `[0x113a990+0x678]`. It draws the watched
+  player's boosters by index from tracker +0x2a0 / +0x2a4 (SetBooster `0x662dd0`).
+- **Loadout site:** competitive, flag 0x10 set, boosters allowed (ngm+0x1e80, game record +0x6c). It
+  draws the loadout ids 0x11474f8+0x4c / +0x50, looked up in the booster list 0x113a788.
+
+The co-op type 9 panel needs flag 0x8000 and the wave screen float `[0x104f544+0x20]` == 0. It draws:
+- the image set+0xd0;
+- "x%i" from `0x64cbd0` in text set+0xc8, at set+0xc0;
+- a ring meter of the wave time left (PS3 `0x49cae8` ported: wave table at game record +0x7c, ngm
+  +0x1d64 / +0x1d68 / +0x1d6c), scale 0.475.
+
+This corrects section 3 of the second pass: PS3 set +104 is an inline vec2 (PS4 +0xc0), so the text is
++0xc8 and the image +0xd0. PS3 +52..+64 is an inline rect at PS4 +0x68, and PS3 +68..+100 are pointers
+at PS4 +0x78..+0xb8.
+
+Unverified: no PS4 code reads `[0x104f544+0x20]`; it is inferred from the entry layout that
+`0x668850` / `0x668890` write.
+
+### 5.5 Type 7 territory panel and carrier icon
+
+**Type 7 panel.** The territories are the ngm list +0x1d80: 5 handles of 0x10, count at +0x1dd0
+(DcNetSpawnTerritory `0x669840`). The territory object fields are PS3's + 0xb4: owner +0x234,
+capturer +0x238, index +0x250, gain / loss end +0x258 / +0x25c, lengths +0x268 / +0x26c.
+
+`draw_type7_panel` draws the frame set+0x60, then the time left from the round start, then 5 slots in
+the rect set+0x68, in reverse order for team 1. Each slot has:
+- the capture ring (0.4, capturer colour from `0x64aeb0` out+0x10, alpha 0xe0) while the progress is
+  below 0.99;
+- the 12ffe6ae square in half the owner colour;
+- its number in a copy of widget set+0x78 at scale 0.7, black at 0.565 and then coloured 2 units higher.
+
+**Carrier icon.** `draw_carrier` resolves the carry object ngm+0x1cc0 / +0x1cc8 (`0x6237ab`) and finds
+the carrier tracker by flag+0x440 == tracker+0x120. It draws the image set+0x18, +0x20 or +0x28 for
+no carrier, own team or other team.
+
+Left out:
+- the PS3 fallback search through the players' held objects, which needs character +44 / +6696 / +7600
+  on PS4, not mapped;
+- the 0.5 s blink, because PS3 `0x2b75c` exists only inlined on PS4 (`0x63e439`, `0x649879`).
+
+### 5.6 Not ported: the theater HUD (PS3 0x8af620)
+
+The doc called this the "recording / multiplier indicator"; it is the film playback HUD.
+- **`0x8a8ed8` is not a draw.** It is the camera selector update. It rebuilds the camera list in
+  sub+256 from the entries at +12, reads pad buttons 4 / 8 through `0xaac38`, plays f57d53ce and
+  switches the camera with `0x426dbc(0xf0e800, id)`.
+- **`0x8ac3f0` draws.** It shows the camera name, the progress bar and the speed "x%2.1f".
+
+The PS4 sub-object is at element+0x1928 (PS3 +6372 + 0x44). The ctor initialises it with `0x55d690`
+(= PS3 `0x8a7c64`), and the Reset `0x55abb0` sets +0x1928 = 3, +0x192c = 3.0, +0x1a7c = 1.0.
+
+Porting it means taking over camera switching and pad input in cinema mode. It needs about 8 more
+unmapped PS3 functions (`0x420f58`, `0x421018`, `0x4156cc`, `0x462fbc`, `0x426dbc`, `0xaac38`,
+`0x30fb28` / `0x7069c8`, `0x8a8da8`), and the gate `[0xe1eb2c]` has no PS4 counterpart yet. It belongs
+with the cinema port (cinema.cpp).
+
+### 5.7 Unverified
+
+- Placement on screen depends on the HUD's 1280 x 720 space (PS3 `[0x10288a4]`), which is assumed.
+- The DrawText state is built from `0x5555a0` and read from `0xcc9a70`, not tested.
+- The HUD alpha `[0x104ed0c]` is taken as PS3 `[0xe1a660]` by analogy.
+- The sids used here (a2a60dcf, 68951e57, 12ffe6ae, bda0f568, f1b63553, ffa98ec5) are PS3 net-table
+  sids. menuimages.cpp's lookup finds them among the PS4 names, or in net-u2mp; if neither has one, that
+  quad is skipped.

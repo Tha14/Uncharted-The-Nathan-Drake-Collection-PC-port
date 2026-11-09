@@ -14,3 +14,4 @@ __pycache__/
 
 # Research output derived from the game (disassembly, extracted files): never committed.
 /work/
+/ps3cache/

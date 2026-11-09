@@ -572,12 +572,32 @@ class Importer:
             json.dump(level_txt, f)
         self.save()
 
+    def ps3_data_roots(self):
+        """--ps3-data as given, plus (when it is RPCS3's dev_hdd0/game or holds <id>DATA2 folders) the title's own
+        DATA2 folder first and then the other DATA2 folders in it (launcher: the RPCS3 dev_hdd0/game row)."""
+        roots = []
+        d = self.a.ps3_data
+        if not d or not os.path.isdir(d):
+            return roots
+        roots.append(d)
+        title = None
+        for part in reversed(os.path.abspath(self.a.ps3).replace('\\', '/').split('/')):
+            if re.match(r'^[A-Z]{4}\d{5}$', part):
+                title = part
+                break
+        for base in (d, os.path.join(d, 'game'), os.path.join(d, 'dev_hdd0', 'game')):
+            if not os.path.isdir(base):
+                continue
+            subs = sorted(x for x in os.listdir(base) if x.upper().endswith('DATA2') and os.path.isdir(os.path.join(base, x)))
+            if title and (title + 'DATA2') in subs:
+                roots.append(os.path.join(base, title + 'DATA2'))
+            roots += [os.path.join(base, x) for x in subs if x != (title or '') + 'DATA2']
+        return roots
+
     def ps3_data_pak22(self):
         """pak22 of the PS3 game-data folder (<game id>DATA2/USRDIR/build/main/pak22: what PS3 1.10 downloaded
         from the server), from --ps3-data or next to the DLC / disc folders under dev_hdd0/game"""
-        cands = []
-        if self.a.ps3_data:
-            cands.append(self.a.ps3_data)
+        cands = self.ps3_data_roots()
         # The game's own data folder first (GOTY NPUA80698 -> NPUA80698DATA2, which RPCS3 creates on first start:
         # net-patch9.bin, users, cinema5). Its net-patch9 names the same 13 packages ('1-<map>-pak-ingame'), but the
         # packages themselves came from the PS3 server, now offline, so a new GOTY install has none. Then any other
@@ -659,9 +679,7 @@ class Importer:
     def ps3_data_file(self, name):
         """a file of the PS3 game-data folder (<game id>DATA2/USRDIR/<name>), searched like ps3_data_pak22: --ps3-data,
         then the title's own DATA2 folder (GOTY NPUA80698 -> NPUA80698DATA2), then any other DATA2 folder"""
-        cands = []
-        if self.a.ps3_data:
-            cands.append(self.a.ps3_data)
+        cands = self.ps3_data_roots()
         title = None
         for part in reversed(os.path.abspath(self.a.ps3).replace('\\', '/').split('/')):
             if re.match(r'^[A-Z]{4}\d{5}$', part):

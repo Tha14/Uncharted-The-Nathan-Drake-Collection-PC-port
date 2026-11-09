@@ -255,3 +255,32 @@ cleared on every draw data of its DrawControl (object +0x180), and object +0x154
 (the effect of the active-state enter). Logged as `render: hero spawned ...: N draw data, flags A -> B`.
 `UNCHARTED_U2MP_HERO_SHOW=0` turns it off. If the log shows 0 draw data at that point (meshes added
 later), or the run-45 style summary shows the bits back, the clearing has to move later (next step).
+
+### Run 46: the render object is the anim data (not fixed yet; run-47 probe)
+
+The hero-show clear worked (flags 0x6a00 -> 0x2000 at spawn, still 0x2000 later), but there are still
+0 walker submits. The "render object" (DrawControl +0, given to 0xbd3bc0) is the object's **anim data**
+(pool initialised by 0xb4fe20: 0x60000 bytes, +0 word 0x38, matrices at +0xb0..; game object
++0x190 -> +8):
+
+* bytes +2..+6 = the anim update type, set by 0xb4f680 (`SetAnimUpdateType`, a 4-way switch):
+  type 2 = `02 01 00 05 00` (the pool default; the drawn props), type 3 = `03 01 02 03 05` (the hero).
+  Character Inits ask for 3 through 0x995ed0(obj, 3): NetCharacter::Init 0x5fc155, the player Init
+  0x721382 and campaign characters (0x23a07f, 0x984cca, 0x9a26a0 ...), so type 3 itself is normal for a
+  character. 0xbd4f80 tests bit 4 of byte +5 + the bucket.
+* byte +0 bit 0x80: set / cleared by the anim update 0xb53250 (0xb53a2d / 0xb53e4a) each time it runs
+  (callers 0xb5258a, 0xb52dc1, 0xb52df8, 0xb5321e, 0xb545d4). Every drawn actor has it, the hero does not:
+  the hero's animation is never updated, so nothing is skinned or drawn.
+
+So the open question is why the hero's anim data is never updated (its process / state never runs the
+animation). The hero is a player-class object (its draw data had 0x800, which only the player Init
+0x724b70 sets), spawned by 0x976300 / the process spawn 0x9b5c20 (Init = vtable +0x20 at 0x9b64c1; a
+pending state at state machine +8 is required right after).
+
+Run 47 logs:
+* `render: hero spawned/summary ...: vtable V, +34 ..., state machine S: +0=.. +8=.. (state names), anim
+  data A +0 X` - the class (vtable offset), the state (NetCharacter descriptors 0x14ced60 Active,
+  0x14ced88 Idle, 0x14cedb0 NetMove, 0x14cedd8 NetFight, 0x14cee00 Script, 0x14cec18 Dead, 0x14cec40
+  Ragdoll are named), and whether anim data bit 0x80 ever appears.
+* `render diag: hero ...: N draw jobs (0xc419d0)` - the per-instance draw job entry is hooked (trampoline)
+  and counted per tracked instance: collects but no draw jobs = dropped before the job list.

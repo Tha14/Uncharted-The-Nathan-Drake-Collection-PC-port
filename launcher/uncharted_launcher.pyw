@@ -3202,12 +3202,13 @@ class Launcher:
                    "from it only what the PS4 game lacks: multiplayer skins, the Fort's missing parts, sounds, music.",
                    "u2mp_ps3", (("Choose", lambda: self.u2mp_choose("u2mp_ps3", "Choose the PS3 Uncharted 2 folder")),
                                 ("Clear", lambda: self.u2mp_set("u2mp_ps3", ""))))
-        folder_row("PS3 map packs (optional)",
-                   "The folder with dlc-map1.psarc / dlc-map2.psarc (RPCS3: dev_hdd0/game/BCUS98123/USRDIR/build/"
-                   "main): Facility, Ruins, Highrise, Museum and the DLC characters.",
-                   "u2mp_ps3_dlc", (("Choose", lambda: self.u2mp_choose("u2mp_ps3_dlc",
-                                                                        "Choose the folder with the PS3 map packs")),
-                                    ("Clear", lambda: self.u2mp_set("u2mp_ps3_dlc", ""))))
+        folder_row("RPCS3 game data folder",
+                   "RPCS3's dev_hdd0/game folder. It holds the data Uncharted 2 GOTY saves when started once in RPCS3 "
+                   "(NPUA80698DATA2: the server's weapon and match tables) and the maps' spawn points. Found by itself "
+                   "when your Uncharted 2 or Uncharted 3 folder is inside it.",
+                   "u2mp_ps3_data", (("Choose", lambda: self.u2mp_choose("u2mp_ps3_data",
+                                                                         "Choose RPCS3's dev_hdd0/game folder")),
+                                     ("Clear", lambda: self.u2mp_set("u2mp_ps3_data", ""))))
         folder_row("Multiplayer data folder",
                    "Where the import writes the files taken from your PS3 copy.",
                    "data", (("Open", lambda: self.u3mp_open(U2MP_DIR / "import")),))
@@ -3369,7 +3370,10 @@ class Launcher:
             text, colour = "Not imported.", MUTED
         self.u2mp_status.config(text=text, fg=colour)
         self.u2mp_labels["u2mp_ps3"].config(text=self.config.get("u2mp_ps3") or "None chosen yet.")
-        self.u2mp_labels["u2mp_ps3_dlc"].config(text=self.config.get("u2mp_ps3_dlc") or "Not used.")
+        data = self.u2mp_data_folder()
+        self.u2mp_labels["u2mp_ps3_data"].config(
+            text=(data + ("" if self.config.get("u2mp_ps3_data") else "  (found by itself)")) if data else
+            "Not found: start Uncharted 2 GOTY once in RPCS3, then choose RPCS3's dev_hdd0/game folder.")
         self.u2mp_labels["data"].config(text=str(U2MP_DIR / "import"))
         self.u2mp_button.config(text="RE-IMPORT / UPDATE" if status in ("imported", "partial", "failed", "running")
                                 else "IMPORT")
@@ -3387,6 +3391,85 @@ class Launcher:
         if total and width > 1:
             bar.create_rectangle(0, 0, int(width * min(1.0, n / total)), self.px(6), fill=GOLD, outline=GOLD)
 
+    def u2mp_data_folder(self):
+        """The PS3 game-data folder for the import: the RPCS3 row, else RPCS3's dev_hdd0/game found above the chosen
+        Uncharted 2 folder or among the Uncharted 3 page's folders (one holding <id>DATA2 folders), else ""."""
+        chosen = str(self.config.get("u2mp_ps3_data", "") or "")
+        if chosen and Path(chosen).is_dir():
+            return chosen
+        candidates = [self.config.get("u2mp_ps3", "")] + list(self.config.get("u3mp_ps3_u3", []) or [])
+        for folder in candidates:
+            if not folder:
+                continue
+            p = Path(folder)
+            for q in [p] + list(p.parents)[:5]:
+                try:
+                    if q.is_dir() and any(c.is_dir() and c.name.upper().endswith("DATA2") for c in q.iterdir()):
+                        return str(q)
+                except OSError:
+                    continue
+        return ""
+
+    def u2mp_python(self):
+        """A Python with numpy for the import: the launcher's own, else one the py launcher lists; None if none has it."""
+        own = Path(sys.executable)
+        if own.name.lower() == "pythonw.exe" and own.with_name("python.exe").exists():
+            own = own.with_name("python.exe")
+        candidates = [own]
+        try:
+            listing = subprocess.run(["py", "-0p"], capture_output=True, text=True, timeout=10,
+                                     creationflags=NO_WINDOW).stdout
+            for line in listing.splitlines():
+                path = line.split()[-1] if line.split() else ""
+                if path.lower().endswith("python.exe"):
+                    candidates.append(Path(path))
+        except (OSError, subprocess.SubprocessError):
+            pass
+        for python in candidates:
+            try:
+                if python.exists() and subprocess.run([str(python), "-c", "import numpy"], capture_output=True,
+                                                      timeout=60, creationflags=NO_WINDOW).returncode == 0:
+                    return python
+            except (OSError, subprocess.SubprocessError):
+                continue
+        return None
+
+    def u2mp_install_numpy(self):
+        """pip install --user numpy into the launcher's Python, else into another Python the py launcher lists (a
+        version without numpy wheels fails and the next is tried). Returns the Python that then has numpy, or None."""
+        own = Path(sys.executable)
+        if own.name.lower() == "pythonw.exe" and own.with_name("python.exe").exists():
+            own = own.with_name("python.exe")
+        candidates = [own]
+        try:
+            listing = subprocess.run(["py", "-0p"], capture_output=True, text=True, timeout=10,
+                                     creationflags=NO_WINDOW).stdout
+            candidates += [Path(line.split()[-1]) for line in listing.splitlines()
+                           if line.split() and line.split()[-1].lower().endswith("python.exe")]
+        except (OSError, subprocess.SubprocessError):
+            pass
+        self.root.config(cursor="watch")
+        self.root.update_idletasks()
+        try:
+            for python in candidates:
+                if not python.exists():
+                    continue
+                try:
+                    result = subprocess.run([str(python), "-m", "pip", "install", "--user", "--only-binary=:all:",
+                                             "--disable-pip-version-check", "numpy"], capture_output=True, text=True,
+                                            timeout=900, creationflags=NO_WINDOW)
+                    print(f"numpy install with {python}: exit {result.returncode}\n{result.stdout[-2000:]}"
+                          f"{result.stderr[-2000:]}")
+                    if result.returncode == 0 and subprocess.run([str(python), "-c", "import numpy"],
+                                                                 capture_output=True, timeout=60,
+                                                                 creationflags=NO_WINDOW).returncode == 0:
+                        return python
+                except (OSError, subprocess.SubprocessError):
+                    continue
+        finally:
+            self.root.config(cursor="")
+        return None
+
     def u2mp_import(self, silent=False, reason=""):
         """IMPORT / RE-IMPORT, or (silent) the automatic update after a launcher update: u2mp/patcher/u2mp_import.py
         (below normal priority) into analysis/uncharted-user/u2mp/import; it keeps running when the launcher closes."""
@@ -3401,13 +3484,26 @@ class Launcher:
             return False
         out = U2MP_DIR / "import"
         out.mkdir(parents=True, exist_ok=True)
-        python = Path(sys.executable)
-        if python.name.lower() == "pythonw.exe" and python.with_name("python.exe").exists():
-            python = python.with_name("python.exe")
+        python = self.u2mp_python()
+        if python is None and not silent and messagebox.askyesno(
+                APP_TITLE, "The Uncharted 2 import needs Python's numpy package (for the characters, maps and menu "
+                           "pictures), and no Python on this PC has it.\n\nInstall numpy now? (pip downloads it from "
+                           "the Python Package Index into your user packages; this takes a minute.)"):
+            python = self.u2mp_install_numpy()
+        if python is None:
+            if not silent:
+                messagebox.showerror(APP_TITLE, "The Uncharted 2 import needs Python's numpy (for the characters, maps "
+                                                "and menu pictures), and no Python on this PC has it.\n\nInstall it "
+                                                "with:  py -m pip install numpy\n(the launcher's release package "
+                                                "already carries it).")
+            return False
         command = [str(python), "-u", str(ROOT / "u2mp" / "patcher" / "u2mp_import.py"), "--ps4", str(self.game_dir()),
                    "--ps3", ps3, "--out", str(out)]
-        if self.config.get("u2mp_ps3_dlc"):
-            command += ["--ps3-dlc", self.config["u2mp_ps3_dlc"]]
+        # GOTY data only (the user's decision, 2026-11-08): no map pack folder; the game data folder (net-patch9,
+        # spawn paks) from the RPCS3 row or found next to the chosen folders.
+        data = self.u2mp_data_folder()
+        if data:
+            command += ["--ps3-data", data]
         if silent:
             command += ["--update"]
         env = os.environ.copy()

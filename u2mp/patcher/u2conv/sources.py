@@ -14,7 +14,7 @@ import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', '..', 'tools'))
+sys.path.insert(0, HERE)   # psarc_lib lives next to this file (it ships with the patcher; u2mp/tools does not)
 from psarc_lib import Psarc  # noqa: E402
 
 RANK = {'dlc-patch7': 9, 'dlc-patch5': 8, 'dlc-patch3': 7, 'dlc-patch2': 6, 'patch': 5, 'dlc-map2': 4,
