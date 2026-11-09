@@ -404,6 +404,7 @@ struct Tracked {
     uint64_t collects_reported;
     uint64_t draw_jobs;       // 0xc419d0 calls for this instance
     uint64_t draw_jobs_reported;
+    uint64_t loop_calls;      // 0xbe3930 calls (frame loop 0xcaea00 / 0xb90f17) for the render object's +0xf0
 };
 Tracked tracked[kTracked];
 
@@ -460,6 +461,24 @@ U2MP_GUEST uint64_t drawjob_logged(uint64_t inst, uint64_t a1, uint64_t a2, uint
     return reinterpret_cast<DrawJobFn>(drawjob_original)(inst, a1, a2, a3, a4, a5);
 }
 
+// The frame loops call 0xbe3930(object = entry +0xf0, ...) for entries that pass (+0x120 & 6) == 2 (0xcaeb00,
+// 0xb90f17). Counted per tracked render object's +0xf0 (run 53: is the hero's object ever passed?).
+constexpr uint64_t fLoopDraw = 0xbe3930, cLoopDrawA = 0xcaeb5c, cLoopDrawB = 0xb90f17;
+using LoopDrawFn = uint64_t(U2MP_GUEST *)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+                                          uint64_t, uint64_t);
+uint64_t loop_calls_total = 0;
+U2MP_GUEST uint64_t loop_draw_counted(uint64_t obj, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5,
+                                      uint64_t s0, uint64_t s1, uint64_t s2, uint64_t s3) {
+    __atomic_add_fetch(&loop_calls_total, 1, __ATOMIC_RELAXED);
+    for (int i = 0; i < kTracked; ++i) {
+        const uint64_t ro = tracked[i].render_object;
+        if (ro && __atomic_load_n(&tracked[i].instance, __ATOMIC_RELAXED) && !bad_pointer(ro) &&
+            *reinterpret_cast<const uint64_t *>(uintptr_t(ro) + 0xf0) == obj)
+            __atomic_add_fetch(&tracked[i].loop_calls, 1, __ATOMIC_RELAXED);
+    }
+    return reinterpret_cast<LoopDrawFn>(image.base + fLoopDraw)(obj, a1, a2, a3, a4, a5, s0, s1, s2, s3);
+}
+
 void log_gate(const Tracked &t, uint64_t inst) {
     const uint8_t *dd = reinterpret_cast<const uint8_t *>(uintptr_t(inst - 0x1c0));
     const uint64_t ro = t.render_object;
@@ -482,10 +501,9 @@ void log_gate(const Tracked &t, uint64_t inst) {
         (unsigned long long)dd_f0);
     {   // the frame loop 0xcaea00's entries may be render objects: their +0x11c / +0x120 / +0xf0 too (run 52)
         const uint64_t of0 = *reinterpret_cast<const uint64_t *>(o + 0xf0);
-        log("render diag: %s %p loop gate (render object): +11c %04x +120 %04x +f0 %llx (+44 %u)", t.kind,
-            reinterpret_cast<const void *>(uintptr_t(inst)), *reinterpret_cast<const uint16_t *>(o + 0x11c),
-            *reinterpret_cast<const uint16_t *>(o + 0x120), (unsigned long long)of0,
-            of0 && !bad_pointer(of0) ? *reinterpret_cast<const uint32_t *>(uintptr_t(of0) + 0x44) : 0u);
+        log("render diag: %s %p render object +f0 %llx: %llu frame-loop draws 0xbe3930 (of %llu)", t.kind,
+            reinterpret_cast<const void *>(uintptr_t(inst)), (unsigned long long)of0, (unsigned long long)t.loop_calls,
+            (unsigned long long)__atomic_load_n(&loop_calls_total, __ATOMIC_RELAXED));
     }
     log("render diag: %s %p draw data flags +1b8 %08x; render object %p: %llu collects (+%llu), +0 %016llx "
         "%016llx +f8 %u/%u", t.kind, reinterpret_cast<const void *>(uintptr_t(inst)),
@@ -605,6 +623,7 @@ U2MP_GUEST uint64_t mesh_init_logged(uint64_t inst, uint64_t a1, uint64_t a2, ui
     t.render_object = actor ? render_object_of(inst - 0x1c0) : 0;
     t.collects = t.collects_reported = 0;
     t.draw_jobs = t.draw_jobs_reported = 0;
+    t.loop_calls = 0;
     __atomic_store_n(&t.instance, inst, __ATOMIC_RELEASE);
     const uint8_t *in = reinterpret_cast<const uint8_t *>(uintptr_t(inst));
     list_insert(inst + 0x170, slot, 0, gen);
@@ -719,6 +738,8 @@ bool install_draw_diag(int &installed) {
     n += retarget_call(cInitA, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init A");
     n += retarget_call(cInitB, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init B");
     n += retarget_call(cInitC, fMeshInit, reinterpret_cast<void *>(&mesh_init_logged), "render diag: MeshInstance::Init C");
+    n += retarget_call(cLoopDrawA, fLoopDraw, reinterpret_cast<void *>(&loop_draw_counted), "render diag: frame loop draw A");
+    n += retarget_call(cLoopDrawB, fLoopDraw, reinterpret_cast<void *>(&loop_draw_counted), "render diag: frame loop draw B");
     n += retarget_call(cFreeActor, fMeshFree, reinterpret_cast<void *>(&mesh_free_logged), "render diag: actor mesh teardown");
     n += retarget_call(cDrawDataA, fDrawDataNew, reinterpret_cast<void *>(&drawdata_new_logged), "render diag: AddMesh draw data A");
     n += retarget_call(cDrawDataB, fDrawDataNew, reinterpret_cast<void *>(&drawdata_new_logged), "render diag: AddMesh draw data B");
