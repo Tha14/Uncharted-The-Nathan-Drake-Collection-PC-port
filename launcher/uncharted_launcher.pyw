@@ -26,7 +26,6 @@ from tkinter import messagebox
 from PIL import Image, ImageDraw, ImageTk
 
 import native_api  # launcher/native_api.py: the launcher's native code (uncharted_native.dll)
-import updater  # launcher/updater.py: updates from the GitHub releases
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "launcher" / "assets"
@@ -668,12 +667,11 @@ class Launcher:
         write_config(self.config)  # keeps one-time updates (read_config) even without a change
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(150, self.poll)
-        # Updates (launcher/updater.py): what an installed one left behind goes; a newer release
-        # shows the UPDATE button.
-        self.update_release = None
-        self.update_busy = False
-        self.update_result = None
-        root.after(3000, lambda: updater.cleanup(ROOT))
+        # Updates (launcher/native/updates.cpp): what an installed one left behind goes; a newer release
+        # shows the UPDATE button (or installs by itself in the automatic mode).
+        self.update_view = None   # [done, total] while an update runs (the window's banner)
+        root.after(3000, lambda: native_api.update_cleanup(ROOT))
+        root.after(200, self.updates_tick)
         if self.config.get("check_updates", True) and not direct:
             root.after(1500, self.check_updates)
         if not direct:
@@ -1171,20 +1169,7 @@ class Launcher:
 
     def change_update_mode(self, value):
         self.change_config("update_mode", value)
-        if value == "auto" and self.update_release and not self.update_busy:
-            self.update_button.pack_forget()
-            self.auto_install()
-        elif value == "manual" and self.update_release and not self.update_busy:
-            self.update_button.pack(side="right", padx=(0, self.px(14)))
-
-    def auto_install(self):
-        """Automatic updates: install the found version as soon as no game or import is running."""
-        if self.config.get("update_mode") != "auto" or not self.update_release or self.update_busy:
-            return
-        if self.process or self.import_running():
-            self.root.after(60000, self.auto_install)
-            return
-        self.install_update(auto=True)
+        self.update_op("mode")
 
     def flat_button(self, parent, label, action):
         """A secondary action: a dark rounded button."""
@@ -2124,57 +2109,43 @@ class Launcher:
         if detail is not None:
             self.substatus.config(text=detail)
 
-    # -- updates (launcher/updater.py) ------------------------------------------------------
+    # -- updates (launcher/native/updates.cpp) ----------------------------------------------
+
+    def update_op(self, op, **fields):
+        """A step of the launcher's own update (launcher/native/updates.cpp): what it says to show or do."""
+        reply = native_api.updates(dict(fields, op=op, state={
+            "root": str(ROOT), "mode": self.config.get("update_mode"), "game_running": self.process is not None,
+            "import_running": self.import_running()}))
+        if "status" in reply:
+            self.set_status(*reply["status"])
+        if "button" in reply:
+            if reply["button"]:
+                self.update_button.config(text=reply["button"])
+                self.update_button.pack(side="right", padx=(0, self.px(14)))
+            else:
+                self.update_button.pack_forget()
+        if "updating" in reply:
+            self.update_view = reply["updating"]
+        dialog = reply.get("dialog")
+        if dialog and dialog["kind"] == "yesno":
+            self.update_op("confirmed", answer=bool(messagebox.askyesno(APP_TITLE, dialog["text"])))
+        elif dialog:
+            (messagebox.showerror if dialog["kind"] == "error" else messagebox.showinfo)(APP_TITLE, dialog["text"])
+        if reply.get("exit"):   # the installer waits for this process to exit: close even if the settings failed
+            try:
+                self.config["window_xy"] = [self.root.winfo_x(), self.root.winfo_y()]
+                write_config(self.config)
+            finally:
+                self.root.destroy()
+            return True
+        return False
+
+    def updates_tick(self):
+        if not self.update_op("tick"):
+            self.root.after(200, self.updates_tick)
 
     def check_updates(self, manual=False):
-        current = updater.installed_version(ROOT)
-        if current is None:
-            if manual:
-                messagebox.showinfo(APP_TITLE, "This copy runs from the source tree: update it with git.")
-            return
-        if self.update_busy:
-            return
-        self.update_busy = True
-        if manual:
-            self.set_status("Checking for updates...", "")
-
-        def work():
-            try:
-                self.update_result = (updater.latest_release(current), None)
-            except Exception as error:  # offline, GitHub's rate limit
-                self.update_result = (None, str(error) or error.__class__.__name__)
-        threading.Thread(target=work, daemon=True).start()
-        self.root.after(200, lambda: self.update_checked(manual))
-
-    def update_checked(self, manual):
-        if self.update_result is None:
-            self.root.after(200, lambda: self.update_checked(manual))
-            return
-        release, error = self.update_result
-        self.update_result = None
-        self.update_busy = False
-        if release:
-            self.update_release = release
-            version = updater.version_text(release["version"])
-            if self.config.get("update_mode") == "auto":
-                if not self.process:
-                    self.set_status(f"Version {version} is available.", "It installs by itself in a moment.")
-                self.root.after(1500, self.auto_install)
-                return
-            self.update_button.config(text=f"UPDATE TO {version}")
-            self.update_button.pack(side="right", padx=(0, self.px(14)))
-            if not self.process:
-                self.set_status(f"Version {version} is available.",
-                                "UPDATE installs it: saves and settings are kept, the launcher restarts.")
-        elif manual:
-            current = updater.version_text(updater.installed_version(ROOT))
-            if error:
-                self.set_status("Could not check for updates.", error)
-            else:
-                self.set_status("No update found.", f"Version {current} is the newest.")
-
-    IMPORT_BUSY = ("A multiplayer import or update is still running in the background. Wait until it has finished "
-                   "(Multiplayer tab), then press UPDATE again: the update replaces the files the import is using.")
+        self.update_op("check", manual=manual)
 
     def import_running(self):
         """An Uncharted 3 or Uncharted 2 multiplayer import runs with the launcher's Python and tools."""
@@ -2184,71 +2155,7 @@ class Launcher:
             return False
 
     def install_update(self, auto=False):
-        release = self.update_release
-        if not release or self.update_busy:
-            return
-        if self.process:
-            messagebox.showinfo(APP_TITLE, "Close the game first: the update replaces the game's runtime.")
-            return
-        if self.import_running():
-            messagebox.showinfo(APP_TITLE, self.IMPORT_BUSY)
-            return
-        version = updater.version_text(release["version"])
-        if not auto and not messagebox.askyesno(APP_TITLE, f"Install version {version} ({release['size'] / 1e6:.0f} MB "
-                                   "download)?\n\nSaves, settings and the shader cache are kept. The "
-                                   "launcher closes, installs the update and starts again.\n\n"
-                                   f"What's new: {release['page']}"):
-            return
-        self.update_busy = True
-        self.update_progress = (0, release["size"])
-        self.update_error = None
-        self.update_staged = None
-
-        def progress(done, total):
-            self.update_progress = (done, total)
-
-        def work():
-            try:
-                archive = updater.download(release, ROOT, progress)
-                self.update_staged = updater.stage(archive, ROOT, release["version"])
-            except Exception as error:
-                self.update_error = str(error) or error.__class__.__name__
-        threading.Thread(target=work, daemon=True).start()
-        self.root.after(200, self.update_tick)
-
-    def update_tick(self):
-        if self.update_error:
-            self.update_busy = False
-            self.set_status("The update failed.", "The installed version is unchanged.")
-            messagebox.showerror(APP_TITLE, f"The update could not be installed:\n\n{self.update_error}")
-            return
-        if self.update_staged and self.import_running():
-            # an import started while the update downloaded: it uses the launcher's Python, which the update
-            # replaces (Windows refuses to move files in use); the update is kept and installs at the next try
-            self.update_busy = False
-            self.update_staged = None
-            self.set_status("Update downloaded.", "Press UPDATE again when the multiplayer import has finished.")
-            messagebox.showinfo(APP_TITLE, self.IMPORT_BUSY)
-            return
-        if self.update_staged:
-            self.set_status("Installing the update...", "The launcher starts again in a moment.")
-            try:
-                updater.start_apply(ROOT, self.update_staged)
-            except OSError as error:
-                self.update_busy = False
-                messagebox.showerror(APP_TITLE, f"The update could not be started:\n\n{error}")
-                return
-            try:
-                self.config["window_xy"] = [self.root.winfo_x(), self.root.winfo_y()]
-                write_config(self.config)
-            finally:
-                # The updater waits for this process to exit: close even if the settings failed.
-                self.root.destroy()
-            return
-        done, total = self.update_progress
-        amount = f"{100 * done / total:.0f}%" if total else f"{done / 1e6:.0f} MB"
-        self.set_status(f"Downloading the update... {amount}", "Keep the launcher open.")
-        self.root.after(200, self.update_tick)
+        self.update_op("install", auto=auto)
 
     # -- settings changes -------------------------------------------------------------------
 

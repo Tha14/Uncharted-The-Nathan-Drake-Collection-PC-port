@@ -408,8 +408,8 @@ def chrome(app):
                       "progress": done / total}
         elif reason:
             banner = {"title": "UPDATE STARTING", "progress": 0}
-    if getattr(app, "update_busy", False) and getattr(app, "update_release", None):   # a launcher update installing
-        done, total = getattr(app, "update_progress", (0, 0))
+    if getattr(app, "update_view", None):   # a launcher update installing (launcher/native/updates.cpp)
+        done, total = app.update_view
         pct = " (%d%%)" % (100 * done // total) if total else ""
         banner = {"title": "UPDATING THE LAUNCHER" + pct, "progress": done / total if total else 0}
     update = shown(app.update_button)

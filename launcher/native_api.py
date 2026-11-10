@@ -239,6 +239,22 @@ def action_poll():
     return json.loads(out.value.decode("utf-8", "replace"))
 
 
+# ---------------------------------------------------------------------------------------------- updates.cpp
+
+
+def updates(request):
+    """A step of the launcher's own update: {"status", "button", "dialog", "exit", "updating"} (any of them)."""
+    return _json_call("un_updates", request)
+
+
+def update_cleanup(root):
+    """What an installed update left in <root>\\update goes."""
+    dll = _native()
+    dll.un_update_cleanup.argtypes = [ctypes.c_wchar_p]
+    dll.un_update_cleanup.restype = None
+    dll.un_update_cleanup(str(root))
+
+
 # ---------------------------------------------------------------------------------------------- play.cpp
 
 
