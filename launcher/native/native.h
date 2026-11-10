@@ -18,7 +18,7 @@ extern "C" {
 
 UN_API int un_version(void);
 
-/* Steam ("Add to Steam", launcher/steam_library.py) */
+/* Steam ("Add to Steam": TOOLS, actions.cpp add_to_steam) */
 UN_API int un_steam_running(void);
 /* request lines: root\t<port folder>, starter\t<Uncharted Launcher.exe>, python\t<python.exe>, script\t<launcher script>,
  * per_game, game\t<key>\t<name> (one per game). out lines: <name>\t<exe>\t<start folder>\t<options> */

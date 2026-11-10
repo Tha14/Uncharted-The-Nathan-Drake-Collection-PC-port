@@ -927,21 +927,7 @@ class Launcher:
         return Path(folder)
 
     def choose_game_dir(self):
-        from tkinter import filedialog
-        folder = filedialog.askdirectory(
-            title="Select the Uncharted game folder (the one with eboot.bin and sce_sys)",
-            initialdir=str(self.game_dir() if self.game_dir().exists() else ROOT))
-        if not folder:
-            return False
-        if not is_game_dir(folder):
-            messagebox.showerror(APP_TITLE, "That folder has no eboot.bin and sce_sys/param.sfo.\n\n"
-                                            "Choose the game's root folder (CUSA02344).")
-            return False
-        self.config["game_dir"] = folder
-        if WINE:
-            self.config["game_dir_unix"] = unix_path(folder)
-        write_config(self.config)
-        return True
+        return bool(self.run_action("choose_game_dir"))
 
     def chosen_update(self):
         """The update folder chosen in Advanced (Choose update folder), if it is still there."""
@@ -2382,11 +2368,6 @@ class Launcher:
                                 "Insert or R3 + L2 opens the in-game menu. STOP closes the game.")
         self.root.after(150, self.poll)
 
-    def latest_log(self):
-        logs = [ROOT / "analysis" / g["log"] / "boot.log" for g in GAMES]
-        logs = [log for log in logs if log.exists()]
-        return max(logs, key=lambda p: p.stat().st_mtime) if logs else None
-
     def confirm_play(self):
         """PLAY's questions before the game starts (launcher/native/play.cpp un_play_questions: the game without update
         1.02, an update folder with missing or damaged files, a slow drive); each asked once where it says so."""
@@ -2432,28 +2413,72 @@ class Launcher:
 
     # -- advanced actions -------------------------------------------------------------------
 
+    # TOOLS' actions run in the native code step by step (launcher/native/actions.cpp); the launcher shows the dialogs
+    # they ask for and keeps polling a long install
+    def action_state(self):
+        return {"root": str(ROOT), "user_dir": str(USER_DIR), "game_dir": str(self.game_dir()),
+                "game_running": self.process is not None, "wine": WINE, "python": sys.executable,
+                "script": str(Path(__file__).resolve()),
+                "games": [{"key": g["key"], "name": g["name"]} for g in GAMES]}
+
+    def show_dialog(self, dialog):
+        """A dialog an action asks for: its answer (True / False, a path, "" when cancelled)."""
+        from tkinter import filedialog
+        kind, title, text = dialog["kind"], dialog.get("title") or APP_TITLE, dialog.get("text", "")
+        boxes = {"info": messagebox.showinfo, "warning": messagebox.showwarning, "error": messagebox.showerror}
+        if kind in boxes:
+            boxes[kind](title, text)
+            return None
+        asks = {"yesno": messagebox.askyesno, "okcancel": messagebox.askokcancel,
+                "retrycancel": messagebox.askretrycancel}
+        if kind in asks:
+            return bool(asks[kind](title, text))
+        options = {"title": title, "parent": self.root}
+        if dialog.get("initialdir"):
+            options["initialdir"] = dialog["initialdir"]
+        if kind == "directory":
+            return filedialog.askdirectory(mustexist=True, **options) or ""
+        return filedialog.askopenfilename(filetypes=[tuple(t) for t in dialog.get("filetypes") or []], **options) or ""
+
+    def run_action(self, name, value=None, step=0, data=None, answer=None):
+        """One TOOLS action from `step` on: its dialogs, its settings, and its install's progress in TOOLS' lines.
+        Returns its "result" when it has one (choose_game_dir: a folder was chosen)."""
+        result = None
+        while True:
+            reply = native_api.action({"name": name, "value": value, "step": step, "data": data or {},
+                                       "answer": answer, "state": self.action_state()})
+            if reply.get("config"):
+                self.config.update(reply["config"])
+                write_config(self.config)
+            self.tools_progress.update(reply.get("progress") or {})
+            result = reply.get("result", result)
+            if reply.get("work"):   # an install runs in the native code: its step goes to TOOLS' line until it ends
+                key = next(iter(reply.get("progress") or {"update": ""}))
+
+                def poll():
+                    state = native_api.action_poll()
+                    if state["running"]:
+                        if state["text"]:
+                            self.tools_progress[key] = state["text"]
+                        self.root.after(200, poll)
+                    else:
+                        self.run_action(name, value, reply["step"], reply.get("data"))
+                self.root.after(200, poll)
+                return result
+            if reply.get("dialog"):
+                answer = self.show_dialog(reply["dialog"])
+                step, data = reply["step"], reply.get("data")
+                continue
+            return result
+
     def open_logs(self):
-        log = self.latest_log()
-        folder = log.parent if log else ROOT / "analysis"
-        os.startfile(folder)
+        self.run_action("open_logs")
 
     def open_saves(self):
-        folder = USER_DIR / "savedata"
-        os.startfile(folder if folder.exists() else USER_DIR)
+        self.run_action("open_saves")
 
     def clear_cache(self):
-        cache = USER_DIR / "cache"
-        if not cache.exists():
-            messagebox.showinfo(APP_TITLE, "There is no shader cache yet.")
-            return
-        if self.process:
-            messagebox.showwarning(APP_TITLE, "Close the game first.")
-            return
-        if not messagebox.askyesno(APP_TITLE, "Delete the shader cache?\n\nShaders are compiled again the next "
-                                              "time you play, which brings back stutters for a while."):
-            return
-        shutil.rmtree(cache, ignore_errors=True)
-        messagebox.showinfo(APP_TITLE, "Shader cache cleared.")
+        self.run_action("clear_cache")
 
     def make_shortcuts(self, which):
         """TOOLS' desktop shortcuts (launcher/native/shortcuts.cpp): "launcher", or "games" (one per game, started
@@ -2462,152 +2487,23 @@ class Launcher:
                                              "python": sys.executable, "script": str(Path(__file__).resolve())})
         (messagebox.showerror if result["kind"] == "error" else messagebox.showinfo)(APP_TITLE, result["text"])
 
-    def update_installer(self):
-        return native_api.GameUpdate(ROOT)
-
     def choose_update_folder(self):
-        """An update the player already extracted, anywhere: checked and remembered (nothing is
-        copied); the games get it as UNCHARTED_UPDATE."""
-        if self.process:
-            messagebox.showwarning(APP_TITLE, "Close the game first.")
-            return
-        game = self.game_dir()
-        if not is_game_dir(game):
-            messagebox.showwarning(APP_TITLE, "Choose the game folder first (Change game folder).")
-            return
-        from tkinter import filedialog
-        folder = filedialog.askdirectory(title="Choose the extracted update 1.02 folder", parent=self.root,
-                                         mustexist=True)
-        if not folder:
-            return
-        installer = self.update_installer()
-        try:
-            update = installer.check_folder(folder, game)
-        except installer.UpdateError as error:
-            messagebox.showerror(APP_TITLE, f"This folder can't be used:\n{error}")
-            return
-        self.config["update_dir"] = str(update)
-        write_config(self.config)
-        messagebox.showinfo(APP_TITLE, f"Game update {app_version(update) or '?'} is used from now on:\n{update}")
+        """An update the player already extracted, anywhere: checked and remembered (nothing is copied); the games get
+        it as UNCHARTED_UPDATE."""
+        self.run_action("choose_update_folder")
 
     def install_game_update(self):
-        """The player's own update PKG unpacked next to the game folder (launcher/native/gameupdate.cpp;
-        the port ships no game files)."""
-        if self.process:
-            messagebox.showwarning(APP_TITLE, "Close the game first.")
-            return
-        game = self.game_dir()
-        if not is_game_dir(game):
-            messagebox.showwarning(APP_TITLE, "Choose the game folder first (Change game folder).")
-            return
-        from tkinter import filedialog
-        pkg = filedialog.askopenfilename(title="Choose the game update (.pkg)", parent=self.root,
-                                         filetypes=[("PS4 package", "*.pkg"), ("All files", "*.*")])
-        if not pkg:
-            return
-        installer = self.update_installer()
-        existing = installer.existing_update(game)
-        if existing and not messagebox.askyesno(
-                APP_TITLE, f"There is an update folder already:\n{existing}\n\nReplace it with this update?"):
-            return
-        state = {"step": "Checking the update..."}
-
-        def work():
-            try:
-                state["path"] = installer.install(pkg, game, log=lambda text: state.__setitem__("step", text))
-            except installer.UpdateError as error:
-                state["error"] = str(error)
-            except Exception as error:  # a disk or permission problem: shown as it is
-                state["error"] = f"{type(error).__name__}: {error}"
-
-        worker = threading.Thread(target=work, daemon=True)
-        worker.start()
-
-        def poll():
-            if worker.is_alive():
-                self.tools_progress["update"] = state["step"]
-                self.root.after(200, poll)
-                return
-            if "path" in state:  # the installed one is used, also over a folder chosen before
-                self.config["update_dir"] = str(state["path"])
-                write_config(self.config)
-            self.tools_progress["update"] = ""
-            if "error" in state:
-                messagebox.showerror(APP_TITLE, f"The update was not installed:\n{state['error']}")
-            else:
-                messagebox.showinfo(APP_TITLE, f"Update installed:\n{state['path']}\n\nThe games use it from "
-                                               "their next start.")
-        poll()
+        """The player's own update PKG unpacked next to the game folder (the port ships no game files)."""
+        self.run_action("install_game_update")
 
     def check_game_files(self):
-        """Every file of the base game present with the right size (launcher/native/gamefiles.cpp against
-        tools/game_files_102.json.gz: names and sizes, no game data). 29 Oct 2026: Uncharted 3 chapter 8 stopped
-        for players whose dump lacked one script file (#247, #296)."""
-        folder = self.game_dir()
-        if not folder:
-            messagebox.showwarning(APP_TITLE, "Choose the game folder first.")
-            return
-        status, lines = native_api.check_game_files(ROOT, folder)
-        if status == 2:
-            messagebox.showerror(APP_TITLE, "The check could not run:\n\n" + "\n".join(lines))
-            return
-        if status == 0:
-            messagebox.showinfo(APP_TITLE, "Your game files are complete.\n\n" + (lines[0] if lines else ""))
-            return
-        problems = lines[1:]
-        shown = "\n".join(problems[:15]) + (f"\n... and {len(problems) - 15} more" if len(problems) > 15 else "")
-        messagebox.showerror(APP_TITLE, "Your game files are incomplete, so the game will stop where it needs "
-                             "them. Extract or dump the base game again.\n\n" + (lines[0] if lines else "")
-                             + "\n\n" + shown)
+        """Every file of the base game present with the right size (tools/game_files_102.json.gz: names and sizes)."""
+        self.run_action("check_game_files")
 
     def install_game_pkg(self):
-        """The player's own game PKG (for example the US copy, CUSA02320) unpacked into a folder
-        they choose, with the metadata the launcher needs (launcher/native/gameupdate.cpp install_game;
-        the port ships no game files). That folder becomes the game folder."""
-        if self.process:
-            messagebox.showwarning(APP_TITLE, "Close the game first.")
-            return
-        from tkinter import filedialog
-        pkg = filedialog.askopenfilename(title="Choose the game (.pkg), not the update", parent=self.root,
-                                         filetypes=[("PS4 package", "*.pkg"), ("All files", "*.*")])
-        if not pkg:
-            return
-        parent = filedialog.askdirectory(title="Choose where to put the game (about 60 GB)", parent=self.root,
-                                         initialdir=str(Path(pkg).parent))
-        if not parent:
-            return
-        installer = self.update_installer()
-        state = {"step": "Checking the game package..."}
-
-        def work():
-            try:
-                state["path"] = installer.install_game(pkg, parent,
-                                                       log=lambda text: state.__setitem__("step", text))
-            except installer.UpdateError as error:
-                state["error"] = str(error)
-            except Exception as error:  # a disk or permission problem: shown as it is
-                state["error"] = f"{type(error).__name__}: {error}"
-
-        worker = threading.Thread(target=work, daemon=True)
-        worker.start()
-
-        def poll():
-            if worker.is_alive():
-                self.tools_progress["game_dir"] = state["step"]
-                self.root.after(200, poll)
-                return
-            if "path" in state:
-                self.config["game_dir"] = str(state["path"])
-                if WINE:
-                    self.config["game_dir_unix"] = unix_path(str(state["path"]))
-                write_config(self.config)
-            self.tools_progress["game_dir"] = ""
-            if "error" in state:
-                messagebox.showerror(APP_TITLE, f"The game was not installed:\n{state['error']}")
-            else:
-                messagebox.showinfo(APP_TITLE, f"Game installed:\n{state['path']}\n\nIt is the game folder now. "
-                                               "Next, install update 1.02: GAME UPDATE -> Install from .pkg.")
-        poll()
+        """The player's own game PKG (for example the US copy, CUSA02320) unpacked into a folder they choose; that
+        folder becomes the game folder."""
+        self.run_action("install_game_pkg")
 
     def desktop_shortcut(self):
         self.make_shortcuts("launcher")
@@ -2617,60 +2513,13 @@ class Launcher:
         self.make_shortcuts("games")
 
     def add_to_steam(self, per_game=False):
-        """Adds the Collection (or each game, started with --play) to Steam's library as a non-Steam
-        game, with pictures made from the game's own files (launcher/steam_library.py)."""
-        try:
-            import steam_library
-        except ImportError as error:
-            messagebox.showerror(APP_TITLE, f"Add to Steam is missing a launcher file:\n{error}")
-            return
-        while steam_library.steam_running():
-            if not messagebox.askretrycancel(
-                    APP_TITLE, "Steam is open. Steam saves its own list of games when it closes, so a game "
-                               "added now would be lost.\n\nClose Steam completely (Steam menu -> Exit, or "
-                               "right-click its icon by the clock -> Exit), then press Retry."):
-                return
-        games = [(game["key"], game["name"]) for game in GAMES] if per_game else None
-        targets = steam_library.launch_targets(ROOT, STARTER_EXE, sys.executable,
-                                               Path(__file__).resolve(), games)
-        names = [steam_library.COLLECTION_NAME] + [game["name"] for game in GAMES]
-        game_dir = self.game_dir() if is_game_dir(self.game_dir()) else None
+        """Adds the Collection (or each game, started with --play) to Steam's library as a non-Steam game, with
+        pictures made from the game's own files."""
         self.root.config(cursor="watch")
-        self.root.update_idletasks()
         try:
-            results = steam_library.add_to_steam(targets, ASSETS / "uncharted.ico", game_dir, all_names=names)
-        except steam_library.SteamError as error:
-            if error.kind == "no_steam":
-                text = ("Steam was not found on this PC (no Steam account folder in Steam's userdata). "
-                        "Install Steam and sign in once, then try again.")
-                if WINE:
-                    text += ("\n\nOn Linux, add the launcher from Steam itself: Games -> Add a Non-Steam "
-                             "Game to My Library.")
-            else:
-                text = ("Steam's list of non-Steam games could not be read, so it was left as it is:\n"
-                        f"{error.detail}")
-            messagebox.showerror(APP_TITLE, text)
-            return
-        except OSError as error:
-            messagebox.showerror(APP_TITLE, f"Could not write Steam's list of games:\n{error}")
-            return
+            self.run_action("add_to_steam", per_game)
         finally:
             self.root.config(cursor="")
-        lines = []
-        for folder, name, result in results:
-            who = f"{name} ({folder.name})" if name else f"Steam account {folder.name}"
-            changes = [f"{count} {word}" for count, word in ((result["added"], "added"),
-                                                            (result["updated"], "updated"),
-                                                            (result["removed"], "replaced")) if count]
-            lines.append(f"{who}: {', '.join(changes)}")
-        added = "the three games" if per_game else f"\"{steam_library.COLLECTION_NAME}\""
-        pictures = ("Library pictures come from your game files."
-                    if game_dir else "No library pictures: choose the game folder first, then add again.")
-        backups = [str(result["backup"]) for _, _, result in results if result["backup"]]
-        messagebox.showinfo(APP_TITLE, f"Added {added} to Steam:\n" + "\n".join(lines) +
-                            f"\n\n{pictures}" +
-                            (f"\n\nThe previous list was saved as:\n" + "\n".join(backups) if backups else "") +
-                            f"\n\nStart Steam again: {'they are' if per_game else 'it is'} in your Library.")
 
     def reset(self):
         name = self.current_game()["name"]
