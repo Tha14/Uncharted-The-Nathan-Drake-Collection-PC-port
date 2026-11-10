@@ -673,10 +673,10 @@ UN_API int un_starter_files(const char *what, const char *args_json, char *out, 
             if (exists(view)) remove_path(view);
             return give("", out, cap);
         }
+        if (w == "window_icon") return give(window_icon(arg_at(args, 0), arg_at(args, 1)), out, cap);
     } catch (const ValueError &e) {
         int status = give(e.message, out, cap);
         return status < 0 ? status : 3;
-        if (w == "window_icon") return give(window_icon(arg_at(args, 0), arg_at(args, 1)), out, cap);
     } catch (const Failure &f) {
         int status = give(f.message, out, cap);
         return status < 0 ? status : 1;
