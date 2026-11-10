@@ -82,6 +82,9 @@ UN_API int un_starter(const char *what, const char *arg, char *out, int cap);
  * It writes the player's files as the game starter did (probe-pad.txt, upscaler=off, capture folders): call it once,
  * with room for the result. */
 UN_API int un_runtime_env(const char *inputs_json, char *out, int cap);
+/* The game starter's files (starter_files.cpp): game_executable [root], user_dir [root, suffix], boot_view [root, game,
+ * update]; args as a JSON array. 0 ok, 1 failed (out: why), 2 unknown what. */
+UN_API int un_starter_files(const char *what, const char *args_json, char *out, int cap);
 
 /* The game starter's code patches (patcher.cpp). un_apply_patches: the patch list as JSON (tools/game_patcher.py);
  * out: the log; 0 applied and written, 1 not written (last line: why), negative: out too small (nothing written).

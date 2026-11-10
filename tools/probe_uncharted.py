@@ -849,26 +849,14 @@ def apply_patches(image, patches):
 
 
 def game_executable():
-    """The runtime as Uncharted.exe (Task Manager, Windows' graphics settings and overlays show
-    this name), copied from the build output whenever that is newer."""
-    built = ROOT / "gow3_pc/out/gow3-probe.exe"
-    game_exe = ROOT / "gow3_pc/out/Uncharted.exe"
-    if os.environ.get("UNCHARTED_TEST_PROBE_EXE") == "1":  # test: not under the game's name
-        return built
-    # Tests of another build (UNCHARTED_PROBE_EXE=<file>) run it as Uncharted.exe and leave the
-    # deployed build alone; any difference to the deployed build (not only a newer one) is copied
-    # back at the next normal start.
-    if override := os.environ.get("UNCHARTED_PROBE_EXE"):
-        built = Path(override)
-    try:
-        built_stat = built.stat()
-        if not game_exe.exists() or built_stat.st_mtime != game_exe.stat().st_mtime or \
-                built_stat.st_size != game_exe.stat().st_size:
-            shutil.copy2(built, game_exe)
-    except OSError as error:  # still running from a previous start: use the build output
-        print(f"Using {built.name}: {error}")
-        return built
-    return game_exe
+    """The runtime as Uncharted.exe (Task Manager, Windows' graphics settings and overlays show this name), copied
+    from the build output whenever they differ (launcher/native/starter_files.cpp; UNCHARTED_TEST_PROBE_EXE=1 and
+    UNCHARTED_PROBE_EXE=<file> for tests)."""
+    import game_patcher
+    path, _, message = game_patcher.starter_files("game_executable", ROOT).partition("\n")
+    if message:
+        print(message)
+    return Path(path)
 
 
 def game_window_icon(game):
@@ -959,38 +947,12 @@ def game_view(game, update):
 
 
 def boot_view(base, update):
-    """For drives that hold no links (exFAT, FAT32): copies of the files the prepare scripts read
-    (the executables, sce_module, sce_sys), the update's over the game's, in analysis/views
-    (about 90 MB, copied again only when a source changes). The runtime reads the update over
-    the game itself (--app0-overlay)."""
-    chosen = {}
-    executables = {name.lower() for name in GAME_KEYS}
-    for layer in (base, update):  # the update last: its files win
-        for entry in layer.iterdir():
-            if entry.is_file() and entry.name.lower() in executables:
-                chosen[entry.name.lower()] = (entry.name, entry)
-            elif entry.is_dir() and entry.name.lower() in ("sce_module", "sce_sys"):
-                for path in entry.rglob("*"):
-                    if path.is_file():
-                        relative = path.relative_to(layer)
-                        chosen[str(relative).lower()] = (str(relative), path)
-    title, version = sfo_value(update, "TITLE_ID") or "game", sfo_value(update, "APP_VER") or "update"
-    view = ROOT / "analysis/views" / f"boot-{title}-{version}"
-    for relative, source in chosen.values():
-        dest = view / relative
-        wanted = source.stat()
-        try:
-            current = dest.stat()
-            # FAT32 keeps write times in 2-second steps.
-            if current.st_size == wanted.st_size and abs(current.st_mtime - wanted.st_mtime) <= 2:
-                continue
-        except OSError:
-            pass
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        # copyfile, not copy2: a read-only source attribute would make the next refresh fail.
-        shutil.copyfile(source, dest)
-        os.utime(dest, ns=(wanted.st_atime_ns, wanted.st_mtime_ns))
-    return view
+    """For drives that hold no links (exFAT, FAT32): copies of the files the prepare scripts read (the executables,
+    sce_module, sce_sys), the update's over the game's, in analysis/views, copied again only when a source changes
+    (launcher/native/starter_files.cpp). The runtime reads the update over the game itself (--app0-overlay).
+    OSError when they could not be copied."""
+    import game_patcher
+    return Path(game_patcher.starter_files("boot_view", ROOT, base, update))
 
 
 def run_once(args, executable, guest_args, loadexec):
@@ -1045,29 +1007,14 @@ def instance_suffix():
     return game_patcher.starter("instance_suffix")
 
 
-# What a new instance's user folder starts with (copied once from the main one): settings, saves,
-# trophies and the shader caches (an empty cache would compile for minutes).
-INSTANCE_USER_SEED = ("probe.ini", "probe-u1.ini", "probe-u2.ini", "probe-u3.ini",
-                      "disabled-optimizations.txt", "skip.txt", "savedata", "trophy", "cache", "shader")
-
-
 def user_dir():
-    """The user folder (saves, settings, caches) of this instance."""
-    main_user = ROOT / "analysis/uncharted-user"
-    suffix = instance_suffix()
-    if not suffix:
-        return main_user
-    user = ROOT / f"analysis/uncharted-user{suffix}"
-    if not user.exists():
-        user.mkdir(parents=True)
-        for name in INSTANCE_USER_SEED:
-            source = main_user / name
-            if source.is_dir():
-                shutil.copytree(source, user / name)
-            elif source.is_file():
-                shutil.copy2(source, user / name)
-        print(f"Instance {suffix[2:]}: new user folder {user} (settings, saves and caches copied)")
-    return user
+    """The user folder (saves, settings, caches) of this instance; a new instance's starts with copies of the main
+    one's settings, saves, trophies and shader caches (launcher/native/starter_files.cpp)."""
+    import game_patcher
+    path, _, message = game_patcher.starter_files("user_dir", ROOT, instance_suffix()).partition("\n")
+    if message:
+        print(message)
+    return Path(path)
 
 
 def u3mp_image(executable):

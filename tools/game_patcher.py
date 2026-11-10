@@ -8,7 +8,8 @@ system(what, arg): the native game detection (launcher/native/system.cpp) the ga
 find_update; None when there is no answer.
 resolution_patch(data, width, height, move, too_large): the render resolution in the linked image.
 starter(what, arg): the game starter's settings from its environment (launcher/native/starter.cpp).
-runtime_env(...): the runtime's environment (launcher/native/runtime_env.cpp)."""
+runtime_env(...): the runtime's environment (launcher/native/runtime_env.cpp).
+starter_files(what, *args): the game starter's files (launcher/native/starter_files.cpp); OSError when it failed."""
 import ctypes
 import json
 from pathlib import Path
@@ -31,6 +32,8 @@ def _native():
         _dll.un_starter.restype = ctypes.c_int
         _dll.un_runtime_env.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_runtime_env.restype = ctypes.c_int
+        _dll.un_starter_files.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_starter_files.restype = ctypes.c_int
         _dll.un_resolution_patch.argtypes = [ctypes.POINTER(ctypes.c_ubyte), ctypes.c_ulonglong, ctypes.c_int, ctypes.c_int,
                                              ctypes.c_int, ctypes.POINTER(ctypes.c_longlong), ctypes.c_char_p, ctypes.c_int]
         _dll.un_resolution_patch.restype = ctypes.c_int
@@ -155,3 +158,16 @@ def runtime_env(executable, game, game_key, user, out, render_size, size, extra_
         print(line)
     return ({k: v for k, v in result["env"]}, Path(result["capture"]) if result["capture"] else None,
             Path(result["trigger"]) if result["trigger"] else None)
+
+
+def starter_files(what, *args):
+    """game_executable(root), user_dir(root, suffix), boot_view(root, game, update): their text (see
+    launcher/native/starter_files.cpp). They copy files, so they run once, with room for the answer."""
+    out = ctypes.create_string_buffer(1 << 16)
+    status = _native().un_starter_files(what.encode(), json.dumps([str(a) for a in args]).encode("utf-8"), out, len(out))
+    text = out.value.decode("utf-8", "replace")
+    if status == 1:
+        raise OSError(text)
+    if status != 0:
+        raise ValueError(f"starter_files {what}: status {status}")
+    return text
