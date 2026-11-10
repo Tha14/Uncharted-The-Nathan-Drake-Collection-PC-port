@@ -405,6 +405,70 @@ UN_API int un_controls(const char *what, const char *in_json, char *out, int cap
         for (auto &e : merged(&in)) result.set(e.first, string_list(e.second));
     } else if (w == "merged_pad") {
         result = merged_pad(&in);
+    } else if (w == "set_binding") {
+        // in: {"controls", "action", "slot", "binding" (null clears)}; out: the game's controls with that slot set.
+        // A key or button does one thing: it leaves the action (and slot) it had. Each action keeps two at most.
+        const Value *c = in.get("controls"), *a = in.get("action"), *sl = in.get("slot"), *bv = in.get("binding");
+        const std::string action = a && a->kind == Value::String ? a->s : "";
+        const size_t slot = sl && sl->kind == Value::Int && sl->i >= 0 ? (size_t)sl->i : 0;
+        const std::string binding = bv && bv->kind == Value::String ? bv->s : "";
+        auto m = merged(c);
+        bool known = false;
+        for (auto &e : m) known |= e.first == action;
+        if (!known) return 1;
+        if (!binding.empty())
+            for (auto &e : m) {
+                auto it = std::find(e.second.begin(), e.second.end(), binding);
+                if (it != e.second.end() && !(e.first == action && (size_t)(it - e.second.begin()) == slot)) e.second.erase(it);
+            }
+        result = Value::object();
+        for (auto &e : m) {
+            std::vector<std::string> list = e.second;
+            if (e.first == action) {
+                while (list.size() <= slot) list.push_back("");
+                list[slot] = binding;
+                std::vector<std::string> kept;
+                for (auto &b : list) if (!b.empty() && kept.size() < 2) kept.push_back(b);
+                list = kept;
+            }
+            result.set(e.first, string_list(list));
+        }
+    } else if (w == "set_pad_binding") {
+        // in: {"pad_controls", "action", "button" (null clears)}; out: the game's pad_controls (its differences from the
+        // defaults). Move and Look each take a whole stick (the other one gets this one's old stick); a button does one
+        // thing (the action that had it gets this one's old button).
+        const Value *p = in.get("pad_controls"), *a = in.get("action"), *bv = in.get("button");
+        Value pad = p && p->is_object() ? *p : Value::object();
+        std::string action = a && a->kind == Value::String ? a->s : "";
+        std::string button = bv && bv->kind == Value::String ? bv->s : "";
+        const Value m = merged_pad(&pad);
+        if (!m.get(action)) return 1;
+        auto at = [&](const std::string &key) { const Value *v = m.get(key); return v ? *v : Value::null(); };
+        if (action.compare(0, 3, "ls_") == 0 || action.compare(0, 3, "rs_") == 0) {
+            const std::string group = action.substr(0, 3), other = group == "ls_" ? "rs_" : "ls_";
+            const char *dirs[] = {"up", "down", "left", "right"};
+            const Value other_up = at(other + "up");
+            if (!button.empty() && other_up.kind == Value::String && other_up.s == button) {
+                const Value own = at(group + "up");
+                for (const char *d : dirs) pad.set(other + d, own.truthy() ? own : Value::text(""));
+            }
+            for (const char *d : dirs) pad.set(group + d, Value::text(button));
+            action.clear();
+            button.clear();
+        }
+        if (!action.empty() && !button.empty())
+            for (auto &kv : m.fields)
+                if (kv.second.kind == Value::String && kv.second.s == button && kv.first != action) pad.set(kv.first, at(action));
+        if (!action.empty()) pad.set(action, Value::text(button));
+        result = Value::object();
+        const Value after = merged_pad(&pad);
+        for (auto &kv : after.fields) {
+            std::string def;
+            bool has_default = false;
+            for (auto &d : PAD_DEFAULTS) if (d.first == kv.first) { def = d.second; has_default = true; }
+            const bool same = has_default && kv.second.kind == Value::String && kv.second.s == def;
+            if (!same) result.set(kv.first, kv.second);
+        }
     } else if (w == "label") {
         // a binding as the Controls page shows it: the key's name, the mouse button's label, or a dash
         std::string b = in.kind == Value::String ? in.s : std::string(), label = "\xE2\x80\x94";

@@ -1537,28 +1537,10 @@ class Launcher:
         self.refresh_pad_slots()
 
     def set_pad_binding(self, action, button):
+        # the rules (Move and Look take a whole stick; a button does one thing) are the native code's (controls.cpp)
         settings = self.game_settings()
-        pad_controls = dict(settings.get("pad_controls") or {})
-        merged = merged_pad_controls(pad_controls)
-        if action[:3] in ("ls_", "rs_"):
-            # Move and Look each take a whole stick; the other one gets this one's old stick.
-            group, other = action[:3], "rs_" if action[:3] == "ls_" else "ls_"
-            directions = ("up", "down", "left", "right")
-            if button and merged.get(other + "up") == button:
-                for d in directions:
-                    pad_controls[other + d] = merged.get(group + "up") or ""
-            for d in directions:
-                pad_controls[group + d] = button or ""
-            button = None
-            action = None
-        if action and button:
-            # A button does one thing: the action that had it swaps to this one's old button.
-            for other, current in merged.items():
-                if current == button and other != action:
-                    pad_controls[other] = merged[action]
-        if action:
-            pad_controls[action] = button or ""
-        settings["pad_controls"] = {a: b for a, b in merged_pad_controls(pad_controls).items() if b != PAD_DEFAULTS.get(a)}
+        settings["pad_controls"] = native_api.controls(
+            "set_pad_binding", {"pad_controls": settings.get("pad_controls"), "action": action, "button": button})
         self.save_controls()
         self.pad_capture = None
         self.root.unbind_all("<Escape>")
@@ -1636,18 +1618,10 @@ class Launcher:
         self.set_binding(action, slot, f"mouse:{name}")
 
     def set_binding(self, action, slot, binding):
-        controls = self.game_controls()
-        if binding:
-            # A key or button does one thing: it leaves the action it had.
-            for other, bindings in controls.items():
-                if binding in bindings and (other, bindings.index(binding)) != (action, slot):
-                    bindings.remove(binding)
-        bindings = controls[action]
-        while len(bindings) <= slot:
-            bindings.append(None)
-        bindings[slot] = binding
-        controls[action] = [b for b in bindings if b][:2]
-        self.game_settings()["controls"] = controls
+        # the rule (a key or button does one thing; two per action) is the native code's (controls.cpp set_binding)
+        self.game_settings()["controls"] = native_api.controls(
+            "set_binding", {"controls": self.game_settings().get("controls"), "action": action, "slot": slot,
+                            "binding": binding})
         self.save_controls()
         self.controls_hint.config(
             text="Saved for " + self.current_game()["name"] + ". Click a slot, then press a key or a mouse button "
