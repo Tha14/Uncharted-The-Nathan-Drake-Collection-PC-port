@@ -485,8 +485,16 @@ def main():
     event(phase='image', status='running')
     ps4_elf = data / 'tools' / 'u3_ps4.elf'
     try:
+        # the helper's online profile keys come from the player's own decrypted 1.19 EBOOT.elf (eboot_keys.py)
         image = mpimage.build_image(Path(a.ps4), a.port, data / 'image', log=log, elf_out=ps4_elf,
-                                    update=Path(a.ps4_update) if a.ps4_update else None)
+                                    update=Path(a.ps4_update) if a.ps4_update else None,
+                                    ps3_elf=find_ps3_elf(a.ps3_u3, a.ps3_elf))
+    except mpimage.KeysMissing as e:
+        log('ERROR: ' + str(e))
+        if old.get('status') in ('imported', 'partial'):
+            # an update of a working import: not applied, the current image stays
+            return finish(old['status'], error='Update not applied: %s' % e, failed_at='image')
+        return finish('failed', error='Multiplayer image: %s' % e, failed_at='image')
     except (mpimage.ImageError, OSError) as e:
         log('ERROR: ' + str(e))
         return finish('failed', error='Multiplayer image: %s' % e, failed_at='image')

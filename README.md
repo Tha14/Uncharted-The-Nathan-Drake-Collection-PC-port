@@ -312,6 +312,15 @@ the rest of the project.
   project. You must own the games you use with it: the PS4 *Nathan Drake Collection* and, for the
   multiplayer, *Uncharted 3* on PS3. This project does not help anyone obtain games or bypass
   copy protection on games they don't own, and piracy is not supported.
+- **How the multiplayer is built.** The multiplayer is restored by our own code, written from scratch:
+  it reproduces how the PS3 version behaves, so the PS4 game can do what the PS3 game did. Apart from
+  short instruction patterns it uses to find and check the places it patches in your own copy of the
+  game, it contains no code from either game. The game data it needs is converted on your PC from your own
+  PS3 and PS4 copies, and the patched game image is made there too; none of it is ever uploaded or shared.
+- **No keys or secrets from the games.** A few values the game uses for its online profiles are part of the
+  PS3 game. Releases do not contain them: the import reads them on your PC from your own decrypted copy of
+  the PS3 game's executable, which the import asks for, and puts them only into the game image it builds for
+  you. They never leave your PC.
 - **Online play** runs on community RPCN servers, not on Sony's PlayStation Network (which no longer
   hosts these games' multiplayer). This project has no connection to PlayStation Network.
 - **No warranty.** The software is provided "as is", without warranty of any kind, as stated in the

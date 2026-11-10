@@ -3397,7 +3397,8 @@ class Launcher:
             print(f"Uncharted 3 multiplayer is on but {why}: Uncharted 3 starts without it")
             return
         env["UNCHARTED_U3MP_IMAGE"] = state["image"]["path"]
-        env["UNCHARTED_U3MP_IMAGE_SHA256"] = state["image"]["sha256"]
+        # the file as written (with the online profile keys from the player's EBOOT); older imports: the release digest
+        env["UNCHARTED_U3MP_IMAGE_SHA256"] = state["image"].get("file_sha256") or state["image"]["sha256"]
         env["UNCHARTED_U3MP_VERSION"] = state["image"].get("version", "")
         env["UNCHARTED_U3MP_OVERLAYS"] = os.pathsep.join(p for p in state.get("overlays", []) if Path(p).is_dir())
         self.u3mp_extension_env(env)

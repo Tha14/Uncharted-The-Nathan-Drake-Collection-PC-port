@@ -34,6 +34,11 @@ class ImageError(Exception):
     pass
 
 
+class KeysMissing(ImageError):
+    """The new image would have no online profile keys (no usable EBOOT.elf, no previous image to take them from): the
+    previous image is left in place."""
+
+
 def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
@@ -192,9 +197,12 @@ def link(shell, info, env_extra=None):
     return out[0] if isinstance(out, tuple) else out
 
 
-def build_image(game, port, out, version=None, log=print, elf_out=None, update=None):
+def build_image(game, port, out, version=None, log=print, elf_out=None, update=None, ps3_elf=None):
     """Steps 1-3; writes <out>/boot-linked.bin and returns its sha256 (checked against the release).
-    elf_out: also write the recipe's PS4 ELF (ps4_elf) there."""
+    elf_out: also write the recipe's PS4 ELF (ps4_elf) there.
+    ps3_elf: the player's decrypted PS3 1.19 EBOOT.elf; the helper's key block (eboot_keys) is filled from it, or carried
+    over from the image already in <out> when there is none. 'sha256' stays the digest of the release's image (before the
+    keys); 'file_sha256' is the digest of the file written (what the game starter checks)."""
     version = version or latest_version()
     info = build_info(version)
     delta = json.loads((info['folder'] / 'menu-shell.json').read_text(encoding='utf-8'))
@@ -215,12 +223,45 @@ def build_image(game, port, out, version=None, log=print, elf_out=None, update=N
     if digest != info['image_sha256']:
         raise ImageError('the linked image differs from the v%s release (sha256 %s..., expected %s...)'
                          % (version, digest[:12], info['image_sha256'][:12]))
+    image, keys = with_keys(bytearray(image), ps3_elf, out / 'boot-linked.bin', log)
+    if keys == 'none' and (out / 'boot-linked.bin').is_file():
+        shutil.rmtree(work, ignore_errors=True)
+        raise KeysMissing('no decrypted PS3 1.19 EBOOT.elf of your own copy of the game for the online profile keys; '
+                          'the current multiplayer image stays')
     tmp = out / 'boot-linked.bin.tmp'
     tmp.write_bytes(image)
     os.replace(tmp, out / 'boot-linked.bin')
     shutil.rmtree(work, ignore_errors=True)
     log('  multiplayer image v%s ok (sha256 %s)' % (version, digest))
-    return dict(version=version, sha256=digest, path=str(out / 'boot-linked.bin'), base_sha256=info['base_sha256'])
+    return dict(version=version, sha256=digest, path=str(out / 'boot-linked.bin'), base_sha256=info['base_sha256'],
+                file_sha256=sha256(bytes(image)), keys=keys)
+
+
+def with_keys(image, ps3_elf, previous, log=print):
+    """The image with its helper key block filled (eboot_keys): from the player's EBOOT.elf, else from the previous image
+    file (a relink after the EBOOT was moved), else left empty. Returns (image, 'eboot' | 'carried' | 'none' |
+    'not needed')."""
+    if str(HERE) not in sys.path:
+        sys.path.insert(0, str(HERE))
+    import eboot_keys
+    if eboot_keys.find(image) < 0:
+        return image, 'not needed'      # a build from before v7.97: its helper carries no key block
+    if ps3_elf:
+        try:
+            block = eboot_keys.block_from_eboot(Path(ps3_elf).read_bytes())
+            log('  online profile keys: read from your PS3 EBOOT.elf')
+            return eboot_keys.fill(image, block), 'eboot'
+        except (OSError, eboot_keys.KeyError_) as e:
+            log('  online profile keys: not from %s (%s)' % (ps3_elf, e))
+    try:
+        block = eboot_keys.carry(Path(previous).read_bytes())
+    except OSError:
+        block = None
+    if block:
+        log('  online profile keys: kept from your previous multiplayer image')
+        return eboot_keys.fill(image, block), 'carried'
+    log('  online profile keys: missing (choose your decrypted 1.19 EBOOT.elf on the Multiplayer tab)')
+    return image, 'none'
 
 
 # ----------------------------------------------------------------------------- PS4 ELF for the recipe
