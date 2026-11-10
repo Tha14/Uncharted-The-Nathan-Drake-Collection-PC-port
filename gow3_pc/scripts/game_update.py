@@ -1,81 +1,38 @@
 """Read-only combined view of a dumped base game and its separate update folder.
 
 The update (eboot.bin, sce_sys, ...) is laid over the base game in a temporary folder, so
-neither dump is modified. Whatever the update does not touch is linked as a whole (a symlink,
-or a junction / hard link on Windows without the symlink privilege, see mods.make_link), so
-a 47 GB game costs a handful of links. Names are matched without regard to case.
+neither dump is modified. Whatever the update does not touch is linked as a whole (files as
+hard links first, then symlinks; folders as symlinks or junctions; files copied when nothing
+else works), so a 47 GB game costs a handful of links. Names are matched without regard to case.
+
+The work is done by the launcher's native code (launcher/native/starter_files.cpp: game_view,
+remove_view); the game starter calls it directly.
 """
-import os
+import json
 from pathlib import Path
-import shutil
-import tempfile
-
-from mods import LINKED, is_link, make_link
 
 
-def overlay(source, dest):
-    """Lays source over dest: its files replace dest's, folders are merged, names are
-    case-insensitive. dest holds links to the base; a folder both have is made a real one."""
-    entries = {entry.name.casefold(): entry for entry in dest.iterdir()}
-    for item in source.iterdir():
-        match = entries.get(item.name.casefold(), dest / item.name)
-        if item.is_dir() and match.exists() and match.is_dir():
-            if is_link(match):  # a linked folder of the base: replace the link by a merged copy
-                inner = match.resolve(strict=True)
-                remove(match)
-                match.mkdir()
-                for child in inner.iterdir():
-                    make_link(match / child.name, child)
-            overlay(item, match)
-        else:
-            if match.exists() or is_link(match):
-                remove(match)
-            make_link(match, item)
-
-
-def remove(path):
-    """Removes a file, link or folder of a view without following links into the dumps."""
-    path = Path(path)
-    if is_link(path):
-        if os.name == 'nt' and path.is_dir():  # a junction or a directory symlink
-            os.rmdir(path)
-        else:
-            path.unlink()
-        LINKED.pop(str(path), None)  # the name may become a real (merged) folder
-    elif path.is_dir():
-        for child in list(path.iterdir()):
-            remove(child)
-        path.rmdir()
-    else:
-        path.unlink()
+def _native(what, *args):
+    import ctypes
+    dll = ctypes.CDLL(str(Path(__file__).resolve().parent.parent.parent / 'launcher' / 'native' / 'uncharted_native.dll'))
+    dll.un_starter_files.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+    dll.un_starter_files.restype = ctypes.c_int
+    out = ctypes.create_string_buffer(1 << 16)
+    status = dll.un_starter_files(what.encode(), json.dumps([str(a) for a in args]).encode('utf-8'), out, len(out))
+    text = out.value.decode('utf-8', 'replace')
+    if status == 1:
+        raise OSError(text)
+    if status != 0:
+        raise ValueError(text)
+    return text
 
 
 def create_view(base, update, out):
-    """The folder holding base with update over it, made in out; the caller removes it."""
-    from patches import game_title_id
-    base, update = Path(base).resolve(), Path(update).resolve()
-    base_id, update_id = game_title_id(base), game_title_id(update)
-    if not base_id or base_id != update_id:
-        raise ValueError(f'Game and update are not the same title: {base_id} / {update_id}')
-    if base == update or base in update.parents or update in base.parents:
-        raise ValueError('Choose two separate folders for the game and its update')
-    if not (update / 'eboot.bin').is_file():
-        raise ValueError('The update folder needs eboot.bin and sce_sys/param.sfo')
-    Path(out).mkdir(parents=True, exist_ok=True)
-    target = Path(tempfile.mkdtemp(prefix='game-update-', dir=out))
-    try:
-        # Folders first: a drive without links (exFAT, FAT32) fails at the first one, before
-        # any file is copied.
-        for entry in sorted(base.iterdir(), key=lambda entry: not entry.is_dir()):
-            make_link(target / entry.name, entry)
-        overlay(update, target)
-    except BaseException:
-        remove_view(target)
-        raise
-    return target
+    """The folder holding base with update over it, made in out; the caller removes it (remove_view).
+    ValueError when the folders are not a game and its update; OSError when the links can't be made."""
+    return Path(_native('game_view', base, update, out))
 
 
 def remove_view(path):
     """Deletes a view made by create_view (the dumps stay untouched)."""
-    if Path(path).exists():
-        remove(path)
+    _native('remove_view', path)

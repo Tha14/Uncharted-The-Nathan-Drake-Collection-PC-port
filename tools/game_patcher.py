@@ -169,13 +169,17 @@ def runtime_env(executable, game, game_key, user, out, render_size, size, extra_
 
 
 def starter_files(what, *args):
-    """game_executable(root), user_dir(root, suffix), boot_view(root, game, update): their text (see
-    launcher/native/starter_files.cpp). They copy files, so they run once, with room for the answer."""
+    """game_executable(root), user_dir(root, suffix), boot_view(root, game, update), game_view(game, update, out),
+    remove_view(view): their text (see launcher/native/starter_files.cpp). They copy or link files, so they run once,
+    with room for the answer. OSError when a file operation failed; ValueError when the game and update can't be
+    combined (game_view)."""
     out = ctypes.create_string_buffer(1 << 16)
     status = _native().un_starter_files(what.encode(), json.dumps([str(a) for a in args]).encode("utf-8"), out, len(out))
     text = out.value.decode("utf-8", "replace")
     if status == 1:
         raise OSError(text)
+    if status == 3:
+        raise ValueError(text)
     if status != 0:
         raise ValueError(f"starter_files {what}: status {status}")
     return text

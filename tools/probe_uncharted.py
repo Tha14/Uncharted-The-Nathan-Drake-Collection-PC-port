@@ -83,19 +83,15 @@ def game_version(game):
 
 
 def game_view(game, update):
-    """The game with its update laid over it, as a folder of links (gow3_pc/scripts/game_update.py).
+    """The game with its update laid over it, as a folder of links (launcher/native/starter_files.cpp, game_view).
     It is made on the game's drive when possible: file links can't cross drives (else copies)."""
-    sys.path.insert(0, str(ROOT / "gow3_pc/scripts"))
-    try:
-        from game_update import create_view
-    finally:
-        sys.path.pop(0)
+    import game_patcher
     places = [ROOT / "analysis/views"]
     if Path(game.anchor).resolve() != Path(ROOT.anchor).resolve():
         places.insert(0, game.parent.parent / ".uncharted-views")
     for place in places:
         try:
-            return create_view(game, update, place)
+            return Path(game_patcher.starter_files("game_view", game, update, place))
         except OSError as error:
             print(f"Game view in {place} failed: {error}")
     raise SystemExit("Could not combine the game and its update")
@@ -143,14 +139,11 @@ def run_once(args, executable, guest_args, loadexec):
     try:
         return run_game(args, view, executable, guest_args, loadexec)
     finally:
-        sys.path.insert(0, str(ROOT / "gow3_pc/scripts"))
+        import game_patcher
         try:
-            from game_update import remove_view
-            remove_view(view)
+            game_patcher.starter_files("remove_view", view)
         except OSError as error:
             print(f"Game view {view} not removed: {error}")
-        finally:
-            sys.path.pop(0)
 
 
 def instance_suffix():
