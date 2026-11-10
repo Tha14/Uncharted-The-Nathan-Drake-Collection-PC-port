@@ -8,6 +8,7 @@ Wine/Proton in ~/.local/share/uncharted-launcher, the same for every prefix).
 The game is started through launcher/native/game_starter.exe (preparation, code patches, Collection game
 switches: start.cpp), with the options below passed as environment variables.
 """
+import atexit
 import ctypes
 import json
 import math
@@ -1451,7 +1452,7 @@ class Launcher:
         env["UNCHARTED_U3MP_IMAGE_SHA256"] = state["image"].get("file_sha256") or state["image"]["sha256"]
         env["UNCHARTED_U3MP_VERSION"] = state["image"].get("version", "")
         env["UNCHARTED_U3MP_OVERLAYS"] = os.pathsep.join(p for p in state.get("overlays", []) if Path(p).is_dir())
-        self.u3mp_extension_env(env)
+        self.online_env(env, "u3")
 
     def u2mp_env(self, env):
         """play(): UNCHARTED_U2MP_OVERLAY, the folder tools/probe_uncharted.py lays over Uncharted 2
@@ -1492,18 +1493,12 @@ class Launcher:
         online_dll = U3MP_DIR / "online" / "u2_online.dll"   # comes with the online extension
         if online_dll.is_file():
             env["UNCHARTED_U2MP_ONLINE_DLL"] = str(online_dll)
-        try:
-            module = self.u3mp_extension_module()
-            hook = getattr(module, "handoff_env", None) if module is not None else None
-            if hook is not None:
-                hook(env, {"user_dir": USER_DIR, "game": "u2"})
-        except Exception:
-            log_launcher_error(*sys.exc_info())
+        self.online_env(env, "u2")
 
     def page_multiplayer(self):
         """Uncharted 2 multiplayer (u2mp). The page is built natively (launcher/native/pages.cpp page_u2mp, from
-        qt_backend.py's mp_state); this Tk page holds only the online section (the private module's), which the Qt
-        window shows after it. Shown only while Uncharted 2 is chosen (update_multiplayer_tab)."""
+        qt_backend.py's mp_state) and the online section after it (online_page). Shown only while Uncharted 2 is
+        chosen (update_multiplayer_tab)."""
         page = self.page()
         if not self.config.get("u2mp_ps3") and self.config.get("u3mp_ps3_u2"):
             self.config["u2mp_ps3"] = self.config["u3mp_ps3_u2"]   # the folder chosen for Uncharted 3's import
@@ -1515,26 +1510,8 @@ class Launcher:
         self.u2mp_step_text = ""   # the import's current step (the page and the update banner show it)
         self.root.after(1000, self.u2mp_poll)
         self.root.after(4500, self.u2mp_auto_update)
-        self.section(page, "RPCN online play", column="right")
-        self.u2mp_extension(page)
+        self.online_open()
         return page
-
-    def u2mp_extension(self, page):
-        """The RPCN section on Uncharted 2's page too: the private module's attach_view(launcher, page, context)
-        adds a second view of the one RPCN session (RPCN refuses a second sign-in of an account). A module
-        without attach_view shows nothing here."""
-        try:
-            module = self.u3mp_extension_module()
-            hook = getattr(module, "attach_view", None) if module is not None else None
-            if hook is not None:
-                hook(self, page, {
-                    "user_dir": USER_DIR, "bg": BG, "panel": PANEL, "panel_hi": PANEL_HI, "line": LINE,
-                    "text": TEXT, "muted": MUTED, "dim": DIM, "gold": GOLD, "gold_hi": GOLD_HI, "ink": INK,
-                    "red": STOP_RED, "game": "u2"})
-        except Exception:
-            log_launcher_error(*sys.exc_info())
-            tk.Label(page, text="The online section could not be loaded (see launcher-error.log).",
-                     font=self.f_small, bg=BG, fg=MUTED, anchor="w").pack(side="top", fill="x", pady=(self.px(12), 0))
 
     def u2mp_set(self, key, value):
         self.change_config(key, value)
@@ -1820,7 +1797,7 @@ class Launcher:
     def page_u3mp(self):
         """Uncharted 3 multiplayer: import from the player's own PS3 and PS4 copies (u3mp/patcher/u3mp_import.py),
         then Uncharted 3 starts with the restored multiplayer. The page is built natively (launcher/native/pages.cpp
-        page_u3mp, from qt_backend.py's mp_state); this Tk page holds only the online section."""
+        page_u3mp, from qt_backend.py's mp_state) and the online section after it (online_page)."""
         page = self.page()
         self.u3mp_page = True
         self.u3mp_proc = None
@@ -1831,51 +1808,56 @@ class Launcher:
         self.u3mp_refresh()
         self.root.after(1000, self.u3mp_poll)
         self.root.after(4000, self.u3mp_auto_update)
-        self.section(page, "RPCN online play", column="right")
-        self.u3mp_extension(page)
+        self.online_open()
         return page
 
-    def u3mp_extension(self, page):
-        """An optional extra section at the end of this page: u3mp/patcher/online/u3_online.py when the
-        package has that file. Its attach(launcher, page, context) builds the section and starts what it needs
-        (its frame's <Destroy> ends it). Without the file the page shows nothing more; a failure is logged."""
-        self.u3mp_online = None
+    def online_open(self):
+        """The online section of the Multiplayer pages (Uncharted 3's and 2's: one session), when the package has its
+        component (u3mp/patcher/online/u3_online.dll): opened once, then ticked every 200 ms. All of it is in that
+        DLL (its page, clicks, the saved login, the game's environment); without it the pages show no such section."""
+        if hasattr(self, "online"):
+            return
+        self.online = native_api.OnlineSection.load(U3MP_DIR / "online" / "u3_online.dll", USER_DIR,
+                                                     {"dns": self.config.get("u3mp_dns") or "",
+                                                      "direct": bool(self.direct)})
+        if self.online is not None:
+            atexit.register(self.online.close)
+            self.root.after(200, self.online_tick)
+
+    def online_host(self):
+        """What the online section needs to know: whether the launcher's game runs, and which game is chosen."""
+        return {"game_alive": self.process is not None and self.process.poll() is None, "game": self.config.get("game")}
+
+    def online_apply(self, result):
+        for key, value in (result.get("config") or {}).items():
+            if self.config.get(key) != value:
+                self.change_config(key, value)
+
+    def online_tick(self):
         try:
-            module = self.u3mp_extension_module(reload=True)
-            if module is None:
-                return
-            self.u3mp_online = module.attach(self, page, {
-                "user_dir": USER_DIR, "bg": BG, "panel": PANEL, "panel_hi": PANEL_HI, "line": LINE, "text": TEXT,
-                "muted": MUTED, "dim": DIM, "gold": GOLD, "gold_hi": GOLD_HI, "ink": INK, "red": STOP_RED})
+            self.online_apply(self.online.tick(self.online_host()))
         except Exception:
             log_launcher_error(*sys.exc_info())
-            tk.Label(page, text="The online section could not be loaded (see launcher-error.log).",
-                     font=self.f_small, bg=BG, fg=MUTED, anchor="w").pack(side="top", fill="x", pady=(self.px(12), 0))
+        self.root.after(200, self.online_tick)
 
-    def u3mp_extension_module(self, reload=False):
-        """The optional module u3mp/patcher/online/u3_online.py (loaded once; reload=True loads it again), or None
-        when the package does not have it."""
-        module = None if reload else sys.modules.get("u3_online")
-        if module is not None:
-            return module
-        path = U3MP_DIR / "online" / "u3_online.py"
-        if not path.is_file():
-            return None
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("u3_online", path)
-        module = importlib.util.module_from_spec(spec)
-        sys.modules["u3_online"] = module
-        spec.loader.exec_module(module)
-        return module
+    def online_act(self, wid, kind, value):
+        """A click or typed text on the online section (its nodes' ids start with "online:")."""
+        if getattr(self, "online", None) is not None:
+            self.online_apply(self.online.act(wid, kind, value, self.online_host()))
 
-    def u3mp_extension_env(self, env):
-        """play(), when Uncharted 3 starts with multiplayer: the optional module may add to the game's environment
-        (its handoff_env(env, context)). Without the module, or without that function, nothing changes."""
+    def online_page(self, game):
+        """The online section's page tree for Uncharted 3's ("u3") or 2's ("u2") Multiplayer page, or []."""
+        return self.online.page(game) if getattr(self, "online", None) is not None else []
+
+    def online_env(self, env, game):
+        """play(): the game's environment from the online section (the relay, or the sign-in hand-off)."""
+        if getattr(self, "online", None) is None:
+            return
         try:
-            module = self.u3mp_extension_module()
-            hook = getattr(module, "handoff_env", None) if module is not None else None
-            if hook is not None:
-                hook(env, {"user_dir": USER_DIR})
+            changes = self.online.handoff(game, self.online_host())
+            for name in changes.get("unset", []):
+                env.pop(name, None)
+            env.update(changes.get("set", {}))
         except Exception:
             log_launcher_error(*sys.exc_info())
 

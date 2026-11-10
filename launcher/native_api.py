@@ -138,6 +138,71 @@ def pid_alive(pid):
         return False
 
 
+# ---------------------------------------------------------------------------------------------- the online section
+
+
+class OnlineSection:
+    """The Multiplayer pages' online section, all of it in the package's optional u3mp/patcher/online/u3_online.dll
+    (u3o_section_*: its page tree, clicks and typed text, its timing, the game's environment)."""
+
+    @classmethod
+    def load(cls, path, user_dir, state):
+        """The section, or None when the package has no such DLL (or an older one without the section)."""
+        try:
+            dll = ctypes.CDLL(str(path))
+            if dll.u3o_abi() < 5:
+                return None
+        except (OSError, AttributeError):
+            return None
+        section = cls(dll)
+        if not dll.u3o_section_open(str(user_dir), json.dumps(state).encode("utf-8")):
+            return None
+        return section
+
+    def __init__(self, dll):
+        c_char_p, c_int = ctypes.c_char_p, ctypes.c_int
+        dll.u3o_section_open.argtypes = [ctypes.c_wchar_p, c_char_p]
+        dll.u3o_section_tick.argtypes = [c_char_p, c_char_p, c_int]
+        dll.u3o_section_page.argtypes = [c_char_p, c_char_p, c_int]
+        dll.u3o_section_act.argtypes = [c_char_p, c_char_p, c_char_p, c_char_p, c_char_p, c_int]
+        dll.u3o_section_handoff.argtypes = [c_char_p, c_char_p, c_char_p, c_int]
+        for name in ("u3o_section_open", "u3o_section_tick", "u3o_section_page", "u3o_section_act",
+                     "u3o_section_handoff"):
+            getattr(dll, name).restype = c_int
+        dll.u3o_section_close.restype = None
+        self.dll = dll
+        self.closed = False
+
+    def _json(self, fn, *args):
+        size = 1 << 16
+        while True:
+            out = ctypes.create_string_buffer(size)
+            n = fn(*args, out, size)
+            if n >= 0:
+                text = out.raw[:n].decode("utf-8", "replace")
+                ctypes.memset(out, 0, size)   # the hand-off's values are secret
+                return json.loads(text) if text else {}
+            size = -n + 1
+
+    def tick(self, host):
+        return self._json(self.dll.u3o_section_tick, json.dumps(host).encode("utf-8"))
+
+    def page(self, game):
+        return self._json(self.dll.u3o_section_page, game.encode("ascii")) or []
+
+    def act(self, wid, kind, value, host):
+        return self._json(self.dll.u3o_section_act, str(wid).encode("utf-8"), str(kind).encode("utf-8"),
+                          json.dumps(value).encode("utf-8"), json.dumps(host).encode("utf-8"))
+
+    def handoff(self, game, host):
+        return self._json(self.dll.u3o_section_handoff, game.encode("ascii"), json.dumps(host).encode("utf-8"))
+
+    def close(self):
+        if not self.closed:
+            self.closed = True
+            self.dll.u3o_section_close()
+
+
 # ---------------------------------------------------------------------------------------------- play.cpp
 
 

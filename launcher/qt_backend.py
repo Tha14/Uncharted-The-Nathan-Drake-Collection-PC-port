@@ -427,6 +427,9 @@ def model(app, tab):
     """The window and the tab's page. A tab without a Tk page is a native one: launcher-qt builds it from "native"."""
     page = app.pages.get(tab or getattr(app, "current_tab", "setup"))
     items = children(page) if page is not None else []
+    shown_tab = getattr(app, "current_tab", "") or tab
+    if shown_tab in ("u3mp", "multiplayer"):   # the online section (u3_online.dll), after the native page
+        items = items + app.online_page("u3" if shown_tab == "u3mp" else "u2")
     return {"chrome": chrome(app), "tab": getattr(app, "current_tab", ""), "page": items,
             "native": native_state(app, getattr(app, "current_tab", "") or tab)}
 
@@ -503,8 +506,11 @@ def widget(app, wid):
 
 
 def act(app, message):
-    w = widget(app, message.get("id", ""))
     kind, value = message.get("kind"), message.get("value")
+    if str(message.get("id", "")).startswith("online:"):   # the online section (u3_online.dll)
+        app.online_act(message["id"], kind, value)
+        return
+    w = widget(app, message.get("id", ""))
     if w is None:
         return
     if kind in ("toggle", "chip"):
