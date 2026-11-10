@@ -6,6 +6,7 @@
 // every other line (comments, keys the in-game menu writes) stays as it was. Lines end in CR LF.
 
 #include "native.h"
+#include "json.h"
 
 #include <windows.h>
 
@@ -161,6 +162,22 @@ int give(const std::string &text, char *out, int cap) {
     return 0;
 }
 
+bool write_bytes(const std::wstring &path, const std::string &data) {
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
+                           nullptr);
+    if (h == INVALID_HANDLE_VALUE) return false;
+    DWORD put = 0;
+    BOOL ok = data.empty() || (WriteFile(h, data.data(), (DWORD)data.size(), &put, nullptr) && put == data.size());
+    ok = CloseHandle(h) && ok;
+    return ok;
+}
+
+Pairs ini_values(const std::wstring &user_dir, const char *game);
+bool ini_update(const std::wstring &user_dir, const char *game, const Pairs &changes);
+json::Value read_config(const std::wstring &config_file, const std::wstring &prefix_file, const std::wstring &user_dir,
+                        bool wine);
+bool write_config(const std::wstring &path, const json::Value &config);
+
 }  // namespace
 
 extern "C" {
@@ -189,17 +206,8 @@ UN_API int un_settings_table(const char *name, char *out, int cap) {
 // the game's runtime settings: the defaults, then the file's keys (key\tvalue lines, defaults first, then the file's
 // own keys in file order); the frame-rate limit normalized
 UN_API int un_ini_read(const wchar_t *user_dir, const char *game, char *out, int cap) {
-    Pairs values = ini_defaults();
-    for (const std::string &line : settings_lines(user_dir, game)) {
-        if (!is_setting(line)) continue;
-        std::string key = key_of(line), value = trim(line.substr(line.find('=') + 1));
-        bool found = false;
-        for (auto &kv : values)
-            if (kv.first == key) { kv.second = value; found = true; }
-        if (!found) values.push_back({key, value});
-    }
     std::string text;
-    for (auto &kv : values) text += kv.first + "\t" + (kv.first == "fps_limit" ? fps_limit(kv.second) : kv.second) + "\n";
+    for (auto &kv : ini_values(user_dir, game)) text += kv.first + "\t" + kv.second + "\n";
     return give(text, out, cap);
 }
 
@@ -212,6 +220,40 @@ UN_API int un_ini_write(const wchar_t *user_dir, const char *game, const char *u
         size_t tab = line.find('\t');
         if (tab != std::string::npos) changes.push_back({line.substr(0, tab), line.substr(tab + 1)});
     }
+    return ini_update(user_dir, game, changes) ? 0 : 1;
+}
+
+UN_API int un_config_read(const wchar_t *config_file, const wchar_t *prefix_file, const wchar_t *user_dir, int wine,
+                          char *out, int cap) {
+    return give(json::dump(read_config(config_file, prefix_file, user_dir, wine != 0)), out, cap);
+}
+
+UN_API int un_config_write(const wchar_t *config_file, const char *config_json) {
+    json::Value v;
+    if (!json::parse(config_json ? config_json : "", v) || !v.is_object()) return 2;
+    return write_config(config_file, v) ? 0 : 1;
+}
+
+}  // extern "C"
+
+namespace {
+
+Pairs ini_values(const std::wstring &user_dir, const char *game) {
+    Pairs values = ini_defaults();
+    for (const std::string &line : settings_lines(user_dir, game)) {
+        if (!is_setting(line)) continue;
+        std::string key = key_of(line), value = trim(line.substr(line.find('=') + 1));
+        bool found = false;
+        for (auto &kv : values)
+            if (kv.first == key) { kv.second = value; found = true; }
+        if (!found) values.push_back({key, value});
+    }
+    for (auto &kv : values)
+        if (kv.first == "fps_limit") kv.second = fps_limit(kv.second);
+    return values;
+}
+
+bool ini_update(const std::wstring &user_dir, const char *game, const Pairs &changes) {
     std::vector<std::string> lines = settings_lines(user_dir, game);
     std::vector<bool> done(changes.size(), false);
     for (std::string &line : lines) {
@@ -230,13 +272,211 @@ UN_API int un_ini_write(const wchar_t *user_dir, const char *game, const char *u
     for (const std::string &line : lines) text += line + "\r\n";
     std::wstring dir = user_dir;
     CreateDirectoryW(dir.c_str(), nullptr);
-    HANDLE h = CreateFileW(settings_file(dir, game).c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS,
-                           FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE) return 1;
-    DWORD put = 0;
-    BOOL ok = WriteFile(h, text.data(), (DWORD)text.size(), &put, nullptr) && put == text.size();
-    ok = CloseHandle(h) && ok;
-    return ok ? 0 : 1;
+    return write_bytes(settings_file(dir, game), text);
 }
 
-}  // extern "C"
+// ------------------------------------------------------------------------------------------------ launcher.json
+
+using json::Value;
+
+const char *const GAME_KEYS[] = {"u1", "u2", "u3"};
+const char *const RESOLUTION_IDS[] = {"960x540", "1280x720", "1600x900", "1920x1080", "2560x1440", "2880x1620", "3840x2160"};
+const char *const ASPECT_IDS[] = {"16:10", "16:9", "21:9", "32:9"};
+
+Value launcher_defaults() {
+    Value d = Value::object();
+    d.set("game", Value::text("u1"));
+    d.set("diagnostics", Value::boolean(true));
+    d.set("game_dir", Value::text(""));
+    d.set("check_updates", Value::boolean(true));
+    d.set("language", Value::text("1"));
+    d.set("unlock", Value::boolean(false));
+    return d;
+}
+
+// each game's own settings, with their defaults
+std::vector<std::pair<std::string, Value>> game_setting_defaults() {
+    return {{"preset", Value::text("medium")},       {"resolution", Value::text("1920x1080")},
+            {"aspect", Value::text("16:9")},         {"multithreaded", Value::boolean(false)},
+            {"save_profile", Value::text("1")},      {"async_readback", Value::boolean(false)},
+            {"controls", Value::null()},             {"mouse", Value::boolean(true)},
+            {"mouse_sens", Value::text("1.0")},      {"mouse_invert", Value::boolean(false)},
+            {"prompts", Value::text("auto")},        {"mouse_aim_sens", Value::text("1.0")},
+            {"mouse_vertical", Value::text("1.0")},  {"mouse_invert_x", Value::boolean(false)},
+            {"vibration", Value::boolean(true)}};
+}
+
+const Preset *preset_named(const Value &v) {
+    if (v.kind != Value::String) return nullptr;
+    for (const Preset &p : presets())
+        if (v.s == p.name) return &p;
+    return nullptr;
+}
+
+bool valid_utf8(const std::string &s) {
+    return MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, s.data(), (int)s.size(), nullptr, 0) > 0 || s.empty();
+}
+
+// a launcher.json as an object; an empty one when missing. One that can't be read (cut off while written) is kept
+// beside it as .bad, and the defaults apply.
+Value load_config_file(const std::wstring &path) {
+    std::string text;
+    if (!read_text(path, text)) return Value::object();
+    Value v;
+    if (!valid_utf8(text) || !json::parse(text, v)) {
+        CopyFileW(path.c_str(), (path + L".bad").c_str(), FALSE);
+        return Value::object();
+    }
+    return v.is_object() ? v : Value::object();
+}
+
+double version_of(const Value &config) {
+    const Value *v = config.get("version");
+    if (!v) return 1;
+    if (v->kind == Value::Int) return (double)v->i;
+    if (v->kind == Value::Float) return v->f;
+    if (v->kind == Value::Bool) return v->b ? 1 : 0;
+    return 1e18;   // not a number: no migration applies (Python's comparison would refuse it)
+}
+
+std::string unix_path(const std::wstring &path) {
+    typedef char *(__cdecl * ToUnix)(LPCWSTR);
+    ToUnix to_unix = (ToUnix)(void *)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "wine_get_unix_file_name");
+    if (!to_unix) return std::string();
+    char *p = to_unix(path.c_str());
+    if (!p) return std::string();
+    std::string s = p;
+    HeapFree(GetProcessHeap(), 0, p);
+    return s;
+}
+
+Value read_config(const std::wstring &config_file, const std::wstring &prefix_file, const std::wstring &user_dir, bool wine) {
+    Value config = launcher_defaults();
+    Value stored = load_config_file(config_file);
+    if (lstrcmpiW(config_file.c_str(), prefix_file.c_str()) != 0) {
+        // under Wine the shared file wins; what it lacks comes from this prefix's own file, game by game
+        Value older = load_config_file(prefix_file);
+        if (!older.fields.empty()) {
+            Value games = Value::object();
+            for (const Value *source : {&older, &stored}) {
+                const Value *g = source->get("games");
+                if (!g || !g->is_object()) continue;
+                for (auto &kv : g->fields) {
+                    if (!kv.second.is_object()) continue;
+                    Value &mine = games.setdefault(kv.first, Value::object());
+                    for (auto &f : kv.second.fields) mine.set(f.first, f.second);
+                }
+            }
+            Value merged = older;
+            for (auto &f : stored.fields) merged.set(f.first, f.second);
+            merged.set("games", games);
+            stored = merged;
+        }
+    }
+    for (auto &f : stored.fields) config.set(f.first, f.second);
+    // version 2: render resolutions above 1080p crashed in gameplay; earlier presets chose them
+    if (version_of(config) < 2) config.set("resolution", Value::text("1920x1080"));
+    // version 3: preset, resolution and multithreading per game; the shared values start all three
+    if (!config.get("games") || !config.get("games")->is_object()) config.set("games", Value::object());
+    Value &games = *config.get("games");
+    for (const char *game : GAME_KEYS) {
+        if (!games.get(game) || !games.get(game)->is_object()) games.set(game, Value::object());
+        Value &entry = *games.get(game);
+        for (auto &d : game_setting_defaults()) {
+            const Value *shared = config.get(d.first);
+            entry.setdefault(d.first, shared ? *shared : d.second);
+        }
+        if (entry.get("preset")->equals_text("balanced")) entry.set("preset", Value::text("medium"));
+        // a value that isn't valid (another version, a hand edit) falls back alone
+        bool ok = false;
+        for (const char *r : RESOLUTION_IDS) ok |= entry.get("resolution")->equals_text(r);
+        if (!ok) entry.set("resolution", Value::text("1920x1080"));
+        ok = false;
+        for (const char *a : ASPECT_IDS) ok |= entry.get("aspect") && entry.get("aspect")->equals_text(a);
+        if (!ok) entry.set("aspect", Value::text("16:9"));
+    }
+    auto each_game = [&](auto body) {
+        for (auto &kv : games.fields)
+            if (kv.second.is_object()) body(kv.first, kv.second);
+    };
+    // version 4: the presets draw at 720p / 1080p / 1440p / 4K (all were 1080p before)
+    if (version_of(config) < 4)
+        each_game([&](const std::string &game, Value &entry) {
+            const Value *name = entry.get("preset");
+            if (const Preset *p = name ? preset_named(*name) : nullptr) {
+                entry.set("resolution", Value::text(p->resolution));
+                ini_update(user_dir, game.c_str(), p->values);
+            }
+        });
+    // version 5: presets queued 2 frames (not with multithreaded rendering)
+    if (version_of(config) < 5)
+        each_game([&](const std::string &game, Value &entry) {
+            const Value *name = entry.get("preset"), *mt = entry.get("multithreaded");
+            if (name && preset_named(*name) && !(mt && mt->truthy())) ini_update(user_dir, game.c_str(), {{"frames_queued", "2"}});
+        });
+    // version 6: every preset queues 1 frame again (with 2, GPU results arrived a frame late); custom settings stay
+    if (version_of(config) < 6)
+        each_game([&](const std::string &game, Value &entry) {
+            const Value *name = entry.get("preset");
+            if (name && preset_named(*name)) ini_update(user_dir, game.c_str(), {{"frames_queued", "1"}});
+        });
+    // version 7: FSR 1 is an upscaler (the game draws below the resolution); Low draws at half of 1080p with it, other
+    // settings that had it on keep their resolution without it
+    if (version_of(config) < 7)
+        each_game([&](const std::string &game, Value &entry) {
+            const Value *name = entry.get("preset");
+            if (name && name->equals_text("low")) {
+                const Preset *low = preset_named(*name);
+                entry.set("resolution", Value::text(low->resolution));
+                entry.set("upscale", Value::text(low->upscale));
+                ini_update(user_dir, game.c_str(), {{"fsr1", "1"}});
+            } else {
+                std::string fsr1;
+                for (auto &kv : ini_values(user_dir, game.c_str()))
+                    if (kv.first == "fsr1") fsr1 = kv.second;
+                const Value *up = entry.get("upscale");
+                bool off = !up || up->equals_text("off");
+                if (fsr1 == "1" && off) ini_update(user_dir, game.c_str(), {{"fsr1", "0"}});
+            }
+        });
+    // version 8: Drake's Deception with multithreaded rendering (once; a player who turns it off keeps it off)
+    if (version_of(config) < 8) games.get("u3")->set("multithreaded", Value::boolean(true));
+    for (auto &d : game_setting_defaults()) config.remove(d.first);
+    config.set("version", Value::integer(8));
+    // under Wine the game folder is also kept as a Linux path (another prefix may show it under another drive letter)
+    const Value *folder = config.get("game_dir");
+    const Value *known = config.get("game_dir_unix");
+    if (wine && folder && folder->kind == Value::String && !folder->s.empty() && !(known && known->truthy())) {
+        int n = MultiByteToWideChar(CP_UTF8, 0, folder->s.c_str(), -1, nullptr, 0);
+        std::wstring w(n, L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, folder->s.c_str(), -1, w.data(), n);
+        w.resize(n - 1);
+        if (GetFileAttributesW(w.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            std::string unix = unix_path(w);
+            if (!unix.empty()) config.set("game_dir_unix", Value::text(unix));
+        }
+    }
+    return config;
+}
+
+// through a temporary file (a launcher and a game started from a shortcut may write at once, and a write cut short
+// must not leave half a file); in place when Windows refuses the swap (a virus scanner, a second launcher)
+bool write_config(const std::wstring &path, const Value &config) {
+    std::string text, raw = json::dump(config);
+    for (char c : raw) {
+        if (c == '\n') text += '\r';
+        text += c;
+    }
+    size_t cut = path.find_last_of(L"\\/");
+    if (cut != std::wstring::npos) {
+        std::wstring dir = path.substr(0, cut);
+        for (size_t k = 3; k <= dir.size(); ++k)
+            if (k == dir.size() || dir[k] == L'\\' || dir[k] == L'/') CreateDirectoryW(dir.substr(0, k).c_str(), nullptr);
+    }
+    std::wstring temp = path + L"." + std::to_wstring(GetCurrentProcessId()) + L".tmp";
+    if (write_bytes(temp, text) && MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING)) return true;
+    DeleteFileW(temp.c_str());
+    return write_bytes(path, text);
+}
+
+}  // namespace

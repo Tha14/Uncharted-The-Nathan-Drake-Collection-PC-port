@@ -58,6 +58,23 @@ def ini_read(user_dir, game):
     return {key: value for key, value in _rows(_text(_native().un_ini_read, str(user_dir), game.encode()))}
 
 
+def config_read(config_file, prefix_file, user_dir, wine):
+    """The launcher's settings (launcher.json with defaults, the Wine merge and the version migrations) as a dict."""
+    import json
+    dll = _native()
+    dll.un_config_read.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_int, ctypes.c_char_p,
+                                   ctypes.c_int]
+    return json.loads(_text(dll.un_config_read, str(config_file), str(prefix_file), str(user_dir), int(bool(wine))))
+
+
+def config_write(config_file, config):
+    """Writes the settings (the library keeps the file's layout and writes it safely); False when it can't."""
+    import json
+    dll = _native()
+    dll.un_config_write.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p]
+    return dll.un_config_write(str(config_file), json.dumps(config).encode("utf-8")) == 0
+
+
 def ini_write(user_dir, game, updates):
     request = "".join(f"{key}\t{value}\n" for key, value in updates.items()).encode("utf-8")
     if _native().un_ini_write(str(user_dir), game.encode(), request) != 0:

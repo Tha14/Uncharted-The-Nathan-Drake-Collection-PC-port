@@ -1158,124 +1158,17 @@ def write_ini(game, updates):
     native_api.ini_write(USER_DIR, game, updates)
 
 
-def load_config_file(path):
-    """A launcher.json as a dict; {} when missing. One that can't be read (cut off while written)
-    is kept beside it as .bad, and the other copy or the defaults apply."""
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except OSError:
-        return {}
-    except ValueError:
-        try:
-            shutil.copy2(path, path.with_name(path.name + ".bad"))
-        except OSError:
-            pass
-        return {}
-
-
 def read_config():
-    config = dict(LAUNCHER_DEFAULTS)
-    stored = load_config_file(CONFIG_FILE)
-    if CONFIG_FILE != PREFIX_CONFIG_FILE:
-        # Under Wine the shared file wins; what it lacks comes from this prefix's own file (the place
-        # earlier versions used), game by game. That file is left as it is.
-        older = load_config_file(PREFIX_CONFIG_FILE)
-        if older:
-            games = {}
-            for source in (older, stored):
-                for game, entry in (source.get("games") if isinstance(source.get("games"), dict) else {}).items():
-                    if isinstance(entry, dict):
-                        games.setdefault(game, {}).update(entry)
-            stored = {**older, **stored, "games": games}
-    config.update(stored)
-    # Version 2: render resolutions above 1080p crash in gameplay; earlier presets chose them.
-    if config.get("version", 1) < 2:
-        config["resolution"] = "1920x1080"
-    # Version 3: preset, resolution and multithreading per game; the shared values start all three.
-    if not isinstance(config.get("games"), dict):
-        config["games"] = {}
-    games = config["games"]
-    resolutions = [r for r, _ in RESOLUTIONS]
-    for game in GAME_KEYS:
-        if not isinstance(games.get(game), dict):
-            games[game] = {}
-        entry = games[game]
-        for name, default in GAME_SETTING_DEFAULTS.items():
-            entry.setdefault(name, config.get(name, default))
-        entry["preset"] = {"balanced": "medium"}.get(entry["preset"], entry["preset"])
-        # A value that isn't valid (another version, a hand edit) falls back alone.
-        if entry["resolution"] not in resolutions:
-            entry["resolution"] = "1920x1080"
-        if entry.get("aspect") not in ASPECT_WIDTHS:
-            entry["aspect"] = "16:9"
-    # Version 4: the presets draw at 720p / 1080p / 1440p / 4K (all were 1080p before).
-    if config.get("version", 1) < 4:
-        for game, entry in games.items():
-            if entry["preset"] in PRESETS:
-                entry["resolution"] = PRESETS[entry["preset"]]["resolution"]
-                write_ini(game, preset_values(entry["preset"]))
-    # Version 5: every preset queues 2 frames (with 1 the CPU waits for the GPU each frame: heavy
-    # Uncharted 2 scenes ran at 45 instead of 57 FPS). Not with multithreaded rendering, where
-    # Uncharted 2 needs 1.
-    if config.get("version", 1) < 5:
-        for game, entry in games.items():
-            if entry["preset"] in PRESETS and not entry.get("multithreaded"):
-                write_ini(game, {"frames_queued": "2"})
-    # Version 6: every preset queues 1 frame again: with 2, GPU results the game reads came a frame
-    # later and Uncharted 2's Nate and NPCs stood above the floor (16 Oct). Custom settings stay.
-    if config.get("version", 1) < 6:
-        for game, entry in games.items():
-            if entry["preset"] in PRESETS:
-                write_ini(game, {"frames_queued": "1"})
-    # Version 7: FSR 1 is an upscaler like FSR 3.1 (the game draws below the resolution); before,
-    # it scaled the finished frame up to a larger screen. Low draws at half of 1080p with it; other
-    # settings that had it on keep their resolution without it.
-    if config.get("version", 1) < 7:
-        for game, entry in games.items():
-            if entry["preset"] == "low":
-                entry["resolution"] = PRESETS["low"]["resolution"]
-                entry["upscale"] = PRESETS["low"]["upscale"]
-                write_ini(game, {"fsr1": "1"})
-            elif read_ini(game).get("fsr1") == "1" and entry.get("upscale", "off") == "off":
-                write_ini(game, {"fsr1": "0"})
-    # Version 8: Drake's Deception with multithreaded rendering (the port no longer turns it off
-    # there): on a laptop's heavy spots 60 FPS instead of 53.7 with 11 stalls (21 Oct). Once;
-    # a player who turns it off again keeps it off.
-    if config.get("version", 1) < 8:
-        games["u3"]["multithreaded"] = True
-    for name in GAME_SETTING_DEFAULTS:
-        config.pop(name, None)
-    config["version"] = 8
-    # Under Wine the game folder is also kept as a Linux path: another prefix can show the same
-    # folder under another drive letter (Launcher.game_dir).
-    folder = config.get("game_dir")
-    if WINE and folder and not config.get("game_dir_unix") and Path(folder).exists():
-        config["game_dir_unix"] = unix_path(folder)
-    return config
+    """The launcher's settings (launcher/native/config.cpp): launcher.json with its defaults, the Wine merge with
+    the prefix's own file and the version migrations."""
+    return native_api.config_read(CONFIG_FILE, PREFIX_CONFIG_FILE, USER_DIR, WINE)
 
 
 def write_config(config):
-    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    # Through a temporary file: a launcher and a game started from a shortcut may write at once, and
-    # a write cut short must not leave half a file.
-    text = json.dumps(config, indent=2)
-    temporary = CONFIG_FILE.with_name(f"{CONFIG_FILE.name}.{os.getpid()}.tmp")
-    try:
-        temporary.write_text(text, encoding="utf-8")
-        os.replace(temporary, CONFIG_FILE)
-    except OSError:
-        # Windows refuses the swap while another process has the file open (a virus scanner, a
-        # second launcher): written in place, as before.
-        try:
-            temporary.unlink(missing_ok=True)
-        except OSError:
-            pass
-        try:
-            CONFIG_FILE.write_text(text, encoding="utf-8")
-        except OSError as error:
-            # Still locked: the settings are kept for the next write; the launcher keeps running.
-            print(f"Could not write {CONFIG_FILE}: {error}", file=sys.stderr, flush=True)
+    """Saves the settings safely (the library writes through a temporary file); a locked file keeps them for the
+    next write and the launcher keeps running."""
+    if not native_api.config_write(CONFIG_FILE, config):
+        print(f"Could not write {CONFIG_FILE}", file=sys.stderr, flush=True)
 
 
 # ---------------------------------------------------------------------------------------------

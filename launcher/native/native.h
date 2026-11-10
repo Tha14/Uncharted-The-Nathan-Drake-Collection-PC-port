@@ -47,6 +47,12 @@ UN_API int un_memory_monitor(unsigned long pid, const wchar_t *folder, double se
 UN_API int un_settings_table(const char *name, char *out, int cap);
 UN_API int un_ini_read(const wchar_t *user_dir, const char *game, char *out, int cap);
 UN_API int un_ini_write(const wchar_t *user_dir, const char *game, const char *updates);
+/* The launcher's settings file (launcher.json): read with its defaults, the Wine merge with the prefix's own file and
+ * the version migrations (which also update the runtime settings files); out: the settings as JSON.
+ * un_config_write: writes the JSON given (any layout) in the file's layout, safely; 0 ok, 1 not written, 2 bad JSON. */
+UN_API int un_config_read(const wchar_t *config_file, const wchar_t *prefix_file, const wchar_t *user_dir, int wine,
+                          char *out, int cap);
+UN_API int un_config_write(const wchar_t *config_file, const char *config_json);
 
 #ifdef __cplusplus
 }
