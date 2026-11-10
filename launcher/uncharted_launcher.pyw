@@ -4039,11 +4039,7 @@ class Launcher:
         return link, result
 
     def update_installer(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("install_update", ROOT / "tools" / "install_update.py")
-        installer = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(installer)
-        return installer
+        return native_api.GameUpdate(ROOT)
 
     def choose_update_folder(self):
         """An update the player already extracted, anywhere: checked and remembered (nothing is
@@ -4072,7 +4068,7 @@ class Launcher:
         messagebox.showinfo(APP_TITLE, f"Game update {app_version(update) or '?'} is used from now on:\n{update}")
 
     def install_game_update(self):
-        """The player's own update PKG unpacked next to the game folder (tools/install_update.py;
+        """The player's own update PKG unpacked next to the game folder (launcher/native/gameupdate.cpp;
         the port ships no game files)."""
         if self.process:
             messagebox.showwarning(APP_TITLE, "Close the game first.")
@@ -4143,7 +4139,7 @@ class Launcher:
 
     def install_game_pkg(self):
         """The player's own game PKG (for example the US copy, CUSA02320) unpacked into a folder
-        they choose, with the metadata the launcher needs (tools/install_update.py install_game;
+        they choose, with the metadata the launcher needs (launcher/native/gameupdate.cpp install_game;
         the port ships no game files). That folder becomes the game folder."""
         if self.process:
             messagebox.showwarning(APP_TITLE, "Close the game first.")

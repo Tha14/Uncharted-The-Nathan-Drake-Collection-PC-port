@@ -321,3 +321,93 @@ def check_game_files(root, game_dir):
         if status >= 0:
             return status, out.value.decode("utf-8", "replace").splitlines()
         size = -status
+
+
+# ---------------------------------------------------------------------------------------------- gameupdate.cpp
+
+_OS_ERRORS = {2: FileNotFoundError, 3: FileNotFoundError, 5: PermissionError, 32: PermissionError,
+              80: FileExistsError, 183: FileExistsError}
+
+
+class GameUpdate:
+    """The game's update and the game from the player's own PKG files (launcher/native/gameupdate.cpp, with PkgTool
+    from tools/pkgtool). A reason for the player raises GameUpdate.UpdateError; a file system failure an OSError."""
+
+    class UpdateError(Exception):
+        pass
+
+    def __init__(self, root):
+        self.root = str(root)
+        dll = _native()
+        dll.un_game_update.argtypes = [ctypes.c_char_p, ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+        dll.un_game_update.restype = ctypes.c_int
+        dll.un_game_update_step.argtypes = [ctypes.c_char_p, ctypes.c_int]
+        dll.un_game_update_step.restype = ctypes.c_int
+        self._dll = dll
+
+    def _run(self, what, *args):
+        size = 1 << 16
+        while True:
+            out = ctypes.create_string_buffer(size)
+            status = self._dll.un_game_update(what.encode(), self.root, json.dumps([str(a) for a in args]).encode(),
+                                              out, size)
+            if status >= 0:
+                break
+            size = -status
+        text = out.value.decode("utf-8", "replace")
+        if status == 1:
+            raise self.UpdateError(text)
+        if status == 3:
+            code = text[len("[WinError "):].split("]")[0] if text.startswith("[WinError ") else ""
+            raise _OS_ERRORS.get(int(code) if code.isdigit() else 0, OSError)(text)
+        if status:
+            raise ValueError(what)
+        return text
+
+    def _step(self):
+        out = ctypes.create_string_buffer(1024)
+        return out.value.decode("utf-8", "replace") if self._dll.un_game_update_step(out, 1024) == 0 else ""
+
+    def _watched(self, what, log, *args):
+        """An install, its steps passed to log as they change (the work runs in this thread, the polling in another)."""
+        import threading
+        done, last = threading.Event(), [""]
+
+        def report():
+            step = self._step()
+            if step and step != last[0] and log:
+                last[0] = step
+                log(step)
+
+        def watch():
+            while not done.wait(0.1):
+                report()
+        watcher = threading.Thread(target=watch, daemon=True)
+        watcher.start()
+        try:
+            return Path(self._run(what, *args))
+        finally:
+            done.set()
+            watcher.join()
+            report()   # the last step, when it was quicker than the polling
+
+    def check_update(self, folder):
+        """What is wrong with an update's uroot for the port (missing files, unreadable bin.psarc archives)."""
+        return self._run("check_update", folder).splitlines()
+
+    def check_folder(self, folder, game):
+        """An update the player extracted anywhere: its uroot, checked."""
+        return Path(self._run("check_folder", folder, game))
+
+    def existing_update(self, game):
+        """The update folder already next to the game, or None."""
+        found = self._run("existing_update", game)
+        return Path(found) if found else None
+
+    def install(self, pkg, game, log=print):
+        """The update PKG unpacked next to the game as <game folder>-patch: its uroot."""
+        return self._watched("install", log, pkg, game)
+
+    def install_game(self, pkg, parent, log=print):
+        """The player's own game PKG unpacked into the folder <parent>, as <title id>: its uroot (the game folder)."""
+        return self._watched("install_game", log, pkg, parent)

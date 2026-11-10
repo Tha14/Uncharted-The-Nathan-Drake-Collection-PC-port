@@ -45,6 +45,11 @@ public:
             else fail();
         } while (!last);
     }
+    // The input bytes the stream used (after run(): its end, rounded up to the byte; a zlib checksum follows there).
+    size_t consumed() const {
+        const int whole = count_ / 8 - over_;   // loaded bytes not used, past the last one read from
+        return at_ - (whole > 0 ? (size_t)whole : 0);
+    }
 
 private:
     struct Table {
