@@ -4,6 +4,8 @@
 
 #include "native.h"
 
+#include <cctype>
+#include <cstdlib>
 #include <windows.h>
 #include <dxgi.h>
 

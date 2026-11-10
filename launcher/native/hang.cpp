@@ -9,6 +9,7 @@
 
 #include "native.h"
 
+#include <cstdlib>
 #include <windows.h>
 #include <dbghelp.h>
 #include <psapi.h>

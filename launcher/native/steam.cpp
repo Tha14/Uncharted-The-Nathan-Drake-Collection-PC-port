@@ -16,6 +16,9 @@
 
 #include "native.h"
 
+#include <cctype>
+#include <cstdlib>
+#include <cwctype>
 #include <windows.h>
 #include <tlhelp32.h>
 #include <wincodec.h>

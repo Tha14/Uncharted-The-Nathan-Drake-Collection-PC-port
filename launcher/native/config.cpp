@@ -8,6 +8,7 @@
 #include "native.h"
 #include "json.h"
 
+#include <cstdlib>
 #include <windows.h>
 
 #include <cstring>

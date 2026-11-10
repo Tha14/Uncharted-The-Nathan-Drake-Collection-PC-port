@@ -2,6 +2,8 @@
 // in the file's established layout (two-space indent, ", " / ": " separators, non-ASCII as \uXXXX).
 #pragma once
 
+#include <cctype>
+#include <cstdlib>
 #include <charconv>
 #include <cmath>
 #include <cstdint>
