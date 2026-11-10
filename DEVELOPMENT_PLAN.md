@@ -9,16 +9,16 @@ Edit this file on GitHub and change `- [ ]` to `- [x]` as you complete each task
 ## 1. Build on the existing launcher
 
 - [ ] Evolve the existing launcher to support this project’s multiplayer features and give it its own identity.
-- [ ] Support importing assets from players’ own PS3 copies so the launcher can convert the required multiplayer assets locally.
-- [ ] Let players update the launcher, the multiplayer components, or both together.
+- [x] Support importing assets from players’ own PS3 copies so the launcher can convert the required multiplayer assets locally.
+- [x] Let players update the launcher, the multiplayer components, or both together.
 - [ ] Evaluate Epic Online Services peer-to-peer networking as a crossplay option.
-- [ ] Move multiplayer networking into the launcher, replacing the current RPCN integration inside Uncharted 3.
+- [x] Move multiplayer networking into the launcher, replacing the current RPCN integration inside Uncharted 3.
 
 ## 2. Finish Uncharted 3 multiplayer on PS4
 
 - [ ] Fix the remaining gameplay and visual issues.
 - [ ] Finish converting the remaining multiplayer assets from PS3 to PS4.
-- [ ] Integrate the updated asset converter and patch manager into the launcher.
+- [x] Integrate the updated asset converter and patch manager into the launcher.
 
 ## 3. Port Uncharted 2 multiplayer to PS4
 
