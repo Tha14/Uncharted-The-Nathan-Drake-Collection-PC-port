@@ -303,77 +303,23 @@ def pad_icon(button, style, height):
 
 
 class Gamepads:
-    """Controllers through SDL3, the game's own library (gow3_pc/out in a release, MSYS2 here):
-    which buttons are held, and whether the first one is a PlayStation controller."""
-    PLAYSTATION_TYPES = (4, 5, 6)  # SDL_GAMEPAD_TYPE_PS3, PS4, PS5
+    """Controllers through SDL3, the game's own library (launcher/native/gamepads.cpp): which buttons are held, and
+    whether the first one is a PlayStation controller."""
 
     def __init__(self):
-        self.sdl = None
-        self.pads = {}
-        msys = Path(os.environ.get("MSYS2_ROOT", "C:/msys64"))
-        for path in (ROOT / "gow3_pc/out/SDL3.dll", msys / "clang64/bin/SDL3.dll", ROOT.parent / "msys64/clang64/bin/SDL3.dll"):
-            if not path.is_file():
-                continue
-            try:
-                sdl = ctypes.CDLL(str(path))
-            except OSError:
-                continue
-            sdl.SDL_SetHint.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-            sdl.SDL_SetHint.restype = ctypes.c_bool
-            sdl.SDL_Init.argtypes = [ctypes.c_uint32]
-            sdl.SDL_Init.restype = ctypes.c_bool
-            sdl.SDL_GetGamepads.argtypes = [ctypes.POINTER(ctypes.c_int)]
-            sdl.SDL_GetGamepads.restype = ctypes.POINTER(ctypes.c_uint32)
-            sdl.SDL_OpenGamepad.argtypes = [ctypes.c_uint32]
-            sdl.SDL_OpenGamepad.restype = ctypes.c_void_p
-            sdl.SDL_CloseGamepad.argtypes = [ctypes.c_void_p]
-            sdl.SDL_GetGamepadButton.argtypes = [ctypes.c_void_p, ctypes.c_int]
-            sdl.SDL_GetGamepadButton.restype = ctypes.c_bool
-            sdl.SDL_GetGamepadAxis.argtypes = [ctypes.c_void_p, ctypes.c_int]
-            sdl.SDL_GetGamepadAxis.restype = ctypes.c_int16
-            sdl.SDL_GetGamepadType.argtypes = [ctypes.c_void_p]
-            sdl.SDL_GetGamepadType.restype = ctypes.c_int
-            sdl.SDL_free.argtypes = [ctypes.c_void_p]
-            # The launcher has no SDL window: controller input arrives anyway.
-            sdl.SDL_SetHint(b"SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", b"1")
-            if sdl.SDL_Init(0x2000):  # SDL_INIT_GAMEPAD
-                self.sdl = sdl
-            break
+        self.sdl = native_api.pad_init(ROOT)
+        self.pads = []
 
     def refresh(self):
-        if not self.sdl:
-            return []
-        self.sdl.SDL_PumpEvents()
-        count = ctypes.c_int(0)
-        ids = self.sdl.SDL_GetGamepads(ctypes.byref(count))
-        current = [ids[i] for i in range(count.value)] if ids else []
-        if ids:
-            self.sdl.SDL_free(ctypes.cast(ids, ctypes.c_void_p))
-        for jid in current:
-            if jid not in self.pads:
-                pad = self.sdl.SDL_OpenGamepad(jid)
-                if pad:
-                    self.pads[jid] = pad
-        for jid in [j for j in self.pads if j not in current]:
-            self.sdl.SDL_CloseGamepad(self.pads.pop(jid))
-        self.sdl.SDL_UpdateGamepads()
-        return list(self.pads.values())
+        count, style, held = native_api.pad_state() if self.sdl else (0, None, set())
+        self.pads = [None] * count
+        return style, held
 
     def held(self):
-        down = set()
-        for pad in self.refresh():
-            for index, name in enumerate(SDL_BUTTONS):
-                if self.sdl.SDL_GetGamepadButton(pad, index):
-                    down.add(name)
-            for axis, name in ((4, "lefttrigger"), (5, "righttrigger")):
-                if self.sdl.SDL_GetGamepadAxis(pad, axis) > 16000:
-                    down.add(name)
-        return down
+        return self.refresh()[1]
 
     def style(self):
-        for pad in self.refresh():
-            return "playstation" if self.sdl.SDL_GetGamepadType(pad) in self.PLAYSTATION_TYPES else "xbox"
-        return None
+        return self.refresh()[0]
 
 
 def merged_controls(controls):

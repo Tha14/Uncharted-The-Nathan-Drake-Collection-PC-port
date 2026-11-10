@@ -63,6 +63,12 @@ UN_API int un_wine(void);
 UN_API int un_system(const char *what, const wchar_t *arg, char *out, int cap);
 UN_API int un_pid_alive(unsigned long pid);
 
+/* Controllers through SDL3 (gamepads.cpp). un_pad_init: loads SDL3 once (root: the launcher's folder); 1 when
+ * controllers can be read. un_pad_state out: the number of controllers, the first one's style (playstation, xbox or
+ * empty) and the buttons held (space-separated), one per line. */
+UN_API int un_pad_init(const wchar_t *root);
+UN_API int un_pad_state(char *out, int cap);
+
 #ifdef __cplusplus
 }
 #endif

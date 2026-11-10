@@ -28,6 +28,8 @@ def _native():
         _dll.un_system_tables.argtypes = [ctypes.c_char_p, ctypes.c_int]
         _dll.un_system.argtypes = [ctypes.c_char_p, ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_pid_alive.argtypes = [ctypes.c_ulong]
+        _dll.un_pad_init.argtypes = [ctypes.c_wchar_p]
+        _dll.un_pad_state.argtypes = [ctypes.c_char_p, ctypes.c_int]
         for name in ("un_settings_table", "un_ini_read", "un_ini_write", "un_system_tables", "un_system", "un_wine",
                      "un_pid_alive"):
             getattr(_dll, name).restype = ctypes.c_int
@@ -208,3 +210,16 @@ def pid_alive(pid):
         return bool(pid) and bool(_native().un_pid_alive(int(pid)))
     except (ValueError, OverflowError, ctypes.ArgumentError):
         return False
+
+
+# ---------------------------------------------------------------------------------------------- gamepads.cpp
+
+
+def pad_init(root):
+    return bool(_native().un_pad_init(str(root)))
+
+
+def pad_state():
+    """(number of controllers, first one's style or None, set of held buttons)."""
+    count, style, held = (_text(_native().un_pad_state).splitlines() + ["", ""])[:3]
+    return int(count or 0), style or None, set(held.split())
