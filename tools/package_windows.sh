@@ -33,7 +33,7 @@ done
 
 cp gow3_pc/scripts/*.py "$stage/gow3_pc/scripts/"
 cp tools/probe_uncharted.py tools/apply_update.py tools/install_update.py \
-    tools/check_game_files.py tools/game_files_102.json.gz "$stage/tools/"
+    tools/game_files_102.json.gz "$stage/tools/"
 # Uncharted 2 multiplayer (launcher -> Multiplayer while Uncharted 2 is chosen): u2mp/patcher, scripts only;
 # the player's PC makes every game-derived file from the player's own game.
 mkdir -p "$stage/u2mp"

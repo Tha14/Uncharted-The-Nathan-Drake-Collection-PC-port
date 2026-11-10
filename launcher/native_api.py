@@ -302,3 +302,22 @@ def crash_reason(root, started_at):
             break
         size = -status
     return None if status == 2 else out.value.decode("utf-8", "replace")
+
+
+# ---------------------------------------------------------------------------------------------- gamefiles.cpp
+
+
+def check_game_files(root, game_dir):
+    """The game folder against the base game's file list (tools/game_files_102.json.gz): (status, report lines).
+    status 0: every file is there with its size; 1: some are missing or have another size; 2: the list could not be
+    read (the report says why). The first line counts them, then "missing <file>" / "size    <file>" lines."""
+    dll = _native()
+    dll.un_check_game_files.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
+    dll.un_check_game_files.restype = ctypes.c_int
+    size = 1 << 20
+    while True:
+        out = ctypes.create_string_buffer(size)
+        status = dll.un_check_game_files(str(root), str(game_dir), out, size)
+        if status >= 0:
+            return status, out.value.decode("utf-8", "replace").splitlines()
+        size = -status

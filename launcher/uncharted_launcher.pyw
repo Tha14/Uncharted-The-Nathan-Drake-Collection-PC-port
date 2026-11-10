@@ -4121,22 +4121,18 @@ class Launcher:
         poll()
 
     def check_game_files(self):
-        """Every file of the base game present with the right size (tools/check_game_files.py: a
-        list of names and sizes, no game data). 29 Oct 2026: Uncharted 3 chapter 8 stopped for
-        players whose dump lacked one script file (#247, #296)."""
+        """Every file of the base game present with the right size (launcher/native/gamefiles.cpp against
+        tools/game_files_102.json.gz: names and sizes, no game data). 29 Oct 2026: Uncharted 3 chapter 8 stopped
+        for players whose dump lacked one script file (#247, #296)."""
         folder = self.game_dir()
         if not folder:
             messagebox.showwarning(APP_TITLE, "Choose the game folder first.")
             return
-        try:
-            result = subprocess.run([sys.executable, "-I", str(ROOT / "tools" / "check_game_files.py"), "check",
-                                     str(folder)], capture_output=True, text=True, timeout=600,
-                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        except (OSError, subprocess.SubprocessError) as error:
-            messagebox.showerror(APP_TITLE, f"The check could not run:\n\n{error}")
+        status, lines = native_api.check_game_files(ROOT, folder)
+        if status == 2:
+            messagebox.showerror(APP_TITLE, "The check could not run:\n\n" + "\n".join(lines))
             return
-        lines = result.stdout.splitlines()
-        if result.returncode == 0:
+        if status == 0:
             messagebox.showinfo(APP_TITLE, "Your game files are complete.\n\n" + (lines[0] if lines else ""))
             return
         problems = lines[1:]
