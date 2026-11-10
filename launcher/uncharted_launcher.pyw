@@ -851,88 +851,41 @@ def desktop_folder():
 
 
 def monitor_refresh_hz():
-    try:
-        user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
-        dc = user32.GetDC(0)
-        hz = gdi32.GetDeviceCaps(dc, 116)  # VREFRESH
-        user32.ReleaseDC(0, dc)
-        return hz if hz > 1 else 60
-    except Exception:
-        return 60
+    return native_api.monitor_refresh_hz()
 
 
-RESOLUTIONS = [("960x540", "540p"), ("1280x720", "720p"), ("1600x900", "900p"), ("1920x1080", "1080p"), ("2560x1440", "1440p"),
-               ("2880x1620", "1620p"), ("3840x2160", "4K")]
-# Ultrawide: the render resolution's height at a wider aspect ratio. The games widen their view
-# (more to the sides, nothing stretched); menus and the HUD keep their layout. 16:10 (Steam Deck,
-# 1280x800): the render resolution's width, taller; the games keep the 16:9 width of view and
-# show more at the top and bottom.
-ASPECTS = [("16:10", "16:10"), ("16:9", "16:9"), ("21:9", "21:9"), ("32:9", "32:9")]
-ASPECT_WIDTHS = {"16:10": 16 / 10, "16:9": 16 / 9, "21:9": 64 / 27, "32:9": 32 / 9}
-# Upscaling: the resolution chosen is the output; the game draws at it divided by the quality's
-# scale and the upscaler brings each frame up to it before the HUD is drawn. FSR 1 is spatial (the
-# frame alone; the "fsr1" setting); FSR 3.1, FSR 4 and DLSS are temporal (the runtime's "upscaler"
-# setting, also the in-game menu's): they smooth edges themselves, at the resolution too (Native
-# AA, DLAA). TAA, the other "upscaler" value, is the anti-aliasing with Off and FSR 1.
-UPSCALE_PRESETS = [("off", "Native AA"), ("quality", "Quality"), ("balanced", "Balanced"),
-                   ("performance", "Performance"), ("ultra", "Ultra Performance")]
-UPSCALE_SCALES = {"quality": 1.5, "balanced": 1.7, "performance": 2.0, "ultra": 3.0}
-TEMPORAL_UPSCALERS = ("fsr3", "fsr4", "fsr411", "dlss")
+# The Display page's tables and size arithmetic are the native code's (launcher/native/display.cpp): resolutions,
+# aspect ratios (ultrawide widens the view, 16:10 shows more at the top and bottom), upscaling qualities, and the
+# temporal upscalers (FSR 3.1, FSR 4, DLSS: they smooth edges themselves, so they take the runtime's "upscaler").
+RESOLUTIONS = native_api.display_table("resolutions")
+ASPECTS = native_api.display_table("aspects")
+UPSCALE_PRESETS = native_api.display_table("upscale_presets")
+TEMPORAL_UPSCALERS = tuple(row[0] for row in native_api.display_table("temporal_upscalers"))
 
 
 def upscaling_choice(ini):
     """The upscaler a game's settings file holds: a temporal one, else FSR 1, else "off"."""
-    upscaler = ini.get("upscaler", INI_DEFAULTS["upscaler"])
-    if upscaler in TEMPORAL_UPSCALERS:
-        return upscaler
-    return "fsr1" if ini.get("fsr1", "0") == "1" else "off"
+    return native_api.upscaling_choice(ini.get("upscaler", INI_DEFAULTS["upscaler"]), ini.get("fsr1", "0"))
 
 
 def anti_aliasing_choice(ini, settings):
-    """TAA or off: the runtime's setting with Off and FSR 1; kept in the game's launcher settings
-    while a temporal upscaler (which smooths edges itself) takes the runtime's setting."""
-    upscaler = ini.get("upscaler", INI_DEFAULTS["upscaler"])
-    if upscaler in ("off", "taa"):
-        return upscaler
-    return "taa" if settings.get("aa") == "taa" else "off"
+    """TAA or off (kept in the launcher's settings while a temporal upscaler takes the runtime's setting)."""
+    return native_api.anti_aliasing_choice(ini.get("upscaler", INI_DEFAULTS["upscaler"]), settings.get("aa"))
 
 
 def game_sizes(settings, upscaling):
-    """The size a game draws at and, with upscaling, the size it is upscaled to (else None).
-    The engines need widths in steps of 16 (Uncharted 3 asserts it in its post processing) and
-    heights in steps of 4 (the tile grid)."""
-    output = aspect_resolution(settings["resolution"], settings.get("aspect", "16:9"))
-    scale = UPSCALE_SCALES.get(settings.get("upscale", "off"))
-    if not scale or (upscaling not in TEMPORAL_UPSCALERS and upscaling != "fsr1"):
-        return output, None
-    width, height = (int(v) for v in output.split("x"))
-    render = f"{max(16, round(width / scale / 16) * 16)}x{max(4, round(height / scale / 4) * 4)}"
-    return render, output
+    """The size a game draws at and, with upscaling, the size it is upscaled to (else None)."""
+    return native_api.game_sizes(settings["resolution"], settings.get("aspect", "16:9"),
+                                 settings.get("upscale", "off"), upscaling)
 
 
 def aspect_resolution(resolution, aspect):
-    """The render resolution at the aspect ratio: 1440p at 21:9 is 3440x1440 (widths in steps of 16),
-    720p at 16:10 is 1280x800 (heights in steps of 4)."""
-    width, height = (int(v) for v in resolution.split("x"))
-    if aspect not in ASPECT_WIDTHS or aspect == "16:9":
-        return resolution
-    if ASPECT_WIDTHS[aspect] < 16 / 9:
-        height = int(round(width / ASPECT_WIDTHS[aspect] / 4)) * 4
-    elif aspect == "21:9" and height in (1080, 1440, 1600):
-        width = {1080: 2560, 1440: 3440, 1600: 3840}[height]  # the common monitor sizes
-    else:
-        width = int(round(height * ASPECT_WIDTHS[aspect] / 16)) * 16
-    return f"{width}x{height}"
+    return native_api.aspect_resolution(resolution, aspect)
 
 
 def resolution_options(aspect):
-    """RESOLUTIONS labelled by the height the game draws at this aspect ratio (720p is 800p at
-    16:10; wider ones keep the height); 2160 lines are 4K, ultrawide included."""
-    options = []
-    for value, _ in RESOLUTIONS:
-        height = int(aspect_resolution(value, aspect).split("x")[1])
-        options.append((value, "4K" if height == 2160 else f"{height}p"))
-    return options
+    """The resolutions labelled by the height the game draws at this aspect ratio."""
+    return native_api.resolution_options(aspect)
 
 # Quality presets: the game has one detail level (the PS4's); quality here is the resolution the
 # game draws at, the upscaling, the sharpening and the frame rate. Above 1080p the
@@ -944,193 +897,32 @@ PRESET_ORDER = ("igpu", "low", "medium", "high", "ultra")
 
 
 def upscaling_options():
-    """FSR 1 and FSR 3.1 always; FSR 4 when its model files are installed, DLSS when its files are
-    beside Uncharted.exe."""
-    options = [("off", "Off"), ("fsr1", "FSR 1"), ("fsr3", "FSR 3.1")]
-    if (ROOT / "gow3_pc/fsr4_shaders/fsr4_model_v07_i8_native_1080_pre.spv").is_file():
-        options.append(("fsr4", "FSR 4"))
-    out = ROOT / "gow3_pc/out"
-    if (out / "gow3_dlss.dll").is_file() and (out / "nvngx_dlss.dll").is_file():
-        options.append(("dlss", "DLSS"))
-    return options
+    """FSR 1 and FSR 3.1 always; FSR 4 and DLSS when their files are installed."""
+    return native_api.upscaling_options(ROOT)
 
 
 def preset_values(name):
     return dict(PRESETS[name]["values"])
 
 
-def gpu_log_info():
-    """The graphics card the game used last, as its log names it: {"name", "integrated"}.
-    None when no log has it. The log lists every card as "GPU 0: <name> (DiscreteGpu)" and the one
-    chosen as "GPU: using <name>"; the kind is None when the log predates that line."""
-    logs = [ROOT / "analysis" / g["log"] / "boot.log" for g in GAMES]
-    for log in sorted((log for log in logs if log.exists()), key=lambda p: p.stat().st_mtime, reverse=True):
-        name, kinds = None, {}
-        try:
-            with open(log, encoding="utf-8", errors="replace") as lines:
-                for number, line in enumerate(lines):
-                    if line.startswith("GPU: using "):
-                        name = line[len("GPU: using "):].strip()
-                    elif line.startswith("GPU ") and ": " in line:
-                        head, _, card = line.partition(": ")
-                        if head[4:].strip().isdigit() and card.rstrip().endswith(")"):
-                            model, _, kind = card.rstrip().rpartition(" (")
-                            kinds[model] = kind[:-1]
-                    if number > 400:
-                        break
-        except OSError:
-            continue
-        if name:
-            kind = kinds.get(name)
-            return {"name": name, "integrated": True if kind == "IntegratedGpu"
-                    else False if kind == "DiscreteGpu" else None}
-    return None
-
-
-def gpu_names():
-    """The graphics cards: the one the game used last (its log names it), else Windows' list."""
-    info = gpu_log_info()
-    if info:
-        return [info["name"]]
-    try:
-        result = subprocess.run(["powershell", "-NoProfile", "-Command", "(Get-CimInstance Win32_VideoController).Name"],
-                                capture_output=True, text=True, timeout=20, creationflags=NO_WINDOW)
-        return [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    except (OSError, subprocess.SubprocessError):
-        return []
-
-
-# Integrated graphics by model name (IGPU card adapted from PR #223 by memeguyoffical): the log says
-# it exactly ("(IntegratedGpu)"), but Windows' list and older logs only give the name. AMD APUs:
-# Vega, the 610M-890M Radeon and the unnamed "Radeon Graphics"; Intel: Iris Xe, UHD/HD and the
-# integrated Arc (130V-150V, 130T/140T, "Arc Graphics"). Separate cards: a discrete Arc A/B (also
-# the laptop A370M-A770M and Arc Pro A40-B60), a Radeon RX, Vega 56/64, Radeon VII, and GeForce
-# laptop chips with the same numbers (GTX 660M/680M). Strix Halo (Radeon 8040S-8060S) is
-# integrated too, but as fast as a mid-range card: it is not an IGPU-preset GPU.
-INTEGRATED_AMD = re.compile(
-    r"\bradeon\s*(?:610m|640m|660m|680m|740m|760m|780m|860m|880m|890m)\b"
-    r"|\bradeon\s+graphics\b|\bradeon\s+vega\b|\bvega\s*(?:3|6|7|8|9|10|11)\b"
-    r"|\bryzen\s+.*\bgraphics\b")
-DISCRETE_ARC = re.compile(r"\barc\s*(?:pro\s*)?[ab]\d{2,3}")
-STRIX_HALO = re.compile(r"\bradeon\s*80[4-6]0s\b")
-
-
-def gpu_name_key(name):
-    return " ".join((name or "").lower().replace("(tm)", " ").replace("(r)", " ").split())
-
-
-def gpu_strix_halo(name):
-    """True for the Ryzen AI Max APUs (Radeon 8040S/8050S/8060S): integrated, but no low-end GPU."""
-    return bool(STRIX_HALO.search(gpu_name_key(name)))
-
-
-def gpu_integrated(name):
-    """True for low-end integrated graphics (the IGPU preset's GPUs), from the model name."""
-    n = gpu_name_key(name)
-    if not n or gpu_strix_halo(n) or "nvidia" in n or "geforce" in n:
-        return False
-    if "vega 56" in n or "vega 64" in n or "radeon vii" in n or re.search(r"\brx\s*\d", n):
-        return False
-    if "intel" in n:
-        return not DISCRETE_ARC.search(n)
-    return bool(INTEGRATED_AMD.search(n))
-
-
-def igpu_class(name):
-    """How strong an integrated GPU is, for the IGPU preset's own defaults: "weak" (30 FPS: Vega,
-    the 2-4 CU Radeon, older Intel UHD/HD), "mainstream" (60 FPS at 540p: Radeon 680M/760M/780M,
-    Iris Xe) or "strong" (60 FPS at 720p: Radeon 880M/890M, integrated Arc)."""
-    n = gpu_name_key(name)
-    if ("intel" in n and "arc" in n) or re.search(r"\b(880m|890m)\b", n):
-        return "strong"
-    if re.search(r"\b(680m|760m|780m|860m)\b", n) or ("intel" in n and "iris xe" in n):
-        return "mainstream"
-    if "intel" in n or "vega" in n or re.search(r"\b(610m|640m|660m|740m)\b", n) \
-            or "radeon graphics" in n:
-        return "weak"
-    return "mainstream"
+def gpu_detect():
+    """(card, integrated, preset) for Quick Setup: the card the game used last (its newest log), else Windows'
+    strongest known adapter (launcher/native/display.cpp)."""
+    return native_api.gpu_recommendation([ROOT / "analysis" / g["log"] / "boot.log" for g in GAMES])
 
 
 def gpu_recommendation(name, integrated=None):
-    """The Quick Setup preset for a card: IGPU for low-end integrated graphics (the game log's
-    "(IntegratedGpu)" when known, else the model name), else gpu_tier. Strix Halo never takes IGPU."""
-    n = gpu_name_key(name)
-    if gpu_strix_halo(n):
-        return gpu_tier(n)
-    # A name that is a separate card (discrete Arc, GeForce, Radeon RX) never takes IGPU.
-    if integrated is None or DISCRETE_ARC.search(n) \
-            or re.search(r"\b(?:nvidia|geforce|radeon vii)\b|\brx\s*(?:\d|vega)", n):
-        integrated = gpu_integrated(n)
-    return "igpu" if integrated else gpu_tier(name)
+    """The Quick Setup preset for a card (IGPU for low-end integrated graphics, else its tier)."""
+    return native_api.gpu_query("recommend", name, integrated)
 
 
 def gpu_tier(name):
-    """The Quick Setup preset for a graphics card, from its model name; None when not known.
-    Low-end integrated graphics take IGPU (30-60 FPS below 1080p with FSR 1); the others: Low =
-    older entry cards, Medium = 1080p cards (GTX 1060-1660, RTX x060, RX 580-7600, Strix Halo),
-    High = 1440p cards, Ultra = 4K cards (RTX x080/x090, RTX 4070 Ti and up, RX 6800 XT/7900/9070).
-    High and Ultra laptop chips count one class lower."""
-    n = gpu_name_key(name)
-    if gpu_strix_halo(n):
-        return "medium"
-    if gpu_integrated(n):
-        return "igpu"
-    nvidia =re.search(r"\b(rtx|gtx|gt|mx)\s*(\d{3,4})\s*(ti)?\s*(super)?", n)
-    amd = re.search(r"\brx\s*(\d{3,4})\s*(xtx|xt|gre)?", n)
-    arc = re.search(r"\barc\s*([ab])(\d{3})", n)
-    if nvidia:
-        kind, number = nvidia.group(1), int(nvidia.group(2))
-        ti, super_ = bool(nvidia.group(3)), bool(nvidia.group(4))
-        if kind in ("gt", "mx"):
-            tier = "low"
-        elif kind == "gtx":
-            if number == 1080 and ti:
-                tier = "high"
-            elif 1060 <= number < 1100 or 1660 <= number < 1700 or (number == 1650 and super_):
-                tier = "medium"
-            else:
-                tier = "low"
-        else:
-            series, model = number // 100, number % 100
-            if model >= 80:
-                tier = "ultra" if series >= 30 else "high"
-            elif model == 70:
-                tier = "ultra" if series >= 40 and (ti or super_) else "high"
-            elif model == 60:
-                tier = "high" if ti or series >= 50 else "medium"
-            else:
-                tier = "medium"
-    elif amd:
-        number, suffix = int(amd.group(1)), amd.group(2) or ""
-        if number >= 9000:
-            tier = {7: "ultra", 6: "high"}.get((number % 100) // 10, "medium")
-        elif number >= 1000:
-            series, model = number // 1000, (number % 1000) // 100
-            if model >= 9:
-                tier = "ultra"
-            elif model == 8:
-                tier = "ultra" if suffix.startswith("xt") else "high"
-            elif model == 7:
-                tier = "medium" if series == 5 else "high"
-            elif model == 6 or number == 5500:
-                tier = "medium"
-            else:
-                tier = "low"
-        else:
-            tier = "medium" if number in (470, 480, 570, 580, 590) else "low"
-    elif "vega 56" in n or "vega 64" in n:
-        tier = "medium"
-    elif "radeon vii" in n:
-        tier = "high"
-    elif arc:
-        tier = "medium" if int(arc.group(2)) >= 500 else "low"
-    elif "intel" in n or ("radeon" in n and "graphics" in n):
-        tier = "low"  # other Intel (Arc Pro) and Radeon graphics the checks above did not place
-    else:
-        return None
-    if "laptop" in n or "max-q" in n or "mobile" in n or re.search(r"\d{3,4}m\b", n):
-        tier = {"ultra": "high", "high": "medium"}.get(tier, tier)
-    return tier
+    return native_api.gpu_query("tier", name)
+
+
+def igpu_class(name):
+    """How strong an integrated GPU is: "weak", "mainstream" or "strong" (the IGPU preset's own defaults)."""
+    return native_api.gpu_query("igpu_class", name)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1638,19 +1430,16 @@ class Launcher:
         Quick Setup preset that suits it. The game log's "(IntegratedGpu)" is exact; the model name
         is the fallback, and all there is when the card has never run the game."""
         found = []
-        threading.Thread(target=lambda: found.append((gpu_log_info(), gpu_names())), daemon=True).start()
+        threading.Thread(target=lambda: found.append(gpu_detect()), daemon=True).start()
 
         def done():
             if not found:
                 self.root.after(200, done)
                 return
-            info, names = found[0]
-            if not names:
+            name, _, preset = found[0]
+            if not name:
                 return
-            known = [name for name in names if gpu_tier(name)]
-            name = max(known, key=lambda n: PRESET_ORDER.index(gpu_tier(n))) if known else names[0]
-            integrated = info.get("integrated") if info and info.get("name") == name else None
-            self.gpu_name, self.recommended = name, gpu_recommendation(name, integrated)
+            self.gpu_name, self.recommended = name, preset
             if self.config.get("gpu") != name:
                 self.config["gpu"] = name
                 write_config(self.config)
