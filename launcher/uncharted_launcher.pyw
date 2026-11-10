@@ -175,10 +175,10 @@ def recipe_version():
 
 
 def version_suffix(imported=""):
-    """' - Launcher Version: x - Recipe Version: y[ - Imported vZ]', shown after the launcher's and the games' window
-    titles; Z is the Uncharted 3 multiplayer build of the current import (state.json image version)."""
+    """' - Unofficial Port - Launcher Version: x - Recipe Version: y[ - Imported vZ]', shown after the launcher's and
+    the games' window titles; Z is the Uncharted 3 multiplayer build of the current import (state.json image version)."""
     tail = f" - Imported v{imported}" if imported else ""
-    return f" - Launcher Version: {launcher_version()} - Recipe Version: {recipe_version()}{tail}"
+    return f" - Unofficial Port - Launcher Version: {launcher_version()} - Recipe Version: {recipe_version()}{tail}"
 
 
 def u3mp_default_data():
@@ -3350,7 +3350,7 @@ class Launcher:
             if not self.process and hasattr(self, "status"):
                 if self.u3mp_blocked():
                     self.set_status(f"Uncharted {'2' if self.config.get('game') == 'u2' else '3'} is updating its "
-                                    "multiplayer files.", "PLAY unlocks when the update finishes (progress above).")
+                                    "multiplayer files.", "PLAY unlocks when the update finishes.")
                 else:
                     self.set_status(f"Ready to play {self.current_game()['name']}.")
 

@@ -8,6 +8,25 @@ Rectangle {
     radius: height / 2
     border.color: Theme.cardLine
 
+    // an update in progress (multiplayer files or the launcher): one line and a fixed-size bar
+    Column {
+        visible: !!backend.chrome.banner
+        anchors.centerIn: parent   // fixed in the middle of the bar, whatever the text and buttons beside it
+        spacing: 7
+        Text {
+            id: updateLine
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: backend.chrome.banner ? backend.chrome.banner.title : ""
+            color: Theme.gold; font.family: Theme.sansSemi; font.pixelSize: Theme.fontSmall
+            font.letterSpacing: 0.6
+        }
+        ProgressLine {
+            width: 260
+            track: "#38ffffff"
+            value: backend.chrome.banner ? backend.chrome.banner.progress : 0
+        }
+    }
+
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 32
@@ -15,6 +34,7 @@ Rectangle {
         spacing: 14
         ColumnLayout {
             Layout.fillWidth: true
+            Layout.maximumWidth: backend.chrome.banner ? parent.width / 2 - 190 : -1
             spacing: 2
             Text {
                 Layout.fillWidth: true
@@ -29,6 +49,7 @@ Rectangle {
                 elide: Text.ElideRight
             }
         }
+        Item { Layout.fillWidth: true }   // keeps UPDATE and PLAY at the right end
         PillButton {
             visible: !!backend.chrome.update
             text: backend.chrome.update || ""

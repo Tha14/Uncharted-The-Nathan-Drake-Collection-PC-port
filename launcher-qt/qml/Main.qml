@@ -92,43 +92,6 @@ ApplicationWindow {
             games: backend.chrome.games || []
         }
 
-        // Uncharted 3 multiplayer update in progress (the Tk launcher's gold banner)
-        Rectangle {
-            visible: !!backend.chrome.banner
-            Layout.fillWidth: true
-            Layout.leftMargin: Theme.gutter
-            Layout.rightMargin: Theme.gutter
-            Layout.topMargin: -6
-            Layout.bottomMargin: 6
-            Layout.preferredHeight: bannerColumn.implicitHeight + 24
-            radius: Theme.radiusCard
-            color: Theme.gold
-            ColumnLayout {
-                id: bannerColumn
-                anchors.fill: parent
-                anchors.margins: 12
-                anchors.leftMargin: 18
-                anchors.rightMargin: 18
-                spacing: 4
-                Text {
-                    text: backend.chrome.banner ? backend.chrome.banner.title : ""
-                    color: Theme.ink; font.family: Theme.sansSemi; font.pixelSize: Theme.fontBody
-                    Layout.fillWidth: true; wrapMode: Text.Wrap
-                }
-                Text {
-                    text: backend.chrome.banner ? backend.chrome.banner.detail : ""
-                    color: Theme.ink; font.pixelSize: Theme.fontSmall
-                    Layout.fillWidth: true; wrapMode: Text.Wrap
-                }
-                ProgressLine {
-                    Layout.fillWidth: true
-                    value: backend.chrome.banner ? backend.chrome.banner.progress : 0
-                    track: Qt.darker(Theme.gold, 1.25)
-                    fill: Theme.ink
-                }
-            }
-        }
-
         TabStrip {
             Layout.fillWidth: true
             Layout.leftMargin: Theme.gutter

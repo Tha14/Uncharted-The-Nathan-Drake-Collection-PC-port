@@ -391,14 +391,24 @@ def chrome(app):
         cell = app.tab_cells[name]
         tabs.append({"name": name, "label": pill.text, "visible": shown(cell),
                      "selected": name == getattr(app, "current_tab", "")})
+    # an update in progress, shown in the bottom bar: one line and a bar, both from the step counts (the Tk banner's
+    # canvas is never mapped here, so its drawn width says nothing)
     banner = None
     if getattr(app, "banner_shown", False):
-        bar = canvas_node(app.banner_bar) or {}
-        banner = {"title": text_of(app.banner_title), "detail": text_of(app.banner_detail), "progress": bar.get("v", 0)}
+        r3, r2 = getattr(app, "u3mp_block", ""), getattr(app, "u2mp_block", "")
+        reason = r3 or r2
+        n, total = (tuple(getattr(app, "u3mp_progress", (0, 0, "")))[:2] if r3
+                    else tuple(getattr(app, "u2mp_progress", (0, 0)))[:2])
+        if reason == "running" and total:
+            done = max(0, min(int(n), int(total)))
+            banner = {"title": "UPDATE IN PROGRESS - %d/%d (%d%%)" % (done, total, 100 * done // total),
+                      "progress": done / total}
+        elif reason:
+            banner = {"title": "UPDATE STARTING", "progress": 0}
     if getattr(app, "update_busy", False) and getattr(app, "update_release", None):   # a launcher update installing
         done, total = getattr(app, "update_progress", (0, 0))
-        banner = {"title": "UPDATING THE LAUNCHER TO " + ul.updater.version_text(app.update_release["version"]),
-                  "detail": text_of(app.status) + " " + text_of(app.substatus), "progress": done / total if total else 0}
+        pct = " (%d%%)" % (100 * done // total) if total else ""
+        banner = {"title": "UPDATING THE LAUNCHER" + pct, "progress": done / total if total else 0}
     update = shown(app.update_button)
     hero = ""
     for name in ("pic1.png", "pic0.png"):
