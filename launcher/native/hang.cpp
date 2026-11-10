@@ -1,5 +1,5 @@
 // hang.cpp - freeze reports for a running game, part of uncharted_native.dll (used by the game starter's hang
-// watchdog, tools/probe_uncharted.py, through tools/hang_report.py). Everything is read from outside the game process,
+// watchdog in start.cpp, and by the debugging tools). Everything is read from outside the game process,
 // so it works while the game's own threads are stuck.
 //
 // un_thread_report: every thread of the game, grouped by identical stacks: thread ids and names, then the native

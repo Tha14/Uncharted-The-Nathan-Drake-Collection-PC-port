@@ -353,7 +353,7 @@ struct Process {
     DWORD pid = 0;
 };
 
-// The runtime with its stdout and stderr in the log. u3mp: Uncharted 3 multiplayer's start (tools/u3mp_process.py as
+// The runtime with its stdout and stderr in the log. u3mp: Uncharted 3 multiplayer's start (as
 // the multiplayer test runner does it): bottom-up and high-entropy ASLR off for this one child (mitigation policy
 // 0x220000), started suspended and checked that nothing sits in the PS4 reserve 0x1000000000..0xfc00000000 before it
 // runs. No image, registry or system setting is changed.

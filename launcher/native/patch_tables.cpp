@@ -810,7 +810,7 @@ std::string hex(const std::string &bytes) {
     for (unsigned char c : bytes) { out += d[c >> 4]; out += d[c & 15]; }
     return out;
 }
-// the patch list as tools/game_patcher.py passes it to un_apply_patches
+// the patch list in the form un_apply_patches takes it
 Value spec(const Patches &patches) {
     Value list;
     list.kind = Value::Array;
