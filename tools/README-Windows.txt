@@ -78,8 +78,8 @@ Credits
 
 License
 GNU GPL v2 or later (LICENSE.txt); the source is at the address at the top. Not covered by the
-GPL and licensed separately: the online components in u3mp\patcher\online\ (u3_online.py,
-u3_online.dll, u2_online.dll) and the multiplayer helper
+GPL and licensed separately: the online components in u3mp\patcher\online\ (u3_online.dll,
+u2_online.dll) and the multiplayer helper
 u3mp\patcher\build\<version>\profile-helper.bin, which are separate works by this fork's author.
 The bundled libraries' licenses are in licenses\ (THIRD-PARTY.txt lists every DLL package with its
 version, license and source; BearSSL is in licenses\bearssl).
