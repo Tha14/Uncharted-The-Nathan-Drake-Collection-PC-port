@@ -1313,7 +1313,7 @@ class Launcher:
         """Why Uncharted 3 cannot start yet: "running" (an update of an existing import is rebuilding the
         multiplayer files), "pending" (a launcher update brought a new build or recipe that is not applied yet), or
         "" (nothing to wait for; a first import in progress does not block: Uncharted 3 then starts without it)."""
-        if not hasattr(self, "u3mp_status"):
+        if not getattr(self, "u3mp_page", False):
             return ""
         try:
             state = self.u3mp_state()
@@ -1347,7 +1347,7 @@ class Launcher:
                 pct = f" ({int(100 * n / total)}%)" if total else ""
                 self.banner_title.config(text="UNCHARTED 2 MULTIPLAYER UPDATE IN PROGRESS" + pct +
                                               " - Uncharted 2 can be played when it finishes")
-                step = self.u2mp_step.cget("text") if hasattr(self, "u2mp_step") else ""
+                step = getattr(self, "u2mp_step_text", "")
                 self.banner_detail.config(text=(step + "\n" if step else "") +
                                           "The launcher update changed the multiplayer files; only what changed is "
                                           "rebuilt. Uncharted 1 and 3 can be played meanwhile, and closing the "
@@ -1371,7 +1371,7 @@ class Launcher:
                 pct = f" ({int(100 * n / total)}%)" if total else ""
                 self.banner_title.config(text="UNCHARTED 3 MULTIPLAYER UPDATE IN PROGRESS" + pct +
                                               " - Uncharted 3 can be played when it finishes")
-                step = self.u3mp_step.cget("text") if hasattr(self, "u3mp_step") else ""
+                step = getattr(self, "u3mp_step_text", "")
                 self.banner_detail.config(text=(step + "\n" if step else "") +
                                           "The launcher update changed the multiplayer files; only what changed is "
                                           "rebuilt. Uncharted 1 and 2 can be played meanwhile, and closing the "
@@ -1408,7 +1408,7 @@ class Launcher:
         pending one starts now if it did not yet."""
         if self.config.get("game") == "u2":
             return self.u2mp_confirm_play()
-        if self.config.get("game") != "u3" or not hasattr(self, "u3mp_status"):
+        if self.config.get("game") != "u3" or not getattr(self, "u3mp_page", False):
             return True
         reason = self.u3mp_block_reason()
         if not reason:
@@ -1500,83 +1500,18 @@ class Launcher:
             log_launcher_error(*sys.exc_info())
 
     def page_multiplayer(self):
-        """Uncharted 2 multiplayer (u2mp), laid out like Uncharted 3's page (page_u3mp). Shown only while
-        Uncharted 2 is chosen (update_multiplayer_tab)."""
+        """Uncharted 2 multiplayer (u2mp). The page is built natively (launcher/native/pages.cpp page_u2mp, from
+        qt_backend.py's mp_state); this Tk page holds only the online section (the private module's), which the Qt
+        window shows after it. Shown only while Uncharted 2 is chosen (update_multiplayer_tab)."""
         page = self.page()
-        banner = tk.Frame(page, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
-        # the intro box is not shown (its status line is in the Import section)
-        tk.Frame(banner, bg=GOLD, width=self.px(4)).pack(side="left", fill="y")
-        about = tk.Frame(banner, bg=PANEL)
-        about.pack(side="left", fill="both", expand=True, padx=self.px(18), pady=self.px(14))
-        head = tk.Frame(about, bg=PANEL)
-        head.pack(side="top", fill="x")
-        tk.Label(head, text="Uncharted 2 Multiplayer", font=self.f_card_title, bg=PANEL, fg=TEXT).pack(side="left")
-        tk.Label(head, text="IN DEVELOPMENT", font=self.f_caps, bg=GOLD, fg=INK, padx=self.px(7),
-                 pady=self.px(1)).pack(side="left", padx=(self.px(12), 0))
-        tk.Label(about, text="Among Thieves' multiplayer, being restored. For now: the Multiplayer entry in "
-                             "Uncharted 2's main menu and LAN parties. The import takes what the PS4 game lacks from "
-                             "your own PS3 Uncharted 2, on this PC: nothing is downloaded and no game file comes "
-                             "with the launcher.",
-                 font=self.f_small, bg=PANEL, fg=MUTED, anchor="w", justify="left",
-                 wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(5), 0))
-        self.u2mp_status = tk.Label(page, text="", font=self.f_body_bold, bg=BG, fg=TEXT, anchor="w",
-                                    justify="left", wraplength=self.px(760))
-
-        def folder_row(title, hint, label_key, actions):
-            def factory(parent):
-                box = tk.Frame(parent, bg=BG)
-                for label, action in actions:
-                    self.flat_button(box, label, action).pack(side="left", padx=(self.px(8), 0))
-                return box
-            self.row(page, title, hint, factory)
-            label = tk.Label(page, text="", font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
-                             wraplength=self.px(760))
-            label.pack(side="top", fill="x", pady=(0, self.px(10)))
-            self.u2mp_labels[label_key] = label
-
-        self.u2mp_labels = {}
         if not self.config.get("u2mp_ps3") and self.config.get("u3mp_ps3_u2"):
             self.config["u2mp_ps3"] = self.config["u3mp_ps3_u2"]   # the folder chosen for Uncharted 3's import
-        self.section(page, "Your PS3 game")
-        folder_row("PS3 Uncharted 2 folder",
-                   "Your PS3 Uncharted 2 folder (the one with USRDIR, e.g. NPUA80698).",
-                   "u2mp_ps3", (("Choose", lambda: self.u2mp_choose("u2mp_ps3", "Choose the PS3 Uncharted 2 folder")),
-                                ("Clear", lambda: self.u2mp_set("u2mp_ps3", ""))))
-        folder_row("RPCS3 game data folder",
-                   "RPCS3's dev_hdd0/game folder (start the game once in RPCS3 first). Found by itself when your "
-                   "game folder is inside it.",
-                   "u2mp_ps3_data", (("Choose", lambda: self.u2mp_choose("u2mp_ps3_data",
-                                                                         "Choose RPCS3's dev_hdd0/game folder")),
-                                     ("Clear", lambda: self.u2mp_set("u2mp_ps3_data", ""))))
-        self.section(page, "Storage")
-        folder_row("Multiplayer data folder",
-                   "Where the imported files go.",
-                   "data", (("Open", lambda: self.u3mp_open(U2MP_DIR / "import")),))
-
-        self.section(page, "Import")
-        actions = tk.Frame(page, bg=BG)
-        actions.pack(side="top", fill="x", pady=(self.px(6), self.px(8)))
-        self.u2mp_button = self.gold_button(actions, "IMPORT", self.u2mp_import)
-        self.u2mp_button.pack(side="left")
-        self.u2mp_cancel_button = self.flat_button(actions, "Cancel", self.u2mp_cancel)
-        self.flat_button(actions, "Open import log", lambda: self.u3mp_open(U2MP_DIR / "import" / "import.log")).pack(
-            side="left", padx=(self.px(10), 0))
-        self.u2mp_step = tk.Label(actions, text="", font=self.f_small, bg=BG, fg=MUTED, anchor="w")
-        self.u2mp_step.pack(side="left", fill="x", expand=True, padx=(self.px(14), 0))
-        self.u2mp_bar = tk.Canvas(page, height=self.px(6), bg=PANEL, highlightthickness=0)
-        self.u2mp_bar.pack(side="top", fill="x")
-        self.u2mp_status.pack(side="top", fill="x", pady=(self.px(8), 0))
-        self.u2mp_log = tk.Text(page, height=9, font=("Consolas", 8), bg=PANEL, fg=MUTED, relief="flat",
-                                highlightthickness=1, highlightbackground=LINE, wrap="none", state="disabled")
-        # (the log box is not shown: the progress bar and Open import log say it all)
-        tk.Label(page, text="Runs in the background, even while you play.",
-                 font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
-                 wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(8), 0))
+        self.u2mp_page = True
         self.u2mp_proc = None
         self.u2mp_auto = ""  # why the running import was started by the launcher (an update), else ""
         self.u2mp_log_pos = 0
         self.u2mp_progress = (0, 0)
-        self.u2mp_refresh()
+        self.u2mp_step_text = ""   # the import's current step (the page and the update banner show it)
         self.root.after(1000, self.u2mp_poll)
         self.root.after(4500, self.u2mp_auto_update)
         self.section(page, "RPCN online play", column="right")
@@ -1602,7 +1537,6 @@ class Launcher:
 
     def u2mp_set(self, key, value):
         self.change_config(key, value)
-        self.u2mp_refresh()
 
     def u2mp_choose(self, key, title):
         from tkinter import filedialog
@@ -1662,7 +1596,7 @@ class Launcher:
     def u2mp_block_reason(self):
         """Like u3mp_block_reason, for Uncharted 2: "running" (an update of an existing import), "pending" (not
         applied yet) or "" (a first import does not block: Uncharted 2 then starts without it)."""
-        if not hasattr(self, "u2mp_status"):
+        if not getattr(self, "u2mp_page", False):
             return ""
         try:
             state = self.u2mp_state()
@@ -1689,51 +1623,6 @@ class Launcher:
                        "as soon as the update finishes (progress at the top of the launcher). Uncharted 1 and 3 can "
                        "be played meanwhile.")
         return False
-
-    def u2mp_refresh(self):
-        if not hasattr(self, "u2mp_status"):
-            return
-        state = self.u2mp_state()
-        status = state.get("status")
-        running = self.u2mp_running()
-        failed = state.get("failed") or []
-        if running:
-            text, colour = (("Updating the multiplayer files (launcher update; only what changed is redone)..."
-                             if getattr(self, "u2mp_auto", "") or state.get("updating") else "Importing..."), GOLD)
-        elif status == "imported":
-            text, colour = f"Imported ({state.get('finished', '?')}).", TEXT
-        elif status == "partial":
-            text = "Imported with problems: " + (f"step(s) {', '.join(failed)} failed; " if failed else "") + \
-                   "some files could not be made (see the import log)."
-            colour = GOLD
-        elif status == "failed":
-            text, colour = f"Import failed: {state.get('error', '') or 'see the import log'}", STOP_RED
-        elif status == "running":
-            text, colour = "The last import was interrupted. Press Import to continue it.", GOLD
-        else:
-            text, colour = "Not imported.", MUTED
-        self.u2mp_status.config(text=text, fg=colour)
-        self.u2mp_labels["u2mp_ps3"].config(text=self.config.get("u2mp_ps3") or "None chosen yet.")
-        data = self.u2mp_data_folder()
-        self.u2mp_labels["u2mp_ps3_data"].config(
-            text=(data + ("" if self.config.get("u2mp_ps3_data") else "  (found by itself)")) if data else
-            "Not found: start Uncharted 2 GOTY once in RPCS3, then choose RPCS3's dev_hdd0/game folder.")
-        self.u2mp_labels["data"].config(text=str(U2MP_DIR / "import"))
-        self.u2mp_button.config(text="RE-IMPORT / UPDATE" if status in ("imported", "partial", "failed", "running")
-                                else "IMPORT")
-        if running and not self.u2mp_cancel_button.winfo_manager():
-            self.u2mp_cancel_button.pack(side="left", padx=(self.px(10), 0), after=self.u2mp_button)
-        elif not running and self.u2mp_cancel_button.winfo_manager():
-            self.u2mp_cancel_button.pack_forget()
-        self.u2mp_draw_bar()
-
-    def u2mp_draw_bar(self):
-        n, total = self.u2mp_progress
-        bar = self.u2mp_bar
-        bar.delete("all")
-        width = bar.winfo_width()
-        if total and width > 1:
-            bar.create_rectangle(0, 0, int(width * min(1.0, n / total)), self.px(6), fill=GOLD, outline=GOLD)
 
     def u2mp_data_folder(self):
         """The PS3 game-data folder for the import: the RPCS3 row, else RPCS3's dev_hdd0/game found above the chosen
@@ -1868,12 +1757,8 @@ class Launcher:
         self.u2mp_auto = reason if silent else ""
         self.u2mp_log_pos = 0
         self.u2mp_progress = (0, 0)
-        self.u2mp_log.config(state="normal")
-        self.u2mp_log.delete("1.0", "end")
-        self.u2mp_log.config(state="disabled")
-        self.u2mp_step.config(text=("Updating the multiplayer files: " + reason + "...") if silent else
-                              "Starting the import...")
-        self.u2mp_refresh()
+        self.u2mp_step_text = ("Updating the multiplayer files: " + reason + "...") if silent else \
+            "Starting the import..."
         return True
 
     def u2mp_cancel(self):
@@ -1882,8 +1767,7 @@ class Launcher:
         if pid and messagebox.askyesno(APP_TITLE, "Stop the import? Finished files are kept; Import continues it."):
             subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], creationflags=NO_WINDOW,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.u2mp_step.config(text="Import stopped.")
-            self.root.after(500, self.u2mp_refresh)
+            self.u2mp_step_text = "Import stopped."
 
     def u2mp_poll(self):
         """Every second: new lines of the import's output, its progress events (@U2MP ...), the status."""
@@ -1904,151 +1788,45 @@ class Launcher:
                 self.u2mp_proc = None
                 self.u2mp_auto = ""
                 if proc.returncode not in (0, None) and \
-                        not self.u2mp_step.cget("text").startswith(("Import stopped", "Import failed")):
-                    self.u2mp_step.config(text="Import failed: see the import log.")
-                self.u2mp_refresh()
-            elif self.u2mp_running() != self.u2mp_status.cget("text").startswith(("Importing...", "Updating the")):
-                self.u2mp_refresh()
+                        not self.u2mp_step_text.startswith(("Import stopped", "Import failed")):
+                    self.u2mp_step_text = "Import failed: see the import log."
         except (OSError, tk.TclError):
             pass
         self.root.after(1000, self.u2mp_poll)
 
     def u2mp_lines(self, lines):
-        shown = []
+        """The import's progress events (@U2MP ...): the current step and the progress bar."""
         for line in lines:
-            if line.startswith("@U2MP "):
-                try:
-                    ev = json.loads(line[6:])
-                except ValueError:
-                    continue
-                if ev.get("phase") == "recipe" and ev.get("step"):
-                    self.u2mp_steps = (ev["step"], ev["total"], ev.get("title", ""))
-                    self.u2mp_progress = (ev["step"] - 1, ev["total"])
-                    self.u2mp_step.config(text=f"Step {ev['step']}/{ev['total']}: {ev.get('title', '')[:90]}")
-                elif ev.get("phase") == "recipe" and ev.get("status") == "failed":
-                    shown.append(f"!! step {ev.get('id')} failed: {ev.get('note', '')}")
-                elif ev.get("phase") == "item" and ev.get("total"):
-                    step, steps, title = getattr(self, "u2mp_steps", (1, 1, ""))
-                    self.u2mp_progress = ((step - 1) + ev.get("n", 0) / ev["total"], steps)
-                    self.u2mp_step.config(text=f"Step {step}/{steps}: file {ev.get('n', 0)}/{ev['total']}: "
-                                               f"{ev.get('key', '')[:80]}")
-                elif ev.get("phase") == "done":
-                    self.u2mp_progress = (1, 1)
-                    self.u2mp_step.config(text="Import finished." if ev.get("status") in ("imported", "partial")
-                                          else "Import failed: " + ev.get("error", ""))
-                    self.root.after(200, self.u2mp_refresh)
+            if not line.startswith("@U2MP "):
                 continue
-            shown.append(line)
-        if shown:
-            self.u2mp_log.config(state="normal")
-            self.u2mp_log.insert("end", "\n".join(shown) + "\n")
-            excess = int(self.u2mp_log.index("end-1c").split(".")[0]) - 400
-            if excess > 0:
-                self.u2mp_log.delete("1.0", f"{excess}.0")
-            self.u2mp_log.see("end")
-            self.u2mp_log.config(state="disabled")
-        self.u2mp_draw_bar()
+            try:
+                ev = json.loads(line[6:])
+            except ValueError:
+                continue
+            if ev.get("phase") == "recipe" and ev.get("step"):
+                self.u2mp_steps = (ev["step"], ev["total"], ev.get("title", ""))
+                self.u2mp_progress = (ev["step"] - 1, ev["total"])
+                self.u2mp_step_text = f"Step {ev['step']}/{ev['total']}: {ev.get('title', '')[:90]}"
+            elif ev.get("phase") == "item" and ev.get("total"):
+                step, steps, title = getattr(self, "u2mp_steps", (1, 1, ""))
+                self.u2mp_progress = ((step - 1) + ev.get("n", 0) / ev["total"], steps)
+                self.u2mp_step_text = f"Step {step}/{steps}: file {ev.get('n', 0)}/{ev['total']}: {ev.get('key', '')[:80]}"
+            elif ev.get("phase") == "done":
+                self.u2mp_progress = (1, 1)
+                self.u2mp_step_text = "Import finished." if ev.get("status") in ("imported", "partial") else \
+                    "Import failed: " + ev.get("error", "")
 
     def page_u3mp(self):
         """Uncharted 3 multiplayer: import from the player's own PS3 and PS4 copies (u3mp/patcher/u3mp_import.py),
-        then Uncharted 3 starts with the restored multiplayer."""
+        then Uncharted 3 starts with the restored multiplayer. The page is built natively (launcher/native/pages.cpp
+        page_u3mp, from qt_backend.py's mp_state); this Tk page holds only the online section."""
         page = self.page()
-        banner = tk.Frame(page, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
-        # the intro box is not shown (its status line is in the Import section)
-        tk.Frame(banner, bg=GOLD, width=self.px(4)).pack(side="left", fill="y")
-        about = tk.Frame(banner, bg=PANEL)
-        about.pack(side="left", fill="both", expand=True, padx=self.px(18), pady=self.px(14))
-        head = tk.Frame(about, bg=PANEL)
-        head.pack(side="top", fill="x")
-        tk.Label(head, text="Uncharted 3 Multiplayer", font=self.f_card_title, bg=PANEL, fg=TEXT).pack(side="left")
-        tk.Label(head, text="BETA", font=self.f_caps, bg=GOLD, fg=INK, padx=self.px(7),
-                 pady=self.px(1)).pack(side="left", padx=(self.px(12), 0))
-        release = u3mp_release()
-        tk.Label(about, text="Drake's Deception's competitive, co-op and LAN party modes, restored. The import "
-                             "converts the multiplayer files from your own PS3 Uncharted 3 and this PS4 Collection, "
-                             "on this PC: nothing is downloaded and no game file comes with the launcher. "
-                             f"Build v{release['version'] if release else '?'}; supported PS4 game: "
-                             f"{release['game'] if release else '?'}.",
-                 font=self.f_small, bg=PANEL, fg=MUTED, anchor="w", justify="left",
-                 wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(5), 0))
-        self.u3mp_status = tk.Label(page, text="", font=self.f_body_bold, bg=BG, fg=TEXT, anchor="w",
-                                    justify="left", wraplength=self.px(760))
-
-        def folder_row(title, hint, label_key, actions):
-            def factory(parent):
-                box = tk.Frame(parent, bg=BG)
-                for label, action in actions:
-                    self.flat_button(box, label, action).pack(side="left", padx=(self.px(8), 0))
-                return box
-            self.row(page, title, hint, factory)
-            label = tk.Label(page, text="", font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
-                             wraplength=self.px(760))
-            label.pack(side="top", fill="x", pady=(0, self.px(10)))
-            self.u3mp_labels[label_key] = label
-
-        self.u3mp_labels = {}
-        self.section(page, "Set up multiplayer", "New here? Do these four steps in order.")
-        folder_row("1. Add your PS3 Uncharted 3 folders",
-                   "Your PS3 game folder and RPCS3's dev_hdd0/game folder (update, game data, map packs). Add both.",
-                   "ps3_u3", (("Add folder", self.u3mp_add_folder), ("Clear", self.u3mp_clear_folders)))
-        # (no PS3 Uncharted 2 folder row: no multiplayer file comes from Uncharted 2 today; a folder chosen before
-        # still goes to the import)
-        folder_row("2. Choose the decrypted EBOOT (update 1.19)",
-                   "Required: the decrypted EBOOT.elf of your own copy of the game.",
-                   "ps3_elf", (("Choose file", self.u3mp_choose_elf),
-                               ("Clear", lambda: self.u3mp_set("u3mp_ps3_elf", ""))))
-        def dns_entry(parent):
-            var = tk.StringVar(value=self.config.get("u3mp_dns", ""))
-            entry = tk.Entry(parent, textvariable=var, width=18, font=self.f_body, bg=PANEL, fg=TEXT,
-                             insertbackground=TEXT, relief="flat")
-
-            def save(*_):
-                self.change_config("u3mp_dns", var.get().strip())
-            var.trace_add("write", save)
-            return entry
-        # (no DNS box here: since 0.10.43 the import downloads nothing; the server address is on the RPCN section)
-        folder_row("3. Choose where the files go",
-                   "The multiplayer data folder: the converted files (about 9 GB).",
-                   "data", (("Change", self.u3mp_choose_data), ("Open", lambda: self.u3mp_open(self.u3mp_data()))))
-
-
-        tk.Label(page, text="4. Import", font=self.f_body_bold, bg=BG, fg=TEXT, anchor="w").pack(
-            side="top", fill="x", pady=(self.px(4), 0))
-        actions = tk.Frame(page, bg=BG)
-        actions.pack(side="top", fill="x", pady=(self.px(6), self.px(8)))
-        self.u3mp_button = self.gold_button(actions, "IMPORT", self.u3mp_import)
-        self.u3mp_button.pack(side="left")
-        self.u3mp_cancel_button = self.flat_button(actions, "Cancel", self.u3mp_cancel)
-        self.flat_button(actions, "Open import log", lambda: self.u3mp_open(self.u3mp_data() / "import.log")).pack(
-            side="left", padx=(self.px(10), 0))
-        self.u3mp_step = tk.Label(actions, text="", font=self.f_small, bg=BG, fg=MUTED, anchor="w")
-        self.u3mp_step.pack(side="left", fill="x", expand=True, padx=(self.px(14), 0))
-        self.u3mp_bar = tk.Canvas(page, height=self.px(6), bg=PANEL, highlightthickness=0)
-        self.u3mp_bar.pack(side="top", fill="x")
-        self.u3mp_status.pack(side="top", fill="x", pady=(self.px(8), 0))
-        self.u3mp_log = tk.Text(page, height=9, font=("Consolas", 8), bg=PANEL, fg=MUTED, relief="flat",
-                                highlightthickness=1, highlightbackground=LINE, wrap="none", state="disabled")
-        # (the log box is not shown: the progress bar and Open import log say it all)
-        tk.Label(page, text="Takes a few hours and keeps running when the launcher is closed. After a launcher "
-                            "update only what changed is redone.",
-                 font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
-                 wraplength=self.px(760)).pack(side="top", fill="x", pady=(self.px(8), 0))
-        self.section(page, "Storage")
-        def keep_toggle(parent):
-            self.u3mp_keep_widget = Toggle(parent, self.s, self.config.get("u3mp_keep_ps3", False), self.u3mp_keep_ps3)
-            return self.u3mp_keep_widget
-        self.row(page, "Keep only the PS3 files updates need (saves space)",
-                 "Saves disk space only. Keeps the PS3 files updates need (about 14 GB of 51 GB), so you can "
-                 "delete your PS3 Uncharted 3 folders.",
-                 keep_toggle)
-        label = tk.Label(page, text="", font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
-                         wraplength=self.px(760))
-        label.pack(side="top", fill="x", pady=(0, self.px(10)))
-        self.u3mp_labels["keep_ps3"] = label
+        self.u3mp_page = True
         self.u3mp_proc = None
         self.u3mp_auto = ""  # why the running import was started by the launcher (an update), else ""
         self.u3mp_log_pos = 0
         self.u3mp_progress = (0, 0, "")
+        self.u3mp_step_text = ""   # the import's current step (the page and the update banner show it)
         self.u3mp_refresh()
         self.root.after(1000, self.u3mp_poll)
         self.root.after(4000, self.u3mp_auto_update)
@@ -2102,7 +1880,6 @@ class Launcher:
 
     def u3mp_set(self, key, value):
         self.change_config(key, value)
-        self.u3mp_refresh()
 
     def u3mp_on(self):
         """Uncharted 3 starts with multiplayer whenever an import finished (imported, or partial with the
@@ -2119,12 +1896,6 @@ class Launcher:
 
     def u3mp_clear_folders(self):
         self.u3mp_set("u3mp_ps3_u3", [])
-
-    def u3mp_choose_u2(self):
-        from tkinter import filedialog
-        folder = filedialog.askdirectory(title="Choose the PS3 Uncharted 2 folder", parent=self.root, mustexist=True)
-        if folder:
-            self.u3mp_set("u3mp_ps3_u2", folder)
 
     def u3mp_choose_elf(self):
         from tkinter import filedialog
@@ -2162,76 +1933,11 @@ class Launcher:
         return version_suffix(imported)
 
     def u3mp_refresh(self):
+        """The window title names the imported build (an import or update may have changed it)."""
         try:
-            self.root.title(APP_TITLE + self.title_suffix())   # an import or update may have changed the build
+            self.root.title(APP_TITLE + self.title_suffix())
         except tk.TclError:
             pass
-        if not hasattr(self, "u3mp_status"):
-            return
-        state = self.u3mp_state()
-        running = self.u3mp_running()
-        ready, why = self.u3mp_ready(state)
-        status = state.get("status")
-        image = state.get("image") or {}
-        if running:
-            text, colour = ("Updating the multiplayer files (launcher update; only what changed is redone)..."
-                            if getattr(self, "u3mp_auto", "") else "Importing..."), GOLD
-        elif ready and status == "imported":
-            text, colour = f"Imported v{image.get('version', '?')} (recipe {state.get('recipe_version', '?')}).", TEXT
-        elif ready:
-            failed = state.get("failed", [])
-            text = (f"Imported v{image.get('version', '?')} with problems: {len(failed)} step(s) failed "
-                    f"({', '.join(failed[:4])}{'...' if len(failed) > 4 else ''}). Multiplayer can start, but "
-                    "the files those steps make are missing.")
-            colour = GOLD
-        elif status == "failed":
-            text, colour = f"Failed at {state.get('failed_at', '?')}: {state.get('error', '')}", STOP_RED
-        elif status == "running":
-            text, colour = "The last import was interrupted. Press Import to continue it.", GOLD
-        elif status == "image-only":
-            text, colour = "Multiplayer image made; the files are not imported yet.", MUTED
-        elif state and not ready and why:
-            text, colour = f"Not ready: {why}.", GOLD
-        else:
-            text, colour = "Not imported.", MUTED
-        self.u3mp_status.config(text=text, fg=colour)
-        if self.u3mp_on() and not ready and not running:
-            self.u3mp_status.config(text=text + " Uncharted 3 starts without multiplayer until then.")
-        folders = self.config.get("u3mp_ps3_u3", [])
-        self.u3mp_labels["ps3_u3"].config(text="\n".join(folders) if folders else "None chosen yet.")
-        if "ps3_u2" in self.u3mp_labels:
-            self.u3mp_labels["ps3_u2"].config(text=self.config.get("u3mp_ps3_u2") or "Not used.")
-        self.u3mp_labels["ps3_elf"].config(text=self.config.get("u3mp_ps3_elf") or
-                                           state.get("ps3_elf") or "Not chosen: looked for in your PS3 folders.")
-        self.u3mp_labels["data"].config(text=str(self.u3mp_data()))
-        kept = state.get("ps3_kept") or {}
-        if not self.config.get("u3mp_keep_ps3", False):
-            keep_text = "Off: the import reads your PS3 folders."
-        elif kept.get("complete"):
-            keep_text = (f"On: {kept.get('size', 0) / 1e9:.1f} GB kept in {kept.get('folder', '')}. Your PS3 "
-                         "Uncharted 3 folders are no longer needed by the import; you can delete them.")
-            if kept.get("error"):
-                keep_text += f" Last refresh: {kept['error']}."
-        elif kept.get("error"):
-            keep_text = f"On, not done: {kept['error']}."
-        else:
-            keep_text = "On: the PS3 files are kept when the next import or update finishes."
-        self.u3mp_labels["keep_ps3"].config(text=keep_text)
-        self.u3mp_button.config(text="RE-IMPORT / UPDATE" if status in ("imported", "partial", "failed", "running",
-                                                                        "image-only") else "IMPORT")
-        if running and not self.u3mp_cancel_button.winfo_manager():
-            self.u3mp_cancel_button.pack(side="left", padx=(self.px(10), 0), after=self.u3mp_button)
-        elif not running and self.u3mp_cancel_button.winfo_manager():
-            self.u3mp_cancel_button.pack_forget()
-        self.u3mp_draw_bar()
-
-    def u3mp_draw_bar(self):
-        n, total, _ = self.u3mp_progress
-        bar = self.u3mp_bar
-        bar.delete("all")
-        width = bar.winfo_width()
-        if total and width > 1:
-            bar.create_rectangle(0, 0, int(width * min(1.0, n / total)), self.px(6), fill=GOLD, outline=GOLD)
 
     def u3mp_keep_ps3(self, on):
         """The "keep only the PS3 files updates need" switch: the importer makes (--keep-ps3-only) or deletes
@@ -2242,10 +1948,8 @@ class Launcher:
                                                   "PS3 files are the only copy the import can use. Turning this off "
                                                   "deletes them, and updates then need your PS3 game again.\n\n"
                                                   "Turn it off anyway?"):
-                self.u3mp_keep_widget.set(True)
                 return
         if self.u3mp_running():
-            self.u3mp_keep_widget.set(not on)
             messagebox.showinfo(APP_TITLE, "The import is running. Change this when it has finished.")
             return
         self.change_config("u3mp_keep_ps3", bool(on))
@@ -2253,7 +1957,6 @@ class Launcher:
             self.u3mp_import(keep="only")
         elif not on and (self.u3mp_data() / "ps3-kept").exists():
             self.u3mp_import(keep="off")
-        self.u3mp_refresh()
 
     def u3mp_import(self, silent=False, image_only=False, reason="", keep=""):
         """IMPORT / RE-IMPORT, or (silent) the automatic update after a launcher update: the same import with the
@@ -2332,12 +2035,9 @@ class Launcher:
         self.u3mp_auto = reason if silent else ""
         self.u3mp_log_pos = log_start  # a keep run appends to the import log: show only its lines
         self.u3mp_progress = (0, 0, "")
-        self.u3mp_log.config(state="normal")
-        self.u3mp_log.delete("1.0", "end")
-        self.u3mp_log.config(state="disabled")
-        self.u3mp_step.config(text=("Updating the multiplayer files: " + reason + "...") if silent else
-                              ("Keeping the PS3 files..." if keep == "only" else "Removing the kept PS3 files..." if keep else "Starting the import..."))
-        self.u3mp_refresh()
+        self.u3mp_step_text = ("Updating the multiplayer files: " + reason + "...") if silent else \
+            ("Keeping the PS3 files..." if keep == "only" else "Removing the kept PS3 files..." if keep else
+             "Starting the import...")
         return True
 
     def u3mp_cancel(self):
@@ -2346,8 +2046,7 @@ class Launcher:
         if pid and messagebox.askyesno(APP_TITLE, "Stop the import? Finished steps are kept; Import continues it."):
             subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], creationflags=NO_WINDOW,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.u3mp_step.config(text="Import stopped.")
-            self.root.after(500, self.u3mp_refresh)
+            self.u3mp_step_text = "Import stopped."
 
     def u3mp_poll(self):
         """Every second: new lines of the import log, its progress events (@U3MP ...), the status."""
@@ -2365,8 +2064,6 @@ class Launcher:
                 self.u3mp_proc = None
                 self.u3mp_auto = ""
                 self.u3mp_refresh()
-            elif self.u3mp_running() != self.u3mp_status.cget("text").startswith(("Importing...", "Updating the")):
-                self.u3mp_refresh()
         except (OSError, tk.TclError):
             pass
         try:
@@ -2376,40 +2073,28 @@ class Launcher:
         self.root.after(1000, self.u3mp_poll)
 
     def u3mp_lines(self, lines):
-        shown = []
+        """The import's progress events (@U3MP ...): the current step and the progress bar."""
         for line in lines:
-            if line.startswith("@U3MP "):
-                try:
-                    ev = json.loads(line[6:])
-                except ValueError:
-                    continue
-                if ev.get("phase") == "image":
-                    self.u3mp_step.config(text="Multiplayer image: " + ev.get("status", ""))
-                elif ev.get("phase") == "recipe" and ev.get("step"):
-                    self.u3mp_progress = (ev["step"] - (0 if ev.get("status") != "running" else 1), ev["total"],
-                                          ev.get("id", ""))
-                    self.u3mp_step.config(text=f"Step {ev['step']}/{ev['total']}: {ev.get('title', '')[:90]}")
-                elif ev.get("phase") == "recipe" and ev.get("status") == "failed":
-                    shown.append(f"!! step {ev.get('id')} failed: {ev.get('note', '')}")
-                elif ev.get("phase") == "ps3keep":
-                    self.u3mp_step.config(text=ev.get("note", ""))
-                elif ev.get("phase") == "done":
-                    n, total, _ = self.u3mp_progress
-                    self.u3mp_progress = (total, total, "")
-                    self.u3mp_step.config(text="Import finished." if ev.get("status") in ("imported", "partial")
-                                          else "Import failed: " + ev.get("error", ""))
-                    self.root.after(200, self.u3mp_refresh)
+            if not line.startswith("@U3MP "):
                 continue
-            shown.append(line)
-        if shown:
-            self.u3mp_log.config(state="normal")
-            self.u3mp_log.insert("end", "\n".join(shown) + "\n")
-            excess = int(self.u3mp_log.index("end-1c").split(".")[0]) - 400
-            if excess > 0:
-                self.u3mp_log.delete("1.0", f"{excess}.0")
-            self.u3mp_log.see("end")
-            self.u3mp_log.config(state="disabled")
-        self.u3mp_draw_bar()
+            try:
+                ev = json.loads(line[6:])
+            except ValueError:
+                continue
+            if ev.get("phase") == "image":
+                self.u3mp_step_text = "Multiplayer image: " + ev.get("status", "")
+            elif ev.get("phase") == "recipe" and ev.get("step"):
+                self.u3mp_progress = (ev["step"] - (0 if ev.get("status") != "running" else 1), ev["total"],
+                                      ev.get("id", ""))
+                self.u3mp_step_text = f"Step {ev['step']}/{ev['total']}: {ev.get('title', '')[:90]}"
+            elif ev.get("phase") == "ps3keep":
+                self.u3mp_step_text = ev.get("note", "")
+            elif ev.get("phase") == "done":
+                n, total, _ = self.u3mp_progress
+                self.u3mp_progress = (total, total, "")
+                self.u3mp_step_text = "Import finished." if ev.get("status") in ("imported", "partial") else \
+                    "Import failed: " + ev.get("error", "")
+                self.root.after(200, self.u3mp_refresh)
 
     # -- multiplayer (preview) --------------------------------------------------------------
 

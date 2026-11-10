@@ -11,7 +11,8 @@
 // upscaling, picture, performance counter), setup (Quick Setup's preset cards), advanced (game, extra quality, unlocks,
 // launcher switches), tools (the launcher's actions: a click returns {"call": {"name", "value"}}, which the Python side
 // runs), launcher (its updates), controls (mouse, controller and the key / controller bindings; a click on a slot
-// returns {"ui": ...}, the window's new state for the page: which slot waits for an input, the hint line). state also has "root": the launcher's
+// returns {"ui": ...}, the window's new state for the page: which slot waits for an input, the hint line), u3mp and
+// multiplayer (the Uncharted 3 and 2 imports: state["mp"]; their buttons are launcher actions). state also has "root": the launcher's
 // folder (which upscalers it has), and "gpu": {"name", "recommended"}: the graphics card the launcher found and its preset.
 
 #include "native.h"
@@ -57,6 +58,7 @@ struct State {
     Value game_dir;                // the game folder (the launcher's game_dir())
     Value tools = Value::object(); // TOOLS' lines: {"game_dir", "update", "ini"}
     Value ui = Value::object();    // what the window keeps for the page (CONTROLS: the slot waiting for an input)
+    Value mp = Value::object();    // the Multiplayer tabs' imports (state, running, progress ...): {"u3", "u2"}
 };
 struct Changes {
     Value config = Value::object();   // launcher.json keys
@@ -77,6 +79,7 @@ bool read_state(const char *state_json, State &state) {
     if (const Value *d = v.get("game_dir")) state.game_dir = *d;
     if (const Value *t = v.get("tools")) if (t->is_object()) state.tools = *t;
     if (const Value *u = v.get("ui")) if (u->is_object()) state.ui = *u;
+    if (const Value *m = v.get("mp")) if (m->is_object()) state.mp = *m;
     return true;
 }
 
@@ -1639,6 +1642,290 @@ bool act_controls(const State &state, const std::string &id, const std::string &
     return false;
 }
 
+// ------------------------------------------------------------------------------------------------ multiplayer
+
+// The two Multiplayer tabs: Uncharted 3's (u3mp) and Uncharted 2's (multiplayer). The launcher runs the imports; it
+// sends what the page shows in state["mp"]: {"u3": {state (state.json's fields), running, auto, step, progress [n,
+// total], ready, why, on, data}, "u2": {state, running, auto, step, progress, found (the game data folder found),
+// dir (the import folder)}}. The online section after them is the private module's (the launcher adds it).
+
+const char *const STOP_RED_MP = "#c4553f";
+
+// a setting's text when it is set (Python: config.get(key) or ...)
+std::string config_set(const State &state, const std::string &key) {
+    const Value *v = state.config.get(key);
+    return v && v->truthy() ? py_str(*v) : "";
+}
+
+const Value &mp_of(const State &state, const char *game) {
+    static const Value none = Value::object();
+    const Value *mp = state.mp.get(game);
+    return mp && mp->is_object() ? *mp : none;
+}
+
+Value bold_label(const std::string &id, const std::string &text, const char *fg) {
+    Value l = label(id, text, fg, CARD, 10);
+    l.set("bold", Value::boolean(true));
+    return l;
+}
+
+Value progress_bar(const std::string &id, const Value &mp) {
+    double v = 0.0;
+    if (const Value *p = mp.get("progress"))
+        if (p->items.size() >= 2) {
+            auto num = [](const Value &x) { return x.kind == Value::Float ? x.f : (double)x.i; };
+            const double n = num(p->items[0]), total = num(p->items[1]);
+            if (total) v = std::max(0.0, std::min(1.0, n / total));
+        }
+    Value b = Value::object(), number;
+    number.kind = Value::Float;
+    number.f = v;
+    b.set("t", Value::text("progress"));
+    b.set("id", Value::text(id));
+    b.set("v", number);
+    return b;
+}
+
+// a row of buttons (Choose / Clear ...) and the line under it
+Value buttons_box(const std::string &p, const std::string &key, std::initializer_list<std::pair<const char *, const char *>> list) {
+    Value line = array();
+    for (auto &b : list) line.items.push_back(packed(button(p + key + ":" + b.first, b.second, "secondary"), "left"));
+    return box(p + "buttons:" + key, "h", std::move(line));
+}
+
+// the Import box: IMPORT (RE-IMPORT / UPDATE once there was one), Cancel while it runs, the log, the current step
+Value import_box(const std::string &p, const Value &mp, bool again) {
+    Value line = array();
+    line.items.push_back(packed(button(p + "import", again ? "RE-IMPORT / UPDATE" : "IMPORT", "primary"), "left"));
+    if (const Value *r = mp.get("running"); r && r->truthy())
+        line.items.push_back(packed(button(p + "cancel", "Cancel", "secondary"), "left"));
+    line.items.push_back(packed(button(p + "log", "Open import log", "secondary"), "left"));
+    const std::string step = mp.get("step") ? text_of(*mp.get("step")) : "";
+    if (!step.empty()) {
+        Value l = label(p + "step", step, MUTED, CARD, 9);
+        l.set("side", Value::text("left"));
+        l.set("fill", Value::text("x"));
+        l.set("expand", Value::boolean(true));
+        line.items.push_back(std::move(l));
+    }
+    return box(p + "actions", "h", std::move(line));
+}
+
+std::string joined(const Value *list, size_t first, const char *sep) {
+    std::string out;
+    if (!list) return out;
+    for (size_t i = 0; i < list->items.size() && i < first; ++i) out += (i ? sep : "") + py_str(list->items[i]);
+    return out;
+}
+
+std::string fixed1(double v) {
+    char b[64];
+    std::snprintf(b, sizeof b, "%.1f", v);
+    return b;
+}
+
+Value page_u3mp(const State &state) {
+    const std::string p = "native:u3mp:";
+    const Value &mp = mp_of(state, "u3");
+    const Value *st = mp.get("state");
+    const Value none = Value::object();
+    const Value &s = st && st->is_object() ? *st : none;
+    const std::string status = str_or(s.get("status"), "");
+    const bool running = mp.get("running") && mp.get("running")->truthy();
+    const bool ready = mp.get("ready") && mp.get("ready")->truthy();
+    const std::string why = mp.get("why") ? text_of(*mp.get("why")) : "";
+    const Value *image = s.get("image");
+    const std::string version = image && image->get("version") ? py_str(*image->get("version")) : "?";
+
+    std::vector<Value> setup;
+    setup.push_back(row(p + "row:ps3_u3", "1. Add your PS3 Uncharted 3 folders",
+                        "Your PS3 game folder and RPCS3's dev_hdd0/game folder (update, game data, map packs). Add both.",
+                        buttons_box(p, "ps3_u3", {{"add", "Add folder"}, {"clear", "Clear"}})));
+    const Value *folders = state.config.get("u3mp_ps3_u3");
+    const std::string folder_text = folders && !folders->items.empty() ? joined(folders, (size_t)-1, "\n") : "None chosen yet.";
+    setup.push_back(label(p + "line:ps3_u3", folder_text, DIM, CARD, 9));
+    setup.push_back(row(p + "row:ps3_elf", "2. Choose the decrypted EBOOT (update 1.19)",
+                        "Required: the decrypted EBOOT.elf of your own copy of the game.",
+                        buttons_box(p, "ps3_elf", {{"choose", "Choose file"}, {"clear", "Clear"}})));
+    std::string elf = config_set(state, "u3mp_ps3_elf");
+    if (elf.empty()) elf = str_or(s.get("ps3_elf"), "");
+    setup.push_back(label(p + "line:ps3_elf", elf.empty() ? "Not chosen: looked for in your PS3 folders." : elf, DIM, CARD, 9));
+    setup.push_back(row(p + "row:data", "3. Choose where the files go",
+                        "The multiplayer data folder: the converted files (about 9 GB).",
+                        buttons_box(p, "data", {{"change", "Change"}, {"open", "Open"}})));
+    setup.push_back(label(p + "line:data", mp.get("data") ? text_of(*mp.get("data")) : "", DIM, CARD, 9));
+    setup.push_back(bold_label(p + "import_title", "4. Import", TEXT));
+    setup.push_back(import_box(p, mp, status == "imported" || status == "partial" || status == "failed" ||
+                                      status == "running" || status == "image-only"));
+    setup.push_back(progress_bar(p + "bar", mp));
+
+    // the import's state in one line (u3mp_refresh)
+    std::string text;
+    const char *colour;
+    if (running) {
+        text = mp.get("auto") && !text_of(*mp.get("auto")).empty()
+                   ? "Updating the multiplayer files (launcher update; only what changed is redone)..." : "Importing...";
+        colour = GOLD;
+    } else if (ready && status == "imported") {
+        text = "Imported v" + version + " (recipe " + (s.get("recipe_version") ? py_str(*s.get("recipe_version")) : "?") + ").";
+        colour = TEXT;
+    } else if (ready) {
+        const Value *failed = s.get("failed");
+        const size_t n = failed ? failed->items.size() : 0;
+        text = "Imported v" + version + " with problems: " + std::to_string(n) + " step(s) failed (" + joined(failed, 4, ", ") +
+               (n > 4 ? "..." : "") + "). Multiplayer can start, but the files those steps make are missing.";
+        colour = GOLD;
+    } else if (status == "failed") {
+        text = "Failed at " + str_or(s.get("failed_at"), "?") + ": " + str_or(s.get("error"), "");
+        colour = STOP_RED_MP;
+    } else if (status == "running") {
+        text = "The last import was interrupted. Press Import to continue it.";
+        colour = GOLD;
+    } else if (status == "image-only") {
+        text = "Multiplayer image made; the files are not imported yet.";
+        colour = MUTED;
+    } else if (s.truthy() && !ready && !why.empty()) {
+        text = "Not ready: " + why + ".";
+        colour = GOLD;
+    } else {
+        text = "Not imported.";
+        colour = MUTED;
+    }
+    const bool on = status == "imported" || status == "partial";
+    if (on && !ready && !running) text += " Uncharted 3 starts without multiplayer until then.";
+    setup.push_back(bold_label(p + "status", text, colour));
+    setup.push_back(label(p + "note", "Takes a few hours and keeps running when the launcher is closed. After a launcher "
+                                      "update only what changed is redone.", DIM, CARD, 9));
+
+    std::vector<Value> storage;
+    storage.push_back(row(p + "row:keep_ps3", "Keep only the PS3 files updates need (saves space)",
+                          "Saves disk space only. Keeps the PS3 files updates need (about 14 GB of 51 GB), so you can "
+                          "delete your PS3 Uncharted 3 folders.",
+                          toggle(p + "keep_ps3", config_bool(state, "u3mp_keep_ps3", false))));
+    const Value *kept = s.get("ps3_kept");
+    const Value no_kept = Value::object();
+    const Value &k = kept && kept->is_object() ? *kept : no_kept;
+    const std::string kept_error = str_or(k.get("error"), "");
+    std::string keep_text;
+    if (!config_bool(state, "u3mp_keep_ps3", false)) {
+        keep_text = "Off: the import reads your PS3 folders.";
+    } else if (k.get("complete") && k.get("complete")->truthy()) {
+        const Value *size = k.get("size");
+        const double bytes = !size ? 0.0 : size->kind == Value::Float ? size->f : (double)size->i;
+        keep_text = "On: " + fixed1(bytes / 1e9) + " GB kept in " + str_or(k.get("folder"), "") +
+                    ". Your PS3 Uncharted 3 folders are no longer needed by the import; you can delete them.";
+        if (!kept_error.empty()) keep_text += " Last refresh: " + kept_error + ".";
+    } else if (!kept_error.empty()) {
+        keep_text = "On, not done: " + kept_error + ".";
+    } else {
+        keep_text = "On: the PS3 files are kept when the next import or update finishes.";
+    }
+    storage.push_back(label(p + "line:keep_ps3", keep_text, DIM, CARD, 9));
+
+    Value page = array();
+    Value set_up = section(p + "setup", "Set up multiplayer", with_separators(std::move(setup)));
+    set_up.set("note", Value::text("New here? Do these four steps in order."));
+    page.items.push_back(std::move(set_up));
+    page.items.push_back(section(p + "storage", "Storage", with_separators(std::move(storage))));
+    return page;
+}
+
+Value page_u2mp(const State &state) {
+    const std::string p = "native:multiplayer:";
+    const Value &mp = mp_of(state, "u2");
+    const Value *st = mp.get("state");
+    const Value none = Value::object();
+    const Value &s = st && st->is_object() ? *st : none;
+    const std::string status = str_or(s.get("status"), "");
+    const bool running = mp.get("running") && mp.get("running")->truthy();
+
+    std::vector<Value> game;
+    game.push_back(row(p + "row:ps3", "PS3 Uncharted 2 folder", "Your PS3 Uncharted 2 folder (the one with USRDIR, e.g. NPUA80698).",
+                       buttons_box(p, "ps3", {{"choose", "Choose"}, {"clear", "Clear"}})));
+    std::string ps3 = config_set(state, "u2mp_ps3");
+    if (ps3.empty()) ps3 = config_set(state, "u3mp_ps3_u2");   // the folder chosen for Uncharted 3's import
+    game.push_back(label(p + "line:ps3", ps3.empty() ? "None chosen yet." : ps3, DIM, CARD, 9));
+    game.push_back(row(p + "row:data", "RPCS3 game data folder",
+                       "RPCS3's dev_hdd0/game folder (start the game once in RPCS3 first). Found by itself when your "
+                       "game folder is inside it.",
+                       buttons_box(p, "data", {{"choose", "Choose"}, {"clear", "Clear"}})));
+    const std::string found = mp.get("found") ? text_of(*mp.get("found")) : "";
+    game.push_back(label(p + "line:data",
+                         found.empty() ? "Not found: start Uncharted 2 GOTY once in RPCS3, then choose RPCS3's dev_hdd0/game folder."
+                                       : found + (config_set(state, "u2mp_ps3_data").empty() ? "  (found by itself)" : ""),
+                         DIM, CARD, 9));
+
+    std::vector<Value> storage;
+    storage.push_back(row(p + "row:dir", "Multiplayer data folder", "Where the imported files go.",
+                          buttons_box(p, "dir", {{"open", "Open"}})));
+    storage.push_back(label(p + "line:dir", mp.get("dir") ? text_of(*mp.get("dir")) : "", DIM, CARD, 9));
+
+    std::vector<Value> import;
+    import.push_back(import_box(p, mp, status == "imported" || status == "partial" || status == "failed" || status == "running"));
+    import.push_back(progress_bar(p + "bar", mp));
+    std::string text;
+    const char *colour;
+    const Value *failed = s.get("failed");
+    if (running) {
+        const bool updating = (mp.get("auto") && !text_of(*mp.get("auto")).empty()) || (s.get("updating") && s.get("updating")->truthy());
+        text = updating ? "Updating the multiplayer files (launcher update; only what changed is redone)..." : "Importing...";
+        colour = GOLD;
+    } else if (status == "imported") {
+        text = "Imported (" + str_or(s.get("finished"), "?") + ").";
+        colour = TEXT;
+    } else if (status == "partial") {
+        text = "Imported with problems: " + (failed && !failed->items.empty() ? "step(s) " + joined(failed, (size_t)-1, ", ") + " failed; " : std::string()) +
+               "some files could not be made (see the import log).";
+        colour = GOLD;
+    } else if (status == "failed") {
+        const std::string error = str_or(s.get("error"), "");
+        text = "Import failed: " + (error.empty() ? std::string("see the import log") : error);
+        colour = STOP_RED_MP;
+    } else if (status == "running") {
+        text = "The last import was interrupted. Press Import to continue it.";
+        colour = GOLD;
+    } else {
+        text = "Not imported.";
+        colour = MUTED;
+    }
+    import.push_back(bold_label(p + "status", text, colour));
+    import.push_back(label(p + "note", "Runs in the background, even while you play.", DIM, CARD, 9));
+
+    Value page = array();
+    page.items.push_back(section(p + "game", "Your PS3 game", with_separators(std::move(game))));
+    page.items.push_back(section(p + "storage", "Storage", with_separators(std::move(storage))));
+    page.items.push_back(section(p + "import", "Import", with_separators(std::move(import))));
+    return page;
+}
+
+// Every button runs the launcher's own action (its dialogs, the import process); the switch too (it asks first).
+bool act_mp(const char *page, const std::vector<std::string> &buttons, const std::string &id, const std::string &kind,
+            const Value &value, Changes &changes) {
+    const std::string p = std::string("native:") + page + ":";
+    if (id.compare(0, p.size(), p) != 0) return false;
+    const std::string key = id.substr(p.size());
+    const std::string prefix = page == std::string("u3mp") ? "u3mp_" : "u2mp_";
+    if (kind == "button" && std::find(buttons.begin(), buttons.end(), key) != buttons.end()) {
+        std::string name = prefix + key;
+        for (auto &c : name) if (c == ':') c = '_';
+        changes.call = Value::object();
+        changes.call.set("name", Value::text(name));
+        return true;
+    }
+    if (kind == "toggle" && key == "keep_ps3" && prefix == "u3mp_") {
+        changes.call = Value::object();
+        changes.call.set("name", Value::text("u3mp_keep_ps3"));
+        changes.call.set("value", Value::boolean(value.truthy()));
+        return true;
+    }
+    return false;
+}
+
+const std::vector<std::string> U3MP_BUTTONS = {"ps3_u3:add", "ps3_u3:clear", "ps3_elf:choose", "ps3_elf:clear",
+                                               "data:change", "data:open", "import", "cancel", "log"};
+const std::vector<std::string> U2MP_BUTTONS = {"ps3:choose", "ps3:clear", "data:choose", "data:clear", "dir:open",
+                                               "import", "cancel", "log"};
+
 }  // namespace
 
 extern "C" {
@@ -1657,6 +1944,8 @@ UN_API int un_page(const char *name, const char *state_json, char *out, int cap)
     if (n == "tools") return give(json::dump(page_tools(state), false), out, cap);
     if (n == "launcher") return give(json::dump(page_launcher(state), false), out, cap);
     if (n == "controls") return give(json::dump(page_controls(state), false), out, cap);
+    if (n == "u3mp") return give(json::dump(page_u3mp(state), false), out, cap);
+    if (n == "multiplayer") return give(json::dump(page_u2mp(state), false), out, cap);
     return 2;
 }
 
@@ -1679,6 +1968,8 @@ UN_API int un_page_act(const char *name, const char *id, const char *kind, const
     else if (n == "tools") act_tools(i, k, changes);
     else if (n == "launcher") act_launcher(i, k, value, changes);
     else if (n == "controls") act_controls(state, i, k, value, changes);
+    else if (n == "u3mp") act_mp("u3mp", U3MP_BUTTONS, i, k, value, changes);
+    else if (n == "multiplayer") act_mp("multiplayer", U2MP_BUTTONS, i, k, value, changes);
     else return 2;
     Value result = Value::object();
     result.set("config", std::move(changes.config));

@@ -71,6 +71,7 @@ private:
     QVariantMap m_native;   // what native pages are built from, as the Python side sends it with each model:
                             // {config (launcher.json), ini (the game's settings file), gpu, game_dir}
     QString m_root;         // the launcher's folder
+    QVariantList m_pythonPage;   // the shown tab's page from the Python side: added after a native page
     QVariantMap m_ui;       // the shown native page's ui state (un_page_act returns it; reset with the tab or game)
     QTimer m_padPoll;       // a CONTROLS controller slot waiting: the controller read every 30 ms
     QByteArray nativeState() const;   // m_native and "root", for un_page / un_page_act

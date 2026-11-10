@@ -163,7 +163,8 @@ void Backend::handle(const QVariantMap &message)
         emit chromeChanged();
         const QString tab = data.value("tab").toString();
         QVariantList page = data.value("page").toList();
-        nativePage(tab, &page);   // a native tab: its page from the DLL (the Python side has none)
+        m_pythonPage = page;      // a native tab: its page from the DLL, then what the Python side still builds
+        nativePage(tab, &page);   // (the Multiplayer tabs' online section)
         if (page != m_page || tab != m_tab) {
             m_page = page;
             m_tab = tab;
@@ -246,7 +247,7 @@ bool Backend::nativePage(const QString &tab, QVariantList *page)
     QByteArray text;
     if (nativeText([&](char *out, int cap) { return m_unPage(name.constData(), config.constData(), out, cap); }, &text) != 0)
         return false;
-    *page = QJsonDocument::fromJson(text).array().toVariantList();
+    *page = QJsonDocument::fromJson(text).array().toVariantList() + m_pythonPage;
     return true;
 }
 
@@ -254,7 +255,8 @@ bool Backend::nativeAct(const QString &id, const QString &kind, const QVariant &
 {
     if (!m_unPageAct || !id.startsWith(QStringLiteral("native:")))
         return false;
-    const QByteArray name = m_tab.toUtf8(), wid = id.toUtf8(), how = kind.toUtf8();
+    // the page the control is on: its id is "native:<page>:<key>"
+    const QByteArray name = id.section(QLatin1Char(':'), 1, 1).toUtf8(), wid = id.toUtf8(), how = kind.toUtf8();
     const QByteArray config = nativeState();
     QJsonArray boxed;
     boxed.append(QJsonValue::fromVariant(value));

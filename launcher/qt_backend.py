@@ -331,10 +331,6 @@ _app = None   # the launcher (main)
 def canvas_node(w):
     """A canvas: a progress bar (rectangles), or a clickable card with text (Quick Setup presets)."""
     wid = str(w)
-    for bar, progress in (("u3mp_bar", "u3mp_progress"), ("u2mp_bar", "u2mp_progress")):
-        if _app is not None and w is getattr(_app, bar, None):   # the import's bar: the launcher's own numbers
-            n, total = tuple(getattr(_app, progress, (0, 0)))[:2]
-            return {"t": "progress", "id": wid, "v": max(0.0, min(1.0, n / total)) if total else 0.0}
     try:
         width = max(1, int(w.winfo_width() if w.winfo_width() > 1 else w.winfo_fpixels(w.cget("width"))))
         items = w.find_all()
@@ -431,15 +427,47 @@ def model(app, tab):
     """The window and the tab's page. A tab without a Tk page is a native one: launcher-qt builds it from "native"."""
     page = app.pages.get(tab or getattr(app, "current_tab", "setup"))
     items = children(page) if page is not None else []
-    return {"chrome": chrome(app), "tab": getattr(app, "current_tab", ""), "page": items, "native": native_state(app)}
+    return {"chrome": chrome(app), "tab": getattr(app, "current_tab", ""), "page": items,
+            "native": native_state(app, getattr(app, "current_tab", "") or tab)}
 
 
-def native_state(app):
+def native_state(app, tab=""):
     """What launcher-qt's native pages are built from (uncharted_native.dll un_page; it adds "root"): the settings,
-    the selected game's settings file, the graphics card found and its preset, the game folder."""
-    return {"config": app.config, "ini": app.ini,
-            "gpu": {"name": app.gpu_name or "", "recommended": app.recommended or ""}, "game_dir": str(app.game_dir()),
-            "tools": app.tools_lines()}
+    the selected game's settings file, the graphics card found and its preset, the game folder; on a Multiplayer
+    tab also its import (mp_state)."""
+    state = {"config": app.config, "ini": app.ini,
+             "gpu": {"name": app.gpu_name or "", "recommended": app.recommended or ""}, "game_dir": str(app.game_dir()),
+             "tools": app.tools_lines()}
+    if tab in ("u3mp", "multiplayer"):
+        state["mp"] = mp_state(app, tab)
+    return state
+
+
+MP_STATE_KEYS = ("status", "finished", "failed", "failed_at", "error", "recipe_version", "ps3_elf", "ps3_kept",
+                 "updating")
+
+
+def mp_state(app, tab):
+    """The Multiplayer tab's import as its native page shows it (pages.cpp page_u3mp / page_u2mp): its state.json
+    fields, whether it runs, the current step and progress, and the folders."""
+    def step(name):
+        return getattr(app, name + "_step_text", "") or ""
+
+    if tab == "u3mp":
+        state = app.u3mp_state()
+        ready, why = app.u3mp_ready(state)
+        n, total = tuple(getattr(app, "u3mp_progress", (0, 0)))[:2]
+        trimmed = {k: state[k] for k in MP_STATE_KEYS if k in state}
+        if state.get("image"):
+            trimmed["image"] = {"version": state["image"].get("version", "?")}
+        return {"u3": {"state": trimmed, "running": app.u3mp_running(), "auto": getattr(app, "u3mp_auto", "") or "",
+                       "step": step("u3mp"), "progress": [n, total], "ready": ready, "why": why or "",
+                       "data": str(app.u3mp_data())}}
+    state = app.u2mp_state()
+    n, total = tuple(getattr(app, "u2mp_progress", (0, 0)))[:2]
+    return {"u2": {"state": {k: state[k] for k in MP_STATE_KEYS if k in state}, "running": app.u2mp_running(),
+                   "auto": getattr(app, "u2mp_auto", "") or "", "step": step("u2mp"), "progress": [n, total],
+                   "found": app.u2mp_data_folder(), "dir": str(ul.U2MP_DIR / "import")}}
 
 
 def calls(app):
@@ -451,7 +479,19 @@ def calls(app):
             "install_game_pkg": app.install_game_pkg, "check_game_files": app.check_game_files,
             "choose_update_folder": app.choose_update_folder, "install_game_update": app.install_game_update,
             "check_updates": lambda: app.check_updates(manual=True), "clear_cache": app.clear_cache,
-            "reset": app.reset, "update_mode": app.change_update_mode, "reset_controls": app.reset_controls}
+            "reset": app.reset, "update_mode": app.change_update_mode, "reset_controls": app.reset_controls,
+            # the Multiplayer tabs (pages.cpp act_mp)
+            "u3mp_ps3_u3_add": app.u3mp_add_folder, "u3mp_ps3_u3_clear": app.u3mp_clear_folders,
+            "u3mp_ps3_elf_choose": app.u3mp_choose_elf, "u3mp_ps3_elf_clear": lambda: app.u3mp_set("u3mp_ps3_elf", ""),
+            "u3mp_data_change": app.u3mp_choose_data, "u3mp_data_open": lambda: app.u3mp_open(app.u3mp_data()),
+            "u3mp_import": app.u3mp_import, "u3mp_cancel": app.u3mp_cancel,
+            "u3mp_log": lambda: app.u3mp_open(app.u3mp_data() / "import.log"), "u3mp_keep_ps3": app.u3mp_keep_ps3,
+            "u2mp_ps3_choose": lambda: app.u2mp_choose("u2mp_ps3", "Choose the PS3 Uncharted 2 folder"),
+            "u2mp_ps3_clear": lambda: app.u2mp_set("u2mp_ps3", ""),
+            "u2mp_data_choose": lambda: app.u2mp_choose("u2mp_ps3_data", "Choose RPCS3's dev_hdd0/game folder"),
+            "u2mp_data_clear": lambda: app.u2mp_set("u2mp_ps3_data", ""),
+            "u2mp_dir_open": lambda: app.u3mp_open(ul.U2MP_DIR / "import"), "u2mp_import": app.u2mp_import,
+            "u2mp_cancel": app.u2mp_cancel, "u2mp_log": lambda: app.u3mp_open(ul.U2MP_DIR / "import" / "import.log")}
 
 
 # -- actions ---------------------------------------------------------------------------------------------------
