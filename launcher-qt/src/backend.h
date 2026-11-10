@@ -64,12 +64,11 @@ private:
     QByteArray m_buffer;
     QVariantMap m_chrome;
     QVariantList m_page;
-    QVariantMap m_config;   // launcher.json as the Python side holds it (sent with each model)
-    QVariantMap m_ini;      // the selected game's settings file, likewise
+    QVariantMap m_native;   // what native pages are built from, as the Python side sends it with each model:
+                            // {config (launcher.json), ini (the game's settings file), gpu, game_dir}
     QString m_root;         // the launcher's folder
-    QVariantMap m_gpu;      // {name, recommended}: the graphics card the Python side found (Quick Setup)
-    QByteArray nativeState() const;   // {"config", "ini"} for un_page / un_page_act
-    QLibrary m_native;
+    QByteArray nativeState() const;   // m_native and "root", for un_page / un_page_act
+    QLibrary m_dll;
     using PageFn = int (*)(const char *, const char *, char *, int);
     using PageActFn = int (*)(const char *, const char *, const char *, const char *, const char *, char *, int);
     PageFn m_unPage = nullptr;

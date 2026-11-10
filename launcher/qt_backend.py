@@ -427,11 +427,17 @@ def chrome(app):
 
 
 def model(app, tab):
-    """The window and the tab's page. A tab without a Tk page is a native one: launcher-qt builds it from "config"."""
+    """The window and the tab's page. A tab without a Tk page is a native one: launcher-qt builds it from "native"."""
     page = app.pages.get(tab or getattr(app, "current_tab", "setup"))
     items = children(page) if page is not None else []
-    return {"chrome": chrome(app), "tab": getattr(app, "current_tab", ""), "page": items, "config": app.config,
-            "ini": app.ini, "gpu": {"name": app.gpu_name or "", "recommended": app.recommended or ""}}
+    return {"chrome": chrome(app), "tab": getattr(app, "current_tab", ""), "page": items, "native": native_state(app)}
+
+
+def native_state(app):
+    """What launcher-qt's native pages are built from (uncharted_native.dll un_page; it adds "root"): the settings,
+    the selected game's settings file, the graphics card found and its preset, the game folder."""
+    return {"config": app.config, "ini": app.ini,
+            "gpu": {"name": app.gpu_name or "", "recommended": app.recommended or ""}, "game_dir": str(app.game_dir())}
 
 
 # -- actions ---------------------------------------------------------------------------------------------------

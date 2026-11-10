@@ -154,9 +154,7 @@ void Backend::handle(const QVariantMap &message)
             return;
         const QVariantMap data = message.value("data").toMap();
         m_chrome = data.value("chrome").toMap();
-        m_config = data.value("config").toMap();
-        m_ini = data.value("ini").toMap();
-        m_gpu = data.value("gpu").toMap();
+        m_native = data.value("native").toMap();
         emit chromeChanged();
         const QString tab = data.value("tab").toString();
         QVariantList page = data.value("page").toList();
@@ -203,11 +201,11 @@ void Backend::act(const QString &id, const QString &kind, const QVariant &value)
 
 void Backend::loadNative(const QString &root)
 {
-    m_native.setFileName(QDir(root).filePath("launcher/native/uncharted_native.dll"));
-    if (!m_native.load())
+    m_dll.setFileName(QDir(root).filePath("launcher/native/uncharted_native.dll"));
+    if (!m_dll.load())
         return;
-    m_unPage = reinterpret_cast<PageFn>(m_native.resolve("un_page"));
-    m_unPageAct = reinterpret_cast<PageActFn>(m_native.resolve("un_page_act"));
+    m_unPage = reinterpret_cast<PageFn>(m_dll.resolve("un_page"));
+    m_unPageAct = reinterpret_cast<PageActFn>(m_dll.resolve("un_page_act"));
 }
 
 namespace {
@@ -228,11 +226,8 @@ template <typename Call> int nativeText(Call call, QByteArray *text)
 
 QByteArray Backend::nativeState() const
 {
-    QJsonObject state;
-    state.insert("config", QJsonObject::fromVariantMap(m_config));
-    state.insert("ini", QJsonObject::fromVariantMap(m_ini));
+    QJsonObject state = QJsonObject::fromVariantMap(m_native);
     state.insert("root", QDir::toNativeSeparators(m_root));
-    state.insert("gpu", QJsonObject::fromVariantMap(m_gpu));
     return QJsonDocument(state).toJson(QJsonDocument::Compact);
 }
 
