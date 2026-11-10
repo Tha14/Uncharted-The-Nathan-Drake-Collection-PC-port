@@ -298,6 +298,12 @@ bool holds_dropped(const std::set<std::wstring> &dropped, const std::wstring &re
     return it != dropped.end() && it->compare(0, prefix.size(), prefix) == 0;
 }
 
+// A folder of Python's compiled caches (__pycache__): Python writes them by itself next to the program's scripts; no
+// package installs them and they are never the player's, so they are not carried over (they go with update\old).
+bool python_cache(const std::wstring &name) {
+    return CompareStringOrdinal(name.c_str(), (int)name.size(), L"__pycache__", -1, TRUE) == CSTR_EQUAL;
+}
+
 // Moves what `old` (the previous version of a program folder) holds and `fresh` does not back into `fresh`: folders
 // whole when the previous package installed nothing in them (a rename on the same drive: instant, also for a game
 // folder), else file by file, leaving out the previous package's own files that the new one dropped.
@@ -307,7 +313,9 @@ void carry_over(const std::wstring &old, const std::wstring &fresh, const std::w
         const std::wstring item = join(old, n), target = join(fresh, n);
         const std::wstring rel = relative.empty() ? n : relative + L"/" + n;
         const bool real_dir = is_dir(item) && !is_link(item);
-        if (real_dir && is_dir(target)) {
+        if (real_dir && python_cache(n)) {
+            continue;   // Python's own caches
+        } else if (real_dir && is_dir(target)) {
             carry_over(item, target, rel, dropped, kept);
         } else if (exists(target) || is_link(target)) {
             continue;   // the package's new file
@@ -330,6 +338,18 @@ void carry_over(const std::wstring &old, const std::wstring &fresh, const std::w
 bool prune(const std::wstring &path, const std::wstring &rel, const std::wstring &old, const std::set<std::wstring> &dropped,
            std::vector<std::wstring> &problems) {
     if (is_link(path)) return false;
+    const std::wstring name = rel.substr(rel.find_last_of(L'/') + 1);
+    if (is_dir(path) && python_cache(name)) {   // Python's own caches go whole
+        try {
+            const std::wstring target = join(old, native_rel(rel));
+            make_dirs(target.substr(0, target.find_last_of(L'\\')));
+            retry([&] { rename(path, target); }, 5);
+            return true;
+        } catch (const Error &e) {
+            problems.push_back(rel + L" (" + e.message + L")");
+            return false;
+        }
+    }
     if (is_dir(path)) {
         bool empty = true;
         for (const std::wstring &n : entries(path)) {
