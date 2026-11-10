@@ -1,92 +1,111 @@
 #!/usr/bin/env bash
-# The files for NVIDIA DLAA and AMD FSR 4 Native AA (in-game menu -> Image -> Anti-aliasing), which
-# are not part of this repository:
-#   - NVIDIA DLSS SDK v310.9.16 (github.com/NVIDIA/DLSS, NVIDIA's license: LICENSE.txt): headers,
-#     nvsdk_ngx_s.lib and nvngx_dlss.dll into downloads/dlss-sdk-<version>; with MSVC (Visual
-#     Studio 2022 or its Build Tools) builds gow3_pc/gpu/dlss_bridge -> gow3_dlss.dll and puts
-#     both DLLs in gow3_pc/out beside the runtime. About 63 MB.
-#   - FSR 4 v07 INT8 native model (AMD's MIT-licensed FidelityFX SDK source, built by Q2RTX:
-#     github.com/FireBurn/Q2RTX) into gow3_pc/fsr4_shaders, the 1080 and 2160 tiers. About 6 MB.
-# Usage: tools/fetch_aa_files.sh [dlss] [fsr4] (default both). Files already there are kept.
+# tools/fetch_aa_files.sh [dlss] [fsr4] - downloads what DLAA and FSR 4 Native AA need (in-game menu
+# -> Image -> Anti-aliasing); neither is kept in this repository. Without arguments: both.
+#
+#   dlss  NVIDIA's DLSS SDK 310.9.16 (github.com/NVIDIA/DLSS; its LICENSE.txt applies): the headers,
+#         nvsdk_ngx_s.lib and nvngx_dlss.dll go to downloads/dlss-sdk-310.9.16. Visual Studio's C++
+#         tools (2022 or 2026, any edition or the Build Tools) then build gow3_pc/gpu/dlss_bridge,
+#         and gow3_dlss.dll and nvngx_dlss.dll are put in gow3_pc/out next to the runtime (~63 MB).
+#   fsr4  the FSR 4 v07 INT8 models (from AMD's MIT-licensed FidelityFX source, as built by Q2RTX,
+#         github.com/FireBurn/Q2RTX) into gow3_pc/fsr4_shaders: native AA and the four upscaling
+#         presets, 1080 and 2160 tiers (~6 MB each).
+# A file that is already there is not downloaded again.
 set -euo pipefail
 cd -- "$(dirname -- "$0")/.."
-want=${*:-dlss fsr4}
+parts=${*:-dlss fsr4}
 
-fetch() {  # fetch URL FILE: downloads once, through a .part file
-    [[ -s $2 ]] && return 0
-    mkdir -p -- "$(dirname -- "$2")"
-    curl -fsSL --retry 3 -o "$2.part" "$1"
-    mv -- "$2.part" "$2"
+download() {   # download <url> <file>, by way of <file>.part so a broken download never counts
+    local url=$1 file=$2
+    [[ -s $file ]] && return 0
+    mkdir -p -- "$(dirname -- "$file")"
+    curl -fsSL --retry 3 -o "$file.part" "$url"
+    mv -- "$file.part" "$file"
 }
 
-if [[ $want == *dlss* ]]; then
-    version=310.9.16
-    sdk=downloads/dlss-sdk-$version
-    base=https://raw.githubusercontent.com/NVIDIA/DLSS/v$version
-    for header in nvsdk_ngx.h nvsdk_ngx_defs.h nvsdk_ngx_defs_dlssd.h nvsdk_ngx_defs_dlssg.h \
-        nvsdk_ngx_defs_vk.h nvsdk_ngx_helpers.h nvsdk_ngx_helpers_cuda.h nvsdk_ngx_helpers_d3d.h \
-        nvsdk_ngx_helpers_dlssd.h nvsdk_ngx_helpers_dlssd_cuda.h nvsdk_ngx_helpers_dlssd_d3d.h \
-        nvsdk_ngx_helpers_dlssd_vk.h nvsdk_ngx_helpers_dlssg.h nvsdk_ngx_helpers_dlssg_d3d.h \
-        nvsdk_ngx_helpers_dlssg_vk.h nvsdk_ngx_helpers_vk.h nvsdk_ngx_loader.h nvsdk_ngx_params.h \
-        nvsdk_ngx_params_dlssd.h nvsdk_ngx_params_dlssg.h nvsdk_ngx_standalone_common.h \
-        nvsdk_ngx_standalone_cuda.h nvsdk_ngx_vk.h; do
-        fetch "$base/include/$header" "$sdk/include/$header"
+get_dlss() {
+    local version=310.9.16
+    local sdk=downloads/dlss-sdk-$version
+    local from=https://raw.githubusercontent.com/NVIDIA/DLSS/v$version
+    local name
+    for name in nvsdk_ngx nvsdk_ngx_defs nvsdk_ngx_defs_dlssd nvsdk_ngx_defs_dlssg nvsdk_ngx_defs_vk \
+        nvsdk_ngx_helpers nvsdk_ngx_helpers_cuda nvsdk_ngx_helpers_d3d nvsdk_ngx_helpers_dlssd \
+        nvsdk_ngx_helpers_dlssd_cuda nvsdk_ngx_helpers_dlssd_d3d nvsdk_ngx_helpers_dlssd_vk \
+        nvsdk_ngx_helpers_dlssg nvsdk_ngx_helpers_dlssg_d3d nvsdk_ngx_helpers_dlssg_vk nvsdk_ngx_helpers_vk \
+        nvsdk_ngx_loader nvsdk_ngx_params nvsdk_ngx_params_dlssd nvsdk_ngx_params_dlssg \
+        nvsdk_ngx_standalone_common nvsdk_ngx_standalone_cuda nvsdk_ngx_vk; do
+        download "$from/include/$name.h" "$sdk/include/$name.h"
     done
-    for file in LICENSE.txt lib/Windows_x86_64/x64/nvsdk_ngx_s.lib lib/Windows_x86_64/rel/nvngx_dlss.dll; do
-        fetch "$base/$file" "$sdk/$file"
+    for name in LICENSE.txt lib/Windows_x86_64/x64/nvsdk_ngx_s.lib lib/Windows_x86_64/rel/nvngx_dlss.dll; do
+        download "$from/$name" "$sdk/$name"
     done
-    # The bridge: MSVC through CMake's Visual Studio generator. Vulkan headers from the MSYS2
-    # CLANG64 tree, copied alone (its C library headers must not reach MSVC).
-    msys=${MSYS2_ROOT:-/c/msys64}
-    msys=${msys%/}  # on GitHub's runner the MSYS2 root is "/": not "//clang64" (a network path)
-    vulkan=downloads/vulkan-include
-    mkdir -p "$vulkan"
-    cp -r "$msys/clang64/include/vulkan" "$msys/clang64/include/vk_video" "$vulkan/"
-    # Visual Studio (any edition with the C++ tools) through its own CMake; the generator follows
-    # its version (17 = 2022, 18 = 2026: GitHub's windows-latest runners move between them).
-    cmake_exe=$(command -v cmake.exe || true)
-    generator="Visual Studio 17 2022"
-    vswhere="/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe"
+
+    # The bridge is built with MSVC. It gets the Vulkan headers by themselves, copied from MSYS2's
+    # CLANG64 tree (MSVC must not see that tree's C library headers).
+    local msys=${MSYS2_ROOT:-/c/msys64}
+    msys=${msys%/}   # GitHub's runner has MSYS2 at "/", and "//clang64" would be a network path
+    mkdir -p downloads/vulkan-include
+    cp -r "$msys/clang64/include/vulkan" "$msys/clang64/include/vk_video" downloads/vulkan-include/
+
+    # CMake: Visual Studio's own when vswhere finds an installation with the C++ tools, else one on
+    # PATH. The generator goes by the Visual Studio version (GitHub's windows-latest has had both).
+    local cmake generator="Visual Studio 17 2022"
+    cmake=$(command -v cmake.exe || true)
+    local vswhere="/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe"
     if [[ -x $vswhere ]]; then
-        vs=$("$vswhere" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 \
-             -property installationPath | tr -d '\r')
-        major=$("$vswhere" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 \
-                -property installationVersion | tr -d '\r' | cut -d. -f1)
-        [[ $major == 18 ]] && generator="Visual Studio 18 2026"
-        if [[ -n $vs && -x "$(cygpath -u "$vs")/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe" ]]; then
-            cmake_exe="$(cygpath -u "$vs")/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe"
+        local query=(-latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64)
+        local install major
+        install=$("$vswhere" "${query[@]}" -property installationPath | tr -d '\r')
+        major=$("$vswhere" "${query[@]}" -property installationVersion | tr -d '\r')
+        major=${major%%.*}
+        if [[ $major == 18 ]]; then
+            generator="Visual Studio 18 2026"
+        fi
+        if [[ -n $install ]]; then
+            local bundled
+            bundled="$(cygpath -u "$install")/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe"
+            [[ -x $bundled ]] && cmake=$bundled
         fi
     fi
-    [[ -n $cmake_exe && -x $cmake_exe ]] || { echo "No MSVC (Visual Studio Build Tools) found: DLSS bridge not built" >&2; exit 1; }
-    root=$(cygpath -w "$PWD")
-    "$cmake_exe" -S "$root\\gow3_pc\\gpu\\dlss_bridge" -B "$root\\gow3_pc\\out\\dlss-bridge" \
-        -G "$generator" -A x64 -DDLSS_SDK_ROOT="$root\\downloads\\dlss-sdk-$version" \
-        -DVULKAN_INCLUDE="$root\\downloads\\vulkan-include" > /dev/null
-    "$cmake_exe" --build "$root\\gow3_pc\\out\\dlss-bridge" --config Release > /dev/null
+    if [[ -z $cmake || ! -x $cmake ]]; then
+        echo "No MSVC (Visual Studio Build Tools) found: DLSS bridge not built" >&2
+        exit 1
+    fi
+    local here
+    here=$(cygpath -w "$PWD")
+    "$cmake" -S "$here\\gow3_pc\\gpu\\dlss_bridge" -B "$here\\gow3_pc\\out\\dlss-bridge" -G "$generator" -A x64 \
+        -DDLSS_SDK_ROOT="$here\\downloads\\dlss-sdk-$version" -DVULKAN_INCLUDE="$here\\downloads\\vulkan-include" \
+        > /dev/null
+    "$cmake" --build "$here\\gow3_pc\\out\\dlss-bridge" --config Release > /dev/null
     cp gow3_pc/out/dlss-bridge/Release/gow3_dlss.dll "$sdk/lib/Windows_x86_64/rel/nvngx_dlss.dll" gow3_pc/out/
     echo "DLSS: gow3_pc/out/gow3_dlss.dll and nvngx_dlss.dll ($version)"
-fi
+}
 
-if [[ $want == *fsr4* ]]; then
-    commit=ae8d628fae208813172446d1e49ed94150b04658
-    base="https://raw.githubusercontent.com/FireBurn/Q2RTX/$commit/baseq2/fsr4_shaders"
-    dest=gow3_pc/fsr4_shaders
-    model=fsr4_model_v07_i8_native
-    files=(LICENSE-FSR4-v07.txt rcas.spv fsr4_rcas.spv spd_auto_exposure.spv "${model}_pre.spv" "${model}_post.spv")
-    # Native AA, and the upscaling models a render resolution below the output picks by its
-    # scale (1.5 Quality, 1.7 Balanced, 2 Performance, more Ultra Performance): ~5 MB each.
+get_fsr4() {
+    local from=https://raw.githubusercontent.com/FireBurn/Q2RTX/ae8d628fae208813172446d1e49ed94150b04658/baseq2/fsr4_shaders
+    local into=gow3_pc/fsr4_shaders
+    local prefix=fsr4_model_v07_i8_
+    local names=(LICENSE-FSR4-v07.txt rcas.spv fsr4_rcas.spv spd_auto_exposure.spv "${prefix}native_pre.spv"
+                 "${prefix}native_post.spv")
+    # Native AA plus the upscaling models, picked by the render scale (1.5 Quality, 1.7 Balanced,
+    # 2 Performance, beyond that Ultra Performance).
+    local preset tier pass
     for preset in native quality balanced performance ultraperf; do
-        model=fsr4_model_v07_i8_$preset
-        files+=("${model}_initializers.bin" "${model}_pre_weights.bin" "${model}_shader_manifest.json")
+        names+=("$prefix${preset}_initializers.bin" "$prefix${preset}_pre_weights.bin"
+                "$prefix${preset}_shader_manifest.json")
         for tier in 1080 2160; do
-            files+=("${model}_${tier}_pre.spv" "${model}_${tier}_post.spv")
-            for pass in $(seq 1 12); do
-                files+=("${model}_${tier}_pass${pass}.spv")
+            names+=("$prefix${preset}_${tier}_pre.spv" "$prefix${preset}_${tier}_post.spv")
+            for ((pass = 1; pass <= 12; pass++)); do
+                names+=("$prefix${preset}_${tier}_pass$pass.spv")
             done
         done
     done
-    for file in "${files[@]}"; do
-        fetch "$base/$file" "$dest/$file"
+    local name
+    for name in "${names[@]}"; do
+        download "$from/$name" "$into/$name"
     done
-    echo "FSR 4: ${#files[@]} files in $dest"
-fi
+    echo "FSR 4: ${#names[@]} files in $into"
+}
+
+[[ $parts == *dlss* ]] && get_dlss
+[[ $parts == *fsr4* ]] && get_fsr4
+exit 0

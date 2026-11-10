@@ -1,26 +1,41 @@
 #!/usr/bin/env bash
-# Publishes a release: tools/release.sh 0.1.1
-#   1. needs tools/release-notes/v0.1.1.md (the release's text; tools/release-notes/v0.1.0.md shows
-#      the layout) and sets tools/VERSION to 0.1.1,
-#   2. exports and pushes the source (tools/export_github.sh), then tags that commit v0.1.1 and
-#      pushes the tag,
-#   3. GitHub Actions builds the package and publishes the release with it (build-windows.yml,
-#      about 20 minutes); the launchers of earlier versions then offer the update.
+# tools/release.sh X.Y.Z - publishes version X.Y.Z of the port from this repository.
+#
+# Before: write tools/release-notes/vX.Y.Z.md (its first lines are the same as the previous
+# release's, then what is new). The script then
+#   - puts X.Y.Z in tools/VERSION and commits it with the notes as "Release X.Y.Z",
+#   - brings in what is on GitHub (rebase), pushes main and the tag vX.Y.Z.
+# The tag starts .github/workflows/build-windows.yml, which builds the package and publishes the
+# release; launchers of earlier versions then offer the update.
 set -euo pipefail
 cd -- "$(dirname -- "$0")/.."
-version=${1:?usage: tools/release.sh <version, e.g. 0.1.1>}
-[[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Not a version: $version" >&2; exit 1; }
+
+version=${1:-}
+if [[ ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "usage: tools/release.sh X.Y.Z" >&2
+    exit 2
+fi
 tag=v$version
-dest=${GITHUB_EXPORT:-../uncharted-github}
-[[ -f tools/release-notes/$tag.md ]] || { echo "Write tools/release-notes/$tag.md first" >&2; exit 1; }
-git -C "$dest" fetch -q --tags origin
-if git -C "$dest" rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
-    echo "$tag exists already" >&2
+notes=tools/release-notes/$tag.md
+if [[ ! -s $notes ]]; then
+    echo "missing $notes: write the release notes first" >&2
     exit 1
 fi
-printf '%s\n' "$version" > tools/VERSION
-tools/export_github.sh "$dest" "Release $version"
-git -C "$dest" push -q origin main
-git -C "$dest" tag -a "$tag" -m "Release $version"
-git -C "$dest" push -q origin "$tag"
-echo "Pushed $tag: GitHub Actions builds the package and publishes the release (about 20 minutes)."
+git fetch -q --tags origin
+if git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
+    echo "$tag is taken already" >&2
+    exit 1
+fi
+if [[ $(git rev-parse --abbrev-ref HEAD) != main ]]; then
+    echo "releases are made from main" >&2
+    exit 1
+fi
+
+echo "$version" > tools/VERSION
+git add tools/VERSION "$notes"
+git commit -q -m "Release $version"
+git pull -q --rebase --autostash origin main
+git push -q origin main
+git tag "$tag"
+git push -q origin "$tag"
+echo "$tag pushed: the build publishes the release when it is done."
