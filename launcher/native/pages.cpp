@@ -9,7 +9,8 @@
 //
 // Pages: cheats (the games' developer switches), performance (frame rate, processor, video memory), display (resolution,
 // upscaling, picture, performance counter), setup (Quick Setup's preset cards), advanced (game, extra quality, unlocks,
-// launcher switches), tools (the launcher's actions: a click returns {"call": action}, which the Python side runs). state also has "root": the launcher's
+// launcher switches), tools (the launcher's actions: a click returns {"call": {"name", "value"}}, which the Python side
+// runs), launcher (its updates). state also has "root": the launcher's
 // folder (which upscalers it has), and "gpu": {"name", "recommended"}: the graphics card the launcher found and its preset.
 
 #include "native.h"
@@ -52,7 +53,7 @@ struct Changes {
     Value ini = Value::object();      // the selected game's settings file
     Value game = Value::object();     // the selected game's launcher settings (config["games"][game])
     Value ini_all = Value::object();  // all three games' settings files, without making the preset Custom
-    Value call;                       // a launcher action to run (TOOLS' buttons), by name
+    Value call;                       // a launcher action to run: {"name", "value" (optional)}
 };
 
 bool read_state(const char *state_json, State &state) {
@@ -1117,9 +1118,77 @@ bool act_tools(const std::string &id, const std::string &kind, Changes &changes)
     for (auto &sec : tool_sections())
         for (auto &b : sec.buttons)
             if (action == b.action) {
-                changes.call = Value::text(action);
+                changes.call = Value::object();
+                changes.call.set("name", Value::text(action));
                 return true;
             }
+    return false;
+}
+
+// ------------------------------------------------------------------------------------------------ launcher
+
+extern "C" UN_API int un_update_installed(const wchar_t *root, char *out, int cap);   // updater.cpp
+
+const Options UPDATE_MODES = {{"auto", "Automatic"}, {"manual", "Manual"}};
+
+// The installed version as the launcher shows it (updater.version_text: its numbers joined by dots), "" for none
+std::string installed_version(const State &state) {
+    const std::wstring root = widen_utf8(state.root);
+    std::string text = native_text([&](char *o, int c) { return un_update_installed(root.c_str(), o, c); });
+    if (text.empty()) return "";
+    std::string out;
+    size_t at = 0;
+    while (at <= text.size()) {
+        size_t dot = text.find('.', at);
+        if (dot == std::string::npos) dot = text.size();
+        const std::string part = text.substr(at, dot - at);
+        char *end = nullptr;
+        const long n = std::strtol(part.c_str(), &end, 10);
+        if (part.empty() || *end) return "";   // not a version: as Python's int() would fail
+        out += (out.empty() ? "" : ".") + std::to_string(n);
+        at = dot + 1;
+    }
+    return out;
+}
+
+Value page_launcher(const State &state) {
+    const std::string p = "native:launcher:";
+    std::vector<Value> rows;
+    const Value *mode = state.config.get("update_mode");
+    rows.push_back(row(p + "row:update_mode", "Launcher updates",
+                       "Automatic: a new version installs by itself when no game or import is running. Manual: the "
+                       "UPDATE button installs it.",
+                       choice(p + "update_mode", mode ? *mode : Value::text("manual"), UPDATE_MODES, "")));
+    const std::string version = installed_version(state);
+    rows.push_back(row(p + "row:check_updates", "Check for updates at start",
+                       "Installed: " + (version.empty() ? std::string("source tree (updates with git)") : version) + ".",
+                       toggle(p + "check_updates", config_bool(state, "check_updates", true))));
+    rows.push_back(row(p + "row:check_now", "Check for a new version", "", button(p + "check_now", "Check now", "secondary")));
+    Value page = array();
+    page.items.push_back(section(p + "updates", "Updates", with_separators(std::move(rows))));
+    return page;
+}
+
+// The update mode runs the launcher's change_update_mode (it also shows or starts the update); Check now its check.
+bool act_launcher(const std::string &id, const std::string &kind, const Value &value, Changes &changes) {
+    const std::string p = "native:launcher:";
+    if (id.compare(0, p.size(), p) != 0) return false;
+    const std::string key = id.substr(p.size());
+    if (kind == "choice" && key == "update_mode" && has_option(UPDATE_MODES, text_of(value))) {
+        changes.call = Value::object();
+        changes.call.set("name", Value::text("update_mode"));
+        changes.call.set("value", Value::text(text_of(value)));
+        return true;
+    }
+    if (kind == "toggle" && key == "check_updates") {
+        changes.config.set(key, Value::boolean(value.truthy()));
+        return true;
+    }
+    if (kind == "button" && key == "check_now") {
+        changes.call = Value::object();
+        changes.call.set("name", Value::text("check_updates"));
+        return true;
+    }
     return false;
 }
 
@@ -1139,6 +1208,7 @@ UN_API int un_page(const char *name, const char *state_json, char *out, int cap)
     if (n == "setup") return give(json::dump(page_setup(state), false), out, cap);
     if (n == "advanced") return give(json::dump(page_advanced(state), false), out, cap);
     if (n == "tools") return give(json::dump(page_tools(state), false), out, cap);
+    if (n == "launcher") return give(json::dump(page_launcher(state), false), out, cap);
     return 2;
 }
 
@@ -1159,13 +1229,14 @@ UN_API int un_page_act(const char *name, const char *id, const char *kind, const
     else if (n == "setup") act_setup(state, i, k, changes);
     else if (n == "advanced") act_advanced(state, i, k, value, changes);
     else if (n == "tools") act_tools(i, k, changes);
+    else if (n == "launcher") act_launcher(i, k, value, changes);
     else return 2;
     Value result = Value::object();
     result.set("config", std::move(changes.config));
     result.set("ini", std::move(changes.ini));
     result.set("game", std::move(changes.game));
     result.set("ini_all", std::move(changes.ini_all));
-    if (changes.call.kind == Value::String) result.set("call", std::move(changes.call));
+    if (changes.call.is_object()) result.set("call", std::move(changes.call));
     return give(json::dump(result, false), out, cap);
 }
 

@@ -270,8 +270,12 @@ bool Backend::nativeAct(const QString &id, const QString &kind, const QVariant &
             send({{"op", QLatin1String(op)}, {"key", it.key()}, {"value", it.value()}});
     }
     // a launcher action (TOOLS' buttons): the Python side runs it from its fixed list
-    if (const QString call = result.value("call").toString(); !call.isEmpty())
-        send({{"op", "call"}, {"name", call}});
+    if (const QJsonObject call = result.value("call").toObject(); !call.isEmpty()) {
+        QVariantMap message{{"op", "call"}, {"name", call.value("name").toString()}};
+        if (call.contains("value"))
+            message.insert("value", call.value("value").toVariant());
+        send(message);
+    }
     return true;
 }
 

@@ -1214,10 +1214,9 @@ class Launcher:
             "controls": self.page_controls(),
             "u3mp": self.page_u3mp(),
             "multiplayer": self.page_multiplayer(),
-            "launcher": self.page_launcher(),
         }
-        # QUICK SETUP, DISPLAY, PERFORMANCE, CHEATS, ADVANCED and TOOLS are built natively (launcher/native/pages.cpp,
-        # drawn by launcher-qt): no Tk page
+        # QUICK SETUP, DISPLAY, PERFORMANCE, CHEATS, ADVANCED, TOOLS and LAUNCHER are built natively
+        # (launcher/native/pages.cpp, drawn by launcher-qt): no Tk page
         for page in self.pages.values():
             self.organize(page)
 
@@ -1668,31 +1667,6 @@ class Launcher:
                          "mouse_vertical": "1.0", "mouse_invert_x": False, "vibration": True})
         self.save_controls()
         self.refresh_controls()
-
-    def page_launcher(self):
-        """The launcher itself: how its updates install."""
-        page = self.page()
-        self.section(page, "Updates")
-        version = updater.installed_version(ROOT)
-
-        def mode(parent):
-            return Segmented(parent, (("auto", "Automatic"), ("manual", "Manual")),
-                             self.config.get("update_mode", "manual"), self.change_update_mode, self.f_small)
-        self.row(page, "Launcher updates",
-                 "Automatic: a new version installs by itself when no game or import is running. Manual: the "
-                 "UPDATE button installs it.", mode)
-
-        def check_updates(parent):
-            return Toggle(parent, self.s, self.config.get("check_updates", True),
-                          lambda v: self.change_config("check_updates", v))
-        self.row(page, "Check for updates at start",
-                 f"Installed: {updater.version_text(version) if version else 'source tree (updates with git)'}.",
-                 check_updates)
-
-        def check_now(parent):
-            return self.flat_button(parent, "Check now", lambda: self.check_updates(manual=True))
-        self.row(page, "Check for a new version", "", check_now)
-        return page
 
     def change_update_mode(self, value):
         self.change_config("update_mode", value)

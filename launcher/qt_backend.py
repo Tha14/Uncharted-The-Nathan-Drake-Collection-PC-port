@@ -14,7 +14,7 @@ Requests ({"op": ...}):
   ini     {"key", "value"}    a native page's change to the selected game's settings file: change(key, value)
   game_setting {"key", "value"}  ... to the selected game's launcher settings: change_game_setting(key, value)
   ini_all {"key", "value"}    ... to every game's settings file (the menu shortcut): change_all_games(key, value)
-  call    {"name"}            a native page's button: that launcher action (calls(), a fixed list)
+  call    {"name", "value"?}  a native page's button or choice: that launcher action (calls(), a fixed list)
   act     {"id", "kind", "value"}  what a click on a control does in the Tk window: toggle / choice / dropdown /
                               chip -> set(value, notify), button -> action(), entry -> new text, click / dclick ->
                               the widget's own <Button-1> / <Double-Button-1> binding
@@ -452,7 +452,7 @@ def calls(app):
             "install_game_pkg": app.install_game_pkg, "check_game_files": app.check_game_files,
             "choose_update_folder": app.choose_update_folder, "install_game_update": app.install_game_update,
             "check_updates": lambda: app.check_updates(manual=True), "clear_cache": app.clear_cache,
-            "reset": app.reset}
+            "reset": app.reset, "update_mode": app.change_update_mode}
 
 
 # -- actions ---------------------------------------------------------------------------------------------------
@@ -545,7 +545,7 @@ def main():
         elif op == "call":
             action = calls(app).get(message.get("name"))
             if action:
-                action()
+                action(message["value"]) if "value" in message else action()
         elif op == "ini_all":
             app.change_all_games(message.get("key"), message.get("value"))
         elif op == "game_setting":
