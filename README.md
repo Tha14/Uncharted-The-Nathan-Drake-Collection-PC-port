@@ -7,6 +7,8 @@
 > game; this project contains no game files and does not help anyone get them. See
 > [Legal notice](#legal-notice).
 
+[Development Plan](#development-plan) · [Contributing](CONTRIBUTING.md)
+
 ## About this fork
 
 This repository is **João Fidalgo's fork** of
@@ -237,6 +239,11 @@ new recipe in, `make_release.py` adds a helper build.
 | `analysis/` | Compatibility notes (`STATUS.md`) and the plan (`PLAN.md`). |
 | `u3mp/patcher/` | Uncharted 3 multiplayer import: `u3mp_import.py`, `mpimage.py` (image link), `recipe/` + `tools/` (overlay recipe), `build/v*/` (each multiplayer build's files and hashes; the online part is added by the release build, so a build from this source alone has no online play). |
 | `u3mp/` (rest) | The multiplayer research source (helper C code, runner, pak tools, notes). |
+
+## Development Plan
+
+The roadmap tracks the launcher, multiplayer restoration for Uncharted 2 and 3, and crossplay
+across PC, PS3, PS4 and PS5. See the [Development Plan checklist](DEVELOPMENT_PLAN.md).
 
 ## Contributing
 
