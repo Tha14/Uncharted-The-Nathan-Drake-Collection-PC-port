@@ -1,0 +1,475 @@
+// system.cpp - the launcher's game detection and system helpers, part of uncharted_native.dll: the games and languages
+// tables, the game folder and its update, the game version (param.sfo, checked against the executables), the voice
+// languages a copy has, Wine detection and paths, drives that make the games freeze, process checks, the Desktop
+// folder, and the launcher / recipe versions.
+
+#include "native.h"
+#include "json.h"
+
+#include <cctype>
+#include <cstdint>
+#include <cstdlib>
+#include <windows.h>
+#include <shlobj.h>
+#include <winioctl.h>
+
+#include <algorithm>
+#include <cstring>
+#include <map>
+#include <set>
+#include <string>
+#include <vector>
+
+namespace {
+
+using json::Value;
+
+int give(const std::string &s, char *out, int cap) {
+    if ((int)s.size() + 1 > cap) return -(int)(s.size() + 1);
+    std::memcpy(out, s.c_str(), s.size() + 1);
+    return 0;
+}
+
+std::string utf8(const std::wstring &w) {
+    if (w.empty()) return std::string();
+    int n = WideCharToMultiByte(CP_UTF8, 0, w.data(), (int)w.size(), nullptr, 0, nullptr, nullptr);
+    std::string s(n, '\0');
+    WideCharToMultiByte(CP_UTF8, 0, w.data(), (int)w.size(), s.data(), n, nullptr, nullptr);
+    return s;
+}
+
+std::wstring lower(std::wstring s) {
+    if (!s.empty()) CharLowerBuffW(s.data(), (DWORD)s.size());
+    return s;
+}
+
+bool is_file(const std::wstring &p) {
+    DWORD a = GetFileAttributesW(p.c_str());
+    return a != INVALID_FILE_ATTRIBUTES && !(a & FILE_ATTRIBUTE_DIRECTORY);
+}
+
+bool is_dir(const std::wstring &p) {
+    DWORD a = GetFileAttributesW(p.c_str());
+    return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY);
+}
+
+std::wstring join(const std::wstring &a, const std::wstring &b) {
+    if (a.empty()) return b;
+    wchar_t last = a.back();
+    return (last == L'\\' || last == L'/') ? a + b : a + L"\\" + b;
+}
+
+bool read_all(const std::wstring &path, std::string &data, size_t limit = (size_t)1 << 31) {
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return false;
+    LARGE_INTEGER size{};
+    bool ok = GetFileSizeEx(h, &size) && (size_t)size.QuadPart <= limit;
+    if (ok) {
+        data.assign((size_t)size.QuadPart, '\0');
+        size_t done = 0;
+        while (ok && done < data.size()) {
+            DWORD got = 0;
+            DWORD want = (DWORD)std::min<size_t>(data.size() - done, 1 << 30);
+            ok = ReadFile(h, data.data() + done, want, &got, nullptr) && got > 0;
+            done += got;
+        }
+    }
+    CloseHandle(h);
+    return ok;
+}
+
+std::vector<std::wstring> entries(const std::wstring &folder, const std::wstring &pattern, int dirs) {
+    std::vector<std::wstring> out;
+    WIN32_FIND_DATAW fd;
+    HANDLE h = FindFirstFileW(join(folder, pattern).c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return out;
+    do {
+        bool d = (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+        if (!wcscmp(fd.cFileName, L".") || !wcscmp(fd.cFileName, L"..")) continue;
+        if (dirs < 0 || d == dirs) out.push_back(fd.cFileName);
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+    return out;
+}
+
+// ------------------------------------------------------------------------------------------------ tables
+
+Value tables() {
+    Value t = Value::object();
+    Value games;
+    games.kind = Value::Array;
+    const char *rows[][7] = {
+        {"u1", "1", "DRAKE'S FORTUNE", "Uncharted: Drake's Fortune", "Uncharted 1  \xE2\x80\xA2  double-click to play", "eboot.bin", "uncharted"},
+        {"u2", "2", "AMONG THIEVES", "Uncharted 2: Among Thieves", "Uncharted 2  \xE2\x80\xA2  double-click to play", "big2-ps4_Shipping.elf", "big2-ps4_Shipping"},
+        {"u3", "3", "DRAKE'S DECEPTION", "Uncharted 3: Drake's Deception", "Uncharted 3  \xE2\x80\xA2  double-click to play", "big3-ps4_Shipping.elf", "big3-ps4_Shipping"}};
+    const char *keys[] = {"key", "number", "title", "name", "subtitle", "exe", "log"};
+    for (auto &r : rows) {
+        Value g = Value::object();
+        for (int k = 0; k < 7; ++k) g.set(keys[k], Value::text(r[k]));
+        games.items.push_back(g);
+    }
+    t.set("GAMES", games);
+    // the PS4's system language ids of the 22 languages the Collection has text for
+    const char *langs[][2] = {
+        {"1", "English (US)"}, {"18", "English (UK)"}, {"2", "Fran\xC3\xA7" "ais"}, {"4", "Deutsch"}, {"5", "Italiano"},
+        {"3", "Espa\xC3\xB1ol (Espa\xC3\xB1" "a)"}, {"20", "Espa\xC3\xB1ol (Latinoam\xC3\xA9rica)"},
+        {"7", "Portugu\xC3\xAAs (Portugal)"}, {"17", "Portugu\xC3\xAAs (Brasil)"}, {"6", "Nederlands"}, {"14", "Dansk"},
+        {"15", "Norsk"}, {"13", "Svenska"}, {"12", "Suomi"}, {"16", "Polski"}, {"23", "\xC4\x8C" "e\xC5\xA1tina"},
+        {"25", "\xCE\x95\xCE\xBB\xCE\xBB\xCE\xB7\xCE\xBD\xCE\xB9\xCE\xBA\xCE\xAC"},
+        {"8", "\xD0\xA0\xD1\x83\xD1\x81\xD1\x81\xD0\xBA\xD0\xB8\xD0\xB9"}, {"19", "T\xC3\xBCrk\xC3\xA7" "e"},
+        {"0", "\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E"}, {"9", "\xED\x95\x9C\xEA\xB5\xAD\xEC\x96\xB4"},
+        {"10", "\xE4\xB8\xAD\xE6\x96\x87 (\xE7\xB9\x81\xE9\xAB\x94)"}};
+    Value l;
+    l.kind = Value::Array;
+    for (auto &r : langs) {
+        Value p;
+        p.kind = Value::Array;
+        p.items = {Value::text(r[0]), Value::text(r[1])};
+        l.items.push_back(p);
+    }
+    t.set("LANGUAGES", l);
+    const char *cheats[][3] = {{"invincible", "Invincible", "Nate takes no damage. All three games."},
+                               {"ammo", "Infinite ammo", "Ammo never runs out. All three games."},
+                               {"noreload", "No reload", "The magazine never empties. Uncharted 2 and 3."},
+                               {"grenades", "Infinite grenades", "Grenades never run out. Uncharted 3."},
+                               {"onehit", "One-hit kills", "Enemies go down with one hit. Uncharted 3."}};
+    Value c;
+    c.kind = Value::Array;
+    for (auto &r : cheats) {
+        Value p;
+        p.kind = Value::Array;
+        p.items = {Value::text(r[0]), Value::text(r[1]), Value::text(r[2])};
+        c.items.push_back(p);
+    }
+    t.set("CHEATS", c);
+    return t;
+}
+
+// the speech packs (sound1/.../<language>_ps4.psarc) and the language ids they voice
+const std::map<std::string, std::vector<const char *>> &speech_packs() {
+    static const std::map<std::string, std::vector<const char *>> m = {
+        {"english", {"1", "18"}}, {"french", {"2"}},     {"german", {"4"}},     {"italian", {"5"}},
+        {"spanish", {"3", "20"}}, {"portuguese", {"7", "17"}}, {"dutch", {"6"}}, {"danish", {"14"}},
+        {"norwegian", {"15"}},    {"swedish", {"13"}},   {"finnish", {"12"}},   {"polish", {"16"}},
+        {"czech", {"23"}},        {"greek", {"25"}},     {"russian", {"8"}},    {"turkish", {"19"}},
+        {"japanese", {"0"}},      {"korean", {"9"}},     {"chinese", {"10"}}};
+    return m;
+}
+
+// ------------------------------------------------------------------------------------------------ game folder
+
+bool game_folder(const std::wstring &f) {
+    return !f.empty() && is_file(join(f, L"eboot.bin")) && is_file(join(f, L"sce_sys\\param.sfo"));
+}
+
+std::wstring update_folder(std::wstring folder) {
+    std::replace(folder.begin(), folder.end(), L'/', L'\\');
+    while (folder.size() > 3 && (folder.back() == L'\\' || folder.back() == L'/')) folder.pop_back();
+    size_t cut = folder.find_last_of(L"\\/");
+    std::wstring name = cut == std::wstring::npos ? folder : folder.substr(cut + 1);
+    std::wstring title = (lower(name) == L"uroot" && cut != std::wstring::npos) ? folder.substr(0, cut) : folder;
+    size_t tcut = title.find_last_of(L"\\/");
+    if (tcut == std::wstring::npos) return std::wstring();
+    std::wstring parent = title.substr(0, tcut), title_name = lower(title.substr(tcut + 1));
+    if (parent.size() == 2 && parent[1] == L':') parent += L"\\";
+    std::set<std::wstring> names;
+    for (const wchar_t *suffix : {L"-patch", L"-update", L"_patch", L"_update"}) names.insert(title_name + suffix);
+    for (const std::wstring &e : entries(parent, L"*", -1)) {
+        if (!names.count(lower(e))) continue;
+        std::wstring entry = join(parent, e);
+        for (const std::wstring &candidate : {join(entry, L"uroot"), entry})
+            if (game_folder(candidate)) return candidate;
+    }
+    return std::wstring();
+}
+
+// Uncharted 2's torch code as update 1.02 compiled it, and its PlayerBase::UpdateFocus assert as 1.00 compiled it
+// (both exact bytes of the player's own executable; tools/probe_uncharted.py patches the same places)
+std::string hex(const char *h) {
+    std::string out;
+    for (size_t i = 0; h[i] && h[i + 1]; i += 2) out += (char)std::strtol(std::string(h + i, 2).c_str(), nullptr, 16);
+    return out;
+}
+const std::string &code_102() { static const std::string c = hex("488d05cc9fd5008b485084c974408a50"); return c; }
+const std::string &code_100() {
+    static const std::string c = hex("c4e37904c900c5f0c2c900c5f850c183f80f7438e8a8d71a004885c07427488d3d4c9c8300"
+                                     "488d354b998300488d155b9c8300488d0d7e99830041b84d0400004531c9ffd0cd41");
+    return c;
+}
+
+// (has the 1.02 code, has the 1.00 code) of the folder's Uncharted 2 executable, cached by file and write time
+std::pair<bool, bool> executable_codes(const std::wstring &folder) {
+    static std::map<std::wstring, std::pair<bool, bool>> cache;
+    std::wstring path = join(folder, L"big2-ps4_Shipping.elf");
+    WIN32_FILE_ATTRIBUTE_DATA a;
+    if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &a)) return {false, false};
+    std::wstring key = path + L"|" + std::to_wstring(((unsigned long long)a.ftLastWriteTime.dwHighDateTime << 32) |
+                                                     a.ftLastWriteTime.dwLowDateTime);
+    auto it = cache.find(key);
+    if (it != cache.end()) return it->second;
+    std::string data;
+    std::pair<bool, bool> r{false, false};
+    if (read_all(path, data)) r = {data.find(code_102()) != std::string::npos, data.find(code_100()) != std::string::npos};
+    cache[key] = r;
+    return r;
+}
+
+uint32_t u32(const std::string &d, size_t at) {
+    return (uint32_t)(uint8_t)d[at] | ((uint32_t)(uint8_t)d[at + 1] << 8) | ((uint32_t)(uint8_t)d[at + 2] << 16) |
+           ((uint32_t)(uint8_t)d[at + 3] << 24);
+}
+
+// APP_VER of a game folder (sce_sys/param.sfo); 01.02 when the executables are 1.02 although param.sfo says otherwise,
+// 01.00 when they are 1.00 although it says 01.02; "" when not readable
+std::string version_of(const std::wstring &folder, bool &found) {
+    std::string d;
+    found = false;
+    if (!read_all(join(folder, L"sce_sys\\param.sfo"), d, 1 << 20) || d.size() < 20) return "";
+    uint32_t keys = u32(d, 8), values = u32(d, 12), count = u32(d, 16);
+    for (uint32_t i = 0; i < count; ++i) {
+        size_t e = 20 + (size_t)i * 16;
+        if (e + 16 > d.size()) return "";
+        uint32_t key_at = (uint8_t)d[e] | ((uint8_t)d[e + 1] << 8), length = u32(d, e + 4), value_at = u32(d, e + 12);
+        size_t k = (size_t)keys + key_at, end = d.find('\0', k);
+        if (k >= d.size() || end == std::string::npos) return "";
+        if (d.compare(k, end - k, "APP_VER") != 0) continue;
+        size_t v = (size_t)values + value_at;
+        std::string version = v >= d.size() ? "" : d.substr(v, std::min<size_t>(length, d.size() - v));
+        while (!version.empty() && version.back() == '\0') version.pop_back();
+        if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, version.data(), (int)version.size(), nullptr, 0) == 0 &&
+            !version.empty())
+            return "";
+        found = true;
+        if (version < "01.02" && executable_codes(folder).first) return "01.02";
+        if (version >= "01.02" && executable_codes(folder).second) return "01.00";
+        return version;
+    }
+    return "";
+}
+
+// language ids with speech in this copy of the game (its u*data/build/main/sound1/[streams/]speech/*_ps4.psarc)
+std::vector<std::string> voices(const std::wstring &game_dir) {
+    std::set<std::string> ids;
+    if (game_dir.empty()) return {};
+    for (const std::wstring &data : entries(game_dir, L"u*data", 1))
+        for (const wchar_t *sub : {L"build\\main\\sound1\\speech", L"build\\main\\sound1\\streams\\speech"})
+            for (const std::wstring &pack : entries(join(join(game_dir, data), sub), L"*_ps4.psarc", 0)) {
+                std::string name = utf8(lower(pack));
+                name = name.substr(0, name.size() - std::strlen("_ps4.psarc"));
+                auto it = speech_packs().find(name);
+                if (it != speech_packs().end()) for (const char *id : it->second) ids.insert(id);
+            }
+    return std::vector<std::string>(ids.begin(), ids.end());
+}
+
+// ------------------------------------------------------------------------------------------------ system
+
+bool under_wine() {
+    HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    return ntdll && GetProcAddress(ntdll, "wine_get_version");
+}
+
+std::string wine_unix(const std::wstring &path) {
+    typedef char *(__cdecl * F)(LPCWSTR);
+    F f = (F)(void *)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "wine_get_unix_file_name");
+    if (!f) return "";
+    char *p = f(path.c_str());
+    if (!p) return "";
+    std::string s = p;
+    HeapFree(GetProcessHeap(), 0, p);
+    return s;
+}
+
+std::wstring wine_windows(const std::string &path) {
+    typedef wchar_t *(__cdecl * F)(LPCSTR);
+    F f = (F)(void *)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "wine_get_dos_file_name");
+    if (!f || path.empty()) return L"";
+    wchar_t *p = f(path.c_str());
+    if (!p) return L"";
+    std::wstring s = p;
+    HeapFree(GetProcessHeap(), 0, p);
+    return s;
+}
+
+std::wstring env(const wchar_t *name) {
+    wchar_t buf[2048];
+    DWORD n = GetEnvironmentVariableW(name, buf, 2048);
+    return (n && n < 2048) ? std::wstring(buf, n) : std::wstring();
+}
+
+// under Wine: launcher.json in the Linux user's data folder (the same for every Steam shortcut's prefix)
+std::wstring shared_config() {
+    std::wstring home = env(L"HOME"), data = env(L"XDG_DATA_HOME");
+    if (data.empty()) data = (!home.empty() && home[0] == L'/') ? home + L"/.local/share" : L"";
+    std::wstring folder = (!data.empty() && data[0] == L'/') ? wine_windows(utf8(data)) : L"";
+    std::wstring winehome = env(L"WINEHOMEDIR");
+    if (folder.empty() && winehome.rfind(L"\\??\\", 0) == 0) folder = join(winehome.substr(4), L".local\\share");
+    return folder.empty() ? L"" : join(join(folder, L"uncharted-launcher"), L"launcher.json");
+}
+
+// why the drive holding path makes the games freeze (USB / SD / MMC / FireWire bus, removable, FAT/exFAT), or ""
+std::string slow_drive(const std::wstring &path) {
+    if (under_wine()) return "";
+    wchar_t full[MAX_PATH * 4];
+    DWORD n = GetFullPathNameW(path.c_str(), MAX_PATH * 4, full, nullptr);
+    std::wstring p = (n && n < MAX_PATH * 4) ? std::wstring(full, n) : path;
+    HANDLE h = CreateFileW(p.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+                           FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (h != INVALID_HANDLE_VALUE) {   // the real path (a junction or a substituted drive points elsewhere)
+        wchar_t real[MAX_PATH * 4];
+        DWORD r = GetFinalPathNameByHandleW(h, real, MAX_PATH * 4, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+        CloseHandle(h);
+        if (r && r < MAX_PATH * 4) {
+            p = std::wstring(real, r);
+            if (p.rfind(L"\\\\?\\", 0) == 0 && p.rfind(L"\\\\?\\UNC\\", 0) != 0) p = p.substr(4);
+        }
+    }
+    if (p.size() < 2 || p[1] != L':') return "";
+    std::wstring drive = p.substr(0, 2);
+    std::vector<std::string> reasons;
+    wchar_t fs[32];
+    if (GetVolumeInformationW((drive + L"\\").c_str(), nullptr, 0, nullptr, nullptr, nullptr, fs, 32)) {
+        std::wstring upper = fs;
+        CharUpperBuffW(upper.data(), (DWORD)upper.size());
+        if (upper == L"EXFAT" || upper == L"FAT32" || upper == L"FAT") reasons.push_back(utf8(fs) + "-formatted");
+    }
+    if (GetDriveTypeW((drive + L"\\").c_str()) == DRIVE_REMOVABLE) reasons.push_back("removable");
+    HANDLE dev = CreateFileW((L"\\\\.\\" + drive).c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0,
+                             nullptr);
+    if (dev != INVALID_HANDLE_VALUE) {
+        STORAGE_PROPERTY_QUERY q{};
+        q.PropertyId = StorageDeviceProperty;
+        q.QueryType = PropertyStandardQuery;
+        char buf[1024];
+        DWORD got = 0;
+        if (DeviceIoControl(dev, IOCTL_STORAGE_QUERY_PROPERTY, &q, sizeof q, buf, sizeof buf, &got, nullptr) && got >= 32) {
+            uint32_t bus;
+            std::memcpy(&bus, buf + 28, 4);
+            const char *name = bus == 7 ? "USB" : bus == 12 ? "SD card" : bus == 13 ? "MMC card" : bus == 4 ? "FireWire" : nullptr;
+            if (name) reasons.insert(reasons.begin(), name);
+        }
+        CloseHandle(dev);
+    }
+    if (reasons.empty()) return "";
+    std::string text;
+    std::vector<std::string> seen;
+    for (auto &r : reasons)
+        if (std::find(seen.begin(), seen.end(), r) == seen.end()) {
+            text += (seen.empty() ? "" : ", ") + r;
+            seen.push_back(r);
+        }
+    return utf8(drive) + " is a " + text + " drive";
+}
+
+std::string first_line_text(const std::wstring &path) {
+    std::string d;
+    if (!read_all(path, d, 1 << 16)) return "";
+    if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, d.data(), (int)d.size(), nullptr, 0) == 0 && !d.empty()) return "";
+    const char *ws = " \t\r\n\v\f";
+    size_t a = d.find_first_not_of(ws);
+    if (a == std::string::npos) return "";
+    return d.substr(a, d.find_last_not_of(ws) - a + 1);
+}
+
+std::wstring desktop() {
+    PWSTR p = nullptr;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Desktop, 0, nullptr, &p)) && p) {
+        std::wstring s = p;
+        CoTaskMemFree(p);
+        if (is_dir(s)) return s;
+    } else if (p) {
+        CoTaskMemFree(p);
+    }
+    std::wstring profile = env(L"USERPROFILE");
+    return join(profile.empty() ? L"." : profile, L"Desktop");
+}
+
+// the newest multiplayer build shipped (u3mp/patcher/build/v<version>/build.json), its JSON; "" when none
+std::string newest_build(const std::wstring &u3mp_dir) {
+    std::wstring builds = join(u3mp_dir, L"build");
+    std::vector<long long> best_key;
+    std::string best;
+    for (const std::wstring &d : entries(builds, L"v*", 1)) {
+        std::string text;
+        Value info;
+        if (!read_all(join(join(builds, d), L"build.json"), text, 1 << 20) || !json::parse(text, info) || !info.is_object())
+            continue;
+        const Value *v = info.get("version");
+        if (!v) continue;
+        std::string version = v->kind == Value::String ? v->s : v->kind == Value::Int ? std::to_string(v->i) : json::dump(*v);
+        std::vector<long long> key;
+        bool ok = !version.empty();
+        size_t start = 0;
+        while (ok) {
+            size_t dot = version.find('.', start);
+            std::string part = version.substr(start, dot == std::string::npos ? std::string::npos : dot - start);
+            char *end = nullptr;
+            const char *ws = " \t";
+            size_t a = part.find_first_not_of(ws), b = part.find_last_not_of(ws);
+            part = a == std::string::npos ? "" : part.substr(a, b - a + 1);
+            long long n = std::strtoll(part.c_str(), &end, 10);
+            ok = !part.empty() && end == part.c_str() + part.size();
+            key.push_back(n);
+            if (dot == std::string::npos) break;
+            start = dot + 1;
+        }
+        if (!ok) continue;
+        if (best.empty() || key > best_key) { best_key = key; best = json::dump(info); }
+    }
+    return best;
+}
+
+}  // namespace
+
+extern "C" {
+
+UN_API int un_system_tables(char *out, int cap) { return give(json::dump(tables()), out, cap); }
+UN_API int un_wine(void) { return under_wine() ? 1 : 0; }
+
+// what: "unix_path", "windows_path", "shared_config", "slow_drive", "is_game_dir", "update_dir", "app_version",
+// "voices" (ids, one per line), "launcher_version" (arg: root), "recipe_version" (arg: u3mp_dir),
+// "u3mp_release" (arg: u3mp_dir; build.json or ""), "desktop", "u3mp_default_data". "" = none.
+UN_API int un_system(const char *what, const wchar_t *arg, char *out, int cap) {
+    std::string w = what ? what : "", r;
+    bool found = true;
+    std::wstring a = arg ? arg : L"";
+    if (w == "unix_path") r = under_wine() ? wine_unix(a) : "";
+    else if (w == "windows_path") r = under_wine() ? utf8(wine_windows(utf8(a))) : "";
+    else if (w == "shared_config") r = under_wine() ? utf8(shared_config()) : "";
+    else if (w == "slow_drive") r = slow_drive(a);
+    else if (w == "is_game_dir") r = game_folder(a) ? "1" : "";
+    else if (w == "update_dir") r = utf8(update_folder(a));
+    else if (w == "app_version") r = version_of(a, found);
+    else if (w == "voices") { for (auto &id : voices(a)) r += id + "\n"; }
+    else if (w == "launcher_version") {
+        for (const wchar_t *f : {L"VERSION", L"tools\\VERSION"})
+            if (r.empty()) r = first_line_text(join(a, f));
+        if (r.empty()) r = "?";
+    } else if (w == "recipe_version") {
+        r = first_line_text(join(a, L"recipe\\VERSION"));
+        if (r.empty()) r = "?";
+    } else if (w == "u3mp_release") r = newest_build(a);
+    else if (w == "desktop") r = utf8(desktop());
+    else if (w == "u3mp_default_data") {
+        std::wstring base = env(L"LOCALAPPDATA");
+        if (base.empty()) base = env(L"APPDATA");
+        if (base.empty()) base = env(L"USERPROFILE");
+        r = utf8(join(join(base, L"Uncharted Launcher"), L"U3 Multiplayer"));
+    }
+    else return 1;
+    if (!found) return 2;
+    return give(r, out, cap);
+}
+
+UN_API int un_pid_alive(unsigned long pid) {
+    if (!pid) return 0;
+    HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!h) return 0;
+    DWORD code = 0;
+    BOOL ok = GetExitCodeProcess(h, &code);
+    CloseHandle(h);
+    return ok && code == STILL_ACTIVE ? 1 : 0;
+}
+
+}  // extern "C"

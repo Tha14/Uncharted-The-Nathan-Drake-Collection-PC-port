@@ -14,9 +14,7 @@ import math
 import os
 from pathlib import Path
 import queue
-import re
 import shutil
-import struct
 import subprocess
 import sys
 import threading
@@ -39,101 +37,33 @@ RUN_SCRIPT = ROOT / "tools" / "probe_uncharted.py"
 PREFIX_CONFIG_FILE = Path(os.environ.get("APPDATA", Path.home())) / "Uncharted Launcher" / "launcher.json"
 
 
-def wine_kernel32():
-    """kernel32 when the launcher runs under Wine (Proton, Lutris, CrossOver), else None."""
-    try:
-        if hasattr(ctypes.windll.ntdll, "wine_get_version"):
-            return ctypes.windll.kernel32
-    except (AttributeError, OSError):
-        pass
-    return None
-
-
-WINE = wine_kernel32()
+# Wine detection and paths, and the drives that make the games freeze, are the native code's
+# (launcher/native/system.cpp).
+WINE = native_api.wine()
 
 
 def slow_drive_reason(path):
-    """Why the drive holding `path` makes the games freeze, or None (20 Oct 2026). On a
-    laptop the port and game on an external USB drive (an NVMe SSD in a USB case, exFAT) froze
-    for 0.2-0.8 s dozens of times a minute while the port wrote its shader cache, logs and saves
-    (Windows writes to such drives without a cache); on the internal NVMe drive: no freeze over
-    100 ms. Reports USB, SD/MMC and removable drives and FAT/exFAT volumes; None elsewhere, under
-    Wine and for network paths."""
-    if os.name != "nt" or WINE:
-        return None
-    drive = os.path.splitdrive(str(Path(path).resolve()))[0]
-    if len(drive) != 2 or drive[1] != ":":
-        return None
-    kernel32 = ctypes.windll.kernel32
-    reasons = []
-    fs_name = ctypes.create_unicode_buffer(32)
-    if kernel32.GetVolumeInformationW(drive + "\\", None, 0, None, None, None, fs_name, len(fs_name)):
-        if fs_name.value.upper() in ("EXFAT", "FAT32", "FAT"):
-            reasons.append(f"{fs_name.value}-formatted")
-    if kernel32.GetDriveTypeW(drive + "\\") == 2:  # DRIVE_REMOVABLE
-        reasons.append("removable")
-    # The bus of the disk (IOCTL_STORAGE_QUERY_PROPERTY, StorageDeviceProperty): USB enclosures
-    # report themselves as fixed drives.
-    kernel32.CreateFileW.restype = ctypes.c_void_p
-    handle = kernel32.CreateFileW("\\\\.\\" + drive, 0, 3, None, 3, 0, None)  # share read|write, OPEN_EXISTING
-    if handle and handle != ctypes.c_void_p(-1).value:
-        try:
-            query = struct.pack("<II4x", 0, 0)  # StorageDeviceProperty, PropertyStandardQuery
-            out = ctypes.create_string_buffer(1024)
-            returned = ctypes.c_ulong(0)
-            if kernel32.DeviceIoControl(ctypes.c_void_p(handle), 0x2D1400, query, len(query), out,
-                                        len(out), ctypes.byref(returned), None) and returned.value >= 32:
-                bus = struct.unpack_from("<I", out.raw, 28)[0]
-                names = {7: "USB", 12: "SD card", 13: "MMC card", 4: "FireWire"}
-                if bus in names:
-                    reasons.insert(0, names[bus])
-        finally:
-            kernel32.CloseHandle(ctypes.c_void_p(handle))
-    if not reasons:
-        return None
-    return f"{drive} is a {', '.join(dict.fromkeys(reasons))} drive"
-
-
-def _wine_string(pointer, wide):
-    """A string Wine returned in memory of the process heap, which is freed."""
-    if not pointer:
-        return None
-    try:
-        return ctypes.wstring_at(pointer) if wide else ctypes.string_at(pointer).decode("utf-8", "replace")
-    finally:
-        WINE.GetProcessHeap.restype = ctypes.c_void_p
-        WINE.HeapFree.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p]
-        WINE.HeapFree(WINE.GetProcessHeap(), 0, pointer)
+    """Why the drive holding `path` makes the games freeze, or None (20 Oct 2026). On a laptop the port and game on an
+    external USB drive (an NVMe SSD in a USB case, exFAT) froze for 0.2-0.8 s dozens of times a minute while the port
+    wrote its shader cache, logs and saves; reports USB, SD/MMC and removable drives and FAT/exFAT volumes; None
+    elsewhere, under Wine and for network paths."""
+    return native_api.system("slow_drive", path)
 
 
 def unix_path(path):
     """The Linux path of a Windows path under Wine, else None."""
-    if not WINE:
-        return None
-    function = WINE.wine_get_unix_file_name
-    function.argtypes, function.restype = [ctypes.c_wchar_p], ctypes.c_void_p
-    return _wine_string(function(str(path)), wide=False)
+    return native_api.system("unix_path", path)
 
 
 def windows_path(path):
     """The Windows path of a Linux path under Wine (in this prefix's drive letters), else None."""
-    if not WINE or not path:
-        return None
-    function = WINE.wine_get_dos_file_name
-    function.argtypes, function.restype = [ctypes.c_char_p], ctypes.c_void_p
-    return _wine_string(function(path.encode("utf-8")), wide=True)
+    return native_api.system("windows_path", path) if path else None
 
 
 def shared_config_file():
-    """Under Wine: launcher.json in the Linux user's data folder. Each Steam shortcut has a prefix
-    (and an %APPDATA%) of its own, so a game started from its shortcut (--play) would not see the
-    launcher's options; this folder is the same for all of them, and outside the port's folder."""
-    home = os.environ.get("HOME", "")
-    data = os.environ.get("XDG_DATA_HOME") or (home + "/.local/share" if home.startswith("/") else "")
-    folder = windows_path(data) if data.startswith("/") else None
-    if not folder and os.environ.get("WINEHOMEDIR", "").startswith("\\??\\"):
-        folder = str(Path(os.environ["WINEHOMEDIR"][4:]) / ".local" / "share")  # set by Wine itself
-    return Path(folder) / "uncharted-launcher" / "launcher.json" if folder else None
+    """Under Wine: launcher.json in the Linux user's data folder (the same for every Steam shortcut's prefix)."""
+    folder = native_api.system("shared_config")
+    return Path(folder) if folder else None
 
 
 CONFIG_FILE = (WINE and shared_config_file()) or PREFIX_CONFIG_FILE
@@ -156,22 +86,12 @@ U3MP_DIR = ROOT / "u3mp" / "patcher"
 
 def launcher_version():
     """The launcher release (VERSION next to the launcher in a package, tools/VERSION in the source tree)."""
-    for path in (ROOT / "VERSION", ROOT / "tools" / "VERSION"):
-        try:
-            text = path.read_text(encoding="utf-8").strip()
-        except OSError:
-            continue
-        if text:
-            return text
-    return "?"
+    return native_api.system("launcher_version", ROOT)
 
 
 def recipe_version():
     """The Uncharted 3 multiplayer recipe shipped with the launcher (u3mp/patcher/recipe/VERSION)."""
-    try:
-        return (U3MP_DIR / "recipe" / "VERSION").read_text(encoding="utf-8").strip() or "?"
-    except OSError:
-        return "?"
+    return native_api.system("recipe_version", U3MP_DIR)
 
 
 def version_suffix(imported=""):
@@ -182,49 +102,24 @@ def version_suffix(imported=""):
 
 
 def u3mp_default_data():
-    base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or str(Path.home())
-    return Path(base) / "Uncharted Launcher" / "U3 Multiplayer"
+    return Path(native_api.system("u3mp_default_data"))
 
 
 def u3mp_release():
     """The newest multiplayer build shipped with the launcher (u3mp/patcher/build/v<version>/build.json)."""
-    best = None
-    for path in (U3MP_DIR / "build").glob("v*/build.json"):
-        try:
-            info = json.loads(path.read_text(encoding="utf-8"))
-            key = [int(x) for x in str(info["version"]).split(".")]
-        except (OSError, ValueError, KeyError):
-            continue
-        if best is None or key > best[0]:
-            best = (key, info)
-    return best[1] if best else None
+    text = native_api.system("u3mp_release", U3MP_DIR)
+    return json.loads(text) if text else None
 
 
 def pid_alive(pid):
     """Whether a process with this id still runs (Windows)."""
-    if not pid:
-        return False
-    try:
-        kernel32 = ctypes.windll.kernel32
-        handle = kernel32.OpenProcess(0x1000, False, int(pid))  # PROCESS_QUERY_LIMITED_INFORMATION
-        if not handle:
-            return False
-        code = ctypes.c_ulong()
-        ok = kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
-        kernel32.CloseHandle(handle)
-        return bool(ok) and code.value == 259  # STILL_ACTIVE
-    except (AttributeError, OSError, ValueError):
-        return False
+    return native_api.pid_alive(pid)
 
 
-GAMES = [
-    {"key": "u1", "number": "1", "title": "DRAKE'S FORTUNE", "name": "Uncharted: Drake's Fortune", "subtitle": "Uncharted 1  •  double-click to play",
-     "exe": "eboot.bin", "log": "uncharted"},
-    {"key": "u2", "number": "2", "title": "AMONG THIEVES", "name": "Uncharted 2: Among Thieves", "subtitle": "Uncharted 2  •  double-click to play",
-     "exe": "big2-ps4_Shipping.elf", "log": "big2-ps4_Shipping"},
-    {"key": "u3", "number": "3", "title": "DRAKE'S DECEPTION", "name": "Uncharted 3: Drake's Deception", "subtitle": "Uncharted 3  •  double-click to play",
-     "exe": "big3-ps4_Shipping.elf", "log": "big3-ps4_Shipping"},
-]
+# The games, the cheats (Advanced page: name, title, hint; tools/probe_uncharted.py turns on the games' own switches
+# for them) and the PS4 system languages the Collection has text for (id as sceSystemServiceParamGetInt reports it,
+# name) are the native code's (launcher/native/system.cpp), as are the speech packs a copy of the game has.
+globals().update(native_api.system_tables())
 
 # Palette: near black with the Collection's yellow-gold accent. Pages group their rows in rounded
 # cards (CARD); controls inside a card sit on FIELD.
@@ -251,41 +146,14 @@ STOP_RED = "#c4553f"
 FPS_LIMITS = native_api.fps_limits()
 MAX_FPS = FPS_LIMITS[-1][0]
 INI_DEFAULTS = native_api.ini_defaults()
-# Cheats (Advanced page): name, title, hint. tools/probe_uncharted.py turns on the games' own
-# switches for them (CHEATS there).
-CHEATS = (("invincible", "Invincible", "Nate takes no damage. All three games."),
-          ("ammo", "Infinite ammo", "Ammo never runs out. All three games."),
-          ("noreload", "No reload", "The magazine never empties. Uncharted 2 and 3."),
-          ("grenades", "Infinite grenades", "Grenades never run out. Uncharted 3."),
-          ("onehit", "One-hit kills", "Enemies go down with one hit. Uncharted 3."))
 LAUNCHER_DEFAULTS = {"game": "u1", "diagnostics": True, "game_dir": "", "check_updates": True, "language": "1",
                      "unlock": False}
 
-# The PS4's system language (its id, as sceSystemServiceParamGetInt reports it) for the 22 languages
-# the Collection has text for (all three games; text1/ps4/<n>.common in core.psarc). Each game's main
-# menu then offers it next to English (Square). Spoken languages depend on the copy of the game:
-# its sound1 speech packs (SPEECH_PACKS).
-LANGUAGES = [("1", "English (US)"), ("18", "English (UK)"), ("2", "Français"), ("4", "Deutsch"),
-             ("5", "Italiano"), ("3", "Español (España)"), ("20", "Español (Latinoamérica)"),
-             ("7", "Português (Portugal)"), ("17", "Português (Brasil)"), ("6", "Nederlands"),
-             ("14", "Dansk"), ("15", "Norsk"), ("13", "Svenska"), ("12", "Suomi"), ("16", "Polski"),
-             ("23", "Čeština"), ("25", "Ελληνικά"), ("8", "Русский"), ("19", "Türkçe"),
-             ("0", "日本語"), ("9", "한국어"), ("10", "中文 (繁體)")]
-SPEECH_PACKS = {"english": ("1", "18"), "french": ("2",), "german": ("4",), "italian": ("5",),
-                "spanish": ("3", "20"), "portuguese": ("7", "17"), "dutch": ("6",), "danish": ("14",),
-                "norwegian": ("15",), "swedish": ("13",), "finnish": ("12",), "polish": ("16",),
-                "czech": ("23",), "greek": ("25",), "russian": ("8",), "turkish": ("19",),
-                "japanese": ("0",), "korean": ("9",), "chinese": ("10",)}
-
-
 def voice_languages(game_dir):
     """Language ids with speech in this copy of the game (its *_ps4.psarc speech packs)."""
-    ids = set()
-    for pattern in ("u*data/build/main/sound1/speech/*_ps4.psarc",
-                    "u*data/build/main/sound1/streams/speech/*_ps4.psarc"):
-        for pack in Path(game_dir).glob(pattern) if game_dir else ():
-            ids.update(SPEECH_PACKS.get(pack.name.removesuffix("_ps4.psarc").lower(), ()))
-    return ids
+    return set((native_api.system("voices", game_dir) or "").split()) if game_dir else set()
+
+
 GAME_KEYS = ("u1", "u2", "u3")
 GAME_SETTING_DEFAULTS = {"preset": "medium", "resolution": "1920x1080", "aspect": "16:9", "multithreaded": False, "save_profile": "1",
                          "async_readback": False, "controls": None, "mouse": True, "mouse_sens": "1.0",
@@ -532,89 +400,20 @@ def binding_label(binding):
 
 def is_game_dir(folder):
     """The Collection's game folder (CUSA02344): eboot.bin and sce_sys/param.sfo."""
-    return bool(folder) and (Path(folder) / "eboot.bin").is_file() and \
-        (Path(folder) / "sce_sys" / "param.sfo").is_file()
-
-
-UPDATE_SUFFIXES = ("-patch", "-update", "_patch", "_update")
+    return bool(folder) and native_api.system("is_game_dir", folder) == "1"
 
 
 def game_update_dir(folder):
-    """The game's update (e.g. 1.02) next to its folder, found as tools/probe_uncharted.py does:
-    named like the game folder plus -patch or -update, with or without uroot."""
-    folder = Path(folder)
-    title = folder.parent if folder.name.lower() == "uroot" else folder
-    names = {title.name.lower() + suffix for suffix in UPDATE_SUFFIXES}
-    try:
-        for entry in title.parent.iterdir():
-            if entry.name.lower() in names:
-                for candidate in (entry / "uroot", entry):
-                    if is_game_dir(candidate):
-                        return candidate
-    except OSError:
-        pass
-    return None
+    """The game's update (e.g. 1.02) next to its folder, found as tools/probe_uncharted.py does: named like the game
+    folder plus -patch or -update, with or without uroot."""
+    found = native_api.system("update_dir", folder)
+    return Path(found) if found else None
 
 
 def app_version(folder):
-    """APP_VER of a game folder (sce_sys/param.sfo); 01.02 when the executables are 1.02 although
-    param.sfo says otherwise (dumps with the update merged in that kept the 1.00 param.sfo), and
-    01.00 when they are 1.00 although param.sfo says 01.02 (26 Oct 2026, #148 and #176: the
-    launcher showed 1.02, the games ran 1.00 and crashed where 1.02 has fixes)."""
-    try:
-        data = (Path(folder) / "sce_sys" / "param.sfo").read_bytes()
-        _, _, keys, values, count = struct.unpack_from("<IIIII", data)
-        for i in range(count):
-            key_at, _, length, _, value_at = struct.unpack_from("<HHIII", data, 20 + i * 16)
-            key = data[keys + key_at:data.index(bytes(1), keys + key_at)].decode()
-            if key == "APP_VER":
-                version = data[values + value_at:values + value_at + length].rstrip(bytes(1)).decode()
-                if version < "01.02" and has_update_102_code(folder):
-                    return "01.02"
-                if version >= "01.02" and has_update_100_code(folder):
-                    return "01.00"
-                return version
-    except (OSError, ValueError, struct.error):
-        pass
-    return None
-
-
-# Uncharted 2's torch code as update 1.02 compiled it (tools/probe_uncharted.py
-# TORCH_FORWARD_PATCHES; 1.00 lays this code out differently).
-UPDATE_102_CODE = bytes.fromhex("488d05cc9fd500 8b4850 84c9 7440 8a50".replace(" ", ""))
-_update_102_cache = {}
-
-
-# Uncharted 2's PlayerBase::UpdateFocus assert as version 1.00 compiled it (exact bytes; also in
-# the dumped 1.00 executable as it is). tools/probe_uncharted.py U2_FOCUS_100.
-UPDATE_100_CODE = bytes.fromhex(
-    "c4e37904c900c5f0c2c900c5f850c183f80f7438e8a8d71a004885c07427488d3d4c9c8300"
-    "488d354b998300488d155b9c8300488d0d7e99830041b84d0400004531c9ffd0cd41")
-
-
-def _executable_codes(folder):
-    """(has the 1.02 code, has the 1.00 code) of the folder's Uncharted 2 executable; both False
-    when it is missing. Cached by file and write time."""
-    path = Path(folder) / "big2-ps4_Shipping.elf"
-    try:
-        key = (str(path), path.stat().st_mtime_ns)
-    except OSError:
-        return False, False
-    if key not in _update_102_cache:
-        try:
-            data = path.read_bytes()
-            _update_102_cache[key] = (UPDATE_102_CODE in data, UPDATE_100_CODE in data)
-        except OSError:
-            _update_102_cache[key] = (False, False)
-    return _update_102_cache[key]
-
-
-def has_update_102_code(folder):
-    return _executable_codes(folder)[0]
-
-
-def has_update_100_code(folder):
-    return _executable_codes(folder)[1]
+    """APP_VER of a game folder (sce_sys/param.sfo); 01.02 when the Uncharted 2 executable is 1.02 although param.sfo
+    says otherwise, and 01.00 when it is 1.00 although param.sfo says 01.02 (#148, #176)."""
+    return native_api.system("app_version", folder)
 
 
 def dark_title_bar(window):
@@ -634,32 +433,8 @@ def dark_title_bar(window):
 
 
 def desktop_folder():
-    """The user's Desktop folder. Windows can move it (OneDrive backup, a redirected or renamed
-    Desktop), so it is asked for (SHGetKnownFolderPath) instead of assumed at %USERPROFILE%\\Desktop:
-    shortcuts failed there with "DirectoryNotFound" (#39)."""
-    try:
-        from ctypes import wintypes
-
-        class GUID(ctypes.Structure):
-            _fields_ = [("Data1", wintypes.DWORD), ("Data2", wintypes.WORD), ("Data3", wintypes.WORD),
-                        ("Data4", ctypes.c_ubyte * 8)]
-
-        desktop_id = GUID(0xB4BFCC3A, 0xDB2C, 0x424C,  # FOLDERID_Desktop
-                          (ctypes.c_ubyte * 8)(0xB0, 0x29, 0x7F, 0xE9, 0x9A, 0x87, 0xC6, 0x41))
-        found = ctypes.c_void_p()
-        shell32 = ctypes.windll.shell32
-        shell32.SHGetKnownFolderPath.argtypes = [ctypes.POINTER(GUID), wintypes.DWORD, wintypes.HANDLE,
-                                                 ctypes.POINTER(ctypes.c_void_p)]
-        if shell32.SHGetKnownFolderPath(ctypes.byref(desktop_id), 0, None, ctypes.byref(found)) == 0:
-            try:
-                folder = Path(ctypes.wstring_at(found.value))
-            finally:
-                ctypes.windll.ole32.CoTaskMemFree(found)
-            if folder.is_dir():
-                return folder
-    except (AttributeError, OSError, ValueError):
-        pass
-    return Path(os.environ.get("USERPROFILE", Path.home())) / "Desktop"
+    """The user's Desktop folder (SHGetKnownFolderPath: OneDrive or a redirected Desktop, #39)."""
+    return Path(native_api.system("desktop"))
 
 
 def monitor_refresh_hz():

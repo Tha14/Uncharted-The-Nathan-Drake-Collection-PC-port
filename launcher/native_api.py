@@ -1,6 +1,7 @@
 """The launcher's calls into uncharted_native.dll (launcher/native): the settings core (config.cpp). Python only passes
 values in and out; the work is in the library."""
 import ctypes
+import json
 from pathlib import Path
 
 NATIVE = Path(__file__).resolve().parent / "native" / "uncharted_native.dll"
@@ -24,7 +25,11 @@ def _native():
         _dll.un_upscaling_options.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_ini_read.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_ini_write.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_char_p]
-        for name in ("un_settings_table", "un_ini_read", "un_ini_write"):
+        _dll.un_system_tables.argtypes = [ctypes.c_char_p, ctypes.c_int]
+        _dll.un_system.argtypes = [ctypes.c_char_p, ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_pid_alive.argtypes = [ctypes.c_ulong]
+        for name in ("un_settings_table", "un_ini_read", "un_ini_write", "un_system_tables", "un_system", "un_wine",
+                     "un_pid_alive"):
             getattr(_dll, name).restype = ctypes.c_int
     return _dll
 
@@ -168,3 +173,38 @@ def ini_write(user_dir, game, updates):
     request = "".join(f"{key}\t{value}\n" for key, value in updates.items()).encode("utf-8")
     if _native().un_ini_write(str(user_dir), game.encode(), request) != 0:
         raise OSError(f"could not write {Path(user_dir) / f'probe-{game}.ini'}")
+
+
+# ---------------------------------------------------------------------------------------------- system.cpp
+
+
+def system_tables():
+    """GAMES (list of dicts), LANGUAGES ((id, name) pairs), CHEATS ((name, title, hint) triples)."""
+    t = json.loads(_text(_native().un_system_tables))
+    return {"GAMES": t["GAMES"], "LANGUAGES": [tuple(x) for x in t["LANGUAGES"]],
+            "CHEATS": tuple(tuple(x) for x in t["CHEATS"])}
+
+
+def wine():
+    return bool(_native().un_wine())
+
+
+def system(what, arg=""):
+    """A system.cpp answer as text, or None when there is none."""
+    size = 1 << 12
+    while True:
+        out = ctypes.create_string_buffer(size)
+        status = _native().un_system(what.encode(), str(arg), out, size)
+        if status > 0:
+            return None
+        if status == 0:
+            text = out.value.decode("utf-8", "replace")
+            return text if text or what == "app_version" else None
+        size = -status
+
+
+def pid_alive(pid):
+    try:
+        return bool(pid) and bool(_native().un_pid_alive(int(pid)))
+    except (ValueError, OverflowError, ctypes.ArgumentError):
+        return False
