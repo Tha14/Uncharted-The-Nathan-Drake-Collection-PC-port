@@ -108,6 +108,12 @@ UN_API int un_render_resolution(const wchar_t *image, const char *executable, in
 UN_API int un_resolution_patch(unsigned char *data, unsigned long long size, int width, int height, int move,
                                long long *extra_mib, char *out, int cap);
 
+/* The launcher's pages built natively (pages.cpp): un_page gives a page's tree (JSON array) for the settings
+ * (launcher.json), un_page_act what a click on its control changes ({"config": {...}}). 2: not a native page. */
+UN_API int un_page(const char *name, const char *config_json, char *out, int cap);
+UN_API int un_page_act(const char *name, const char *id, const char *kind, const char *value_json,
+                       const char *config_json, char *out, int cap);
+
 #ifdef __cplusplus
 }
 #endif

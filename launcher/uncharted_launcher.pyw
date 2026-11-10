@@ -1309,13 +1309,13 @@ class Launcher:
             "display": self.page_display(),
             "performance": self.page_performance(),
             "controls": self.page_controls(),
-            "cheats": self.page_cheats(),
             "advanced": self.page_advanced(),
             "u3mp": self.page_u3mp(),
             "multiplayer": self.page_multiplayer(),
             "launcher": self.page_launcher(),
         }
         self.pages["tools"] = self.tools_page   # made by page_advanced (its shortcut, Steam and folder buttons)
+        # CHEATS is built natively (launcher/native/pages.cpp, drawn by launcher-qt): no Tk page
         for page in self.pages.values():
             self.organize(page)
 
@@ -2075,17 +2075,6 @@ class Launcher:
                          "mouse_vertical": "1.0", "mouse_invert_x": False, "vibration": True})
         self.save_controls()
         self.refresh_controls()
-
-    def page_cheats(self):
-        page = self.page()
-        self.section(page, "Developer switches")
-        tk.Label(page, text="The games' own developer switches, applied when a game starts. They need update 1.02.",
-                 font=self.f_small, bg=BG, fg=MUTED, anchor="w").pack(side="top", fill="x", pady=(0, self.px(6)))
-        for name, title, hint in CHEATS:
-            def cheat(parent, key="cheat_" + name):
-                return Toggle(parent, self.s, self.config.get(key, False), lambda v, k=key: self.change_config(k, v))
-            self.row(page, title, hint, cheat)
-        return page
 
     def page_advanced(self):
         page = self.page()

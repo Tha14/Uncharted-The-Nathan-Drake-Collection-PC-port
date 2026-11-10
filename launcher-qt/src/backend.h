@@ -2,6 +2,7 @@
 // this object keeps the window's model (game cards, tabs, status, the shown tab's page) and sends the clicks.
 #pragma once
 
+#include <QLibrary>
 #include <QObject>
 #include <QProcess>
 #include <QTimer>
@@ -53,12 +54,22 @@ private:
     void handle(const QVariantMap &message);
     void requestModel(bool force = false);
     void fileDialog(int dialog, const QVariantMap &message);
+    // pages built natively (uncharted_native.dll un_page / un_page_act, launcher/native/pages.cpp)
+    void loadNative(const QString &root);
+    bool nativePage(const QString &tab, QVariantList *page);
+    bool nativeAct(const QString &id, const QString &kind, const QVariant &value);
 
     QProcess m_process;
     QTimer m_poll;
     QByteArray m_buffer;
     QVariantMap m_chrome;
     QVariantList m_page;
+    QVariantMap m_config;   // launcher.json as the Python side holds it (sent with each model)
+    QLibrary m_native;
+    using PageFn = int (*)(const char *, const char *, char *, int);
+    using PageActFn = int (*)(const char *, const char *, const char *, const char *, const char *, char *, int);
+    PageFn m_unPage = nullptr;
+    PageActFn m_unPageAct = nullptr;
     QString m_tab;
     bool m_ready = false;
     bool m_waiting = false;

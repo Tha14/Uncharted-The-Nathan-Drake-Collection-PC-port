@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcessEnvironment>
@@ -84,6 +85,7 @@ void Backend::start()
         emit readyChanged();
         return;
     }
+    loadNative(root);
     m_process.setWorkingDirectory(root);
     m_process.setProcessChannelMode(QProcess::SeparateChannels);
     m_process.setStandardErrorFile(QDir(root).filePath("analysis/uncharted-user/qt-backend.log"));
@@ -151,9 +153,11 @@ void Backend::handle(const QVariantMap &message)
             return;
         const QVariantMap data = message.value("data").toMap();
         m_chrome = data.value("chrome").toMap();
+        m_config = data.value("config").toMap();
         emit chromeChanged();
-        const QVariantList page = data.value("page").toList();
         const QString tab = data.value("tab").toString();
+        QVariantList page = data.value("page").toList();
+        nativePage(tab, &page);   // a native tab: its page from the DLL (the Python side has none)
         if (page != m_page || tab != m_tab) {
             m_page = page;
             m_tab = tab;
@@ -189,8 +193,71 @@ void Backend::fileDialog(int dialog, const QVariantMap &message)
 
 void Backend::act(const QString &id, const QString &kind, const QVariant &value)
 {
-    send({{"op", "act"}, {"id", id}, {"kind", kind}, {"value", value}});
+    if (!nativeAct(id, kind, value))
+        send({{"op", "act"}, {"id", id}, {"kind", kind}, {"value", value}});
     requestModel(true);
+}
+
+void Backend::loadNative(const QString &root)
+{
+    m_native.setFileName(QDir(root).filePath("launcher/native/uncharted_native.dll"));
+    if (!m_native.load())
+        return;
+    m_unPage = reinterpret_cast<PageFn>(m_native.resolve("un_page"));
+    m_unPageAct = reinterpret_cast<PageActFn>(m_native.resolve("un_page_act"));
+}
+
+namespace {
+// A call that fills a text buffer (the DLL's convention: 0 ok, a negative status is the size it needs).
+template <typename Call> int nativeText(Call call, QByteArray *text)
+{
+    QByteArray out(1 << 16, '\0');
+    int status = call(out.data(), int(out.size()));
+    if (status < 0) {
+        out.resize(-status);
+        status = call(out.data(), int(out.size()));
+    }
+    if (status == 0)
+        *text = QByteArray(out.constData());
+    return status;
+}
+} // namespace
+
+bool Backend::nativePage(const QString &tab, QVariantList *page)
+{
+    if (!m_unPage || tab.isEmpty())
+        return false;
+    const QByteArray name = tab.toUtf8();
+    const QByteArray config = QJsonDocument(QJsonObject::fromVariantMap(m_config)).toJson(QJsonDocument::Compact);
+    QByteArray text;
+    if (nativeText([&](char *out, int cap) { return m_unPage(name.constData(), config.constData(), out, cap); }, &text) != 0)
+        return false;
+    *page = QJsonDocument::fromJson(text).array().toVariantList();
+    return true;
+}
+
+bool Backend::nativeAct(const QString &id, const QString &kind, const QVariant &value)
+{
+    if (!m_unPageAct || !id.startsWith(QStringLiteral("native:")))
+        return false;
+    const QByteArray name = m_tab.toUtf8(), wid = id.toUtf8(), how = kind.toUtf8();
+    const QByteArray config = QJsonDocument(QJsonObject::fromVariantMap(m_config)).toJson(QJsonDocument::Compact);
+    QJsonArray boxed;
+    boxed.append(QJsonValue::fromVariant(value));
+    QByteArray json = QJsonDocument(boxed).toJson(QJsonDocument::Compact);
+    json = json.mid(1, json.size() - 2);   // the value alone
+    QByteArray text;
+    if (nativeText([&](char *out, int cap) {
+            return m_unPageAct(name.constData(), wid.constData(), how.constData(), json.constData(),
+                               config.constData(), out, cap);
+        }, &text) != 0)
+        return true;   // a native control: nothing for the Python side
+    const QVariantMap changes = QJsonDocument::fromJson(text).object().value("config").toObject().toVariantMap();
+    for (auto it = changes.cbegin(); it != changes.cend(); ++it) {
+        m_config.insert(it.key(), it.value());
+        send({{"op", "config"}, {"key", it.key()}, {"value", it.value()}});
+    }
+    return true;
 }
 
 void Backend::selectGame(const QString &key)

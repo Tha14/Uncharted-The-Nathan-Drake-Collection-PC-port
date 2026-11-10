@@ -9,6 +9,8 @@ and lets the Qt window show and use it:
 Requests ({"op": ...}):
   model   {"tab": name}       the window (game cards, tabs, status, PLAY) and that tab's page as a tree of
                               sections, rows and controls; "same": true when nothing changed since the last reply
+  config  {"key", "value"}    a setting a native page changed (launcher-qt builds those pages with uncharted_native.dll's
+                              un_page; the launcher still writes launcher.json): change_config(key, value)
   act     {"id", "kind", "value"}  what a click on a control does in the Tk window: toggle / choice / dropdown /
                               chip -> set(value, notify), button -> action(), entry -> new text, click / dclick ->
                               the widget's own <Button-1> / <Double-Button-1> binding
@@ -423,9 +425,10 @@ def chrome(app):
 
 
 def model(app, tab):
+    """The window and the tab's page. A tab without a Tk page is a native one: launcher-qt builds it from "config"."""
     page = app.pages.get(tab or getattr(app, "current_tab", "setup"))
     items = children(page) if page is not None else []
-    return {"chrome": chrome(app), "tab": getattr(app, "current_tab", ""), "page": items}
+    return {"chrome": chrome(app), "tab": getattr(app, "current_tab", ""), "page": items, "config": app.config}
 
 
 # -- actions ---------------------------------------------------------------------------------------------------
@@ -511,6 +514,8 @@ def main():
             else:
                 last["hash"] = digest
                 send({"re": "model", "data": data})
+        elif op == "config":
+            app.change_config(message.get("key"), message.get("value"))
         elif op == "act":
             act(app, message)
         elif op == "capture":
