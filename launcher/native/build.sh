@@ -18,6 +18,9 @@ llvm-objdump -p uncharted_native.dll | grep "DLL Name" | sort -u
 sha256sum uncharted_native.dll
 # The launcher update's installer (apply.cpp: tools\apply_update.exe in the package) and the bridge that old launchers
 # start as python\pythonw.exe once the package has no Python (bridge.cpp). Both stand alone (static, no DLL of ours).
+# The game starter PLAY runs (game_starter.cpp: a console program; it loads uncharted_native.dll next to it).
+clang++ "${FLAGS[@]}" -static -s -Wl,--gc-sections -Wl,--no-insert-timestamp -o game_starter.exe game_starter.cpp
+llvm-objdump -p game_starter.exe | grep "DLL Name" | sort -u
 for exe in "apply:apply_update" "bridge:pythonw_bridge"; do
     clang++ "${FLAGS[@]}" -mwindows -static -s -Wl,--gc-sections -Wl,--no-insert-timestamp -o "${exe#*:}.exe" "${exe%%:*}.cpp" \
         -luser32 -lgdi32 -lshell32

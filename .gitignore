@@ -26,5 +26,6 @@ launcher/native/build/
 launcher/native/uncharted_native.dll
 launcher/native/apply_update.exe
 launcher/native/pythonw_bridge.exe
+launcher/native/game_starter.exe
 # fetched and built tools (tools/fetch_aa_files.sh, tools/build_ffmpeg.sh)
 downloads/

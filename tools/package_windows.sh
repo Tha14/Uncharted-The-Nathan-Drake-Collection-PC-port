@@ -132,6 +132,7 @@ cp launcher/*.py launcher/*.pyw "$stage/launcher/"
 CLANG64="$msys/clang64" bash launcher/native/build.sh
 mkdir -p "$stage/launcher/native"
 cp launcher/native/uncharted_native.dll "$stage/launcher/native/"
+cp launcher/native/game_starter.exe "$stage/launcher/native/"   # PLAY's game starter (game_starter.cpp)
 # The update installer (launcher/native/apply.cpp): the launcher starts it after an update's download, and launchers up
 # to 0.10.63 reach it through tools/apply_update.py. When the package drops Python, ship launcher/native/
 # pythonw_bridge.exe as python/pythonw.exe (and small placeholders for launcher/uncharted_launcher.pyw,

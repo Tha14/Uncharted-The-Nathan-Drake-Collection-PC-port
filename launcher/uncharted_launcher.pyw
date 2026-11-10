@@ -5,8 +5,8 @@ Pick a game, set display and performance options (presets for low-end and high-e
 Runtime options are kept in analysis/uncharted-user/probe.ini, the same file the in-game menu
 (Insert / R3+L2) reads and writes; launcher-only options in %APPDATA%/Uncharted Launcher (under
 Wine/Proton in ~/.local/share/uncharted-launcher, the same for every prefix).
-The game is started through tools/probe_uncharted.py (preparation, code patches, Collection game
-switches), with the options below passed as environment variables.
+The game is started through launcher/native/game_starter.exe (preparation, code patches, Collection game
+switches: start.cpp), with the options below passed as environment variables.
 """
 import ctypes
 import json
@@ -33,6 +33,7 @@ DEFAULT_GAME_DIR = ROOT / "game" / "CUSA02344" / "uroot"
 STARTER_EXE = ROOT / "Uncharted Launcher.exe"  # the packaged build's starter (tools/package_windows.py)
 USER_DIR = ROOT / "analysis" / "uncharted-user"
 RUN_SCRIPT = ROOT / "tools" / "probe_uncharted.py"
+GAME_STARTER = ROOT / "launcher" / "native" / "game_starter.exe"   # the same starter without Python (game_starter.cpp)
 PREFIX_CONFIG_FILE = Path(os.environ.get("APPDATA", Path.home())) / "Uncharted Launcher" / "launcher.json"
 
 
@@ -2340,8 +2341,8 @@ class Launcher:
 
     def play(self):
         """Start the chosen game."""
-        if not RUN_SCRIPT.exists():
-            messagebox.showerror(APP_TITLE, f"Start script missing:\n{RUN_SCRIPT}")
+        if not GAME_STARTER.exists() and not RUN_SCRIPT.exists():
+            messagebox.showerror(APP_TITLE, f"The game starter is missing:\n{GAME_STARTER}")
             return
         if not is_game_dir(self.game_dir()):
             messagebox.showinfo(APP_TITLE, "Select your Uncharted: The Nathan Drake Collection game folder "
@@ -2368,11 +2369,15 @@ class Launcher:
         self.u2mp_env(env)  # Uncharted 2 multiplayer (Multiplayer tab while Uncharted 2 is chosen)
         if self.chosen_update():
             env["UNCHARTED_UPDATE"] = str(self.chosen_update())  # the game starter's find_update
-        python = Path(sys.executable)
-        if python.name.lower() == "pythonw.exe" and python.with_name("python.exe").exists():
-            python = python.with_name("python.exe")
-        command = [str(python), "-u", str(RUN_SCRIPT), "--boot", "--seconds", "0", "--executable", game["exe"],
-                   "--game", str(self.game_dir())]
+        # The game starter: launcher/native/game_starter.exe (un_start_game in uncharted_native.dll); a source tree
+        # without it built runs the same starter through tools/probe_uncharted.py.
+        starter = [str(GAME_STARTER)]
+        if not GAME_STARTER.exists():
+            python = Path(sys.executable)
+            if python.name.lower() == "pythonw.exe" and python.with_name("python.exe").exists():
+                python = python.with_name("python.exe")
+            starter = [str(python), "-u", str(RUN_SCRIPT)]
+        command = starter + ["--boot", "--seconds", "0", "--executable", game["exe"], "--game", str(self.game_dir())]
         # The game starter runs as the launcher's native code does it (launcher/native/play.cpp): the game window may
         # take the foreground, and its output (preparation, patches, the runtime's log path) goes to
         # launcher-last-run.log for "the game does not start" reports and comes back line by line.
