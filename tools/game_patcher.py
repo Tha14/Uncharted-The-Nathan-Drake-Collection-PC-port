@@ -5,7 +5,8 @@ apply_patches(image, patches): patches as probe_uncharted.py lists them; prints 
 when a patch's place holds other bytes (the image is then left as it was).
 pattern_find(file, pattern, limit): the start offsets of a pattern's matches in a file, without overlaps.
 system(what, arg): the native game detection (launcher/native/system.cpp) the game starter uses: sfo, starter_version,
-find_update; None when there is no answer."""
+find_update; None when there is no answer.
+resolution_patch(data, width, height, move, too_large): the render resolution in the linked image."""
 import ctypes
 import json
 from pathlib import Path
@@ -24,6 +25,9 @@ def _native():
         _dll.un_pattern_find.restype = ctypes.c_int
         _dll.un_system.argtypes = [ctypes.c_char_p, ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_system.restype = ctypes.c_int
+        _dll.un_resolution_patch.argtypes = [ctypes.POINTER(ctypes.c_ubyte), ctypes.c_ulonglong, ctypes.c_int, ctypes.c_int,
+                                             ctypes.c_int, ctypes.POINTER(ctypes.c_longlong), ctypes.c_char_p, ctypes.c_int]
+        _dll.un_resolution_patch.restype = ctypes.c_int
     return _dll
 
 
@@ -81,3 +85,31 @@ def system(what, arg=""):
         if status == 0:
             return out.value.decode("utf-8", "replace")
         size = -status
+
+
+def resolution_patch(data, width, height, move=True, too_large=Exception):
+    """The render resolution patched into the linked image `data` (a bytearray, changed in place only when it
+    worked); prints what was patched and returns how many MiB the memory areas grew. Raises `too_large` when the
+    size doesn't fit the game's memory, SystemExit when the game's code is not as expected."""
+    buffer = (ctypes.c_ubyte * len(data)).from_buffer(data)
+    extra = ctypes.c_longlong(0)
+    size = 1 << 16
+    while True:
+        out = ctypes.create_string_buffer(size)
+        status = _native().un_resolution_patch(buffer, len(data), int(width), int(height), 1 if move else 0,
+                                               ctypes.byref(extra), out, size)
+        if status >= 0:
+            break
+        size = -status
+    del buffer
+    lines = out.value.decode("utf-8", "replace").splitlines()
+    if status == 0:
+        for line in lines:
+            print(line)
+        return extra.value
+    for line in lines[:-1]:
+        print(line)
+    message = lines[-1] if lines else "Resolution patch failed"
+    if status == 2:
+        raise too_large(message)
+    raise SystemExit(message)

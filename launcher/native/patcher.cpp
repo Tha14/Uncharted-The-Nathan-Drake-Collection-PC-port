@@ -199,6 +199,166 @@ int give(const std::string &s, char *out, int cap) {
     return 0;
 }
 
+// ------------------------------------------------------------------------------------------------ render resolution
+
+// Render resolution. The engine's display settings (constructors and the 1080p/720p mode switch, all within ~0x700
+// bytes) store the size in several fields: display and render size (+0x08/+0x18/+0x24/+0x38), aspect, tile grid
+// (+0x40 = width/8, +0x44 = height/4, as the engine's own SetResolution computes them) and a larger size at
+// +0x30/+0x34 (2560x1216 at 1080p), scaled with the rest. The render target heaps of the engine's memory table grow
+// with the pixel count (see tools/probe_uncharted.py for the measurements behind each step).
+struct Failure {
+    int kind;   // 1 the game's code is not as expected, 2 the size is too large
+    std::string message;
+};
+
+void le(std::string &d, size_t at, uint64_t v, int n) {
+    for (int i = 0; i < n; ++i) d[at + i] = (char)(v >> (8 * i));
+}
+uint64_t rd(const std::string &d, size_t at, int n) {
+    uint64_t v = 0;
+    for (int i = 0; i < n; ++i) v |= (uint64_t)(uint8_t)d[at + i] << (8 * i);
+    return v;
+}
+std::string stored(uint8_t base, uint8_t disp, uint32_t value) {
+    std::string s = {(char)0xc7, (char)base, (char)disp};
+    for (int i = 0; i < 4; ++i) s += (char)(value >> (8 * i));
+    return s;
+}
+// replaces every occurrence (without overlaps, from the left) inside [start, end); how many there were
+int replace_in(std::string &d, size_t start, size_t end, const std::string &from, const std::string &to) {
+    int n = 0;
+    for (size_t at = d.find(from, start); at != std::string::npos && at + from.size() <= end; at = d.find(from, at)) {
+        d.replace(at, from.size(), to);
+        at += from.size();
+        ++n;
+    }
+    return n;
+}
+
+long long resolution(std::string &data, int width, int height, bool move, std::string &log) {
+    const long long mib = 1 << 20;
+    std::vector<size_t> anchor = find_all(data, parse_pattern("c7 ?? 08 80070000 c7 ?? 0c 38040000"), 1);
+    if (anchor.empty()) throw Failure{1, "Resolution patch: display settings code not found"};
+    size_t first = anchor[0];
+    size_t start = first >= 0x40 ? first - 0x40 : 0, end = std::min(data.size(), first + 0x800);
+    struct Store { int disp; uint32_t old_value, new_value; };
+    std::vector<Store> stores = {
+        {0x08, 1920, (uint32_t)width}, {0x18, 1920, (uint32_t)width}, {0x24, 1920, (uint32_t)width},
+        {0x38, 1920, (uint32_t)width}, {0x0c, 1080, (uint32_t)height}, {0x1c, 1080, (uint32_t)height},
+        {0x28, 1080, (uint32_t)height}, {0x3c, 1080, (uint32_t)height}, {0x40, 240, (uint32_t)(width / 8)},
+        {0x44, 270, (uint32_t)(height / 4)}, {0x30, 2560, (uint32_t)(2560LL * width / 1920)},
+        {0x34, 1216, (uint32_t)(1216LL * height / 1080)}};
+    // Diagnostics: UNCHARTED_RES_KEEP=<hex field offsets> leaves those fields at 1080p.
+    char keep_text[512] = "";
+    GetEnvironmentVariableA("UNCHARTED_RES_KEEP", keep_text, sizeof keep_text);
+    std::vector<long> keep;
+    for (char *t = keep_text; *t;) {
+        while (*t == ',' || *t == ' ' || *t == '\t') ++t;
+        if (!*t) break;
+        char *e = nullptr;
+        keep.push_back(std::strtol(t, &e, 16));
+        if (e == t) throw Failure{1, "Resolution patch: bad UNCHARTED_RES_KEEP"};
+        t = e;
+    }
+    int changed = 0;
+    for (uint8_t base : {0x47, 0x40})   // [rdi+disp] and [rax+disp]
+        for (const Store &s : stores) {
+            bool kept = false;
+            for (long k : keep) kept = kept || k == s.disp;
+            if (!kept) changed += replace_in(data, start, end, stored(base, (uint8_t)s.disp, s.old_value),
+                                             stored(base, (uint8_t)s.disp, s.new_value));
+        }
+    std::string packed_old = "\x48\xb8", packed_new = "\x48\xb8";
+    for (int i = 0; i < 4; ++i) packed_old += (char)(1920u >> (8 * i));
+    for (int i = 0; i < 4; ++i) packed_old += (char)(1080u >> (8 * i));
+    for (int i = 0; i < 4; ++i) packed_new += (char)((uint32_t)width >> (8 * i));
+    for (int i = 0; i < 4; ++i) packed_new += (char)((uint32_t)height >> (8 * i));
+    changed += replace_in(data, start, end, packed_old, packed_new);
+    // The screen wipe of Uncharted 2 and 3 is drawn from the render size: it takes the PS4's 1920x1080 instead.
+    std::vector<size_t> wipe = find_all(data, parse_pattern("48 8d 05 ???????? 8b 48 08 8b 40 0c c4 e1 fa 2a c0"), (size_t)-1);
+    if (wipe.size() == 1) {
+        std::string patch;
+        bytes_from_hex("b980070000b8380400000f1f00", patch);
+        data.replace(wipe[0], patch.size(), patch);
+        log += "Patched: screen wipe in the PS4's 1920x1080 (image offset " + hex_offset((long long)wipe[0]) + ")\n";
+    } else if (!wipe.empty()) {
+        log += "Screen wipe patch NOT applied: " + std::to_string(wipe.size()) + " matches in this game version\n";
+    }
+    const double factor = std::max(1.0, (double)((long long)width * height) / (double)(1920 * 1080));
+    auto table_entry = [&](uint32_t id, uint32_t parent, uint64_t align, uint64_t min_size) {
+        std::string key(8, '\0');
+        le(key, 0, id, 4);
+        le(key, 4, parent, 4);
+        std::vector<std::pair<size_t, long long>> found;
+        for (size_t at = data.find(key); at != std::string::npos; at = data.find(key, at + 1)) {
+            if (at + 32 > data.size()) throw Failure{1, "Resolution patch: memory table entry cut short"};
+            uint64_t size = rd(data, at + 8, 8), entry_align = rd(data, at + 16, 8), pad = rd(data, at + 24, 8);
+            if (entry_align == align && pad == 0 && size >= min_size) found.push_back({at, (long long)size});
+        }
+        if (found.size() != 1) {
+            char m[160];
+            std::snprintf(m, sizeof m, "Resolution patch: memory table entry %#x found %d times", id, (int)found.size());
+            throw Failure{1, m};
+        }
+        return found[0];
+    };
+    auto onion = table_entry(2, 2, 0x100000, 0x40000000);
+    auto garlic = table_entry(3, 2, 0x100000, 0x80000000ULL);
+    auto heap = table_entry(0x85, 6, 0x80, 0x10000000);   // Render Target Heap
+    auto rt = table_entry(0x84, 6, 0x80, 0x4000000);      // Render Target
+    const long long step = 64 * mib, area_limit = 4096 * mib, headroom = 128 * mib;
+    auto ceil_div = [](long long a, long long b) { return a >= 0 ? (a + b - 1) / b : -((-a) / b); };   // Python's -(-a // b)
+    auto size_text = std::to_string(width) + "x" + std::to_string(height);
+    long long heap_new = 0, rt_new = 0, onion_new = 0, garlic_new = 0;
+    int heap_context = 6;
+    bool fitted = false;
+    for (double margin : {1.1, 1.05, 1.0}) {
+        try {
+            auto grown = [&](long long old) {
+                if (!(factor > 1)) return old;
+                long long by = (long long)((double)old * (factor * margin - 1));
+                return old + ceil_div(by, step) * step;
+            };
+            long long h = grown(heap.second), r = grown(rt.second);
+            long long o = onion.second, g = garlic.second + (h - heap.second) + (r - rt.second);
+            int context = 6;
+            if (g >= area_limit) {
+                if (!move) throw Failure{2, size_text + ": the render targets don't fit the GPU area"};
+                h = ceil_div(h, step) * step;
+                o = onion.second + h;
+                long long rest = garlic.second - heap.second - rt.second;
+                g = ceil_div(rest + r, step) * step;
+                r = g - rest;
+                context = 5;
+            }
+            if (o + headroom >= area_limit || g >= area_limit)
+                throw Failure{2, size_text + " needs more memory than the game's areas hold"};
+            heap_new = h; rt_new = r; onion_new = o; garlic_new = g; heap_context = context;
+            fitted = true;
+            break;
+        } catch (const Failure &f) {
+            if (f.kind != 2 || margin == 1.0) throw;
+        }
+    }
+    if (!fitted) throw Failure{1, "Resolution patch: no layout"};
+    long long extra = (onion_new - onion.second) + (garlic_new - garlic.second);
+    le(data, heap.first, 0x85, 4);
+    le(data, heap.first + 4, (uint64_t)heap_context, 4);
+    le(data, heap.first + 8, (uint64_t)heap_new, 8);
+    le(data, rt.first + 8, (uint64_t)rt_new, 8);
+    le(data, onion.first + 8, (uint64_t)onion_new, 8);
+    le(data, garlic.first + 8, (uint64_t)garlic_new, 8);
+    // The memory table check (ValidateContext) expects the direct memory blocks to add up to 4608 MiB.
+    std::vector<size_t> total = find_all(data, parse_pattern("488d75 ?? 48ba 0000002001000000"), (size_t)-1);
+    if (total.size() != 1)
+        throw Failure{1, "Resolution patch: memory total check found " + std::to_string(total.size()) + " times"};
+    le(data, total[0] + 6, (uint64_t)(0x120000000LL + extra), 8);
+    log += "Patched: render resolution " + size_text + " (" + std::to_string(changed) + " stores; render target heaps " +
+           std::to_string(heap_new / mib) + " + " + std::to_string(rt_new / mib) + " MiB, the first in the " +
+           (heap_context == 5 ? "CPU" : "GPU") + " area)\n";
+    return extra / mib;
+}
+
 }  // namespace
 
 extern "C" {
@@ -228,6 +388,25 @@ UN_API int un_pattern_find(const wchar_t *file, const char *pattern, int limit, 
     if (!p.ok || !read_file(file, data)) return 1;
     for (size_t at : find_all(data, p, limit > 0 ? (size_t)limit : (size_t)-1)) text += std::to_string(at) + "\n";
     return give(text, out, cap);
+}
+
+// Patches the render resolution into the linked image in data (in place, only when it worked). extra_mib: the memory
+// the areas grew by. out: the log lines. 0 patched; 1 the game's code is not as expected, 2 the size is too large (the
+// last line says why); negative: out too small (data unchanged; call again with that size).
+UN_API int un_resolution_patch(unsigned char *data, unsigned long long size, int width, int height, int move,
+                               long long *extra_mib, char *out, int cap) {
+    std::string work((const char *)data, (size_t)size), log;
+    try {
+        long long extra = resolution(work, width, height, move != 0, log);
+        if ((int)log.size() + 1 > cap) return -(int)(log.size() + 1);
+        if (work.size() != size) return give(log + "Resolution patch: the image changed size", out, cap) < 0 ? -1 : 1;
+        std::memcpy(data, work.data(), work.size());
+        if (extra_mib) *extra_mib = extra;
+        return give(log, out, cap);
+    } catch (const Failure &f) {
+        int status = give(log + f.message, out, cap);
+        return status < 0 ? status : f.kind;
+    }
 }
 
 }  // extern "C"

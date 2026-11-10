@@ -75,6 +75,10 @@ UN_API int un_pad_state(char *out, int cap);
  * un_pattern_find out: match offsets without overlaps (at most limit; 0 all), one per line; 1 unreadable. */
 UN_API int un_apply_patches(const wchar_t *image, const char *patches_json, char *out, int cap);
 UN_API int un_pattern_find(const wchar_t *file, const char *pattern, int limit, char *out, int cap);
+/* un_resolution_patch: the render resolution in the linked image `data` (in place, only when it worked); extra_mib:
+ * how much the memory areas grew. 0 patched, 1 the code is not as expected, 2 too large (out's last line: why). */
+UN_API int un_resolution_patch(unsigned char *data, unsigned long long size, int width, int height, int move,
+                               long long *extra_mib, char *out, int cap);
 
 #ifdef __cplusplus
 }
