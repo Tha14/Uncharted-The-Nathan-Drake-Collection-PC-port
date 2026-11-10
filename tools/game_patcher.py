@@ -3,7 +3,9 @@
 
 apply_patches(image, patches): patches as probe_uncharted.py lists them; prints what was patched, raises SystemExit
 when a patch's place holds other bytes (the image is then left as it was).
-pattern_find(file, pattern, limit): the start offsets of a pattern's matches in a file, without overlaps."""
+pattern_find(file, pattern, limit): the start offsets of a pattern's matches in a file, without overlaps.
+system(what, arg): the native game detection (launcher/native/system.cpp) the game starter uses: sfo, starter_version,
+find_update; None when there is no answer."""
 import ctypes
 import json
 from pathlib import Path
@@ -20,6 +22,8 @@ def _native():
         _dll.un_apply_patches.restype = ctypes.c_int
         _dll.un_pattern_find.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
         _dll.un_pattern_find.restype = ctypes.c_int
+        _dll.un_system.argtypes = [ctypes.c_char_p, ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_system.restype = ctypes.c_int
     return _dll
 
 
@@ -64,4 +68,16 @@ def pattern_find(file, pattern, limit=0):
             raise OSError(f"cannot search {file}")
         if status == 0:
             return [int(x) for x in out.value.split()]
+        size = -status
+
+
+def system(what, arg=""):
+    size = 1 << 12
+    while True:
+        out = ctypes.create_string_buffer(size)
+        status = _native().un_system(what.encode(), str(arg), out, size)
+        if status > 0:
+            return None
+        if status == 0:
+            return out.value.decode("utf-8", "replace")
         size = -status

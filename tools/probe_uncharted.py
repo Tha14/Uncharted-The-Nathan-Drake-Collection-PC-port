@@ -1095,58 +1095,28 @@ UPDATE_SUFFIXES = ("-patch", "-update", "_patch", "_update")
 def find_update(game):
     """The game's update (e.g. 1.02, extracted from its PKG): UNCHARTED_UPDATE (a folder, or 0 for
     none), else a folder next to the game's named like it plus -patch/-update (any case), with or
-    without uroot. An update folder holds eboot.bin and sce_sys/param.sfo."""
-    chosen = os.environ.get("UNCHARTED_UPDATE", "")
-    if chosen == "0":
-        return None
-    if chosen:
-        candidates = [Path(chosen), Path(chosen) / "uroot"]
-    else:
-        title = game.parent if game.name.lower() == "uroot" else game
-        names = {title.name.lower() + suffix for suffix in UPDATE_SUFFIXES}
-        try:
-            siblings = [entry for entry in title.parent.iterdir() if entry.name.lower() in names]
-        except OSError:
-            siblings = []
-        candidates = [path for entry in siblings for path in (entry / "uroot", entry)]
-    for candidate in candidates:
-        if (candidate / "eboot.bin").is_file() and (candidate / "sce_sys/param.sfo").is_file():
-            return candidate.resolve()
-    if chosen:
-        print(f"UNCHARTED_UPDATE={chosen} holds no eboot.bin and sce_sys/param.sfo; starting without it")
-    return None
+    without uroot. An update folder holds eboot.bin and sce_sys/param.sfo (launcher/native/system.cpp)."""
+    import game_patcher
+    found, message = (game_patcher.system("find_update", game) + "\n").split("\n")[:2]
+    if message:
+        print(message)
+    return Path(found) if found else None
 
 
 def sfo_value(game, key):
-    try:
-        sys.path.insert(0, str(ROOT / "gow3_pc/scripts"))
-        from patches import game_sfo
-        return game_sfo(game).get(key)
-    except Exception:
-        return None
-    finally:
-        sys.path.pop(0)
+    """A value of the folder's sce_sys/param.sfo, None when unreadable (launcher/native/system.cpp)."""
+    import game_patcher
+    text = game_patcher.system("sfo", game)
+    return json.loads(text).get(key) if text else None
 
 
 def game_version(game):
     """APP_VER of the game folder; 01.02 when its executables are 1.02 although param.sfo says
-    otherwise (dumps with the update merged in that kept the 1.00 param.sfo). The check is Uncharted
-    2's torch code as 1.02 compiled it (TORCH_FORWARD_PATCHES; 1.00 lays it out differently).
-    26 Oct 2026 (GitHub #148, #176): 01.00 when param.sfo says 01.02 but the executables are 1.00
-    (Uncharted 2's 1.00 UpdateFocus code, U2_FOCUS_100): the launcher showed 1.02 and no warning,
-    and the games crashed where update 1.02 has the port's fixes."""
-    version = sfo_value(game, "APP_VER")
-    if not version:
-        return version
-    try:
-        code = (game / "big2-ps4_Shipping.elf").read_bytes()
-    except OSError:
-        return version
-    if version < "01.02" and pattern_regex(TORCH_FORWARD_PATCHES[0][1][0][0]).search(code):
-        return "01.02"
-    if version >= "01.02" and bytes.fromhex(U2_FOCUS_100) in code:
-        return "01.00"
-    return version
+    otherwise (dumps with the update merged in that kept the 1.00 param.sfo), 01.00 when param.sfo
+    says 01.02 but the executables are 1.00 (GitHub #148, #176): Uncharted 2's torch code as 1.02
+    compiled it and its 1.00 UpdateFocus code (launcher/native/system.cpp)."""
+    import game_patcher
+    return game_patcher.system("starter_version", game)
 
 
 def game_view(game, update):

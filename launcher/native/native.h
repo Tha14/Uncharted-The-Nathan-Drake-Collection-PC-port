@@ -56,7 +56,8 @@ UN_API int un_config_write(const wchar_t *config_file, const char *config_json);
 
 /* Game detection and system helpers (system.cpp). un_system_tables: GAMES, LANGUAGES, CHEATS as JSON.
  * un_system what: unix_path, windows_path, shared_config, slow_drive, is_game_dir, update_dir, app_version, voices,
- * launcher_version, recipe_version, u3mp_release, desktop, u3mp_default_data; 0 ok ("" = none), 1 unknown what,
+ * launcher_version, recipe_version, u3mp_release, desktop, u3mp_default_data, sfo (param.sfo as JSON),
+ * starter_version and find_update (the game starter: update path, then a message); 0 ok ("" = none), 1 unknown what,
  * 2 no answer (app_version: no readable APP_VER; an empty one is ""). */
 UN_API int un_system_tables(char *out, int cap);
 UN_API int un_wine(void);

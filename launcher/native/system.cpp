@@ -420,6 +420,127 @@ std::string newest_build(const std::wstring &u3mp_dir) {
     return best;
 }
 
+// ------------------------------------------------------------------------------------------------ game starter
+
+// text as UTF-8 with each invalid byte as U+FFFD
+std::string utf8_replace(const std::string &t) {
+    std::string out;
+    for (size_t i = 0; i < t.size();) {
+        unsigned char c = (unsigned char)t[i];
+        int n = c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 0;
+        bool ok = n > 0 && i + n <= t.size();
+        for (int k = 1; ok && k < n; ++k) ok = ((unsigned char)t[i + k] >> 6) == 2;
+        if (ok && n > 1 &&
+            MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, t.data() + i, n, nullptr, 0) == 0)
+            ok = false;
+        if (ok) { out.append(t, i, n); i += n; }
+        else { out += "\xEF\xBF\xBD"; ++i; }
+    }
+    return out;
+}
+
+// param.sfo's values as gow3_pc/scripts/prepare.py reads them (numbers for integer entries); false when unreadable
+bool sfo_values(const std::wstring &folder, Value &out) {
+    std::string d;
+    if (!read_all(join(folder, L"sce_sys\\param.sfo"), d, 1 << 24) || d.size() < 20 || d.compare(0, 4, std::string("\0PSF", 4)))
+        return false;
+    uint32_t keys = u32(d, 8), values = u32(d, 12), count = u32(d, 16);
+    out = Value::object();
+    for (uint32_t i = 0; i < count; ++i) {
+        size_t e = 20 + (size_t)i * 16;
+        if (e + 16 > d.size()) return false;
+        uint32_t key_at = (uint8_t)d[e] | ((uint8_t)d[e + 1] << 8), fmt = (uint8_t)d[e + 2] | ((uint8_t)d[e + 3] << 8);
+        uint32_t size = u32(d, e + 4), at = u32(d, e + 12);
+        size_t k = (size_t)keys + key_at;
+        if (k > d.size()) return false;
+        size_t end = d.find('\0', k);
+        if (end == std::string::npos) return false;
+        std::string key = d.substr(k, end - k);
+        if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, key.data(), (int)key.size(), nullptr, 0) == 0 && !key.empty())
+            return false;
+        size_t v = (size_t)values + at;
+        if (v + size > d.size()) return false;
+        std::string value = d.substr(v, size);
+        if (fmt == 0x404) {
+            if (size != 4) return false;
+            out.set(key, Value::integer(u32(value, 0)));
+        } else {
+            while (!value.empty() && value.back() == '\0') value.pop_back();
+            out.set(key, Value::text(utf8_replace(value)));
+        }
+    }
+    return true;
+}
+
+// the game starter's version of a folder: APP_VER, checked against Uncharted 2's executable as the launcher does;
+// found false when param.sfo has none
+std::string starter_version(const std::wstring &folder, bool &found) {
+    Value sfo;
+    found = false;
+    if (!sfo_values(folder, sfo)) return "";
+    const Value *v = sfo.get("APP_VER");
+    if (!v || v->kind != Value::String) return "";
+    found = true;
+    std::string version = v->s;
+    if (version.empty()) return version;
+    std::pair<bool, bool> codes = executable_codes(folder);
+    if (version < "01.02" && codes.first) return "01.02";
+    if (version >= "01.02" && codes.second) return "01.00";
+    return version;
+}
+
+// the final path of an existing file or folder (links and substituted drives followed), as Python's resolve()
+std::wstring final_path(const std::wstring &path) {
+    wchar_t full[MAX_PATH * 4];
+    DWORD n = GetFullPathNameW(path.c_str(), MAX_PATH * 4, full, nullptr);
+    std::wstring p = (n && n < MAX_PATH * 4) ? std::wstring(full, n) : path;
+    HANDLE h = CreateFileW(p.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+                           FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return p;
+    wchar_t real[MAX_PATH * 4];
+    DWORD r = GetFinalPathNameByHandleW(h, real, MAX_PATH * 4, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    CloseHandle(h);
+    if (!r || r >= MAX_PATH * 4) return p;
+    std::wstring f(real, r);
+    if (f.rfind(L"\\\\?\\UNC\\", 0) == 0) return L"\\\\" + f.substr(8);
+    if (f.rfind(L"\\\\?\\", 0) == 0) return f.substr(4);
+    return f;
+}
+
+// the game's update: UNCHARTED_UPDATE (a folder, 0 for none), else a folder next to the game named like it plus
+// -patch/-update (any case), with or without uroot. Two lines: the update's path (or empty), a message (or empty).
+std::string starter_update(std::wstring game) {
+    std::wstring chosen = env(L"UNCHARTED_UPDATE");
+    if (chosen == L"0") return "\n";
+    std::vector<std::wstring> candidates;
+    if (!chosen.empty()) {
+        candidates = {chosen, join(chosen, L"uroot")};
+    } else {
+        std::replace(game.begin(), game.end(), L'/', L'\\');
+        while (game.size() > 3 && game.back() == L'\\') game.pop_back();
+        size_t cut = game.find_last_of(L'\\');
+        std::wstring name = cut == std::wstring::npos ? game : game.substr(cut + 1);
+        std::wstring title = (lower(name) == L"uroot" && cut != std::wstring::npos) ? game.substr(0, cut) : game;
+        size_t tcut = title.find_last_of(L'\\');
+        if (tcut != std::wstring::npos) {
+            std::wstring parent = title.substr(0, tcut), title_name = lower(title.substr(tcut + 1));
+            if (parent.size() == 2 && parent[1] == L':') parent += L"\\";
+            std::set<std::wstring> names;
+            for (const wchar_t *suffix : {L"-patch", L"-update", L"_patch", L"_update"}) names.insert(title_name + suffix);
+            for (const std::wstring &e : entries(parent, L"*", -1))
+                if (names.count(lower(e))) {
+                    candidates.push_back(join(join(parent, e), L"uroot"));
+                    candidates.push_back(join(parent, e));
+                }
+        }
+    }
+    for (const std::wstring &c : candidates)
+        if (game_folder(c)) return utf8(final_path(c)) + "\n";
+    if (!chosen.empty())
+        return "\nUNCHARTED_UPDATE=" + utf8(chosen) + " holds no eboot.bin and sce_sys/param.sfo; starting without it";
+    return "\n";
+}
+
 }  // namespace
 
 extern "C" {
@@ -451,6 +572,12 @@ UN_API int un_system(const char *what, const wchar_t *arg, char *out, int cap) {
         if (r.empty()) r = "?";
     } else if (w == "u3mp_release") r = newest_build(a);
     else if (w == "desktop") r = utf8(desktop());
+    else if (w == "sfo") {
+        Value sfo;
+        found = sfo_values(a, sfo);
+        if (found) r = json::dump(sfo);
+    } else if (w == "starter_version") r = starter_version(a, found);
+    else if (w == "find_update") r = starter_update(a);
     else if (w == "u3mp_default_data") {
         std::wstring base = env(L"LOCALAPPDATA");
         if (base.empty()) base = env(L"APPDATA");
