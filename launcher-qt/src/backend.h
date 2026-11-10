@@ -65,6 +65,8 @@ private:
     QVariantMap m_chrome;
     QVariantList m_page;
     QVariantMap m_config;   // launcher.json as the Python side holds it (sent with each model)
+    QVariantMap m_ini;      // the selected game's settings file, likewise
+    QByteArray nativeState() const;   // {"config", "ini"} for un_page / un_page_act
     QLibrary m_native;
     using PageFn = int (*)(const char *, const char *, char *, int);
     using PageActFn = int (*)(const char *, const char *, const char *, const char *, const char *, char *, int);

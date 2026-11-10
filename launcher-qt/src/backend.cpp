@@ -154,6 +154,7 @@ void Backend::handle(const QVariantMap &message)
         const QVariantMap data = message.value("data").toMap();
         m_chrome = data.value("chrome").toMap();
         m_config = data.value("config").toMap();
+        m_ini = data.value("ini").toMap();
         emit chromeChanged();
         const QString tab = data.value("tab").toString();
         QVariantList page = data.value("page").toList();
@@ -223,12 +224,20 @@ template <typename Call> int nativeText(Call call, QByteArray *text)
 }
 } // namespace
 
+QByteArray Backend::nativeState() const
+{
+    QJsonObject state;
+    state.insert("config", QJsonObject::fromVariantMap(m_config));
+    state.insert("ini", QJsonObject::fromVariantMap(m_ini));
+    return QJsonDocument(state).toJson(QJsonDocument::Compact);
+}
+
 bool Backend::nativePage(const QString &tab, QVariantList *page)
 {
     if (!m_unPage || tab.isEmpty())
         return false;
     const QByteArray name = tab.toUtf8();
-    const QByteArray config = QJsonDocument(QJsonObject::fromVariantMap(m_config)).toJson(QJsonDocument::Compact);
+    const QByteArray config = nativeState();
     QByteArray text;
     if (nativeText([&](char *out, int cap) { return m_unPage(name.constData(), config.constData(), out, cap); }, &text) != 0)
         return false;
@@ -241,7 +250,7 @@ bool Backend::nativeAct(const QString &id, const QString &kind, const QVariant &
     if (!m_unPageAct || !id.startsWith(QStringLiteral("native:")))
         return false;
     const QByteArray name = m_tab.toUtf8(), wid = id.toUtf8(), how = kind.toUtf8();
-    const QByteArray config = QJsonDocument(QJsonObject::fromVariantMap(m_config)).toJson(QJsonDocument::Compact);
+    const QByteArray config = nativeState();
     QJsonArray boxed;
     boxed.append(QJsonValue::fromVariant(value));
     QByteArray json = QJsonDocument(boxed).toJson(QJsonDocument::Compact);
@@ -252,10 +261,13 @@ bool Backend::nativeAct(const QString &id, const QString &kind, const QVariant &
                                config.constData(), out, cap);
         }, &text) != 0)
         return true;   // a native control: nothing for the Python side
-    const QVariantMap changes = QJsonDocument::fromJson(text).object().value("config").toObject().toVariantMap();
-    for (auto it = changes.cbegin(); it != changes.cend(); ++it) {
-        m_config.insert(it.key(), it.value());
-        send({{"op", "config"}, {"key", it.key()}, {"value", it.value()}});
+    // each change through the Python side's own code: launcher.json (change_config), the game's settings file
+    // (change: the preset becomes Custom ...), the game's launcher settings (change_game_setting)
+    const QJsonObject result = QJsonDocument::fromJson(text).object();
+    for (const auto &[part, op] : {std::pair{"config", "config"}, std::pair{"ini", "ini"}, std::pair{"game", "game_setting"}}) {
+        const QVariantMap changes = result.value(QLatin1String(part)).toObject().toVariantMap();
+        for (auto it = changes.cbegin(); it != changes.cend(); ++it)
+            send({{"op", QLatin1String(op)}, {"key", it.key()}, {"value", it.value()}});
     }
     return true;
 }

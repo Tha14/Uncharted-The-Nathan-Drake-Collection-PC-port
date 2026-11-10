@@ -11,6 +11,8 @@ Requests ({"op": ...}):
                               sections, rows and controls; "same": true when nothing changed since the last reply
   config  {"key", "value"}    a setting a native page changed (launcher-qt builds those pages with uncharted_native.dll's
                               un_page; the launcher still writes launcher.json): change_config(key, value)
+  ini     {"key", "value"}    a native page's change to the selected game's settings file: change(key, value)
+  game_setting {"key", "value"}  ... to the selected game's launcher settings: change_game_setting(key, value)
   act     {"id", "kind", "value"}  what a click on a control does in the Tk window: toggle / choice / dropdown /
                               chip -> set(value, notify), button -> action(), entry -> new text, click / dclick ->
                               the widget's own <Button-1> / <Double-Button-1> binding
@@ -428,7 +430,8 @@ def model(app, tab):
     """The window and the tab's page. A tab without a Tk page is a native one: launcher-qt builds it from "config"."""
     page = app.pages.get(tab or getattr(app, "current_tab", "setup"))
     items = children(page) if page is not None else []
-    return {"chrome": chrome(app), "tab": getattr(app, "current_tab", ""), "page": items, "config": app.config}
+    return {"chrome": chrome(app), "tab": getattr(app, "current_tab", ""), "page": items, "config": app.config,
+            "ini": app.ini}
 
 
 # -- actions ---------------------------------------------------------------------------------------------------
@@ -516,6 +519,10 @@ def main():
                 send({"re": "model", "data": data})
         elif op == "config":
             app.change_config(message.get("key"), message.get("value"))
+        elif op == "ini":
+            app.change(message.get("key"), message.get("value"))
+        elif op == "game_setting":
+            app.change_game_setting(message.get("key"), message.get("value"))
         elif op == "act":
             act(app, message)
         elif op == "capture":

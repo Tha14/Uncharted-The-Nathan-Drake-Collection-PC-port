@@ -142,8 +142,6 @@ STOP_RED = "#c4553f"
 # slows, Nate fell through the world). The runtime caps older, faster settings at 120 too.
 # The frame-rate limits, the runtime settings' defaults and the presets are the native settings core's
 # (launcher/native/config.cpp).
-FPS_LIMITS = native_api.fps_limits()
-MAX_FPS = FPS_LIMITS[-1][0]
 INI_DEFAULTS = native_api.ini_defaults()
 LAUNCHER_DEFAULTS = {"game": "u1", "diagnostics": True, "game_dir": "", "check_updates": True, "language": "1",
                      "unlock": False}
@@ -380,10 +378,6 @@ def dark_title_bar(window):
 def desktop_folder():
     """The user's Desktop folder (SHGetKnownFolderPath: OneDrive or a redirected Desktop, #39)."""
     return Path(native_api.system("desktop"))
-
-
-def monitor_refresh_hz():
-    return native_api.monitor_refresh_hz()
 
 
 # The Display page's tables and size arithmetic are the native code's (launcher/native/display.cpp): resolutions,
@@ -1183,8 +1177,6 @@ class Launcher:
         if isinstance(self.widgets.get("upscale"), Segmented):
             self.widgets["upscale"].set(settings.get("upscale", "off"))
         self.refresh_render_size()
-        if isinstance(self.widgets.get("multithreaded"), Toggle):
-            self.widgets["multithreaded"].set(settings["multithreaded"])
         if isinstance(self.widgets.get("save_profile"), Segmented):
             self.widgets["save_profile"].set(str(settings.get("save_profile", "1")))
         if isinstance(self.widgets.get("mouse"), Toggle):
@@ -1202,7 +1194,6 @@ class Launcher:
         self.sync_sharpening()
         if hasattr(self, "preset_cards"):
             self.redraw_presets()
-        self.update_fps_note()
         if hasattr(self, "ini_label"):
             self.ini_label.config(text=f"Settings: {ini_file(self.config['game'])}")
 
@@ -1307,7 +1298,6 @@ class Launcher:
         self.pages = {
             "setup": self.page_setup(),
             "display": self.page_display(),
-            "performance": self.page_performance(),
             "controls": self.page_controls(),
             "advanced": self.page_advanced(),
             "u3mp": self.page_u3mp(),
@@ -1315,7 +1305,7 @@ class Launcher:
             "launcher": self.page_launcher(),
         }
         self.pages["tools"] = self.tools_page   # made by page_advanced (its shortcut, Steam and folder buttons)
-        # CHEATS is built natively (launcher/native/pages.cpp, drawn by launcher-qt): no Tk page
+        # CHEATS and PERFORMANCE are built natively (launcher/native/pages.cpp, drawn by launcher-qt): no Tk page
         for page in self.pages.values():
             self.organize(page)
 
@@ -1562,8 +1552,6 @@ class Launcher:
             # The command thread is the limit on an integrated GPU, and multithreaded rendering
             # takes part of it. Drake's Fortune keeps it off (its gun and camera misbehave with it).
             settings["multithreaded"] = self.current_game()["key"] != "u1"
-            if isinstance(self.widgets.get("multithreaded"), Toggle):
-                self.widgets["multithreaded"].set(settings["multithreaded"])
             settings["aa"] = "off"
         self.sync_sharpening()
         settings["preset"] = name
@@ -1571,7 +1559,6 @@ class Launcher:
         self.save_ini({k: self.ini[k] for k in INI_DEFAULTS})
         self.refresh_render_size()
         self.redraw_presets()
-        self.update_fps_note()
 
     def page_display(self):
         page = self.page()
@@ -1707,74 +1694,6 @@ class Launcher:
         widget = self.widgets.get("sharpening")
         if widget:
             widget.set(self.ini.get("rcas_strength", "75") if self.ini.get("rcas", "1") == "1" else "off")
-
-    def page_performance(self):
-        page = self.page()
-        tk.Label(page, text="★ marks the recommended choice.", font=self.f_small, bg=BG, fg=DIM,
-                 anchor="w").pack(side="top", fill="x", pady=(0, self.px(6)))
-        self.section(page, "Frame rate")
-        self.ini_choice(page, "fps_limit", "Frame rate limit",
-                        "60 is how the games were made. Higher is smoother but experimental: if the game runs too "
-                        "fast or Nate falls through the floor, go back to 60. With VSync, your monitor's refresh "
-                        f"rate ({monitor_refresh_hz()} Hz) is the smoothest.",
-                        [(str(v), label) for v, label in FPS_LIMITS], recommended="60")
-        self.ini_choice(page, "frames_queued", "Frames queued",
-                        "Keep 1. 2 can add a few FPS in heavy scenes, but in Uncharted 2 Nate and other "
-                        "characters then float a little above the floor.",
-                        [("1", "1"), ("2", "2"), ("0", "Unlimited")], recommended="1")
-        self.section(page, "Processor")
-        self.ini_toggle(page, "async_shaders", "Compile shaders in the background",
-                        "Fewer stutters when you reach new areas. Recommended on.")
-
-        def multithreaded(parent):
-            return Toggle(parent, self.s, self.game_settings()["multithreaded"],
-                          lambda v: self.change_game_setting("multithreaded", v))
-        self.widgets["multithreaded"] = self.row(
-            page, "Multithreaded rendering (experimental)",
-            "Prepares the picture on a second CPU core: more FPS where the CPU is the limit, mostly "
-            "in Uncharted 2 and 3 (on by default in Uncharted 3; keep Frames queued at 1 with it). "
-            "Turn it off if a game hangs while loading. Drake's Fortune always runs without it.",
-            multithreaded)
-
-        def job_threads(parent):
-            value = str(self.config.get("job_sleep", "auto"))
-            return Segmented(parent, (("auto", "Auto"), ("on", "Sleep"), ("off", "Spin")),
-                             value if value in ("auto", "on", "off") else "auto",
-                             lambda v: self.change_config("job_sleep", v), self.f_small, recommended="auto")
-        self.row(page, "Idle game threads",
-                 "Sleep: the game's helper threads rest while they wait, which keeps 4-6 core CPUs fast "
-                 "and saves power. Spin keeps their cores busy, as on the PS4: smoother on CPUs with "
-                 "many cores. Auto picks Spin in Uncharted 1 on CPUs with 8 or more threads (it smooths "
-                 "the camera there) and Sleep in Uncharted 2 and 3.", job_threads)
-
-        # 1 Nov 2026 (0.8.0): experimental, so off unless the player picks it (not yet tried on a
-        # real 2 GB card).
-        def video_memory(parent):
-            value = str(self.config.get("low_vram", "off"))
-            return Segmented(parent, (("off", "Off"), ("on", "On"), ("auto", "Auto")),
-                             value if value in ("auto", "on", "off") else "off",
-                             lambda v: self.change_config("low_vram", v), self.f_small)
-        self.section(page, "Video memory")
-        self.row(page, "Save video memory (experimental)",
-                 "For graphics cards with 2-4 GB: smaller memory reserves, about 0.5 GB less video "
-                 "memory (Uncharted 2 at 720p: 2.1 -> 1.5 GB). New and not yet tried on a real 2 GB "
-                 "card. Auto turns it on for cards with 4 GB or less.", video_memory)
-
-        self.fps_note = tk.Label(page, text="", font=self.f_small, bg=BG, fg=GOLD, anchor="w")
-        self.fps_note.pack(side="top", fill="x")
-        self.update_fps_note()
-        return page
-
-    def update_fps_note(self):
-        if not hasattr(self, "fps_note"):
-            return
-        limit = self.ini.get("fps_limit", "60")
-        hz = monitor_refresh_hz()
-        if int(limit) > 60:
-            self.fps_note.config(text=f"Frame rate unlocked up to {limit} FPS (your monitor: {hz} Hz). "
-                                      "Applied when the game starts.")
-        else:
-            self.fps_note.config(text="")
 
     def page_controls(self):
         page = self.page(scroll=False)
@@ -3693,8 +3612,6 @@ class Launcher:
             self.game_settings()["preset"] = "custom"
             write_config(self.config)
             self.redraw_presets()
-        if key == "fps_limit":
-            self.update_fps_note()
         if key in ("upscaler", "fsr1"):
             self.refresh_render_size()
 

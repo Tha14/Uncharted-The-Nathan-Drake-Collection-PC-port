@@ -15,7 +15,6 @@ def _native():
         _dll.un_settings_table.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_gpu_recommendation.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_gpu_query.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
-        _dll.un_monitor_refresh_hz.restype = ctypes.c_int
         for name in ("un_display_table", "un_resolution_options"):
             getattr(_dll, name).argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_aspect_resolution.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
@@ -56,10 +55,6 @@ def table(name):
 
 def ini_defaults():
     return {key: value for key, value in table("ini_defaults")}
-
-
-def fps_limits():
-    return [(int(value), label) for value, label in table("fps_limits")]
 
 
 def presets():
@@ -110,10 +105,6 @@ def gpu_query(what, name, integrated=None):
     """what: "tier" | "recommend" | "igpu_class" | "integrated"; "" answers come back as None."""
     flag = -1 if integrated is None else int(bool(integrated))
     return _call("un_gpu_query", what.encode(), (name or "").encode("utf-8"), flag) or None
-
-
-def monitor_refresh_hz():
-    return _native().un_monitor_refresh_hz()
 
 
 def display_table(name):
