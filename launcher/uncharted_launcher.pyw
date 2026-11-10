@@ -294,58 +294,14 @@ GAME_SETTING_DEFAULTS = {"preset": "medium", "resolution": "1920x1080", "aspect"
 
 # Keyboard and mouse controls (runtime_pad.c): action -> up to two bindings, "key:<SDL key name>"
 # or "mouse:<left|middle|right|x1|x2|wheel_up|wheel_down>". Stick directions take keys only.
-CONTROL_GROUPS = (
-    ("MOVEMENT", (("ls_up", "Move forward"), ("ls_down", "Move back"), ("ls_left", "Move left"),
-                  ("ls_right", "Move right"), ("rs_up", "Look up"), ("rs_down", "Look down"),
-                  ("rs_left", "Look left"), ("rs_right", "Look right"))),
-    ("WEAPONS (D-PAD)", (("left", "Left"), ("right", "Right"), ("up", "Up"), ("down", "Down"))),
-    ("ACTIONS", (("cross", "Jump, climb"), ("circle", "Cover, roll, drop"),
-                 ("square", "Melee"), ("triangle", "Interact, pick up"),
-                 ("l2", "Aim"), ("r2", "Fire"), ("l1", "Grenade (hold, release to throw)"),
-                 ("r1", "Reload"), ("l3", "Left stick press"), ("r3", "Right stick press"),
-                 ("options", "Pause menu"), ("touchpad_left", "Touch left"),
-                 ("touchpad_right", "Touch right"))),
-)
-# Controllers. The controller button of each action, as SDL names it (runtime_pad.c's default
-# controller map; GOW3_PAD_MAP takes these names). Buttons can be rebound; the sticks, triggers
-# and the touchpad's left click (Back/View with LB held) cannot.
-PAD_DEFAULTS = {"cross": "a", "circle": "b", "square": "x", "triangle": "y", "l1": "leftshoulder",
-                "r1": "rightshoulder", "l3": "leftstick", "r3": "rightstick", "options": "start",
-                "touchpad_right": "back", "up": "dpup", "down": "dpdown", "left": "dpleft", "right": "dpright"}
-PAD_FIXED = {"l2": "lefttrigger", "r2": "righttrigger", "touchpad_left": "leftshoulder+back",
-             "ls_up": "lstick", "ls_down": "lstick", "ls_left": "lstick", "ls_right": "lstick",
-             "rs_up": "rstick", "rs_down": "rstick", "rs_left": "rstick", "rs_right": "rstick"}
-# SDL_GamepadButton order (SDL3).
-SDL_BUTTONS = ("a", "b", "x", "y", "back", "guide", "start", "leftstick", "rightstick", "leftshoulder",
-               "rightshoulder", "dpup", "dpdown", "dpleft", "dpright", "misc1", "paddle1", "paddle2",
-               "paddle3", "paddle4", "touchpad")
-PAD_NAMES = {  # (Xbox, PlayStation): the slot's text where there is no icon, and hints
-    "a": ("A", "Cross"), "b": ("B", "Circle"), "x": ("X", "Square"), "y": ("Y", "Triangle"),
-    "back": ("View", "Share"), "guide": ("Guide", "PS"), "start": ("Menu", "Options"),
-    "leftstick": ("LS", "L3"), "rightstick": ("RS", "R3"), "leftshoulder": ("LB", "L1"),
-    "rightshoulder": ("RB", "R1"), "lefttrigger": ("LT", "L2"), "righttrigger": ("RT", "R2"),
-    "dpup": ("D-pad up", "D-pad up"), "dpdown": ("D-pad down", "D-pad down"),
-    "dpleft": ("D-pad left", "D-pad left"), "dpright": ("D-pad right", "D-pad right"),
-    "misc1": ("Share", "Mute"), "paddle1": ("P1", "P1"), "paddle2": ("P2", "P2"), "paddle3": ("P3", "P3"),
-    "paddle4": ("P4", "P4"), "touchpad": ("Touchpad", "Touchpad"), "lstick": ("L stick", "L stick"),
-    "rstick": ("R stick", "R stick"),
-}
+# The Controls page's tables are the native code's (launcher/native/controls.cpp): the actions and their groups,
+# the controller buttons (defaults, fixed ones, SDL order, names), the default key and mouse bindings, the prompt
+# modes, the mouse steps, mouse button labels, Tk -> SDL key names and the keys the runtime keeps for itself.
+globals().update(native_api.controls_tables())
 
 
 def merged_pad_controls(pad_controls):
-    merged = dict(PAD_DEFAULTS)
-    for action, button in (pad_controls or {}).items():
-        if action in merged:
-            merged[action] = button or None
-    return merged
-
-
-def pad_map(pad_controls):
-    """GOW3_PAD_MAP for a game's controller bindings ("" when they are the defaults)."""
-    merged = merged_pad_controls(pad_controls)
-    if merged == PAD_DEFAULTS:
-        return ""
-    return ",".join(f"{action}={button or ''}" for action, button in merged.items())
+    return native_api.controls("merged_pad", pad_controls)
 
 
 def _pad_font(size):
@@ -552,170 +508,26 @@ class Gamepads:
         return None
 
 
-STICK_ACTIONS = {"ls_up", "ls_down", "ls_left", "ls_right", "rs_up", "rs_down", "rs_left", "rs_right"}
-DEFAULT_CONTROLS = {
-    "ls_up": ["key:W"], "ls_down": ["key:S"], "ls_left": ["key:A"], "ls_right": ["key:D"],
-    "rs_up": ["key:Up"], "rs_down": ["key:Down"], "rs_left": ["key:Left"], "rs_right": ["key:Right"],
-    "left": ["key:1", "mouse:wheel_down"], "right": ["key:2", "mouse:wheel_up"], "up": ["key:3"],
-    "down": ["key:4"],
-    "cross": ["key:Space"], "circle": ["key:Left Ctrl"], "square": ["key:F"], "triangle": ["key:R"],
-    "l2": ["mouse:right"], "r2": ["mouse:left"], "l1": ["key:Q", "mouse:x1"], "r1": ["key:E", "mouse:x2"],
-    "l3": ["key:Left Shift"], "r3": ["key:V", "mouse:middle"], "options": ["key:Escape", "key:Return"],
-    "touchpad_left": ["key:Tab"], "touchpad_right": ["key:Backspace"],
-}
-# Button icons in the games' text and menus (runtime GOW3_PROMPTS): the device used last, or fixed.
-PROMPT_MODES = [("auto", "Auto"), ("keyboard", "Keyboard and mouse"), ("playstation", "PlayStation"),
-                ("xbox", "Xbox")]
-MOUSE_SENSITIVITIES = [("0.5", "0.5x"), ("0.75", "0.75x"), ("1.0", "1x"), ("1.5", "1.5x"), ("2.0", "2x"),
-                       ("3.0", "3x"), ("4.0", "4x"), ("5.0", "5x")]
-# While aiming (times the sensitivity) and up/down compared with left/right (the in-game menu's
-# Controls tab has the same as sliders).
-MOUSE_FACTORS = [("0.5", "0.5x"), ("0.75", "0.75x"), ("1.0", "1x"), ("1.25", "1.25x"), ("1.5", "1.5x"),
-                 ("2.0", "2x")]
-MOUSE_AIM_FACTORS = [("0.5", "0.5x"), ("1.0", "1x"), ("2.0", "2x"), ("3.0", "3x"), ("5.0", "5x"),
-                     ("10.0", "10x")]
-MOUSE_LABELS = {"left": "Left mouse", "middle": "Middle mouse", "right": "Right mouse", "x1": "Mouse back",
-                "x2": "Mouse forward", "wheel_up": "Wheel up", "wheel_down": "Wheel down"}
-# Tk key names -> SDL key names (letters and digits map to themselves, upper case).
-TK_TO_SDL = {
-    "space": "Space", "Return": "Return", "Escape": "Escape", "Tab": "Tab", "BackSpace": "Backspace",
-    "Shift_L": "Left Shift", "Shift_R": "Right Shift", "Control_L": "Left Ctrl", "Control_R": "Right Ctrl",
-    "Alt_L": "Left Alt", "Alt_R": "Right Alt", "Caps_Lock": "CapsLock", "Up": "Up", "Down": "Down",
-    "Left": "Left", "Right": "Right", "Delete": "Delete", "Home": "Home", "End": "End", "Prior": "PageUp",
-    "Next": "PageDown", "minus": "-", "equal": "=", "bracketleft": "[", "bracketright": "]",
-    "backslash": "\\", "semicolon": ";", "apostrophe": "'", "grave": "`", "period": ".", "slash": "/",
-    "KP_Divide": "Keypad /", "KP_Multiply": "Keypad *", "KP_Subtract": "Keypad -", "KP_Add": "Keypad +",
-    "KP_Enter": "Keypad Enter", "KP_Decimal": "Keypad .", "Pause": "Pause", "Scroll_Lock": "ScrollLock",
-}
-TK_TO_SDL.update({f"F{n}": f"F{n}" for n in range(1, 13)})
-TK_TO_SDL.update({f"KP_{n}": f"Keypad {n}" for n in range(10)})
-# Keys the runtime keeps for itself: Insert opens the in-game menu, F9 records the pad.
-RESERVED_KEYS = {"Insert", "F9", "comma"}
-
-
 def merged_controls(controls):
-    merged = {action: list(bindings) for action, bindings in DEFAULT_CONTROLS.items()}
-    for action, bindings in (controls or {}).items():
-        if action in merged:
-            merged[action] = list(bindings)[:2]
-    return merged
+    return native_api.controls("merged", controls)
 
 
-def control_maps(controls):
-    """GOW3_KEY_MAP and GOW3_MOUSE_MAP for a game's controls (every action listed, so unbound ones
-    lose the runtime's defaults)."""
-    keys, mouse = [], []
-    for action, bindings in merged_controls(controls).items():
-        names = [b[4:] for b in bindings if b.startswith("key:")]
-        keys += [f"{action}={name}" for name in names] or [f"{action}="]
-        if action not in STICK_ACTIONS:
-            buttons = [b[6:] for b in bindings if b.startswith("mouse:")]
-            mouse += [f"{action}={name}" for name in buttons] or [f"{action}="]
-    return ",".join(keys), ",".join(mouse)
-
-
-def parse_map(spec):
-    """runtime_pad.c's map syntax: (action, source name) per entry ("" = none)."""
-    entries = []
-    for entry in (spec or "").split(","):
-        action, eq, name = entry.partition("=")
-        if eq:
-            entries.append((action.strip(), name.strip()))
-    return entries
-
-
-def apply_map(bindings, spec, prefix):
-    """A map on top of an action -> ["key:..", "mouse:.."] dict, as the runtime applies it: an
-    action's first entry replaces its sources of this kind, further ones add, "action=" none."""
-    replaced = set()
-    for action, name in parse_map(spec):
-        if action not in bindings:
-            continue
-        if action not in replaced:
-            replaced.add(action)
-            bindings[action] = [b for b in bindings[action] if not b.startswith(prefix)]
-        if name:
-            bindings[action].append(prefix + name)
-
-
-def sensitivity_value(text):
-    """A mouse sensitivity as the Sensitivity choice names it (the in-game menu sets any)."""
-    try:
-        value = float(text)
-    except (TypeError, ValueError):
-        return "1.0"
-    for option, _ in MOUSE_SENSITIVITIES:
-        if abs(float(option) - value) < 0.005:
-            return option
-    return f"{value:g}"
-
-
-def factor_value(text, options):
-    """A mouse factor from a settings file as one of the options when it is one."""
-    try:
-        value = float(text)
-    except ValueError:
-        return "1.0"
-    for option, _ in options:
-        if abs(float(option) - value) < 0.005:
-            return option
-    return f"{value:g}"
-
-
-# The controls in each game's settings file: the game reads them there, and its in-game menu
-# (Insert / R3+L2, Controls tab) changes them too.
+# The controls in each game's settings file: the game reads them there, and its in-game menu (Insert / R3+L2,
+# Controls tab) changes them too (launcher/native/controls.cpp converts both ways).
 def controls_to_ini(settings):
-    keys, mouse = control_maps(settings.get("controls"))
-    return {"key_map": keys, "mouse_map": mouse, "pad_map": pad_map(settings.get("pad_controls")),
-            "mouse": "1" if settings.get("mouse", True) else "0",
-            "mouse_sens": settings.get("mouse_sens", "1.0"),
-            "mouse_invert": "1" if settings.get("mouse_invert") else "0",
-            "prompts": settings.get("prompts", "auto"),
-            "mouse_aim_sens": settings.get("mouse_aim_sens", "1.0"),
-            "mouse_vertical": settings.get("mouse_vertical", "1.0"),
-            "mouse_invert_x": "1" if settings.get("mouse_invert_x") else "0",
-            "vibration": "1" if settings.get("vibration", True) else "0"}
+    return native_api.controls("to_ini", settings)
 
 
 def controls_from_ini(values, settings):
-    """A game's controls from its settings file into the launcher's settings; False when the file
-    has none yet."""
-    if not any(key in values for key in ("key_map", "mouse_map", "pad_map")):
-        return False
-    controls = {action: list(bindings) for action, bindings in DEFAULT_CONTROLS.items()}
-    apply_map(controls, values.get("key_map"), "key:")
-    apply_map(controls, values.get("mouse_map"), "mouse:")
-    settings["controls"] = {action: bindings[:2] for action, bindings in controls.items()}
-    pad = dict(PAD_DEFAULTS)
-    replaced = set()
-    for action, name in parse_map(values.get("pad_map")):
-        if action in pad and action not in replaced:
-            replaced.add(action)
-            pad[action] = name or None
-    settings["pad_controls"] = {action: button for action, button in pad.items() if button != PAD_DEFAULTS.get(action)}
-    if "mouse" in values:
-        settings["mouse"] = values["mouse"] != "0"
-    if "mouse_sens" in values:
-        settings["mouse_sens"] = sensitivity_value(values["mouse_sens"])
-    if "mouse_invert" in values:
-        settings["mouse_invert"] = values["mouse_invert"] == "1"
-    for key, options in (("mouse_aim_sens", MOUSE_AIM_FACTORS), ("mouse_vertical", MOUSE_FACTORS)):
-        if key in values:
-            settings[key] = factor_value(values[key], options)
-    if "mouse_invert_x" in values:
-        settings["mouse_invert_x"] = values["mouse_invert_x"] == "1"
-    if "vibration" in values:
-        settings["vibration"] = values["vibration"] == "1"
-    if "prompts" in values:
-        settings["prompts"] = values["prompts"] if values["prompts"] in dict(PROMPT_MODES) else "auto"
-    return True
+    """A game's controls from its settings file into the launcher's settings; False when the file has none yet."""
+    result = native_api.controls("from_ini", {"values": values, "settings": settings})
+    settings.clear()
+    settings.update(result["settings"])
+    return result["found"]
 
 
 def binding_label(binding):
-    if not binding:
-        return "—"
-    kind, _, name = binding.partition(":")
-    return MOUSE_LABELS.get(name, name) if kind == "mouse" else name
+    return native_api.controls("label", binding)
 
 
 def is_game_dir(folder):

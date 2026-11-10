@@ -139,6 +139,31 @@ def upscaling_options(root):
     return [tuple(row) for row in _rows(_call("un_upscaling_options", str(root)))]
 
 
+def controls_tables():
+    """The Controls page's tables (launcher/native/controls.cpp), in the launcher's Python types."""
+    import json
+    dll = _native()
+    dll.un_controls_tables.argtypes = [ctypes.c_char_p, ctypes.c_int]
+    t = json.loads(_call("un_controls_tables"))
+    pairs = lambda rows: [tuple(row) for row in rows]  # noqa: E731
+    return {
+        "CONTROL_GROUPS": tuple((title, tuple(tuple(a) for a in actions)) for title, actions in t["CONTROL_GROUPS"]),
+        "PAD_DEFAULTS": t["PAD_DEFAULTS"], "PAD_FIXED": t["PAD_FIXED"], "SDL_BUTTONS": tuple(t["SDL_BUTTONS"]),
+        "PAD_NAMES": {k: tuple(v) for k, v in t["PAD_NAMES"].items()}, "STICK_ACTIONS": set(t["STICK_ACTIONS"]),
+        "DEFAULT_CONTROLS": t["DEFAULT_CONTROLS"], "PROMPT_MODES": pairs(t["PROMPT_MODES"]),
+        "MOUSE_SENSITIVITIES": pairs(t["MOUSE_SENSITIVITIES"]), "MOUSE_FACTORS": pairs(t["MOUSE_FACTORS"]),
+        "MOUSE_AIM_FACTORS": pairs(t["MOUSE_AIM_FACTORS"]), "MOUSE_LABELS": t["MOUSE_LABELS"],
+        "TK_TO_SDL": t["TK_TO_SDL"], "RESERVED_KEYS": set(t["RESERVED_KEYS"])}
+
+
+def controls(what, value):
+    """Controls conversion (launcher/native/controls.cpp): "to_ini", "from_ini", "merged", "merged_pad"."""
+    import json
+    dll = _native()
+    dll.un_controls.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+    return json.loads(_call("un_controls", what.encode(), json.dumps(value).encode("utf-8")))
+
+
 def ini_write(user_dir, game, updates):
     request = "".join(f"{key}\t{value}\n" for key, value in updates.items()).encode("utf-8")
     if _native().un_ini_write(str(user_dir), game.encode(), request) != 0:
