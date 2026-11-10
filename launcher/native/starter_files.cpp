@@ -1,12 +1,15 @@
 // starter_files.cpp - the game starter's files (tools/probe_uncharted.py), part of uncharted_native.dll: the runtime as
-// Uncharted.exe, a second instance's user folder, and the update's copies for drives that hold no links.
+// Uncharted.exe, a second instance's user folder, the update's copies for drives that hold no links, and the game
+// window's icon.
 
 #include "native.h"
 #include "json.h"
 
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <windows.h>
+#include <wincodec.h>
 
 #include <algorithm>
 #include <map>
@@ -242,6 +245,197 @@ std::string boot_view(const std::wstring &root, const std::wstring &base, const 
     return utf8(view);
 }
 
+// ------------------------------------------------------------------------------------------------ window icon
+
+// The game's own icon (sce_sys\icon0.png) as a 64x64 24-bit BMP for the window (SDL loads only BMP), made once into
+// launcher\assets\window_icon.bmp. Made as the game starter made it with Pillow (convert to RGB, resize with its
+// bicubic filter, save as BMP), byte for byte: Pillow's fixed-point resampling and its BMP header.
+struct Rgb {
+    int w = 0, h = 0;
+    std::vector<uint8_t> px;   // R, G, B per pixel, top row first
+};
+
+bool load_rgb(const std::wstring &path, Rgb &out, std::string &error) {
+    HRESULT init = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    IWICImagingFactory *factory = nullptr;
+    IWICBitmapDecoder *dec = nullptr;
+    IWICBitmapFrameDecode *frame = nullptr;
+    IWICFormatConverter *conv = nullptr;
+    bool ok = SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory))) &&
+              SUCCEEDED(factory->CreateDecoderFromFilename(path.c_str(), nullptr, GENERIC_READ,
+                                                           WICDecodeMetadataCacheOnDemand, &dec)) &&
+              SUCCEEDED(dec->GetFrame(0, &frame)) && SUCCEEDED(factory->CreateFormatConverter(&conv)) &&
+              SUCCEEDED(conv->Initialize(frame, GUID_WICPixelFormat24bppRGB, WICBitmapDitherTypeNone, nullptr, 0,
+                                         WICBitmapPaletteTypeCustom));
+    UINT w = 0, h = 0;
+    if (ok) ok = SUCCEEDED(conv->GetSize(&w, &h)) && w && h && w <= 16384 && h <= 16384;
+    if (ok) {
+        out.w = (int)w;
+        out.h = (int)h;
+        out.px.assign((size_t)w * h * 3, 0);
+        ok = SUCCEEDED(conv->CopyPixels(nullptr, w * 3, (UINT)out.px.size(), out.px.data()));
+    }
+    if (!ok) error = "cannot read " + utf8(path);
+    if (conv) conv->Release();
+    if (frame) frame->Release();
+    if (dec) dec->Release();
+    if (factory) factory->Release();
+    if (SUCCEEDED(init)) CoUninitialize();
+    return ok;
+}
+
+// Pillow's resampling (libImaging/Resample.c) with its bicubic filter (a = -0.5): coefficients per output pixel,
+// normalized, as 22-bit fixed point; a horizontal pass, then a vertical one, each rounding to 8 bits.
+const int PRECISION_BITS = 32 - 8 - 2;
+double bicubic(double x) {
+    const double a = -0.5;
+    x = std::fabs(x);
+    if (x < 1.0) return ((a + 2.0) * x - (a + 3.0)) * x * x + 1;
+    if (x < 2.0) return (((x - 5) * x + 8) * x - 4) * a;
+    return 0.0;
+}
+struct Coeffs {
+    int ksize = 0;
+    std::vector<int> bounds;   // per output pixel: first input, count
+    std::vector<int> k;        // ksize per output pixel
+};
+Coeffs coefficients(int in_size, int out_size) {
+    double scale = (double)in_size / out_size, filterscale = scale < 1.0 ? 1.0 : scale;
+    double support = 2.0 * filterscale;
+    Coeffs c;
+    c.ksize = (int)std::ceil(support) * 2 + 1;
+    c.bounds.assign((size_t)out_size * 2, 0);
+    std::vector<double> pre((size_t)out_size * c.ksize, 0.0);
+    for (int xx = 0; xx < out_size; ++xx) {
+        double center = 0 + (xx + 0.5) * scale, ww = 0.0, ss = 1.0 / filterscale;
+        int xmin = (int)(center - support + 0.5);
+        if (xmin < 0) xmin = 0;
+        int xmax = (int)(center + support + 0.5);
+        if (xmax > in_size) xmax = in_size;
+        xmax -= xmin;
+        double *k = &pre[(size_t)xx * c.ksize];
+        for (int x = 0; x < xmax; ++x) {
+            double w = bicubic((x + xmin - center + 0.5) * ss);
+            k[x] = w;
+            ww += w;
+        }
+        for (int x = 0; x < xmax; ++x) if (ww != 0.0) k[x] /= ww;
+        c.bounds[(size_t)xx * 2] = xmin;
+        c.bounds[(size_t)xx * 2 + 1] = xmax;
+    }
+    c.k.resize(pre.size());
+    for (size_t i = 0; i < pre.size(); ++i)
+        c.k[i] = pre[i] < 0 ? (int)(-0.5 + pre[i] * (1 << PRECISION_BITS)) : (int)(0.5 + pre[i] * (1 << PRECISION_BITS));
+    return c;
+}
+uint8_t clip8(long long v) {
+    long long x = v >> PRECISION_BITS;
+    return (uint8_t)(x < 0 ? 0 : x > 255 ? 255 : x);
+}
+Rgb horizontal(const Rgb &in, int w, const Coeffs &hz, int row0, int rows) {   // rows row0.. of `in`, to width w
+    Rgb mid;
+    mid.w = w;
+    mid.h = rows;
+    mid.px.assign((size_t)w * rows * 3, 0);
+    for (int y = 0; y < rows; ++y)
+        for (int xx = 0; xx < w; ++xx) {
+            int xmin = hz.bounds[(size_t)xx * 2], xmax = hz.bounds[(size_t)xx * 2 + 1];
+            const int *k = &hz.k[(size_t)xx * hz.ksize];
+            for (int ch = 0; ch < 3; ++ch) {
+                long long ss = 1LL << (PRECISION_BITS - 1);
+                for (int x = 0; x < xmax; ++x) ss += (long long)in.px[((size_t)(y + row0) * in.w + x + xmin) * 3 + ch] * k[x];
+                mid.px[((size_t)y * w + xx) * 3 + ch] = clip8((int)ss);
+            }
+        }
+    return mid;
+}
+Rgb vertical(const Rgb &in, int h, const Coeffs &vt, int row0) {   // to height h; vt's rows are counted from row0
+    Rgb out;
+    out.w = in.w;
+    out.h = h;
+    out.px.assign((size_t)in.w * h * 3, 0);
+    for (int yy = 0; yy < h; ++yy) {
+        int ymin = vt.bounds[(size_t)yy * 2] - row0, ymax = vt.bounds[(size_t)yy * 2 + 1];
+        const int *k = &vt.k[(size_t)yy * vt.ksize];
+        for (int xx = 0; xx < in.w; ++xx)
+            for (int ch = 0; ch < 3; ++ch) {
+                long long ss = 1LL << (PRECISION_BITS - 1);
+                for (int y = 0; y < ymax; ++y) ss += (long long)in.px[((size_t)(y + ymin) * in.w + xx) * 3 + ch] * k[y];
+                out.px[((size_t)yy * in.w + xx) * 3 + ch] = clip8((int)ss);
+            }
+    }
+    return out;
+}
+Rgb resize_horizontal_first(const Rgb &in, int w, int h, const Coeffs &hz, const Coeffs &vt);
+Rgb resize(const Rgb &in, int w, int h) {
+    Coeffs hz = coefficients(in.w, w), vt = coefficients(in.h, h);
+    const bool need_h = w != in.w, need_v = h != in.h;
+    // Pillow 13 runs the vertical pass first when the height shrinks by more than twice as much as the width
+    const bool horizontal_first = !((in.h - h) > 0 && (in.h - h) > (in.w - w) * 2);
+    if (!horizontal_first && need_v) {
+        Rgb mid = vertical(in, h, vt, 0);
+        return need_h ? horizontal(mid, w, hz, 0, mid.h) : mid;
+    }
+    return resize_horizontal_first(in, w, h, hz, vt);
+}
+Rgb resize_horizontal_first(const Rgb &in, int w, int h, const Coeffs &hz, const Coeffs &vt) {
+    // the horizontal pass on the rows the vertical pass uses, then the vertical pass
+    int first = vt.bounds[0], last = vt.bounds[(size_t)h * 2 - 2] + vt.bounds[(size_t)h * 2 - 1];
+    if (w == in.w) return h == in.h ? in : vertical(in, h, vt, 0);
+    Rgb mid = horizontal(in, w, hz, first, last - first);
+    return h == in.h ? mid : vertical(mid, h, vt, first);
+}
+
+void put32(std::string &s, uint32_t v) { for (int i = 0; i < 4; ++i) s += (char)(v >> (8 * i)); }
+void put16(std::string &s, uint16_t v) { s += (char)v; s += (char)(v >> 8); }
+
+std::string window_icon(const std::wstring &root, const std::wstring &game) {
+    std::wstring icon = join(root, L"launcher\\assets\\window_icon.bmp");
+    if (GetFileAttributesW(icon.c_str()) != INVALID_FILE_ATTRIBUTES) return utf8(icon) + "\n";
+    std::wstring png = join(game, L"sce_sys\\icon0.png");
+    Rgb picture;
+    std::string error;
+    if (!load_rgb(png, picture, error)) return "\nNo window icon: " + error;
+    Rgb small = resize(picture, 64, 64);
+    // BMP as Pillow writes it: file header, BITMAPINFOHEADER, BGR rows bottom-up, each padded to 4 bytes
+    uint32_t stride = ((uint32_t)small.w * 3 + 3) & ~3u, image = stride * (uint32_t)small.h;
+    const uint32_t ppm = 3780;   // 96 dpi: Pillow's resized copy does not keep the PNG's resolution
+    std::string bmp = "BM";
+    put32(bmp, 14 + 40 + image);
+    put32(bmp, 0);
+    put32(bmp, 14 + 40);
+    put32(bmp, 40);
+    put32(bmp, (uint32_t)small.w);
+    put32(bmp, (uint32_t)small.h);
+    put16(bmp, 1);
+    put16(bmp, 24);
+    put32(bmp, 0);
+    put32(bmp, image);
+    put32(bmp, ppm);
+    put32(bmp, ppm);
+    put32(bmp, 0);
+    put32(bmp, 0);
+    for (int y = small.h - 1; y >= 0; --y) {
+        std::string row;
+        for (int x = 0; x < small.w; ++x) {
+            const uint8_t *p = &small.px[((size_t)y * small.w + x) * 3];
+            row += (char)p[2];
+            row += (char)p[1];
+            row += (char)p[0];
+        }
+        row.resize(stride, '\0');
+        bmp += row;
+    }
+    make_dirs(icon.substr(0, icon.find_last_of(L'\\')));
+    HANDLE f = CreateFileW(icon.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return "\nNo window icon: " + os_error(icon);
+    DWORD put = 0;
+    bool ok = WriteFile(f, bmp.data(), (DWORD)bmp.size(), &put, nullptr) && put == bmp.size();
+    CloseHandle(f);
+    if (!ok) return "\nNo window icon: " + os_error(icon);
+    return utf8(icon) + "\n";
+}
+
 std::wstring arg_at(const Value &args, size_t i) {
     return i < args.items.size() && args.items[i].kind == Value::String ? widen(args.items[i].s) : L"";
 }
@@ -261,6 +455,7 @@ UN_API int un_starter_files(const char *what, const char *args_json, char *out, 
         if (w == "game_executable") return give(game_executable(arg_at(args, 0)), out, cap);
         if (w == "user_dir") return give(user_dir(arg_at(args, 0), utf8(arg_at(args, 1))), out, cap);
         if (w == "boot_view") return give(boot_view(arg_at(args, 0), arg_at(args, 1), arg_at(args, 2)), out, cap);
+        if (w == "window_icon") return give(window_icon(arg_at(args, 0), arg_at(args, 1)), out, cap);
     } catch (const Failure &f) {
         int status = give(f.message, out, cap);
         return status < 0 ? status : 1;

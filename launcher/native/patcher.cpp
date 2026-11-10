@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 #include <cstring>
 #include <windows.h>
 
@@ -407,6 +408,61 @@ UN_API int un_resolution_patch(unsigned char *data, unsigned long long size, int
         int status = give(log + f.message, out, cap);
         return status < 0 ? status : f.kind;
     }
+}
+
+// The render size of the linked image at `image` for the size chosen (width x height): the first that fits of the size
+// itself and smaller ones. Drake's Fortune keeps its render targets in the GPU area (move off): above ~1620p it renders
+// at the largest 16:9 size that fits there, and the output is upscaled. Ultrawide sizes fall back to smaller sizes of
+// the same shape (width/16 and height/4 whole: Uncharted 3 asserts widths in steps of 16 in its post processing).
+// multiplayer: Uncharted 3's multiplayer image, which keeps the PS4's render size if the patch does not fit it.
+// out: "<width> <height> <extra MiB>", then the log lines. 0 ok; 1 the game's code is not as expected (the last line
+// says why; the image is unchanged); negative: out too small (nothing written; call again with that size).
+UN_API int un_render_resolution(const wchar_t *image, const char *executable, int width, int height, int multiplayer,
+                                char *out, int cap) {
+    std::string exe = executable ? executable : "", data, log;
+    if (width == 1920 && height == 1080) return give("1920 1080 0\n", out, cap);
+    if (!read_file(image, data)) return give("cannot read the image", out, cap) < 0 ? -64 : 1;
+    const bool move = exe != "eboot.bin";
+    std::vector<std::pair<int, int>> candidates = {{width, height}};
+    if (std::fabs((double)width / height - 16.0 / 9.0) > 0.01) {
+        for (double scale : {0.9, 0.8, 0.75, 2.0 / 3.0, 0.6, 0.5})
+            candidates.push_back({(int)(long long)(width * scale) / 16 * 16, (int)(long long)(height * scale) / 4 * 4});
+    } else {
+        const std::pair<int, int> fallbacks[] = {{3200, 1800}, {2880, 1620}, {2560, 1440}, {1920, 1080}};
+        for (auto &s : fallbacks)
+            if ((long long)s.first * s.second < (long long)width * height) candidates.push_back(s);
+    }
+    std::string chosen = data;
+    int render_w = 1920, render_h = 1080;
+    long long extra_mib = 0;
+    for (auto &candidate : candidates) {
+        std::string patched = data;
+        try {
+            extra_mib = resolution(patched, candidate.first, candidate.second, move, log);
+        } catch (const Failure &f) {
+            if (f.kind == 2) {
+                log += "Render resolution " + f.message + "\n";
+                continue;
+            }
+            if (!multiplayer) {
+                int status = give(log + f.message, out, cap);
+                return status < 0 ? status : 1;
+            }
+            log += "Uncharted 3 multiplayer: render resolution not changed (" + f.message + ")\n";
+            break;
+        }
+        if (candidate.first != width || candidate.second != height)
+            log += "Drake's Fortune renders at " + std::to_string(candidate.first) + "x" + std::to_string(candidate.second) +
+                   " instead of " + std::to_string(width) + "x" + std::to_string(height) + "\n";
+        chosen = patched;
+        render_w = candidate.first;
+        render_h = candidate.second;
+        break;
+    }
+    std::string text = std::to_string(render_w) + " " + std::to_string(render_h) + " " + std::to_string(extra_mib) + "\n" + log;
+    if ((int)text.size() + 1 > cap) return -(int)(text.size() + 1);
+    if (!write_file(image, chosen)) return give(log + "cannot write the image", out, cap) < 0 ? -64 : 1;
+    return give(text, out, cap);
 }
 
 }  // extern "C"

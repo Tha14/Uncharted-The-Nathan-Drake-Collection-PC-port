@@ -83,7 +83,7 @@ UN_API int un_starter(const char *what, const char *arg, char *out, int cap);
  * with room for the result. */
 UN_API int un_runtime_env(const char *inputs_json, char *out, int cap);
 /* The game starter's files (starter_files.cpp): game_executable [root], user_dir [root, suffix], boot_view [root, game,
- * update]; args as a JSON array. 0 ok, 1 failed (out: why), 2 unknown what. */
+ * update], window_icon [root, game]; args as a JSON array. 0 ok, 1 failed (out: why), 2 unknown what. */
 UN_API int un_starter_files(const char *what, const char *args_json, char *out, int cap);
 /* The code patches (patch_tables.cpp) for an executable and the current settings: un_image_patches out: the list as JSON
  * (as un_apply_patches takes it); un_apply_image_patches applies them to the linked image (as un_apply_patches).
@@ -98,6 +98,10 @@ UN_API int un_apply_patches(const wchar_t *image, const char *patches_json, char
 UN_API int un_pattern_find(const wchar_t *file, const char *pattern, int limit, char *out, int cap);
 /* un_resolution_patch: the render resolution in the linked image `data` (in place, only when it worked); extra_mib:
  * how much the memory areas grew. 0 patched, 1 the code is not as expected, 2 too large (out's last line: why). */
+/* un_render_resolution: the render size that fits of the size chosen and smaller ones, patched into the image at
+ * `image`; out: "<w> <h> <extra MiB>", then the log lines. 0 ok, 1 not as expected (last line: why). */
+UN_API int un_render_resolution(const wchar_t *image, const char *executable, int width, int height, int multiplayer,
+                                char *out, int cap);
 UN_API int un_resolution_patch(unsigned char *data, unsigned long long size, int width, int height, int move,
                                long long *extra_mib, char *out, int cap);
 

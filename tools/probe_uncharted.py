@@ -43,40 +43,13 @@ def game_executable():
 
 
 def game_window_icon(game):
-    """The game's own icon (sce_sys/icon0.png) as a BMP for the window (SDL loads only BMP)."""
-    icon = ROOT / "launcher/assets/window_icon.bmp"
-    if icon.exists():
-        return icon
-    try:
-        from PIL import Image
-        icon.parent.mkdir(parents=True, exist_ok=True)
-        Image.open(game / "sce_sys/icon0.png").convert("RGB").resize((64, 64)).save(icon)
-        return icon
-    except Exception as error:  # Pillow missing or no icon: the default icon stays
-        print(f"No window icon: {error}")
-        return None
-
-
-# Render resolution (Drake's Fortune). The engine's display settings (constructors and the
-# 1080p/720p mode switch, all within ~0x700 bytes) store the size in several fields: display
-# and render size (+0x08/+0x18/+0x24/+0x38), aspect, tile grid (+0x40 = width/8, +0x44 =
-# height/4, as the engine's own SetResolution computes them) and a larger size at +0x30/+0x34
-# (2560x1216 at 1080p), scaled with the rest. UNCHARTED_RESOLUTION=<width>x<height>.
-class ResolutionTooLarge(Exception):
-    pass
-
-
-# Drake's Fortune above what its GPU area holds: these 16:9 sizes in turn (width/8, height/4 whole).
-U1_FALLBACK_SIZES = [(3200, 1800), (2880, 1620), (2560, 1440), (1920, 1080)]
-
-
-def resolution_patch(data, width, height, move=True):
-    """The render resolution in the linked image `data` (launcher/native/patcher.cpp: the display settings' stores,
-    the screen wipe, the render target heaps and the memory total check). Returns how many MiB the memory areas
-    grew; ResolutionTooLarge when the size doesn't fit (move=False: Drake's Fortune keeps its render targets in the
-    GPU area), SystemExit when the game's code is not as expected."""
+    """The game's own icon (sce_sys/icon0.png) as a 64x64 BMP for the window (SDL loads only BMP), made once
+    (launcher/native/starter_files.cpp); None without one."""
     import game_patcher
-    return game_patcher.resolution_patch(data, width, height, move, ResolutionTooLarge)
+    path, _, message = game_patcher.starter_files("window_icon", ROOT, game).partition("\n")
+    if message:
+        print(message)
+    return Path(path) if path else None
 
 
 GAME_KEYS = {"eboot.bin": "u1", "big2-ps4_Shipping.elf": "u2", "big3-ps4_Shipping.elf": "u3"}
@@ -242,47 +215,15 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
     resolution = (os.environ.get(f"UNCHARTED_RESOLUTION_{game_key.upper()}")
                   or os.environ.get("UNCHARTED_RESOLUTION", "")).lower()
     width, height = (int(value) for value in resolution.split("x")) if resolution else (1920, 1080)
-    render_size = (1920, 1080)
-    if (width, height) != (1920, 1080):
-        # (The earlier Uncharted 3 failures above 1080p - "Command context dcb full", a corrupted
-        # pointer while loading - came with asynchronous readbacks, which also broke it at 1080p.)
-        image = out / "boot-linked.bin"
-        data = bytearray(image.read_bytes())
-        # Drake's Fortune keeps its render targets in the GPU area (see resolution_patch): above
-        # ~1620p it renders at the largest size that fits there, and the output is upscaled.
-        move = executable != "eboot.bin"
-        candidates = [(width, height)] + [size for size in U1_FALLBACK_SIZES if size[0] * size[1] < width * height]
-        if abs(width / height - 16 / 9) > 0.01:
-            # Ultrawide: smaller sizes of the same shape (width/16 and height/4 whole: Uncharted 3
-            # asserts widths in steps of 16 in its post processing).
-            candidates = [(width, height)] + [
-                (int(width * scale) // 16 * 16, int(height * scale) // 4 * 4)
-                for scale in (0.9, 0.8, 0.75, 2 / 3, 0.6, 0.5)]
-        extra_mib = 0
-        for candidate in candidates:
-            patched = bytearray(data)
-            try:
-                extra_mib = resolution_patch(patched, *candidate, move=move)
-            except ResolutionTooLarge as error:
-                print(f"Render resolution {error}")
-                continue
-            except SystemExit as error:
-                if not mp:
-                    raise
-                # The multiplayer image keeps the PS4's render size if the patch does not fit it.
-                print(f"Uncharted 3 multiplayer: render resolution not changed ({error})")
-                break
-            if candidate != (width, height):
-                print(f"Drake's Fortune renders at {candidate[0]}x{candidate[1]} instead of {width}x{height}")
-            data, render_size = patched, candidate
-            break
-        image.write_bytes(data)
-    else:
-        extra_mib = 0
+    # The render size (launcher/native/patcher.cpp): the size chosen, or the largest smaller one that fits the game's
+    # memory (Drake's Fortune keeps its render targets in the GPU area; ultrawide sizes keep their shape), patched into
+    # the linked image with the memory the areas grow by. Uncharted 3's multiplayer image keeps the PS4's size when the
+    # patch does not fit it.
+    import game_patcher
+    render_size, extra_mib = game_patcher.render_resolution(out / "boot-linked.bin", executable, width, height, bool(mp))
     # The runtime's options (GOW3_* environment values) from the launcher's (UNCHARTED_*), the game and its render
     # size: cheats and extra quality, renderer and readback settings, the controls, upscaling, diagnostics and the
     # trigger files (launcher/native/runtime_env.cpp, which keeps the reasons for each).
-    import game_patcher
     env, capture, trigger = game_patcher.runtime_env(executable, game, game_key, user, out, render_size, (width, height),
                                                      extra_mib, loadexec, args.capture)
     window_icon = game_window_icon(game)

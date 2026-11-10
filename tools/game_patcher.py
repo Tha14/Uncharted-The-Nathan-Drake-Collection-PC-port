@@ -9,6 +9,7 @@ pattern_find(file, pattern, limit): the start offsets of a pattern's matches in 
 system(what, arg): the native game detection (launcher/native/system.cpp) the game starter uses: sfo, starter_version,
 find_update; None when there is no answer.
 resolution_patch(data, width, height, move, too_large): the render resolution in the linked image.
+render_resolution(image, executable, width, height, multiplayer): the render size that fits, patched in.
 starter(what, arg): the game starter's settings from its environment (launcher/native/starter.cpp).
 runtime_env(...): the runtime's environment (launcher/native/runtime_env.cpp).
 starter_files(what, *args): the game starter's files (launcher/native/starter_files.cpp); OSError when it failed."""
@@ -38,6 +39,9 @@ def _native():
         _dll.un_starter_files.restype = ctypes.c_int
         _dll.un_apply_image_patches.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_apply_image_patches.restype = ctypes.c_int
+        _dll.un_render_resolution.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                              ctypes.c_char_p, ctypes.c_int]
+        _dll.un_render_resolution.restype = ctypes.c_int
         _dll.un_resolution_patch.argtypes = [ctypes.POINTER(ctypes.c_ubyte), ctypes.c_ulonglong, ctypes.c_int, ctypes.c_int,
                                              ctypes.c_int, ctypes.POINTER(ctypes.c_longlong), ctypes.c_char_p, ctypes.c_int]
         _dll.un_resolution_patch.restype = ctypes.c_int
@@ -192,3 +196,26 @@ def apply_image_patches(image, executable):
         raise SystemExit(lines[-1] if lines else "Patches not applied")
     for line in lines:
         print(line)
+
+
+def render_resolution(image, executable, width, height, multiplayer=False):
+    """The render size of the linked image for the size chosen: the size itself or the largest smaller one that fits
+    the game's memory, patched in (launcher/native/patcher.cpp). Prints what it did; returns ((width, height), MiB the
+    memory areas grew by); SystemExit when the game's code is not as expected (the image is left as it was)."""
+    size = 1 << 16
+    while True:
+        out = ctypes.create_string_buffer(size)
+        status = _native().un_render_resolution(str(image), executable.encode(), int(width), int(height),
+                                                1 if multiplayer else 0, out, size)
+        if status >= 0:
+            break
+        size = -status
+    lines = out.value.decode("utf-8", "replace").splitlines()
+    if status == 1:
+        for line in lines[:-1]:
+            print(line)
+        raise SystemExit(lines[-1] if lines else "Render resolution failed")
+    w, h, extra = (int(v) for v in lines[0].split())
+    for line in lines[1:]:
+        print(line)
+    return (w, h), extra
