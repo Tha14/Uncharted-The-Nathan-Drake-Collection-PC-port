@@ -16,6 +16,9 @@
 #include <tlhelp32.h>
 
 #include <algorithm>
+#include <cctype>
+#include <ctime>
+#include <mutex>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -178,6 +181,205 @@ UN_API int un_thread_report(unsigned long pid, unsigned long long guest_base, un
                 (who.size() > 6 ? " (+" + std::to_string(who.size() - 6) + " more)" : std::string()) + ":\n";
         text += "    host: " + (s.native.empty() ? std::string("(no stack)") : joined(s.native, " <- ")) + "\n";
         if (!s.game.empty()) text += "    guest: " + joined(s.game, " <- ") + "\n";
+    }
+    return give(text, out, cap);
+}
+
+}  // extern "C"
+
+namespace {
+
+// ------------------------------------------------------------------------------------------------ freeze watchdog
+
+struct Watchdog {
+    HANDLE process;
+    std::wstring log, dumps, root;
+    int seconds;
+    std::mutex lock;
+    std::vector<std::wstring> reports;
+};
+std::mutex watchdogs_lock;
+std::vector<Watchdog *> watchdogs;   // kept for the process's life: the game starter asks for each one's reports
+
+std::wstring parent_of(const std::wstring &p) {
+    size_t cut = p.find_last_of(L"\\/");
+    return cut == std::wstring::npos ? L"." : p.substr(0, cut);
+}
+
+std::wstring env_text(const wchar_t *name) {
+    wchar_t buf[256];
+    DWORD n = GetEnvironmentVariableW(name, buf, 256);
+    return (n && n < 256) ? std::wstring(buf, n) : std::wstring();
+}
+
+bool exists(const std::wstring &p) { return GetFileAttributesW(p.c_str()) != INVALID_FILE_ATTRIBUTES; }
+
+// the files matching folder\pattern, sorted by name, full paths
+std::vector<std::wstring> sorted_files(const std::wstring &folder, const wchar_t *pattern) {
+    std::vector<std::wstring> out;
+    WIN32_FIND_DATAW fd;
+    HANDLE h = FindFirstFileW((folder + L"\\" + pattern).c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return out;
+    do {
+        if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) out.push_back(folder + L"\\" + fd.cFileName);
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+    std::sort(out.begin(), out.end(), [](const std::wstring &a, const std::wstring &b) {
+        return CompareStringOrdinal(a.c_str(), -1, b.c_str(), -1, TRUE) == CSTR_LESS_THAN;
+    });
+    return out;
+}
+
+// a line on the game starter's own output (its log), unbuffered
+void say(const std::string &line) {
+    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (!out || out == INVALID_HANDLE_VALUE) return;
+    std::string text = line + "\n";
+    DWORD put = 0;
+    WriteFile(out, text.data(), (DWORD)text.size(), &put, nullptr);
+}
+
+std::string report_text(DWORD pid, uint64_t guest_base) {
+    std::vector<char> buf(1 << 18);
+    for (;;) {
+        int status = un_thread_report(pid, guest_base, guest_base ? 0x20000000ULL : 0, buf.data(), (int)buf.size());
+        if (status >= 0) return buf.data();
+        buf.resize((size_t)-status);
+    }
+}
+
+void freeze_report(Watchdog *w, uint64_t guest_base) {
+    char stamp[32];
+    time_t now = time(nullptr);
+    struct tm local;
+    localtime_s(&local, &now);
+    std::strftime(stamp, sizeof stamp, "%Y%m%d-%H%M%S", &local);
+    std::vector<std::string> lines = {"Hang watchdog: no new frame for " + std::to_string(w->seconds) +
+                                      " s (game frozen) at " + stamp + "; stacks of every thread:"};
+    ULONGLONG started = GetTickCount64();
+    std::string text = report_text(GetProcessId(w->process), guest_base);
+    for (size_t at = 0; at < text.size();) {   // its lines (Python's splitlines: no empty last line)
+        size_t end = text.find('\n', at);
+        if (end == std::string::npos) end = text.size();
+        lines.push_back(text.substr(at, end - at));
+        at = end + 1;
+    }
+    char took[64];
+    std::snprintf(took, sizeof took, "(report took %.1f s)", (GetTickCount64() - started) / 1000.0);
+    lines.push_back(took);
+    // a minidump too (hundreds of MB): in the source tree or with UNCHARTED_HANG_DUMP=1
+    std::wstring dump_env = env_text(L"UNCHARTED_HANG_DUMP");
+    SetLastError(0);
+    if (!GetEnvironmentVariableW(L"UNCHARTED_HANG_DUMP", nullptr, 0) && GetLastError() == ERROR_ENVVAR_NOT_FOUND) dump_env = exists(w->root + L"\\VERSION") ? L"0" : L"1";
+    if (dump_env == L"1") {
+        CreateDirectoryW(parent_of(w->dumps).c_str(), nullptr);
+        CreateDirectoryW(w->dumps.c_str(), nullptr);
+        std::vector<std::wstring> old = sorted_files(w->dumps, L"hang-*.dmp");
+        for (size_t i = 0; i + 1 < old.size(); ++i) DeleteFileW(old[i].c_str());   // with the new one, the newest 2 stay
+        std::wstring dump = w->dumps + L"\\hang-" + std::wstring(stamp, stamp + std::strlen(stamp)) + L".dmp";
+        lines.push_back(un_minidump(GetProcessId(w->process), dump.c_str()) ? "Hang watchdog: minidump " + utf8(dump)
+                                                                            : "Hang watchdog: the minidump failed");
+    }
+    std::wstring folder = parent_of(w->log);
+    std::vector<std::wstring> old = sorted_files(folder, L"hang-*.txt");
+    for (size_t i = 0; i + 9 < old.size(); ++i) DeleteFileW(old[i].c_str());   // with the new one, the newest 10 stay
+    std::wstring report = folder + L"\\hang-" + std::wstring(stamp, stamp + std::strlen(stamp)) + L".txt";
+    std::string body;
+    for (auto &l : lines) body += l + "\n";
+    HANDLE f = CreateFileW(report.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f != INVALID_HANDLE_VALUE) {
+        DWORD put = 0;
+        WriteFile(f, body.data(), (DWORD)body.size(), &put, nullptr);
+        CloseHandle(f);
+    }
+    {
+        std::lock_guard<std::mutex> hold(w->lock);
+        w->reports.push_back(report);
+    }
+    say("Hang watchdog: the game froze; report " + utf8(report));
+}
+
+// The runtime logs a Frame stats line every 5 s while frames are shown: none for `seconds` while the game runs is a
+// freeze. Once per freeze; frames coming back re-arm it.
+DWORD WINAPI watch(void *arg) {
+    Watchdog *w = (Watchdog *)arg;
+    uint64_t position = 0, guest_base = 0;
+    bool armed = true, seen = false, have_base = false;
+    ULONGLONG last_frame = GetTickCount64();
+    while (WaitForSingleObject(w->process, 2000) == WAIT_TIMEOUT) {
+        HANDLE f = CreateFileW(w->log.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (f == INVALID_HANDLE_VALUE) continue;
+        std::string chunk;
+        LARGE_INTEGER size{}, to{};
+        to.QuadPart = (LONGLONG)position;
+        if (GetFileSizeEx(f, &size) && (uint64_t)size.QuadPart > position && SetFilePointerEx(f, to, nullptr, FILE_BEGIN)) {
+            chunk.resize((size_t)((uint64_t)size.QuadPart - position));
+            DWORD got = 0;
+            size_t done = 0;
+            while (done < chunk.size() &&
+                   ReadFile(f, &chunk[done], (DWORD)std::min<size_t>(chunk.size() - done, 1 << 24), &got, nullptr) && got)
+                done += got;
+            chunk.resize(done);
+        }
+        CloseHandle(f);
+        position += chunk.size();
+        if (!have_base) {
+            size_t at = chunk.find("Guest image base: ");
+            if (at != std::string::npos) {
+                size_t s = at + 18, e = s;
+                while (e < chunk.size() && std::isxdigit((unsigned char)chunk[e])) ++e;
+                if (e > s) { guest_base = std::strtoull(chunk.substr(s, e - s).c_str(), nullptr, 16); have_base = true; }
+            }
+        }
+        if (chunk.find("Frame stats") != std::string::npos) {
+            last_frame = GetTickCount64();
+            armed = seen = true;
+            continue;
+        }
+        if (!(seen && armed) || GetTickCount64() - last_frame < (ULONGLONG)w->seconds * 1000 ||
+            WaitForSingleObject(w->process, 0) != WAIT_TIMEOUT)
+            continue;
+        armed = false;
+        freeze_report(w, have_base ? guest_base : 0);
+    }
+    return 0;
+}
+
+}  // namespace
+
+extern "C" {
+
+// Starts the freeze watchdog on its own thread: game `pid`, its log, the minidump folder, the seconds without a new
+// frame that count as a freeze, the launcher's folder (a package has VERSION there: no minidumps unless
+// UNCHARTED_HANG_DUMP=1). Returns its id (> 0), 0 when it could not start.
+UN_API int un_hang_watchdog(unsigned long pid, const wchar_t *log, const wchar_t *dumps, int seconds, const wchar_t *root) {
+    HANDLE process = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!process) return 0;
+    Watchdog *w = new Watchdog{process, log ? log : L"", dumps ? dumps : L"", root ? root : L".", seconds, {}, {}};
+    int id;
+    {
+        std::lock_guard<std::mutex> hold(watchdogs_lock);
+        watchdogs.push_back(w);
+        id = (int)watchdogs.size();
+    }
+    HANDLE thread = CreateThread(nullptr, 0, watch, w, 0, nullptr);
+    if (!thread) return 0;
+    CloseHandle(thread);
+    return id;
+}
+
+// out: the reports a watchdog wrote so far, one path per line
+UN_API int un_hang_reports(int id, char *out, int cap) {
+    Watchdog *w = nullptr;
+    {
+        std::lock_guard<std::mutex> hold(watchdogs_lock);
+        if (id >= 1 && id <= (int)watchdogs.size()) w = watchdogs[id - 1];
+    }
+    std::string text;
+    if (w) {
+        std::lock_guard<std::mutex> hold(w->lock);
+        for (auto &r : w->reports) text += utf8(r) + "\n";
     }
     return give(text, out, cap);
 }

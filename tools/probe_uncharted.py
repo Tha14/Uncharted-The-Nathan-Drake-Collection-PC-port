@@ -1108,60 +1108,6 @@ def run_once(args, executable, guest_args, loadexec):
             sys.path.pop(0)
 
 
-def hang_watchdog(process, log_path, dumps, seconds, reports):
-    """Freeze report: the runtime logs a Frame stats line every 5 s while frames are shown. With
-    none for `seconds` while the game runs, every thread's stack goes to hang-<time>.txt beside the
-    log (tools/hang_report.py; small enough to attach to an issue; appended to `reports`) and, in
-    the source tree or with UNCHARTED_HANG_DUMP=1, a minidump to dumps/ (hundreds of MB; the newest
-    2 stay). Once per freeze; frames coming back re-arm it. Long-session freezes left no trace
-    before: the log just stopped. (Not written into the log itself: the game writes it through its
-    own file position, over anything appended meanwhile.)"""
-    import re
-    import hang_report
-    position, last_frame, armed, seen, guest_base = 0, time.monotonic(), True, False, None
-    while process.poll() is None:
-        time.sleep(2)
-        try:
-            with open(log_path, "rb") as log:
-                log.seek(position)
-                chunk = log.read()
-                position += len(chunk)
-        except OSError:
-            continue
-        if guest_base is None and (found := re.search(rb"Guest image base: ([0-9a-fA-F]+)", chunk)):
-            guest_base = int(found.group(1), 16)
-        if b"Frame stats" in chunk:
-            last_frame, armed, seen = time.monotonic(), True, True
-            continue
-        if not (seen and armed) or time.monotonic() - last_frame < seconds or process.poll() is not None:
-            continue
-        armed = False
-        stamp = time.strftime("%Y%m%d-%H%M%S")
-        lines = [f"Hang watchdog: no new frame for {seconds} s (game frozen) at {stamp}; stacks of every thread:"]
-        started = time.monotonic()
-        try:
-            lines += hang_report.thread_report(process, guest_base)
-        except Exception as error:  # the report must never take the launcher down
-            lines.append(f"  (thread report failed: {error})")
-        lines.append(f"(report took {time.monotonic() - started:.1f} s)")
-        if os.environ.get("UNCHARTED_HANG_DUMP", "0" if (ROOT / "VERSION").exists() else "1") == "1":
-            dumps.mkdir(parents=True, exist_ok=True)
-            for old in sorted(dumps.glob("hang-*.dmp"))[:-1]:  # with the new one, the newest 2 stay
-                old.unlink(missing_ok=True)
-            dump = dumps / f"hang-{stamp}.dmp"
-            try:
-                lines.append(f"Hang watchdog: minidump {dump}" if hang_report.write_minidump(process, dump)
-                             else "Hang watchdog: the minidump failed")
-            except Exception as error:
-                lines.append(f"Hang watchdog: the minidump failed ({error})")
-        report = log_path.parent / f"hang-{stamp}.txt"
-        for old in sorted(log_path.parent.glob("hang-*.txt"))[:-9]:  # with the new one, the newest 10 stay
-            old.unlink(missing_ok=True)
-        report.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        reports.append(report)
-        print(f"Hang watchdog: the game froze; report {report}", flush=True)
-
-
 def remove_pipeline_binaries(cache):
     """Deletes the pipeline binaries earlier versions saved (<cache>/<game>*/pipeline-binaries,
     ~2 MB each, 20 GB on a tester's PC) on a background thread while the game runs: they are
@@ -1768,11 +1714,14 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
         # Freeze watchdog (needs the Frame stats lines, i.e. diagnostics on). UNCHARTED_HANG_SECONDS
         # sets its wait (30 s), 0 turns it off.
         hang_seconds = int(os.environ.get("UNCHARTED_HANG_SECONDS", "30") or 0)
-        hang_reports = []
+        # The watchdog (launcher/native/hang.cpp, tools/hang_report.py): the runtime logs a Frame stats line every 5 s
+        # while frames are shown; none for that long while the game runs writes every thread's stack to
+        # hang-<time>.txt beside the log (small enough to attach to an issue) and, in the source tree or with
+        # UNCHARTED_HANG_DUMP=1, a minidump to dumps/ (the newest 2 stay). Once per freeze; frames re-arm it.
+        watchdog = 0
         if os.name == "nt" and args.boot and hang_seconds > 0 and env.get("GOW3_FRAME_STATS") == "1":
-            import threading
-            threading.Thread(target=hang_watchdog, daemon=True,
-                             args=(process, out / (name + ".log"), out / "dumps", hang_seconds, hang_reports)).start()
+            import hang_report
+            watchdog = hang_report.hang_watchdog(process, out / (name + ".log"), out / "dumps", hang_seconds, ROOT)
         # Resource tracking for long sessions (memory leaks; launcher/native/memstat.cpp): memory-<time>.csv beside
         # the log, one row every UNCHARTED_MEMORY_SECONDS (10; 0 turns it off); each session's goes with its attempt.
         memory_csv = None
@@ -1801,6 +1750,10 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
     result["elapsed_seconds"] = round(time.monotonic() - start, 3)
     (out / (name + ".json")).write_text(json.dumps(result, indent=2), encoding="utf-8")
     # The game has ended: the log can take the freeze reports' names (the launcher looks there).
+    hang_reports = []
+    if args.boot and watchdog:
+        import hang_report
+        hang_reports = hang_report.hang_reports(watchdog)
     if args.boot and hang_reports:
         with open(out / (name + ".log"), "ab") as log:
             log.write("".join(f"\nHang watchdog: the game froze; report {report}" for report in hang_reports)

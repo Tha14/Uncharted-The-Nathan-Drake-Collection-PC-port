@@ -35,6 +35,11 @@ UN_API int un_steam_roundtrip(const char *path);
 UN_API int un_thread_report(unsigned long pid, unsigned long long guest_base, unsigned long long guest_size, char *out,
                             int cap);
 UN_API int un_minidump(unsigned long pid, const wchar_t *path);
+/* Freeze watchdog (hang.cpp): a thread that watches the game's log for its Frame stats lines; none for `seconds` while
+ * the game runs writes hang-<time>.txt beside the log (and a minidump in dumps, in the source tree or with
+ * UNCHARTED_HANG_DUMP=1). un_hang_watchdog: its id, 0 not started. un_hang_reports out: the reports so far. */
+UN_API int un_hang_watchdog(unsigned long pid, const wchar_t *log, const wchar_t *dumps, int seconds, const wchar_t *root);
+UN_API int un_hang_reports(int id, char *out, int cap);
 
 /* Resource tracking for long sessions (leaks): a background thread writes <folder>\memory-<time>.csv every `seconds`
  * until the game ends; the newest 10 such files stay. out: the file's path. 0 started, 1 not started. */

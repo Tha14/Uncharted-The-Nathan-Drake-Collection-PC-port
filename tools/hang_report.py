@@ -5,6 +5,7 @@ the game process, so it works while its threads are stuck.
 thread_report(process, guest_base): text lines, threads grouped by identical stacks (native frames as module+offset,
 game-code frames as offsets from the guest image base, to symbolize later against the same build).
 write_minidump(process, path): a Windows minidump of every thread's stack and registers; True when written.
+hang_watchdog(process, log, dumps, seconds, root): starts the native freeze watchdog; hang_reports(id): its reports.
 memory_monitor(process, folder, seconds): starts the native tracker, one CSV row of the game's memory, handles,
 threads and GUI objects (and the PC's free memory) every `seconds` until the game ends."""
 import ctypes
@@ -26,6 +27,11 @@ def _native():
         _dll.un_memory_monitor.argtypes = [ctypes.c_ulong, ctypes.c_wchar_p, ctypes.c_double, ctypes.c_char_p,
                                            ctypes.c_int]
         _dll.un_memory_monitor.restype = ctypes.c_int
+        _dll.un_hang_watchdog.argtypes = [ctypes.c_ulong, ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_int,
+                                          ctypes.c_wchar_p]
+        _dll.un_hang_watchdog.restype = ctypes.c_int
+        _dll.un_hang_reports.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_hang_reports.restype = ctypes.c_int
     return _dll
 
 
@@ -53,3 +59,26 @@ def memory_monitor(process, folder, seconds=10):
     except Exception:  # noqa: BLE001 - see the docstring
         pass
     return None
+
+
+def hang_watchdog(process, log, dumps, seconds, root):
+    """Starts the native freeze watchdog (its own thread, launcher/native/hang.cpp): no Frame stats line in `log` for
+    `seconds` while the game runs writes hang-<time>.txt beside it (and a minidump in `dumps` in the source tree or
+    with UNCHARTED_HANG_DUMP=1; `root` is the launcher's folder). Returns its id, 0 when it could not start."""
+    try:
+        return _native().un_hang_watchdog(process.pid, str(log), str(dumps), int(seconds), str(root))
+    except Exception:  # noqa: BLE001 - the watchdog must never take the launcher down
+        return 0
+
+
+def hang_reports(watchdog):
+    """The freeze reports a watchdog wrote so far (Paths)."""
+    if not watchdog:
+        return []
+    size = 1 << 12
+    while True:
+        out = ctypes.create_string_buffer(size)
+        status = _native().un_hang_reports(watchdog, out, size)
+        if status >= 0:
+            return [Path(line) for line in out.value.decode("utf-8", "replace").splitlines() if line]
+        size = -status
