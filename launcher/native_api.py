@@ -50,15 +50,6 @@ def ini_defaults():
     return {key: value for key, value in table("ini_defaults")}
 
 
-def presets():
-    """{name: {title, summary, detail, resolution, upscale, values}} in the cards' order."""
-    out = {}
-    for name, title, summary, detail, resolution, upscale, values in table("presets"):
-        out[name] = {"title": title, "summary": summary, "detail": detail, "resolution": resolution,
-                     "upscale": upscale, "values": dict(pair.split("=", 1) for pair in values.split(";") if pair)}
-    return out
-
-
 def ini_read(user_dir, game):
     return {key: value for key, value in _rows(_text(_native().un_ini_read, str(user_dir), game.encode()))}
 
@@ -365,3 +356,18 @@ class GameUpdate:
     def install_game(self, pkg, parent, log=print):
         """The player's own game PKG unpacked into the folder <parent>, as <title id>: its uroot (the game folder)."""
         return self._watched("install_game", log, pkg, parent)
+
+
+# ---------------------------------------------------------------------------------------------- pages.cpp
+
+
+def page_act(page, wid, kind, value, state):
+    """What a click on a native page's control changes ({"config", "ini", "game"}): un_page_act for the launcher's
+    state {"config", "ini", "root", "gpu"}. The Python side uses it where it still applies one (the reset to Medium)."""
+    import json
+    dll = _native()
+    dll.un_page_act.argtypes = [ctypes.c_char_p] * 6 + [ctypes.c_int]
+    dll.un_page_act.restype = ctypes.c_int
+    text = _text(dll.un_page_act, page.encode(), wid.encode(), kind.encode(), json.dumps(value).encode(),
+                 json.dumps(state).encode("utf-8"))
+    return json.loads(text) if text else {}

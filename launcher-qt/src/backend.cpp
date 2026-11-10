@@ -156,6 +156,7 @@ void Backend::handle(const QVariantMap &message)
         m_chrome = data.value("chrome").toMap();
         m_config = data.value("config").toMap();
         m_ini = data.value("ini").toMap();
+        m_gpu = data.value("gpu").toMap();
         emit chromeChanged();
         const QString tab = data.value("tab").toString();
         QVariantList page = data.value("page").toList();
@@ -231,6 +232,7 @@ QByteArray Backend::nativeState() const
     state.insert("config", QJsonObject::fromVariantMap(m_config));
     state.insert("ini", QJsonObject::fromVariantMap(m_ini));
     state.insert("root", QDir::toNativeSeparators(m_root));
+    state.insert("gpu", QJsonObject::fromVariantMap(m_gpu));
     return QJsonDocument(state).toJson(QJsonDocument::Compact);
 }
 

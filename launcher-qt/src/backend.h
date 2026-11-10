@@ -67,6 +67,7 @@ private:
     QVariantMap m_config;   // launcher.json as the Python side holds it (sent with each model)
     QVariantMap m_ini;      // the selected game's settings file, likewise
     QString m_root;         // the launcher's folder
+    QVariantMap m_gpu;      // {name, recommended}: the graphics card the Python side found (Quick Setup)
     QByteArray nativeState() const;   // {"config", "ini"} for un_page / un_page_act
     QLibrary m_native;
     using PageFn = int (*)(const char *, const char *, char *, int);

@@ -8,11 +8,13 @@
 // state: {"config": launcher.json, "ini": the selected game's settings file (analysis/uncharted-user/probe-*.ini)}.
 //
 // Pages: cheats (the games' developer switches), performance (frame rate, processor, video memory), display (resolution,
-// upscaling, picture, performance counter). state also has "root": the launcher's folder (which upscalers it has).
+// upscaling, picture, performance counter), setup (Quick Setup's preset cards). state also has "root": the launcher's
+// folder (which upscalers it has), and "gpu": {"name", "recommended"}: the graphics card the launcher found and its preset.
 
 #include "native.h"
 #include "json.h"
 
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -27,6 +29,7 @@ UN_API int un_game_sizes(const char *resolution, const char *aspect, const char 
 UN_API int un_upscaling_choice(const char *upscaler, const char *fsr1, char *out, int cap);
 UN_API int un_anti_aliasing_choice(const char *upscaler, const char *launcher_aa, char *out, int cap);
 UN_API int un_upscaling_options(const wchar_t *root, char *out, int cap);
+UN_API int un_gpu_query(const char *what, const char *name, int integrated, char *out, int cap);
 }
 
 namespace {
@@ -38,6 +41,7 @@ struct State {
     Value config = Value::object();
     Value ini = Value::object();
     std::string root = ".";   // the launcher's folder
+    Value gpu = Value::object();   // {"name", "recommended"}
 };
 struct Changes {
     Value config = Value::object();   // launcher.json keys
@@ -51,6 +55,7 @@ bool read_state(const char *state_json, State &state) {
     if (const Value *c = v.get("config")) { if (!c->is_object()) return false; state.config = *c; }
     if (const Value *i = v.get("ini")) { if (!i->is_object()) return false; state.ini = *i; }
     if (const Value *r = v.get("root")) if (r->kind == Value::String && !r->s.empty()) state.root = r->s;
+    if (const Value *g = v.get("gpu")) if (g->is_object()) state.gpu = *g;
     return true;
 }
 
@@ -642,6 +647,203 @@ bool act_display(const State &state, const std::string &id, const std::string &k
     return false;
 }
 
+// ------------------------------------------------------------------------------------------------ quick setup
+// The preset cards. The IGPU card (its values and the integrated GPU classes) was contributed in PR #223 by
+// memeguyoffical.
+
+const char *const TEXT = "#f2efe8";
+const char *const INK = "#16110a";
+const char *const PRESET_ORDER[] = {"igpu", "low", "medium", "high", "ultra"};
+
+struct Preset {
+    std::string name, title, summary, detail, resolution, upscale;
+    std::vector<std::pair<std::string, std::string>> values;
+};
+
+// config.cpp's presets table: name, title, summary, detail, resolution, upscale, values ("key=value;...")
+std::vector<Preset> presets() {
+    std::vector<Preset> list;
+    std::string text(1 << 16, '\0');
+    if (un_settings_table("presets", &text[0], (int)text.size()) != 0) return list;
+    text.resize(std::strlen(text.c_str()));
+    size_t at = 0;
+    while (at < text.size()) {
+        size_t end = text.find('\n', at);
+        if (end == std::string::npos) end = text.size();
+        std::vector<std::string> f;
+        const std::string line = text.substr(at, end - at);
+        size_t a = 0;
+        while (true) {
+            const size_t t = line.find('\t', a);
+            f.push_back(line.substr(a, t == std::string::npos ? std::string::npos : t - a));
+            if (t == std::string::npos) break;
+            a = t + 1;
+        }
+        if (f.size() == 7) {
+            Preset p{f[0], f[1], f[2], f[3], f[4], f[5], {}};
+            size_t b = 0;
+            while (b < f[6].size()) {
+                size_t e = f[6].find(';', b);
+                if (e == std::string::npos) e = f[6].size();
+                const std::string pair = f[6].substr(b, e - b);
+                const size_t eq = pair.find('=');
+                if (eq != std::string::npos) p.values.push_back({pair.substr(0, eq), pair.substr(eq + 1)});
+                b = e + 1;
+            }
+            list.push_back(p);
+        }
+        at = end + 1;
+    }
+    return list;
+}
+
+const Preset *preset_named(const std::vector<Preset> &list, const std::string &name) {
+    for (auto &p : list) if (p.name == name) return &p;
+    return nullptr;
+}
+
+// Python's str.title() for the preset titles (ASCII words)
+std::string title_case(const std::string &s) {
+    std::string o = s;
+    bool start = true;
+    for (auto &c : o) {
+        const bool letter = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+        if (letter) c = start ? (char)std::toupper((unsigned char)c) : (char)std::tolower((unsigned char)c);
+        start = !letter;
+    }
+    return o;
+}
+
+// the selected game's name (system.cpp's GAMES table)
+std::string game_name(const State &state) {
+    const Value *game = state.config.get("game");
+    std::string text(1 << 16, '\0');
+    if (!game || un_system_tables(&text[0], (int)text.size()) != 0) return "";
+    Value tables;
+    if (!json::parse(text.c_str(), tables)) return "";
+    if (const Value *games = tables.get("GAMES"))
+        for (auto &g : games->items)
+            if (const Value *k = g.get("key"))
+                if (k->s == game->s) return g.get("name") ? g.get("name")->s : "";
+    return "";
+}
+
+Value card_text(const std::string &text, const char *fg, int size, bool bold, bool serif) {
+    Value t = Value::object();
+    t.set("text", Value::text(text));
+    t.set("fg", Value::text(fg));
+    t.set("size", Value::integer(size));
+    t.set("bold", Value::boolean(bold));
+    t.set("serif", Value::boolean(serif));
+    return t;
+}
+
+Value page_setup(const State &state) {
+    const std::string p = "native:setup:";
+    const std::vector<Preset> list = presets();
+    const Value *settings = game_settings(state);
+    const std::string current = settings ? str_or(settings->get("preset"), "") : "";
+    const Value *gpu = state.gpu.get("name"), *rec = state.gpu.get("recommended");
+    const std::string gpu_name = gpu ? text_of(*gpu) : "", recommended = rec ? text_of(*rec) : "";
+
+    std::vector<Value> items;
+    std::string intro = "Pick a quality level. Every setting can still be changed in Display and Performance.";
+    if (!recommended.empty()) {
+        const Preset *r = preset_named(list, recommended);
+        const std::string name = recommended == "igpu" ? "iGPU" : r ? title_case(r->title) : recommended;
+        intro = "Recommended for your graphics card (" + gpu_name + "): " + name +
+                ". Every setting can still be changed in Display and Performance.";
+    }
+    items.push_back(label(p + "intro", intro, MUTED, CARD, 10));
+
+    Value grid = array();
+    Value line = array();
+    int n = 0;
+    for (const char *name : PRESET_ORDER) {
+        const Preset *preset = preset_named(list, name);
+        if (!preset) continue;
+        const bool selected = current == name;
+        Value texts = array();
+        texts.items.push_back(card_text(preset->title, selected ? GOLD : TEXT, 14, true, true));
+        texts.items.push_back(card_text(preset->summary, TEXT, 10, true, false));
+        texts.items.push_back(card_text(preset->detail, MUTED, 9, false, false));
+        if (recommended == name) texts.items.push_back(card_text("RECOMMENDED", INK, 7, true, false));
+        Value card = Value::object();
+        card.set("t", Value::text("card"));
+        card.set("id", Value::text(p + "preset:" + name));
+        card.set("texts", std::move(texts));
+        card.set("click", Value::boolean(true));
+        card.set("dclick", Value::boolean(false));
+        card.set("selected", Value::boolean(selected));
+        line.items.push_back(std::move(card));
+        if (++n % 3 == 0) {   // five cards in 3 + 2
+            Value row_box = Value::object();
+            row_box.set("t", Value::text("box"));
+            row_box.set("dir", Value::text("h"));
+            row_box.set("items", std::move(line));
+            grid.items.push_back(std::move(row_box));
+            line = array();
+        }
+    }
+    if (!line.items.empty()) {
+        Value row_box = Value::object();
+        row_box.set("t", Value::text("box"));
+        row_box.set("dir", Value::text("h"));
+        row_box.set("items", std::move(line));
+        grid.items.push_back(std::move(row_box));
+    }
+    items.push_back(box(p + "presets", "v", std::move(grid)));
+
+    const std::string game = game_name(state);
+    items.push_back(label(p + "custom_note", preset_named(list, current) ? "Settings are kept per game: these are " + game + "'s."
+                                                                        : game + ": custom settings (changed by hand).",
+                          MUTED, CARD, 9));
+    Value page = array();
+    page.items.push_back(section(p + "quality", "Quality level", with_separators(std::move(items))));
+    return page;
+}
+
+// A preset card: apply_preset's settings (the preset's resolution, upscaling and settings-file values; the iGPU card by
+// the card's class; on iGPU multithreading only where it helps and no anti-aliasing).
+bool act_setup(const State &state, const std::string &id, const std::string &kind, Changes &changes) {
+    const std::string prefix = "native:setup:preset:";
+    if (kind != "click" || id.compare(0, prefix.size(), prefix) != 0) return false;
+    const std::string name = id.substr(prefix.size());
+    const std::vector<Preset> list = presets();
+    const Preset *preset = preset_named(list, name);
+    if (!preset) return false;
+    std::string upscale = preset->upscale;
+    std::vector<std::pair<std::string, std::string>> values = preset->values;
+    if (name == "igpu") {
+        const Value *gpu = state.gpu.get("name");
+        const std::string gpu_name = gpu ? text_of(*gpu) : "";
+        const std::string kind_of = native_text([&](char *o, int c) { return un_gpu_query("igpu_class", gpu_name.c_str(), -1, o, c); });
+        if (kind_of == "weak") {
+            upscale = "ultra";
+            bool set = false;
+            for (auto &v : values) if (v.first == "fps_limit") { v.second = "30"; set = true; }
+            if (!set) values.push_back({"fps_limit", "30"});
+        } else if (kind_of == "strong") upscale = "quality";
+    }
+    // every settings-file key: the preset's value, else what the file holds (Python: save_ini of all INI_DEFAULTS keys)
+    for (auto &row : settings_table("ini_defaults")) {
+        std::string v;
+        bool found = false;
+        for (auto &pv : values) if (pv.first == row.first) { v = pv.second; found = true; }
+        if (!found) v = ini_text(state, row.first, row.second);
+        changes.ini.set(row.first, Value::text(v));
+    }
+    changes.game.set("resolution", Value::text(preset->resolution));
+    changes.game.set("upscale", Value::text(upscale));
+    if (name == "igpu") {
+        const Value *game = state.config.get("game");
+        changes.game.set("multithreaded", Value::boolean(!(game && game->s == "u1")));
+        changes.game.set("aa", Value::text("off"));
+    }
+    changes.game.set("preset", Value::text(name));   // last: the settings-file changes mark the preset Custom
+    return true;
+}
+
 }  // namespace
 
 extern "C" {
@@ -655,6 +857,7 @@ UN_API int un_page(const char *name, const char *state_json, char *out, int cap)
     if (n == "cheats") return give(json::dump(page_cheats(state.config), false), out, cap);
     if (n == "performance") return give(json::dump(page_performance(state), false), out, cap);
     if (n == "display") return give(json::dump(page_display(state), false), out, cap);
+    if (n == "setup") return give(json::dump(page_setup(state), false), out, cap);
     return 2;
 }
 
@@ -672,6 +875,7 @@ UN_API int un_page_act(const char *name, const char *id, const char *kind, const
     if (n == "cheats") act_cheats(i, k, value, changes);
     else if (n == "performance") act_performance(i, k, value, changes);
     else if (n == "display") act_display(state, i, k, value, changes);
+    else if (n == "setup") act_setup(state, i, k, changes);
     else return 2;
     Value result = Value::object();
     result.set("config", std::move(changes.config));

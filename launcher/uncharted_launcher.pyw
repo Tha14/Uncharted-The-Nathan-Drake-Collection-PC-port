@@ -380,19 +380,6 @@ def desktop_folder():
     return Path(native_api.system("desktop"))
 
 
-# Quality presets: the game has one detail level (the PS4's); quality here is the resolution the
-# game draws at, the upscaling, the sharpening and the frame rate. Above 1080p the
-# render resolution is new (October 2026): confirm in play. All three games draw at 4K
-# natively except Drake's Fortune, which stops at 1620p (its memory layout) and upscales.
-# IGPU card adapted from PR #223 by memeguyoffical (the card, its values and the iGPU detection).
-PRESETS = native_api.presets()
-PRESET_ORDER = ("igpu", "low", "medium", "high", "ultra")
-
-
-def preset_values(name):
-    return dict(PRESETS[name]["values"])
-
-
 def gpu_detect():
     """(card, integrated, preset) for Quick Setup: the card the game used last (its newest log), else Windows'
     strongest known adapter (launcher/native/display.cpp)."""
@@ -402,15 +389,6 @@ def gpu_detect():
 def gpu_recommendation(name, integrated=None):
     """The Quick Setup preset for a card (IGPU for low-end integrated graphics, else its tier)."""
     return native_api.gpu_query("recommend", name, integrated)
-
-
-def gpu_tier(name):
-    return native_api.gpu_query("tier", name)
-
-
-def igpu_class(name):
-    """How strong an integrated GPU is: "weak", "mainstream" or "strong" (the IGPU preset's own defaults)."""
-    return native_api.gpu_query("igpu_class", name)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -930,8 +908,6 @@ class Launcher:
             if self.config.get("gpu") != name:
                 self.config["gpu"] = name
                 write_config(self.config)
-            if hasattr(self, "preset_cards"):
-                self.redraw_presets()
         self.root.after(200, done)
 
     def px(self, value):
@@ -1141,8 +1117,6 @@ class Launcher:
             self.refresh_pad_slots()
         if hasattr(self, "binding_slots"):
             self.refresh_bindings()
-        if hasattr(self, "preset_cards"):
-            self.redraw_presets()
         if hasattr(self, "ini_label"):
             self.ini_label.config(text=f"Settings: {ini_file(self.config['game'])}")
 
@@ -1245,7 +1219,6 @@ class Launcher:
         self.scroll_canvases = set()
         self.root.bind_all("<MouseWheel>", self.wheel)
         self.pages = {
-            "setup": self.page_setup(),
             "controls": self.page_controls(),
             "advanced": self.page_advanced(),
             "u3mp": self.page_u3mp(),
@@ -1253,7 +1226,8 @@ class Launcher:
             "launcher": self.page_launcher(),
         }
         self.pages["tools"] = self.tools_page   # made by page_advanced (its shortcut, Steam and folder buttons)
-        # DISPLAY, PERFORMANCE and CHEATS are built natively (launcher/native/pages.cpp, drawn by launcher-qt): no Tk page
+        # QUICK SETUP, DISPLAY, PERFORMANCE and CHEATS are built natively (launcher/native/pages.cpp, drawn by
+        # launcher-qt): no Tk page
         for page in self.pages.values():
             self.organize(page)
 
@@ -1395,102 +1369,15 @@ class Launcher:
         row.control = control   # qt_backend.py reads a row as title, hint and control
         return control
 
-    def page_setup(self):
-        page = self.page()
-        self.section(page, "Quality level")
-        self.setup_intro = tk.Label(page, text="", font=self.f_body, bg=BG, fg=MUTED, anchor="w")
-        self.setup_intro.pack(side="top", fill="x", pady=(0, self.px(12)))
-        grid = tk.Frame(page, bg=BG)
-        grid.pack(side="top", fill="x")
-        self.preset_cards = {}
-        gap = self.px(16)
-        # Five presets in 3 + 2: five in one row would squeeze the descriptions at this width.
-        columns = 3
-        card_w = (self.width - 2 * self.px(40) - (columns - 1) * gap) // columns
-        card_h = self.px(170)
-        for i, name in enumerate(PRESET_ORDER):
-            row, column = divmod(i, columns)
-            canvas = tk.Canvas(grid, width=card_w, height=card_h, bg=BG, highlightthickness=0, cursor="hand2")
-            canvas.grid(row=row, column=column, padx=(0 if column == 0 else gap, 0),
-                        pady=(0 if row == 0 else gap, 0), sticky="w")
-            canvas.bind("<Button-1>", lambda e, n=name: self.apply_preset(n))
-            canvas.bind("<Enter>", lambda e, n=name: self.draw_preset(n, hover=True))
-            canvas.bind("<Leave>", lambda e, n=name: self.draw_preset(n))
-            self.preset_cards[name] = (canvas, card_w, card_h)
-        self.custom_note = tk.Label(page, text="", font=self.f_small, bg=BG, fg=MUTED, anchor="w")
-        self.custom_note.pack(side="top", fill="x", pady=(self.px(10), 0))
-        self.root.after_idle(self.redraw_presets)
-        return page
-
-    def draw_preset(self, name, hover=False):
-        canvas, w, h = self.preset_cards[name]
-        preset = PRESETS[name]
-        selected = self.game_settings().get("preset") == name
-        canvas.delete("all")
-        round_rect(canvas, 2, 2, w - 2, h - 2, self.px(10), fill=PANEL_HI if selected or hover else PANEL,
-                   outline=GOLD if selected else ("#5a4733" if hover else LINE), width=2 if selected else 1)
-        canvas.create_text(self.px(20), self.px(26), text=preset["title"], font=self.f_card_title,
-                           fill=GOLD if selected else TEXT, anchor="w")
-        canvas.create_text(self.px(20), self.px(50), text=preset["summary"], font=self.f_body_bold,
-                           fill=TEXT, anchor="w")
-        canvas.create_text(self.px(20), self.px(70), text=preset["detail"], font=self.f_small, fill=MUTED,
-                           anchor="nw", width=w - self.px(40))
-        if name == self.recommended:
-            badge = canvas.create_text(w - self.px(20), self.px(26), text="RECOMMENDED", font=("Segoe UI Semibold", 7),
-                                       fill=INK, anchor="e")
-            x1, y1, x2, y2 = canvas.bbox(badge)
-            pill = round_rect(canvas, x1 - self.px(8), y1 - self.px(3), x2 + self.px(8), y2 + self.px(3), self.px(8),
-                              fill=GOLD, outline=GOLD)
-            canvas.tag_lower(pill, badge)
-
-    def redraw_presets(self):
-        for name in self.preset_cards:
-            self.draw_preset(name)
-        if self.recommended:
-            label = "iGPU" if self.recommended == "igpu" else PRESETS[self.recommended]["title"].title()
-            self.setup_intro.config(text=f"Recommended for your graphics card ({self.gpu_name}): {label}. "
-                                         "Every setting can still be changed in Display and Performance.")
-        else:
-            self.setup_intro.config(text="Pick a quality level. Every setting can still be changed in Display "
-                                         "and Performance.")
-        custom = self.game_settings().get("preset") not in PRESETS
-        name = self.current_game()["name"]
-        self.custom_note.config(text=f"{name}: custom settings (changed by hand)." if custom
-                                else f"Settings are kept per game: these are {name}'s.")
-
     def apply_preset(self, name):
-        settings = self.game_settings()
-        resolution = PRESETS[name]["resolution"]
-        upscale = PRESETS[name]["upscale"]
-        values = preset_values(name)
-        if name == "igpu":
-            # IGPU card adapted from PR #223 by memeguyoffical. One card for every low-end
-            # integrated GPU: its class chooses how far below 1080p the game draws and the frame
-            # limit (Vega and the 2-CU Radeon need 30 at 360p; Radeon 680M/760M/780M and Iris Xe
-            # reach 60 at 540p; Radeon 880M/890M and integrated Arc at 720p).
-            kind = igpu_class(self.gpu_name)
-            if kind == "weak":
-                upscale, values["fps_limit"] = "ultra", "30"
-            elif kind == "strong":
-                upscale = "quality"
-        settings["resolution"] = resolution
-        settings["upscale"] = upscale
-        for key, value in values.items():
-            self.ini[key] = value
-            widget = self.widgets.get(key)
-            if isinstance(widget, Toggle):
-                widget.set(value == "1")
-            elif isinstance(widget, Segmented):
-                widget.set(value)
-        if name == "igpu":
-            # The command thread is the limit on an integrated GPU, and multithreaded rendering
-            # takes part of it. Drake's Fortune keeps it off (its gun and camera misbehave with it).
-            settings["multithreaded"] = self.current_game()["key"] != "u1"
-            settings["aa"] = "off"
-        settings["preset"] = name
-        write_config(self.config)
-        self.save_ini({k: self.ini[k] for k in INI_DEFAULTS})
-        self.redraw_presets()
+        """A Quick Setup preset: the changes its card makes (launcher/native/pages.cpp), saved as a click on it would."""
+        state = {"config": self.config, "ini": self.ini, "root": str(ROOT),
+                 "gpu": {"name": self.gpu_name or "", "recommended": self.recommended or ""}}
+        changes = native_api.page_act("setup", "native:setup:preset:" + name, "click", None, state)
+        for key, value in changes.get("ini", {}).items():
+            self.change(key, value)
+        for key, value in changes.get("game", {}).items():
+            self.change_game_setting(key, value)
 
     def page_controls(self):
         page = self.page(scroll=False)
@@ -3408,7 +3295,6 @@ class Launcher:
         if self.game_settings().get("preset") != "custom":
             self.game_settings()["preset"] = "custom"
             write_config(self.config)
-            self.redraw_presets()
 
     def change_game_setting(self, key, value):
         self.game_settings()[key] = value

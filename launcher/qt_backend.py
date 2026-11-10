@@ -431,7 +431,7 @@ def model(app, tab):
     page = app.pages.get(tab or getattr(app, "current_tab", "setup"))
     items = children(page) if page is not None else []
     return {"chrome": chrome(app), "tab": getattr(app, "current_tab", ""), "page": items, "config": app.config,
-            "ini": app.ini}
+            "ini": app.ini, "gpu": {"name": app.gpu_name or "", "recommended": app.recommended or ""}}
 
 
 # -- actions ---------------------------------------------------------------------------------------------------
