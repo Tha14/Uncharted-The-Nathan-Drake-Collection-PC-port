@@ -223,3 +223,82 @@ def pad_state():
     """(number of controllers, first one's style or None, set of held buttons)."""
     count, style, held = (_text(_native().un_pad_state).splitlines() + ["", ""])[:3]
     return int(count or 0), style or None, set(held.split())
+
+
+# ---------------------------------------------------------------------------------------------- play.cpp
+
+
+def play_env(config, user_dir):
+    """The game's environment values from the launcher's settings, in play()'s order: (name, value) pairs, value None
+    to remove the name. KeyError when the settings lack a game's values."""
+    dll = _native()
+    dll.un_play_env.argtypes = [ctypes.c_char_p, ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
+    dll.un_play_env.restype = ctypes.c_int
+    size = 1 << 15
+    while True:
+        out = ctypes.create_string_buffer(size)
+        status = dll.un_play_env(json.dumps(config).encode("utf-8"), str(user_dir), out, size)
+        if status >= 0:
+            break
+        size = -status
+    text = out.value.decode("utf-8", "replace")
+    if status != 0:
+        raise KeyError(text)
+    return [(name, value) for name, value in json.loads(text)]
+
+
+class PlaySession:
+    """The running game starter (launcher/native/play.cpp): its output goes to `log` and comes back line by line.
+    pid; poll() -> the exit code once it ended, else None; returncode; take() -> (new lines, exit code or None);
+    stop() ends it and everything it started."""
+
+    def __init__(self, command, env, cwd, log):
+        dll = _native()
+        dll.un_play_start.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+        dll.un_play_start.restype = ctypes.c_int
+        dll.un_play_poll.argtypes = [ctypes.c_char_p, ctypes.c_int]
+        dll.un_play_poll.restype = ctypes.c_int
+        dll.un_play_stop.restype = ctypes.c_int
+        request = {"command": [str(c) for c in command], "env": [[str(k), str(v)] for k, v in env.items()],
+                   "cwd": str(cwd), "log": str(log) if log else None}
+        out = ctypes.create_string_buffer(1 << 12)
+        status = dll.un_play_start(json.dumps(request).encode("utf-8"), out, len(out))
+        text = out.value.decode("utf-8", "replace")
+        if status != 0:
+            raise OSError(text)
+        self.pid = int(text)
+        self.returncode = None
+
+    def take(self):
+        size = 1 << 16
+        while True:
+            out = ctypes.create_string_buffer(size)
+            status = _native().un_play_poll(out, size)
+            if status >= 0:
+                break
+            size = -status
+        state = json.loads(out.value.decode("utf-8", "replace"))
+        if state["exit"] is not None:
+            self.returncode = state["exit"]
+        return state["lines"], state["exit"]
+
+    def poll(self):
+        return self.returncode
+
+    def stop(self):
+        _native().un_play_stop()
+
+
+def crash_reason(root, started_at):
+    """Why the game stopped, from its newest boot.log written since started_at (time.time()); None when it tells none."""
+    dll = _native()
+    dll.un_play_crash_reason.argtypes = [ctypes.c_wchar_p, ctypes.c_double, ctypes.c_char_p, ctypes.c_int]
+    dll.un_play_crash_reason.restype = ctypes.c_int
+    size = 1 << 12
+    while True:
+        out = ctypes.create_string_buffer(size)
+        status = dll.un_play_crash_reason(str(root), float(started_at), out, size)
+        if status >= 0 or status == 2:
+            break
+        size = -status
+    return None if status == 2 else out.value.decode("utf-8", "replace")

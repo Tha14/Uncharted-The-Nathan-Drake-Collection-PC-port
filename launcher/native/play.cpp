@@ -1,0 +1,584 @@
+// play.cpp - PLAY's native side (launcher/uncharted_launcher.pyw play/poll/stop/crash_reason), part of
+// uncharted_native.dll: the game's environment from the launcher's settings, the running game (the game starter as a
+// child process, its output in launcher-last-run.log and handed to the launcher line by line, STOP), and why a game
+// that stopped did so (its boot.log).
+
+#include "native.h"
+#include "json.h"
+
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <cwctype>
+#include <windows.h>
+
+#include <algorithm>
+#include <deque>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
+
+extern "C" {
+UN_API int un_game_sizes(const char *resolution, const char *aspect, const char *upscale, const char *upscaling, char *out,
+                         int cap);
+UN_API int un_upscaling_choice(const char *upscaler, const char *fsr1, char *out, int cap);
+}
+
+namespace {
+
+using json::Value;
+
+int give(const std::string &s, char *out, int cap) {
+    if ((int)s.size() + 1 > cap) return -(int)(s.size() + 1);
+    std::memcpy(out, s.c_str(), s.size() + 1);
+    return 0;
+}
+std::string utf8(const std::wstring &w) {
+    if (w.empty()) return std::string();
+    int n = WideCharToMultiByte(CP_UTF8, 0, w.data(), (int)w.size(), nullptr, 0, nullptr, nullptr);
+    std::string s(n, '\0');
+    WideCharToMultiByte(CP_UTF8, 0, w.data(), (int)w.size(), &s[0], n, nullptr, nullptr);
+    return s;
+}
+std::wstring widen(const std::string &s) {   // invalid UTF-8 becomes U+FFFD (Python's errors="replace")
+    if (s.empty()) return std::wstring();
+    int n = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), nullptr, 0);
+    std::wstring w(n, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), &w[0], n);
+    return w;
+}
+
+// Python's str() of a settings value, and its truth
+std::string str_of(const Value *v, const std::string &missing) {
+    if (!v) return missing;
+    switch (v->kind) {
+    case Value::Null: return "None";
+    case Value::Bool: return v->b ? "True" : "False";
+    case Value::Int: return std::to_string(v->i);
+    case Value::Float: return json::real(v->f);
+    case Value::String: return v->s;
+    default: return json::dump(*v);
+    }
+}
+bool truthy_or(const Value *v, bool missing) { return v ? v->truthy() : missing; }
+
+std::string call_text(int (*f)(const char *, const char *, const char *, const char *, char *, int), const std::string &a,
+                      const std::string &b, const std::string &c, const std::string &d) {
+    std::vector<char> buf(1 << 12);
+    int status = f(a.c_str(), b.c_str(), c.c_str(), d.c_str(), buf.data(), (int)buf.size());
+    return status == 0 ? std::string(buf.data()) : std::string();
+}
+
+// play(): the environment values from the launcher's settings, in play()'s order: [name, value] to set, [name, null]
+// to remove. The update folder, the multiplayer values and the window title's suffix are the launcher's own.
+Value play_env(const Value &config, const std::wstring &user_dir) {
+    Value out;
+    out.kind = Value::Array;
+    auto set = [&](const std::string &k, const std::string &v) {
+        Value p;
+        p.kind = Value::Array;
+        p.items = {Value::text(k), Value::text(v)};
+        out.items.push_back(p);
+    };
+    auto remove = [&](const std::string &k) {
+        Value p;
+        p.kind = Value::Array;
+        p.items = {Value::text(k), Value::null()};
+        out.items.push_back(p);
+    };
+    auto get = [&](const char *k) { return config.get(k); };
+    set("UNCHARTED_DIAGNOSTICS", truthy_or(get("diagnostics"), true) ? "1" : "0");
+    set("UNCHARTED_TORCH_FORWARD", truthy_or(get("torch_forward"), true) ? "1" : "0");
+    const std::string job = str_of(get("job_sleep"), "auto");
+    set("UNCHARTED_JOB_SLEEP", job == "off" ? "0" : job == "on" ? "1" : "auto");
+    // renderer_vulkan/vk_instance.cpp: 1 on, auto (cards of 4.5 GiB or less), anything else off
+    const std::string vram = str_of(get("low_vram"), "off");
+    set("GOW3_LOW_VRAM", vram == "on" ? "1" : vram == "auto" ? "auto" : "0");
+    set("UNCHARTED_LANGUAGE", str_of(get("language"), "1"));
+    set("UNCHARTED_SPEAKERS", str_of(get("speakers"), "auto"));
+    set("UNCHARTED_U3_EXPOSURE", str_of(get("u3_exposure"), "0"));
+    set("UNCHARTED_ANISOTROPY", str_of(get("anisotropy"), "0"));
+    set("UNCHARTED_HIRES_SHADOWS", truthy_or(get("hires_shadows"), false) ? "1" : "0");
+    set("UNCHARTED_FULL_RES_TEXTURES", truthy_or(get("full_res_textures"), false) ? "1" : "0");
+    set("UNCHARTED_NO_DOF", truthy_or(get("no_dof"), false) ? "1" : "0");
+    set("GOW3_MOVIE_STRETCH", truthy_or(get("movie_stretch"), false) ? "1" : "0");
+    set("UNCHARTED_UNLOCK", truthy_or(get("unlock"), false) ? "1" : "0");
+    set("UNCHARTED_UNLOCK_REWARDS", truthy_or(get("unlock_rewards"), false) ? "1" : "0");
+    // the cheats chosen (the Advanced page's switches, system.cpp's CHEATS)
+    std::string cheats;
+    for (const char *name : {"invincible", "ammo", "noreload", "grenades", "onehit"})
+        if (truthy_or(config.get(std::string("cheat_") + name), false)) cheats += (cheats.empty() ? "" : ",") + std::string(name);
+    set("UNCHARTED_CHEATS", cheats);
+    // Every game's own options: the Collection menu starts the others itself, and the game starter applies the started
+    // game's (its settings file decides the vblank rate for frame rates above 60).
+    remove("GOW3_VBLANK_HZ");
+    const Value *games = config.get("games");
+    for (const char *key : {"u1", "u2", "u3"}) {
+        const Value *settings = games ? games->get(key) : nullptr;
+        if (!settings) throw std::string("KeyError: '") + key + "'";
+        std::string upper = key;
+        upper[0] = 'U';
+        // With upscaling the game draws below the resolution chosen, upscaled to it.
+        std::vector<char> buf(1 << 15);
+        std::string upscaler, fsr1 = "0";
+        bool have_upscaler = false;
+        if (un_ini_read(user_dir.c_str(), key, buf.data(), (int)buf.size()) == 0) {
+            const std::string text = buf.data();
+            for (size_t a = 0; a < text.size();) {
+                size_t b = text.find('\n', a);
+                if (b == std::string::npos) b = text.size();
+                const std::string line = text.substr(a, b - a);
+                size_t tab = line.find('\t');
+                if (tab != std::string::npos) {
+                    const std::string k = line.substr(0, tab), v = line.substr(tab + 1);
+                    if (k == "upscaler") { upscaler = v; have_upscaler = true; }
+                    if (k == "fsr1") fsr1 = v;
+                }
+                a = b + 1;
+            }
+        }
+        if (!have_upscaler) {
+            std::vector<char> d(1 << 15);
+            if (un_settings_table("ini_defaults", d.data(), (int)d.size()) == 0) {
+                const std::string text = d.data();
+                size_t at = text.find("upscaler\t");
+                while (at != std::string::npos && at != 0 && text[at - 1] != '\n') at = text.find("upscaler\t", at + 1);
+                if (at != std::string::npos) upscaler = text.substr(at + 9, text.find('\n', at) - at - 9);
+            }
+        }
+        std::vector<char> choice(256);
+        un_upscaling_choice(upscaler.c_str(), fsr1.c_str(), choice.data(), (int)choice.size());
+        const Value *resolution = settings->get("resolution");
+        if (!resolution) throw std::string("KeyError: 'resolution'");
+        const std::string sizes = call_text(un_game_sizes, str_of(resolution, ""), str_of(settings->get("aspect"), "16:9"),
+                                            str_of(settings->get("upscale"), "off"), choice.data());
+        const size_t tab = sizes.find('\t');
+        const std::string render = sizes.substr(0, tab), output = tab == std::string::npos ? "" : sizes.substr(tab + 1);
+        set("UNCHARTED_RESOLUTION_" + upper, render);
+        if (!output.empty()) set("UNCHARTED_OUTPUT_RES_" + upper, output); else remove("UNCHARTED_OUTPUT_RES_" + upper);
+        const Value *mt = settings->get("multithreaded");
+        if (!mt) throw std::string("KeyError: 'multithreaded'");
+        set("UNCHARTED_MULTITHREADED_" + upper, mt->truthy() ? "1" : "0");
+        set("UNCHARTED_SAVE_PROFILE_" + upper, str_of(settings->get("save_profile"), "1"));
+    }
+    return out;
+}
+
+// ------------------------------------------------------------------------------------------------ the running game
+
+struct Session {
+    std::mutex lock;
+    HANDLE process = nullptr;
+    DWORD pid = 0;
+    std::deque<std::string> lines;   // the output lines not yet handed over (trailing whitespace removed)
+    bool reading = false;            // the reader thread is still at work
+    bool ended = false;
+    DWORD exit_code = 0;
+};
+Session g_session;
+
+// subprocess.list2cmdline
+std::wstring command_line(const std::vector<std::wstring> &args) {
+    std::wstring result;
+    for (const std::wstring &arg : args) {
+        std::wstring bs;
+        if (!result.empty()) result += L' ';
+        const bool quote = arg.find(L' ') != std::wstring::npos || arg.find(L'\t') != std::wstring::npos || arg.empty();
+        if (quote) result += L'"';
+        for (wchar_t c : arg) {
+            if (c == L'\\') {
+                bs += c;
+            } else if (c == L'"') {
+                result += std::wstring(bs.size() * 2, L'\\');
+                bs.clear();
+                result += L"\\\"";
+            } else {
+                result += bs;
+                bs.clear();
+                result += c;
+            }
+        }
+        result += bs;
+        if (quote) {
+            result += bs;
+            result += L'"';
+        }
+    }
+    return result;
+}
+
+std::string os_error(DWORD code) {
+    wchar_t *text = nullptr;
+    FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, code,
+                   0, (LPWSTR)&text, 0, nullptr);
+    std::wstring t = text ? text : L"error";
+    if (text) LocalFree(text);
+    while (!t.empty() && (t.back() == L'\n' || t.back() == L'\r' || t.back() == L' ' || t.back() == L'.')) t.pop_back();
+    return "[WinError " + std::to_string(code) + "] " + utf8(t);
+}
+
+// str.rstrip(): without trailing whitespace (Python's whitespace)
+std::wstring rstrip(std::wstring s) {
+    while (!s.empty() && (iswspace(s.back()) || (s.back() >= 0x1c && s.back() <= 0x1f) || s.back() == 0x85)) s.pop_back();
+    return s;
+}
+
+// The reader: the starter's output decoded as UTF-8 (errors replaced), lines split at \r\n, \r and \n as Python's
+// text mode does; each line goes to the log (with \r\n, as Python's text mode writes it) and to the launcher.
+void read_output(HANDLE pipe, HANDLE log) {
+    std::string pending;   // bytes of the line being read
+    bool cr = false;       // the last byte read was \r (a \n right after it belongs to the same line end)
+    auto emit = [&](const std::string &bytes, bool newline) {
+        const std::wstring line = widen(bytes);
+        if (log) {
+            const std::string text = utf8(line) + (newline ? "\r\n" : "");
+            DWORD put = 0;
+            if (!WriteFile(log, text.data(), (DWORD)text.size(), &put, nullptr)) {
+                CloseHandle(log);
+                log = nullptr;
+            }
+        }
+        std::lock_guard<std::mutex> guard(g_session.lock);
+        g_session.lines.push_back(utf8(rstrip(line)));
+    };
+    char buf[4096];
+    DWORD got = 0;
+    while (ReadFile(pipe, buf, sizeof buf, &got, nullptr) && got) {
+        for (DWORD i = 0; i < got; ++i) {
+            const char c = buf[i];
+            if (cr && c == '\n') { cr = false; continue; }
+            cr = false;
+            if (c == '\n' || c == '\r') {
+                emit(pending, true);
+                pending.clear();
+                cr = c == '\r';
+            } else {
+                pending += c;
+            }
+        }
+    }
+    if (!pending.empty()) emit(pending, false);
+    CloseHandle(pipe);
+    WaitForSingleObject(g_session.process, INFINITE);
+    DWORD code = 0;
+    GetExitCodeProcess(g_session.process, &code);
+    if (log) {
+        const std::string text = "exit code " + std::to_string(code) + "\r\n";
+        DWORD put = 0;
+        WriteFile(log, text.data(), (DWORD)text.size(), &put, nullptr);
+        CloseHandle(log);
+    }
+    std::lock_guard<std::mutex> guard(g_session.lock);
+    g_session.exit_code = code;
+    g_session.reading = false;
+}
+
+// Starts the game starter: command (its argv), env ([name, value] pairs: the whole environment), cwd, log (the run
+// log: a header line with the time and the command, then the output). Returns the process id, or the error.
+std::string play_start(const Value &request, DWORD &pid) {
+    {
+        std::lock_guard<std::mutex> guard(g_session.lock);
+        if (g_session.process && (g_session.reading || !g_session.ended)) throw std::string("a game is already running");
+    }
+    std::vector<std::wstring> command;
+    if (const Value *c = request.get("command")) for (auto &a : c->items) command.push_back(widen(a.s));
+    if (command.empty()) throw std::string("no command");
+    std::vector<std::pair<std::wstring, std::wstring>> vars;
+    if (const Value *e = request.get("env"))
+        for (auto &p : e->items) if (p.items.size() == 2) vars.push_back({widen(p.items[0].s), widen(p.items[1].s)});
+    std::stable_sort(vars.begin(), vars.end(), [](auto &a, auto &b) {
+        return CompareStringOrdinal(a.first.c_str(), (int)a.first.size(), b.first.c_str(), (int)b.first.size(), TRUE) ==
+               CSTR_LESS_THAN;
+    });
+    std::vector<wchar_t> block;
+    for (auto &kv : vars) {
+        const std::wstring line = kv.first + L"=" + kv.second;
+        block.insert(block.end(), line.begin(), line.end());
+        block.push_back(0);
+    }
+    block.push_back(0);
+    if (block.size() == 1) block.push_back(0);
+    const std::wstring cwd = request.get("cwd") ? widen(request.get("cwd")->s) : L"";
+    SECURITY_ATTRIBUTES sa{sizeof sa, nullptr, TRUE};
+    HANDLE read_end = nullptr, write_end = nullptr;
+    if (!CreatePipe(&read_end, &write_end, &sa, 0)) throw os_error(GetLastError());
+    SetHandleInformation(read_end, HANDLE_FLAG_INHERIT, 0);
+    HANDLE null_in = CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_EXISTING, 0, nullptr);
+    SIZE_T size = 0;
+    InitializeProcThreadAttributeList(nullptr, 1, 0, &size);
+    std::vector<char> attr_buf(size);
+    auto attr = (LPPROC_THREAD_ATTRIBUTE_LIST)attr_buf.data();
+    InitializeProcThreadAttributeList(attr, 1, 0, &size);
+    HANDLE handles[2] = {null_in, write_end};
+    UpdateProcThreadAttribute(attr, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, handles, sizeof handles, nullptr, nullptr);
+    STARTUPINFOEXW si{};
+    si.StartupInfo.cb = sizeof si;
+    si.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    si.StartupInfo.hStdInput = null_in;
+    si.StartupInfo.hStdOutput = write_end;
+    si.StartupInfo.hStdError = write_end;
+    si.lpAttributeList = attr;
+    std::wstring cmd = command_line(command);
+    std::vector<wchar_t> cmd_buf(cmd.begin(), cmd.end());
+    cmd_buf.push_back(0);
+    // The game window may take the foreground (Windows only lets the foreground process do that; the game starts two
+    // processes down): fullscreen and keyboard input need the focus.
+    AllowSetForegroundWindow(ASFW_ANY);
+    PROCESS_INFORMATION pi{};
+    const BOOL ok = CreateProcessW(nullptr, cmd_buf.data(), nullptr, nullptr, TRUE,
+                                   EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW, block.data(),
+                                   cwd.empty() ? nullptr : cwd.c_str(), &si.StartupInfo, &pi);
+    const DWORD error = GetLastError();
+    DeleteProcThreadAttributeList(attr);
+    CloseHandle(write_end);
+    if (null_in != INVALID_HANDLE_VALUE) CloseHandle(null_in);
+    if (!ok) {
+        CloseHandle(read_end);
+        throw os_error(error);
+    }
+    CloseHandle(pi.hThread);
+    // The run log ("the game does not start" reports): the time and the command, then the starter's output.
+    HANDLE log = nullptr;
+    if (const Value *l = request.get("log")) {
+        log = CreateFileW(widen(l->s).c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS,
+                          FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (log == INVALID_HANDLE_VALUE) {
+            log = nullptr;
+        } else {
+            SYSTEMTIME t;
+            GetLocalTime(&t);
+            char stamp[32];
+            std::snprintf(stamp, sizeof stamp, "%04d-%02d-%02d %02d:%02d:%02d", t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute,
+                          t.wSecond);
+            std::string joined;
+            for (size_t k = 0; k < command.size(); ++k) joined += (k ? " " : "") + utf8(command[k]);
+            const std::string header = std::string(stamp) + " " + joined + "\r\n";
+            DWORD put = 0;
+            WriteFile(log, header.data(), (DWORD)header.size(), &put, nullptr);
+        }
+    }
+    {
+        std::lock_guard<std::mutex> guard(g_session.lock);
+        if (g_session.process) CloseHandle(g_session.process);
+        g_session.process = pi.hProcess;
+        g_session.pid = pi.dwProcessId;
+        g_session.lines.clear();
+        g_session.reading = true;
+        g_session.ended = false;
+        g_session.exit_code = 0;
+    }
+    std::thread(read_output, read_end, log).detach();
+    pid = pi.dwProcessId;
+    return "";
+}
+
+// ------------------------------------------------------------------------------------------------ why a game stopped
+
+std::wstring strip(const std::wstring &s) {
+    size_t a = 0, b = s.size();
+    auto space = [](wchar_t c) { return iswspace(c) || (c >= 0x1c && c <= 0x1f) || c == 0x85; };
+    while (a < b && space(s[a])) ++a;
+    while (b > a && space(s[b - 1])) --b;
+    return s.substr(a, b - a);
+}
+bool starts(const std::wstring &s, const wchar_t *prefix) { return s.compare(0, wcslen(prefix), prefix) == 0; }
+
+// str.splitlines()
+std::vector<std::wstring> splitlines(const std::wstring &t) {
+    std::vector<std::wstring> lines;
+    size_t a = 0;
+    for (size_t i = 0; i < t.size(); ++i) {
+        const wchar_t c = t[i];
+        if (c == L'\n' || c == L'\r' || c == 0x0b || c == 0x0c || c == 0x1c || c == 0x1d || c == 0x1e || c == 0x85 ||
+            c == 0x2028 || c == 0x2029) {
+            lines.push_back(t.substr(a, i - a));
+            if (c == L'\r' && i + 1 < t.size() && t[i + 1] == L'\n') ++i;
+            a = i + 1;
+        }
+    }
+    if (a < t.size()) lines.push_back(t.substr(a));
+    return lines;
+}
+
+double mtime_of(const std::wstring &path, bool &ok) {
+    WIN32_FILE_ATTRIBUTE_DATA a;
+    ok = GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &a) != 0 && !(a.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+    if (!ok) return 0;
+    const unsigned long long t = ((unsigned long long)a.ftLastWriteTime.dwHighDateTime << 32) | a.ftLastWriteTime.dwLowDateTime;
+    return (double)(long long)(t - 116444736000000000ull) / 1e7;
+}
+
+// The newest of the games' boot.log files; empty when there is none.
+std::wstring latest_log(const std::wstring &root) {
+    std::wstring best;
+    double best_time = 0;
+    for (const wchar_t *folder : {L"uncharted", L"big2-ps4_Shipping", L"big3-ps4_Shipping"}) {
+        const std::wstring log = root + L"\\analysis\\" + folder + L"\\boot.log";
+        bool ok = false;
+        const double t = mtime_of(log, ok);
+        if (ok && (best.empty() || t > best_time)) {
+            best = log;
+            best_time = t;
+        }
+    }
+    return best;
+}
+
+// Why the game stopped, from the newest boot.log written since started_at: a freeze report, the runtime's fault report
+// with where it happened, or the assertion or stop message; found false when the log tells none.
+std::string crash_reason(const std::wstring &root, double started_at, bool &found) {
+    found = false;
+    const std::wstring log = latest_log(root);
+    bool ok = false;
+    if (log.empty() || mtime_of(log, ok) < started_at) return "";
+    std::string data;
+    {
+        HANDLE h = CreateFileW(log.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (h == INVALID_HANDLE_VALUE) return "";
+        char buf[1 << 16];
+        DWORD got = 0;
+        while (ReadFile(h, buf, sizeof buf, &got, nullptr) && got) data.append(buf, got);
+        CloseHandle(h);
+    }
+    std::vector<std::wstring> lines = splitlines(widen(data));
+    std::vector<std::wstring> tail(lines.size() > 80 ? lines.end() - 80 : lines.begin(), lines.end());
+    for (size_t k = tail.size(); k-- > 0;) {
+        const std::wstring &line = tail[k];
+        const size_t at = line.find(L" report ");
+        if (starts(line, L"Hang watchdog:") && at != std::wstring::npos) {
+            found = true;
+            return "The game froze. A report of where it stopped was saved:\n" + utf8(line.substr(at + 8)) +
+                   "\n\nPlease attach it with the log folder's boot.log to a GitHub issue.";
+        }
+    }
+    // A crash (exit code 3): the runtime's fault report names where it happened.
+    for (size_t i = 0; i < tail.size(); ++i) {
+        if (!starts(tail[i], L"Fault:")) continue;
+        std::wstring where;
+        for (size_t k = i + 1; k < tail.size() && k < i + 6; ++k) {
+            std::wstring left = tail[k];
+            size_t a = 0;
+            while (a < left.size() && (iswspace(left[a]) || (left[a] >= 0x1c && left[a] <= 0x1f) || left[a] == 0x85)) ++a;
+            left = left.substr(a);
+            if (starts(left, L"host #0") || starts(left, L"#0")) {
+                where = strip(tail[k]);
+                break;
+            }
+        }
+        found = true;
+        return utf8(strip(tail[i])) + (where.empty() ? "" : "\n" + utf8(where)) +
+               "\n\nPlease attach boot.log from the log folder (and your graphics card, game version and settings) to a "
+               "GitHub issue.";
+    }
+    for (size_t i = 0; i < tail.size(); ++i) {
+        const std::wstring &line = tail[i];
+        if (starts(line, L"STOP:") || line.find(L"Unreachable code") != std::wstring::npos ||
+            line.find(L"Assertion") != std::wstring::npos) {
+            std::wstring joined;
+            bool first = true;
+            for (size_t k = i >= 2 ? i - 2 : 0; k <= i; ++k) {
+                if (strip(tail[k]).empty()) continue;
+                joined += (first ? L"" : L"\n") + tail[k];
+                first = false;
+            }
+            found = true;
+            return utf8(joined.size() > 600 ? joined.substr(joined.size() - 600) : joined);
+        }
+    }
+    return "";
+}
+
+}  // namespace
+
+extern "C" {
+
+// The game's environment values from the launcher's settings (config_json: launcher.json as the launcher holds it;
+// user_dir: where the games' settings files are): a JSON list of [name, value] (value null: remove the name), in
+// play()'s order. 0 ok; 1 the settings lack a game's values (out: why).
+UN_API int un_play_env(const char *config_json, const wchar_t *user_dir, char *out, int cap) {
+    Value config;
+    if (!json::parse(config_json ? config_json : "{}", config)) return give("invalid settings", out, cap) < 0 ? -1 : 1;
+    try {
+        return give(json::dump(play_env(config, user_dir ? user_dir : L"")), out, cap);
+    } catch (const std::string &error) {
+        int status = give(error, out, cap);
+        return status < 0 ? status : 1;
+    }
+}
+
+// Starts the game starter (request_json: {command: [...], env: [[name, value], ...], cwd, log}). 0 ok (out: the
+// process id); 1 it could not start (out: why, as Python's OSError words it).
+UN_API int un_play_start(const char *request_json, char *out, int cap) {
+    Value request;
+    if (!json::parse(request_json ? request_json : "{}", request)) return give("invalid request", out, cap) < 0 ? -1 : 1;
+    try {
+        DWORD pid = 0;
+        play_start(request, pid);
+        return give(std::to_string(pid), out, cap);
+    } catch (const std::string &error) {
+        int status = give(error, out, cap);
+        return status < 0 ? status : 1;
+    }
+}
+
+// The game's state: {"lines": [the output lines since the last call], "exit": the exit code once the game has ended
+// and all its output was handed over, else null}. The lines are handed over once (call it again with room if it asks).
+UN_API int un_play_poll(char *out, int cap) {
+    std::lock_guard<std::mutex> guard(g_session.lock);
+    Value state = Value::object(), lines;
+    lines.kind = Value::Array;
+    for (auto &l : g_session.lines) lines.items.push_back(Value::text(l));
+    const bool done = g_session.process && !g_session.reading;
+    state.set("lines", lines);
+    state.set("exit", done ? Value::integer((long long)g_session.exit_code) : Value::null());
+    const std::string text = json::dump(state, false);
+    if ((int)text.size() + 1 > cap) return -(int)(text.size() + 1);
+    g_session.lines.clear();
+    if (done) {
+        CloseHandle(g_session.process);
+        g_session.process = nullptr;
+        g_session.ended = true;
+    }
+    return give(text, out, cap);
+}
+
+// STOP: ends the game starter and everything it started (taskkill /T /F, as the launcher did).
+UN_API int un_play_stop(void) {
+    DWORD pid;
+    {
+        std::lock_guard<std::mutex> guard(g_session.lock);
+        if (!g_session.process) return 1;
+        pid = g_session.pid;
+    }
+    std::wstring cmd = L"taskkill /PID " + std::to_wstring(pid) + L" /T /F";
+    std::vector<wchar_t> buf(cmd.begin(), cmd.end());
+    buf.push_back(0);
+    SECURITY_ATTRIBUTES sa{sizeof sa, nullptr, TRUE};
+    HANDLE null_io = CreateFileW(L"NUL", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_EXISTING, 0,
+                                 nullptr);
+    STARTUPINFOW si{};
+    si.cb = sizeof si;
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = si.hStdOutput = si.hStdError = null_io;
+    PROCESS_INFORMATION pi{};
+    if (CreateProcessW(nullptr, buf.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+        WaitForSingleObject(pi.hProcess, INFINITE);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+    }
+    if (null_io != INVALID_HANDLE_VALUE) CloseHandle(null_io);
+    return 0;
+}
+
+// Why the game stopped (root: the launcher's folder; started_at: when PLAY started it, seconds since 1970): 0 and the
+// reason, or 2 when its newest boot.log tells none.
+UN_API int un_play_crash_reason(const wchar_t *root, double started_at, char *out, int cap) {
+    bool found = false;
+    const std::string reason = crash_reason(root ? root : L"", started_at, found);
+    if (!found) return give("", out, cap) < 0 ? -1 : 2;
+    return give(reason, out, cap);
+}
+
+}  // extern "C"

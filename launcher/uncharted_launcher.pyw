@@ -13,7 +13,6 @@ import json
 import math
 import os
 from pathlib import Path
-import queue
 import shutil
 import subprocess
 import sys
@@ -898,7 +897,6 @@ class Launcher:
                 write_ini(key, controls_to_ini(self.config["games"][key]))
         self.reload_ini()
         self.process = None
-        self.output = queue.Queue()
         self.last_output = 0.0
         self.game_started = False
         self.widgets = {}
@@ -3829,58 +3827,27 @@ class Launcher:
         game = self.current_game()
         env = os.environ.copy()
         env["GOW3_TITLE_SUFFIX"] = self.title_suffix()   # the game window's title (gow3gpu.cpp), the same as the launcher's
-        env["UNCHARTED_DIAGNOSTICS"] = "1" if self.config.get("diagnostics", True) else "0"
-        env["UNCHARTED_TORCH_FORWARD"] = "1" if self.config.get("torch_forward", True) else "0"
-        env["UNCHARTED_JOB_SLEEP"] = {"off": "0", "on": "1"}.get(str(self.config.get("job_sleep", "auto")), "auto")
-        # renderer_vulkan/vk_instance.cpp: 1 on, auto (cards of 4.5 GiB or less), anything else off
-        env["GOW3_LOW_VRAM"] = {"on": "1", "auto": "auto"}.get(str(self.config.get("low_vram", "off")), "0")
-        env["UNCHARTED_LANGUAGE"] = str(self.config.get("language", "1"))
-        env["UNCHARTED_SPEAKERS"] = str(self.config.get("speakers", "auto"))
-        env["UNCHARTED_U3_EXPOSURE"] = str(self.config.get("u3_exposure", "0"))
-        env["UNCHARTED_ANISOTROPY"] = str(self.config.get("anisotropy", "0"))
-        env["UNCHARTED_HIRES_SHADOWS"] = "1" if self.config.get("hires_shadows", False) else "0"
-        env["UNCHARTED_FULL_RES_TEXTURES"] = "1" if self.config.get("full_res_textures", False) else "0"
-        env["UNCHARTED_NO_DOF"] = "1" if self.config.get("no_dof", False) else "0"
-        env["GOW3_MOVIE_STRETCH"] = "1" if self.config.get("movie_stretch", False) else "0"
-        env["UNCHARTED_UNLOCK"] = "1" if self.config.get("unlock", False) else "0"
-        env["UNCHARTED_UNLOCK_REWARDS"] = "1" if self.config.get("unlock_rewards", False) else "0"
+        # The options, cheats and every game's sizes from the settings (launcher/native/play.cpp): the Collection menu
+        # starts the other games itself, so each one's values go along. Controls: in each game's settings file.
+        for name, value in native_api.play_env(self.config, USER_DIR):
+            if value is None:
+                env.pop(name, None)
+            else:
+                env[name] = value
         self.u3mp_env(env)  # Uncharted 3 multiplayer (Multiplayer tab)
         self.u2mp_env(env)  # Uncharted 2 multiplayer (Multiplayer tab while Uncharted 2 is chosen)
         if self.chosen_update():
-            env["UNCHARTED_UPDATE"] = str(self.chosen_update())  # tools/probe_uncharted.py find_update
-        env["UNCHARTED_CHEATS"] = ",".join(name for name, *_ in CHEATS if self.config.get("cheat_" + name, False))
-        # Every game's own options: the Collection menu starts the others itself, and
-        # tools/probe_uncharted.py applies the started game's (its settings file decides the
-        # vblank rate for frame rates above 60).
-        env.pop("GOW3_VBLANK_HZ", None)
-        for key in GAME_KEYS:
-            settings = self.config["games"][key]
-            # With upscaling the game draws below the resolution chosen, upscaled to it
-            # (tools/probe_uncharted.py).
-            render, output = game_sizes(settings, upscaling_choice(read_ini(key)))
-            env[f"UNCHARTED_RESOLUTION_{key.upper()}"] = render
-            if output:
-                env[f"UNCHARTED_OUTPUT_RES_{key.upper()}"] = output
-            else:
-                env.pop(f"UNCHARTED_OUTPUT_RES_{key.upper()}", None)
-            env[f"UNCHARTED_MULTITHREADED_{key.upper()}"] = "1" if settings["multithreaded"] else "0"
-            env[f"UNCHARTED_SAVE_PROFILE_{key.upper()}"] = str(settings.get("save_profile", "1"))
-            # Controls: in each game's settings file (save_controls), where its menu changes them.
+            env["UNCHARTED_UPDATE"] = str(self.chosen_update())  # the game starter's find_update
         python = Path(sys.executable)
         if python.name.lower() == "pythonw.exe" and python.with_name("python.exe").exists():
             python = python.with_name("python.exe")
         command = [str(python), "-u", str(RUN_SCRIPT), "--boot", "--seconds", "0", "--executable", game["exe"],
                    "--game", str(self.game_dir())]
-        # The game window may take the foreground (Windows only lets the foreground process do
-        # that; the game starts two processes down): fullscreen and keyboard input need the focus.
+        # The game starter runs as the launcher's native code does it (launcher/native/play.cpp): the game window may
+        # take the foreground, and its output (preparation, patches, the runtime's log path) goes to
+        # launcher-last-run.log for "the game does not start" reports and comes back line by line.
         try:
-            ctypes.windll.user32.AllowSetForegroundWindow(-1)  # ASFW_ANY
-        except (AttributeError, OSError):
-            pass
-        try:
-            self.process = subprocess.Popen(command, cwd=str(ROOT), env=env, stdout=subprocess.PIPE,
-                                            stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                                            creationflags=NO_WINDOW, text=True, encoding="utf-8", errors="replace")
+            self.process = native_api.PlaySession(command, env, ROOT, USER_DIR / "launcher-last-run.log")
         except OSError as error:
             messagebox.showerror(APP_TITLE, f"Could not start the game:\n{error}")
             self.process = None
@@ -3888,40 +3855,12 @@ class Launcher:
         self.started_at = time.time()
         self.last_output = time.time()
         self.game_started = False
-        # The start script's output (preparation, patches, the runtime's log path): kept for
-        # "the game does not start" reports.
-        try:
-            self.run_log = open(USER_DIR / "launcher-last-run.log", "w", encoding="utf-8")
-            self.run_log.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {' '.join(command)}\n")
-        except OSError:
-            self.run_log = None
-        threading.Thread(target=self.read_output, args=(self.process,), daemon=True).start()
         self.set_status(f"Starting {game['name']}...", "Preparing game files and code patches.")
         self.draw_play()
 
-    def read_output(self, process):
-        log = getattr(self, "run_log", None)
-        for line in process.stdout:
-            self.output.put(line.rstrip())
-            if log:
-                try:
-                    log.write(line)
-                    log.flush()
-                except (OSError, ValueError):
-                    log = None
-        if log:
-            try:
-                log.write(f"exit code {process.wait()}\n")
-                log.close()
-            except (OSError, ValueError):
-                pass
-
     def poll(self):
-        while True:
-            try:
-                line = self.output.get_nowait()
-            except queue.Empty:
-                break
+        lines, _ = self.process.take() if self.process else ([], None)
+        for line in lines:
             self.last_output = time.time()
             if line.startswith("Collection: switching to"):
                 target = line.split("switching to", 1)[1].strip().split()[0]
@@ -3946,30 +3885,10 @@ class Launcher:
         return max(logs, key=lambda p: p.stat().st_mtime) if logs else None
 
     def crash_reason(self):
-        log = self.latest_log()
-        if not log or log.stat().st_mtime < self.started_at:
-            return None
-        try:
-            tail = log.read_text(encoding="utf-8", errors="replace").splitlines()[-80:]
-        except OSError:
-            return None
-        for line in reversed(tail):
-            if line.startswith("Hang watchdog:") and " report " in line:
-                return ("The game froze. A report of where it stopped was saved:\n"
-                        + line.split(" report ", 1)[-1] + "\n\nPlease attach it with the log folder's "
-                        "boot.log to a GitHub issue.")
-        # A crash (exit code 3): the runtime's fault report names where it happened. Players
-        # reported just "error code 3" (GitHub #24, #27); the report is what tells the cause.
-        for i, line in enumerate(tail):
-            if line.startswith("Fault:"):
-                where = next((l.strip() for l in tail[i + 1:i + 6] if l.lstrip().startswith(("host #0", "#0"))), "")
-                return (line.strip() + (f"\n{where}" if where else "") + "\n\nPlease attach boot.log from the "
-                        "log folder (and your graphics card, game version and settings) to a GitHub issue.")
-        for i, line in enumerate(tail):
-            if line.startswith("STOP:") or "Unreachable code" in line or "Assertion" in line:
-                context = [l for l in tail[max(0, i - 2):i + 1] if l.strip()]
-                return "\n".join(context)[-600:]
-        return None
+        """Why the game stopped, from its newest boot.log (launcher/native/play.cpp): a freeze report, the runtime's
+        fault report with where it happened (players reported just "error code 3", GitHub #24, #27), or the assertion
+        or stop message; None when the log tells none."""
+        return native_api.crash_reason(ROOT, self.started_at)
 
     def confirm_update_files(self):
         """An update folder with missing or damaged files (#43: a bin.psarc the games couldn't read
@@ -4069,8 +3988,7 @@ class Launcher:
         if not self.process:
             return
         self.stopping = True
-        subprocess.run(["taskkill", "/PID", str(self.process.pid), "/T", "/F"], creationflags=NO_WINDOW,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.process.stop()   # the game starter and everything it started (launcher/native/play.cpp)
         self.set_status("Stopping the game...")
 
     # -- advanced actions -------------------------------------------------------------------
