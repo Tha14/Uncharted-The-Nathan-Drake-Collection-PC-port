@@ -27,6 +27,7 @@ from tkinter import messagebox
 
 from PIL import Image, ImageDraw, ImageTk
 
+import native_api  # launcher/native_api.py: the launcher's native code (uncharted_native.dll)
 import updater  # launcher/updater.py: updates from the GitHub releases
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,7 +35,6 @@ ASSETS = ROOT / "launcher" / "assets"
 DEFAULT_GAME_DIR = ROOT / "game" / "CUSA02344" / "uroot"
 STARTER_EXE = ROOT / "Uncharted Launcher.exe"  # the packaged build's starter (tools/package_windows.py)
 USER_DIR = ROOT / "analysis" / "uncharted-user"
-INI_FILE = USER_DIR / "probe.ini"
 RUN_SCRIPT = ROOT / "tools" / "probe_uncharted.py"
 PREFIX_CONFIG_FILE = Path(os.environ.get("APPDATA", Path.home())) / "Uncharted Launcher" / "launcher.json"
 
@@ -246,23 +246,11 @@ STOP_RED = "#c4553f"
 
 # At most 120: faster, the game's movement timing breaks (Drake's Fortune at 140-160 FPS: running
 # slows, Nate fell through the world). The runtime caps older, faster settings at 120 too.
-MAX_FPS = 120
-FPS_LIMITS = [(30, "30"), (40, "40"), (45, "45"), (50, "50"), (55, "55"), (60, "60"), (75, "75"),
-              (90, "90"), (100, "100"), (MAX_FPS, str(MAX_FPS))]
-
-# Runtime options in probe.ini (key -> default) and launcher-only ones.
-INI_DEFAULTS = {
-    "display_mode": "windowed", "vsync": "1", "fps_limit": "60", "frames_queued": "1",
-    "async_shaders": "1", "fsr1": "0", "rcas": "1", "rcas_strength": "75", "show_fps": "1",
-    "upscaler": "off",
-    # The performance counter (Display tab): the items on its line, its corner, layout, text size
-    # and background opacity. The runtime's defaults; the in-game Overlay tab writes them too.
-    # Items as the runtime starts (DefaultItems: FPS, frame time, upscaler) until the game has
-    # written its ini once.
-    "overlay_fps": "1", "overlay_frametime": "1", "overlay_gpu": "0", "overlay_cpu": "0",
-    "overlay_ram": "0", "overlay_vram": "0", "overlay_upscaler": "1", "overlay_corner": "1",
-    "overlay_layout": "0", "overlay_scale": "100", "overlay_opacity": "50",
-}
+# The frame-rate limits, the runtime settings' defaults and the presets are the native settings core's
+# (launcher/native/config.cpp).
+FPS_LIMITS = native_api.fps_limits()
+MAX_FPS = FPS_LIMITS[-1][0]
+INI_DEFAULTS = native_api.ini_defaults()
 # Cheats (Advanced page): name, title, hint. tools/probe_uncharted.py turns on the games' own
 # switches for them (CHEATS there).
 CHEATS = (("invincible", "Invincible", "Nate takes no damage. All three games."),
@@ -873,18 +861,6 @@ def monitor_refresh_hz():
         return 60
 
 
-def fps_limit_value(value):
-    """A listed limit; unlimited (0) and faster ones (earlier versions offered 144-240) are 120."""
-    listed = {str(v) for v, _ in FPS_LIMITS}
-    if value in listed:
-        return value
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        return "60"
-    return str(MAX_FPS) if number == 0 or number > MAX_FPS else "60"
-
-
 RESOLUTIONS = [("960x540", "540p"), ("1280x720", "720p"), ("1600x900", "900p"), ("1920x1080", "1080p"), ("2560x1440", "1440p"),
                ("2880x1620", "1620p"), ("3840x2160", "4K")]
 # Ultrawide: the render resolution's height at a wider aspect ratio. The games widen their view
@@ -962,49 +938,8 @@ def resolution_options(aspect):
 # game draws at, the upscaling, the sharpening and the frame rate. Above 1080p the
 # render resolution is new (October 2026): confirm in play. All three games draw at 4K
 # natively except Drake's Fortune, which stops at 1620p (its memory layout) and upscales.
-PRESETS = {
-    # IGPU card adapted from PR #223 by memeguyoffical (the card, its values and the iGPU detection).
-    "igpu": {
-        "title": "IGPU", "summary": "30–60 FPS  •  540–720p, FSR 1",
-        "detail": "Intel and AMD integrated graphics: the game draws at 540p (720p on the strongest "
-                  "iGPUs, 360p on the weakest) and FSR 1 upscales it to 1080p. About 30 FPS on Vega "
-                  "and 2-CU Radeon, 60 on Radeon 680M/760M/780M and Iris Xe. No anti-aliasing; the "
-                  "lowest memory use.",
-        "resolution": "1920x1080", "upscale": "performance",
-        "values": {"fps_limit": "60", "frames_queued": "1", "vsync": "1", "async_shaders": "1",
-                   "fsr1": "1", "rcas": "1", "rcas_strength": "75", "upscaler": "off"},
-    },
-    "low": {
-        "title": "LOW", "summary": "60 FPS  •  1080p, FSR 1",
-        "detail": "For older graphics cards: the game draws at half of 1080p and FSR 1 upscales it; "
-                  "the HUD stays sharp.",
-        "resolution": "1920x1080", "upscale": "performance",
-        "values": {"fps_limit": "60", "frames_queued": "1", "vsync": "1", "async_shaders": "1",
-                   "fsr1": "1", "rcas": "1", "rcas_strength": "75"},
-    },
-    "medium": {
-        "title": "MEDIUM", "summary": "60 FPS  •  as on PS4",
-        "detail": "Like the PS4: 1080p at 60 FPS. Right for most PCs.",
-        "resolution": "1920x1080", "upscale": "off",
-        "values": {"fps_limit": "60", "frames_queued": "1", "vsync": "1", "async_shaders": "1",
-                   "fsr1": "0", "rcas": "1", "rcas_strength": "75"},
-    },
-    "high": {
-        "title": "HIGH", "summary": "60 FPS  •  1440p",
-        "detail": "Sharper: the game draws at 1440p.",
-        "resolution": "2560x1440", "upscale": "off",
-        "values": {"fps_limit": "60", "frames_queued": "1", "vsync": "1", "async_shaders": "1",
-                   "fsr1": "0", "rcas": "1", "rcas_strength": "50"},
-    },
-    "ultra": {
-        "title": "ULTRA", "summary": "4K  •  up to 120 FPS",
-        "detail": "For fast graphics cards: native 4K and up to 120 FPS (experimental). Drake's "
-                  "Fortune draws at 1620p and scales up.",
-        "resolution": "3840x2160", "upscale": "off",
-        "values": {"fps_limit": str(MAX_FPS), "frames_queued": "1", "vsync": "1", "async_shaders": "1",
-                   "fsr1": "0", "rcas": "1", "rcas_strength": "50"},
-    },
-}
+# IGPU card adapted from PR #223 by memeguyoffical (the card, its values and the iGPU detection).
+PRESETS = native_api.presets()
 PRESET_ORDER = ("igpu", "low", "medium", "high", "ultra")
 
 
@@ -1206,24 +1141,9 @@ def ini_file(game):
     return USER_DIR / f"probe-{game}.ini"
 
 
-def ini_lines(game):
-    """The game's settings file, or the shared one of earlier versions as its starting point."""
-    for path in (ini_file(game), INI_FILE):
-        try:
-            return path.read_text(encoding="utf-8", errors="replace").splitlines()
-        except OSError:
-            continue
-    return ["# Uncharted settings (launcher and in-game menu: Insert / R3+L2)"]
-
-
 def read_ini(game):
-    values = dict(INI_DEFAULTS)
-    for line in ini_lines(game):
-        if "=" in line and not line.lstrip().startswith("#"):
-            key, value = line.split("=", 1)
-            values[key.strip()] = value.strip()
-    values["fps_limit"] = fps_limit_value(values["fps_limit"])
-    return values
+    """The game's runtime settings (launcher/native/config.cpp): defaults, then its file's keys."""
+    return native_api.ini_read(USER_DIR, game)
 
 
 def ini_mtime(game):
@@ -1235,18 +1155,7 @@ def ini_mtime(game):
 
 def write_ini(game, updates):
     """Updates keys in place and keeps every other line (the in-game menu writes more keys)."""
-    lines = ini_lines(game)
-    done = set()
-    for i, line in enumerate(lines):
-        if "=" in line and not line.lstrip().startswith("#"):
-            key = line.split("=", 1)[0].strip()
-            if key in updates:
-                lines[i] = f"{key}={updates[key]}"
-                done.add(key)
-    lines += [f"{key}={value}" for key, value in updates.items() if key not in done]
-    path = ini_file(game)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    native_api.ini_write(USER_DIR, game, updates)
 
 
 def load_config_file(path):

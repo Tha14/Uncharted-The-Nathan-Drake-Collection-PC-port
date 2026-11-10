@@ -40,6 +40,14 @@ UN_API int un_minidump(unsigned long pid, const wchar_t *path);
  * until the game ends; the newest 10 such files stay. out: the file's path. 0 started, 1 not started. */
 UN_API int un_memory_monitor(unsigned long pid, const wchar_t *folder, double seconds, char *out, int cap);
 
+/* Settings core (config.cpp): tables, and the per-game runtime settings file <user_dir>\probe-<game>.ini.
+ * un_settings_table name: "ini_defaults" (key\tvalue), "fps_limits" (value\tlabel), "presets"
+ *   (name\ttitle\tsummary\tdetail\tresolution\tupscale\tkey=value;...).
+ * un_ini_read out: key\tvalue lines (defaults, then the file's keys). un_ini_write updates: key\tvalue lines; 0 ok. */
+UN_API int un_settings_table(const char *name, char *out, int cap);
+UN_API int un_ini_read(const wchar_t *user_dir, const char *game, char *out, int cap);
+UN_API int un_ini_write(const wchar_t *user_dir, const char *game, const char *updates);
+
 #ifdef __cplusplus
 }
 #endif

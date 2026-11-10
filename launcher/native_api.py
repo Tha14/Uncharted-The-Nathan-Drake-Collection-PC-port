@@ -1,0 +1,64 @@
+"""The launcher's calls into uncharted_native.dll (launcher/native): the settings core (config.cpp). Python only passes
+values in and out; the work is in the library."""
+import ctypes
+from pathlib import Path
+
+NATIVE = Path(__file__).resolve().parent / "native" / "uncharted_native.dll"
+_dll = None
+
+
+def _native():
+    global _dll
+    if _dll is None:
+        _dll = ctypes.CDLL(str(NATIVE))
+        _dll.un_settings_table.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_ini_read.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_ini_write.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_char_p]
+        for name in ("un_settings_table", "un_ini_read", "un_ini_write"):
+            getattr(_dll, name).restype = ctypes.c_int
+    return _dll
+
+
+def _text(call, *args):
+    size = 1 << 15
+    while True:
+        out = ctypes.create_string_buffer(size)
+        status = call(*args, out, size)
+        if status >= 0:
+            return out.value.decode("utf-8", "replace")
+        size = -status
+
+
+def _rows(text):
+    return [line.split("\t") for line in text.splitlines() if line]
+
+
+def table(name):
+    return _rows(_text(_native().un_settings_table, name.encode()))
+
+
+def ini_defaults():
+    return {key: value for key, value in table("ini_defaults")}
+
+
+def fps_limits():
+    return [(int(value), label) for value, label in table("fps_limits")]
+
+
+def presets():
+    """{name: {title, summary, detail, resolution, upscale, values}} in the cards' order."""
+    out = {}
+    for name, title, summary, detail, resolution, upscale, values in table("presets"):
+        out[name] = {"title": title, "summary": summary, "detail": detail, "resolution": resolution,
+                     "upscale": upscale, "values": dict(pair.split("=", 1) for pair in values.split(";") if pair)}
+    return out
+
+
+def ini_read(user_dir, game):
+    return {key: value for key, value in _rows(_text(_native().un_ini_read, str(user_dir), game.encode()))}
+
+
+def ini_write(user_dir, game, updates):
+    request = "".join(f"{key}\t{value}\n" for key, value in updates.items()).encode("utf-8")
+    if _native().un_ini_write(str(user_dir), game.encode(), request) != 0:
+        raise OSError(f"could not write {Path(user_dir) / f'probe-{game}.ini'}")
