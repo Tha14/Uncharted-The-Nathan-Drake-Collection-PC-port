@@ -10,7 +10,6 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-import threading
 import time
 import shutil
 import struct
@@ -476,12 +475,7 @@ RUN_GROUP_PATCH = ("particle run grouping: loop bounds from registers, not below
 # menu item points at. The runtime keeps the chosen ones set (GOW3_POKE). Update 1.02 addresses
 # (guest image offsets); Uncharted 3's invincibility sits in an options block the game allocates,
 # reached through the pointer at 0x16e2f80.
-CHEATS = {
-    "eboot.bin": {"invincible": "aa5ff8", "ammo": "ab9c01"},
-    "big2-ps4_Shipping.elf": {"invincible": "104f877", "ammo": "104f84a", "noreload": "104f84b"},
-    "big3-ps4_Shipping.elf": {"invincible": "*16e2f80+a7", "ammo": "17faa91", "grenades": "17faa92",
-                              "noreload": "17faa93", "onehit": "17fab94"},
-}
+# The cheats, unlocked rewards and extra quality kept set while the game runs (GOW3_POKE): launcher/native/runtime_env.cpp.
 
 # 19 Oct: Uncharted 1 and 2 keep "Infinite Ammo" in their settings system (the Ultra Easy option
 # sets it there, id 0xa6effd08 in U2), which writes the byte back every frame: a poke does not
@@ -491,36 +485,6 @@ def _ammo_reader(pattern, jne_at):
     return (pattern, jne_at, b"\x75", b"\xeb")
 
 
-# Unlock all rewards (launcher -> Advanced, UNCHARTED_UNLOCK_REWARDS=1): Naughty Dog's debug menu
-# switches "Give all Store Items" and "Give All Movies" (the menu itself is unreachable), kept set
-# like the cheats (GOW3_POKE): the games' unlock checks treat every reward (skins, weapons, render
-# modes, art galleries, tweaks) and every story cutscene as unlocked while they are set. Nothing
-# is written to the save: without them the Bonuses menus show the player's own progress again
-# (21 Oct, Uncharted 3: Rewards 81/81, 47/47, 3/3, 6/6, 7/7 with them; 1/81 ... from the same save
-# without). Update 1.02 image offsets.
-REWARD_POKES = {
-    "big2-ps4_Shipping.elf": ["1114178", "1114179"],
-    "big3-ps4_Shipping.elf": ["17b2a94", "17b2a95"],
-}
-# Extra quality (launcher -> Advanced, 29 Oct 2026, the user's own build): debug-menu render
-# switches of the engine kept set like the cheats (GOW3_POKE). Measured in Uncharted 2 (train yard,
-# 1440p): hi-res local (lamp / flashlight) shadow buffer, PS4 default off, ~0% FPS; full resolution
-# textures (no streamed lower mips), PS4 default off, ~1% FPS. Update 1.02 image offsets from
-# analysis/big2-ps4_Shipping/eboot.elf (menu items at 0xba2ad0 and 0xbaa4f4); U1 not mapped yet.
-QUALITY_POKES = {
-    "big2-ps4_Shipping.elf": {"hires_shadows": ["1247d04"], "full_res_textures": ["1248300"]},
-    # Uncharted 3: the same render-settings block at 0x18c6280 (menu items at 0xe0ac90, 0xe127f1).
-    "big3-ps4_Shipping.elf": {"hires_shadows": ["18c6444"], "full_res_textures": ["18c6a40"]},
-}
-# 1 Nov 2026 (GitHub #169 "disable the depth of field"): the same debug menus' "Enable Depth of
-# Field" (render-settings block + 0x1bd; U2 menu item 0xbca021, U3 0xe30f71) and "Enable Camera /
-# Object Motion Blur" (bytes 0x1b9 / 0x1ba of the block behind the pointer at U2 0x104ad90, U3
-# 0x16e3078; menu items U2 0xbca6f0 / 0xbca7d0, U3 0xe31660 / 0xe31740), kept at 0 while chosen
-# (launcher -> Advanced; UNCHARTED_NO_DOF=1, UNCHARTED_NO_MOTION_BLUR=1). Uncharted 1 not mapped.
-QUALITY_POKES["big2-ps4_Shipping.elf"].update({"no_dof": ["1247cfd=0"],
-                                              "no_motion_blur": ["*104ad90+1b9=0", "*104ad90+1ba=0"]})
-QUALITY_POKES["big3-ps4_Shipping.elf"].update({"no_dof": ["18c643d=0"],
-                                              "no_motion_blur": ["*16e3078+1b9=0", "*16e3078+1ba=0"]})
 # Drake's Fortune keeps each reward's status in its own record (bit 0 unlocked) and its debug
 # switch also writes them, so its checks are patched instead: every reward reads as unlocked,
 # usable and counted ("Unlocked 47 of 47"), and the Story Cutscenes list skips no chapter. The
@@ -1029,16 +993,6 @@ def boot_view(base, update):
     return view
 
 
-def ini_value(path, key, default):
-    try:
-        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-            if line.split("=", 1)[0].strip() == key and "=" in line:
-                return line.split("=", 1)[1].strip()
-    except OSError:
-        pass
-    return default
-
-
 def run_once(args, executable, guest_args, loadexec):
     base = args.game.resolve()
     update = find_update(base)
@@ -1080,34 +1034,6 @@ def run_once(args, executable, guest_args, loadexec):
             print(f"Game view {view} not removed: {error}")
         finally:
             sys.path.pop(0)
-
-
-def remove_pipeline_binaries(cache):
-    """Deletes the pipeline binaries earlier versions saved (<cache>/<game>*/pipeline-binaries,
-    ~2 MB each, 20 GB on a tester's PC) on a background thread while the game runs: they are
-    no longer used (24 Oct 2026). A start that ends first leaves the rest to the next start."""
-    folders = [path for path in cache.glob("*/pipeline-binaries") if path.is_dir()]
-    if not folders:
-        return
-
-    def work():
-        files = size = 0
-        for folder in folders:
-            for path in folder.iterdir():
-                try:
-                    size += path.stat().st_size
-                    path.unlink()
-                    files += 1
-                except OSError:
-                    pass
-            try:
-                folder.rmdir()
-            except OSError:
-                pass
-        print(f"Pipeline binaries: {files} old files removed ({size / 2**30:.1f} GB), no longer used",
-              flush=True)
-
-    threading.Thread(target=work, name="remove-pipeline-binaries", daemon=True).start()
 
 
 def instance_suffix():
@@ -1289,333 +1215,12 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
         image.write_bytes(data)
     else:
         extra_mib = 0
-    env = os.environ.copy()
-    wanted = cheat_names(executable)
-    rewards = os.environ.get("UNCHARTED_UNLOCK_REWARDS", "0") == "1"
-    quality = [name for name in ("hires_shadows", "full_res_textures", "no_dof", "no_motion_blur")
-               if os.environ.get("UNCHARTED_" + name.upper(), "0") == "1"
-               and name in QUALITY_POKES.get(executable, {})]
-    if (wanted or rewards or quality) and "GOW3_POKE" not in env:
-        if (game_version(game) or "") >= "01.02":
-            pokes = [CHEATS[executable][name] for name in wanted if name in CHEATS.get(executable, {})]
-            if wanted:
-                print(f"Cheats: {', '.join(n for n in wanted if n in CHEATS.get(executable, {}))}")
-            if rewards and REWARD_POKES.get(executable):
-                pokes += REWARD_POKES[executable]
-                print("Unlock all rewards: on")
-            for name in quality:
-                pokes += QUALITY_POKES[executable][name]
-            if quality:
-                print(f"Extra quality: {', '.join(quality)}")
-            if pokes:
-                env["GOW3_POKE"] = ",".join(pokes)
-        else:
-            print("Cheats and unlocked rewards: need update 1.02 (not used)")
-    # Texture filtering (launcher -> Advanced -> Texture filtering): sampler.cpp GOW3_ANISOTROPY raises
-    # mipmapped colour textures to at least that ratio (~0% FPS measured in Uncharted 2).
-    if (aniso := os.environ.get("UNCHARTED_ANISOTROPY", "0")) in ("2", "4", "8", "16"):
-        env.setdefault("GOW3_ANISOTROPY", aniso)
-        print(f"Texture filtering: {aniso}x")
-    # Measurement logging and live trigger files (frame/fault/wait statistics every 5 s, GPU
-    # checkpoints, capture/readback/DMA triggers). On unless the launcher turns it off.
-    diagnostics = env.get("UNCHARTED_DIAGNOSTICS", "1") != "0"
-    msys = Path(env.get("MSYS2_ROOT", "C:/msys64"))
-    env["PATH"] = str(msys / "clang64/bin") + os.pathsep + env.get("PATH", "")
-    # UNCHARTED_TEST_GPU_USER_DIR: GPU caches in another folder (tests from an empty shader cache).
-    env["GOW3_GPU_USER_DIR"] = env.get("UNCHARTED_TEST_GPU_USER_DIR") or str(user)
-    settings = user / f"probe-{game_key}.ini"
-    if not settings.exists() and (user / "probe.ini").exists():
-        shutil.copy2(user / "probe.ini", settings)  # earlier versions shared one file
-    # UNCHARTED_CONFIG_FILE: another settings file (tests that must not touch the player's).
-    env["GOW3_CONFIG"] = os.environ.get("UNCHARTED_CONFIG_FILE") or str(settings)
-    # Frame rates above 60 need the fast vblank (GOW3_VBLANK_HZ=0); an explicit one is kept.
-    if "GOW3_VBLANK_HZ" not in os.environ:
-        limit = ini_value(Path(env["GOW3_CONFIG"]), "fps_limit", "60")
-        if limit.isdigit() and (int(limit) == 0 or int(limit) > 60):
-            env["GOW3_VBLANK_HZ"] = "0"
-    # Save profiles (launcher Advanced, GitHub #66, 24 Oct 2026): profile N plays as PS4 user N,
-    # whose saves are in analysis\uncharted-user\savedata\N (profile 1: the folder of every earlier
-    # version). GOW3_USER_ID set outside the launcher (tests) wins.
-    profile = os.environ.get(f"UNCHARTED_SAVE_PROFILE_{game_key.upper()}", "1")
-    env.setdefault("GOW3_USER_ID", profile if profile.isdigit() and 1 <= int(profile) <= 16 else "1")
-    multithreaded = os.environ.get(f"UNCHARTED_MULTITHREADED_{game_key.upper()}")
-    # Drake's Fortune: its weapons (and at times other objects) drew with another draw's look on
-    # some frames with multithreaded rendering (flat grey guns, the player and GitHub #23, 18 Oct
-    # 2026), and it gains nothing from it (4 cores: 101.8 vs 103.2 FPS). Off until that is fixed;
-    # UNCHARTED_U1_MULTITHREADED_TEST=1 keeps the launcher's choice (tests).
-    if executable == "eboot.bin" and multithreaded == "1" and \
-            os.environ.get("UNCHARTED_U1_MULTITHREADED_TEST") != "1":
-        print("Multithreaded rendering: off for Drake's Fortune (its weapons flicker with it)")
-        multithreaded = "0"
-    # Drake's Deception froze for good with multithreaded rendering (GitHub #51, Steam Deck, 19 Oct
-    # 2026: a fence write on the Vulkan recording thread faulted while the GPU command thread
-    # waited for that thread), fixed in the runtime the same day. 21 Oct 2026: the launcher's
-    # choice counts again: no freeze in 15-20 min soaks (laptop, desktop walking), and in
-    # a heavy Cartagena spot on the NVIDIA GPU it is the difference between 53.7 FPS with 11 stalls
-    # over 100 ms (off) and 60 FPS with 1 (on), the single GPU command thread being the limit.
-    if multithreaded is not None:
-        # 1 Nov 2026: an explicit GOW3_DRAW_PIPE / GOW3_VK_RECORD_THREAD (tests: one of the two
-        # alone) wins over the launcher's choice.
-        env["GOW3_DRAW_PIPE"] = os.environ.get("GOW3_DRAW_PIPE", multithreaded)
-        env["GOW3_VK_RECORD_THREAD"] = os.environ.get("GOW3_VK_RECORD_THREAD", multithreaded)
-    # Keyboard and mouse (launcher Controls tab, per game; explicit GOW3_* values win).
-    for launcher_key, runtime_key in (("KEY_MAP", "GOW3_KEY_MAP"), ("MOUSE_MAP", "GOW3_MOUSE_MAP"),
-                                      ("MOUSE", "GOW3_MOUSE"), ("MOUSE_SENS", "GOW3_MOUSE_SENS"),
-                                      ("MOUSE_INVERT", "GOW3_MOUSE_INVERT"), ("PROMPTS", "GOW3_PROMPTS"),
-                                      ("PAD_MAP", "GOW3_PAD_MAP")):
-        value = os.environ.get(f"UNCHARTED_{launcher_key}_{game_key.upper()}")
-        if value is not None and runtime_key not in os.environ:
-            env[runtime_key] = value
-    # GPU readbacks are asynchronous. Unprotected (the runtime default, 2) crashed Uncharted 3
-    # within a minute in the Cartagena museum (guest reads of 0xffff... pointers, a compute ring
-    # with a garbage indirect buffer) and let characters fly or NPCs fall from the sky (U2, U3,
-    # 16 Oct, also on an RTX 5060 laptop). Waiting for every readback (0) was correct but cost U2
-    # ~20 FPS. Protected (1) since 16 Oct: new GPU data stays read-protected until it lands,
-    # recurring results (the same piece read back again, e.g. luminance) stay readable one frame
-    # old as on the console, and pages where the CPU reads other data beside GPU bytes are left
-    # readable (BufferCache::noisy_pages): U2 and U3 at 60 FPS, U3 crash-free for 6 minutes.
-    # GOW3_ASYNC_READBACK in the environment overrides it (0 waits, 1 protected, 2 unprotected).
-    if executable in ("big2-ps4_Shipping.elf", "big3-ps4_Shipping.elf"):
-        env.setdefault("GOW3_ASYNC_READBACK", "1")
-    # Uncharted 2 reads back data its 64-wide copy shader (cs 6a6422a9) writes on the GPU: read
-    # back with the submission it arrived a frame late, and NPCs floated in the air while Nate's
-    # feet sank into the floor (also in 0.1.1 and other ports). It now comes back at the frame's
-    # end-of-pipe fence, which waits for it (16 Oct; precise readbacks fixed it too, at ~50 FPS).
-    # 17 Oct: Uncharted 3 too (user: Nate's legs flicker a little, NPCs float a bit; the same
-    # engine and copy shader). Two 90 s U3 runs at 1440p: stable, 56-58 FPS.
-    # 19 Oct: Drake's Fortune too (GitHub #6: from the second shot on, enemy grenade launchers'
-    # grenades exploded right in front of Drake; the shot started from a frame-old copy of what
-    # this shader writes). The user, at the first grenade launcher of chapter 4-5: with it every
-    # shot flies to its target, 60 FPS as without it. (Protected readbacks alone did not help.)
-    if executable in ("eboot.bin", "big2-ps4_Shipping.elf", "big3-ps4_Shipping.elf"):
-        env.setdefault("GOW3_COPY64_EOP_READBACK", "1")
-    if executable in ("big2-ps4_Shipping.elf", "big3-ps4_Shipping.elf"):
-        # Its aim depth of field reads the focus distance from a 1x1 render target the GPU writes;
-        # never copied back it stayed 0 and everything behind Nate was blurred while aiming. Tiny
-        # GPU-written images now come back with the frame's end-of-pipe fence (16 Oct).
-        # 19 Oct: Uncharted 3 too (user: the same blur when aiming; its focus value read 0.0 at
-        # 1440p, the same reader: global 0x1a5fdd0 + 0x35f8 in 1.02). Drake's Fortune aims sharp
-        # without it, so it skips the copy and the wait.
-        env.setdefault("GOW3_TINY_IMAGE_READBACK", "1")
-    # 24 Oct (GitHub #140, Uncharted 3 washed out in sunny areas): Uncharted 3 draws its bloom into
-    # mips 1 and 2 of a 7-level texture; their render targets became images of their own, so the
-    # tonemap read a bloom mip that nothing wrote. GOW3_MIP_TARGETS=1 draws them into the texture's
-    # mips (image_info.cpp, texture_cache.cpp). Uncharted 1 and 2 share this post-processing (their
-    # bloom mips are lost the same way): to be turned on for them after a test there.
-    if executable == "big3-ps4_Shipping.elf":
-        env.setdefault("GOW3_MIP_TARGETS", "1")
-    # 2 Nov 2026 (GitHub #161/#253, Drake's Fortune water flat dark green without reflections):
-    # its water reflection pass draws with a depth buffer whose memory a compute shader uses as an
-    # RGBA8 image earlier in the frame, and clears it only through its HTILE (a fill shader). The
-    # compute image freed the depth image and its HTILE record, so that clear was lost and the
-    # reflection's depth test failed on garbage (98% black). GOW3_HTILE_KEEP_CLEARS=1 keeps HTILE
-    # clears of freed depth images (texture_cache.cpp). Drake's Fortune only for now;
-    # GOW3_HTILE_KEEP_CLEARS=0 in test-env.txt turns it off.
-    if executable == "eboot.bin":
-        env.setdefault("GOW3_HTILE_KEEP_CLEARS", "1")
-    # The PS4's system language (launcher -> Advanced -> Language; runtime_services.c): each game's
-    # main menu offers it next to English (Square). 1 = English (US).
-    language = os.environ.get("UNCHARTED_LANGUAGE", "").strip()
-    if language.isdigit():
-        env.setdefault("GOW3_LANGUAGE", language)
-    # Speakers (launcher -> Advanced): the layout the games mix their sound for (runtime_audio.c);
-    # auto = the Windows output device's (stereo, 5.1 or 7.1), or 2, 6, 8.
-    speakers = os.environ.get("UNCHARTED_SPEAKERS", "").strip().lower()
-    if speakers in ("auto", "2", "6", "8"):
-        env.setdefault("GOW3_AUDIO_SPEAKERS", speakers)
-    # Temporal anti-aliasing (in-game menu -> Image: TAA, FSR 3.1/FSR 4 Native AA, DLAA) at the
-    # render size, as in the reference Uncharted port (docs: analysis/STATUS.md): the camera comes
-    # from the motion blur's camera velocity pass (shader f4b18264; all three games share the post
-    # processing), and the anti-aliasing runs on the lit scene before the post processing starts
-    # (compute aec539f0). UNCHARTED_TEMPORAL_AA=0 switches it off (no camera tracking at all).
-    if os.environ.get("UNCHARTED_TEMPORAL_AA", "1") == "0":
-        env["GOW3_UPSCALER"] = "none"
-    else:
-        env.setdefault("GOW3_VELOCITY_PS", "f4b18264")
-        env.setdefault("GOW3_UPSCALE_BEFORE_CS", "aec539f0")
-        # Full-screen passes that rebuild positions from the jittered scene depth get the jitter
-        # too: the sun shadow pass, shared by the three games (its shadows flickered under TAA,
-        # FSR and DLAA; Supermedo/uncharted_pc #261).
-        # 4 Nov 2026: also Uncharted 1's boat details (b2a42acf) and Uncharted 3's London bar
-        # surfaces (1a08df2d), drawn against a secondary scene depth: unjittered they flickered
-        # under DLSS, FSR, XeSS and TAA.
-        env.setdefault("GOW3_JITTER_PS", "f614041e,b2a42acf,1a08df2d")
-        env["GOW3_SCENE_SIZE"] = f"{render_size[0]}x{render_size[1]}"
-        # FSR 4's model files (gow3_pc/tools/fetch_fsr4_assets.sh), when installed; DLAA needs
-        # gow3_dlss.dll and nvngx_dlss.dll beside Uncharted.exe.
-        fsr4 = ROOT / "gow3_pc/fsr4_shaders"
-        if fsr4.is_dir():
-            env.setdefault("GOW3_FSR4_DIR", str(fsr4))
-        # The renderer's own default is FSR 3; here it starts off until it is picked.
-        config = Path(env["GOW3_CONFIG"])
-        if ini_value(config, "upscaler", None) is None:
-            try:
-                text = config.read_text(encoding="utf-8", errors="replace") if config.exists() else ""
-                if text and not text.endswith("\n"):
-                    text += "\n"
-                config.write_text(text + "upscaler=off\n", encoding="utf-8")
-            except OSError:
-                env.setdefault("GOW3_UPSCALER", "off")
-    if extra_mib:
-        env["GOW3_DMEM_MB"] = str(5056 + extra_mib + 64)
-    # The movie player reads its (1080p) movies with the render size: the decoder scales them to it
-    # (gpu/shim/videodec2; else movies come out green and tiled above 1080p).
-    if render_size != (1920, 1080):
-        env["GOW3_MOVIE_SIZE"] = f"{render_size[0]}x{render_size[1]}"
-    # Output resolution above the render resolution (UNCHARTED_OUTPUT_RES[_U1/_U2/_U3]=WxH): the
-    # game draws at the render size and its finished frame is upscaled to the output size where
-    # it copies the frame back into the display buffer (pixel shader 749bbec9, the same post
-    # processing in all three games): by FSR 3.1, FSR 4 or DLSS, else TAA (at the render size) or
-    # nothing, then FSR 1 when its setting is on or a bilinear stretch. The HUD and menus are
-    # drawn after that at the output size (TemporalUpscaler::OnComposite). Needs the temporal
-    # anti-aliasing's camera tracking.
-    output = (os.environ.get(f"UNCHARTED_OUTPUT_RES_{game_key.upper()}")
-              or os.environ.get("UNCHARTED_OUTPUT_RES", "")).lower()
-    if "x" not in output and render_size != (width, height):
-        # Drake's Fortune above the size it can render at: that size is upscaled to the one chosen,
-        # with FSR 1 unless a temporal upscaler is chosen (the presets' FSR 1 to the screen before).
-        output = f"{width}x{height}"
-        env.setdefault("GOW3_FSR1", "1")
-    if "x" in output and os.environ.get("UNCHARTED_TEMPORAL_AA", "1") != "0":
-        out_w, out_h = (int(value) for value in output.split("x"))
-        if out_w > render_size[0] or out_h > render_size[1]:
-            env["GOW3_RENDER_RES"] = f"{render_size[0]}x{render_size[1]}"
-            env["GOW3_OUTPUT_RES"] = f"{out_w}x{out_h}"
-            env.setdefault("GOW3_UI_COMPOSITE_PS", "749bbec9")
-            # The tonemap draw finishing the frame: Uncharted 3 draws world-anchored prompts
-            # into its target after it, so the upscale runs at the draw after it.
-            env.setdefault("GOW3_UI_TONEMAP_PS", "484cdbf5")
-            print(f"Upscaling: {render_size[0]}x{render_size[1]} -> {out_w}x{out_h}")
-    pad_file=user / "probe-pad.txt"
-    pad_file.write_text("",encoding="ascii")
-    env["GOW3_PAD_FILE"] = str(pad_file)
-    # Start with a serialized renderer while investigating Uncharted loading.
-    # The base runtime enables these concurrency optimizations for GOW3.
-    env.setdefault("GOW3_DRAW_PIPE", "0")
-    env.setdefault("GOW3_VK_RECORD_THREAD", "0")
-    env.setdefault("GOW3_NATIVE_TSC", "1")
-    # Grey-world diagnosis: timestamped opens/reads of level packs and streams (boot.log).
-    # env.setdefault("GOW3_FILE_TRACE", ".pak")  # pack read trace (grey-world diagnosis, done)
-    # Frame captures on demand: write a pass count (e.g. 600) into this file; captures land in
-    # analysis/uncharted-user/captures. Every draw's/dispatch's buffer addresses are listed.
-    if diagnostics:
-        env.setdefault("GOW3_CAPTURE_TRIGGER", str(user / "capture.trigger"))
-        env.setdefault("GOW3_CAPTURE_ALL_BUFFERS", "1")
-    # Grey-world diagnosis: GPU-side writes into the lighting record table the ground shader reads.
-    # env.setdefault("GOW3_WATCH_RANGE", "1038e00000:1038f00000")  # done: writer was cs 2d215c3b
-    # Dark-interior diagnosis: who writes the 256x8 light ramp LUT at 0x1134ab0000 (all zero).
-    # (done: the LUT writer is ps 2d7325a4) Temple frame drops: who writes the two windows the CPU
-    # keeps writing into after the GPU (each CPU write downloads with a full GPU wait).
-    # (done: GDS-to-memory DMA copies and cs 6a6422a9; fixed by lazy writes and async readbacks)
-    # if executable == "eboot.bin":
-    #     env.setdefault("GOW3_WATCH_RANGE", "1036200000:1036300000,1061e00000:1061f00000")
-    # Grey-world fix test: the ground's constants are written on the GPU (copy shader 2d215c3b) and
-    # read from guest memory by the CPU-side SRT walker. Relaxed readbacks (1) never sync GPU writes
-    # to guest memory unless the CPU later writes that page; Precise (2) reads them back on CPU reads.
-    # env.setdefault("GOW3_READBACKS", "2")  # Precise hangs on Continue (18:35): not usable
-    # Retest 14 Oct 21:5x after the capture-job and draw-prep deadlock fixes: hair/cobweb shadow
-    # casters read light matrices that a GPU copy shader writes in the same submission.
-    # Result: no visual change, ~3 FPS slower, no hang on Continue any more. Off.
-    # U2 flashlight test (15 Oct): the light sits exactly at the camera (its source, a GPU-written
-    # joint transform, may read as zero). The file analysis/uncharted-user/precise-readbacks turns
-    # Precise readbacks on for the next start.
-    if (user / "precise-readbacks").exists():
-        env.setdefault("GOW3_READBACKS", "2")
-        print("Readbacks: precise (analysis/uncharted-user/precise-readbacks)")
-    # Test settings for the next start without code changes: KEY=VALUE lines (# comments) in
-    # analysis/uncharted-user/test-env.txt; they override everything set above.
-    test_env = user / "test-env.txt"
-    if test_env.exists():
-        for line in test_env.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                key, value = line.split("=", 1)
-                env[key.strip()] = value.strip()
-                print(f"Test setting: {key.strip()}={value.strip()}")
-    # GPU-written constants back to guest memory for the SRT walker: write "auto"/"off" or
-    # "<lo> <hi>" (hex range, one-off) into this file. GOW3_SYNC_GPU_CONSTANTS=1 starts it on.
-    if diagnostics:
-        env.setdefault("GOW3_READBACK_TRIGGER", str(user / "readback.trigger"))
-    # Grey-world fix (confirmed 14 October 2026): GPU-written constants back to guest memory each submission.
-    env.setdefault("GOW3_SYNC_GPU_CONSTANTS", "1")
-    # Sound-effects diagnosis (gunfire/ambience silent, music fine): Ajm instances, failed jobs,
-    # RIFF jobs and 5 s decoder totals in boot.log.
-    # env.setdefault("GOW3_AUDIO_TRACE", "1")  # sound diagnosis (done: config read-only patch)
-    # env.setdefault("GOW3_FILE_TRACE", "sound1/config")  # sound config opens/reads (done)
-    # Sound config load diagnosis: open callback entry, path result, Fios open result, loader result.
-    # env.setdefault("GOW3_EXEC_WATCH", "515cc9")  # config loader open result (0 = ok, 0x1e = EROFS)
-    # Dark-interior diagnosis: CPU writes to the light ramp LUT texels (0x1134ab0000, all zero).
-    # (done: 0 hits from startup; nothing writes the LUT on the CPU)
-    # if executable == "eboot.bin":
-    #     env.setdefault("GOW3_EXEC_WATCH", "w:1134ab0000,w:1134ab0100,w:1134ab4000,w:1134ab8000")
-    # Dark interiors (14 Oct): with async shader compilation a draw whose pipeline is still
-    # compiling is skipped, and U1's one-time light ramp LUT draw (ps 2d7325a4, 256x8) never ran,
-    # so U1 compiled everything synchronously. Since 15 Oct the pipeline cache compiles draws to
-    # small targets (<= 256x256, SmallTargetDraw) synchronously in every game, which covers it;
-    # synchronous U1 froze for 1-2.4 s per new area on a Ryzen laptop (18 Oct). Back to the
-    # async_shaders setting; UNCHARTED_U1_SYNC_SHADERS=1 restores synchronous compilation.
-    if executable == "eboot.bin" and os.environ.get("UNCHARTED_U1_SYNC_SHADERS") == "1":
-        env.setdefault("GOW3_ASYNC_SHADERS", "0")
-    # Frame drops in the temple (45-57 FPS): GPU thread waits in DownloadMemory for CPU read faults
-    # on GPU-modified pages. Every 5 s: fault counts/time, hottest guest instructions and windows.
-    if diagnostics:
-        env.setdefault("GOW3_FAULT_STATS", "1")
-    # Frame rate diagnosis: flip rate/frame time spread every 5 s, compile time on the GPU thread,
-    # and details of frames over 40 ms.
-    if diagnostics:
-        env.setdefault("GOW3_FRAME_STATS", "1")
-    # DMA sync mode for the tiled lighting shader, switchable live: write "full", "off" or
-    # "pointers <KiB>" into this file (the full sync costs ~10 ms/frame in the temple).
-    if diagnostics:
-        env.setdefault("GOW3_DMA_TRIGGER", str(user / "dma.trigger"))
-    # DMA shaders (tiled lighting; MUBUF ADDR64 shadow cascade loads of hair/cobwebs/characters):
-    # make 256 KiB windows at the guest addresses in their user data resident and current,
-    # instead of uploading every CPU-dirty resident range before each such draw ("full").
-    env.setdefault("GOW3_DMA_SYNC", "pointers 256")
-    # GPU time per render pass/dispatch, printed every 5 s (frame-rate diagnosis). Uncharted's
-    # frames are marked at the display pass after submitting the recorded work.
-    # Off for play: it ends every render pass to time it, which costs frame time itself.
-    # env.setdefault("GOW3_GPU_PROFILE", "1")
-    # Which code waits for the GPU (scheduler waits by caller), reported with the frame stats.
-    if diagnostics:
-        env.setdefault("GOW3_PERF_DIAG", "1")
-    # Uncharted's tiled lighting shader (cs 0x43b8ee5e) reads per-light records with an
-    # index computed on the GPU (waterfall loop over v_readfirstlane); the CPU-side SRT walker
-    # cannot pre-read those, so they are read from guest memory on the GPU.
-    env.setdefault("GOW3_DIRECT_MEMORY_ACCESS", "1")
-    # GPU checkpoints (which draw a lost device was on) cost ~2% of the GPU command thread in heavy
-    # Uncharted 2 scenes: only on request (UNCHARTED_GPU_CHECKPOINTS=1), no longer with the
-    # performance log every player has on (16 Oct).
-    if os.environ.get("UNCHARTED_GPU_CHECKPOINTS") == "1":
-        env.setdefault("GOW3_GPU_CHECKPOINTS", "1")
-    # The game asserts when the GPU finishes a frame more than 2 s late (FrameBegin,
-    # m_gfxEopTick); cached pipelines avoid recompiling every shader on each run.
-    # Set GOW3_PIPELINE_CACHE=0 when testing shader recompiler changes.
-    env.setdefault("GOW3_PIPELINE_CACHE", "1")
-    # No pipeline binaries (24 Oct 2026). Each pipeline made from one kept its ~2 MB in memory:
-    # Uncharted 2 used 15.5 GB of RAM with them and 7.0 GB without, and loaded its pipelines in
-    # 40 s instead of 9.6 s (the graphics driver's own shader cache does the job, faster).
-    # GOW3_PIPELINE_BINARIES=1 (test-env.txt) turns them back on.
-    env.setdefault("GOW3_PIPELINE_BINARIES", "0")
-    if env["GOW3_PIPELINE_BINARIES"] == "0":
-        remove_pipeline_binaries(Path(env["GOW3_GPU_USER_DIR"]) / "cache")
-    env["GOW3_TOGGLE_FILE"] = str(user / "disabled-optimizations.txt")
-    env["GOW3_LOADEXEC_FILE"] = str(loadexec)
-    if args.capture:
-        capture=out / "captures" / str(time.time_ns())
-        capture.mkdir(parents=True)
-        trigger=capture / "trigger"
-        env["GOW3_FRAME_DUMP_TRIGGER"]=str(trigger)
-        env["GOW3_DUMP_DIR"]=str(capture)
-        trigger.touch()
-    else:
-        # On-demand image dumps (no trigger file at start, so nothing is dumped until asked):
-        # create analysis/uncharted/dumps/trigger, plus guest-images.trigger listing addresses.
-        if diagnostics:
-            dumps=out / "dumps"
-            dumps.mkdir(parents=True, exist_ok=True)
-            env.setdefault("GOW3_FRAME_DUMP_TRIGGER", str(dumps / "trigger"))
-            env.setdefault("GOW3_DUMP_DIR", str(dumps))
+    # The runtime's options (GOW3_* environment values) from the launcher's (UNCHARTED_*), the game and its render
+    # size: cheats and extra quality, renderer and readback settings, the controls, upscaling, diagnostics and the
+    # trigger files (launcher/native/runtime_env.cpp, which keeps the reasons for each).
+    import game_patcher
+    env, capture, trigger = game_patcher.runtime_env(executable, game, game_key, user, out, render_size, (width, height),
+                                                     extra_mib, loadexec, args.capture)
     window_icon = game_window_icon(game)
     if window_icon:
         env.setdefault("GOW3_WINDOW_ICON", str(window_icon))

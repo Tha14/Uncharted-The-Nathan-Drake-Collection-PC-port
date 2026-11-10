@@ -78,6 +78,10 @@ UN_API int un_pad_state(char *out, int cap);
 /* The game starter's settings from its environment (starter.cpp). what: hardware_threads, job_sleep (arg: executable;
  * 1/0), job_workers, u3_exposure, instance_suffix, u3mp_image (arg: executable; a message line, then JSON). */
 UN_API int un_starter(const char *what, const char *arg, char *out, int cap);
+/* The runtime's environment (runtime_env.cpp): inputs and result as JSON (see the file); 0 ok, 1 failed (out: why).
+ * It writes the player's files as the game starter did (probe-pad.txt, upscaler=off, capture folders): call it once,
+ * with room for the result. */
+UN_API int un_runtime_env(const char *inputs_json, char *out, int cap);
 
 /* The game starter's code patches (patcher.cpp). un_apply_patches: the patch list as JSON (tools/game_patcher.py);
  * out: the log; 0 applied and written, 1 not written (last line: why), negative: out too small (nothing written).

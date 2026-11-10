@@ -7,7 +7,8 @@ pattern_find(file, pattern, limit): the start offsets of a pattern's matches in 
 system(what, arg): the native game detection (launcher/native/system.cpp) the game starter uses: sfo, starter_version,
 find_update; None when there is no answer.
 resolution_patch(data, width, height, move, too_large): the render resolution in the linked image.
-starter(what, arg): the game starter's settings from its environment (launcher/native/starter.cpp)."""
+starter(what, arg): the game starter's settings from its environment (launcher/native/starter.cpp).
+runtime_env(...): the runtime's environment (launcher/native/runtime_env.cpp)."""
 import ctypes
 import json
 from pathlib import Path
@@ -28,6 +29,8 @@ def _native():
         _dll.un_system.restype = ctypes.c_int
         _dll.un_starter.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_starter.restype = ctypes.c_int
+        _dll.un_runtime_env.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_runtime_env.restype = ctypes.c_int
         _dll.un_resolution_patch.argtypes = [ctypes.POINTER(ctypes.c_ubyte), ctypes.c_ulonglong, ctypes.c_int, ctypes.c_int,
                                              ctypes.c_int, ctypes.POINTER(ctypes.c_longlong), ctypes.c_char_p, ctypes.c_int]
         _dll.un_resolution_patch.restype = ctypes.c_int
@@ -130,3 +133,25 @@ def starter(what, arg=""):
         if status == 0:
             return out.value.decode("utf-8", "replace")
         size = -status
+
+
+def runtime_env(executable, game, game_key, user, out, render_size, size, extra_mib, loadexec, capture=False):
+    """The runtime's environment (launcher/native/runtime_env.cpp) from this process's own, the game and its render
+    size; prints what the game starter tells the log. Returns (env, capture folder or None, capture trigger or None).
+    It writes the player's files as the game starter did (probe-pad.txt, upscaler=off, capture folders)."""
+    import os
+    inputs = {"env": [[k, v] for k, v in os.environ.items()], "executable": executable, "game": str(game),
+              "game_key": game_key, "user": str(user), "out": str(out), "root": str(Path(__file__).resolve().parent.parent),
+              "loadexec": str(loadexec), "render": list(render_size), "size": list(size), "extra_mib": int(extra_mib),
+              "capture": bool(capture)}
+    size_out = 1 << 23
+    out_buffer = ctypes.create_string_buffer(size_out)
+    status = _native().un_runtime_env(json.dumps(inputs).encode("utf-8"), out_buffer, size_out)
+    text = out_buffer.value.decode("utf-8", "replace")
+    if status != 0:
+        raise SystemExit(f"Runtime settings: {text if status > 0 else 'too large'}")
+    result = json.loads(text)
+    for line in result["print"]:
+        print(line)
+    return ({k: v for k, v in result["env"]}, Path(result["capture"]) if result["capture"] else None,
+            Path(result["trigger"]) if result["trigger"] else None)
