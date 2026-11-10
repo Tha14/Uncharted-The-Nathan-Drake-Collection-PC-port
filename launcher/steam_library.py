@@ -1,93 +1,91 @@
-"""Add to Steam (launcher: Advanced -> STEAM): the Python side of uncharted_native.dll's Steam functions
-(launcher/native/steam.cpp, where the work is done: Steam's folders and accounts, the shortcut file, the library
-pictures from the player's own game files).
+"""The launcher's Add to Steam (Advanced page), as the Python launcher reaches it: the work (Steam's install and
+accounts, shortcuts.vdf, the library pictures made from the player's game) is in uncharted_native.dll
+(launcher/native/steam.cpp); this module turns the launcher's values into the library's tab-separated requests and
+its answers back.
 
-The launcher calls steam_running(), launch_targets() and add_to_steam() and shows the questions and messages.
+  steam_running()                    True while Steam runs (it rewrites shortcuts.vdf when it exits)
+  launch_targets(root, starter, python_exe, script, games)
+                                     the entries to add: (name, program, start folder, options) each; games None
+                                     for one Collection entry, else [(key, name)] for one entry per game
+  add_to_steam(targets, icon, game_dir, accounts, all_names)
+                                     writes them into every Steam account (or `accounts`: [(folder, name)]);
+                                     [(folder, account name, result dict)], SteamError or OSError
 """
 import ctypes
 from pathlib import Path
 
 COLLECTION_NAME = "Uncharted: The Nathan Drake Collection"
-NATIVE = Path(__file__).resolve().parent / "native" / "uncharted_native.dll"
-_ERRORS = {1: "no_steam", 2: "bad_file", 3: "os"}
+_LIBRARY = Path(__file__).resolve().parent / "native" / "uncharted_native.dll"
+_FAILURES = {1: "no_steam", 2: "bad_file"}   # anything else: an OSError
+_lib = None
 
 
 class SteamError(Exception):
-    """kind: 'no_steam' (no Steam account found) or 'bad_file' (a shortcuts.vdf it cannot read)."""
+    """A Steam problem the launcher explains: kind "no_steam" (no account to add to) or "bad_file" (a shortcuts.vdf
+    it can't read); detail is the library's text."""
 
     def __init__(self, kind, detail=""):
-        super().__init__(f"{kind}: {detail}" if detail else kind)
         self.kind, self.detail = kind, detail
+        super().__init__(kind + (f": {detail}" if detail else ""))
 
 
-_dll = None
-
-
-def _native():
-    global _dll
-    if _dll is None:
-        _dll = ctypes.CDLL(str(NATIVE))
+def _library():
+    global _lib
+    if _lib is None:
+        lib = ctypes.CDLL(str(_LIBRARY))
+        lib.un_steam_running.restype = ctypes.c_int
         for name in ("un_steam_targets", "un_steam_add"):
-            getattr(_dll, name).argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
-            getattr(_dll, name).restype = ctypes.c_int
-        _dll.un_steam_running.restype = ctypes.c_int
-    return _dll
+            function = getattr(lib, name)
+            function.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+            function.restype = ctypes.c_int
+        _lib = lib
+    return _lib
 
 
-def _call(function, lines):
-    request = "".join("\t".join(str(part) for part in line) + "\n" for line in lines).encode("utf-8")
-    size = 1 << 16
+def _request(name, rows):
+    """Sends rows (tuples) as tab-separated lines; (status, answer text, answer rows)."""
+    text = "".join("\t".join(map(str, row)) + "\n" for row in rows).encode("utf-8")
+    room = 1 << 16
     while True:
-        out = ctypes.create_string_buffer(size)
-        status = function(request, out, size)
+        buffer = ctypes.create_string_buffer(room)
+        status = getattr(_library(), name)(text, buffer, room)
         if status >= 0:
-            return status, out.value.decode("utf-8", "replace")
-        size = -status
-
-
-def _records(text):
-    return [line.split("\t") for line in text.splitlines() if line]
+            answer = buffer.value.decode("utf-8", "replace")
+            return status, answer, [line.split("\t") for line in answer.splitlines() if line]
+        room = -status
 
 
 def steam_running():
-    """Whether Steam is running (its list of games would overwrite a change on exit)."""
     try:
-        return bool(_native().un_steam_running())
+        return bool(_library().un_steam_running())
     except OSError:
         return False
 
 
 def launch_targets(root, starter, python_exe, script, games):
-    """[(name, exe, start folder, options)] for each Steam entry: games is None for one Collection entry, or a list of
-    (key, name) for one entry per game."""
-    lines = [("root", root), ("starter", starter), ("python", python_exe), ("script", script)]
+    rows = [("root", root), ("starter", starter), ("python", python_exe), ("script", script)]
     if games is not None:
-        lines.append(("per_game",))
-        lines += [("game", key, name) for key, name in games]
-    _, text = _call(_native().un_steam_targets, lines)
-    return [tuple(record) for record in _records(text)]
+        rows.append(("per_game",))
+        rows.extend(("game", key, name) for key, name in games)
+    return [tuple(row) for row in _request("un_steam_targets", rows)[2]]
 
 
 def add_to_steam(targets, icon, game_dir, accounts=None, all_names=()):
-    """Adds or updates the entries in every Steam account (accounts: [(folder, name)] to use instead).
-    Returns [(folder, name, result)]; raises SteamError."""
-    lines = [("target",) + tuple(target) for target in targets]
-    lines += [("name", name) for name in all_names]
-    lines.append(("icon", icon))
+    rows = [("target", *target) for target in targets]
+    rows += [("name", name) for name in all_names]
+    rows.append(("icon", icon))
     if game_dir:
-        lines.append(("game_dir", game_dir))
-    for folder, name in accounts or ():
-        lines.append(("account", folder, name))
-    status, text = _call(_native().un_steam_add, lines)
+        rows.append(("game_dir", game_dir))
+    rows += [("account", folder, name) for folder, name in accounts or ()]
+    status, answer, records = _request("un_steam_add", rows)
     if status:
-        kind = _ERRORS.get(status, "os")
-        if kind == "os":
-            raise OSError(text)
-        raise SteamError(kind, text)
-    results = []
-    for _, folder, name, file, backup, added, updated, removed, pictures, ids in _records(text):
-        results.append((Path(folder), name, {
+        if status in _FAILURES:
+            raise SteamError(_FAILURES[status], answer)
+        raise OSError(answer)
+    added = []
+    for _, folder, name, file, backup, new, changed, removed, pictures, ids in records:
+        added.append((Path(folder), name, {
             "file": Path(file), "backup": Path(backup) if backup else None,
-            "ids": [int(i) for i in ids.split(",") if i], "added": int(added), "updated": int(updated),
+            "ids": [int(n) for n in ids.split(",") if n], "added": int(new), "updated": int(changed),
             "removed": int(removed), "pictures": int(pictures)}))
-    return results
+    return added
