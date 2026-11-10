@@ -97,6 +97,10 @@ mkdir -p "$stage/tools/pkgtool"
 cp tools/pkgtool/PkgTool.exe tools/pkgtool/LibOrbisPkg.dll "$stage/tools/pkgtool/"
 # Every launcher module and data file.
 cp launcher/*.py launcher/*.pyw "$stage/launcher/"
+# the launcher's own native code (launcher/native: Add to Steam), built here with CLANG64
+CLANG64="$msys/clang64" bash launcher/native/build.sh
+mkdir -p "$stage/launcher/native"
+cp launcher/native/uncharted_native.dll "$stage/launcher/native/"
 # The launcher's window (launcher-qt: Qt 6, C++ and QML; it runs launcher\qt_backend.py), built with CLANG64's
 # Qt (mingw-w64-clang-x86_64-qt6-base, -qt6-declarative) and deployed with its Qt modules and every DLL it loads.
 # Without Qt the package keeps the launcher's own window (the starter falls back to it).

@@ -20,3 +20,7 @@ __pycache__/
 
 # never commit a compiled helper or its local build folders (private; older ones held game values)
 u3mp/patcher/build/*/profile-helper.bin
+
+# launcher/native build output (tools/package_windows.sh builds it)
+launcher/native/build/
+launcher/native/uncharted_native.dll
