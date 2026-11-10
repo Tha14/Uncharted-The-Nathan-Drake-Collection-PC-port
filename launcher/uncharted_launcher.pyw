@@ -43,14 +43,6 @@ PREFIX_CONFIG_FILE = Path(os.environ.get("APPDATA", Path.home())) / "Uncharted L
 WINE = native_api.wine()
 
 
-def slow_drive_reason(path):
-    """Why the drive holding `path` makes the games freeze, or None (20 Oct 2026). On a laptop the port and game on an
-    external USB drive (an NVMe SSD in a USB case, exFAT) froze for 0.2-0.8 s dozens of times a minute while the port
-    wrote its shader cache, logs and saves; reports USB, SD/MMC and removable drives and FAT/exFAT volumes; None
-    elsewhere, under Wine and for network paths."""
-    return native_api.system("slow_drive", path)
-
-
 def unix_path(path):
     """The Linux path of a Windows path under Wine, else None."""
     return native_api.system("unix_path", path)
@@ -2331,8 +2323,7 @@ class Launcher:
                                            "(CUSA02344, the folder with eboot.bin and sce_sys).")
             if not self.choose_game_dir():
                 return
-        if not self.confirm_without_update() or not self.confirm_update_files() or \
-                not self.confirm_slow_drive() or not self.u3mp_confirm_play():
+        if not self.confirm_play() or not self.u3mp_confirm_play():
             return
         self.follow_ini()  # the in-game menu's last changes, not older values kept here
         self.save_ini({k: self.ini.get(k, v) for k, v in INI_DEFAULTS.items()})
@@ -2401,72 +2392,18 @@ class Launcher:
         logs = [log for log in logs if log.exists()]
         return max(logs, key=lambda p: p.stat().st_mtime) if logs else None
 
-    def crash_reason(self):
-        """Why the game stopped, from its newest boot.log (launcher/native/play.cpp): a freeze report, the runtime's
-        fault report with where it happened (players reported just "error code 3", GitHub #24, #27), or the assertion
-        or stop message; None when the log tells none."""
-        return native_api.crash_reason(ROOT, self.started_at)
-
-    def confirm_update_files(self):
-        """An update folder with missing or damaged files (#43: a bin.psarc the games couldn't read
-        stopped all three at start with "ASSERTION: root") is named before the game starts."""
+    def confirm_play(self):
+        """PLAY's questions before the game starts (launcher/native/play.cpp un_play_questions: the game without update
+        1.02, an update folder with missing or damaged files, a slow drive); each asked once where it says so."""
         update = self.update_dir()
-        if not update:
-            return True
-        try:
-            problems = self.update_installer().check_update(update)
-        except Exception:  # the check itself must never keep a game from starting
-            return True
-        if not problems:
-            return True
-        return messagebox.askokcancel(
-            APP_TITLE, "Your game update folder has missing or damaged files:\n\n" + "\n".join(problems[:6]) +
-            f"\n\n{update}\n\nThe games will probably stop at start. Extract the update again (or use Install "
-            "from .pkg under Advanced -> GAME UPDATE). Play anyway?")
-
-    def confirm_without_update(self):
-        """Without update 1.02 most of the port's game fixes (crash fixes among them) are skipped:
-        asks once per game folder (a 1.02 copy with the update merged in reports 1.02 itself)."""
-        folder = self.game_dir()
-        version = app_version(folder)
-        if self.update_dir() or not version or version >= "01.02" or \
-                self.config.get("warned_no_update") == str(folder):
-            return True
-        title = folder.parent if folder.name.lower() == "uroot" else folder
-        if not messagebox.askokcancel(
-                APP_TITLE, f"Your game is version {version.lstrip('0')}, without update 1.02.\n\n"
-                "Most of this port's fixes, crash fixes among them, are written for update 1.02, so "
-                "without it the games crash more often.\n\nDump update 1.02 from your PS4 and extract it "
-                f"next to the game folder as {title.name}-patch (the Advanced tab then shows it).\n\n"
-                "Play anyway?"):
-            return False
-        self.config["warned_no_update"] = str(folder)
-        write_config(self.config)
-        return True
-
-    def confirm_slow_drive(self):
-        """The port or the game on a USB, SD or FAT/exFAT drive (slow_drive_reason): asks once per
-        pair of folders."""
-        places = []
-        for label, folder in (("This port", ROOT), ("The game", self.game_dir())):
-            try:
-                reason = slow_drive_reason(folder)
-            except (OSError, ValueError, ctypes.ArgumentError):
-                reason = None
-            if reason:
-                places.append(f"{label} ({folder}): {reason}.")
-        key = f"{ROOT}|{self.game_dir()}"
-        if not places or self.config.get("warned_slow_drive") == key:
-            return True
-        if not messagebox.askokcancel(
-                APP_TITLE, "\n".join(places) + "\n\nOn such drives the games freeze for up to a second, "
-                "again and again, while the port writes its shader cache, logs and saves (Windows writes "
-                "to them without a cache).\n\nFor smooth play, copy this port folder and the game folder "
-                "to an internal drive (an SSD such as C:) and start the launcher from there.\n\n"
-                "Play anyway?"):
-            return False
-        self.config["warned_slow_drive"] = key
-        write_config(self.config)
+        questions = native_api.play_questions({"root": str(ROOT), "config": self.config, "game_dir": str(self.game_dir()),
+                                               "update_dir": str(update) if update else ""})
+        for question in questions:
+            if not messagebox.askokcancel(APP_TITLE, question["text"]):
+                return False
+            if question["remember"]:
+                self.config.update(question["remember"])
+                write_config(self.config)
         return True
 
     def play_direct(self):
@@ -2475,29 +2412,19 @@ class Launcher:
             self.root.destroy()
 
     def finished(self, code):
+        """The game ended: what launcher/native/play.cpp un_play_end says (a freeze or crash from the newest boot.log,
+        with a note for a game without update 1.02), and the log folder when the player wants it."""
         self.process = None
         self.draw_play()
-        reason = self.crash_reason()
-        # A freeze is reported however the game was closed (STOP, or Task Manager).
-        froze = bool(reason) and reason.startswith("The game froze")
-        if (code in (0, None) or getattr(self, "stopping", False)) and not froze:
-            self.stopping = False
-            self.set_status("Game closed.", "Ready to play again.")
-        else:
-            self.stopping = False
-            self.set_status("The game froze." if froze else "The game stopped unexpectedly.",
-                            "A report was saved; see the log folder." if froze
-                            else f"Exit code {code}. See the log for details.")
-            if reason:
-                # 24 Oct 2026 (#148, #163, #172): crashes of a 1.00 game were reported as port bugs;
-                # most of the port's fixes are written for update 1.02.
-                version = app_version(self.game_dir())
-                if not self.update_dir() and version and version < "01.02":
-                    reason += (f"\n\nYour game is version {version.lstrip('0')} without update 1.02, so most of "
-                               "the port's crash fixes are skipped. Install update 1.02 first (Advanced -> "
-                               "GAME UPDATE).")
-                if messagebox.askyesno(APP_TITLE, f"The game stopped with an error:\n\n{reason}\n\nOpen the log folder?"):
-                    self.open_logs()
+        update = self.update_dir()
+        end = native_api.play_end({"root": str(ROOT), "game_dir": str(self.game_dir()),
+                                   "update_dir": str(update) if update else "", "code": code,
+                                   "stopping": bool(getattr(self, "stopping", False)),
+                                   "started_at": getattr(self, "started_at", 0.0)})
+        self.stopping = False
+        self.set_status(end["status"], end["detail"])
+        if end["ask"] and messagebox.askyesno(APP_TITLE, end["ask"]):
+            self.open_logs()
         if self.direct:
             self.root.after(200, self.root.destroy)
 

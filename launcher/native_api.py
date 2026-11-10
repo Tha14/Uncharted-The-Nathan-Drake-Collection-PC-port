@@ -267,19 +267,33 @@ class PlaySession:
         _native().un_play_stop()
 
 
-def crash_reason(root, started_at):
-    """Why the game stopped, from its newest boot.log written since started_at (time.time()); None when it tells none."""
+def _json_call(name, state):
     dll = _native()
-    dll.un_play_crash_reason.argtypes = [ctypes.c_wchar_p, ctypes.c_double, ctypes.c_char_p, ctypes.c_int]
-    dll.un_play_crash_reason.restype = ctypes.c_int
-    size = 1 << 12
+    fn = getattr(dll, name)
+    fn.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+    fn.restype = ctypes.c_int
+    size = 1 << 16
     while True:
         out = ctypes.create_string_buffer(size)
-        status = dll.un_play_crash_reason(str(root), float(started_at), out, size)
-        if status >= 0 or status == 2:
+        status = fn(json.dumps(state).encode("utf-8"), out, size)
+        if status >= 0:
             break
         size = -status
-    return None if status == 2 else out.value.decode("utf-8", "replace")
+    if status != 0:
+        raise ValueError(name)
+    return json.loads(out.value.decode("utf-8"))
+
+
+def play_questions(state):
+    """PLAY's questions before the game starts: [{"id", "text", "remember"}] (state: root, config, game_dir,
+    update_dir)."""
+    return _json_call("un_play_questions", state)
+
+
+def play_end(state):
+    """What to say when the game ended: {"status", "detail", "ask"} (state: root, game_dir, update_dir, code,
+    stopping, started_at)."""
+    return _json_call("un_play_end", state)
 
 
 # ---------------------------------------------------------------------------------------------- gamefiles.cpp

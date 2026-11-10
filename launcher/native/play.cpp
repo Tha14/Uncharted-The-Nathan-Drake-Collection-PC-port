@@ -6,6 +6,7 @@
 #include "native.h"
 #include "json.h"
 
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -579,6 +580,205 @@ UN_API int un_play_crash_reason(const wchar_t *root, double started_at, char *ou
     const std::string reason = crash_reason(root ? root : L"", started_at, found);
     if (!found) return give("", out, cap) < 0 ? -1 : 2;
     return give(reason, out, cap);
+}
+
+}  // extern "C"
+
+// ------------------------------------------------------------------------------------------------ PLAY's questions
+
+extern "C" UN_API int un_game_update(const char *what, const wchar_t *root, const char *args_json, char *out, int cap);
+
+namespace {
+
+// a system.cpp answer ("" for none)
+std::string system_answer(const char *what, const std::string &arg) {
+    const std::wstring a = widen(arg);
+    std::string out(1 << 12, '\0');
+    int status = un_system(what, a.c_str(), &out[0], (int)out.size());
+    if (status < 0) {
+        out.assign(-status, '\0');
+        status = un_system(what, a.c_str(), &out[0], (int)out.size());
+    }
+    if (status != 0) return "";
+    out.resize(std::strlen(out.c_str()));
+    return out;
+}
+
+std::string str_field(const json::Value &v, const char *key) {
+    const json::Value *f = v.get(key);
+    return f && f->kind == json::Value::String ? f->s : "";
+}
+
+std::string lstrip_zeros(const std::string &s) {
+    size_t i = 0;
+    while (i < s.size() && s[i] == '0') ++i;
+    return s.substr(i);
+}
+
+// a folder's last part (Path.name)
+std::string name_of(std::string path) {
+    while (path.size() > 1 && (path.back() == '\\' || path.back() == '/')) path.pop_back();
+    const size_t cut = path.find_last_of("\\/");
+    return cut == std::string::npos ? path : path.substr(cut + 1);
+}
+std::string parent_of(std::string path) {
+    while (path.size() > 1 && (path.back() == '\\' || path.back() == '/')) path.pop_back();
+    const size_t cut = path.find_last_of("\\/");
+    return cut == std::string::npos ? path : path.substr(0, cut);
+}
+
+std::string lower_ascii(std::string s) {
+    for (auto &c : s) c = (char)std::tolower((unsigned char)c);
+    return s;
+}
+
+// What the update folder lacks (gameupdate.cpp check_update): its lines, none when the check itself fails.
+std::vector<std::string> update_problems(const std::string &root, const std::string &update) {
+    const std::wstring r = widen(root);
+    json::Value args;
+    args.kind = json::Value::Array;
+    args.items.push_back(json::Value::text(update));
+    const std::string a = json::dump(args, false);
+    std::string out(1 << 16, '\0');
+    int status = un_game_update("check_update", r.c_str(), a.c_str(), &out[0], (int)out.size());
+    if (status < 0) {
+        out.assign(-status, '\0');
+        status = un_game_update("check_update", r.c_str(), a.c_str(), &out[0], (int)out.size());
+    }
+    std::vector<std::string> lines;
+    if (status != 0) return lines;   // the check must never keep a game from starting
+    out.resize(std::strlen(out.c_str()));
+    size_t at = 0;
+    while (at < out.size()) {   // str.splitlines()
+        size_t end = out.find_first_of("\r\n", at);
+        if (end == std::string::npos) end = out.size();
+        lines.push_back(out.substr(at, end - at));
+        at = end + (out.compare(end, 2, "\r\n") == 0 ? 2 : 1);
+    }
+    return lines;
+}
+
+json::Value question(const char *id, const std::string &text) {
+    json::Value q = json::Value::object();
+    q.set("id", json::Value::text(id));
+    q.set("text", json::Value::text(text));
+    q.set("remember", json::Value::object());
+    return q;
+}
+
+// PLAY's questions before the game starts, in order (the launcher asks each, OK / Cancel; Cancel stops PLAY; OK saves
+// the question's "remember" settings so it is asked once):
+//  - without_update: the game without update 1.02 (most of the port's fixes are written for it), once per game folder
+//  - update_files: an update folder with missing or damaged files (#43: a bin.psarc the games couldn't read)
+//  - slow_drive: the port or the game on a USB, SD or FAT/exFAT drive (the games freeze while files are written), once
+//    per pair of folders
+json::Value play_questions(const json::Value &state) {
+    json::Value list;
+    list.kind = json::Value::Array;
+    json::Value config = state.get("config") && state.get("config")->is_object() ? *state.get("config") : json::Value::object();
+    const std::string root = str_field(state, "root"), game = str_field(state, "game_dir"), update = str_field(state, "update_dir");
+
+    const std::string version = system_answer("app_version", game);
+    if (update.empty() && !version.empty() && version < "01.02" && str_field(config, "warned_no_update") != game) {
+        const std::string title = lower_ascii(name_of(game)) == "uroot" ? name_of(parent_of(game)) : name_of(game);
+        json::Value q = question("without_update",
+            "Your game is version " + lstrip_zeros(version) + ", without update 1.02.\n\nMost of this port's fixes, crash fixes "
+            "among them, are written for update 1.02, so without it the games crash more often.\n\nDump update 1.02 from "
+            "your PS4 and extract it next to the game folder as " + title + "-patch (the Advanced tab then shows it).\n\n"
+            "Play anyway?");
+        q.get("remember")->set("warned_no_update", json::Value::text(game));
+        list.items.push_back(std::move(q));
+    }
+
+    if (!update.empty()) {
+        const std::vector<std::string> problems = update_problems(root, update);
+        if (!problems.empty()) {
+            std::string named;
+            for (size_t i = 0; i < problems.size() && i < 6; ++i) named += (i ? "\n" : "") + problems[i];
+            list.items.push_back(question("update_files",
+                "Your game update folder has missing or damaged files:\n\n" + named + "\n\n" + update + "\n\nThe games will "
+                "probably stop at start. Extract the update again (or use Install from .pkg under Advanced -> GAME UPDATE). "
+                "Play anyway?"));
+        }
+    }
+
+    std::vector<std::string> places;
+    for (auto &place : {std::make_pair(std::string("This port"), root), std::make_pair(std::string("The game"), game)}) {
+        const std::string reason = system_answer("slow_drive", place.second);
+        if (!reason.empty()) places.push_back(place.first + " (" + place.second + "): " + reason + ".");
+    }
+    const std::string key = root + "|" + game;
+    if (!places.empty() && str_field(config, "warned_slow_drive") != key) {
+        std::string text;
+        for (size_t i = 0; i < places.size(); ++i) text += (i ? "\n" : "") + places[i];
+        json::Value q = question("slow_drive",
+            text + "\n\nOn such drives the games freeze for up to a second, again and again, while the port writes its "
+            "shader cache, logs and saves (Windows writes to them without a cache).\n\nFor smooth play, copy this port "
+            "folder and the game folder to an internal drive (an SSD such as C:) and start the launcher from there.\n\n"
+            "Play anyway?");
+        q.get("remember")->set("warned_slow_drive", json::Value::text(key));
+        list.items.push_back(std::move(q));
+    }
+    return list;
+}
+
+// What the launcher says when the game ended: {"status", "detail", "ask"} ("ask": the error to show with "Open the
+// log folder?", "" for none). A freeze is reported however the game was closed (STOP, or Task Manager).
+json::Value play_end(const json::Value &state) {
+    const std::string root = str_field(state, "root"), game = str_field(state, "game_dir"), update = str_field(state, "update_dir");
+    const json::Value *code = state.get("code");
+    const bool stopping = state.get("stopping") && state.get("stopping")->truthy();
+    const json::Value *started = state.get("started_at");
+    const double started_at = !started ? 0.0 : started->kind == json::Value::Float ? started->f : (double)started->i;
+    bool found = false;
+    std::string reason = crash_reason(widen(root), started_at, found);
+    if (!found) reason.clear();
+    const bool froze = reason.compare(0, 14, "The game froze") == 0;
+    const bool clean = !code || code->kind == json::Value::Null || (code->kind == json::Value::Int && code->i == 0);
+    json::Value end = json::Value::object();
+    if ((clean || stopping) && !froze) {
+        end.set("status", json::Value::text("Game closed."));
+        end.set("detail", json::Value::text("Ready to play again."));
+        end.set("ask", json::Value::text(""));
+        return end;
+    }
+    end.set("status", json::Value::text(froze ? "The game froze." : "The game stopped unexpectedly."));
+    end.set("detail", json::Value::text(froze ? "A report was saved; see the log folder."
+                                              : "Exit code " + (code && code->kind == json::Value::Int ? std::to_string(code->i)
+                                                                                                       : std::string("None")) +
+                                                    ". See the log for details."));
+    if (!reason.empty()) {
+        // 24 Oct 2026 (#148, #163, #172): crashes of a 1.00 game were reported as port bugs; most of the port's fixes
+        // are written for update 1.02
+        const std::string version = system_answer("app_version", game);
+        if (update.empty() && !version.empty() && version < "01.02")
+            reason += "\n\nYour game is version " + lstrip_zeros(version) + " without update 1.02, so most of the port's crash "
+                      "fixes are skipped. Install update 1.02 first (Advanced -> GAME UPDATE).";
+        end.set("ask", json::Value::text("The game stopped with an error:\n\n" + reason + "\n\nOpen the log folder?"));
+    } else {
+        end.set("ask", json::Value::text(""));
+    }
+    return end;
+}
+
+}  // namespace
+
+extern "C" {
+
+// PLAY's questions before the game starts: state {"root", "config", "game_dir", "update_dir" ("" for none)}; out: a
+// JSON array of {"id", "text", "remember": settings to save after OK}.
+UN_API int un_play_questions(const char *state_json, char *out, int cap) {
+    json::Value state;
+    if (!json::parse(state_json ? state_json : "{}", state) || !state.is_object()) return 3;
+    return give(json::dump(play_questions(state), false), out, cap);
+}
+
+// What to say when the game ended: state {"root", "game_dir", "update_dir", "code" (exit code or null), "stopping",
+// "started_at"}; out: {"status", "detail", "ask"}.
+UN_API int un_play_end(const char *state_json, char *out, int cap) {
+    json::Value state;
+    if (!json::parse(state_json ? state_json : "{}", state) || !state.is_object()) return 3;
+    return give(json::dump(play_end(state), false), out, cap);
 }
 
 }  // extern "C"
