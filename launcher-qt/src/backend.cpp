@@ -85,6 +85,7 @@ void Backend::start()
         emit readyChanged();
         return;
     }
+    m_root = root;
     loadNative(root);
     m_process.setWorkingDirectory(root);
     m_process.setProcessChannelMode(QProcess::SeparateChannels);
@@ -229,6 +230,7 @@ QByteArray Backend::nativeState() const
     QJsonObject state;
     state.insert("config", QJsonObject::fromVariantMap(m_config));
     state.insert("ini", QJsonObject::fromVariantMap(m_ini));
+    state.insert("root", QDir::toNativeSeparators(m_root));
     return QJsonDocument(state).toJson(QJsonDocument::Compact);
 }
 

@@ -7,7 +7,8 @@
 //   un_page_act(name, id, kind, value, state)     {"config", "ini", "game"}: the settings the click changes
 // state: {"config": launcher.json, "ini": the selected game's settings file (analysis/uncharted-user/probe-*.ini)}.
 //
-// Pages: cheats (the games' developer switches), performance (frame rate, processor, video memory).
+// Pages: cheats (the games' developer switches), performance (frame rate, processor, video memory), display (resolution,
+// upscaling, picture, performance counter). state also has "root": the launcher's folder (which upscalers it has).
 
 #include "native.h"
 #include "json.h"
@@ -18,6 +19,15 @@
 #include <vector>
 
 extern "C" UN_API int un_monitor_refresh_hz(void);   // display.cpp
+extern "C" {   // display.cpp
+UN_API int un_display_table(const char *name, char *out, int cap);
+UN_API int un_resolution_options(const char *aspect, char *out, int cap);
+UN_API int un_game_sizes(const char *resolution, const char *aspect, const char *upscale, const char *upscaling, char *out,
+                         int cap);
+UN_API int un_upscaling_choice(const char *upscaler, const char *fsr1, char *out, int cap);
+UN_API int un_anti_aliasing_choice(const char *upscaler, const char *launcher_aa, char *out, int cap);
+UN_API int un_upscaling_options(const wchar_t *root, char *out, int cap);
+}
 
 namespace {
 
@@ -27,6 +37,7 @@ using json::Value;
 struct State {
     Value config = Value::object();
     Value ini = Value::object();
+    std::string root = ".";   // the launcher's folder
 };
 struct Changes {
     Value config = Value::object();   // launcher.json keys
@@ -39,6 +50,7 @@ bool read_state(const char *state_json, State &state) {
     if (!json::parse(state_json ? state_json : "{}", v) || !v.is_object()) return false;
     if (const Value *c = v.get("config")) { if (!c->is_object()) return false; state.config = *c; }
     if (const Value *i = v.get("ini")) { if (!i->is_object()) return false; state.ini = *i; }
+    if (const Value *r = v.get("root")) if (r->kind == Value::String && !r->s.empty()) state.root = r->s;
     return true;
 }
 
@@ -332,6 +344,304 @@ bool act_performance(const std::string &id, const std::string &kind, const Value
     return false;
 }
 
+// ------------------------------------------------------------------------------------------------ display
+
+// a section's items with a separator between two rows that follow each other (a note between them breaks it)
+Value with_separators(std::vector<Value> entries) {
+    Value items = array();
+    bool after_row = false;
+    for (auto &e : entries) {
+        const bool is_row = e.get("t") && e.get("t")->s == "row";
+        if (is_row && after_row) items.items.push_back(separator());
+        after_row = is_row;
+        items.items.push_back(std::move(e));
+    }
+    return items;
+}
+
+// a native text call (0 ok) as a string
+template <typename Call> std::string native_text(Call call) {
+    std::string out(1 << 16, '\0');
+    if (call(&out[0], (int)out.size()) != 0) return "";
+    out.resize(std::strlen(out.c_str()));
+    return out;
+}
+
+Options rows_of(const std::string &text) {
+    Options rows;
+    size_t at = 0;
+    while (at < text.size()) {
+        size_t end = text.find('\n', at);
+        if (end == std::string::npos) end = text.size();
+        const std::string line = text.substr(at, end - at);
+        const size_t tab = line.find('\t');
+        if (tab != std::string::npos) rows.push_back({line.substr(0, tab), line.substr(tab + 1)});
+        else if (!line.empty()) rows.push_back({line, ""});   // a one-column table (temporal_upscalers)
+        at = end + 1;
+    }
+    return rows;
+}
+
+Options display_table(const char *name) {
+    return rows_of(native_text([&](char *o, int c) { return un_display_table(name, o, c); }));
+}
+
+std::wstring widen_utf8(const std::string &s) {
+    std::wstring w;
+    for (size_t i = 0; i < s.size();) {   // UTF-8 to UTF-16 (the launcher folder's path)
+        unsigned c = (unsigned char)s[i], n = c < 0x80 ? 0 : c < 0xe0 ? 1 : c < 0xf0 ? 2 : 3;
+        unsigned v = n == 0 ? c : n == 1 ? c & 0x1f : n == 2 ? c & 0x0f : c & 0x07;
+        for (unsigned k = 1; k <= n && i + k < s.size(); ++k) v = v << 6 | ((unsigned char)s[i + k] & 0x3f);
+        i += n + 1;
+        if (v >= 0x10000) { v -= 0x10000; w += (wchar_t)(0xd800 + (v >> 10)); w += (wchar_t)(0xdc00 + (v & 0x3ff)); }
+        else w += (wchar_t)v;
+    }
+    return w;
+}
+
+std::string str_or(const Value *v, const std::string &fallback) {
+    return v ? text_of(*v) : fallback;
+}
+
+// the ini value of `key` as Python's ini.get(key, default) gives it (a missing key: the default)
+std::string ini_text(const State &state, const std::string &key, const std::string &fallback) {
+    const Value *v = state.ini.get(key);
+    return v ? text_of(*v) : fallback;
+}
+
+std::string ini_default(const std::string &key) {
+    for (auto &row : settings_table("ini_defaults"))
+        if (row.first == key) return row.second;
+    return "";
+}
+
+// upscaling_choice(ini) and anti_aliasing_choice(ini, settings) of the launcher
+std::string upscaling_of(const State &state) {
+    const std::string upscaler = ini_text(state, "upscaler", ini_default("upscaler")), fsr1 = ini_text(state, "fsr1", "0");
+    return native_text([&](char *o, int c) { return un_upscaling_choice(upscaler.c_str(), fsr1.c_str(), o, c); });
+}
+std::string anti_aliasing_of(const State &state, const Value *settings) {
+    const std::string upscaler = ini_text(state, "upscaler", ini_default("upscaler"));
+    const std::string aa = settings ? str_or(settings->get("aa"), "") : "";
+    return native_text([&](char *o, int c) { return un_anti_aliasing_choice(upscaler.c_str(), aa.c_str(), o, c); });
+}
+bool temporal_upscaler(const std::string &u) {
+    for (auto &row : display_table("temporal_upscalers"))
+        if (row.first == u) return true;
+    return false;
+}
+
+// (render size, output size or "") as game_sizes(settings, upscaling)
+std::pair<std::string, std::string> sizes_of(const Value *settings, const std::string &upscaling) {
+    const std::string resolution = settings ? str_or(settings->get("resolution"), "") : "";
+    const std::string aspect = settings ? str_or(settings->get("aspect"), "16:9") : "16:9";
+    const std::string upscale = settings ? str_or(settings->get("upscale"), "off") : "off";
+    const std::string t = native_text([&](char *o, int c) {
+        return un_game_sizes(resolution.c_str(), aspect.c_str(), upscale.c_str(), upscaling.c_str(), o, c);
+    });
+    const size_t tab = t.find('\t');
+    return tab == std::string::npos ? std::make_pair(t, std::string()) : std::make_pair(t.substr(0, tab), t.substr(tab + 1));
+}
+
+std::string times(std::string size) {   // "1920x1080" -> "1920 × 1080"
+    const size_t x = size.find('x');
+    return x == std::string::npos ? size : size.substr(0, x) + " \xc3\x97 " + size.substr(x + 1);
+}
+
+// a box of controls (a Tk frame of the row's control): its items carry how they were packed
+Value box(const std::string &id, const char *dir, Value items) {
+    Value b = Value::object();
+    b.set("t", Value::text("box"));
+    b.set("dir", Value::text(dir));
+    b.set("id", Value::text(id));
+    b.set("items", std::move(items));
+    b.set("bg", Value::text(CARD));
+    return b;
+}
+Value packed(Value item, const char *side) {
+    item.set("side", Value::text(side));
+    item.set("fill", Value::text("none"));
+    item.set("expand", Value::boolean(false));
+    return item;
+}
+Value chip(const std::string &id, bool on, const std::string &text) {
+    Value c = Value::object();
+    c.set("t", Value::text("chip"));
+    c.set("id", Value::text(id));
+    c.set("v", Value::boolean(on));
+    c.set("text", Value::text(text));
+    return c;
+}
+
+// a choice from the game's settings file (ini_choice): its value, else the default, else null
+Value ini_choice_value(const State &state, const std::string &key) {
+    if (const Value *v = state.ini.get(key)) return *v;
+    for (auto &row : settings_table("ini_defaults"))
+        if (row.first == key) return Value::text(row.second);
+    return Value::null();
+}
+
+const Options DISPLAY_MODES = {{"windowed", "Windowed"}, {"borderless", "Borderless"}, {"fullscreen", "Fullscreen"}};
+const Options SHARPENING = {{"off", "Off"}, {"25", "25%"}, {"50", "50%"}, {"75", "75%"}, {"100", "100%"}};
+const Options OVERLAY_ITEMS = {{"overlay_fps", "FPS"}, {"overlay_frametime", "Frame time"}, {"overlay_gpu", "GPU"},
+                               {"overlay_cpu", "CPU"}, {"overlay_ram", "RAM"}, {"overlay_vram", "VRAM"},
+                               {"overlay_upscaler", "Upscaler"}};
+const Options OVERLAY_CORNER = {{"0", "Top left"}, {"1", "Top right"}, {"2", "Bottom left"}, {"3", "Bottom right"}};
+const Options OVERLAY_LAYOUT = {{"0", "One line"}, {"1", "Stacked"}};
+const Options OVERLAY_SCALE = {{"75", "75%"}, {"100", "100%"}, {"125", "125%"}, {"150", "150%"}, {"200", "200%"}};
+const Options OVERLAY_OPACITY = {{"0", "None"}, {"25", "25%"}, {"50", "50%"}, {"75", "75%"}, {"100", "100%"}};
+const Options ANTI_ALIASING = {{"off", "Off"}, {"taa", "TAA"}};
+
+Options upscaling_options(const State &state) {
+    const std::wstring root = widen_utf8(state.root);
+    return rows_of(native_text([&](char *o, int c) { return un_upscaling_options(root.c_str(), o, c); }));
+}
+
+Value page_display(const State &state) {
+    const std::string p = "native:display:";
+    const Value *settings = game_settings(state);
+    const std::string aspect = settings ? str_or(settings->get("aspect"), "16:9") : "16:9";
+    const std::string upscaling = upscaling_of(state);
+    const auto sizes = sizes_of(settings, upscaling);
+    Value page = array();
+
+    std::vector<Value> res;
+    res.push_back(row(p + "row:aspect", "Aspect ratio",
+                      "For ultrawide monitors (21:9, 32:9), with Borderless or Fullscreen: the games show more at "
+                      "the sides and the same view top to bottom as on a 16:9 screen. 16:10 (Steam Deck: 800p is "
+                      "1280x800) fills the screen and shows more at the top and bottom.",
+                      choice(p + "aspect", Value::text(aspect), display_table("aspects"), "")));
+    const Options resolutions = rows_of(native_text([&](char *o, int c) { return un_resolution_options(aspect.c_str(), o, c); }));
+    res.push_back(row(p + "row:resolution", "Resolution",
+                      "How sharp the picture is; higher needs a faster graphics card (the PS4 drew 1080p). With "
+                      "upscaling below, the game draws less and is upscaled to it. If a game crashes above 1080p, "
+                      "go back to 1080p. Drake's Fortune draws at most 1620p and scales up.",
+                      choice(p + "resolution", settings && settings->get("resolution") ? *settings->get("resolution")
+                                                                                       : Value::null(),
+                             resolutions, "")));
+    if (sizes.second.empty())   // with upscaling, the quality row's note shows the sizes instead
+        res.push_back(label(p + "render_size", "Render size: " + times(sizes.first), GOLD, CARD, 9));
+    res.push_back(row(p + "row:upscaling", "Upscaling",
+                      "More FPS: the game draws below the resolution and each frame is upscaled to it; the HUD and "
+                      "menus stay sharp at the resolution. FSR 1 is the lightest and works on any card; FSR 3.1, "
+                      "FSR 4 and DLSS (NVIDIA RTX cards) also use the previous frames: more detail, and they smooth "
+                      "edges themselves. Also in the in-game menu.",
+                      choice(p + "upscaling", Value::text(upscaling), upscaling_options(state), "")));
+    if (upscaling != "off") {   // the quality row, with an upscaler only
+        Options presets;
+        for (auto &row : display_table("upscale_presets")) {
+            if (upscaling == "fsr1" && row.first == "off") continue;   // FSR 1 has no Native AA
+            presets.push_back(row.first == "off" ? std::make_pair(row.first, std::string(upscaling == "dlss" ? "DLAA" : "Native AA"))
+                                                 : row);
+        }
+        Value inner = array();
+        inner.items.push_back(packed(choice(p + "upscale", settings && settings->get("upscale") ? *settings->get("upscale")
+                                                                                            : Value::text("off"),
+                                            presets, ""), "top"));
+        if (!sizes.second.empty())
+            inner.items.push_back(packed(label(p + "upscale_note", "Draws " + times(sizes.first) + ", upscaled to " +
+                                               times(sizes.second), GOLD, CARD, 9), "top"));
+        res.push_back(row(p + "row:upscale", "Upscaling quality",
+                          "How much below the resolution the game draws: Quality 1/1.5, Balanced 1/1.7, Performance 1/2, "
+                          "Ultra Performance 1/3 of its width and height. Native AA (DLAA with DLSS) draws at the "
+                          "resolution and only smooths edges.",
+                          box(p + "upscale_box", "v", std::move(inner))));
+    }
+    Value aa = choice(p + "aa", Value::text(anti_aliasing_of(state, settings)), ANTI_ALIASING, "");
+    aa.set("en", Value::boolean(!temporal_upscaler(upscaling)));
+    res.push_back(row(p + "row:aa", "Anti-aliasing",
+                      "Smooths jagged, shimmering edges, with upscaling Off or FSR 1. FSR 3.1, FSR 4 and DLSS do "
+                      "it themselves.", aa));
+    page.items.push_back(section(p + "resolution", "Resolution and upscaling", with_separators(std::move(res))));
+
+    std::vector<Value> picture;
+    picture.push_back(row(p + "row:display_mode", "Display mode",
+                          "A normal window, a borderless window (quick Alt+Tab) or fullscreen.",
+                          choice(p + "display_mode", ini_choice_value(state, "display_mode"), DISPLAY_MODES, "")));
+    picture.push_back(row(p + "row:vsync", "VSync", "Stops tearing (a line across the picture when the camera turns). "
+                                                    "Recommended on.",
+                          toggle(p + "vsync", ini_text(state, "vsync", "0") == "1")));
+    const std::string sharp = ini_text(state, "rcas", "1") == "1" ? ini_text(state, "rcas_strength", "75") : "off";
+    picture.push_back(row(p + "row:sharpening", "Sharpening", "Makes the final picture crisper (AMD FidelityFX RCAS).",
+                          choice(p + "sharpening", Value::text(sharp), SHARPENING, "")));
+    page.items.push_back(section(p + "picture", "Picture", with_separators(std::move(picture))));
+
+    std::vector<Value> counter;
+    counter.push_back(row(p + "row:show_fps", "Show performance counter",
+                          "FPS, temperatures and memory in a corner of the screen. Insert, then the Overlay "
+                          "tab, changes it in the game too.",
+                          toggle(p + "show_fps", ini_text(state, "show_fps", "0") == "1")));
+    Value chips = array();
+    for (auto &item : OVERLAY_ITEMS)
+        chips.items.push_back(packed(chip(p + item.first, ini_text(state, item.first, ini_default(item.first)) == "1",
+                                          item.second), "left"));
+    counter.push_back(row(p + "row:overlay_items", "What it shows",
+                          "The frame rate, the frame time in milliseconds, the graphics card and the processor "
+                          "with their temperatures, and memory. Pick any; with nothing picked the counter is "
+                          "just its box.", box(p + "overlay_items", "h", std::move(chips))));
+    counter.push_back(row(p + "row:overlay_corner", "Counter corner", "Where the counter sits.",
+                          choice(p + "overlay_corner", ini_choice_value(state, "overlay_corner"), OVERLAY_CORNER, "")));
+    counter.push_back(row(p + "row:overlay_layout", "Counter layout", "One line, or one item per line.",
+                          choice(p + "overlay_layout", ini_choice_value(state, "overlay_layout"), OVERLAY_LAYOUT, "")));
+    counter.push_back(row(p + "row:overlay_scale", "Counter size", "Text size of the counter.",
+                          choice(p + "overlay_scale", ini_choice_value(state, "overlay_scale"), OVERLAY_SCALE, "")));
+    counter.push_back(row(p + "row:overlay_opacity", "Counter background",
+                          "How dark the counter's box is. None leaves the text on the picture.",
+                          choice(p + "overlay_opacity", ini_choice_value(state, "overlay_opacity"), OVERLAY_OPACITY, "")));
+    page.items.push_back(section(p + "counter", "Performance counter", with_separators(std::move(counter))));
+    return page;
+}
+
+// What a click on DISPLAY changes: the launcher's change_aspect / change_resolution / change_upscaling /
+// change_anti_aliasing / change_sharpening and the plain settings-file values, as settings changes.
+bool act_display(const State &state, const std::string &id, const std::string &kind, const Value &value, Changes &changes) {
+    const std::string p = "native:display:";
+    if (id.compare(0, p.size(), p) != 0) return false;
+    const std::string key = id.substr(p.size()), v = text_of(value);
+    const Value *settings = game_settings(state);
+    auto in = [](const Options &o, const std::string &x) { return has_option(o, x); };
+    if (kind == "choice") {
+        if (key == "aspect" && in(display_table("aspects"), v)) changes.game.set("aspect", Value::text(v));
+        else if (key == "resolution") {
+            const std::string aspect = settings ? str_or(settings->get("aspect"), "16:9") : "16:9";
+            if (!in(rows_of(native_text([&](char *o, int c) { return un_resolution_options(aspect.c_str(), o, c); })), v))
+                return false;
+            changes.game.set("resolution", Value::text(v));
+            changes.game.set("preset", Value::text("custom"));
+        } else if (key == "upscaling" && in(upscaling_options(state), v)) {
+            const std::string aa = anti_aliasing_of(state, settings);   // kept for Off and FSR 1
+            changes.game.set("aa", Value::text(aa));
+            if (v == "fsr1" && (settings ? str_or(settings->get("upscale"), "off") : "off") == "off")
+                changes.game.set("upscale", Value::text("quality"));
+            changes.ini.set("fsr1", Value::text(v == "fsr1" ? "1" : "0"));
+            changes.ini.set("upscaler", Value::text(temporal_upscaler(v) ? v : aa));
+        } else if (key == "upscale" && in(display_table("upscale_presets"), v) && !(v == "off" && upscaling_of(state) == "fsr1"))
+            changes.game.set("upscale", Value::text(v));   // FSR 1 shows no Native AA
+        else if (key == "aa" && in(ANTI_ALIASING, v) && !temporal_upscaler(upscaling_of(state))) {
+            changes.game.set("aa", Value::text(v));
+            changes.ini.set("upscaler", Value::text(v));
+        } else if (key == "sharpening" && in(SHARPENING, v)) {
+            if (v == "off") changes.ini.set("rcas", Value::text("0"));
+            else { changes.ini.set("rcas_strength", Value::text(v)); changes.ini.set("rcas", Value::text("1")); }
+        } else if (key == "display_mode" && in(DISPLAY_MODES, v)) changes.ini.set(key, Value::text(v));
+        else if (key == "overlay_corner" && in(OVERLAY_CORNER, v)) changes.ini.set(key, Value::text(v));
+        else if (key == "overlay_layout" && in(OVERLAY_LAYOUT, v)) changes.ini.set(key, Value::text(v));
+        else if (key == "overlay_scale" && in(OVERLAY_SCALE, v)) changes.ini.set(key, Value::text(v));
+        else if (key == "overlay_opacity" && in(OVERLAY_OPACITY, v)) changes.ini.set(key, Value::text(v));
+        else return false;
+        return true;
+    }
+    if (kind == "toggle" && (key == "vsync" || key == "show_fps")) {
+        changes.ini.set(key, Value::text(value.truthy() ? "1" : "0"));
+        return true;
+    }
+    if (kind == "chip" && has_option(OVERLAY_ITEMS, key)) {
+        changes.ini.set(key, Value::text(value.truthy() ? "1" : "0"));
+        return true;
+    }
+    return false;
+}
+
 }  // namespace
 
 extern "C" {
@@ -344,6 +654,7 @@ UN_API int un_page(const char *name, const char *state_json, char *out, int cap)
     const std::string n = name ? name : "";
     if (n == "cheats") return give(json::dump(page_cheats(state.config), false), out, cap);
     if (n == "performance") return give(json::dump(page_performance(state), false), out, cap);
+    if (n == "display") return give(json::dump(page_display(state), false), out, cap);
     return 2;
 }
 
@@ -360,6 +671,7 @@ UN_API int un_page_act(const char *name, const char *id, const char *kind, const
     Changes changes;
     if (n == "cheats") act_cheats(i, k, value, changes);
     else if (n == "performance") act_performance(i, k, value, changes);
+    else if (n == "display") act_display(state, i, k, value, changes);
     else return 2;
     Value result = Value::object();
     result.set("config", std::move(changes.config));

@@ -380,39 +380,6 @@ def desktop_folder():
     return Path(native_api.system("desktop"))
 
 
-# The Display page's tables and size arithmetic are the native code's (launcher/native/display.cpp): resolutions,
-# aspect ratios (ultrawide widens the view, 16:10 shows more at the top and bottom), upscaling qualities, and the
-# temporal upscalers (FSR 3.1, FSR 4, DLSS: they smooth edges themselves, so they take the runtime's "upscaler").
-RESOLUTIONS = native_api.display_table("resolutions")
-ASPECTS = native_api.display_table("aspects")
-UPSCALE_PRESETS = native_api.display_table("upscale_presets")
-TEMPORAL_UPSCALERS = tuple(row[0] for row in native_api.display_table("temporal_upscalers"))
-
-
-def upscaling_choice(ini):
-    """The upscaler a game's settings file holds: a temporal one, else FSR 1, else "off"."""
-    return native_api.upscaling_choice(ini.get("upscaler", INI_DEFAULTS["upscaler"]), ini.get("fsr1", "0"))
-
-
-def anti_aliasing_choice(ini, settings):
-    """TAA or off (kept in the launcher's settings while a temporal upscaler takes the runtime's setting)."""
-    return native_api.anti_aliasing_choice(ini.get("upscaler", INI_DEFAULTS["upscaler"]), settings.get("aa"))
-
-
-def game_sizes(settings, upscaling):
-    """The size a game draws at and, with upscaling, the size it is upscaled to (else None)."""
-    return native_api.game_sizes(settings["resolution"], settings.get("aspect", "16:9"),
-                                 settings.get("upscale", "off"), upscaling)
-
-
-def aspect_resolution(resolution, aspect):
-    return native_api.aspect_resolution(resolution, aspect)
-
-
-def resolution_options(aspect):
-    """The resolutions labelled by the height the game draws at this aspect ratio."""
-    return native_api.resolution_options(aspect)
-
 # Quality presets: the game has one detail level (the PS4's); quality here is the resolution the
 # game draws at, the upscaling, the sharpening and the frame rate. Above 1080p the
 # render resolution is new (October 2026): confirm in play. All three games draw at 4K
@@ -420,11 +387,6 @@ def resolution_options(aspect):
 # IGPU card adapted from PR #223 by memeguyoffical (the card, its values and the iGPU detection).
 PRESETS = native_api.presets()
 PRESET_ORDER = ("igpu", "low", "medium", "high", "ultra")
-
-
-def upscaling_options():
-    """FSR 1 and FSR 3.1 always; FSR 4 and DLSS when their files are installed."""
-    return native_api.upscaling_options(ROOT)
 
 
 def preset_values(name):
@@ -1164,19 +1126,7 @@ class Launcher:
                 widget.set(self.ini.get(key, INI_DEFAULTS[key]) == "1")
             elif isinstance(widget, Segmented):
                 widget.set(self.ini.get(key, INI_DEFAULTS[key]))
-        # The performance counter's items are Chip pills (overlay_panel): the loop above skips them.
-        for key, widget in getattr(self, "overlay_chips", {}).items():
-            if isinstance(widget, Chip):
-                widget.set(self.ini.get(key, INI_DEFAULTS[key]) == "1")
         settings = self.game_settings()
-        if isinstance(self.widgets.get("resolution"), Segmented):
-            self.widgets["resolution"].set(settings["resolution"])
-        self.refresh_render_size()
-        if isinstance(self.widgets.get("aspect"), Segmented):
-            self.widgets["aspect"].set(settings.get("aspect", "16:9"))
-        if isinstance(self.widgets.get("upscale"), Segmented):
-            self.widgets["upscale"].set(settings.get("upscale", "off"))
-        self.refresh_render_size()
         if isinstance(self.widgets.get("save_profile"), Segmented):
             self.widgets["save_profile"].set(str(settings.get("save_profile", "1")))
         if isinstance(self.widgets.get("mouse"), Toggle):
@@ -1191,7 +1141,6 @@ class Launcher:
             self.refresh_pad_slots()
         if hasattr(self, "binding_slots"):
             self.refresh_bindings()
-        self.sync_sharpening()
         if hasattr(self, "preset_cards"):
             self.redraw_presets()
         if hasattr(self, "ini_label"):
@@ -1297,7 +1246,6 @@ class Launcher:
         self.root.bind_all("<MouseWheel>", self.wheel)
         self.pages = {
             "setup": self.page_setup(),
-            "display": self.page_display(),
             "controls": self.page_controls(),
             "advanced": self.page_advanced(),
             "u3mp": self.page_u3mp(),
@@ -1305,7 +1253,7 @@ class Launcher:
             "launcher": self.page_launcher(),
         }
         self.pages["tools"] = self.tools_page   # made by page_advanced (its shortcut, Steam and folder buttons)
-        # CHEATS and PERFORMANCE are built natively (launcher/native/pages.cpp, drawn by launcher-qt): no Tk page
+        # DISPLAY, PERFORMANCE and CHEATS are built natively (launcher/native/pages.cpp, drawn by launcher-qt): no Tk page
         for page in self.pages.values():
             self.organize(page)
 
@@ -1447,18 +1395,6 @@ class Launcher:
         row.control = control   # qt_backend.py reads a row as title, hint and control
         return control
 
-    def ini_toggle(self, page, key, title, hint):
-        def factory(parent):
-            return Toggle(parent, self.s, self.ini.get(key, "0") == "1",
-                          lambda v, k=key: self.change(k, "1" if v else "0"))
-        self.widgets[key] = self.row(page, title, hint, factory)
-
-    def ini_choice(self, page, key, title, hint, options, recommended=None):
-        def factory(parent):
-            return Segmented(parent, options, self.ini.get(key, INI_DEFAULTS.get(key)), lambda v, k=key: self.change(k, v),
-                             self.f_small, recommended)
-        self.widgets[key] = self.row(page, title, hint, factory)
-
     def page_setup(self):
         page = self.page()
         self.section(page, "Quality level")
@@ -1539,8 +1475,6 @@ class Launcher:
                 upscale = "quality"
         settings["resolution"] = resolution
         settings["upscale"] = upscale
-        if "resolution" in self.widgets:
-            self.widgets["resolution"].set(resolution)
         for key, value in values.items():
             self.ini[key] = value
             widget = self.widgets.get(key)
@@ -1553,147 +1487,10 @@ class Launcher:
             # takes part of it. Drake's Fortune keeps it off (its gun and camera misbehave with it).
             settings["multithreaded"] = self.current_game()["key"] != "u1"
             settings["aa"] = "off"
-        self.sync_sharpening()
         settings["preset"] = name
         write_config(self.config)
         self.save_ini({k: self.ini[k] for k in INI_DEFAULTS})
-        self.refresh_render_size()
         self.redraw_presets()
-
-    def page_display(self):
-        page = self.page()
-
-        # The screen's shape first, then the resolution at that shape.
-        def aspect(parent):
-            return Segmented(parent, ASPECTS, self.game_settings().get("aspect", "16:9"),
-                             self.change_aspect, self.f_small)
-        self.section(page, "Resolution and upscaling")
-        self.widgets["aspect"] = self.row(
-            page, "Aspect ratio",
-            "For ultrawide monitors (21:9, 32:9), with Borderless or Fullscreen: the games show more at "
-            "the sides and the same view top to bottom as on a 16:9 screen. 16:10 (Steam Deck: 800p is "
-            "1280x800) fills the screen and shows more at the top and bottom.", aspect)
-
-        def resolution(parent):
-            return Segmented(parent, resolution_options(self.game_settings().get("aspect", "16:9")),
-                             self.game_settings()["resolution"], self.change_resolution, self.f_small)
-        self.widgets["resolution"] = self.row(
-            page, "Resolution",
-            "How sharp the picture is; higher needs a faster graphics card (the PS4 drew 1080p). With "
-            "upscaling below, the game draws less and is upscaled to it. If a game crashes above 1080p, "
-            "go back to 1080p. Drake's Fortune draws at most 1620p and scales up.", resolution)
-        self.render_size_note = tk.Label(page, text="", font=self.f_small, bg=BG, fg=GOLD, anchor="w")
-        self.render_size_note.pack(side="top", fill="x", pady=(0, self.px(10)))
-        self.refresh_render_size()
-        def upscaling(parent):
-            return Segmented(parent, upscaling_options(), upscaling_choice(self.ini), self.change_upscaling,
-                             self.f_small)
-        self.widgets["upscaling"] = self.row(
-            page, "Upscaling",
-            "More FPS: the game draws below the resolution and each frame is upscaled to it; the HUD and "
-            "menus stay sharp at the resolution. FSR 1 is the lightest and works on any card; FSR 3.1, "
-            "FSR 4 and DLSS (NVIDIA RTX cards) also use the previous frames: more detail, and they smooth "
-            "edges themselves. Also in the in-game menu.", upscaling)
-
-        # Shown with an upscaler only (refresh_upscale), right under it.
-        def upscale(parent):
-            box = tk.Frame(parent, bg=BG)
-            self.widgets["upscale"] = Segmented(
-                box, UPSCALE_PRESETS, self.game_settings().get("upscale", "off"),
-                lambda v: (self.change_game_setting("upscale", v), self.refresh_render_size()), self.f_small)
-            self.widgets["upscale"].pack(side="top", anchor="e")
-            self.upscale_note = tk.Label(box, text="", font=self.f_small, bg=BG, fg=GOLD, anchor="e")
-            self.upscale_note.pack(side="top", anchor="e", pady=(self.px(4), 0))
-            return box
-        self.upscale_row = self.row(
-            page, "Upscaling quality",
-            "How much below the resolution the game draws: Quality 1/1.5, Balanced 1/1.7, Performance 1/2, "
-            "Ultra Performance 1/3 of its width and height. Native AA (DLAA with DLSS) draws at the "
-            "resolution and only smooths edges.", upscale).master
-
-        def anti_aliasing(parent):
-            return Segmented(parent, [("off", "Off"), ("taa", "TAA")],
-                             anti_aliasing_choice(self.ini, self.game_settings()), self.change_anti_aliasing,
-                             self.f_small)
-        self.widgets["aa"] = self.row(
-            page, "Anti-aliasing",
-            "Smooths jagged, shimmering edges, with upscaling Off or FSR 1. FSR 3.1, FSR 4 and DLSS do "
-            "it themselves.", anti_aliasing)
-        self.refresh_render_size()
-        self.section(page, "Picture")
-        self.ini_choice(page, "display_mode", "Display mode",
-                        "A normal window, a borderless window (quick Alt+Tab) or fullscreen.",
-                        [("windowed", "Windowed"), ("borderless", "Borderless"), ("fullscreen", "Fullscreen")])
-        self.ini_toggle(page, "vsync", "VSync", "Stops tearing (a line across the picture when the camera turns). "
-                                               "Recommended on.")
-
-        def sharpening(parent):
-            value = self.ini.get("rcas_strength", "75") if self.ini.get("rcas", "1") == "1" else "off"
-            return Segmented(parent, [("off", "Off"), ("25", "25%"), ("50", "50%"), ("75", "75%"), ("100", "100%")],
-                             value, self.change_sharpening, self.f_small)
-        self.widgets["sharpening"] = self.row(page, "Sharpening", "Makes the final picture crisper (AMD FidelityFX RCAS).",
-                                              sharpening)
-        self.section(page, "Performance counter")
-        self.ini_toggle(page, "show_fps", "Show performance counter",
-                        "FPS, temperatures and memory in a corner of the screen. Insert, then the Overlay "
-                        "tab, changes it in the game too.")
-        self.overlay_panel(page)
-        return page
-
-    # The performance counter's items: the ini key and the label on its pill.
-    OVERLAY_ITEMS = (("overlay_fps", "FPS"), ("overlay_frametime", "Frame time"), ("overlay_gpu", "GPU"),
-                     ("overlay_cpu", "CPU"), ("overlay_ram", "RAM"), ("overlay_vram", "VRAM"),
-                     ("overlay_upscaler", "Upscaler"))
-
-    def overlay_panel(self, page):
-        """What the performance counter shows, where and how big (Display tab; probe-u*.ini's
-        show_fps and overlay_* keys, the ones the in-game menu's Overlay tab writes). It is built
-        on its own: an error here leaves the rest of the page and the launcher working."""
-        try:
-            self._overlay_panel(page)
-        except Exception:
-            log_launcher_error(*sys.exc_info())
-            self.overlay_chips = {}
-
-    def _overlay_panel(self, page):
-        def items(parent):
-            box = tk.Frame(parent, bg=BG)
-            self.overlay_chips = {}
-            for key, label in self.OVERLAY_ITEMS:
-                chip = Chip(box, self.s, self.f_small, label,
-                            self.ini.get(key, INI_DEFAULTS[key]) == "1",
-                            lambda v, k=key: self.change(k, "1" if v else "0"))
-                chip.pack(side="left", padx=(self.px(6), 0))
-                self.overlay_chips[key] = chip
-            return box
-        self.row(page, "What it shows",
-                 "The frame rate, the frame time in milliseconds, the graphics card and the processor "
-                 "with their temperatures, and memory. Pick any; with nothing picked the counter is "
-                 "just its box.", items)
-        self.ini_choice(page, "overlay_corner", "Counter corner", "Where the counter sits.",
-                        [("0", "Top left"), ("1", "Top right"), ("2", "Bottom left"),
-                         ("3", "Bottom right")])
-        self.ini_choice(page, "overlay_layout", "Counter layout", "One line, or one item per line.",
-                        [("0", "One line"), ("1", "Stacked")])
-        self.ini_choice(page, "overlay_scale", "Counter size", "Text size of the counter.",
-                        [("75", "75%"), ("100", "100%"), ("125", "125%"), ("150", "150%"),
-                         ("200", "200%")])
-        self.ini_choice(page, "overlay_opacity", "Counter background",
-                        "How dark the counter's box is. None leaves the text on the picture.",
-                        [("0", "None"), ("25", "25%"), ("50", "50%"), ("75", "75%"), ("100", "100%")])
-
-    def change_sharpening(self, value):
-        if value == "off":
-            self.change("rcas", "0")
-        else:
-            self.ini["rcas"] = "1"
-            self.change("rcas_strength", value)
-            self.change("rcas", "1")
-
-    def sync_sharpening(self):
-        widget = self.widgets.get("sharpening")
-        if widget:
-            widget.set(self.ini.get("rcas_strength", "75") if self.ini.get("rcas", "1") == "1" else "off")
 
     def page_controls(self):
         page = self.page(scroll=False)
@@ -3612,81 +3409,6 @@ class Launcher:
             self.game_settings()["preset"] = "custom"
             write_config(self.config)
             self.redraw_presets()
-        if key in ("upscaler", "fsr1"):
-            self.refresh_render_size()
-
-    def change_upscaling(self, value):
-        """An upscaler: a temporal one takes the runtime's anti-aliasing setting (TAA is kept for
-        Off and FSR 1); FSR 1 has no Native AA (it would do nothing)."""
-        settings = self.game_settings()
-        aa = anti_aliasing_choice(self.ini, settings)
-        settings["aa"] = aa
-        if value == "fsr1" and settings.get("upscale", "off") == "off":
-            settings["upscale"] = "quality"
-        write_config(self.config)
-        self.ini["fsr1"] = "1" if value == "fsr1" else "0"
-        self.save_ini({"fsr1": self.ini["fsr1"]})
-        self.change("upscaler", value if value in TEMPORAL_UPSCALERS else aa)
-
-    def change_anti_aliasing(self, value):
-        self.change_game_setting("aa", value)
-        self.change("upscaler", value)
-
-    def change_resolution(self, value):
-        self.game_settings()["resolution"] = value
-        self.game_settings()["preset"] = "custom"
-        write_config(self.config)
-        self.redraw_presets()
-        self.refresh_render_size()
-
-    def change_aspect(self, value):
-        self.change_game_setting("aspect", value)
-        self.refresh_render_size()
-
-    def refresh_render_size(self):
-        """The resolution labels and the exact render size for the selected game's aspect ratio."""
-        settings = self.game_settings()
-        aspect = settings.get("aspect", "16:9")
-        if isinstance(self.widgets.get("resolution"), Segmented):
-            self.widgets["resolution"].relabel(resolution_options(aspect))
-        if hasattr(self, "render_size_note"):
-            # With upscaling on, the line under its presets shows the sizes instead.
-            render, output = game_sizes(settings, upscaling_choice(self.ini))
-            self.render_size_note.config(
-                text="" if output else f"Render size: {render.replace('x', ' × ')}")
-            if output and self.render_size_note.winfo_manager():
-                self.render_size_note.pack_forget()
-            elif not output and not self.render_size_note.winfo_manager() and "aspect" in self.widgets:
-                self.render_size_note.pack(side="top", fill="x", pady=(0, self.px(10)),
-                                           after=self.widgets["resolution"].master)
-        self.refresh_upscale()
-
-    def refresh_upscale(self):
-        """The upscaler, its quality row (with an upscaler only, right under it) with the size the
-        selected game draws at, and the anti-aliasing (greyed with a temporal upscaler)."""
-        if not hasattr(self, "upscale_row"):
-            return
-        settings = self.game_settings()
-        upscaling = upscaling_choice(self.ini)
-        self.widgets["upscaling"].set(upscaling)
-        if upscaling != "off":
-            if not self.upscale_row.winfo_manager():
-                self.upscale_row.pack(side="top", fill="x", pady=(0, self.px(10)),
-                                      after=self.widgets["upscaling"].master)
-        elif self.upscale_row.winfo_manager():
-            self.upscale_row.pack_forget()
-        quality = self.widgets["upscale"]
-        presets = [option for option, _ in UPSCALE_PRESETS]
-        quality.show(presets[1:] if upscaling == "fsr1" else presets)
-        quality.relabel([("off", "DLAA" if upscaling == "dlss" else "Native AA")])
-        quality.set(settings.get("upscale", "off"))
-        aa = self.widgets["aa"]
-        aa.set(anti_aliasing_choice(self.ini, settings))
-        aa.set_enabled(upscaling not in TEMPORAL_UPSCALERS)
-        render, output = game_sizes(settings, upscaling)
-        self.upscale_note.config(
-            text=f"Draws {render.replace('x', ' × ')}, upscaled to {output.replace('x', ' × ')}"
-            if output else "")
 
     def change_game_setting(self, key, value):
         self.game_settings()[key] = value

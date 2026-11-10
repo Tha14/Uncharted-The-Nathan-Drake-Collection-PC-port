@@ -15,13 +15,6 @@ def _native():
         _dll.un_settings_table.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_gpu_recommendation.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_gpu_query.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
-        for name in ("un_display_table", "un_resolution_options"):
-            getattr(_dll, name).argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
-        _dll.un_aspect_resolution.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
-        _dll.un_game_sizes.argtypes = [ctypes.c_char_p] * 4 + [ctypes.c_char_p, ctypes.c_int]
-        for name in ("un_upscaling_choice", "un_anti_aliasing_choice"):
-            getattr(_dll, name).argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
-        _dll.un_upscaling_options.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_ini_read.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_ini_write.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_char_p]
         _dll.un_system_tables.argtypes = [ctypes.c_char_p, ctypes.c_int]
@@ -105,36 +98,6 @@ def gpu_query(what, name, integrated=None):
     """what: "tier" | "recommend" | "igpu_class" | "integrated"; "" answers come back as None."""
     flag = -1 if integrated is None else int(bool(integrated))
     return _call("un_gpu_query", what.encode(), (name or "").encode("utf-8"), flag) or None
-
-
-def display_table(name):
-    return [tuple(row) for row in _rows(_call("un_display_table", name.encode()))]
-
-
-def resolution_options(aspect):
-    return [tuple(row) for row in _rows(_call("un_resolution_options", aspect.encode()))]
-
-
-def aspect_resolution(resolution, aspect):
-    return _call("un_aspect_resolution", resolution.encode(), aspect.encode())
-
-
-def game_sizes(resolution, aspect, upscale, upscaling):
-    render, output = _call("un_game_sizes", resolution.encode(), aspect.encode(), upscale.encode(),
-                           upscaling.encode()).split("\t")
-    return render, output or None
-
-
-def upscaling_choice(upscaler, fsr1):
-    return _call("un_upscaling_choice", upscaler.encode(), fsr1.encode())
-
-
-def anti_aliasing_choice(upscaler, launcher_aa):
-    return _call("un_anti_aliasing_choice", upscaler.encode(), (launcher_aa or "").encode())
-
-
-def upscaling_options(root):
-    return [tuple(row) for row in _rows(_call("un_upscaling_options", str(root)))]
 
 
 def controls_tables():
