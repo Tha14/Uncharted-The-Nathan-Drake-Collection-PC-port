@@ -59,6 +59,14 @@ jobs:
             opus:p
             qt6-base:p qt6-declarative:p
 
+      # The small FFmpeg (tools/build_ffmpeg.sh) is kept between builds: it is compiled again only when that
+      # script changes (about 4 minutes saved per release); the script reuses a finished build it finds.
+      - name: Cache the small FFmpeg
+        uses: actions/cache@v4
+        with:
+          path: downloads/ffmpeg-8.1.1-min
+          key: ffmpeg-min-${{ hashFiles('tools/build_ffmpeg.sh') }}
+
       - name: Build the runtime
         run: |
           git config --global --add safe.directory '*'
