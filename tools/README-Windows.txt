@@ -72,6 +72,10 @@ Credits
 - Runtime from the gow3_pc project and the shadPS4 video core.
 
 License
-GNU GPL v2 or later (LICENSE.txt); the source is at the address above. The licenses of the
-bundled libraries are in licenses\ (THIRD-PARTY.txt lists every DLL package, its version,
-license and source). Not affiliated with Sony, Naughty Dog or Bluepoint Games.
+GNU GPL v2 or later (LICENSE.txt); the source is at the address above. Separately licensed and
+not covered by the GPL: the online components in u3mp\patcher\online\ (u3_online.py,
+u3_online.dll, u2_online.dll) and the multiplayer helper u3mp\patcher\build\<version>\
+profile-helper.bin, separate works by the fork's author. The licenses of the bundled libraries
+are in licenses\ (THIRD-PARTY.txt lists every DLL package, its version, license and source;
+BearSSL is in licenses\bearssl). Unofficial fan project: not affiliated with, endorsed or
+supported by Sony Interactive Entertainment, Naughty Dog or Bluepoint Games.

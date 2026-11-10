@@ -323,6 +323,12 @@ the rest of the project.
   you. They never leave your PC.
 - **Online play** runs on community RPCN servers, not on Sony's PlayStation Network (which no longer
   hosts these games' multiplayer). This project has no connection to PlayStation Network.
+- **Nothing is downloaded from servers.** The launcher and the import download no game files or game data
+  from any server: they use only the files already on your PC. The community server is used for online play
+  only.
+- **No money, ever.** This project is free. It takes no donations, sells nothing and shows no ads, and nothing
+  connected to it is paid.
+- **Contributions follow the same rules:** see [CONTRIBUTING.md](CONTRIBUTING.md).
 - **No warranty.** The software is provided "as is", without warranty of any kind, as stated in the
   GNU GPL. Use it at your own risk.
 - **Rights holders:** if you own rights in something here and have a concern, please open an issue on

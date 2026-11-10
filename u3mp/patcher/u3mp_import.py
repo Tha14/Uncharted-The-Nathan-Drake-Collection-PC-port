@@ -121,39 +121,20 @@ def data2_problems(folders):
 
 
 def ensure_data2(a, data, ps3_elf):
-    """Make sure the import has a current game-data folder. The PS3 game downloads it from the online server
-    (net18.bin, the Lab and map packs, text, EULA pages); when the player's own copy is missing or another version,
-    the same files are downloaded here (fetch_data2.py) into <data>/ps3-data2 and used ahead of the player's.
-    Returns '' when the import can go on, else why not (state.json 'data2_pending': the launcher tries again)."""
+    """The game-data folder (net18.bin, the Lab maps, text, EULA pages: what Uncharted 3 writes to
+    dev_hdd0/game/BCES01670DATA2 when it goes online in RPCS3) comes only from the player's own PC: their RPCS3 folder,
+    or a copy an earlier launcher version left in <data>/ps3-data2. Nothing is downloaded (since 0.10.43). A missing or
+    incomplete folder is reported by the recipe's input check, which tells the player what to do.
+    Returns '' (the import goes on with what is there)."""
     own = data / 'ps3-data2'
     usrdir = own / 'BCES01670DATA2' / 'USRDIR'
     if (usrdir / 'net18.bin').exists() and not data2_problems([str(own)]):
-        a.ps3_u3.insert(0, str(own))                 # downloaded by an earlier run
-        log('game data: using the copy downloaded earlier (%s)' % usrdir)
+        a.ps3_u3.insert(0, str(own))                 # left by an earlier launcher version
+        log('game data: using the copy already on this PC (%s)' % usrdir)
         return ''
     problems = data2_problems(a.ps3_u3)
-    if not problems:
-        return ''
-    log('game data: ' + ' / '.join(problems))
-    if not a.dns:
-        return ('the game data (BCES01670DATA2 / BCES01692DATA2 / BCUS99086DATA2 / BCAS25014DATA2) is missing or another version, and no community server DNS is set '
-                'to download it: enter it on the Multiplayer tab')
-    if not ps3_elf:
-        return 'downloading the game data needs the decrypted PS3 1.19 EBOOT.elf'
-    log('game data: downloading it from the community server, as the PS3 game does')
-    event(phase='data2', status='running')
-    try:
-        import fetch_data2
-        got = fetch_data2.build_data2(str(usrdir), a.dns, ps3_elf, log=log)
-    except Exception as e:                         # network, DNS, server answers: all reported, nothing raised
-        got = ['%s: %s' % (type(e).__name__, e)]
-    if got:
-        event(phase='data2', status='failed', note='; '.join(got)[:300])
-        return 'the game data download is incomplete (%s); it is tried again the next time the launcher starts' \
-            % '; '.join(got)[:400]
-    event(phase='data2', status='ok')
-    a.ps3_u3.insert(0, str(own))
-    log('game data: downloaded to %s' % usrdir)
+    if problems:
+        log('game data: ' + ' / '.join(problems))
     return ''
 
 
@@ -432,8 +413,8 @@ def main():
     ap.add_argument('--image-only', action='store_true', help='only (re)build the multiplayer image')
     ap.add_argument('--only', help='run only these recipe steps (tests; passed to rebuild_overlays.py --only)')
     ap.add_argument('--in-place', action='store_true', help='update an import in its own folder (no second work folder)')
-    ap.add_argument('--dns', default='', help='IPv4 of the community server DNS (downloads the PS3 game data when the '
-                                              "player's own BCES01670DATA2 / BCES01692DATA2 / BCUS99086DATA2 / BCAS25014DATA2 is missing or another version)")
+    ap.add_argument('--dns', default='', help='IPv4 of the community server DNS (accepted for older launchers; the '
+                                              'import downloads nothing since 0.10.43)')
     ap.add_argument('--keep-ps3', action='store_true', help='after the import, keep only the PS3 files it needs in '
                                                              '<data>/ps3-kept (Multiplayer tab option: saves space)')
     ap.add_argument('--keep-ps3-only', action='store_true', help='only make / refresh <data>/ps3-kept, no import')

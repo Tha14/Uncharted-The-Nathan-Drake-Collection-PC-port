@@ -17,3 +17,6 @@ __pycache__/
 /ps3cache/
 # u2mp research tools stay local (Documents/Uncharted_Collection_MP/u2mp-tools)
 /u2mp/tools/
+
+# never commit a compiled helper or its local build folders (private; older ones held game values)
+u3mp/patcher/build/*/profile-helper.bin

@@ -2673,7 +2673,7 @@ def build(raw,blob,pool_blob=None):
  # step (0x64eab6: PS3's DAT_01392984 == -1 test) jumps to PS4's own title-start test at 0x6517b6 (rax = 0x16e8120 is set
  # at 0x64eaa8 as at 0x6517af), so Single Player lands on the same page retail PS4 opened after the title screen.
  if image[0x6517af:0x6517b6]!=bytes.fromhex('488d056a690901') or image[0x6517b6:0x6517bd]!=bytes.fromhex('83b8fc010000ff') or image[0x65182a:0x65182f]!=bytes.fromhex('e976eaffff'):raise ValueError('title start tail mismatch')
- if image[0x64eaa8:0x64eac1]!=bytes.fromhex('488d057196090183b8fc010000ff0f85732d0000e9642d0000'):raise ValueError('front-end single player tail mismatch')
+ if hashlib.sha256(bytes(image[0x64eaa8:0x64eac1])).hexdigest()!='e0e1366542e670e2f3daf7c48714ff7d79b6d254bcf34c708f7db3410980d923':raise ValueError('front-end single player tail mismatch')
  image[0x6517af:0x6517b6]=bytes.fromhex('becafc5dd4')+b'\xeb'+bytes([0x65182a-0x6517b6])
  image[0x64eab6:0x64eabc]=b'\xe9'+struct.pack('<i',0x6517b6-(0x64eab6+5))+b'\x90'
  wrappers.append(dict(site='0x6517af',note='TITLE_START -> PAGE_ROOTPROFILE (PS3 f_265c94)'))
@@ -2713,12 +2713,12 @@ def build(raw,blob,pool_blob=None):
  # 0x63d100: its red byte lands in r10d, which the 2-byte-VEX vmovd cannot take, so the four extractions (0x63d11c, 30 bytes)
  # are rewritten instead to leave R/G/B/A in eax/r10d/ebx/edi; the inserts at 0x63d13a stay.
  a=0x63d11c
- if image[a:a+52]!=bytes.fromhex('4489c8c1e818bf10080000c44240f7d1bb08080000c4c260f7d9410fb6f9c5f96ec0c4c37922c201c4e37922c302c4e37922c703'):raise ValueError('colour lane site mismatch 0x63d11c')
+ if hashlib.sha256(bytes(image[a:a+52])).hexdigest()!='7341a01ca65c14fadfeee83ce87377daaf6a5ff0da980ff7103c1148f1822c6c':raise ValueError('colour lane site mismatch 0x63d11c')
  image[a:a+30]=bytes.fromhex('bf10080000c4c240f7c1bb08080000c44260f7d1410fb6d94489cfc1ef18');wrappers.append(dict(site=hex(a),kind='tint-lane-order'))
  # v5.11 PS3 f_30867c spawner filter: PS4 0x72fbc0 kept the netgame type 0x11/0x12 tests but dropped type 8 (co-op Shade),
  # so 0x2378cd79-gated spawners never activate in type 8. One lookup now tests 0x11, 0x12 and 8 like PS3 (0x72fde0..0x72fe80).
  a=0x72fde0
- if image[a:a+0xa0]!=bytes.fromhex('bf7d069a3be8062eac004885c07435488b004885c0742d410fbf8e1c66000085c978213b087d1d4863c9488b40084869c9d00000004889c24801ca7407837c080c11745cbf7d069a3be8c22dac004885c00f8484010000488b004885c00f8478010000410fbf8e1c66000085c90f88680100003b080f8d600100004863c9488b40084869c9d00000004889c24801ca0f8446010000837c080c120f853b010000'):raise ValueError('spawn type-8 site mismatch')
+ if hashlib.sha256(bytes(image[a:a+0xa0])).hexdigest()!='c715d3cad1ba14f8d04233c8c40db429a57521c89268fa22cabe98ef50b963b0':raise ValueError('spawn type-8 site mismatch')
  image[a:a+0xa0]=bytes.fromhex('bf7d069a3be8062eac004885c0743e488b004885c07436410fbf8e1c66000085c9782a3b087d264863c9488b40084885c0741a4869c9d00000008b44080c83f811740f83f812740a83f8087405e989010000e949000000cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc');wrappers.append(dict(site=hex(a),kind='spawner-type8'))
  # v5.10: MAX_CACHED_LEVELS 800 -> 1100 (heap 0x46 is 0x3fc00: 1100*0xd0 + 0x5020 ptr table fits, 1200 doesn't; the heap can't grow, ValidateContext) (all PS3 MP levels: ~965 level defs vs retail 681).
  # LevelMgr level-def array [mgr+0x178] = N*0xd0 (alloc 0x10eb00b), init loop 0x10e9d3e, assert 0x10ea0b3.

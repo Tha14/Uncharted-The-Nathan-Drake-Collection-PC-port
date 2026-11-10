@@ -170,6 +170,9 @@ if [[ -d $msys/clang64/share/licenses/opus ]]; then
     mkdir -p "$licenses/opus"
     cp "$msys"/clang64/share/licenses/opus/* "$licenses/opus/"
 fi
+# BearSSL (MIT): the TLS code inside u3_online.dll and the multiplayer helper
+mkdir -p "$licenses/bearssl"
+cp tools/licenses/bearssl/LICENSE.txt tools/licenses/bearssl/SOURCE.txt "$licenses/bearssl/"
 mkdir -p "$licenses/liborbispkg"
 cp tools/pkgtool/LICENSE.txt "$licenses/liborbispkg/LICENSE.txt"
 echo "PkgTool and LibOrbisPkg 0.2.231 by Maxton, unchanged; source: https://github.com/maxton/LibOrbisPkg" \

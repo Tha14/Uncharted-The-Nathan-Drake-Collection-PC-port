@@ -98,11 +98,8 @@ jobs:
           export PYTHON_HOME=$(cygpath -u "$pythonLocation")
           tools/package_windows.sh
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Uncharted-windows
-          path: dist/Uncharted-windows/
-          if-no-files-found: error
+      # (no package artifact: the release below publishes the zip itself, and stored copies of every build stay
+      # downloadable for months)
 
       # The tag must match tools/VERSION (the package's VERSION, which the launcher's updates
       # compare); 0.x versions are called betas in the title but published as full releases (a
@@ -131,3 +128,4 @@ jobs:
           name: build-log
           path: gow3_pc/out/gpu-build.log
           if-no-files-found: ignore
+          retention-days: 3

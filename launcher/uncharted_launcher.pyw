@@ -3253,10 +3253,6 @@ class Launcher:
                 self.u3mp_import(silent=True, image_only=(pending == "image"),
                                  reason="the launcher update brought a new multiplayer "
                                         + ("build" if pending == "image" else "version"))
-            elif self.u3mp_state().get("data2_pending") and self.u3mp_dns():
-                # the game data could not be downloaded last time (server down, not served yet): try again; once it
-                # arrives the import completes (or updates in its second folder) by itself
-                self.u3mp_import(silent=True, reason="downloading the game data again")
         except (OSError, tk.TclError):
             pass
 
@@ -3957,13 +3953,7 @@ class Launcher:
                 self.change_config("u3mp_dns", var.get().strip())
             var.trace_add("write", save)
             return entry
-        # only a package without the online section shows the import's own DNS box. Checked by the file, never by
-        # loading the module here: an extra load here left two copies of it, and play() then asked the copy without
-        # the signed-in session (no relay: the game signed in itself, "already signed in elsewhere").
-        if not (U3MP_DIR / "online" / "u3_online.py").is_file():
-            self.section(page, "Community server")
-            self.row(page, "Community server DNS",
-                     "The server's address. Used to download missing game data.", dns_entry)
+        # (no DNS box here: since 0.10.43 the import downloads nothing; the server address is on the RPCN section)
         folder_row("3. Choose where the files go",
                    "The multiplayer data folder: the converted files (about 9 GB).",
                    "data", (("Change", self.u3mp_choose_data), ("Open", lambda: self.u3mp_open(self.u3mp_data()))))
