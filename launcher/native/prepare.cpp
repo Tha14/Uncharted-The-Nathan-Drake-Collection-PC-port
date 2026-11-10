@@ -346,6 +346,48 @@ std::string prepare(const std::wstring &game, const std::wstring &out, const std
            "libc _init_env verified RET: " + (init_env_is_ret ? "True" : "False") + "\n";
 }
 
+// content_profile.py: the game's offline AppContent metadata (content.bin for the runtime, content-profile.json). The
+// SKU is a probe setting ("full" or "trial"), not a license check; the four user-defined values come from param.sfo.
+std::string content_profile(const std::wstring &game, const std::wstring &out, const std::string &sku) {
+    if (sku != "full" && sku != "trial") throw Failure{"'" + sku + "'"};
+    char sfo_buf[1 << 16];
+    if (un_system("sfo", game.c_str(), sfo_buf, sizeof sfo_buf) != 0)
+        throw Failure{"[Errno 2] No such file or directory: '" + shown(join(game, L"sce_sys\\param.sfo")) + "'"};
+    Value sfo;
+    json::parse(sfo_buf, sfo);
+    uint32_t params[4];
+    Value params_v;
+    params_v.kind = Value::Array;
+    std::string shown_params = "[";
+    for (int i = 0; i < 4; ++i) {
+        const Value *v = sfo.get("USER_DEFINED_PARAM_" + std::to_string(i + 1));
+        if (v && (v->kind != Value::Int || v->i < 0 || v->i > 0xffffffffll)) throw Failure{"invalid user-defined parameter"};
+        params[i] = v ? (uint32_t)v->i : 0;
+        params_v.items.push_back(Value::integer(params[i]));
+        shown_params += (i ? ", " : "") + std::to_string(params[i]);
+    }
+    shown_params += "]";
+    const Value *title = sfo.get("TITLE_ID");
+    Value profile = Value::object(), empty;
+    empty.kind = Value::Array;
+    profile.set("title_id", title ? *title : Value::null());
+    profile.set("sku", Value::text(sku));
+    profile.set("sku_source", Value::text("explicit probe setting"));
+    profile.set("user_params", params_v);
+    profile.set("mounted_addons", empty);
+    profile.set("boot_attr", Value::integer(0));
+    make_dirs(out);
+    std::string bin = "G3CONT01";
+    auto put = [&](uint32_t v) { for (int i = 0; i < 4; ++i) bin += (char)(v >> (8 * i)); };
+    put(sku == "full" ? 3 : 1);
+    for (uint32_t p : params) put(p);
+    write_file(join(out, L"content.bin"), bin);
+    std::string text = json::dump(profile) + "\n", crlf;
+    for (char c : text) { if (c == '\n') crlf += "\r\n"; else crlf += c; }   // Python's write_text on Windows
+    write_file(join(out, L"content-profile.json"), crlf);
+    return "AppContent profile: SKU=" + sku + " (probe setting), user params=" + shown_params + ", mounted add-ons=0\n";
+}
+
 }  // namespace
 
 extern "C" {
@@ -355,6 +397,17 @@ extern "C" {
 UN_API int un_prepare(const wchar_t *game, const wchar_t *out_dir, const char *executable, char *out, int cap) {
     try {
         return give(prepare(game ? game : L"", out_dir ? out_dir : L"", executable ? executable : "eboot.bin"), out, cap);
+    } catch (const Failure &f) {
+        int status = give(f.message, out, cap);
+        return status < 0 ? status : 1;
+    }
+}
+
+// content_profile.py's work: content.bin and content-profile.json in `out` (sku: "full" or "trial"; null: "full").
+// out: the line content_profile.py prints. 0 ok; 1 failed (out: why).
+UN_API int un_content_profile(const wchar_t *game, const wchar_t *out_dir, const char *sku, char *out, int cap) {
+    try {
+        return give(content_profile(game ? game : L"", out_dir ? out_dir : L"", sku && *sku ? sku : "full"), out, cap);
     } catch (const Failure &f) {
         int status = give(f.message, out, cap);
         return status < 0 ? status : 1;

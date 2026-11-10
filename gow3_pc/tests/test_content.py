@@ -4,25 +4,37 @@ import struct
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
 import content_profile
 
 EXE=ROOT/'out/content-test'
 
+def write_sfo(path, values):
+    """A param.sfo with these values (int: integer, str: UTF-8 text)."""
+    keys, data, index = b'', b'', b''
+    for k, v in values.items():
+        raw = struct.pack('<I', v) if isinstance(v, int) else v.encode() + b'\0'
+        size = len(raw) if isinstance(v, int) else (len(raw) + 3) // 4 * 4
+        index += struct.pack('<HHIII', len(keys), 0x0404 if isinstance(v, int) else 0x0204, len(raw), size, len(data))
+        keys += k.encode() + b'\0'
+        data += raw.ljust(size, b'\0')
+    keys = keys.ljust((len(keys) + 3) // 4 * 4, b'\0')
+    start = 20 + len(index)
+    path.write_bytes(struct.pack('<4sIIII', b'\0PSF', 0x101, start, start + len(keys), len(values)) + index + keys + data)
+
 class ProfileTests(unittest.TestCase):
     def test_sfo_parameters_and_explicit_trial_profile(self):
         with tempfile.TemporaryDirectory() as tmp:
-            p=Path(tmp);(p/'sce_sys').mkdir();(p/'sce_sys/param.sfo').write_bytes(b'fixture')
-            with patch.object(content_profile,'sfo',return_value={'USER_DEFINED_PARAM_1':13,'USER_DEFINED_PARAM_4':0xffffffff}):
-                content_profile.prepare(p,p,'trial')
+            p=Path(tmp);(p/'sce_sys').mkdir()
+            write_sfo(p/'sce_sys/param.sfo',{'USER_DEFINED_PARAM_1':13,'USER_DEFINED_PARAM_4':0xffffffff})
+            content_profile.prepare(p,p,'trial')
             self.assertEqual(struct.unpack('<8s5I',(p/'content.bin').read_bytes()),(b'G3CONT01',1,13,0,0,0xffffffff))
 
     def test_invalid_sfo_parameter_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
-            p=Path(tmp);(p/'sce_sys').mkdir();(p/'sce_sys/param.sfo').write_bytes(b'fixture')
-            with patch.object(content_profile,'sfo',return_value={'USER_DEFINED_PARAM_1':'13'}):
-                with self.assertRaisesRegex(ValueError,'invalid user-defined'):
-                    content_profile.prepare(p,p)
+            p=Path(tmp);(p/'sce_sys').mkdir()
+            write_sfo(p/'sce_sys/param.sfo',{'USER_DEFINED_PARAM_1':'13'})
+            with self.assertRaisesRegex(ValueError,'invalid user-defined'):
+                content_profile.prepare(p,p)
 
 @unittest.skipUnless(EXE.exists(),'run bash build.sh --test first')
 class ContentTests(unittest.TestCase):
