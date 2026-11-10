@@ -24,3 +24,5 @@ u3mp/patcher/build/*/profile-helper.bin
 # launcher/native build output (tools/package_windows.sh builds it)
 launcher/native/build/
 launcher/native/uncharted_native.dll
+launcher/native/apply_update.exe
+launcher/native/pythonw_bridge.exe

@@ -34,10 +34,10 @@ using json::Value;
 
 const char *const REPOSITORY = "fidalgojoao/Uncharted-The-Nathan-Drake-Collection-PC-port";
 const char *const ASSET = "Uncharted-windows.zip";
-// What a package must hold to be installed over this one.
-const char *const REQUIRED[] = {"Uncharted Launcher.exe", "VERSION", "python/pythonw.exe", "launcher/uncharted_launcher.pyw",
-                                "launcher/updater.py", "tools/apply_update.py", "tools/probe_uncharted.py",
-                                "gow3_pc/out/gow3-probe.exe"};
+// What a package must hold to be installed over this one: the launcher, its native code, the runtime and the update's
+// own installer (none of them Python, so a package without Python installs too).
+const char *const REQUIRED[] = {"Uncharted Launcher.exe", "VERSION", "launcher/native/uncharted_native.dll",
+                                "tools/apply_update.exe", "gow3_pc/out/gow3-probe.exe"};
 
 struct UpdateError { std::string message; };
 
@@ -788,11 +788,20 @@ std::wstring command_line(const std::vector<std::wstring> &args) {
     return result;
 }
 
-// Starts the new version's installer, which waits for this process to exit.
+// Starts the new version's installer (its tools\apply_update.exe; a package without it: its Python with
+// tools\apply_update.py), which waits for this process to exit.
 void start_apply(const std::wstring &root, const std::wstring &staged) {
-    const std::wstring python = join(join(staged, L"python"), L"pythonw.exe");
-    const std::wstring script = join(join(staged, L"tools"), L"apply_update.py");
-    std::wstring cmd = command_line({python, L"-I", script, L"--root", root, L"--wait-pid", std::to_wstring(GetCurrentProcessId())});
+    const std::wstring installer = join(join(staged, L"tools"), L"apply_update.exe");
+    const std::wstring pid = std::to_wstring(GetCurrentProcessId());
+    std::wstring cmd;
+    const DWORD a = GetFileAttributesW(installer.c_str());
+    if (a != INVALID_FILE_ATTRIBUTES && !(a & FILE_ATTRIBUTE_DIRECTORY)) {
+        cmd = command_line({installer, L"--root", root, L"--wait-pid", pid});
+    } else {
+        const std::wstring python = join(join(staged, L"python"), L"pythonw.exe");
+        const std::wstring script = join(join(staged, L"tools"), L"apply_update.py");
+        cmd = command_line({python, L"-I", script, L"--root", root, L"--wait-pid", pid});
+    }
     std::vector<wchar_t> buf(cmd.begin(), cmd.end());
     buf.push_back(0);
     STARTUPINFOW si{};

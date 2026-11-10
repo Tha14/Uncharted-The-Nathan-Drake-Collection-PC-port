@@ -101,6 +101,12 @@ cp launcher/*.py launcher/*.pyw "$stage/launcher/"
 CLANG64="$msys/clang64" bash launcher/native/build.sh
 mkdir -p "$stage/launcher/native"
 cp launcher/native/uncharted_native.dll "$stage/launcher/native/"
+# The update installer (launcher/native/apply.cpp): the launcher starts it after an update's download, and launchers up
+# to 0.10.63 reach it through tools/apply_update.py. When the package drops Python, ship launcher/native/
+# pythonw_bridge.exe as python/pythonw.exe (and small placeholders for launcher/uncharted_launcher.pyw,
+# launcher/updater.py, tools/apply_update.py and tools/probe_uncharted.py): launchers up to 0.10.63 check for those
+# files and start python\pythonw.exe -I tools\apply_update.py, which the bridge turns into tools\apply_update.exe.
+cp launcher/native/apply_update.exe "$stage/tools/"
 # The launcher's window (launcher-qt: Qt 6, C++ and QML; it runs launcher\qt_backend.py), built with CLANG64's
 # Qt (mingw-w64-clang-x86_64-qt6-base, -qt6-declarative) and deployed with its Qt modules and every DLL it loads.
 # Without Qt the package keeps the launcher's own window (the starter falls back to it).

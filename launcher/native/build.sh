@@ -16,3 +16,10 @@ clang++ -shared -static -s -Wl,--gc-sections -Wl,--no-insert-timestamp -o unchar
     "${OBJECTS[@]}" -lole32 -lwindowscodecs -luuid -ladvapi32 -luser32 -ldbghelp -ldxgi -lgdi32 -lshell32 -lbcrypt -lwinhttp
 llvm-objdump -p uncharted_native.dll | grep "DLL Name" | sort -u
 sha256sum uncharted_native.dll
+# The launcher update's installer (apply.cpp: tools\apply_update.exe in the package) and the bridge that old launchers
+# start as python\pythonw.exe once the package has no Python (bridge.cpp). Both stand alone (static, no DLL of ours).
+for exe in "apply:apply_update" "bridge:pythonw_bridge"; do
+    clang++ "${FLAGS[@]}" -mwindows -static -s -Wl,--gc-sections -Wl,--no-insert-timestamp -o "${exe#*:}.exe" "${exe%%:*}.cpp" \
+        -luser32 -lgdi32 -lshell32
+    llvm-objdump -p "${exe#*:}.exe" | grep "DLL Name" | sort -u
+done

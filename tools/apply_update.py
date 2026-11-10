@@ -187,6 +187,12 @@ def apply(root, staged, status):
 
 
 def main():
+    # The installer is native code (launcher/native/apply.cpp: tools\apply_update.exe, the same steps, and it also
+    # clears out program folders the new package dropped). Launchers up to 0.10.63 start this script with the new
+    # package's Python; it hands over to the program next to it. The code below only runs if that is missing.
+    native = Path(__file__).resolve().with_name("apply_update.exe")
+    if native.is_file():
+        return subprocess.call([str(native), *sys.argv[1:]], close_fds=True)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True)
     parser.add_argument("--wait-pid", type=int, default=0)
