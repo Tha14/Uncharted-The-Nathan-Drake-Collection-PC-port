@@ -12,215 +12,131 @@ copy run from the source tree has none and is never updated. An update:
      this launcher to close, swaps the program folders (rolling back on any error) and starts
      the new launcher. Saves, settings, logs and the shader cache (analysis\\) are not touched.
 UNCHARTED_UPDATE_API points the check at another releases list (tests; http only on 127.0.0.1).
+
+The work is done by the launcher's native code (launcher/native/updater.cpp).
 """
-import hashlib
-import http.client
+import ctypes
 import json
-import os
-import re
-import shutil
-import subprocess
 import sys
-import time
-import urllib.parse
-import urllib.request
-import zipfile
+import threading
 from pathlib import Path
 
 REPOSITORY = "fidalgojoao/Uncharted-The-Nathan-Drake-Collection-PC-port"
 RELEASES_PAGE = f"https://github.com/{REPOSITORY}/releases"
-API = f"https://api.github.com/repos/{REPOSITORY}/releases?per_page=20"
 ASSET = "Uncharted-windows.zip"
-# What a package must hold to be installed over this one.
-REQUIRED = ("Uncharted Launcher.exe", "VERSION", "python/pythonw.exe", "launcher/uncharted_launcher.pyw",
-            "launcher/updater.py", "tools/apply_update.py", "tools/probe_uncharted.py",
-            "gow3_pc/out/gow3-probe.exe")
+NATIVE = Path(__file__).resolve().parent / "native" / "uncharted_native.dll"
+_dll = None
 
 
 class UpdateError(Exception):
     pass
 
 
-def parse_version(text):
-    """'v0.1.10' / '0.1.10' -> (0, 1, 10); None if it is not a version."""
-    match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", (text or "").strip())
-    return tuple(int(part) for part in match.groups()) if match else None
+def _native():
+    global _dll
+    if _dll is None:
+        _dll = ctypes.CDLL(str(NATIVE))
+        _dll.un_update_installed.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_update_latest.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_update_download.argtypes = [ctypes.c_char_p, ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_update_progress.argtypes = [ctypes.POINTER(ctypes.c_longlong), ctypes.POINTER(ctypes.c_longlong)]
+        _dll.un_update_progress.restype = None
+        _dll.un_update_stage.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_update_start_apply.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_update_cleanup.argtypes = [ctypes.c_wchar_p]
+        _dll.un_update_cleanup.restype = None
+        for name in ("un_update_installed", "un_update_latest", "un_update_download", "un_update_stage",
+                     "un_update_start_apply"):
+            getattr(_dll, name).restype = ctypes.c_int
+    return _dll
 
 
-def installed_version(root):
-    """The package's version, or None for a copy run from the source tree."""
-    try:
-        return parse_version((Path(root) / "VERSION").read_text(encoding="ascii"))
-    except OSError:
-        return None
+def _call(function, *args, size=1 << 16, again=False):
+    """(status, text) of a native call with room for its answer. Calls that download or write run once; the ones
+    that only answer (again=True) are asked again with more room when they need it."""
+    out = ctypes.create_string_buffer(size)
+    status = function(*args, out, size)
+    while status < 0 and again:
+        size = -status
+        out = ctypes.create_string_buffer(size)
+        status = function(*args, out, size)
+    return status, out.value.decode("utf-8", "replace")
+
+
+def _version(text):
+    return tuple(int(part) for part in text.split("."))
 
 
 def version_text(version):
     return ".".join(str(part) for part in version)
 
 
-def api_url():
-    return os.environ.get("UNCHARTED_UPDATE_API") or API
-
-
-def allowed_url(url):
-    parts = urllib.parse.urlsplit(url)
-    return parts.scheme == "https" or (parts.scheme == "http" and parts.hostname == "127.0.0.1"
-                                       and bool(os.environ.get("UNCHARTED_UPDATE_API")))
-
-
-def fetch_json(url, timeout=15):
-    if not allowed_url(url):
-        raise UpdateError(f"Refusing a non-HTTPS address: {url}")
-    request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json",
-                                                   "User-Agent": "Uncharted-Launcher"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8"))
+def installed_version(root):
+    """The package's version, or None for a copy run from the source tree."""
+    status, text = _call(_native().un_update_installed, str(root), again=True)
+    return _version(text) if status == 0 else None
 
 
 def latest_release(current, timeout=15):
     """The newest release newer than `current` with an installable package, as a dict (version,
     tag, page, notes, url, size, sha256), or None. Pre-releases count: every release so far is a
-    beta."""
-    best = None
-    for release in fetch_json(api_url(), timeout):
-        version = parse_version(release.get("tag_name"))
-        if release.get("draft") or not version or version <= current:
-            continue
-        if best and version <= best["version"]:
-            continue
-        asset = next((a for a in release.get("assets", []) if a.get("name") == ASSET), None)
-        digest = (asset or {}).get("digest") or ""
-        if not asset or not digest.startswith("sha256:"):
-            continue
-        best = {"version": version, "tag": release["tag_name"], "page": release.get("html_url", RELEASES_PAGE),
-                "notes": release.get("body") or "", "url": asset["browser_download_url"],
-                "size": int(asset.get("size") or 0), "sha256": digest.split(":", 1)[1].lower()}
-    return best
+    beta. UpdateError when the releases could not be read."""
+    status, text = _call(_native().un_update_latest, version_text(current).encode(), int(timeout), size=1 << 22,
+                         again=True)
+    if status != 0:
+        raise UpdateError(text)
+    release = json.loads(text)
+    if release:
+        release["version"] = tuple(release["version"])
+    return release
 
 
 def update_dir(root):
     return Path(root) / "update"
 
 
-def download(release, root, progress=None, cancelled=None, attempts=8, timeout=60, pause=2.0):
+def download(release, root, progress=None, cancelled=None):
     """Downloads the release's zip into update\\ and checks its size and SHA-256. A connection that
     stalls or breaks (slow or busy networks: "The read operation timed out", #149/#150) is opened
-    again and the download goes on where it stopped (HTTP Range; GitHub's file host supports it),
-    up to `attempts` times in a row without progress."""
-    if not allowed_url(release["url"]):
-        raise UpdateError(f"Refusing a non-HTTPS download: {release['url']}")
-    folder = update_dir(root)
-    folder.mkdir(exist_ok=True)
-    target = folder / ASSET
-    partial = folder / (ASSET + ".part")
-    digest = hashlib.sha256()
-    done = 0
-    failures = 0
-    size = release["size"]
-    with partial.open("wb") as out:
-        while not size or done < size:
-            headers = {"User-Agent": "Uncharted-Launcher"}
-            if done:
-                headers["Range"] = f"bytes={done}-"
-            request = urllib.request.Request(release["url"], headers=headers)
-            start = done
-            try:
-                # Each try asks github.com again: its redirect to the file host is signed and expires.
-                with urllib.request.urlopen(request, timeout=timeout) as response:
-                    if done and response.status != 206:  # the range was ignored: from the start
-                        out.seek(0)
-                        out.truncate()
-                        digest, done = hashlib.sha256(), 0
-                    while True:
-                        if cancelled and cancelled():
-                            raise UpdateError("Cancelled.")
-                        chunk = response.read(1 << 16)
-                        if not chunk:
-                            break
-                        out.write(chunk)
-                        digest.update(chunk)
-                        done += len(chunk)
-                        if progress:
-                            progress(done, size)
-                if not size:
-                    break
-                if done < size:
-                    raise ConnectionError(f"the connection closed after {done} of {size} bytes")
-            except (OSError, http.client.HTTPException) as error:  # timeouts, resets, URLError, HTTPError
-                failures = 0 if done - start >= (1 << 20) else failures + 1
-                if failures >= attempts:
-                    raise UpdateError(
-                        f"The download from GitHub keeps stopping ({error or error.__class__.__name__}).\n\n"
-                        "Try UPDATE again later, or download Uncharted-windows.zip from the releases page and "
-                        "extract it over this folder (saves and settings in analysis\\ are kept).") from error
-                time.sleep(min(pause * max(failures, 1), 15.0))
-    if release["size"] and done != release["size"]:
-        partial.unlink(missing_ok=True)
-        raise UpdateError(f"The download is incomplete ({done} of {release['size']} bytes).")
-    if digest.hexdigest() != release["sha256"]:
-        partial.unlink(missing_ok=True)
-        raise UpdateError("The download does not match the release's SHA-256: not installed.")
-    partial.replace(target)
-    return target
+    again and the download goes on where it stopped (HTTP Range; GitHub's file host supports it).
+    progress(done, total) is called while it runs. `cancelled` is not used (the launcher never cancels)."""
+    request = dict(release, version=list(release["version"]))
+    result = {}
+
+    def work():
+        result["answer"] = _call(_native().un_update_download, json.dumps(request).encode("utf-8"), str(root))
+    worker = threading.Thread(target=work, daemon=True)
+    worker.start()
+    done, total = ctypes.c_longlong(0), ctypes.c_longlong(0)
+    while worker.is_alive():
+        worker.join(0.1)
+        if progress:
+            _native().un_update_progress(ctypes.byref(done), ctypes.byref(total))
+            progress(done.value, total.value)
+    status, text = result["answer"]
+    if status != 0:
+        raise UpdateError(text)
+    return Path(text)
 
 
 def stage(archive, root, version):
     """Unpacks the package to update\\staged and checks it; returns that folder."""
-    staged = update_dir(root) / "staged"
-    shutil.rmtree(staged, ignore_errors=True)
-    staged.mkdir(parents=True)
-    with zipfile.ZipFile(archive) as package:
-        names = [n for n in package.namelist() if n and not n.endswith("/")]
-        # Compress-Archive puts everything under one folder (Uncharted-windows/).
-        tops = {n.replace("\\", "/").split("/", 1)[0] for n in names}
-        prefix = tops.pop() + "/" if len(tops) == 1 and all("/" in n.replace("\\", "/") for n in names) else ""
-        base = staged.resolve()
-        for info in package.infolist():
-            name = info.filename.replace("\\", "/")
-            if name.endswith("/") or not name.startswith(prefix):
-                continue
-            target = (staged / name[len(prefix):]).resolve()
-            if base not in target.parents:
-                raise UpdateError(f"The package holds a path outside its folder: {name}")
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with package.open(info) as source, target.open("wb") as out:
-                shutil.copyfileobj(source, out, 1 << 20)
-    missing = [path for path in REQUIRED if not (staged / path).is_file()]
-    if missing:
-        raise UpdateError("The package is incomplete: " + ", ".join(missing))
-    if installed_version(staged) != version:
-        raise UpdateError("The package's VERSION does not match the release.")
-    return staged
+    status, text = _call(_native().un_update_stage, str(archive), str(root), version_text(version).encode())
+    if status != 0:
+        raise UpdateError(text)
+    return Path(text)
 
 
 def start_apply(root, staged):
     """Starts the new version's installer, which waits for this process to exit."""
-    python = staged / "python" / "pythonw.exe"
-    script = staged / "tools" / "apply_update.py"
-    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    subprocess.Popen([str(python), "-I", str(script), "--root", str(root), "--wait-pid", str(os.getpid())],
-                     cwd=str(staged), creationflags=flags, close_fds=True)
+    status, text = _call(_native().un_update_start_apply, str(root), str(staged))
+    if status != 0:
+        raise OSError(text)
 
 
 def cleanup(root):
     """Removes what an applied or abandoned update left (best effort: files may still be in use)."""
-    folder = update_dir(root)
-    if not folder.exists():
-        return
-    for name in ("old", "staged", ASSET, ASSET + ".part"):
-        path = folder / name
-        if path.is_dir():
-            shutil.rmtree(path, ignore_errors=True)
-        else:
-            try:
-                path.unlink(missing_ok=True)
-            except OSError:
-                pass
-    try:
-        folder.rmdir()
-    except OSError:
-        pass
+    _native().un_update_cleanup(str(root))
 
 
 if __name__ == "__main__":  # python launcher/updater.py: what the launcher would find
