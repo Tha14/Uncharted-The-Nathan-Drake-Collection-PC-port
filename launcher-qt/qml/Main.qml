@@ -138,8 +138,8 @@ ApplicationWindow {
         }
     }
 
-    // A Controls slot waits for its key: the next key, mouse button or wheel step goes to the launcher (as the Tk
-    // window's capture did). The layer covers the window only while a slot waits.
+    // A CONTROLS slot waits for its key: the next key, mouse button or wheel step goes to the page (pages.cpp
+    // act_controls, through backend.capture). The layer covers the window only while a slot waits.
     Item {
         id: captureLayer
         anchors.fill: parent
@@ -148,7 +148,7 @@ ApplicationWindow {
         onVisibleChanged: if (visible) forceActiveFocus()
         z: 50
 
-        // Qt key -> the Tk keysym the launcher's capture_key expects
+        // Qt key -> the Tk keysym the page's capture expects (controls.cpp TK_TO_SDL)
         function keysym(event) {
             const k = event.key
             const map = {
@@ -184,6 +184,13 @@ ApplicationWindow {
             }
             onWheel: (wheel) => backend.capture("", wheel.angleDelta.y > 0 ? "wheel_up" : "wheel_down")
         }
+    }
+
+    // A controller slot waits for its button: Escape cancels it
+    Shortcut {
+        sequence: "Escape"
+        enabled: !!backend.chrome.padCapturing
+        onActivated: backend.capture("Escape", "")
     }
 
     MessageDialog {

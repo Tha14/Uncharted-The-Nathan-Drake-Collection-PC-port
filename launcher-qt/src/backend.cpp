@@ -64,6 +64,10 @@ Backend::Backend(QObject *parent) : QObject(parent)
     });
     m_poll.setInterval(200);
     connect(&m_poll, &QTimer::timeout, this, [this] { requestModel(); });
+    m_padPoll.setInterval(30);
+    connect(&m_padPoll, &QTimer::timeout, this, [this] {
+        nativeAct(QStringLiteral("native:%1:pad_poll").arg(m_tab), QStringLiteral("poll"), QVariantMap{});
+    });
     start();
 }
 
@@ -155,6 +159,7 @@ void Backend::handle(const QVariantMap &message)
         const QVariantMap data = message.value("data").toMap();
         m_chrome = data.value("chrome").toMap();
         m_native = data.value("native").toMap();
+        showCapture();
         emit chromeChanged();
         const QString tab = data.value("tab").toString();
         QVariantList page = data.value("page").toList();
@@ -228,6 +233,7 @@ QByteArray Backend::nativeState() const
 {
     QJsonObject state = QJsonObject::fromVariantMap(m_native);
     state.insert("root", QDir::toNativeSeparators(m_root));
+    state.insert("ui", QJsonObject::fromVariantMap(m_ui));
     return QJsonDocument(state).toJson(QJsonDocument::Compact);
 }
 
@@ -276,11 +282,51 @@ bool Backend::nativeAct(const QString &id, const QString &kind, const QVariant &
             message.insert("value", call.value("value").toVariant());
         send(message);
     }
+    // the page's new ui state (a slot waiting, the hint): the page again at once, without the Python side
+    if (result.contains("ui")) {
+        const QVariantMap ui = result.value("ui").toObject().toVariantMap();
+        if (ui != m_ui) {
+            setUi(ui);
+            QVariantList page;
+            if (nativePage(m_tab, &page) && page != m_page) {
+                m_page = page;
+                emit pageChanged();
+            }
+        }
+    }
     return true;
+}
+
+void Backend::setUi(const QVariantMap &ui)
+{
+    m_ui = ui;
+    const QVariant pad = m_ui.value("pad_capture");
+    if (pad.isValid() && !pad.isNull() && !pad.toString().isEmpty()) {
+        if (!m_padPoll.isActive())
+            m_padPoll.start();
+    } else {
+        m_padPoll.stop();
+    }
+    showCapture();
+    emit chromeChanged();
+}
+
+bool Backend::nativeCapturing() const
+{
+    const QVariant keys = m_ui.value("capturing");
+    return keys.isValid() && !keys.isNull() && !keys.toList().isEmpty();
+}
+
+void Backend::showCapture()
+{
+    if (nativeCapturing())
+        m_chrome.insert("capturing", true);   // the window's capture layer takes the next key or mouse button
+    m_chrome.insert("padCapturing", m_padPoll.isActive());   // Escape cancels a controller slot
 }
 
 void Backend::selectGame(const QString &key)
 {
+    setUi({});
     send({{"op", "game"}, {"key", key}});
     requestModel(true);
 }
@@ -294,6 +340,7 @@ void Backend::playGame(const QString &key)
 void Backend::showTab(const QString &name)
 {
     m_tab = name;
+    setUi({});
     send({{"op", "tab"}, {"name", name}});
     requestModel(true);
 }
@@ -317,6 +364,12 @@ void Backend::answer(int dialog, const QVariant &value)
 
 void Backend::capture(const QString &key, const QString &mouse)
 {
+    if (nativeCapturing() || m_padPoll.isActive()) {   // a native page's slot waits (CONTROLS)
+        nativeAct(QStringLiteral("native:%1:capture").arg(m_tab), QStringLiteral("capture"),
+                  QVariantMap{{"key", key}, {"mouse", mouse}});
+        requestModel(true);
+        return;
+    }
     send({{"op", "capture"}, {"key", key}, {"mouse", mouse}});
     requestModel(true);
 }

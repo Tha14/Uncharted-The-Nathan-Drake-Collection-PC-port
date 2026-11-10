@@ -20,8 +20,6 @@ def _native():
         _dll.un_system_tables.argtypes = [ctypes.c_char_p, ctypes.c_int]
         _dll.un_system.argtypes = [ctypes.c_char_p, ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_pid_alive.argtypes = [ctypes.c_ulong]
-        _dll.un_pad_init.argtypes = [ctypes.c_wchar_p]
-        _dll.un_pad_state.argtypes = [ctypes.c_char_p, ctypes.c_int]
         for name in ("un_settings_table", "un_ini_read", "un_ini_write", "un_system_tables", "un_system", "un_wine",
                      "un_pid_alive"):
             getattr(_dll, name).restype = ctypes.c_int
@@ -91,23 +89,6 @@ def gpu_query(what, name, integrated=None):
     return _call("un_gpu_query", what.encode(), (name or "").encode("utf-8"), flag) or None
 
 
-def controls_tables():
-    """The Controls page's tables (launcher/native/controls.cpp), in the launcher's Python types."""
-    import json
-    dll = _native()
-    dll.un_controls_tables.argtypes = [ctypes.c_char_p, ctypes.c_int]
-    t = json.loads(_call("un_controls_tables"))
-    pairs = lambda rows: [tuple(row) for row in rows]  # noqa: E731
-    return {
-        "CONTROL_GROUPS": tuple((title, tuple(tuple(a) for a in actions)) for title, actions in t["CONTROL_GROUPS"]),
-        "PAD_DEFAULTS": t["PAD_DEFAULTS"], "PAD_FIXED": t["PAD_FIXED"], "SDL_BUTTONS": tuple(t["SDL_BUTTONS"]),
-        "PAD_NAMES": {k: tuple(v) for k, v in t["PAD_NAMES"].items()}, "STICK_ACTIONS": set(t["STICK_ACTIONS"]),
-        "DEFAULT_CONTROLS": t["DEFAULT_CONTROLS"], "PROMPT_MODES": pairs(t["PROMPT_MODES"]),
-        "MOUSE_SENSITIVITIES": pairs(t["MOUSE_SENSITIVITIES"]), "MOUSE_FACTORS": pairs(t["MOUSE_FACTORS"]),
-        "MOUSE_AIM_FACTORS": pairs(t["MOUSE_AIM_FACTORS"]), "MOUSE_LABELS": t["MOUSE_LABELS"],
-        "TK_TO_SDL": t["TK_TO_SDL"], "RESERVED_KEYS": set(t["RESERVED_KEYS"])}
-
-
 def controls(what, value):
     """Controls conversion (launcher/native/controls.cpp): "to_ini", "from_ini", "merged", "merged_pad"."""
     import json
@@ -155,19 +136,6 @@ def pid_alive(pid):
         return bool(pid) and bool(_native().un_pid_alive(int(pid)))
     except (ValueError, OverflowError, ctypes.ArgumentError):
         return False
-
-
-# ---------------------------------------------------------------------------------------------- gamepads.cpp
-
-
-def pad_init(root):
-    return bool(_native().un_pad_init(str(root)))
-
-
-def pad_state():
-    """(number of controllers, first one's style or None, set of held buttons)."""
-    count, style, held = (_text(_native().un_pad_state).splitlines() + ["", ""])[:3]
-    return int(count or 0), style or None, set(held.split())
 
 
 # ---------------------------------------------------------------------------------------------- play.cpp

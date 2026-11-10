@@ -32,7 +32,7 @@ Item {
             case "section": return sectionC
             case "row": return rowC
             case "box": return root.node.dir === "h" ? hboxC : vboxC
-            case "label": return root.node.slot || root.node.image ? slotC : labelC
+            case "label": return root.node.slot || root.node.image || root.node.pad ? slotC : labelC
             case "button": return buttonC
             case "toggle": return toggleC
             case "choice": return choiceC
@@ -179,6 +179,12 @@ Item {
             radius: 9
             color: waiting ? "#2a2416" : (slotMouse.containsMouse && n.click ? Theme.fieldHi : Theme.field)
             border.color: waiting ? Theme.gold : Theme.line
+            PadIcon {   // a controller button drawn here (native pages); the Python pages send an image file
+                anchors.centerIn: parent
+                visible: !!n.pad
+                pad: n.pad || ({})
+                size: 22
+            }
             Image {
                 anchors.centerIn: parent
                 visible: !!n.image
@@ -191,7 +197,7 @@ Item {
                 anchors.centerIn: parent
                 width: parent.width - 10
                 horizontalAlignment: Text.AlignHCenter
-                visible: !n.image
+                visible: !n.image && !n.pad
                 text: n.text
                 elide: Text.ElideRight
                 color: waiting ? Theme.gold : Theme.text

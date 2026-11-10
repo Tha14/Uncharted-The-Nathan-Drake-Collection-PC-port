@@ -148,171 +148,6 @@ GAME_SETTING_DEFAULTS = {"preset": "medium", "resolution": "1920x1080", "aspect"
                          "mouse_invert": False, "prompts": "auto", "mouse_aim_sens": "1.0",
                          "mouse_vertical": "1.0", "mouse_invert_x": False, "vibration": True}
 
-# Keyboard and mouse controls (runtime_pad.c): action -> up to two bindings, "key:<SDL key name>"
-# or "mouse:<left|middle|right|x1|x2|wheel_up|wheel_down>". Stick directions take keys only.
-# The Controls page's tables are the native code's (launcher/native/controls.cpp): the actions and their groups,
-# the controller buttons (defaults, fixed ones, SDL order, names), the default key and mouse bindings, the prompt
-# modes, the mouse steps, mouse button labels, Tk -> SDL key names and the keys the runtime keeps for itself.
-globals().update(native_api.controls_tables())
-
-
-def merged_pad_controls(pad_controls):
-    return native_api.controls("merged_pad", pad_controls)
-
-
-def _pad_font(size):
-    from PIL import ImageFont
-    for name in ("segoeuib.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf"):
-        try:
-            return ImageFont.truetype(name, size)
-        except OSError:
-            continue
-    return ImageFont.load_default()
-
-
-def pad_icon(button, style, height):
-    """A controller button's icon (PIL RGBA image, `height` pixels tall): Xbox or PlayStation."""
-    s = 4  # drawn 4x, then scaled down (smooth edges)
-    H = height * s
-    ps = style == "playstation"
-    body, rim, ink = (32, 32, 34, 255), (150, 150, 150, 255), (240, 240, 240, 255)
-    if "+" in button:  # a combination: the icons side by side with a plus
-        parts = [pad_icon(b, style, height) for b in button.split("+")]
-        plus_w = height // 2
-        img = Image.new("RGBA", (sum(i.width for i in parts) + plus_w * (len(parts) - 1), height))
-        x = 0
-        for i, part in enumerate(parts):
-            img.alpha_composite(part, (x, 0))
-            x += part.width
-            if i + 1 < len(parts):
-                d = ImageDraw.Draw(img)
-                cx, cy, r = x + plus_w // 2, height // 2, max(2, height // 6)
-                d.line((cx - r, cy, cx + r, cy), fill=ink, width=max(1, height // 12))
-                d.line((cx, cy - r, cx, cy + r), fill=ink, width=max(1, height // 12))
-                x += plus_w
-        return img
-
-    def canvas(width_factor):
-        W = int(H * width_factor)
-        return Image.new("RGBA", (W, H)), W
-
-    def finish(img):
-        return img.resize((max(1, img.width // s), height), Image.LANCZOS)
-
-    def text(d, W, label, color, size_factor=0.55, dy=0):
-        font = _pad_font(max(8, int(H * size_factor)))
-        box = d.textbbox((0, 0), label, font=font)
-        d.text(((W - (box[2] - box[0])) / 2 - box[0], (H - (box[3] - box[1])) / 2 - box[1] + dy), label,
-               font=font, fill=color)
-
-    line = max(2, H // 12)
-    if button in ("a", "b", "x", "y"):
-        img, W = canvas(1.0)
-        d = ImageDraw.Draw(img)
-        d.ellipse((line, line, W - line, H - line), fill=body, outline=rim, width=line)
-        if ps:
-            color = {"a": (124, 156, 255, 255), "b": (255, 102, 102, 255), "x": (240, 140, 210, 255),
-                     "y": (64, 214, 160, 255)}[button]
-            c, r, w = W / 2, H * 0.22, int(H * 0.08)
-            if button == "a":
-                d.line((c - r, c - r, c + r, c + r), fill=color, width=w)
-                d.line((c - r, c + r, c + r, c - r), fill=color, width=w)
-            elif button == "b":
-                d.ellipse((c - r, c - r, c + r, c + r), outline=color, width=w)
-            elif button == "x":
-                d.rectangle((c - r * 0.85, c - r * 0.85, c + r * 0.85, c + r * 0.85), outline=color, width=w)
-            else:
-                d.polygon([(c, c - r * 1.05), (c - r * 1.1, c + r * 0.75), (c + r * 1.1, c + r * 0.75)],
-                          outline=color, width=w)
-        else:
-            color = {"a": (108, 194, 74, 255), "b": (229, 71, 59, 255), "x": (63, 142, 230, 255),
-                     "y": (244, 196, 48, 255)}[button]
-            text(d, W, button.upper(), color, 0.6)
-        return finish(img)
-    if button in ("leftshoulder", "rightshoulder"):
-        img, W = canvas(1.55)
-        d = ImageDraw.Draw(img)
-        d.rounded_rectangle((line, H * 0.14, W - line, H * 0.86), radius=H * 0.3, fill=body, outline=rim, width=line)
-        text(d, W, PAD_NAMES[button][1 if ps else 0], ink, 0.46)
-        return finish(img)
-    if button in ("lefttrigger", "righttrigger"):
-        img, W = canvas(1.25)
-        d = ImageDraw.Draw(img)
-        d.rounded_rectangle((line, line, W - line, H - line), radius=H * 0.32, fill=body, outline=rim, width=line)
-        d.rectangle((line * 2, H * 0.55, W - line * 2, H - line * 2), fill=body)
-        text(d, W, PAD_NAMES[button][1 if ps else 0], ink, 0.44)
-        return finish(img)
-    if button in ("leftstick", "rightstick", "lstick", "rstick"):
-        img, W = canvas(1.0)
-        d = ImageDraw.Draw(img)
-        d.ellipse((line, line, W - line, H - line), fill=body, outline=rim, width=line)
-        if button in ("lstick", "rstick"):
-            d.ellipse((H * 0.24, H * 0.24, H * 0.76, H * 0.76), outline=rim, width=line)
-            text(d, W, "L" if button == "lstick" else "R", ink, 0.38)
-        else:
-            text(d, W, PAD_NAMES[button][1 if ps else 0], ink, 0.4)
-        return finish(img)
-    if button.startswith("dp"):
-        img, W = canvas(1.0)
-        d = ImageDraw.Draw(img)
-        a, b = H * 0.31, H * 0.69
-        arms = {"dpup": (a, line, b, a + line), "dpdown": (a, b - line, b, H - line), "dpleft": (line, a, a + line, b),
-                "dpright": (b - line, a, H - line, b)}
-        d.rectangle((a, line, b, H - line), fill=body, outline=rim, width=line)
-        d.rectangle((line, a, H - line, b), fill=body, outline=rim, width=line)
-        d.rectangle((a + line, a, b - line, b), fill=body)
-        d.rectangle((a, a + line, b, b - line), fill=body)
-        x0, y0, x1, y1 = arms[button]
-        d.rectangle((x0 + line, y0 + line, x1 - line, y1 - line), fill=(250, 200, 90, 255))
-        return finish(img)
-    if button in ("start", "back"):
-        img, W = canvas(1.0)
-        d = ImageDraw.Draw(img)
-        d.ellipse((H * 0.1, H * 0.1, H * 0.9, H * 0.9), fill=body, outline=rim, width=line)
-        c = H / 2
-        if button == "start":  # three lines: Xbox Menu, PlayStation Options
-            for k in (-1, 0, 1):
-                y = c + k * H * 0.13
-                d.line((c - H * 0.17, y, c + H * 0.17, y), fill=ink, width=line)
-        elif ps:  # Share/Create: a small arrow up
-            d.line((c, c - H * 0.18, c, c + H * 0.16), fill=ink, width=line)
-            d.line((c - H * 0.12, c - H * 0.06, c, c - H * 0.18, c + H * 0.12, c - H * 0.06), fill=ink, width=line)
-        else:  # View: two windows
-            d.rectangle((c - H * 0.17, c - H * 0.15, c + H * 0.05, c + H * 0.05), outline=ink, width=line)
-            d.rectangle((c - H * 0.05, c - H * 0.03, c + H * 0.17, c + H * 0.17), fill=ink)
-        return finish(img)
-    # Anything else (touchpad, paddles, misc): its name on a rounded key.
-    label = PAD_NAMES.get(button, (button, button))[1 if ps else 0]
-    img, W = canvas(max(1.0, 0.36 * len(label)))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle((line, H * 0.14, W - line, H * 0.86), radius=H * 0.25, fill=body, outline=rim, width=line)
-    text(d, W, label, ink, 0.4)
-    return finish(img)
-
-
-class Gamepads:
-    """Controllers through SDL3, the game's own library (launcher/native/gamepads.cpp): which buttons are held, and
-    whether the first one is a PlayStation controller."""
-
-    def __init__(self):
-        self.sdl = native_api.pad_init(ROOT)
-        self.pads = []
-
-    def refresh(self):
-        count, style, held = native_api.pad_state() if self.sdl else (0, None, set())
-        self.pads = [None] * count
-        return style, held
-
-    def held(self):
-        return self.refresh()[1]
-
-    def style(self):
-        return self.refresh()[0]
-
-
-def merged_controls(controls):
-    return native_api.controls("merged", controls)
-
 
 # The controls in each game's settings file: the game reads them there, and its in-game menu (Insert / R3+L2,
 # Controls tab) changes them too (launcher/native/controls.cpp converts both ways).
@@ -326,10 +161,6 @@ def controls_from_ini(values, settings):
     settings.clear()
     settings.update(result["settings"])
     return result["found"]
-
-
-def binding_label(binding):
-    return native_api.controls("label", binding)
 
 
 def is_game_dir(folder):
@@ -1094,19 +925,6 @@ class Launcher:
                 widget.set(self.ini.get(key, INI_DEFAULTS[key]) == "1")
             elif isinstance(widget, Segmented):
                 widget.set(self.ini.get(key, INI_DEFAULTS[key]))
-        settings = self.game_settings()
-        if isinstance(self.widgets.get("mouse"), Toggle):
-            self.widgets["mouse"].set(settings.get("mouse", True))
-            self.widgets["mouse_sens"].set(settings.get("mouse_sens", "1.0"))
-            self.widgets["mouse_invert"].set(settings.get("mouse_invert", False))
-            self.widgets["mouse_aim_sens"].set(settings.get("mouse_aim_sens", "1.0"))
-            self.widgets["mouse_vertical"].set(settings.get("mouse_vertical", "1.0"))
-            self.widgets["mouse_invert_x"].set(settings.get("mouse_invert_x", False))
-            self.widgets["vibration"].set(settings.get("vibration", True))
-            self.widgets["prompts"].set(settings.get("prompts", "auto"))
-            self.refresh_pad_slots()
-        if hasattr(self, "binding_slots"):
-            self.refresh_bindings()
 
     def game_dir(self):
         folder = self.config.get("game_dir") or ""
@@ -1211,11 +1029,10 @@ class Launcher:
         self.scroll_canvases = set()
         self.root.bind_all("<MouseWheel>", self.wheel)
         self.pages = {
-            "controls": self.page_controls(),
             "u3mp": self.page_u3mp(),
             "multiplayer": self.page_multiplayer(),
         }
-        # QUICK SETUP, DISPLAY, PERFORMANCE, CHEATS, ADVANCED, TOOLS and LAUNCHER are built natively
+        # QUICK SETUP, DISPLAY, PERFORMANCE, CONTROLS, CHEATS, ADVANCED, TOOLS and LAUNCHER are built natively
         # (launcher/native/pages.cpp, drawn by launcher-qt): no Tk page
         for page in self.pages.values():
             self.organize(page)
@@ -1240,8 +1057,6 @@ class Launcher:
 
     def wheel(self, event):
         """The mouse wheel scrolls the page under the pointer, when it is taller than the window."""
-        if getattr(self, "capturing", None) is not None:  # a Controls slot is waiting for an input
-            return
         try:
             widget = self.root.winfo_containing(event.x_root, event.y_root)
         except (KeyError, tk.TclError):  # over a menu
@@ -1367,269 +1182,6 @@ class Launcher:
             self.change(key, value)
         for key, value in changes.get("game", {}).items():
             self.change_game_setting(key, value)
-
-    def page_controls(self):
-        page = self.page(scroll=False)
-        settings = self.game_settings()
-        self.section(page, "Mouse")
-        def toggle(key, default):
-            return lambda parent: Toggle(parent, self.s, settings.get(key, default),
-                                         lambda v, k=key: self.change_game_setting(k, v))
-
-        def choice(key, options, default):
-            return lambda parent: Segmented(parent, options, settings.get(key, default),
-                                            lambda v, k=key: self.change_game_setting(k, v), self.f_small)
-        self.widgets["mouse"] = self.row(page, "Mouse", "", toggle("mouse", True))
-        self.widgets["mouse_sens"] = self.row(page, "Sensitivity", "", choice("mouse_sens", MOUSE_SENSITIVITIES, "1.0"))
-        self.widgets["mouse_aim_sens"] = self.row(page, "Aiming", "", choice("mouse_aim_sens", MOUSE_AIM_FACTORS, "1.0"))
-        self.widgets["mouse_vertical"] = self.row(page, "Up/down", "", choice("mouse_vertical", MOUSE_FACTORS, "1.0"))
-        self.widgets["mouse_invert"] = self.row(page, "Invert Y", "", toggle("mouse_invert", False))
-        self.widgets["mouse_invert_x"] = self.row(page, "Invert X", "", toggle("mouse_invert_x", False))
-        self.section(page, "Controller")
-        # Controller vibration (#166): off stops every rumble.
-        self.widgets["vibration"] = self.row(page, "Controller vibration", "", toggle("vibration", True))
-        self.widgets["prompts"] = self.row(
-            page, "Button icons", "Auto follows the device you play with (a controller's own buttons).",
-            lambda parent: Segmented(parent, PROMPT_MODES, settings.get("prompts", "auto"), self.change_prompts,
-                                     self.f_small))
-        self.section(page, "Bindings")
-        self.controls_hint = tk.Label(
-            page, text="Click a slot, then press a key or a mouse button (right-click a slot to clear it). "
-                       "In game the mouse is captured; Alt+Tab or Insert (menu) frees it. A controller "
-                       "always works too.", font=self.f_small, bg=BG, fg=MUTED, anchor="w", justify="left",
-            wraplength=self.px(1080))
-        self.controls_hint.pack(side="top", fill="x", pady=(0, self.px(6)))
-        reset = tk.Frame(page, bg=BG)
-        reset.pack(side="top", fill="x", pady=(0, self.px(8)))
-        self.flat_button(reset, "Reset controls", self.reset_controls).pack(side="left")
-        holder = tk.Frame(page, bg=BG)
-        holder.pack(side="top", fill="both", expand=True)
-        canvas = tk.Canvas(holder, bg=BG, highlightthickness=0)
-        bar = ScrollBar(holder, self.s, canvas)
-        inner = tk.Frame(canvas, bg=BG)
-        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=inner, anchor="nw")
-        canvas.configure(yscrollcommand=bar.set)
-        bar.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-
-        self.scroll_canvases.add(str(canvas))
-        self.capturing = None
-        self.binding_slots = {}
-        self.pad_slots = {}
-        self.pad_capture = None
-        if not hasattr(self, "gamepads"):
-            self.gamepads = Gamepads()
-        columns = [tk.Frame(inner, bg=BG), tk.Frame(inner, bg=BG)]
-        columns[0].grid(row=0, column=0, sticky="n", padx=(0, self.px(36)))
-        columns[1].grid(row=0, column=1, sticky="n")
-        for index, (group, actions) in enumerate(CONTROL_GROUPS):
-            column = columns[0 if index < 2 else 1]
-            tk.Label(column, text=group, font=self.f_small, bg=BG, fg=GOLD, anchor="w").pack(
-                side="top", fill="x", pady=(self.px(6 if index % 2 else 2), self.px(2)))
-            for action, label in actions:
-                row = tk.Frame(column, bg=BG)
-                row.pack(side="top", fill="x", pady=self.px(1))
-                tk.Label(row, text=label, font=self.f_small, bg=BG, fg=TEXT, anchor="w",
-                         width=17).pack(side="left")
-                for slot in (0, 1):
-                    cell = tk.Label(row, text="", font=self.f_small, bg=PANEL, fg=TEXT, width=14,
-                                    pady=self.px(3), cursor="hand2", highlightthickness=1,
-                                    highlightbackground=LINE)
-                    cell.pack(side="left", padx=(self.px(6), 0))
-                    cell.bind("<Button-1>", lambda e, a=action, i=slot: self.start_capture(a, i))
-                    cell.bind("<Button-3>", lambda e, a=action, i=slot: self.set_binding(a, i, None))
-                    self.binding_slots[(action, slot)] = cell
-                # The controller button: its icon; a click, then a controller button rebinds it.
-                pad_cell = tk.Label(row, text="", font=self.f_small, bg=PANEL, fg=TEXT, width=14, height=1,
-                                    highlightthickness=1, highlightbackground=LINE, compound="center")
-                pad_cell.pack(side="left", padx=(self.px(6), 0))
-                if action in PAD_DEFAULTS:
-                    pad_cell.config(cursor="hand2")
-                    pad_cell.bind("<Button-1>", lambda e, a=action: self.start_pad_capture(a))
-                    pad_cell.bind("<Button-3>", lambda e, a=action: self.set_pad_binding(a, None))
-                self.pad_slots[action] = pad_cell
-        self.refresh_bindings()
-        self.refresh_pad_slots()
-        return page
-
-    def game_controls(self):
-        return merged_controls(self.game_settings().get("controls"))
-
-    def change_prompts(self, value):
-        self.change_game_setting("prompts", value)
-        self.refresh_pad_slots()
-
-    def pad_style(self):
-        style = self.game_settings().get("prompts", "auto")
-        if style in ("xbox", "playstation"):
-            return style
-        return self.gamepads.style() or "xbox"  # Auto: the connected controller's
-
-    def refresh_pad_slots(self):
-        style = self.pad_style()
-        controls = merged_pad_controls(self.game_settings().get("pad_controls"))
-        if not hasattr(self, "pad_images"):
-            self.pad_images = {}
-        height = self.px(22)
-        for action, cell in getattr(self, "pad_slots", {}).items():
-            if self.pad_capture == action:
-                cell.config(image="", text="Press a button…", fg=GOLD, bg=PANEL_HI, width=14, height=1)
-                continue
-            button = controls.get(action) if action in PAD_DEFAULTS else PAD_FIXED.get(action)
-            if not button:
-                cell.config(image="", text="—", fg=TEXT, bg=PANEL, width=14, height=1)
-                continue
-            # GitHub #214: a PlayStation controller's touchpad click is both touchpad actions (the
-            # finger's side picks one); Share / L1+Share are the stand-ins for other controllers.
-            if style == "playstation" and button == PAD_DEFAULTS.get(action, PAD_FIXED.get(action)) \
-                    and action in ("touchpad_left", "touchpad_right"):
-                side = "left" if action == "touchpad_left" else "right"
-                cell.config(image="", text=f"Touchpad {side}", fg=TEXT, bg=PANEL, width=14, height=1)
-                continue
-            key = (button, style, height)
-            if key not in self.pad_images:
-                self.pad_images[key] = ImageTk.PhotoImage(pad_icon(button, style, height))
-            cell.config(image=self.pad_images[key], text="", bg=PANEL, width=self.px(100), height=self.px(24))
-
-    def start_pad_capture(self, action):
-        self.stop_capture()
-        if not self.gamepads.sdl:
-            self.controls_hint.config(text="No controller support found (SDL3.dll).", fg=STOP_RED)
-            return
-        self.pad_capture = action
-        self.pad_capture_started = time.monotonic()
-        self.pad_capture_held = self.gamepads.held()  # buttons already down do not count
-        if not self.gamepads.pads:
-            self.controls_hint.config(text="Connect a controller, then click the slot again.", fg=STOP_RED)
-            self.pad_capture = None
-            return
-        self.controls_hint.config(text="Move a stick (Escape cancels)." if action[:3] in ("ls_", "rs_") else
-                                  "Press a button or trigger on the controller (Escape cancels).", fg=MUTED)
-        self.refresh_pad_slots()
-        self.root.bind_all("<Escape>", lambda e: self.stop_pad_capture())
-        self.root.after(30, self.poll_pad_capture)
-
-    def poll_pad_capture(self):
-        if self.pad_capture is None:
-            return
-        held = self.gamepads.held()
-        # Move and Look take a stick; everything else a button or a trigger.
-        sticks = ("lstick", "rstick")
-        stick_action = self.pad_capture[:3] in ("ls_", "rs_")
-        pressed = [b for b in tuple(SDL_BUTTONS) + ("lefttrigger", "righttrigger") + sticks
-                   if b in held and b not in self.pad_capture_held]
-        new = [b for b in pressed if (b in sticks) == stick_action]
-        self.pad_capture_held &= held
-        if stick_action and pressed and not new:
-            self.controls_hint.config(text="Move and Look take a stick. Move a stick.", fg=STOP_RED)
-        if new:
-            self.set_pad_binding(self.pad_capture, new[0])
-            return
-        if time.monotonic() - self.pad_capture_started > 8:
-            self.stop_pad_capture()
-            return
-        self.root.after(30, self.poll_pad_capture)
-
-    def stop_pad_capture(self):
-        self.pad_capture = None
-        self.root.unbind_all("<Escape>")
-        self.refresh_pad_slots()
-
-    def set_pad_binding(self, action, button):
-        # the rules (Move and Look take a whole stick; a button does one thing) are the native code's (controls.cpp)
-        settings = self.game_settings()
-        settings["pad_controls"] = native_api.controls(
-            "set_pad_binding", {"pad_controls": settings.get("pad_controls"), "action": action, "button": button})
-        self.save_controls()
-        self.pad_capture = None
-        self.root.unbind_all("<Escape>")
-        self.refresh_pad_slots()
-        self.controls_hint.config(text="Saved for " + self.current_game()["name"] + ". Right-click a controller "
-                                       "slot to clear it; Reset controls restores the defaults.", fg=MUTED)
-
-    def refresh_bindings(self):
-        controls = self.game_controls()
-        for (action, slot), cell in self.binding_slots.items():
-            bindings = controls.get(action, [])
-            capturing = self.capturing == (action, slot)
-            cell.config(text="Press a key…" if capturing else binding_label(bindings[slot] if slot < len(bindings) else None),
-                        bg=PANEL_HI if capturing else PANEL, fg=GOLD if capturing else TEXT)
-
-    def start_capture(self, action, slot):
-        self.stop_capture()
-        self.capturing = (action, slot)
-        self.refresh_bindings()
-        self.root.focus_set()
-        # After this click: the next key, mouse button or wheel step is the binding.
-        self.root.after(200, self.arm_capture)
-
-    def arm_capture(self):
-        if self.capturing is None:
-            return
-        self.root.bind_all("<KeyPress>", self.capture_key)
-        self.root.bind_all("<ButtonPress>", self.capture_button)
-        self.root.bind_all("<MouseWheel>", self.capture_wheel)
-
-    def stop_capture(self):
-        if getattr(self, "capturing", None) is None:
-            return
-        self.capturing = None
-        for sequence in ("<KeyPress>", "<ButtonPress>", "<MouseWheel>"):
-            self.root.unbind_all(sequence)
-        self.refresh_bindings()
-
-    def capture_key(self, event):
-        keysym = event.keysym
-        if keysym in RESERVED_KEYS:
-            self.controls_hint.config(text=f"{keysym} is used by the game window (Insert opens the menu, F9 "
-                                           "records input, comma separates bindings). Choose another key.",
-                                      fg=STOP_RED)
-            self.stop_capture()
-            return "break"
-        name = TK_TO_SDL.get(keysym) or (keysym.upper() if len(keysym) == 1 and keysym.isalnum() else None)
-        if not name:
-            self.controls_hint.config(text=f"The key {keysym} can't be used. Choose another key.", fg=STOP_RED)
-            self.stop_capture()
-            return "break"
-        action, slot = self.capturing
-        self.set_binding(action, slot, f"key:{name}")
-        return "break"
-
-    def capture_button(self, event):
-        # Tk 9 (the bundled Python 3.14) numbers the side buttons 8 and 9 on Windows (#152); 4 and
-        # 5 were Tk 8's numbers.
-        names = {1: "left", 2: "middle", 3: "right", 4: "x1", 5: "x2", 8: "x1", 9: "x2"}
-        if event.num in names:
-            self.capture_mouse(names[event.num])
-        return "break"
-
-    def capture_wheel(self, event):
-        self.capture_mouse("wheel_up" if event.delta > 0 else "wheel_down")
-        return "break"
-
-    def capture_mouse(self, name):
-        action, slot = self.capturing
-        if action in STICK_ACTIONS:
-            self.controls_hint.config(text="Stick directions take keys; the mouse moves the camera by itself.",
-                                      fg=STOP_RED)
-            self.stop_capture()
-            return
-        self.set_binding(action, slot, f"mouse:{name}")
-
-    def set_binding(self, action, slot, binding):
-        # the rule (a key or button does one thing; two per action) is the native code's (controls.cpp set_binding)
-        self.game_settings()["controls"] = native_api.controls(
-            "set_binding", {"controls": self.game_settings().get("controls"), "action": action, "slot": slot,
-                            "binding": binding})
-        self.save_controls()
-        self.controls_hint.config(
-            text="Saved for " + self.current_game()["name"] + ". Click a slot, then press a key or a mouse button "
-                 "(right-click a slot to clear it).", fg=MUTED)
-        self.capturing = None
-        for sequence in ("<KeyPress>", "<ButtonPress>", "<MouseWheel>"):
-            self.root.unbind_all(sequence)
-        self.refresh_bindings()
 
     def reset_controls(self):
         name = self.current_game()["name"]
@@ -3069,7 +2621,7 @@ class Launcher:
     def change_game_setting(self, key, value):
         self.game_settings()[key] = value
         if key in ("mouse", "mouse_sens", "mouse_invert", "prompts", "mouse_aim_sens", "mouse_vertical",
-                   "mouse_invert_x", "vibration"):
+                   "mouse_invert_x", "vibration", "controls", "pad_controls"):
             self.save_controls()
         else:
             write_config(self.config)

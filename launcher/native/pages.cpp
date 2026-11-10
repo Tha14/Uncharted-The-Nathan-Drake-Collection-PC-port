@@ -10,13 +10,16 @@
 // Pages: cheats (the games' developer switches), performance (frame rate, processor, video memory), display (resolution,
 // upscaling, picture, performance counter), setup (Quick Setup's preset cards), advanced (game, extra quality, unlocks,
 // launcher switches), tools (the launcher's actions: a click returns {"call": {"name", "value"}}, which the Python side
-// runs), launcher (its updates). state also has "root": the launcher's
+// runs), launcher (its updates), controls (mouse, controller and the key / controller bindings; a click on a slot
+// returns {"ui": ...}, the window's new state for the page: which slot waits for an input, the hint line). state also has "root": the launcher's
 // folder (which upscalers it has), and "gpu": {"name", "recommended"}: the graphics card the launcher found and its preset.
 
 #include "native.h"
 #include "json.h"
 
+#include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -34,6 +37,12 @@ UN_API int un_anti_aliasing_choice(const char *upscaler, const char *launcher_aa
 UN_API int un_upscaling_options(const wchar_t *root, char *out, int cap);
 UN_API int un_gpu_query(const char *what, const char *name, int integrated, char *out, int cap);
 }
+extern "C" {   // controls.cpp, gamepads.cpp
+UN_API int un_controls_tables(char *out, int cap);
+UN_API int un_controls(const char *what, const char *in_json, char *out, int cap);
+UN_API int un_pad_init(const wchar_t *root);
+UN_API int un_pad_state(char *out, int cap);
+}
 
 namespace {
 
@@ -47,6 +56,7 @@ struct State {
     Value gpu = Value::object();   // {"name", "recommended"}
     Value game_dir;                // the game folder (the launcher's game_dir())
     Value tools = Value::object(); // TOOLS' lines: {"game_dir", "update", "ini"}
+    Value ui = Value::object();    // what the window keeps for the page (CONTROLS: the slot waiting for an input)
 };
 struct Changes {
     Value config = Value::object();   // launcher.json keys
@@ -54,6 +64,7 @@ struct Changes {
     Value game = Value::object();     // the selected game's launcher settings (config["games"][game])
     Value ini_all = Value::object();  // all three games' settings files, without making the preset Custom
     Value call;                       // a launcher action to run: {"name", "value" (optional)}
+    Value ui;                         // the window's new ui state for the page (null: unchanged)
 };
 
 bool read_state(const char *state_json, State &state) {
@@ -65,6 +76,7 @@ bool read_state(const char *state_json, State &state) {
     if (const Value *g = v.get("gpu")) if (g->is_object()) state.gpu = *g;
     if (const Value *d = v.get("game_dir")) state.game_dir = *d;
     if (const Value *t = v.get("tools")) if (t->is_object()) state.tools = *t;
+    if (const Value *u = v.get("ui")) if (u->is_object()) state.ui = *u;
     return true;
 }
 
@@ -1192,6 +1204,441 @@ bool act_launcher(const std::string &id, const std::string &kind, const Value &v
     return false;
 }
 
+// ------------------------------------------------------------------------------------------------ controls
+
+
+const char *const FIELD = "#222228";
+const char *const FIELD_HI = "#2c2c34";
+const char *const STOP_RED = "#c4553f";
+const char *const BINDINGS_HINT = "Click a slot, then press a key or a mouse button (right-click a slot to clear it). In game "
+                                  "the mouse is captured; Alt+Tab or Insert (menu) frees it. A controller always works too.";
+
+const Value &control_tables() {
+    static Value tables;
+    static bool ready = false;
+    if (!ready) {
+        std::string text(1 << 18, '\0');
+        if (un_controls_tables(&text[0], (int)text.size()) == 0) json::parse(text.c_str(), tables);
+        ready = true;
+    }
+    return tables;
+}
+const Value *control_table(const char *name) { return control_tables().get(name); }
+
+Value controls_call(const char *what, const Value &in) {
+    const std::string arg = json::dump(in, false);
+    Value out;
+    json::parse(native_text([&](char *o, int c) { return un_controls(what, arg.c_str(), o, c); }).c_str(), out);
+    return out;
+}
+
+Options pairs_of(const char *table) {
+    Options o;
+    if (const Value *t = control_table(table))
+        for (auto &p : t->items) if (p.items.size() == 2) o.push_back({text_of(p.items[0]), text_of(p.items[1])});
+    return o;
+}
+
+bool in_list(const char *table, const std::string &v) {
+    if (const Value *t = control_table(table))
+        for (auto &x : t->items) if (x.kind == Value::String && x.s == v) return true;
+    return false;
+}
+
+// the controllers: (count, first one's style, held buttons) through SDL (gamepads.cpp); count -1: no SDL
+struct Pads { int count = -1; std::string style; std::vector<std::string> held; };
+Pads pad_state(const State &state) {
+    static int sdl = -1;
+    Pads p;
+    if (sdl < 0) {
+        const std::wstring root = widen_utf8(state.root);
+        sdl = un_pad_init(root.c_str()) ? 1 : 0;
+    }
+    if (!sdl) return p;
+    const std::string text = native_text([&](char *o, int c) { return un_pad_state(o, c); });
+    std::vector<std::string> lines;
+    size_t at = 0;
+    while (at <= text.size()) {
+        size_t end = text.find('\n', at);
+        if (end == std::string::npos) end = text.size();
+        lines.push_back(text.substr(at, end - at));
+        at = end + 1;
+    }
+    while (lines.size() < 3) lines.push_back("");
+    p.count = std::atoi(lines[0].c_str());
+    p.style = lines[1];
+    size_t a = 0;
+    const std::string &h = lines[2];
+    while (a < h.size()) {
+        size_t e = h.find(' ', a);
+        if (e == std::string::npos) e = h.size();
+        if (e > a) p.held.push_back(h.substr(a, e - a));
+        a = e + 1;
+    }
+    return p;
+}
+
+// the button icons' style: the setting, or (Auto) the connected controller's, else Xbox
+std::string pad_style(const State &state, const Value *settings) {
+    const std::string style = settings ? str_or(settings->get("prompts"), "auto") : "auto";
+    if (style == "xbox" || style == "playstation") return style;
+    const Pads p = pad_state(state);
+    return p.style.empty() ? "xbox" : p.style;
+}
+
+std::string pad_name(const std::string &button, bool ps) {
+    if (const Value *names = control_table("PAD_NAMES"))
+        if (const Value *n = names->get(button))
+            if (n->items.size() == 2) return text_of(n->items[ps ? 1 : 0]);
+    return button;
+}
+
+Value slot_label(const std::string &id, const std::string &text, bool waiting, bool click) {
+    Value l = label(id, text, waiting ? GOLD : TEXT, waiting ? FIELD_HI : FIELD, 9);
+    l.set("click", Value::boolean(click));
+    l.set("rclick", Value::boolean(click));
+    l.set("slot", Value::boolean(click));
+    return l;
+}
+
+Value packed_fill(Value item, const char *side, const char *fill) {
+    item.set("side", Value::text(side));
+    item.set("fill", Value::text(fill));
+    item.set("expand", Value::boolean(false));
+    return item;
+}
+
+// the capture state launcher-qt keeps for this page: {"capturing": [action, slot] | null, "pad_capture": action | null,
+// "pad_started": ms, "pad_held": [buttons], "hint": text, "hint_error": bool}
+struct Capture {
+    std::string action;   // a key slot waiting
+    long long slot = -1;
+    std::string pad;      // a controller slot waiting
+};
+Capture capture_of(const State &state) {
+    Capture c;
+    if (const Value *k = state.ui.get("capturing"))
+        if (k->items.size() == 2) { c.action = text_of(k->items[0]); c.slot = k->items[1].i; }
+    if (const Value *p = state.ui.get("pad_capture")) c.pad = text_of(*p);
+    return c;
+}
+
+Value page_controls(const State &state) {
+    const std::string p = "native:controls:";
+    const Value *settings = game_settings(state);
+    auto setting = [&](const char *key, Value fallback) {
+        const Value *v = settings ? settings->get(key) : nullptr;
+        return v ? *v : fallback;
+    };
+    Value page = array();
+
+    std::vector<Value> mouse;
+    mouse.push_back(row(p + "row:mouse", "Mouse", "", toggle(p + "mouse", setting("mouse", Value::boolean(true)).truthy())));
+    mouse.push_back(row(p + "row:mouse_sens", "Sensitivity", "",
+                        choice(p + "mouse_sens", setting("mouse_sens", Value::text("1.0")), pairs_of("MOUSE_SENSITIVITIES"), "")));
+    mouse.push_back(row(p + "row:mouse_aim_sens", "Aiming", "",
+                        choice(p + "mouse_aim_sens", setting("mouse_aim_sens", Value::text("1.0")), pairs_of("MOUSE_AIM_FACTORS"), "")));
+    mouse.push_back(row(p + "row:mouse_vertical", "Up/down", "",
+                        choice(p + "mouse_vertical", setting("mouse_vertical", Value::text("1.0")), pairs_of("MOUSE_FACTORS"), "")));
+    mouse.push_back(row(p + "row:mouse_invert", "Invert Y", "",
+                        toggle(p + "mouse_invert", setting("mouse_invert", Value::boolean(false)).truthy())));
+    mouse.push_back(row(p + "row:mouse_invert_x", "Invert X", "",
+                        toggle(p + "mouse_invert_x", setting("mouse_invert_x", Value::boolean(false)).truthy())));
+    page.items.push_back(section(p + "mouse_section", "Mouse", with_separators(std::move(mouse))));
+
+    std::vector<Value> pad;
+    pad.push_back(row(p + "row:vibration", "Controller vibration", "",
+                      toggle(p + "vibration", setting("vibration", Value::boolean(true)).truthy())));
+    pad.push_back(row(p + "row:prompts", "Button icons", "Auto follows the device you play with (a controller's own buttons).",
+                      choice(p + "prompts", setting("prompts", Value::text("auto")), pairs_of("PROMPT_MODES"), "")));
+    page.items.push_back(section(p + "controller", "Controller", with_separators(std::move(pad))));
+
+    // Bindings: the hint, Reset controls, then the two columns of groups (keys / mouse, and the controller button)
+    std::vector<Value> bindings;
+    const Value *hint = state.ui.get("hint");
+    const Value *error = state.ui.get("hint_error");
+    bindings.push_back(label(p + "hint", hint && !text_of(*hint).empty() ? text_of(*hint) : BINDINGS_HINT,
+                             error && error->truthy() ? STOP_RED : MUTED, CARD, 9));
+    Value reset = array();
+    reset.items.push_back(packed(button(p + "reset", "Reset controls", "secondary"), "left"));
+    bindings.push_back(box(p + "reset_box", "h", std::move(reset)));
+
+    const Capture cap = capture_of(state);
+    const Value merged = controls_call("merged", setting("controls", Value::null()));
+    const Value merged_pad = controls_call("merged_pad", setting("pad_controls", Value::null()));
+    const Value *pad_defaults = control_table("PAD_DEFAULTS"), *pad_fixed = control_table("PAD_FIXED");
+    const std::string style = pad_style(state, settings);
+    const bool ps = style == "playstation";
+    Value columns[2] = {array(), array()};
+    int index = 0;
+    if (const Value *groups = control_table("CONTROL_GROUPS"))
+        for (auto &g : groups->items) {
+            if (g.items.size() != 2) continue;
+            Value &column = columns[index < 2 ? 0 : 1];
+            column.items.push_back(packed_fill(label(p + "group:" + text_of(g.items[0]), text_of(g.items[0]), GOLD, CARD, 9),
+                                               "top", "x"));
+            for (auto &entry : g.items[1].items) {
+                if (entry.items.size() != 2) continue;
+                const std::string action = text_of(entry.items[0]);
+                Value line = array();
+                line.items.push_back(packed(label(p + "action:" + action, text_of(entry.items[1]), TEXT, CARD, 9), "left"));
+                const Value *list = merged.get(action);
+                for (int slot = 0; slot < 2; ++slot) {
+                    const bool waiting = cap.action == action && cap.slot == slot;
+                    Value b = list && (size_t)slot < list->items.size() ? list->items[slot] : Value::null();
+                    const std::string text = waiting ? "Press a key\xe2\x80\xa6" : text_of(controls_call("label", b));
+                    line.items.push_back(packed(slot_label(p + "slot:" + action + ":" + std::to_string(slot), text, waiting, true),
+                                                "left"));
+                }
+                // the controller button: its icon (clickable where the button can be changed)
+                const bool changeable = pad_defaults && pad_defaults->get(action);
+                Value cell;
+                if (cap.pad == action) {
+                    cell = slot_label(p + "pad:" + action, "Press a button\xe2\x80\xa6", true, changeable);
+                } else {
+                    const Value *bv = changeable ? merged_pad.get(action) : (pad_fixed ? pad_fixed->get(action) : nullptr);
+                    const std::string b = bv && bv->kind == Value::String ? bv->s : "";
+                    const Value *def = pad_defaults ? pad_defaults->get(action) : nullptr;
+                    if (!def && pad_fixed) def = pad_fixed->get(action);
+                    if (b.empty()) {
+                        cell = slot_label(p + "pad:" + action, "\xe2\x80\x94", false, changeable);
+                    } else if (ps && def && text_of(*def) == b && (action == "touchpad_left" || action == "touchpad_right")) {
+                        cell = slot_label(p + "pad:" + action, action == "touchpad_left" ? "Touchpad left" : "Touchpad right",
+                                          false, changeable);
+                    } else {
+                        cell = slot_label(p + "pad:" + action, "", false, changeable);
+                        Value icon = Value::object(), buttons = array(), labels = array();
+                        size_t a = 0;
+                        while (a <= b.size()) {   // a combination: its buttons
+                            size_t e = b.find('+', a);
+                            if (e == std::string::npos) e = b.size();
+                            const std::string part = b.substr(a, e - a);
+                            buttons.items.push_back(Value::text(part));
+                            labels.items.push_back(Value::text(pad_name(part, ps)));
+                            a = e + 1;
+                        }
+                        icon.set("buttons", std::move(buttons));
+                        icon.set("labels", std::move(labels));
+                        icon.set("style", Value::text(style));
+                        cell.set("pad", std::move(icon));
+                    }
+                }
+                line.items.push_back(packed(std::move(cell), "left"));
+                Value row_box = box(p + "line:" + action, "h", std::move(line));
+                column.items.push_back(packed_fill(std::move(row_box), "top", "x"));
+            }
+            ++index;
+        }
+    Value grid_row = Value::object();
+    grid_row.set("t", Value::text("box"));
+    grid_row.set("dir", Value::text("h"));
+    Value cols = array();
+    for (int c = 0; c < 2; ++c) cols.items.push_back(box(p + "column:" + std::to_string(c), "v", std::move(columns[c])));
+    grid_row.set("items", std::move(cols));
+    Value inner_items = array();
+    inner_items.items.push_back(std::move(grid_row));
+    Value scroller = Value::object();   // the scrolling list (a canvas holding the grid)
+    scroller.set("t", Value::text("box"));
+    scroller.set("dir", Value::text("v"));
+    scroller.set("id", Value::text(p + "scroll"));
+    Value scroller_items = array();
+    scroller_items.items.push_back(box(p + "grid", "v", std::move(inner_items)));
+    scroller.set("items", std::move(scroller_items));
+    scroller.set("side", Value::text("left"));
+    scroller.set("fill", Value::text("both"));
+    scroller.set("expand", Value::boolean(true));
+    Value holder_items = array();
+    holder_items.items.push_back(std::move(scroller));
+    bindings.push_back(box(p + "holder", "h", std::move(holder_items)));
+    page.items.push_back(section(p + "bindings", "Bindings", with_separators(std::move(bindings))));
+    return page;
+}
+
+// the ui state after a change: what it was, with these fields replaced
+Value ui_with(const State &state, std::initializer_list<std::pair<const char *, Value>> fields) {
+    Value ui = state.ui.is_object() ? state.ui : Value::object();
+    for (auto &f : fields) ui.set(f.first, f.second);
+    return ui;
+}
+
+long long now_ms() {
+    return (long long)std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+bool act_controls(const State &state, const std::string &id, const std::string &kind, const Value &value, Changes &changes) {
+    const std::string p = "native:controls:";
+    if (id.compare(0, p.size(), p) != 0) return false;
+    const std::string key = id.substr(p.size()), v = text_of(value);
+    const Value *settings = game_settings(state);
+    const std::string name = game_name(state);
+    const Capture cap = capture_of(state);
+    auto saved_keys = [&]() {
+        return ui_with(state, {{"capturing", Value::null()}, {"pad_capture", Value::null()},
+                               {"hint", Value::text("Saved for " + name + ". Click a slot, then press a key or a mouse button "
+                                                    "(right-click a slot to clear it).")},
+                               {"hint_error", Value::boolean(false)}});
+    };
+    auto saved_pad = [&]() {
+        return ui_with(state, {{"pad_capture", Value::null()},
+                               {"hint", Value::text("Saved for " + name + ". Right-click a controller slot to clear it; "
+                                                    "Reset controls restores the defaults.")},
+                               {"hint_error", Value::boolean(false)}});
+    };
+    auto error = [&](const std::string &text) {
+        return ui_with(state, {{"capturing", Value::null()}, {"hint", Value::text(text)}, {"hint_error", Value::boolean(true)}});
+    };
+    auto set_binding = [&](const std::string &action, long long slot, const Value &binding) {
+        Value in = Value::object();
+        in.set("controls", settings && settings->get("controls") ? *settings->get("controls") : Value::null());
+        in.set("action", Value::text(action));
+        in.set("slot", Value::integer(slot));
+        in.set("binding", binding);
+        changes.game.set("controls", controls_call("set_binding", in));
+        changes.ui = saved_keys();
+    };
+    auto set_pad_binding = [&](const std::string &action, const Value &button) {
+        Value in = Value::object();
+        in.set("pad_controls", settings && settings->get("pad_controls") ? *settings->get("pad_controls") : Value::null());
+        in.set("action", Value::text(action));
+        in.set("button", button);
+        changes.game.set("pad_controls", controls_call("set_pad_binding", in));
+        changes.ui = saved_pad();
+    };
+    const Value *pad_defaults = control_table("PAD_DEFAULTS");
+
+    // the mouse and controller settings (change_game_setting saves controls to the game's settings file too)
+    if (kind == "toggle" && (key == "mouse" || key == "mouse_invert" || key == "mouse_invert_x" || key == "vibration")) {
+        changes.game.set(key, Value::boolean(value.truthy()));
+        return true;
+    }
+    if (kind == "choice") {
+        const char *table = key == "mouse_sens" ? "MOUSE_SENSITIVITIES" : key == "mouse_aim_sens" ? "MOUSE_AIM_FACTORS"
+                          : key == "mouse_vertical" ? "MOUSE_FACTORS" : key == "prompts" ? "PROMPT_MODES" : nullptr;
+        if (!table || !has_option(pairs_of(table), v)) return false;
+        changes.game.set(key, Value::text(v));
+        return true;
+    }
+    if (kind == "button" && key == "reset") {   // asks first: the launcher's reset_controls
+        changes.call = Value::object();
+        changes.call.set("name", Value::text("reset_controls"));
+        changes.ui = ui_with(state, {{"capturing", Value::null()}, {"pad_capture", Value::null()}});
+        return true;
+    }
+    // a key / mouse slot: click waits for an input, right-click clears it
+    if (key.compare(0, 5, "slot:") == 0) {
+        const size_t colon = key.rfind(':');
+        const std::string action = key.substr(5, colon - 5);
+        const long long slot = std::atoll(key.c_str() + colon + 1);
+        const Value *merged = control_table("DEFAULT_CONTROLS");
+        if (!merged || !merged->get(action) || slot < 0 || slot > 1) return false;
+        if (kind == "click") {
+            changes.ui = ui_with(state, {{"capturing", [&] { Value a = array(); a.items = {Value::text(action), Value::integer(slot)}; return a; }()},
+                                         {"pad_capture", Value::null()}});
+            return true;
+        }
+        if (kind == "rclick") { set_binding(action, slot, Value::null()); return true; }
+        return false;
+    }
+    // a controller slot: click waits for a button (or a stick), right-click clears it
+    if (key.compare(0, 4, "pad:") == 0) {
+        const std::string action = key.substr(4);
+        if (!pad_defaults || !pad_defaults->get(action)) return false;
+        if (kind == "rclick") { set_pad_binding(action, Value::null()); return true; }
+        if (kind != "click") return false;
+        const Pads pads = pad_state(state);
+        if (pads.count < 0) {
+            changes.ui = error("No controller support found (SDL3.dll).");
+            return true;
+        }
+        if (pads.count == 0) {
+            changes.ui = ui_with(state, {{"capturing", Value::null()}, {"pad_capture", Value::null()},
+                                         {"hint", Value::text("Connect a controller, then click the slot again.")},
+                                         {"hint_error", Value::boolean(true)}});
+            return true;
+        }
+        Value held = array();
+        for (auto &h : pads.held) held.items.push_back(Value::text(h));
+        const bool stick = action.compare(0, 3, "ls_") == 0 || action.compare(0, 3, "rs_") == 0;
+        changes.ui = ui_with(state, {{"capturing", Value::null()}, {"pad_capture", Value::text(action)},
+                                     {"pad_started", Value::integer(now_ms())}, {"pad_held", held},
+                                     {"hint", Value::text(stick ? "Move a stick (Escape cancels)."
+                                                                : "Press a button or trigger on the controller (Escape cancels).")},
+                                     {"hint_error", Value::boolean(false)}});
+        return true;
+    }
+    // what the window captured while a slot waits: {"key": Tk keysym} or {"mouse": button name}
+    if (kind == "capture" && key == "capture") {
+        const std::string keysym = value.get("key") ? text_of(*value.get("key")) : "";
+        const std::string mouse = value.get("mouse") ? text_of(*value.get("mouse")) : "";
+        if (!cap.pad.empty()) {   // a controller slot waits: Escape cancels
+            if (keysym == "Escape") changes.ui = ui_with(state, {{"pad_capture", Value::null()}});
+            return true;
+        }
+        if (cap.action.empty()) return true;
+        if (!keysym.empty()) {
+            if (in_list("RESERVED_KEYS", keysym)) {
+                changes.ui = error(keysym + " is used by the game window (Insert opens the menu, F9 records input, comma "
+                                            "separates bindings). Choose another key.");
+                return true;
+            }
+            std::string sdl;
+            if (const Value *t = control_table("TK_TO_SDL"))
+                if (const Value *n = t->get(keysym)) sdl = text_of(*n);
+            if (sdl.empty() && keysym.size() == 1 && std::isalnum((unsigned char)keysym[0]))
+                sdl = std::string(1, (char)std::toupper((unsigned char)keysym[0]));
+            if (sdl.empty()) {
+                changes.ui = error("The key " + keysym + " can't be used. Choose another key.");
+                return true;
+            }
+            set_binding(cap.action, cap.slot, Value::text("key:" + sdl));
+            return true;
+        }
+        if (!mouse.empty()) {
+            if (in_list("STICK_ACTIONS", cap.action)) {
+                changes.ui = error("Stick directions take keys; the mouse moves the camera by itself.");
+                return true;
+            }
+            set_binding(cap.action, cap.slot, Value::text("mouse:" + mouse));
+        }
+        return true;
+    }
+    // the controller slot waiting: a new button (or stick) binds it; 8 seconds without one cancel
+    if (kind == "poll" && key == "pad_poll") {
+        if (cap.pad.empty()) return true;
+        const Pads pads = pad_state(state);
+        std::vector<std::string> before;
+        if (const Value *h = state.ui.get("pad_held")) for (auto &x : h->items) before.push_back(text_of(x));
+        auto has = [](const std::vector<std::string> &l, const std::string &x) { return std::find(l.begin(), l.end(), x) != l.end(); };
+        std::vector<std::string> order;
+        if (const Value *sdl = control_table("SDL_BUTTONS")) for (auto &x : sdl->items) order.push_back(text_of(x));
+        for (const char *x : {"lefttrigger", "righttrigger", "lstick", "rstick"}) order.push_back(x);
+        const bool stick_action = cap.pad.compare(0, 3, "ls_") == 0 || cap.pad.compare(0, 3, "rs_") == 0;
+        std::vector<std::string> pressed, fresh;
+        for (auto &b : order)
+            if (has(pads.held, b) && !has(before, b)) {
+                pressed.push_back(b);
+                if ((b == "lstick" || b == "rstick") == stick_action) fresh.push_back(b);
+            }
+        Value still = array();   // held &= now held
+        for (auto &b : before) if (has(pads.held, b)) still.items.push_back(Value::text(b));
+        Value ui = ui_with(state, {{"pad_held", still}});
+        if (stick_action && !pressed.empty() && fresh.empty()) {
+            ui.set("hint", Value::text("Move and Look take a stick. Move a stick."));
+            ui.set("hint_error", Value::boolean(true));
+        }
+        if (!fresh.empty()) {
+            set_pad_binding(cap.pad, Value::text(fresh[0]));
+            return true;
+        }
+        const Value *started = state.ui.get("pad_started");
+        if (started && now_ms() - started->i > 8000) ui.set("pad_capture", Value::null());
+        changes.ui = ui;
+        return true;
+    }
+    return false;
+}
+
 }  // namespace
 
 extern "C" {
@@ -1209,6 +1656,7 @@ UN_API int un_page(const char *name, const char *state_json, char *out, int cap)
     if (n == "advanced") return give(json::dump(page_advanced(state), false), out, cap);
     if (n == "tools") return give(json::dump(page_tools(state), false), out, cap);
     if (n == "launcher") return give(json::dump(page_launcher(state), false), out, cap);
+    if (n == "controls") return give(json::dump(page_controls(state), false), out, cap);
     return 2;
 }
 
@@ -1230,6 +1678,7 @@ UN_API int un_page_act(const char *name, const char *id, const char *kind, const
     else if (n == "advanced") act_advanced(state, i, k, value, changes);
     else if (n == "tools") act_tools(i, k, changes);
     else if (n == "launcher") act_launcher(i, k, value, changes);
+    else if (n == "controls") act_controls(state, i, k, value, changes);
     else return 2;
     Value result = Value::object();
     result.set("config", std::move(changes.config));
@@ -1237,6 +1686,7 @@ UN_API int un_page_act(const char *name, const char *id, const char *kind, const
     result.set("game", std::move(changes.game));
     result.set("ini_all", std::move(changes.ini_all));
     if (changes.call.is_object()) result.set("call", std::move(changes.call));
+    if (changes.ui.is_object()) result.set("ui", std::move(changes.ui));
     return give(json::dump(result, false), out, cap);
 }
 

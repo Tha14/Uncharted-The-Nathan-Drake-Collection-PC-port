@@ -423,8 +423,7 @@ def chrome(app):
         if path.exists():
             hero = str(path)
             break
-    capturing = getattr(app, "capturing", None) is not None
-    return {"title": root.title(), "capturing": capturing, "games": games, "tabs": tabs, "status": status, "play": play,
+    return {"title": root.title(), "games": games, "tabs": tabs, "status": status, "play": play,
             "running": running, "update": app.update_button.text if update else "", "banner": banner, "hero": hero}
 
 
@@ -452,7 +451,7 @@ def calls(app):
             "install_game_pkg": app.install_game_pkg, "check_game_files": app.check_game_files,
             "choose_update_folder": app.choose_update_folder, "install_game_update": app.install_game_update,
             "check_updates": lambda: app.check_updates(manual=True), "clear_cache": app.clear_cache,
-            "reset": app.reset, "update_mode": app.change_update_mode}
+            "reset": app.reset, "update_mode": app.change_update_mode, "reset_controls": app.reset_controls}
 
 
 # -- actions ---------------------------------------------------------------------------------------------------
@@ -491,21 +490,6 @@ def act(app, message):
     elif kind in ("click", "dclick", "rclick"):
         sequence = {"click": "<Button-1>", "dclick": "<Double-Button-1>", "rclick": "<Button-3>"}[kind]
         w.event_generate(sequence, x=4, y=4, when="now")
-
-
-class KeyEvent:
-    def __init__(self, keysym):
-        self.keysym, self.char, self.state, self.num, self.delta = keysym, "", 0, 0, 0
-
-
-def capture(app, message):
-    """A key, mouse button or wheel step pressed in the Qt window while a Controls slot waits for one."""
-    if getattr(app, "capturing", None) is None:
-        return
-    if message.get("key"):
-        app.capture_key(KeyEvent(message["key"]))
-    elif message.get("mouse"):
-        app.capture_mouse(message["mouse"])
 
 
 def main():
@@ -552,8 +536,6 @@ def main():
             app.change_game_setting(message.get("key"), message.get("value"))
         elif op == "act":
             act(app, message)
-        elif op == "capture":
-            capture(app, message)
         elif op == "game":
             app.select_game(message.get("key"))
         elif op == "playgame":

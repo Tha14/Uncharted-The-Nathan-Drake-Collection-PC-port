@@ -34,7 +34,8 @@ public:
     Q_INVOKABLE void play();
     Q_INVOKABLE void installUpdate();
     Q_INVOKABLE void answer(int dialog, const QVariant &value);
-    // a key / mouse button / wheel step for the Controls slot waiting for one (keysym as Tk names it)
+    // a key / mouse button / wheel step for the CONTROLS slot waiting for one (keysym as Tk names it), or Escape
+    // for a controller slot
     Q_INVOKABLE void capture(const QString &key, const QString &mouse);
     Q_INVOKABLE void close();
     Q_INVOKABLE QString fileUrl(const QString &path) const;
@@ -58,6 +59,9 @@ private:
     void loadNative(const QString &root);
     bool nativePage(const QString &tab, QVariantList *page);
     bool nativeAct(const QString &id, const QString &kind, const QVariant &value);
+    void setUi(const QVariantMap &ui);   // a native page's ui state (CONTROLS: the slot waiting for an input)
+    void showCapture();                  // chrome's capturing flags from it
+    bool nativeCapturing() const;
 
     QProcess m_process;
     QTimer m_poll;
@@ -67,6 +71,8 @@ private:
     QVariantMap m_native;   // what native pages are built from, as the Python side sends it with each model:
                             // {config (launcher.json), ini (the game's settings file), gpu, game_dir}
     QString m_root;         // the launcher's folder
+    QVariantMap m_ui;       // the shown native page's ui state (un_page_act returns it; reset with the tab or game)
+    QTimer m_padPoll;       // a CONTROLS controller slot waiting: the controller read every 30 ms
     QByteArray nativeState() const;   // m_native and "root", for un_page / un_page_act
     QLibrary m_dll;
     using PageFn = int (*)(const char *, const char *, char *, int);
