@@ -85,6 +85,11 @@ UN_API int un_runtime_env(const char *inputs_json, char *out, int cap);
 /* The game starter's files (starter_files.cpp): game_executable [root], user_dir [root, suffix], boot_view [root, game,
  * update]; args as a JSON array. 0 ok, 1 failed (out: why), 2 unknown what. */
 UN_API int un_starter_files(const char *what, const char *args_json, char *out, int cap);
+/* The code patches (patch_tables.cpp) for an executable and the current settings: un_image_patches out: the list as JSON
+ * (as un_apply_patches takes it); un_apply_image_patches applies them to the linked image (as un_apply_patches).
+ * 1: a setting is not valid (out: why). */
+UN_API int un_image_patches(const char *executable, char *out, int cap);
+UN_API int un_apply_image_patches(const wchar_t *image, const char *executable, char *out, int cap);
 
 /* The game starter's code patches (patcher.cpp). un_apply_patches: the patch list as JSON (tools/game_patcher.py);
  * out: the log; 0 applied and written, 1 not written (last line: why), negative: out too small (nothing written).

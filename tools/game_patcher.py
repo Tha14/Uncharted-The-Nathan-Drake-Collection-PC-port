@@ -1,8 +1,10 @@
 """The game starter's code patches (tools/probe_uncharted.py): the Python side of uncharted_native.dll's patcher
 (launcher/native/patcher.cpp), which finds the byte patterns in the linked game image and applies the patches.
 
-apply_patches(image, patches): patches as probe_uncharted.py lists them; prints what was patched, raises SystemExit
-when a patch's place holds other bytes (the image is then left as it was).
+apply_image_patches(image, executable): the game's code patches for the current settings (launcher/native/
+patch_tables.cpp); prints what was patched, raises SystemExit when a patch's place holds other bytes (the image is then
+left as it was).
+apply_patches(image, patches): a patch list of your own (the same form; tests and tools).
 pattern_find(file, pattern, limit): the start offsets of a pattern's matches in a file, without overlaps.
 system(what, arg): the native game detection (launcher/native/system.cpp) the game starter uses: sfo, starter_version,
 find_update; None when there is no answer.
@@ -34,6 +36,8 @@ def _native():
         _dll.un_runtime_env.restype = ctypes.c_int
         _dll.un_starter_files.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_starter_files.restype = ctypes.c_int
+        _dll.un_apply_image_patches.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_apply_image_patches.restype = ctypes.c_int
         _dll.un_resolution_patch.argtypes = [ctypes.POINTER(ctypes.c_ubyte), ctypes.c_ulonglong, ctypes.c_int, ctypes.c_int,
                                              ctypes.c_int, ctypes.POINTER(ctypes.c_longlong), ctypes.c_char_p, ctypes.c_int]
         _dll.un_resolution_patch.restype = ctypes.c_int
@@ -171,3 +175,20 @@ def starter_files(what, *args):
     if status != 0:
         raise ValueError(f"starter_files {what}: status {status}")
     return text
+
+
+def apply_image_patches(image, executable):
+    size = 1 << 16
+    while True:
+        out = ctypes.create_string_buffer(size)
+        status = _native().un_apply_image_patches(str(image), executable.encode(), out, size)
+        if status >= 0:
+            break
+        size = -status
+    lines = out.value.decode("utf-8", "replace").splitlines()
+    if status == 1:
+        for line in lines[:-1]:
+            print(line)
+        raise SystemExit(lines[-1] if lines else "Patches not applied")
+    for line in lines:
+        print(line)
