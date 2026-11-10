@@ -354,8 +354,9 @@ def canvas_node(w):
         elif kind in ("rectangle", "polygon"):
             x1, y1, x2, y2 = w.bbox(item) or (0, 0, 0, 0)
             rects.append((x1, x2, w.itemcget(item, "fill"), w.itemcget(item, "outline")))
-            if kind == "polygon" and w.itemcget(item, "outline"):
-                outline = w.itemcget(item, "outline")
+            # the card's own border is its first shape; later ones (the RECOMMENDED badge's gold pill) don't select it
+            if kind == "polygon" and not outline:
+                outline = w.itemcget(item, "outline") or "none"
     click = has_binding(w, "<Button-1>")
     if texts or click:
         return {"t": "card", "id": wid, "texts": texts, "click": click, "dclick": has_binding(w, "<Double-Button-1>"),
