@@ -8,7 +8,7 @@ export PATH="$CLANG64/bin:$PATH"
 mkdir -p build
 FLAGS=(-O2 -DNDEBUG -fno-ident -ffunction-sections -fdata-sections -std=c++17 -Wall -Wextra -Wno-unused-parameter -municode)
 OBJECTS=()
-for s in steam hang; do
+for s in steam hang memstat; do
     clang++ "${FLAGS[@]}" -c "$s.cpp" -o "build/$s.o"
     OBJECTS+=("build/$s.o")
 done

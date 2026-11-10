@@ -36,6 +36,10 @@ UN_API int un_thread_report(unsigned long pid, unsigned long long guest_base, un
                             int cap);
 UN_API int un_minidump(unsigned long pid, const wchar_t *path);
 
+/* Resource tracking for long sessions (leaks): a background thread writes <folder>\memory-<time>.csv every `seconds`
+ * until the game ends; the newest 10 such files stay. out: the file's path. 0 started, 1 not started. */
+UN_API int un_memory_monitor(unsigned long pid, const wchar_t *folder, double seconds, char *out, int cap);
+
 #ifdef __cplusplus
 }
 #endif

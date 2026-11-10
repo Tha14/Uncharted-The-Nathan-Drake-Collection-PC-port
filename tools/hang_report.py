@@ -1,10 +1,12 @@
-"""Freeze reports for a running game, for the game starter's hang watchdog (tools/probe_uncharted.py): the Python side
-of uncharted_native.dll's report functions (launcher/native/hang.cpp). Read from outside the game process, so they
-work while its threads are stuck.
+"""Freeze reports and resource tracking for a running game, for the game starter (tools/probe_uncharted.py): the
+Python side of uncharted_native.dll's functions (launcher/native/hang.cpp, memstat.cpp). Everything is read from outside
+the game process, so it works while its threads are stuck.
 
 thread_report(process, guest_base): text lines, threads grouped by identical stacks (native frames as module+offset,
 game-code frames as offsets from the guest image base, to symbolize later against the same build).
-write_minidump(process, path): a Windows minidump of every thread's stack and registers; True when written."""
+write_minidump(process, path): a Windows minidump of every thread's stack and registers; True when written.
+memory_monitor(process, folder, seconds): starts the native tracker, one CSV row of the game's memory, handles,
+threads and GUI objects (and the PC's free memory) every `seconds` until the game ends."""
 import ctypes
 from pathlib import Path
 
@@ -21,6 +23,9 @@ def _native():
         _dll.un_thread_report.restype = ctypes.c_int
         _dll.un_minidump.argtypes = [ctypes.c_ulong, ctypes.c_wchar_p]
         _dll.un_minidump.restype = ctypes.c_int
+        _dll.un_memory_monitor.argtypes = [ctypes.c_ulong, ctypes.c_wchar_p, ctypes.c_double, ctypes.c_char_p,
+                                           ctypes.c_int]
+        _dll.un_memory_monitor.restype = ctypes.c_int
     return _dll
 
 
@@ -36,3 +41,15 @@ def thread_report(process, guest_base=None, guest_size=0x20000000):
 
 def write_minidump(process, path):
     return bool(_native().un_minidump(process.pid, str(path)))
+
+
+def memory_monitor(process, folder, seconds=10):
+    """Starts the native tracker (its own thread): <folder>/memory-<time>.csv until the game ends. Returns the file's
+    Path, or None when it could not start. Never raises: tracking must not disturb the game or the launcher."""
+    try:
+        out = ctypes.create_string_buffer(1024)
+        if _native().un_memory_monitor(process.pid, str(folder), float(seconds), out, len(out)) == 0:
+            return Path(out.value.decode("utf-8"))
+    except Exception:  # noqa: BLE001 - see the docstring
+        pass
+    return None

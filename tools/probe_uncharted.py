@@ -1943,6 +1943,13 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
             import threading
             threading.Thread(target=hang_watchdog, daemon=True,
                              args=(process, out / (name + ".log"), out / "dumps", hang_seconds, hang_reports)).start()
+        # Resource tracking for long sessions (memory leaks; launcher/native/memstat.cpp): memory-<time>.csv beside
+        # the log, one row every UNCHARTED_MEMORY_SECONDS (10; 0 turns it off); each session's goes with its attempt.
+        memory_csv = None
+        memory_seconds = float(os.environ.get("UNCHARTED_MEMORY_SECONDS", "10") or 0)
+        if os.name == "nt" and args.boot and memory_seconds > 0:
+            import hang_report
+            memory_csv = hang_report.memory_monitor(process, out, memory_seconds)
         try:
             if args.capture:
                 while process.poll() is None:
@@ -1974,6 +1981,8 @@ def run_game(args, game, executable, guest_args, loadexec, app0=None, overlays=(
         shutil.copy2(out / (name + suffix), attempt / (name + suffix))
     for report in hang_reports if args.boot else []:
         shutil.copy2(report, attempt / report.name)
+    if args.boot and memory_csv is not None and memory_csv.exists():
+        shutil.copy2(memory_csv, attempt / memory_csv.name)
     print(json.dumps(result, indent=2))
     print(f"Log: {out / (name + '.log')}")
     return result
