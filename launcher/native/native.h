@@ -3,6 +3,8 @@
 // A function that fills `out` returns 0 when it fits, or -needed (buffer size in bytes) to be called again.
 #pragma once
 
+#include <wchar.h>
+
 #define UN_API __declspec(dllexport)
 #define UN_VERSION 1
 
@@ -26,6 +28,13 @@ UN_API int un_steam_targets(const char *request, char *out, int cap);
  * out lines: account\t<folder>\t<name>\t<shortcuts.vdf>\t<backup or empty>\t<added>\t<updated>\t<removed>\t<pictures>\t<ids> */
 UN_API int un_steam_add(const char *request, char *out, int cap);
 UN_API int un_steam_roundtrip(const char *path);
+
+/* Freeze reports (the game starter's hang watchdog, tools/hang_report.py).
+ * un_thread_report out: text lines, threads grouped by identical stacks (native frames as module+offset, game-code
+ * frames as offsets from guest_base). un_minidump: 1 written, 0 failed. */
+UN_API int un_thread_report(unsigned long pid, unsigned long long guest_base, unsigned long long guest_size, char *out,
+                            int cap);
+UN_API int un_minidump(unsigned long pid, const wchar_t *path);
 
 #ifdef __cplusplus
 }

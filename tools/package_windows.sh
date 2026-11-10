@@ -2,7 +2,7 @@
 # Builds dist/Uncharted-windows/ and dist/Uncharted-windows.zip: a folder that runs on any Windows
 # 10/11 x64 PC with a Vulkan GPU, without Python or MSYS2 installed.
 #   Uncharted Launcher.exe   starter (tools/windows_starter) -> python\pythonw.exe launcher\...
-#   python\                  Windows Python with Tkinter and Pillow (tools/copy_python.py)
+#   python\                  Windows Python with Tkinter and Pillow (python_runtime below)
 #   launcher\ tools\         the launcher and the start script (tools/probe_uncharted.py)
 #   gow3_pc\scripts\         the preparation scripts; gow3_pc\out\ the runtime and its DLLs
 # No game files ship: each player selects their own copy of the game in the launcher.
@@ -234,13 +234,41 @@ if [[ -f gow3_pc/fsr4_shaders/fsr4_model_v07_i8_native_1080_pre.spv ]]; then
     cp gow3_pc/fsr4_shaders/LICENSE-FSR4-v07.txt "$licenses/fsr4/"
 fi
 
-"$python_home/python.exe" tools/copy_python.py "$python_home" "$stage/python"
+# The Python the launcher runs on (players need no Python installed): the interpreter and its DLLs, Tkinter (DLLs, tcl),
+# the standard library without tests, tools and caches, Pillow, and numpy when installed (the multiplayer import's map
+# and character steps).
+python_runtime() {
+    local home=$1 dest=$2
+    mkdir -p "$dest/Lib/site-packages"
+    local f
+    for f in "$home"/python.exe "$home"/pythonw.exe "$home"/python3*.dll "$home"/vcruntime140*.dll "$home"/LICENSE.txt; do
+        [[ -f $f ]] && cp -p "$f" "$dest/"
+    done
+    for f in DLLs tcl; do
+        [[ -d $home/$f ]] && tar -C "$home" --exclude=__pycache__ -cf - "$f" | tar -C "$dest" -xf -
+    done
+    tar -C "$home" --exclude=site-packages --exclude=test --exclude=tests --exclude=idlelib --exclude=ensurepip \
+        --exclude=turtledemo --exclude=__pycache__ --exclude=lib2to3 --exclude=venv --exclude=pydoc_data \
+        --exclude='*.pyc' -cf - Lib | tar -C "$dest" -xf -
+    [[ -d $home/Lib/site-packages/PIL ]] || { echo "Pillow is not installed in $home (pip install pillow)" >&2; exit 1; }
+    tar -C "$home/Lib/site-packages" --exclude=__pycache__ -cf - PIL | tar -C "$dest/Lib/site-packages" -xf -
+    if [[ -d $home/Lib/site-packages/numpy ]]; then
+        for f in numpy numpy.libs; do
+            [[ -d $home/Lib/site-packages/$f ]] && tar -C "$home/Lib/site-packages" --exclude=__pycache__ --exclude=tests \
+                -cf - "$f" | tar -C "$dest/Lib/site-packages" -xf -
+        done
+    else
+        echo "Note: numpy is not installed in this Python: the Uncharted 3 multiplayer import will skip the steps that need it"
+    fi
+    echo "Python copied from $home"
+}
+python_runtime "$python_home" "$stage/python"
 # Python's own license is python\LICENSE.txt; Pillow's goes with the others.
 for file in "$python_home"/Lib/site-packages/pillow-*.dist-info/licenses/* \
     "$python_home"/Lib/site-packages/pillow-*.dist-info/LICENSE*; do
     [[ -f $file ]] && { mkdir -p "$licenses/pillow"; cp "$file" "$licenses/pillow/"; }
 done
-# numpy (the multiplayer import's map and character steps), when copy_python.py found it.
+# numpy (the multiplayer import's map and character steps), when python_runtime found it.
 for file in "$python_home"/Lib/site-packages/numpy-*.dist-info/licenses/* \
     "$python_home"/Lib/site-packages/numpy-*.dist-info/LICENSE*; do
     [[ -f $file && -d $stage/python/Lib/site-packages/numpy ]] && { mkdir -p "$licenses/numpy"; cp "$file" "$licenses/numpy/"; }
