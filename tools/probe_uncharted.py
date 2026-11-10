@@ -904,32 +904,10 @@ def u3_exposure_patch(bias):
 
 
 def apply_patches(image, patches):
-    data = bytearray(image.read_bytes())
-    for description, variants in patches:
-        for variant in variants:
-            pattern = variant[0]
-            found = [match.start() for match in pattern_regex(pattern).finditer(data)]
-            if len(found) != 1:
-                continue
-            if len(variant) == 2:  # several changes: all of them, or none if any bytes differ
-                edits = [(found[0] + offset, original, replacement) for offset, original, replacement in variant[1]]
-                if any(data[at:at + len(original)] != original for at, original, _ in edits):
-                    continue
-                for at, _, replacement in edits:
-                    data[at:at + len(replacement)] = replacement
-                print(f"Patched: {description} (image offset {found[0]:#x}, {len(edits)} changes)")
-                break
-            _, offset, original, replacement = variant
-            at = found[0] + offset
-            if data[at:at + len(original)] != original:
-                raise SystemExit(f"Patch '{description}': unexpected bytes at {at:#x}")
-            data[at:at + len(replacement)] = replacement
-            print(f"Patched: {description} (image offset {at:#x})")
-            break
-        else:
-            # An unknown game version: start without it.
-            print(f"Patch '{description}' NOT applied: no variant matches this game version")
-    image.write_bytes(data)
+    """Applies the patches to the linked image (the native patcher, launcher/native/patcher.cpp): prints what was
+    patched; SystemExit when a patch's place holds other bytes (the image is left as it was)."""
+    import game_patcher
+    game_patcher.apply_patches(image, patches)
 
 
 def game_executable():

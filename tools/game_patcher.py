@@ -1,0 +1,67 @@
+"""The game starter's code patches (tools/probe_uncharted.py): the Python side of uncharted_native.dll's patcher
+(launcher/native/patcher.cpp), which finds the byte patterns in the linked game image and applies the patches.
+
+apply_patches(image, patches): patches as probe_uncharted.py lists them; prints what was patched, raises SystemExit
+when a patch's place holds other bytes (the image is then left as it was).
+pattern_find(file, pattern, limit): the start offsets of a pattern's matches in a file, without overlaps."""
+import ctypes
+import json
+from pathlib import Path
+
+NATIVE = Path(__file__).resolve().parent.parent / "launcher" / "native" / "uncharted_native.dll"
+_dll = None
+
+
+def _native():
+    global _dll
+    if _dll is None:
+        _dll = ctypes.CDLL(str(NATIVE))
+        _dll.un_apply_patches.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_apply_patches.restype = ctypes.c_int
+        _dll.un_pattern_find.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_pattern_find.restype = ctypes.c_int
+    return _dll
+
+
+def _spec(patches):
+    out = []
+    for description, variants in patches:
+        listed = []
+        for variant in variants:
+            if len(variant) == 2:
+                listed.append([variant[0], [[offset, bytes(original).hex(), bytes(replacement).hex()]
+                                            for offset, original, replacement in variant[1]]])
+            else:
+                listed.append([variant[0], variant[1], bytes(variant[2]).hex(), bytes(variant[3]).hex()])
+        out.append([description, listed])
+    return json.dumps(out).encode("utf-8")
+
+
+def apply_patches(image, patches):
+    spec = _spec(patches)
+    size = 1 << 16
+    while True:
+        out = ctypes.create_string_buffer(size)
+        status = _native().un_apply_patches(str(image), spec, out, size)
+        if status >= 0:
+            break
+        size = -status
+    lines = out.value.decode("utf-8", "replace").splitlines()
+    if status == 1:
+        for line in lines[:-1]:
+            print(line)
+        raise SystemExit(lines[-1] if lines else "Patches not applied")
+    for line in lines:
+        print(line)
+
+
+def pattern_find(file, pattern, limit=0):
+    size = 1 << 12
+    while True:
+        out = ctypes.create_string_buffer(size)
+        status = _native().un_pattern_find(str(file), pattern.encode(), limit, out, size)
+        if status > 0:
+            raise OSError(f"cannot search {file}")
+        if status == 0:
+            return [int(x) for x in out.value.split()]
+        size = -status

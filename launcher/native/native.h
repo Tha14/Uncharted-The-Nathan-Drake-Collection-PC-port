@@ -69,6 +69,12 @@ UN_API int un_pid_alive(unsigned long pid);
 UN_API int un_pad_init(const wchar_t *root);
 UN_API int un_pad_state(char *out, int cap);
 
+/* The game starter's code patches (patcher.cpp). un_apply_patches: the patch list as JSON (tools/game_patcher.py);
+ * out: the log; 0 applied and written, 1 not written (last line: why), negative: out too small (nothing written).
+ * un_pattern_find out: match offsets without overlaps (at most limit; 0 all), one per line; 1 unreadable. */
+UN_API int un_apply_patches(const wchar_t *image, const char *patches_json, char *out, int cap);
+UN_API int un_pattern_find(const wchar_t *file, const char *pattern, int limit, char *out, int cap);
+
 #ifdef __cplusplus
 }
 #endif
