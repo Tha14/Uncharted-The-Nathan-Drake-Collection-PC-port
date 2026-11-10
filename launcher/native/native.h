@@ -90,6 +90,9 @@ UN_API int un_starter_files(const char *what, const char *args_json, char *out, 
  * 1: a setting is not valid (out: why). */
 UN_API int un_image_patches(const char *executable, char *out, int cap);
 UN_API int un_apply_image_patches(const wchar_t *image, const char *executable, char *out, int cap);
+/* The game's preparation (prepare.cpp, gow3_pc/scripts/prepare.py): boot.bin, eboot.elf, entry.bin and analysis.json in
+ * out_dir from the game folder's executable. out: the lines prepare.py prints; 1 failed (out: why). */
+UN_API int un_prepare(const wchar_t *game, const wchar_t *out_dir, const char *executable, char *out, int cap);
 
 /* The game starter's code patches (patcher.cpp). un_apply_patches: the patch list as JSON (tools/game_patcher.py);
  * out: the log; 0 applied and written, 1 not written (last line: why), negative: out too small (nothing written).

@@ -6,7 +6,6 @@ Format references are linked in README.md. All offsets are checked before use.
 """
 import argparse
 import base64
-import collections
 import hashlib
 import json
 from pathlib import Path
@@ -126,128 +125,24 @@ def inspect_libc(path):
 
 
 def prepare(game, out, executable='eboot.bin'):
-    source = (game / executable).read_bytes()
-    elf, header, ph, segments, missing = parse_self(source)
-    loads = [p for p in ph if p['type'] in (1, 0x61000010)]
-    def mapped(addr, size=8):
-        return any(p['vaddr'] <= addr and addr + size <= p['vaddr'] + p['memsz'] for p in loads)
-    size = max(p['vaddr'] + p['memsz'] for p in loads)
-    if size > 512 * 1024 * 1024 or not mapped(header[4], 1):
-        raise ValueError('invalid memory image')
-    image = bytearray(size)
-    for p in loads:
-        if p['filesz'] > p['memsz']:
-            raise ValueError('segment file size exceeds memory size')
-        image[p['vaddr']:p['vaddr'] + p['filesz']] = span(elf, p['offset'], p['filesz'])
-    dp = next(p for p in ph if p['type'] == 2)
-    dyn = []
-    for pos in range(dp['offset'], dp['offset'] + dp['filesz'], 16):
-        tag, value = unpack('<QQ', elf, pos)
-        if tag == 0:
+    """boot.bin (the memory image the runtime loads: segments, relocations, imports), eboot.elf, entry.bin and the
+    analysis.json report in `out`, from the game folder's executable (the launcher's native code,
+    launcher/native/prepare.cpp). Prints a summary; ValueError when the executable can't be used."""
+    import ctypes
+    dll = ctypes.CDLL(str(Path(__file__).resolve().parent.parent.parent / 'launcher' / 'native' / 'uncharted_native.dll'))
+    dll.un_prepare.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+    dll.un_prepare.restype = ctypes.c_int
+    size = 1 << 16
+    while True:
+        text = ctypes.create_string_buffer(size)
+        status = dll.un_prepare(str(game), str(out), executable.encode(), text, size)
+        if status >= 0:
             break
-        dyn.append((tag, value))
-    tags = dict(dyn)
-    lib = next(p for p in ph if p['type'] == 0x61000000)
-    blob = span(elf, lib['offset'], lib['filesz'])
-    strings = span(blob, tags[0x61000035], tags[0x61000037])
-    def string(off):
-        span(strings, off, 1)
-        return strings[off:strings.index(0, off)].decode('ascii')
-    syms = span(blob, tags[0x61000039], tags[0x6100003f])
-    if len(syms) % 24:
-        raise ValueError('bad symbol table size')
-    symbols = []
-    for pos in range(0, len(syms), 24):
-        name, info, other, shndx, value, sz = unpack('<IBBHQQ', syms, pos)
-        symbols.append(dict(name=string(name), type=info & 15, section=shndx, value=value, size=sz))
-    relocs, counts, imports = [], collections.Counter(), {}
-    for offset_tag, size_tag in ((0x61000029, 0x6100002d), (0x6100002f, 0x61000031)):
-        table = span(blob, tags[offset_tag], tags[size_tag])
-        if len(table) % 24:
-            raise ValueError('bad relocation table size')
-        for pos in range(0, len(table), 24):
-            target, info, addend = unpack('<QQq', table, pos)
-            kind, sym = info & 0xffffffff, info >> 32
-            counts[kind] += 1
-            if not mapped(target):
-                raise ValueError(f'relocation outside mapped segments: {target:#x}')
-            if kind == 8:
-                relocs.append((target, 0, addend, 0))  # base-relative
-            elif kind in (1, 6, 7):
-                symbol = symbols[sym]
-                if symbol['section']:
-                    if symbol['section'] == 0xfff1:
-                        struct.pack_into('<Q', image, target, symbol['value'] + addend)
-                    else:
-                        relocs.append((target, 0, symbol['value'] + addend, 0))
-                else:
-                    if sym not in imports:
-                        imports[sym] = len(imports)
-                    kind = 2 if symbol['type'] == 1 else 1
-                    if (kind == 1 and addend) or not 0 <= addend < 4096:
-                        raise ValueError('unsupported import addend')
-                    relocs.append((target, kind, imports[sym], addend))
-            else:
-                raise ValueError(f'unsupported relocation {kind}')
-    names = [symbols[i]['name'] for i in imports]
-    candidates = ('_init_env', 'atexit', 'exit', '_exit', '__cxa_atexit', '__cxa_finalize',
-                  '__cxa_guard_acquire', '__cxa_guard_release', '__cxa_guard_abort',
-                  '__stack_chk_guard', '__stack_chk_fail', 'malloc', 'free',
-                  'memcpy', 'memmove', 'memset', 'memcmp', 'strlen', 'printf',
-                  '_ZNSt8ios_base4InitC1Ev',
-                  'sceKernelLoadStartModule', 'sceVideoOutOpen', 'sceKernelCreateSema', 'sceKernelWaitSema', 'sceKernelPollSema',
-                  'sceKernelSignalSema', 'sceKernelCancelSema', 'sceKernelDeleteSema',
-                  'sceAppContentInitialize', 'sceAppContentAppParamGetInt', 'sceAppContentGetAddcontInfoList',
-                  'pthread_cond_init', 'sceSysmoduleLoadModule', 'pthread_mutexattr_init', 'gettimeofday',
-                  'scePthreadMutexattrInit', 'scePthreadMutexattrSettype', 'scePthreadMutexattrDestroy',
-                  'scePthreadMutexInit', 'scePthreadMutexLock', 'scePthreadMutexTrylock',
-                  'scePthreadMutexUnlock', 'scePthreadMutexDestroy', 'scePthreadRwlockInit',
-                  'scePthreadRwlockDestroy', 'scePthreadRwlockRdlock', 'scePthreadRwlockWrlock',
-                  'scePthreadRwlockTryrdlock', 'scePthreadRwlockTrywrlock', 'scePthreadRwlockUnlock',
-                  'scePthreadRwlockTimedrdlock', 'scePthreadRwlockTimedwrlock',
-                  'sceKernelGetDirectMemorySize', 'sceKernelAllocateDirectMemory',
-                  'sceKernelMapDirectMemory', 'sceKernelReleaseDirectMemory', 'sceKernelMunmap')
-    known = {nid(name): name for name in candidates}
-    libc_evidence = inspect_libc(game / 'sce_module/libc.prx')
-    out.mkdir(parents=True, exist_ok=True)
-    # A deliberately small format, consumed by probe.c; no host struct packing.
-    with (out / 'boot.bin').open('wb') as f:
-        f.write(struct.pack('<8sQQQQQQ', b'G3PROBE2', size, header[4], len(loads), len(relocs), len(names),
-                            int(libc_evidence['init_env_is_ret'])))
-        for p in loads:
-            f.write(struct.pack('<QQQ', p['vaddr'], p['memsz'], p['flags']))
-        for name in names:
-            encoded = name.encode()
-            if len(encoded) >= 128:
-                raise ValueError('import name too long')
-            f.write(encoded.ljust(128, b'\0'))
-        for relocation in relocs:
-            f.write(struct.pack('<QQqq', *relocation))
-        f.write(image)
-    (out / 'eboot.elf').write_bytes(elf)
-    (out / 'entry.bin').write_bytes(image[:1024])
-    resources = collections.Counter()
-    total_bytes = 0
-    for path in (game / 'dvdroot_ps4').rglob('*'):
-        if path.is_file():
-            resources[path.relative_to(game / 'dvdroot_ps4').parts[0]] += 1
-            total_bytes += path.stat().st_size
-    report = dict(source_sha256=hashlib.sha256(source).hexdigest(), source_bytes=len(source),
-                  sfo=sfo((game / 'sce_sys/param.sfo').read_bytes()), entry=hex(header[4]),
-                  image_bytes=size, program_headers=ph, self_segments=segments,
-                  unavailable_metadata_headers=missing, needed=[string(v) for t, v in dyn if t == 1],
-                  relocation_counts=dict(counts), import_count=len(names), imports=names,
-                  import_name_hints={name: known[name.split('#')[0]] for name in names if name.split('#')[0] in known},
-                  libc_evidence=libc_evidence,
-                  bundled_modules=sorted(p.name for p in (game / 'sce_module').iterdir()),
-                  resources=dict(resources), resource_bytes=total_bytes,
-                  status='Prepared only; execution and Vulkan are tested separately.')
-    write_report(out / 'analysis.json', report)
-    print(f"{report['sfo'].get('TITLE')} | entry={header[4]:#x} | image={size:,} bytes")
-    print(f"{len(names)} imported symbols; {sum(counts.values()):,} relocations; {len(report['needed'])} required modules")
-    print(f"Unavailable non-loadable metadata headers: {missing}; not a byte-exact ELF reconstruction")
-    print(f"Output: {out.resolve()}")
-    print(f"libc _init_env verified RET: {libc_evidence['init_env_is_ret']}")
+        size = -status
+    message = text.value.decode('utf-8', 'replace')
+    if status != 0:
+        raise ValueError(message)
+    print(message, end='')
 
 
 if __name__ == '__main__':

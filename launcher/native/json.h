@@ -226,7 +226,8 @@ inline bool parse(const std::string &text, Value &out) {
 
 // ------------------------------------------------------------------------------------------------ output
 
-inline void quote(std::string &o, const std::string &s) {
+// ascii: Python's ensure_ascii (non-ASCII as \uXXXX); off: UTF-8 as it is (ensure_ascii=False)
+inline void quote(std::string &o, const std::string &s, bool ascii = true) {
     o += '"';
     for (size_t k = 0; k < s.size();) {
         unsigned char c = (unsigned char)s[k];
@@ -236,6 +237,11 @@ inline void quote(std::string &o, const std::string &s) {
             if ((c & 0xE0) == 0xC0 && k + 1 < s.size()) { cp = ((c & 0x1F) << 6) | (s[k + 1] & 0x3F); len = 2; }
             else if ((c & 0xF0) == 0xE0 && k + 2 < s.size()) { cp = ((c & 0x0F) << 12) | ((s[k + 1] & 0x3F) << 6) | (s[k + 2] & 0x3F); len = 3; }
             else if ((c & 0xF8) == 0xF0 && k + 3 < s.size()) { cp = ((c & 0x07) << 18) | ((s[k + 1] & 0x3F) << 12) | ((s[k + 2] & 0x3F) << 6) | (s[k + 3] & 0x3F); len = 4; }
+        }
+        if (!ascii && cp >= 0x80) {   // ensure_ascii=False: the text's own bytes
+            o.append(s, k, len);
+            k += len;
+            continue;
         }
         k += len;
         char buf[16];
@@ -285,20 +291,20 @@ inline std::string real(double f) {
     return s;
 }
 
-inline void write(std::string &o, const Value &v, int depth) {
+inline void write(std::string &o, const Value &v, int depth, bool ascii = true) {
     std::string pad((size_t)(depth + 1) * 2, ' '), end((size_t)depth * 2, ' ');
     switch (v.kind) {
     case Value::Null: o += "null"; break;
     case Value::Bool: o += v.b ? "true" : "false"; break;
     case Value::Int: o += std::to_string(v.i); break;
     case Value::Float: o += real(v.f); break;
-    case Value::String: quote(o, v.s); break;
+    case Value::String: quote(o, v.s, ascii); break;
     case Value::Array:
         if (v.items.empty()) { o += "[]"; break; }
         o += "[\n";
         for (size_t k = 0; k < v.items.size(); ++k) {
             o += pad;
-            write(o, v.items[k], depth + 1);
+            write(o, v.items[k], depth + 1, ascii);
             o += k + 1 < v.items.size() ? ",\n" : "\n";
         }
         o += end + "]";
@@ -308,9 +314,9 @@ inline void write(std::string &o, const Value &v, int depth) {
         o += "{\n";
         for (size_t k = 0; k < v.fields.size(); ++k) {
             o += pad;
-            quote(o, v.fields[k].first);
+            quote(o, v.fields[k].first, ascii);
             o += ": ";
-            write(o, v.fields[k].second, depth + 1);
+            write(o, v.fields[k].second, depth + 1, ascii);
             o += k + 1 < v.fields.size() ? ",\n" : "\n";
         }
         o += end + "}";
@@ -318,9 +324,9 @@ inline void write(std::string &o, const Value &v, int depth) {
     }
 }
 
-inline std::string dump(const Value &v) {
+inline std::string dump(const Value &v, bool ascii = true) {
     std::string o;
-    write(o, v, 0);
+    write(o, v, 0, ascii);
     return o;
 }
 
