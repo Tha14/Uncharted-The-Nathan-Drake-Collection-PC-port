@@ -750,7 +750,8 @@ void SaveControlBindings() {
         if (binding.keys.empty()) add(keys, action.id, "");
         for (const std::string& key : binding.keys) add(keys, action.id, key);
         if (!action.stick) add(mouse, action.id, binding.mouse);
-        if (!action.stick && !action.fixed_pad[0]) add(pad, action.id, binding.pad);
+        // the sticks and triggers keep the launcher's choice (this menu doesn't change them)
+        if ((!action.stick && !action.fixed_pad[0]) || !binding.pad.empty()) add(pad, action.id, binding.pad);
     }
     auto& s = Gow3Settings::Get();
     {

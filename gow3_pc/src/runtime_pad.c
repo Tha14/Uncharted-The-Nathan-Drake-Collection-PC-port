@@ -179,8 +179,11 @@ static SDL_Gamepad *current_gamepad(void) {
  * <ps4 button>=<SDL key or gamepad button name>. A mapped PS4 button loses its default sources.
  * touchpad_left (alias touchpad) and touchpad_right are the two sides of the touchpad click:
  * photo mode and the pause menu. Back/View (Share on a DualSense) is the right click, and with
- * L1 held the left one. Sticks, triggers, the real touchpad click and the overlay shortcuts are
- * not remapped. */
+ * L1 held the left one. The triggers are sources and targets like the buttons (l2=leftshoulder,
+ * cross=righttrigger; a trigger gives L2/R2 its analog value, a button presses them fully). The
+ * sticks: ls_up/ls_down/ls_left/ls_right (Move) and rs_* (Look) = lstick or rstick, the stick
+ * whose movement that stick of the game gets (the last entry of a group wins; empty: none). The
+ * real touchpad click and the overlay shortcuts are not remapped. */
 static const struct { const char *name; uint32_t ps; } ps_names[]={
     {"cross",BTN_CROSS}, {"circle",BTN_CIRCLE}, {"square",BTN_SQUARE}, {"triangle",BTN_TRIANGLE},
     {"l1",BTN_L1}, {"r1",BTN_R1}, {"l2",BTN_L2}, {"r2",BTN_R2}, {"l3",BTN_L3}, {"r3",BTN_R3},
@@ -188,7 +191,10 @@ static const struct { const char *name; uint32_t ps; } ps_names[]={
     {"up",BTN_UP}, {"down",BTN_DOWN}, {"left",BTN_LEFT}, {"right",BTN_RIGHT},
 };
 typedef struct { int source; uint32_t ps; } ButtonSource;
-typedef struct { ButtonSource entries[48]; size_t count; } ButtonMap;
+/* Controller sources past SDL's buttons: the triggers (pressed past 30 of 255) and the sticks. */
+enum { PAD_SRC_LT=64, PAD_SRC_RT, PAD_SRC_LSTICK, PAD_SRC_RSTICK };
+/* sticks (the controller map only): the source of the game's left and right stick, -1 none. */
+typedef struct { ButtonSource entries[48]; size_t count; int sticks[2]; } ButtonMap;
 static const ButtonMap default_pad_map={{
     {SDL_GAMEPAD_BUTTON_SOUTH,BTN_CROSS}, {SDL_GAMEPAD_BUTTON_EAST,BTN_CIRCLE},
     {SDL_GAMEPAD_BUTTON_WEST,BTN_SQUARE}, {SDL_GAMEPAD_BUTTON_NORTH,BTN_TRIANGLE},
@@ -198,7 +204,8 @@ static const ButtonMap default_pad_map={{
     {SDL_GAMEPAD_BUTTON_TOUCHPAD,BTN_TOUCHPAD},
     {SDL_GAMEPAD_BUTTON_DPAD_UP,BTN_UP}, {SDL_GAMEPAD_BUTTON_DPAD_DOWN,BTN_DOWN},
     {SDL_GAMEPAD_BUTTON_DPAD_LEFT,BTN_LEFT}, {SDL_GAMEPAD_BUTTON_DPAD_RIGHT,BTN_RIGHT},
-},15};
+    {PAD_SRC_LT,BTN_L2}, {PAD_SRC_RT,BTN_R2},
+},17,{PAD_SRC_LSTICK,PAD_SRC_RSTICK}};
 static const ButtonMap default_key_map={{
     {SDL_SCANCODE_SPACE,BTN_CROSS}, {SDL_SCANCODE_LCTRL,BTN_CIRCLE}, {SDL_SCANCODE_F,BTN_SQUARE},
     {SDL_SCANCODE_R,BTN_TRIANGLE}, {SDL_SCANCODE_Q,BTN_L1}, {SDL_SCANCODE_E,BTN_R1},
@@ -206,14 +213,14 @@ static const ButtonMap default_key_map={{
     {SDL_SCANCODE_ESCAPE,BTN_OPTIONS}, {SDL_SCANCODE_RETURN,BTN_OPTIONS},
     {SDL_SCANCODE_TAB,CLICK_LEFT}, {SDL_SCANCODE_BACKSPACE,CLICK_RIGHT},
     {SDL_SCANCODE_1,BTN_LEFT}, {SDL_SCANCODE_2,BTN_RIGHT}, {SDL_SCANCODE_3,BTN_UP}, {SDL_SCANCODE_4,BTN_DOWN},
-},16};
+},16,{-1,-1}};
 /* Mouse sources (bits of gow3gpu_mouse_take): left, middle, right, X1, X2, wheel up, wheel down. */
 enum { MOUSE_LEFT=1, MOUSE_MIDDLE, MOUSE_RIGHT, MOUSE_X1, MOUSE_X2, MOUSE_WHEEL_UP, MOUSE_WHEEL_DOWN };
 static const char *const mouse_names[]={"left","middle","right","x1","x2","wheel_up","wheel_down"};
 static const ButtonMap default_mouse_map={{
     {MOUSE_RIGHT,BTN_L2}, {MOUSE_LEFT,BTN_R2}, {MOUSE_MIDDLE,BTN_R3}, {MOUSE_X1,BTN_L1}, {MOUSE_X2,BTN_R1},
     {MOUSE_WHEEL_UP,BTN_RIGHT}, {MOUSE_WHEEL_DOWN,BTN_LEFT},
-},7};
+},7,{-1,-1}};
 /* Keys that move a stick: ls_up ls_down ls_left ls_right (left stick), rs_* (right stick). */
 enum { LS_UP, LS_DOWN, LS_LEFT, LS_RIGHT, RS_UP, RS_DOWN, RS_LEFT, RS_RIGHT, STICK_KEYS };
 static const char *const stick_key_names[STICK_KEYS]={"ls_up","ls_down","ls_left","ls_right","rs_up","rs_down","rs_left","rs_right"};
@@ -244,6 +251,8 @@ static int map_source(int kind, const char *name) {
         for (size_t i=0;i<sizeof(mouse_names)/sizeof(*mouse_names);++i) if (!SDL_strcasecmp(name,mouse_names[i])) return (int)i+1;
         return -1;
     }
+    static const char *const extra[]={"lefttrigger","righttrigger","lstick","rstick"};
+    for (int i=0;i<4;++i) if (!SDL_strcasecmp(name,extra[i])) return PAD_SRC_LT+i;
     int button=(int)SDL_GetGamepadButtonFromString(name);
     return button>(int)SDL_GAMEPAD_BUTTON_INVALID ? button : -1;
 }
@@ -267,13 +276,20 @@ static int apply_button_map(ButtonMap *map, StickKeyMap *sticks, const char *spe
         const char *button=trim(entry), *name=trim(eq+1);
         entry=next;
         int direction=-1;
-        if (kind==MAP_KEYBOARD)
+        if (kind==MAP_KEYBOARD || kind==MAP_PAD)
             for (int i=0;i<STICK_KEYS;++i) if (!SDL_strcasecmp(button,stick_key_names[i])) direction=i;
         uint32_t ps=0;
         for (size_t i=0;i<sizeof(ps_names)/sizeof(*ps_names);++i) if (!SDL_strcasecmp(button,ps_names[i].name)) ps=ps_names[i].ps;
         const int source=*name ? map_source(kind,name) : -1;
-        if ((!ps && direction<0) || (*name && source<0)) {
+        const int stick_source=source==PAD_SRC_LSTICK || source==PAD_SRC_RSTICK;
+        if ((!ps && direction<0) || (*name && source<0) ||
+            (kind==MAP_PAD && (direction>=0 ? *name && !stick_source : stick_source))) {
             printf("Runtime: pad map: ignored '%s=%s'\n",button,name);
+            continue;
+        }
+        if (kind==MAP_PAD && direction>=0) { /* a stick of the game: which controller stick moves it */
+            map->sticks[direction<RS_UP ? 0 : 1]=source;
+            ++used;
             continue;
         }
         if (direction>=0) {
@@ -307,6 +323,8 @@ static int apply_button_map(ButtonMap *map, StickKeyMap *sticks, const char *spe
 static const char *source_name(int kind, int source) {
     if (kind==MAP_KEYBOARD) return SDL_GetScancodeName((SDL_Scancode)source);
     if (kind==MAP_MOUSE) return source>=1 && source<=(int)(sizeof(mouse_names)/sizeof(*mouse_names)) ? mouse_names[source-1] : "";
+    static const char *const extra[]={"lefttrigger","righttrigger","lstick","rstick"};
+    if (source>=PAD_SRC_LT && source<=PAD_SRC_RSTICK) return extra[source-PAD_SRC_LT];
     const char *name=SDL_GetGamepadStringForButton((SDL_GamepadButton)source);
     return name ? name : "";
 }
@@ -331,6 +349,11 @@ static void describe_map(const ButtonMap *map, const StickKeyMap *sticks, int ki
             for (size_t i=0;i<sticks->count;++i)
                 if (sticks->entries[i].direction==d) { DESCRIBE(stick_key_names[d],source_name(kind,sticks->entries[i].source)); listed=1; }
             if (!listed) DESCRIBE(stick_key_names[d],"");
+        }
+    if (kind==MAP_PAD)
+        for (int d=0;d<STICK_KEYS;++d) {
+            const int source=map->sticks[d<RS_UP ? 0 : 1];
+            DESCRIBE(stick_key_names[d],source>=0 ? source_name(kind,source) : "");
         }
     for (size_t b=0;b<sizeof(buttons)/sizeof(*buttons);++b) {
         int listed=0;
@@ -449,6 +472,8 @@ static const char *pad_prompt(SDL_Gamepad *g, int xbox_letters, int button) {
     case SDL_GAMEPAD_BUTTON_RIGHT_STICK: return "#RS";
     case SDL_GAMEPAD_BUTTON_START: return "#MENU";
     case SDL_GAMEPAD_BUTTON_BACK: return "#VIEW";
+    case PAD_SRC_LT: return "#LT";
+    case PAD_SRC_RT: return "#RT";
     default: return ""; /* the d-pad, touchpad and sticks keep the game's pictures */
     }
 }
@@ -614,19 +639,36 @@ static void sample_host(PadData *d) {
      * local co-op: two windows, one controller each). */
     const unsigned long long taps=__atomic_exchange_n(&pad_taps,0ull,__ATOMIC_RELAXED);
     if (g && (pad_index() || gow3gpu_window_foreground())) {
+        /* Buttons and triggers through the map: L2/R2 take the strongest of their sources (a
+         * trigger's travel, a button fully); any source past 30 of 255 presses its PS4 button. */
+        uint8_t l2=0, r2=0;
+        uint32_t mapped=0;
         for (size_t i=0;i<pad_map.count;++i) {
             const int source=pad_map.entries[i].source;
-            if (SDL_GetGamepadButton(g,(SDL_GamepadButton)source) ||
-                (source>=0 && source<64 && (taps>>source & 1ull))) d->buttons|=pad_map.entries[i].ps;
+            uint8_t value;
+            if (source==PAD_SRC_LT || source==PAD_SRC_RT)
+                value=trigger(SDL_GetGamepadAxis(g,source==PAD_SRC_LT ? SDL_GAMEPAD_AXIS_LEFT_TRIGGER : SDL_GAMEPAD_AXIS_RIGHT_TRIGGER));
+            else
+                value=SDL_GetGamepadButton(g,(SDL_GamepadButton)source) ||
+                      (source>=0 && source<64 && (taps>>source & 1ull)) ? 255 : 0;
+            const uint32_t ps=pad_map.entries[i].ps;
+            if (ps==BTN_L2 && value>l2) l2=value;
+            if (ps==BTN_R2 && value>r2) r2=value;
+            if (value>30) {
+                d->buttons|=ps;
+                if (source!=PAD_SRC_LT && source!=PAD_SRC_RT) mapped|=ps;
+            }
         }
-        const uint32_t mapped=d->buttons;
-        d->left_x=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_LEFTX)); d->left_y=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_LEFTY));
-        d->right_x=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHTX)); d->right_y=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHTY));
-        d->l2=trigger(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_LEFT_TRIGGER)); d->r2=trigger(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHT_TRIGGER));
-        if (d->l2>30) d->buttons|=BTN_L2;
-        if (d->r2>30) d->buttons|=BTN_R2;
-        if (mapped & BTN_L2) d->l2=255;
-        if (mapped & BTN_R2) d->r2=255;
+        d->l2=l2; d->r2=r2;
+        /* The game's sticks from the controller stick the map gives each (swapped Move and Look). */
+        for (int stick=0;stick<2;++stick) {
+            const int source=pad_map.sticks[stick];
+            if (source!=PAD_SRC_LSTICK && source!=PAD_SRC_RSTICK) continue;
+            const int left=source==PAD_SRC_LSTICK;
+            const uint8_t x=axis(SDL_GetGamepadAxis(g,left ? SDL_GAMEPAD_AXIS_LEFTX : SDL_GAMEPAD_AXIS_RIGHTX));
+            const uint8_t y=axis(SDL_GetGamepadAxis(g,left ? SDL_GAMEPAD_AXIS_LEFTY : SDL_GAMEPAD_AXIS_RIGHTY));
+            if (stick==0) { d->left_x=x; d->left_y=y; } else { d->right_x=x; d->right_y=y; }
+        }
         /* Past half way: resting sticks that drift do not count as use. */
         gamepad_used=mapped || abs(d->left_x-128)>64 || abs(d->left_y-128)>64 || abs(d->right_x-128)>64 ||
                      abs(d->right_y-128)>64 || d->l2>64 || d->r2>64;

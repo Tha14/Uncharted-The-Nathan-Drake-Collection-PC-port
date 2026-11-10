@@ -49,11 +49,13 @@ const std::vector<Group> &groups() {
 const Pairs PAD_DEFAULTS = {{"cross", "a"},         {"circle", "b"},        {"square", "x"},    {"triangle", "y"},
                             {"l1", "leftshoulder"}, {"r1", "rightshoulder"}, {"l3", "leftstick"}, {"r3", "rightstick"},
                             {"options", "start"},   {"touchpad_right", "back"}, {"up", "dpup"}, {"down", "dpdown"},
-                            {"left", "dpleft"},     {"right", "dpright"}};
-// the sticks, triggers and the touchpad's left click (Back/View with LB held) can't be rebound
-const Pairs PAD_FIXED = {{"l2", "lefttrigger"}, {"r2", "righttrigger"}, {"touchpad_left", "leftshoulder+back"},
-                         {"ls_up", "lstick"},   {"ls_down", "lstick"},  {"ls_left", "lstick"}, {"ls_right", "lstick"},
-                         {"rs_up", "rstick"},   {"rs_down", "rstick"},  {"rs_left", "rstick"}, {"rs_right", "rstick"}};
+                            {"left", "dpleft"},     {"right", "dpright"},
+                            // the triggers, and the stick that moves (Move) and looks (Look): runtime_pad.c
+                            {"l2", "lefttrigger"},  {"r2", "righttrigger"},
+                            {"ls_up", "lstick"},    {"ls_down", "lstick"},  {"ls_left", "lstick"}, {"ls_right", "lstick"},
+                            {"rs_up", "rstick"},    {"rs_down", "rstick"},  {"rs_left", "rstick"}, {"rs_right", "rstick"}};
+// the touchpad's left click (Back/View with LB held) can't be rebound
+const Pairs PAD_FIXED = {{"touchpad_left", "leftshoulder+back"}};
 // SDL_GamepadButton order (SDL3)
 const char *const SDL_BUTTONS[] = {"a", "b", "x", "y", "back", "guide", "start", "leftstick", "rightstick", "leftshoulder",
                                    "rightshoulder", "dpup", "dpdown", "dpleft", "dpright", "misc1", "paddle1", "paddle2",

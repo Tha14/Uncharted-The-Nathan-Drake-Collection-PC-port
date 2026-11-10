@@ -1914,8 +1914,8 @@ class Launcher:
             self.controls_hint.config(text="Connect a controller, then click the slot again.", fg=STOP_RED)
             self.pad_capture = None
             return
-        self.controls_hint.config(text="Press a button on the controller (Escape cancels). Triggers and sticks "
-                                       "stay Aim, Fire, Move and Look.", fg=MUTED)
+        self.controls_hint.config(text="Move a stick (Escape cancels)." if action[:3] in ("ls_", "rs_") else
+                                  "Press a button or trigger on the controller (Escape cancels).", fg=MUTED)
         self.refresh_pad_slots()
         self.root.bind_all("<Escape>", lambda e: self.stop_pad_capture())
         self.root.after(30, self.poll_pad_capture)
@@ -1924,10 +1924,15 @@ class Launcher:
         if self.pad_capture is None:
             return
         held = self.gamepads.held()
-        new = [b for b in SDL_BUTTONS if b in held and b not in self.pad_capture_held]
+        # Move and Look take a stick; everything else a button or a trigger.
+        sticks = ("lstick", "rstick")
+        stick_action = self.pad_capture[:3] in ("ls_", "rs_")
+        pressed = [b for b in tuple(SDL_BUTTONS) + ("lefttrigger", "righttrigger") + sticks
+                   if b in held and b not in self.pad_capture_held]
+        new = [b for b in pressed if (b in sticks) == stick_action]
         self.pad_capture_held &= held
-        if any(t in held and t not in self.pad_capture_held for t in ("lefttrigger", "righttrigger")):
-            self.controls_hint.config(text="The triggers stay Aim and Fire. Press a button.", fg=STOP_RED)
+        if stick_action and pressed and not new:
+            self.controls_hint.config(text="Move and Look take a stick. Move a stick.", fg=STOP_RED)
         if new:
             self.set_pad_binding(self.pad_capture, new[0])
             return
@@ -1945,12 +1950,24 @@ class Launcher:
         settings = self.game_settings()
         pad_controls = dict(settings.get("pad_controls") or {})
         merged = merged_pad_controls(pad_controls)
-        if button:
+        if action[:3] in ("ls_", "rs_"):
+            # Move and Look each take a whole stick; the other one gets this one's old stick.
+            group, other = action[:3], "rs_" if action[:3] == "ls_" else "ls_"
+            directions = ("up", "down", "left", "right")
+            if button and merged.get(other + "up") == button:
+                for d in directions:
+                    pad_controls[other + d] = merged.get(group + "up") or ""
+            for d in directions:
+                pad_controls[group + d] = button or ""
+            button = None
+            action = None
+        if action and button:
             # A button does one thing: the action that had it swaps to this one's old button.
             for other, current in merged.items():
                 if current == button and other != action:
                     pad_controls[other] = merged[action]
-        pad_controls[action] = button or ""
+        if action:
+            pad_controls[action] = button or ""
         settings["pad_controls"] = {a: b for a, b in merged_pad_controls(pad_controls).items() if b != PAD_DEFAULTS.get(a)}
         self.save_controls()
         self.pad_capture = None

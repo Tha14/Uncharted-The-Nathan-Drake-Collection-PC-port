@@ -143,7 +143,7 @@ UN_API int un_pad_init(const wchar_t *root) {
 }
 
 // out: three lines: the number of controllers, the first one's style (playstation, xbox or empty), the buttons held
-// on any of them (SDL order, then lefttrigger / righttrigger), space-separated
+// on any of them (SDL order, then lefttrigger / righttrigger, then lstick / rstick for a pushed stick), space-separated
 UN_API int un_pad_state(char *out, int cap) {
     std::vector<void *> pads = refresh();
     std::string style, held;
@@ -157,6 +157,10 @@ UN_API int un_pad_state(char *out, int cap) {
             if (sdl.button(pad, i)) down.push_back(BUTTONS[i]);
         if (sdl.axis(pad, 4) > 16000) down.push_back("lefttrigger");
         if (sdl.axis(pad, 5) > 16000) down.push_back("righttrigger");
+        // a stick pushed well past its dead zone (Move and Look take a stick)
+        auto pushed = [&](int x, int y) { return std::abs((int)sdl.axis(pad, x)) > 20000 || std::abs((int)sdl.axis(pad, y)) > 20000; };
+        if (pushed(0, 1)) down.push_back("lstick");
+        if (pushed(2, 3)) down.push_back("rstick");
     }
     for (auto &b : down) held += (held.empty() ? "" : " ") + b;
     return give(std::to_string(pads.size()) + "\n" + style + "\n" + held, out, cap);

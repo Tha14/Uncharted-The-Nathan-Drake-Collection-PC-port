@@ -57,5 +57,32 @@ int main(void) {
     ButtonMap sides=default_key_map;
     assert(apply_button_map(&sides,&sticks,"touchpad_right=Delete",MAP_KEYBOARD)==1);
     assert(pressed_by(&sides,SDL_SCANCODE_BACKSPACE)==0 && pressed_by(&sides,SDL_SCANCODE_DELETE)==CLICK_RIGHT);
+    /* Triggers: sources and targets like buttons (L2/R2 default to them). */
+    ButtonMap triggers=default_pad_map;
+    assert(pressed_by(&triggers,PAD_SRC_LT)==BTN_L2 && pressed_by(&triggers,PAD_SRC_RT)==BTN_R2);
+    assert(apply_button_map(&triggers,&sticks,"l2=leftshoulder,l1=lefttrigger,cross=RightTrigger,r2=a",MAP_PAD)==4);
+    assert(pressed_by(&triggers,PAD_SRC_LT)==BTN_L1 && pressed_by(&triggers,SDL_GAMEPAD_BUTTON_LEFT_SHOULDER)==BTN_L2);
+    assert(pressed_by(&triggers,PAD_SRC_RT)==BTN_CROSS && pressed_by(&triggers,SDL_GAMEPAD_BUTTON_SOUTH)==BTN_R2);
+    /* Sticks: Move and Look take a whole stick; a stick is no button source, a button no stick. */
+    ButtonMap swapped=default_pad_map;
+    assert(swapped.sticks[0]==PAD_SRC_LSTICK && swapped.sticks[1]==PAD_SRC_RSTICK);
+    assert(apply_button_map(&swapped,&sticks,"ls_up=rstick,ls_down=rstick,rs_up=lstick,rs_left=",MAP_PAD)==4);
+    assert(swapped.sticks[0]==PAD_SRC_RSTICK && swapped.sticks[1]==-1);
+    assert(apply_button_map(&swapped,&sticks,"cross=lstick,ls_up=a",MAP_PAD)==0);
+    assert(pressed_by(&swapped,SDL_GAMEPAD_BUTTON_SOUTH)==BTN_CROSS && swapped.sticks[0]==PAD_SRC_RSTICK);
+    /* The keyboard's stick keys are untouched by the controller's stick entries. */
+    assert(sticks.count==default_stick_keys.count);
+    /* The complete map names every source back, so applied to the defaults it gives the same map. */
+    char pad_out[2048], key_out[2048], mouse_out[2048];
+    runtime_pad_effective_maps("l2=leftshoulder,ls_up=rstick,rs_up=lstick", "", "", pad_out, key_out, mouse_out, sizeof(pad_out));
+    assert(strstr(pad_out,"ls_up=rstick,ls_down=rstick,ls_left=rstick,ls_right=rstick,rs_up=lstick"));
+    assert(strstr(pad_out,"l2=leftshoulder,r2=righttrigger"));
+    ButtonMap round=default_pad_map;
+    StickKeyMap round_sticks=default_stick_keys;
+    apply_button_map(&round,&round_sticks,pad_out,MAP_PAD);
+    assert(round.sticks[0]==PAD_SRC_RSTICK && round.sticks[1]==PAD_SRC_LSTICK);
+    assert(pressed_by(&round,SDL_GAMEPAD_BUTTON_LEFT_SHOULDER)==(BTN_L1|BTN_L2) && pressed_by(&round,PAD_SRC_LT)==0);
+    runtime_pad_effective_maps("", "", "", pad_out, key_out, mouse_out, sizeof(pad_out));
+    assert(strstr(pad_out,"ls_up=lstick") && strstr(pad_out,"l2=lefttrigger,r2=righttrigger"));
     puts("PASS: pad and key maps");
 }
