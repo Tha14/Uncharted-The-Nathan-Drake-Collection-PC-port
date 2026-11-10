@@ -1,6 +1,6 @@
 """disassemble VMA ranges of the PS4 ELF (u3_ps4.elf, vaddr 0 = file +0x10000), read-only: dis_elf.py START-END ..."""
 import struct,sys,subprocess,os,re
-E="D:/1. PC Games/Uncharted-windows/_claude_transfer/u3_ps4.elf"
+E="C:/Users/jonas/Documents/Uncharted_Collection_MP/_claude_transfer/u3_ps4.elf"
 d=open(E,'rb').read()
 ph,sz,n=struct.unpack_from('<Q',d,32)[0],struct.unpack_from('<H',d,54)[0],struct.unpack_from('<H',d,56)[0]
 segs=[struct.unpack_from('<IIQQQQQQ',d,ph+i*sz) for i in range(n)]

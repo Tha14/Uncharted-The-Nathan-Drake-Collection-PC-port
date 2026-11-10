@@ -1,5 +1,5 @@
 import struct,sys
-d=open(r'D:/1. PC Games/Uncharted-windows/_claude_transfer/u3_ps4.elf','rb').read()
+d=open(r'C:/Users/jonas/Documents/Uncharted_Collection_MP/_claude_transfer/u3_ps4.elf','rb').read()
 ph,=struct.unpack_from('<Q',d,0x20);n,=struct.unpack_from('<H',d,0x38)
 S=[]
 for i in range(n):

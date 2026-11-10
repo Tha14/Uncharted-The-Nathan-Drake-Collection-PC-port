@@ -80,7 +80,7 @@ The PS3 projector lights of co-op Syria area1 / area2 name gobo textures that li
 ## The cloud in-place batches of 2026-10-30 (step `cloud-batches-r3`, `cloud_batches.py`) - added 2026-11-06
 
 The overlay-r3 BG paks were patched in place after the conversion. The batch folders were found intact in the PC inbox
-(`D:/1. PC Games/Uncharted-windows/_claude_transfer/inbox/`): batch102-flatslots, h017c-bv-custom-fix, batch103-blendpolarity,
+(`C:/Users/jonas/Documents/Uncharted_Collection_MP/_claude_transfer/inbox/`): batch102-flatslots, h017c-bv-custom-fix, batch103-blendpolarity,
 h017co, h028-spec-masks (h028sub = the same rows in chunks), each with the pak states it backed up before patching
 (`b102/`, `b103/`, `h017c-backup/`, `h017co-backup/`, `h028-backup/`). `cloud-batches/<batch>/` holds the original scripts,
 SWAP.tsv md5 locks and targets.json (material / slot / texture names and numbers); `cloud_batches.py` runs them in install
