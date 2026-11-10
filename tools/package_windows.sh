@@ -29,6 +29,15 @@ if [[ ! -f gow3_pc/out/gow3-probe.exe ]]; then
     echo 'Build the runtime first: gow3_pc/build.sh' >&2
     exit 1
 fi
+# FFmpeg: the small build (tools/build_ffmpeg.sh, only the decoders the port uses, no external libraries) instead of
+# MSYS2's full one, which pulls in ~130 MB of codec libraries; its DLLs keep FFmpeg's names, so they are found first.
+ffmpeg_bin=downloads/ffmpeg-8.1.1-min/bin
+if [[ ! -f $ffmpeg_bin/ffmpeg.exe ]]; then
+    echo 'Build the small FFmpeg first: tools/build_ffmpeg.sh' >&2
+    exit 1
+fi
+export PATH="$PWD/$ffmpeg_bin:$PATH"
+from_msys_or_ffmpeg='/clang64|ffmpeg-8.1.1-min/'   # the DLL paths ldd shows that ship
 
 stage=dist/stage/Uncharted-windows
 licenses=$stage/licenses
@@ -38,17 +47,18 @@ mkdir -p "$stage/gow3_pc/out" "$stage/gow3_pc/scripts" "$stage/tools" "$stage/la
 
 # The MSYS2 files whose packages licenses\ has to cover (for licenses_of_msys2 at the end).
 msys_files=()
-msys_file() {   # msys_file <tree> <file>: the MSYS2 file a shipped copy came from
+msys_file() {   # msys_file <tree> <file>: the MSYS2 file a shipped copy came from (FFmpeg's are our own build)
+    [[ -f $ffmpeg_bin/$(basename -- "$2") ]] && return 0
     msys_files+=("$(cygpath -m "$msys/$1/bin/$(basename -- "$2")")")
 }
 
 # ------------------------------------------------------------------------------------------ the runtime
 
-# Stripped of debug information, with every DLL it loads from CLANG64.
+# Stripped of debug information, with every DLL it loads from CLANG64 and the small FFmpeg.
 llvm-strip --strip-debug -o "$stage/gow3_pc/out/gow3-probe.exe" gow3_pc/out/gow3-probe.exe
 while read -r dll; do
     cp "$dll" "$stage/gow3_pc/out/"
-done < <(ldd gow3_pc/out/gow3-probe.exe | awk '/clang64/ {print $3}' | sort -u)
+done < <(ldd gow3_pc/out/gow3-probe.exe | awk "$from_msys_or_ffmpeg {print \$3}" | sort -u)
 cp gow3_pc/scripts/*.py "$stage/gow3_pc/scripts/"
 
 cp tools/probe_uncharted.py tools/apply_update.py \
@@ -85,10 +95,9 @@ else
     echo "Note: vagenc.dll not built or not identical: the multiplayer import uses the Python encoder" >&2
     rm -f "$nat/vagenc.dll"
 fi
-# The programs the import runs, from this PC's MSYS2 with their DLLs, when installed: ffmpeg (EULA pages,
-# sound banks with MP3 samples; package mingw-w64-clang-x86_64-ffmpeg, whose DLLs the runtime ships) and GNU
-# objdump (the Havok tables of the character conversion; mingw-w64-ucrt-x86_64-binutils). Without them the
-# import still runs: the recipe skips or simplifies those steps and says so.
+# The programs the import runs, with their DLLs: ffmpeg (EULA pages, sound banks with MP3 samples; the small build,
+# byte-identical output to MSYS2's 8.1.1 there) and, when installed, GNU objdump (the Havok tables of the character
+# conversion; mingw-w64-ucrt-x86_64-binutils). Without objdump the import still runs and skips that step.
 u3mp_bin=()
 copy_program() {  # copy_program <exe> <folder>: the program and its DLLs from the same MSYS2 tree
     local exe=$1 dest=$2 tree
@@ -100,11 +109,11 @@ copy_program() {  # copy_program <exe> <folder>: the program and its DLLs from t
         cp "$dll" "$dest/"
     done
 }
-if [[ -f $msys/clang64/bin/ffmpeg.exe ]]; then
-    copy_program "$msys/clang64/bin/ffmpeg.exe" "$stage/u3mp/bin"
-else
-    echo "Note: no ffmpeg.exe in $msys/clang64/bin: the multiplayer import runs without it" >&2
-fi
+mkdir -p "$stage/u3mp/bin"
+cp "$ffmpeg_bin/ffmpeg.exe" "$stage/u3mp/bin/"
+while read -r dll; do
+    cp "$dll" "$stage/u3mp/bin/"
+done < <(ldd "$ffmpeg_bin/ffmpeg.exe" | awk "$from_msys_or_ffmpeg {print \$3}" | sort -u)
 if [[ -f $msys/ucrt64/bin/objdump.exe ]]; then
     copy_program "$msys/ucrt64/bin/objdump.exe" "$stage/u3mp/bin/binutils"
 else
@@ -160,12 +169,46 @@ if [[ -f $msys/clang64/bin/windeployqt6.exe ]]; then
         rm -f "$stage/launcher-qt"/Qt6QuickControls2"$style"*.dll
     done
     rm -rf "$stage/launcher-qt/qmltooling"
+    # Only what the window loads: the QML modules its files import (QtCore, QtQuick, .Controls with the Basic style,
+    # .Effects, .Layouts, and what those build on), the Windows platform plugin, the widget style its file dialogs
+    # use and the .ico reader (its images are PNG, which Qt reads itself). windeployqt adds more than that.
+    qt=$stage/launcher-qt
+    for module in QtQml/XmlListModel QtQuick/Dialogs QtQuick/LocalStorage QtQuick/NativeStyle QtQuick/Particles \
+        QtQuick/Shapes QtQuick/VectorImage QtQuick/tooling; do
+        rm -rf "$qt/qml/$module"
+    done
+    for plugins in generic tls networkinformation; do
+        rm -rf "${qt:?}/$plugins"
+    done
+    find "$qt/imageformats" -name '*.dll' ! -name qico.dll -delete
     # its Qt files are its own folder's, never an installed Qt's
     printf '[Paths]\r\nPrefix = .\r\nPlugins = .\r\nQmlImports = qml\r\n' > "$stage/launcher-qt/qt.conf"
     # the CLANG64 DLLs Qt and its plugins load (windeployqt copies Qt's own only)
     find "$stage/launcher-qt" \( -name '*.exe' -o -name '*.dll' \) -print0 | xargs -0 -n 20 ldd 2>/dev/null \
         | awk '/clang64/ {print $3}' | sort -u | while read -r dll; do
         [[ -f $stage/launcher-qt/$(basename -- "$dll") ]] || cp "$dll" "$stage/launcher-qt/"
+    done
+    # Then only the DLLs something left loads, followed from the program and its plugins through their imports
+    # (dxcompiler.dll, for example, is Direct3D 12's shader compiler; Qt Quick draws with Direct3D 11).
+    declare -A present=() wanted=()
+    for dll in "$qt"/*.dll; do
+        name=${dll##*/}
+        present[${name,,}]=$dll
+    done
+    queue=("$qt/UnchartedLauncher.exe")
+    while IFS= read -r -d '' plugin; do queue+=("$plugin"); done < <(find "$qt" -mindepth 2 -name '*.dll' -print0)
+    while (( ${#queue[@]} )); do
+        file=${queue[0]}
+        queue=("${queue[@]:1}")
+        while read -r name; do
+            key=${name,,}
+            [[ -n ${present[$key]:-} && -z ${wanted[$key]:-} ]] || continue
+            wanted[$key]=1
+            queue+=("${present[$key]}")
+        done < <(llvm-objdump -p "$file" | awk '/DLL Name:/ {print $3}')
+    done
+    for key in "${!present[@]}"; do
+        [[ -n ${wanted[$key]:-} ]] || rm -f -- "${present[$key]}"
     done
     for dll in "$stage"/launcher-qt/*.dll; do
         qt_dlls+=("$(cygpath -m "$msys/clang64/bin/$(basename -- "$dll")")")
@@ -203,14 +246,22 @@ python_runtime() {
     for f in "$home"/python.exe "$home"/pythonw.exe "$home"/python3*.dll "$home"/vcruntime140*.dll "$home"/LICENSE.txt; do
         [[ -f $f ]] && cp -p "$f" "$dest/"
     done
+    # DLLs without CPython's test modules, SQLite and the ssl module (nothing uses them; hashlib keeps OpenSSL's
+    # libcrypto: its SHA-256 is ~6x faster than the built-in one on the imports' game files)
     for f in DLLs tcl; do
-        [[ -d $home/$f ]] && tar -C "$home" --exclude=__pycache__ -cf - "$f" | tar -C "$dest" -xf -
+        [[ -d $home/$f ]] && tar -C "$home" --exclude=__pycache__ --exclude='_test*.pyd' --exclude='xxlimited*.pyd' \
+            --exclude='_ctypes_test*.pyd' --exclude='_sqlite3*.pyd' --exclude=sqlite3.dll --exclude='_ssl*.pyd' \
+            --exclude='libssl-*.dll' -cf - "$f" | tar -C "$dest" -xf -
     done
     tar -C "$home" --exclude=site-packages --exclude=test --exclude=tests --exclude=idlelib --exclude=ensurepip \
         --exclude=turtledemo --exclude=__pycache__ --exclude=lib2to3 --exclude=venv --exclude=pydoc_data \
-        --exclude='*.pyc' -cf - Lib | tar -C "$dest" -xf -
+        --exclude=sqlite3 --exclude='*.pyc' -cf - Lib | tar -C "$dest" -xf -
     [[ -d $home/Lib/site-packages/PIL ]] || { echo "Pillow is not installed in $home (pip install pillow)" >&2; exit 1; }
-    tar -C "$home/Lib/site-packages" --exclude=__pycache__ -cf - PIL | tar -C "$dest/Lib/site-packages" -xf -
+    # Pillow without the readers and tools the launcher doesn't use (AVIF, WebP, colour management, ImageMath,
+    # morphology); it uses Image, ImageDraw, ImageFont (FreeType) and ImageTk
+    tar -C "$home/Lib/site-packages" --exclude=__pycache__ --exclude='_avif*.pyd' --exclude='_webp*.pyd' \
+        --exclude='_imagingcms*.pyd' --exclude='_imagingmath*.pyd' --exclude='_imagingmorph*.pyd' \
+        -cf - PIL | tar -C "$dest/Lib/site-packages" -xf -
     if [[ -d $home/Lib/site-packages/numpy ]]; then
         for f in numpy numpy.libs; do
             [[ -d $home/Lib/site-packages/$f ]] && tar -C "$home/Lib/site-packages" --exclude=__pycache__ --exclude=tests \
@@ -244,6 +295,13 @@ fi
 # BearSSL (MIT): the TLS code inside u3_online.dll and the multiplayer helper
 mkdir -p "$licenses/bearssl"
 cp tools/licenses/bearssl/LICENSE.txt tools/licenses/bearssl/SOURCE.txt "$licenses/bearssl/"
+# FFmpeg (LGPL 2.1 or later), built by tools/build_ffmpeg.sh from the release's source, unchanged
+mkdir -p "$licenses/ffmpeg"
+cp "$ffmpeg_bin/../COPYING.LGPLv2.1" "$licenses/ffmpeg/"
+{
+    echo "FFmpeg 8.1.1 (https://ffmpeg.org/releases/ffmpeg-8.1.1.tar.xz), LGPL 2.1 or later, unchanged; built by"
+    echo "tools/build_ffmpeg.sh in the port's source with only the decoders, formats and filters the port uses."
+} > "$licenses/ffmpeg/SOURCE.txt"
 mkdir -p "$licenses/liborbispkg"
 cp tools/pkgtool/LICENSE.txt "$licenses/liborbispkg/LICENSE.txt"
 echo "PkgTool and LibOrbisPkg 0.2.231 by Maxton, unchanged; source: https://github.com/maxton/LibOrbisPkg" \

@@ -448,6 +448,29 @@ static LONG CALLBACK vectored_fault(EXCEPTION_POINTERS *info) {
     if (code==EXCEPTION_ACCESS_VIOLATION && record->NumberParameters>=2 &&
         runtime_memory_wait_carve((uintptr_t)record->ExceptionInformation[1]))
         return EXCEPTION_CONTINUE_EXECUTION;
+    /* Uncharted 3, 10 Nov 2026: Naughty Dog's assertion trap, int 0x41 (cd 41), after the assertion's message.
+     * The PS4 build keeps some assertions, and the game reaches the trap even with no assertion handler set,
+     * so on the console it returns and the game goes on. Windows has no such gate and reports it as an access
+     * violation at address -1, which ended matches: AssertGameJobsNotRunning (particle-renderer.cpp, "1
+     * Preupdate jobs still running!") fired mid-match. It is stepped over and logged once per address. */
+    if (code==EXCEPTION_ACCESS_VIOLATION && record->NumberParameters>=2 && image &&
+        record->ExceptionInformation[1]==(ULONG_PTR)-1 &&
+        (uintptr_t)info->ContextRecord->Rip-(uintptr_t)image<0x20000000) {
+        const uint8_t *p=(const uint8_t *)(uintptr_t)info->ContextRecord->Rip;
+        if (p[0]==0xCD && p[1]==0x41) {
+            static uintptr_t seen[64]; static int seen_count;
+            uintptr_t at=(uintptr_t)p-(uintptr_t)image; int known=0;
+            for (int k=0;k<seen_count;k++) if (seen[k]==at) known=1;
+            if (!known) {
+                if (seen_count<64) seen[seen_count++]=at;
+                fprintf(stderr,"Runtime: guest assertion trap (int 0x41) at guest offset 0x%" PRIxPTR " (thread %lu), stepped over\n",
+                        at,GetCurrentThreadId());
+                fflush(stderr);
+            }
+            info->ContextRecord->Rip+=2;
+            return EXCEPTION_CONTINUE_EXECUTION;
+        }
+    }
     if (code==EXCEPTION_STACK_OVERFLOW) {
         /* gow3 1 Nov 2026: a stack overflow leaves almost no stack for the report below (the
          * 2 GB card simulation died silently). First a few fixed lines written with no stack use:
@@ -1131,6 +1154,35 @@ static void install_u1_physics(Segment *segments, uint64_t count) {
         printf("U1 physics: artificial damping %.4f / %.4f per 60 FPS step, the same loss per second at any rate\n",
                u1_damp_v0, u1_damp_w0);
 }
+/* Uncharted 3 1.02, 10 Nov 2026: the level manager's "want this level" check (level-mgr.cpp, image 0xaaa680,
+ * called from the init at 0xaa9ef0) ends by starting an animation on its owner's AnimControl (owner +0x138, then
+ * +0x48, call 0xfbfa60). In the multiplayer character menu the preview character can have no AnimControl yet: a
+ * player scrolling to Fat Talbot crashed reading 0x48 (fault at image 0xaaa82e). Without one the animation is
+ * skipped and the function returns the way it always does (0xaaa84b: stack check, epilogue). Found by its bytes. */
+static void install_u3_anim_guard(Segment *segments, uint64_t count, uint64_t size) {
+    static const Gow3Signature site = {"49 8b 44 24 08 48 8b 80 38 01 00 00 4c 8b 70 48 8b 3b e8 ?? ?? ?? ?? 31 f6 48 85 c0 74 03 48 8b 30 4c 89 f7 e8", 0};
+    enum { LENGTH = 18, SKIP = 0x29 };   /* replaced: up to the call; skip: to the stack check after the call */
+    const uint64_t at = gow3_signature_find(image, size, &site);
+    if (at == UINT64_MAX || !mapped(segments, count, at, SKIP)) return;
+    unsigned char *stub = allocate(page_size);
+    static const unsigned char body[] = {
+        0x49,0x8b,0x44,0x24,0x08,             /* mov rax, [r12+8]        (the owner) */
+        0x48,0x8b,0x80,0x38,0x01,0x00,0x00,   /* mov rax, [rax+0x138]    (its AnimControl) */
+        0x48,0x85,0xc0,                       /* test rax, rax */
+        0x74,0x14,                            /* jz skip */
+        0x4c,0x8b,0x70,0x48,                  /* mov r14, [rax+0x48] */
+        0x8b,0x3b,                            /* mov edi, [rbx] */
+        0xff,0x25,0,0,0,0, 0,0,0,0,0,0,0,0,   /* jmp [rip]: back to the call */
+        0xff,0x25,0,0,0,0, 0,0,0,0,0,0,0,0,   /* skip: jmp [rip]: past it */
+    };
+    memcpy(stub, body, sizeof(body));
+    const uint64_t resume = (uint64_t)(uintptr_t)(image + at + LENGTH), skip = (uint64_t)(uintptr_t)(image + at + SKIP);
+    memcpy(stub + 29, &resume, 8);
+    memcpy(stub + 43, &skip, 8);
+    protect(stub, page_size, 5);
+    if (install_jump(at, LENGTH, stub))
+        printf("Uncharted 3: menu character animation guard at %#llx\n", (unsigned long long)at);
+}
 /* Damage dealt/taken and green/blue/gold orb multipliers (src/damage_hook.h, src/orb_hook.h):
  * the stubs read the menu's floats directly, so changes apply on the next hit or pickup. */
 static void install_stat_multipliers(Segment *segments, uint64_t count, uint64_t size) {
@@ -1519,6 +1571,7 @@ int main(int argc, char **argv) {
     if (patch_file) apply_patches(patch_file, segments, ns, relocs, nr);
     if (gpu_enabled) install_mouse_look(segments, ns, size);
     install_u1_physics(segments, ns);
+    install_u3_anim_guard(segments, ns, size);
     runtime_gamesettings_set_image(image, size);
     if (gpu_enabled && game_hooks) {
         install_orb_multiplier(segments, ns, size);

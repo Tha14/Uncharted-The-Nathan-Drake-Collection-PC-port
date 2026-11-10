@@ -50,11 +50,11 @@ jobs:
           msystem: CLANG64
           update: true
           # GNU objdump (ucrt64 binutils): the multiplayer import's Havok tables step
-          install: git patch curl mingw-w64-ucrt-x86_64-binutils
+          install: git patch curl make mingw-w64-ucrt-x86_64-binutils
           pacboy: >-
             toolchain:p cmake:p ninja:p pkgconf:p python:p
             vulkan-headers:p vulkan-loader:p vulkan-memory-allocator:p glslang:p
-            sdl3:p fmt:p boost:p robin-map:p xxhash:p ffmpeg:p zydis:p
+            sdl3:p fmt:p boost:p robin-map:p xxhash:p zydis:p nasm:p
             spirv-tools:p spirv-headers:p spirv-cross:p
             opus:p
             qt6-base:p qt6-declarative:p
@@ -63,6 +63,9 @@ jobs:
         run: |
           git config --global --add safe.directory '*'
           export MSYS2_ROOT=$(cygpath -u '${{ steps.msys2.outputs.msys2-location }}')
+          # the small FFmpeg 8.1.1 (only the decoders the port uses) instead of MSYS2's full one
+          ffmpeg_pc=$(tools/build_ffmpeg.sh) || exit 1
+          export PKG_CONFIG_PATH="$ffmpeg_pc"
           gow3_pc/build.sh
 
       # NVIDIA DLAA (DLSS SDK files, the bridge built with the runner's MSVC) and the FSR 4 native
