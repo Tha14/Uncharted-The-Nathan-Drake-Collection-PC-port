@@ -1,4 +1,11 @@
-# Uncharted: The Nathan Drake Collection — PC port
+# Uncharted: The Nathan Drake Collection — Unofficial PC port
+
+> **This is an unofficial, non-commercial fan project.** It is not made, endorsed or
+> supported by Sony Interactive Entertainment, Naughty Dog, Bluepoint Games or any of their
+> affiliates, and it is not affiliated with them in any way. *Uncharted: The Nathan Drake Collection*
+> and the *Uncharted* games belong to their owners. You need your own legally obtained copy of the
+> game; this project contains no game files and does not help anyone get them. See
+> [Legal notice](#legal-notice).
 
 ## About this fork
 
@@ -19,7 +26,7 @@ it, provided the result stays under the same license with its source available. 
 those terms. A license grant covers the code that was published under it, so a later change to the
 original's license does not apply to this fork's copy.
 
-This fork adds the experimental **Uncharted 3 multiplayer restoration** (build v7.55, beta) to the
+This fork adds the experimental **Uncharted 3 multiplayer restoration** (beta) to the
 launcher: the **MULTIPLAYER** tab imports it from your own PS3 and PS4 game copies, on your PC (see
 [Uncharted 3 multiplayer](#uncharted-3-multiplayer-beta) below). Game assets, converted overlays and
 patched game images are never distributed: the import makes them on the player's PC. The multiplayer
@@ -35,8 +42,8 @@ By **BilalReloaded** ([YouTube](https://www.youtube.com/@BilalReloaded/videos),
 [CHANGELOG.md](CHANGELOG.md).
 
 > **No game files are in this repository or its builds.** You need your own copy of the game
-> (the dumped CUSA02344 folder). This project is not affiliated with Sony, Naughty Dog or
-> Bluepoint Games.
+> (the dumped CUSA02344 folder). This project is not affiliated with Sony Interactive
+> Entertainment, Naughty Dog or Bluepoint Games.
 
 ## Status
 
@@ -190,10 +197,8 @@ game-derived ships with the launcher: the **MULTIPLAYER** tab converts the files
   the same 1.19 code and the same game files apart from the speech languages): the game folder (disc `PS3_GAME/USRDIR` or an extracted
   ISO) and RPCS3's `dev_hdd0/game` folder with update **1.19**, the game data install (`BCES01670DATA2` /
   `BCES01692DATA2` / `BCUS99086DATA2` / `BCAS25014DATA2`) and the DLC map packs. Add both folders.
-- The **decrypted 1.19 EBOOT**, for the characters' collision data: in RPCS3, *Utilities -> Decrypt PS3
-  Binaries*, choose `dev_hdd0/game/BCES01670/USRDIR/EBOOT.BIN` (UK: `BCES01692`, US: `BCUS99086`, Asia: `BCAS25014`); the `EBOOT.elf` it writes
-  there is found by the import, as is any `.elf` with the 1.19 hash such as `EBOOT-1.19.elf` (or choose it on
-  the tab). Without it that step is skipped.
+- The **decrypted 1.19 EBOOT** (`EBOOT.elf`) of your own copy of the game, for the characters' collision
+  data. The import requires it; choose it on the Multiplayer tab.
 - PS3 **Uncharted 2** is optional: no multiplayer file comes from it today.
 - About 12 GB free for the multiplayer data folder (default
   `%LOCALAPPDATA%\Uncharted Launcher\U3 Multiplayer`, changeable on the tab).
@@ -286,6 +291,34 @@ If you are unsure whether something is in scope, open an issue and ask first.
 By contributing you agree that your contribution is licensed under the GNU GPL v2 or later, like
 the rest of the project.
 
+## Legal notice
+
+- **Unofficial fan project.** This is a free, non-commercial, unofficial project made by fans. It is
+  not made, approved, endorsed, sponsored or supported by Sony Interactive Entertainment, Naughty Dog,
+  Bluepoint Games or any of their affiliates, and it is not affiliated with them in any way.
+- **The games belong to their owners.** *Uncharted: The Nathan Drake Collection* was developed by
+  Bluepoint Games and published by Sony Interactive Entertainment. *Uncharted: Drake's Fortune*,
+  *Uncharted 2: Among Thieves* and *Uncharted 3: Drake's Deception* were developed by Naughty Dog and
+  published by Sony Interactive Entertainment. All game code, art, audio, text and other content
+  remain the property of their owners.
+- **Trademarks.** "Uncharted" is a trademark of Sony Interactive Entertainment LLC. "PlayStation", "PS3",
+  "PS4" and the PlayStation logos are trademarks or registered trademarks of Sony Interactive
+  Entertainment Inc. "Naughty Dog" and "Bluepoint Games" are trademarks of their owners. All other
+  trademarks belong to their owners. They are used here only to name the games and systems this
+  project works with, not to suggest any connection or endorsement.
+- **No game files, no piracy.** This repository and its releases contain no game files, no game code
+  and no data taken from the games. Everything game-derived (converted files, patched game images)
+  is made on each player's own PC from their own copies of the games, and is never shared by this
+  project. You must own the games you use with it: the PS4 *Nathan Drake Collection* and, for the
+  multiplayer, *Uncharted 3* on PS3. This project does not help anyone obtain games or bypass
+  copy protection on games they don't own, and piracy is not supported.
+- **Online play** runs on community RPCN servers, not on Sony's PlayStation Network (which no longer
+  hosts these games' multiplayer). This project has no connection to PlayStation Network.
+- **No warranty.** The software is provided "as is", without warranty of any kind, as stated in the
+  GNU GPL. Use it at your own risk.
+- **Rights holders:** if you own rights in something here and have a concern, please open an issue on
+  this repository and it will be looked at promptly.
+
 ## Credits and license
 
 - **Uncharted port, launcher and game fixes: BilalReloaded**
@@ -308,8 +341,20 @@ the rest of the project.
 - Uncharted 3 multiplayer restoration (`u3mp/`, the launcher's Multiplayer tab): João Fidalgo's fork. Its pak
   tools come from the `U3_Multiplayer` branch of
   [fidalgojoao/Uncharted2-Multiplayer-Dev](https://github.com/fidalgojoao/Uncharted2-Multiplayer-Dev) (GPL v2);
-  the online play talks to RPCN as [RPCS3](https://github.com/RPCS3/rpcs3) does; TLS by
-  [BearSSL](https://bearssl.org) (MIT). Uncharted 3 is Naughty Dog's; this project is not affiliated with them.
+  TLS by [BearSSL](https://bearssl.org) (MIT).
+- Map and character visual fixes contributed by **33martyr** (Yeti mask, Outdoor Jacket, map lighting).
+- **RPCS3 and RPCN:** online play (friends, invites, matchmaking) uses **RPCN**, the online service written
+  for the [RPCS3](https://rpcs3.net) PlayStation 3 emulator, and talks to it the same way RPCS3 does.
+  RPCN is by **RipleyTom** and its contributors ([RipleyTom/rpcn](https://github.com/RipleyTom/rpcn));
+  RPCS3 is by the **RPCS3 team** and its contributors ([RPCS3/rpcs3](https://github.com/RPCS3/rpcs3)).
+  A big thank you to both
+  projects: the online play would not exist without them. This project is not part of, and is not
+  endorsed by, RPCS3 or RPCN; please don't take its issues to them.
+- The launcher window is built with [Qt 6](https://www.qt.io) (The Qt Company; LGPL v3, used as
+  unmodified shared libraries); its settings run on [Python](https://www.python.org) (PSF License)
+  with Tkinter and [Pillow](https://python-pillow.org) (HPND); the multiplayer import also uses
+  [NumPy](https://numpy.org) (BSD). Uncharted 2 voice chat uses [Opus](https://opus-codec.org) (BSD).
+  PS4 package reading uses liborbispkg (license in `licenses/liborbispkg`).
 - Licensed under the GNU GPL v2 or later (see `gow3_pc/LICENSE`). The Windows package carries
   `LICENSE.txt` and a `licenses` folder with the license of every bundled library
   (`licenses/THIRD-PARTY.txt` lists each DLL package with its version, license and source).

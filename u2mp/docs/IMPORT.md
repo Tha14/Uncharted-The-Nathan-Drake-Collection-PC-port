@@ -171,7 +171,7 @@ actor27 items carry `ACTOR_VERSION` in state.json, so a resumed import rebuilds 
 **Havok class tables** (U3 precedent: derived from the executables, so never shipped). `u2hkgen` builds them on the
 player's PC the first time an actor needs them and writes `<out>/work/u2hkclasses.json`: Havok 6.1 layouts from the
 hkClass constructor calls and hkClassMember arrays of the decrypted PS3 `EBOOT.elf` (`--ps3-elf`, default
-`<PS3 USRDIR>/EBOOT.elf`; RPCS3 Utilities -> Decrypt PS3 Binaries); Havok 2011.3 layouts from the PS4
+`<PS3 USRDIR>/EBOOT.elf`); Havok 2011.3 layouts from the PS4
 `big2-ps4_Shipping.elf` in the `--ps4` folder (fake-signed SELF unwrapped, SCE RELA relocations applied, text
 disassembled with GNU objdump: `--objdump`, u3mp/bin, msys64 or PATH); the five 2011 classes whose member tables the
 executable builds at run time (hkpExtendedMeshShape + triangle subpart, hkpMoppCode, hkaSkeletonMapperData,

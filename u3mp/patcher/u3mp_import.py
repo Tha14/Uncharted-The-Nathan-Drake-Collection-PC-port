@@ -44,7 +44,7 @@ import u3mp_version  # noqa: E402
 
 RECIPE = HERE / 'recipe'
 OVERLAYS = ('overlay-r3', 'overlay-r2', 'overlay-port', 'overlay-mp')   # first wins (as uncharted3_mp.cmd passes them)
-# The decrypted PS3 1.19 EBOOT the reference tables were made from (RPCS3: Utilities -> Decrypt PS3 Binaries).
+# The decrypted PS3 1.19 EBOOT the reference tables were made from.
 PS3_ELF_SHA256 = 'aac4faa63ab1387e8aaa0b8e9e80ee87ac4ae61e0b40292f7aa7401df7b3f50a'
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 # steps without which the overlays crash Uncharted 3 at boot (dc1 modules and their reserved sizes in modules.bin)
@@ -83,7 +83,7 @@ def find_program(port, name, extra=()):
 
 def find_ps3_elf(folders, explicit):
     """The decrypted PS3 1.19 EBOOT.elf: the one given, else one in the PS3 folders, 4 levels deep like the recipe's
-    own scan: an EBOOT.elf (RPCS3 writes it next to the EBOOT.BIN it decrypts), or any .elf with the tested 1.19 hash
+    own scan: an EBOOT.elf, or any .elf with the tested 1.19 hash
     (e.g. EBOOT-1.19.elf; the EU BCES01670, UK BCES01692, US BCUS99086 and Asia BCAS25014 Game of the Year
     1.19 EBOOTs decrypt to the same file)."""
     if explicit and os.path.isfile(explicit):
@@ -139,7 +139,7 @@ def ensure_data2(a, data, ps3_elf):
         return ('the game data (BCES01670DATA2 / BCES01692DATA2 / BCUS99086DATA2 / BCAS25014DATA2) is missing or another version, and no community server DNS is set '
                 'to download it: enter it on the Multiplayer tab')
     if not ps3_elf:
-        return 'downloading the game data needs the decrypted PS3 1.19 EBOOT.elf (RPCS3: Decrypt PS3 Binaries)'
+        return 'downloading the game data needs the decrypted PS3 1.19 EBOOT.elf'
     log('game data: downloading it from the community server, as the PS3 game does')
     event(phase='data2', status='running')
     try:
@@ -503,9 +503,9 @@ def main():
         log('PS3 1.19 EBOOT.elf: %s%s' % (ps3_elf, '' if mpimage.sha256_file(ps3_elf) == PS3_ELF_SHA256 else
                                            ' (differs from the tested 1.19 EBOOT.elf)'))
     else:
-        # required: no import without the decrypted EBOOT.elf (the player decrypts it with RPCS3 first)
-        why = ('No decrypted PS3 1.19 EBOOT.elf: decrypt it with RPCS3 first (Utilities -> Decrypt PS3 Binaries, '
-               'dev_hdd0/game/BCES01670, BCES01692, BCUS99086 or BCAS25014/USRDIR/EBOOT.BIN), then import again')
+        # required: no import without the decrypted EBOOT.elf
+        why = ('No decrypted PS3 1.19 EBOOT.elf of your own copy of the game: choose it on the Multiplayer tab, '
+               'then import again')
         log('ERROR: ' + why)
         if old.get('status') in ('imported', 'partial'):
             # an update of a working import: not applied, the current files stay playable

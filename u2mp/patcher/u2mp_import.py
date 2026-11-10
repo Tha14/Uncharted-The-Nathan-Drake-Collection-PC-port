@@ -348,7 +348,7 @@ class Importer:
         except FileNotFoundError as e:
             return self.finish('failed', error=str(e))
         log('PS3 archives: %d (%s)' % (len(self.ps3.archives), ', '.join(os.path.basename(x) for x in self.ps3.archives)))
-        # the decrypted PS3 EBOOT.elf is required: no import without it (decrypt it with RPCS3 first)
+        # the decrypted PS3 EBOOT.elf is required: no import without it
         elf = self.ps3_elf_path()
         try:
             with open(elf, 'rb') as f:
@@ -356,8 +356,8 @@ class Importer:
         except OSError:
             ok = False
         if not ok:
-            why = ('No decrypted PS3 Uncharted 2 EBOOT.elf: decrypt it with RPCS3 first (Utilities -> Decrypt PS3 '
-                   'Binaries, the game USRDIR/EBOOT.BIN; the EBOOT.elf it writes next to it is used), then import again')
+            why = ('No decrypted PS3 Uncharted 2 EBOOT.elf of your own copy of the game: add it, then import '
+                   'again')
             if a.update and self.prev_status in ('imported', 'partial'):
                 # an automatic update of a working import: not applied, the current files stay playable (and it is
                 # not tried again at every launcher start for this version)

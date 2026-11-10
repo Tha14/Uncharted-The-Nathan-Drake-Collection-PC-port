@@ -515,8 +515,7 @@ def ps4_executable(game):
 def build(ps3_elf, ps4_game, actor_dir, out_path, objdump='', log=print):
     """write the tables (json) to out_path; raises TablesMissing with the reason"""
     if not ps3_elf or not os.path.isfile(ps3_elf):
-        raise TablesMissing('no decrypted PS3 Uncharted 2 EBOOT.elf (--ps3-elf; RPCS3: Utilities -> Decrypt PS3 '
-                            'Binaries on USRDIR/EBOOT.BIN)')
+        raise TablesMissing('no decrypted PS3 Uncharted 2 EBOOT.elf (--ps3-elf)')
     d3 = open(ps3_elf, 'rb').read()
     if d3[:4] != b'\x7fELF':
         raise TablesMissing('%s is not a decrypted ELF' % ps3_elf)

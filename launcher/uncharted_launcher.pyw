@@ -3944,8 +3944,7 @@ class Launcher:
         # (no PS3 Uncharted 2 folder row: no multiplayer file comes from Uncharted 2 today; a folder chosen before
         # still goes to the import)
         folder_row("2. Choose the decrypted EBOOT (update 1.19)",
-                   "Required. In RPCS3: Utilities > Decrypt PS3 Binaries, then pick the game's USRDIR/EBOOT.BIN. "
-                   "The EBOOT.elf it writes is found by itself.",
+                   "Required: the decrypted EBOOT.elf of your own copy of the game.",
                    "ps3_elf", (("Choose file", self.u3mp_choose_elf),
                                ("Clear", lambda: self.u3mp_set("u3mp_ps3_elf", ""))))
         def dns_entry(parent):
