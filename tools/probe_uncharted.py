@@ -5,7 +5,6 @@ environment carries the options: UNCHARTED_DIAGNOSTICS=0 leaves out the measurem
 live trigger files, GOW3_VBLANK_HZ=0 unlocks the frame rate (480 Hz vblank, menu limit).
 """
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -808,14 +807,8 @@ def job_sleep_enabled(executable=None):
     9.4 ms. auto (the default): Spin when the CPU has at least JOB_SPIN_MIN_THREADS hardware
     threads for this game, Sleep below and in games without an entry (4-core CPUs fall to ~5 FPS
     with Spin)."""
-    value = os.environ.get("UNCHARTED_JOB_SLEEP", "auto").strip().lower()
-    if value in ("0", "off", "no", "spin"):
-        return False
-    if value == "auto":
-        game = GAME_KEYS.get(executable or "", "")
-        minimum = JOB_SPIN_MIN_THREADS.get(game)
-        return minimum is None or host_hardware_threads() < minimum
-    return True
+    import game_patcher
+    return game_patcher.starter("job_sleep", executable or "") == "1"
 
 
 # 1 Nov 2026 (#274, analysis/optimization-1028/runs/js-*): Spin helps with many CPUs (U1 0.1% low
@@ -824,22 +817,13 @@ def job_sleep_enabled(executable=None):
 # on 4 threads Spin starves the game (U2 85 -> 4.5 FPS, U3 119 -> 5.9). Auto: Spin from 8 logical
 # CPUs in Uncharted 1. Uncharted 2 and 3 keep Sleep (0.8.0): nothing measured a gain from Spin
 # there (8 threads: U2 1% low 105 -> 83; 17 Oct, 16 cores: about 2% fewer FPS).
-JOB_SPIN_MIN_THREADS = {"u1": 8}
+# JOB_SPIN_MIN_THREADS: Uncharted 1 from 8 hardware threads (launcher/native/starter.cpp job_sleep).
 
 
 def host_hardware_threads():
     """Logical processors this process may run on (its affinity mask; the game inherits it)."""
-    if os.name == "nt":
-        import ctypes
-        process, system = ctypes.c_size_t(), ctypes.c_size_t()
-        kernel32 = ctypes.windll.kernel32
-        kernel32.GetCurrentProcess.restype = ctypes.c_void_p
-        if kernel32.GetProcessAffinityMask(ctypes.c_void_p(kernel32.GetCurrentProcess()),
-                                           ctypes.byref(process), ctypes.byref(system)) and process.value:
-            return bin(process.value).count("1")
-    elif hasattr(os, "sched_getaffinity"):
-        return len(os.sched_getaffinity(0))
-    return os.cpu_count() or 8
+    import game_patcher
+    return int(game_patcher.starter("hardware_threads"))
 
 
 def job_worker_count():
@@ -848,15 +832,8 @@ def job_worker_count():
     0x126543, U3 0x5acd80/0x5ad750, `mov qword [rbp-0x68], 6`) ask for six NdJobWorkerThreads, one
     per PS4 game core (affinity 1 << i, priority 767). auto: the host's hardware threads minus two
     (the GPU command thread and the game's main/submission threads), 2..6."""
-    value = os.environ.get("UNCHARTED_JOB_WORKERS", "0").strip().lower()
-    if value in ("", "0", "off", "no"):
-        return 0
-    if value == "auto":
-        return max(2, min(6, host_hardware_threads() - 2))
-    try:
-        return max(1, min(6, int(value)))
-    except ValueError:
-        return 0
+    import game_patcher
+    return int(game_patcher.starter("job_workers"))
 
 
 def job_worker_patches(executable, count):
@@ -874,11 +851,8 @@ def job_worker_patches(executable, count):
 def u3_exposure_bias():
     """UNCHARTED_U3_EXPOSURE=<EV> (launcher: Uncharted 3 exposure; 0 = the game's own): GitHub
     #199/#195/#204/#212, Uncharted 3 too bright on some RTX 30/40 PCs, not on the test PC."""
-    try:
-        bias = float(os.environ.get("UNCHARTED_U3_EXPOSURE", "0").strip() or 0)
-    except ValueError:
-        return 0.0
-    return max(-2.0, min(1.0, bias)) if abs(bias) >= 0.05 else 0.0
+    import game_patcher
+    return float(game_patcher.starter("u3_exposure"))
 
 
 def u3_exposure_patch(bias):
@@ -1141,8 +1115,8 @@ def instance_suffix():
     own folders (analysis/<game>-i<n>, analysis/uncharted-user-i<n>), so that two instances can
     run side by side. Instance 1, the default,
     uses the normal folders."""
-    value = os.environ.get("UNCHARTED_INSTANCE", "1").strip()
-    return f"-i{int(value)}" if value.isdigit() and int(value) >= 2 else ""
+    import game_patcher
+    return game_patcher.starter("instance_suffix")
 
 
 # What a new instance's user folder starts with (copied once from the main one): settings, saves,
@@ -1175,26 +1149,14 @@ def u3mp_image(executable):
     UNCHARTED_U3MP_IMAGE (the linked image), UNCHARTED_U3MP_IMAGE_SHA256 (its digest),
     UNCHARTED_U3MP_OVERLAYS (folders, os.pathsep between them, the first wins), UNCHARTED_U3MP_VERSION.
     Anything missing or a digest mismatch: None, and Uncharted 3 starts as usual."""
-    image = os.environ.get("UNCHARTED_U3MP_IMAGE", "")
-    if executable != "big3-ps4_Shipping.elf" or not image:
+    import game_patcher
+    message, _, found = game_patcher.starter("u3mp_image", executable).partition("\n")
+    if message:
+        print(message)
+    if not found:
         return None
-    path = Path(image)
-    want = os.environ.get("UNCHARTED_U3MP_IMAGE_SHA256", "").lower()
-    try:
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    except OSError as error:
-        print(f"Uncharted 3 multiplayer image not readable ({error}): starting Uncharted 3 without it")
-        return None
-    if want and digest != want:
-        print(f"Uncharted 3 multiplayer image {path} changed (sha256 {digest[:12]}..., expected "
-              f"{want[:12]}...): starting Uncharted 3 without it; import it again in the launcher")
-        return None
-    overlays = [Path(p) for p in os.environ.get("UNCHARTED_U3MP_OVERLAYS", "").split(os.pathsep) if p]
-    missing = [str(p) for p in overlays if not p.is_dir()]
-    if missing:
-        print(f"Uncharted 3 multiplayer overlays missing ({', '.join(missing)}): starting Uncharted 3 without them")
-        return None
-    return {"image": path, "overlays": overlays, "version": os.environ.get("UNCHARTED_U3MP_VERSION", "?")}
+    info = json.loads(found)
+    return {"image": Path(info["image"]), "overlays": [Path(p) for p in info["overlays"]], "version": info["version"]}
 
 
 def image_patches(executable):

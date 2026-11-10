@@ -6,7 +6,8 @@ when a patch's place holds other bytes (the image is then left as it was).
 pattern_find(file, pattern, limit): the start offsets of a pattern's matches in a file, without overlaps.
 system(what, arg): the native game detection (launcher/native/system.cpp) the game starter uses: sfo, starter_version,
 find_update; None when there is no answer.
-resolution_patch(data, width, height, move, too_large): the render resolution in the linked image."""
+resolution_patch(data, width, height, move, too_large): the render resolution in the linked image.
+starter(what, arg): the game starter's settings from its environment (launcher/native/starter.cpp)."""
 import ctypes
 import json
 from pathlib import Path
@@ -25,6 +26,8 @@ def _native():
         _dll.un_pattern_find.restype = ctypes.c_int
         _dll.un_system.argtypes = [ctypes.c_char_p, ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_int]
         _dll.un_system.restype = ctypes.c_int
+        _dll.un_starter.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+        _dll.un_starter.restype = ctypes.c_int
         _dll.un_resolution_patch.argtypes = [ctypes.POINTER(ctypes.c_ubyte), ctypes.c_ulonglong, ctypes.c_int, ctypes.c_int,
                                              ctypes.c_int, ctypes.POINTER(ctypes.c_longlong), ctypes.c_char_p, ctypes.c_int]
         _dll.un_resolution_patch.restype = ctypes.c_int
@@ -113,3 +116,17 @@ def resolution_patch(data, width, height, move=True, too_large=Exception):
     if status == 2:
         raise too_large(message)
     raise SystemExit(message)
+
+
+def starter(what, arg=""):
+    """The game starter's settings from its environment (launcher/native/starter.cpp): hardware_threads, job_sleep,
+    job_workers, u3_exposure, instance_suffix, u3mp_image."""
+    size = 1 << 12
+    while True:
+        out = ctypes.create_string_buffer(size)
+        status = _native().un_starter(what.encode(), str(arg).encode("utf-8"), out, size)
+        if status > 0:
+            raise ValueError(f"unknown starter setting {what}")
+        if status == 0:
+            return out.value.decode("utf-8", "replace")
+        size = -status
