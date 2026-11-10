@@ -68,10 +68,6 @@ def shared_config_file():
 CONFIG_FILE = (WINE and shared_config_file()) or PREFIX_CONFIG_FILE
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 APP_TITLE = "Uncharted: The Nathan Drake Collection"
-# Credits shown on the Advanced page: the anti-aliasing technologies.
-CREDITS = ("Credits: DLSS and DLAA use NVIDIA DLSS technology. NVIDIA, RTX and DLSS are trademarks of "
-           "NVIDIA Corporation. AMD FidelityFX Super Resolution (FSR 3.1, FSR 4) by AMD. Uncharted camera "
-           "motion for anti-aliasing after SuperMedo's Uncharted port.")
 # Uncharted 2 multiplayer (the Multiplayer tab while Uncharted 2 is chosen): u2mp/patcher makes its files
 # from the player's own game into U2MP_DIR; nothing game-derived ships with the launcher.
 U2MP_DIR = USER_DIR / "u2mp"
@@ -829,6 +825,7 @@ class Launcher:
         self.last_output = 0.0
         self.game_started = False
         self.widgets = {}
+        self.tools_progress = {"game_dir": "", "update": ""}   # an install's step, shown on TOOLS
         self.images = []
         # The graphics card (as last detected; detect_gpu checks again) for the Quick Setup advice.
         self.gpu_name = self.config.get("gpu")
@@ -1110,8 +1107,6 @@ class Launcher:
             self.refresh_pad_slots()
         if hasattr(self, "binding_slots"):
             self.refresh_bindings()
-        if hasattr(self, "ini_label"):
-            self.ini_label.config(text=f"Settings: {ini_file(self.config['game'])}")
 
     def game_dir(self):
         folder = self.config.get("game_dir") or ""
@@ -1139,9 +1134,6 @@ class Launcher:
         if WINE:
             self.config["game_dir_unix"] = unix_path(folder)
         write_config(self.config)
-        if hasattr(self, "game_dir_label"):
-            self.game_dir_label.config(text=f"Game files: {folder}")
-            self.update_label.config(text=self.update_text())
         return True
 
     def chosen_update(self):
@@ -1156,6 +1148,13 @@ class Launcher:
     def update_dir(self):
         """The update the games use: the chosen folder, else one next to the game folder."""
         return self.chosen_update() or game_update_dir(self.game_dir())
+
+    def tools_lines(self):
+        """TOOLS' lines under the folder buttons: the game folder, the game update and the settings file (an install
+        in progress shows its step in its line instead)."""
+        return {"game_dir": self.tools_progress["game_dir"] or f"Game files: {self.game_dir()}",
+                "update": self.tools_progress["update"] or self.update_text(),
+                "ini": f"Settings: {ini_file(self.config['game'])}"}
 
     def update_text(self):
         update = self.update_dir()
@@ -1217,8 +1216,7 @@ class Launcher:
             "multiplayer": self.page_multiplayer(),
             "launcher": self.page_launcher(),
         }
-        self.pages["tools"] = self.page_tools()
-        # QUICK SETUP, DISPLAY, PERFORMANCE, CHEATS and ADVANCED are built natively (launcher/native/pages.cpp,
+        # QUICK SETUP, DISPLAY, PERFORMANCE, CHEATS, ADVANCED and TOOLS are built natively (launcher/native/pages.cpp,
         # drawn by launcher-qt): no Tk page
         for page in self.pages.values():
             self.organize(page)
@@ -1670,46 +1668,6 @@ class Launcher:
                          "mouse_vertical": "1.0", "mouse_invert_x": False, "vibration": True})
         self.save_controls()
         self.refresh_controls()
-
-    def page_tools(self):
-        """The TOOLS tab: shortcuts, Steam, folders, the game update, troubleshooting and the credits."""
-        page = self.page()
-
-        def section(title, actions, note=""):
-            self.section(page, title.capitalize(), note)
-            line = tk.Frame(page, bg=BG)
-            line.pack(side="top", fill="x")
-            for label, action in actions:
-                self.flat_button(line, label, action).pack(side="left", padx=(0, self.px(10)))
-        section("SHORTCUTS", (("Desktop shortcut", self.desktop_shortcut), ("Game shortcuts", self.game_shortcuts)),
-                "Game shortcuts: one per game on the desktop, each starts its game directly.")
-        section("STEAM", (("Add to Steam", lambda: self.add_to_steam(per_game=False)),
-                          ("Add games to Steam", lambda: self.add_to_steam(per_game=True))),
-                "A non-Steam game in your library: the Collection, or one entry per game.")
-        section("FOLDERS", (("Open log folder", self.open_logs), ("Open save folder", self.open_saves),
-                            ("Change game folder", self.choose_game_dir),
-                            ("Install game from .pkg", self.install_game_pkg),
-                            ("Check game files", self.check_game_files)))
-        self.game_dir_label = tk.Label(page, text=f"Game files: {self.game_dir()}", font=self.f_small,
-                                       bg=BG, fg=DIM, anchor="w")
-        self.game_dir_label.pack(side="top", fill="x", pady=(self.px(6), 0))
-        self.update_label = tk.Label(page, text=self.update_text(), font=self.f_small, bg=BG, fg=DIM,
-                                     anchor="w", justify="left")
-        self.update_label.pack(side="top", fill="x")
-        self.ini_label = tk.Label(page, text=f"Settings: {ini_file(self.config['game'])}", font=self.f_small,
-                                  bg=BG, fg=DIM, anchor="w")
-        self.ini_label.pack(side="top", fill="x")
-        section("Game update", (("Choose update folder", self.choose_update_folder),
-                                ("Install from .pkg", self.install_game_update)),
-                "Your extracted update 1.02 folder, wherever it is, or the update's .pkg file.")
-        section("TROUBLESHOOTING", (("Check for updates", lambda: self.check_updates(manual=True)),
-                                    ("Clear shader cache", self.clear_cache), ("Reset all settings", self.reset)))
-        self.section(page, "Credits")
-        # Credits for the anti-aliasing technologies (NVIDIA's DLSS license asks for its attribution).
-        tk.Label(page, text=CREDITS, font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
-                 wraplength=self.width - 2 * self.px(40) - self.px(30)).pack(side="top", fill="x",
-                                                                              pady=(self.px(10), 0))
-        return page
 
     def page_launcher(self):
         """The launcher itself: how its updates install."""
@@ -3451,7 +3409,6 @@ class Launcher:
             return
         self.config["update_dir"] = str(update)
         write_config(self.config)
-        self.update_label.config(text=self.update_text())
         messagebox.showinfo(APP_TITLE, f"Game update {app_version(update) or '?'} is used from now on:\n{update}")
 
     def install_game_update(self):
@@ -3489,13 +3446,13 @@ class Launcher:
 
         def poll():
             if worker.is_alive():
-                self.update_label.config(text=state["step"])
+                self.tools_progress["update"] = state["step"]
                 self.root.after(200, poll)
                 return
             if "path" in state:  # the installed one is used, also over a folder chosen before
                 self.config["update_dir"] = str(state["path"])
                 write_config(self.config)
-            self.update_label.config(text=self.update_text())
+            self.tools_progress["update"] = ""
             if "error" in state:
                 messagebox.showerror(APP_TITLE, f"The update was not installed:\n{state['error']}")
             else:
@@ -3557,7 +3514,7 @@ class Launcher:
 
         def poll():
             if worker.is_alive():
-                self.game_dir_label.config(text=state["step"])
+                self.tools_progress["game_dir"] = state["step"]
                 self.root.after(200, poll)
                 return
             if "path" in state:
@@ -3565,8 +3522,7 @@ class Launcher:
                 if WINE:
                     self.config["game_dir_unix"] = unix_path(str(state["path"]))
                 write_config(self.config)
-            self.game_dir_label.config(text=f"Game files: {self.game_dir()}")
-            self.update_label.config(text=self.update_text())
+            self.tools_progress["game_dir"] = ""
             if "error" in state:
                 messagebox.showerror(APP_TITLE, f"The game was not installed:\n{state['error']}")
             else:

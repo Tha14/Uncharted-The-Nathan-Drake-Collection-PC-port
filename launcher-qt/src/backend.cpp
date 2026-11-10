@@ -269,6 +269,9 @@ bool Backend::nativeAct(const QString &id, const QString &kind, const QVariant &
         for (auto it = changes.cbegin(); it != changes.cend(); ++it)
             send({{"op", QLatin1String(op)}, {"key", it.key()}, {"value", it.value()}});
     }
+    // a launcher action (TOOLS' buttons): the Python side runs it from its fixed list
+    if (const QString call = result.value("call").toString(); !call.isEmpty())
+        send({{"op", "call"}, {"name", call}});
     return true;
 }
 

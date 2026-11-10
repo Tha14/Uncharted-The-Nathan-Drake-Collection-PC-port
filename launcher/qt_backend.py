@@ -14,6 +14,7 @@ Requests ({"op": ...}):
   ini     {"key", "value"}    a native page's change to the selected game's settings file: change(key, value)
   game_setting {"key", "value"}  ... to the selected game's launcher settings: change_game_setting(key, value)
   ini_all {"key", "value"}    ... to every game's settings file (the menu shortcut): change_all_games(key, value)
+  call    {"name"}            a native page's button: that launcher action (calls(), a fixed list)
   act     {"id", "kind", "value"}  what a click on a control does in the Tk window: toggle / choice / dropdown /
                               chip -> set(value, notify), button -> action(), entry -> new text, click / dclick ->
                               the widget's own <Button-1> / <Double-Button-1> binding
@@ -438,7 +439,20 @@ def native_state(app):
     """What launcher-qt's native pages are built from (uncharted_native.dll un_page; it adds "root"): the settings,
     the selected game's settings file, the graphics card found and its preset, the game folder."""
     return {"config": app.config, "ini": app.ini,
-            "gpu": {"name": app.gpu_name or "", "recommended": app.recommended or ""}, "game_dir": str(app.game_dir())}
+            "gpu": {"name": app.gpu_name or "", "recommended": app.recommended or ""}, "game_dir": str(app.game_dir()),
+            "tools": app.tools_lines()}
+
+
+def calls(app):
+    """The launcher's actions a native page's button may run (op "call"), by name."""
+    return {"desktop_shortcut": app.desktop_shortcut, "game_shortcuts": app.game_shortcuts,
+            "add_to_steam": lambda: app.add_to_steam(per_game=False),
+            "add_games_to_steam": lambda: app.add_to_steam(per_game=True),
+            "open_logs": app.open_logs, "open_saves": app.open_saves, "choose_game_dir": app.choose_game_dir,
+            "install_game_pkg": app.install_game_pkg, "check_game_files": app.check_game_files,
+            "choose_update_folder": app.choose_update_folder, "install_game_update": app.install_game_update,
+            "check_updates": lambda: app.check_updates(manual=True), "clear_cache": app.clear_cache,
+            "reset": app.reset}
 
 
 # -- actions ---------------------------------------------------------------------------------------------------
@@ -528,6 +542,10 @@ def main():
             app.change_config(message.get("key"), message.get("value"))
         elif op == "ini":
             app.change(message.get("key"), message.get("value"))
+        elif op == "call":
+            action = calls(app).get(message.get("name"))
+            if action:
+                action()
         elif op == "ini_all":
             app.change_all_games(message.get("key"), message.get("value"))
         elif op == "game_setting":

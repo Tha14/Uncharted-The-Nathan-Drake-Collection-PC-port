@@ -9,7 +9,7 @@
 //
 // Pages: cheats (the games' developer switches), performance (frame rate, processor, video memory), display (resolution,
 // upscaling, picture, performance counter), setup (Quick Setup's preset cards), advanced (game, extra quality, unlocks,
-// launcher switches). state also has "root": the launcher's
+// launcher switches), tools (the launcher's actions: a click returns {"call": action}, which the Python side runs). state also has "root": the launcher's
 // folder (which upscalers it has), and "gpu": {"name", "recommended"}: the graphics card the launcher found and its preset.
 
 #include "native.h"
@@ -45,12 +45,14 @@ struct State {
     std::string root = ".";   // the launcher's folder
     Value gpu = Value::object();   // {"name", "recommended"}
     Value game_dir;                // the game folder (the launcher's game_dir())
+    Value tools = Value::object(); // TOOLS' lines: {"game_dir", "update", "ini"}
 };
 struct Changes {
     Value config = Value::object();   // launcher.json keys
     Value ini = Value::object();      // the selected game's settings file
     Value game = Value::object();     // the selected game's launcher settings (config["games"][game])
     Value ini_all = Value::object();  // all three games' settings files, without making the preset Custom
+    Value call;                       // a launcher action to run (TOOLS' buttons), by name
 };
 
 bool read_state(const char *state_json, State &state) {
@@ -61,6 +63,7 @@ bool read_state(const char *state_json, State &state) {
     if (const Value *r = v.get("root")) if (r->kind == Value::String && !r->s.empty()) state.root = r->s;
     if (const Value *g = v.get("gpu")) if (g->is_object()) state.gpu = *g;
     if (const Value *d = v.get("game_dir")) state.game_dir = *d;
+    if (const Value *t = v.get("tools")) if (t->is_object()) state.tools = *t;
     return true;
 }
 
@@ -1043,6 +1046,83 @@ bool act_advanced(const State &state, const std::string &id, const std::string &
     return false;
 }
 
+// ------------------------------------------------------------------------------------------------ tools
+
+// The anti-aliasing technologies' credits (NVIDIA's DLSS license asks for its attribution).
+const char *const CREDITS = "Credits: DLSS and DLAA use NVIDIA DLSS technology. NVIDIA, RTX and DLSS are trademarks of "
+                            "NVIDIA Corporation. AMD FidelityFX Super Resolution (FSR 3.1, FSR 4) by AMD. Uncharted camera "
+                            "motion for anti-aliasing after SuperMedo's Uncharted port.";
+
+// TOOLS' buttons: the launcher action each one runs (the Python side's calls(), by name), and its label
+struct ToolButton { const char *action, *label; };
+struct ToolSection { const char *title, *note; std::vector<ToolButton> buttons; };
+const std::vector<ToolSection> &tool_sections() {
+    static const std::vector<ToolSection> sections = {
+        {"Shortcuts", "Game shortcuts: one per game on the desktop, each starts its game directly.",
+         {{"desktop_shortcut", "Desktop shortcut"}, {"game_shortcuts", "Game shortcuts"}}},
+        {"Steam", "A non-Steam game in your library: the Collection, or one entry per game.",
+         {{"add_to_steam", "Add to Steam"}, {"add_games_to_steam", "Add games to Steam"}}},
+        {"Folders", "",
+         {{"open_logs", "Open log folder"}, {"open_saves", "Open save folder"}, {"choose_game_dir", "Change game folder"},
+          {"install_game_pkg", "Install game from .pkg"}, {"check_game_files", "Check game files"}}},
+        {"Game update", "Your extracted update 1.02 folder, wherever it is, or the update's .pkg file.",
+         {{"choose_update_folder", "Choose update folder"}, {"install_game_update", "Install from .pkg"}}},
+        {"Troubleshooting", "",
+         {{"check_updates", "Check for updates"}, {"clear_cache", "Clear shader cache"}, {"reset", "Reset all settings"}}}};
+    return sections;
+}
+
+Value button(const std::string &id, const std::string &text, const char *kind) {
+    Value b = Value::object();
+    b.set("t", Value::text("button"));
+    b.set("id", Value::text(id));
+    b.set("text", Value::text(text));
+    b.set("kind", Value::text(kind));
+    return b;
+}
+
+Value section_with_note(const std::string &id, const std::string &title, const std::string &note, Value items) {
+    Value s = section(id, title, std::move(items));
+    s.set("note", Value::text(note));
+    return s;
+}
+
+Value page_tools(const State &state) {
+    const std::string p = "native:tools:";
+    Value page = array();
+    for (auto &sec : tool_sections()) {
+        Value line = array();
+        for (auto &b : sec.buttons) line.items.push_back(packed(button(p + b.action, b.label, "secondary"), "left"));
+        std::vector<Value> items;
+        items.push_back(box(p + "box:" + sec.title, "h", std::move(line)));
+        if (std::string(sec.title) == "Folders")   // the game folder, the game update, the settings file
+            for (const char *key : {"game_dir", "update", "ini"})
+                if (const Value *t = state.tools.get(key))
+                    if (!text_of(*t).empty()) items.push_back(label(p + "line:" + key, text_of(*t), DIM, CARD, 9));
+        Value list = array();
+        for (auto &i : items) list.items.push_back(std::move(i));
+        page.items.push_back(section_with_note(p + sec.title, sec.title, sec.note, std::move(list)));
+    }
+    Value credits = array();
+    credits.items.push_back(label(p + "credits", CREDITS, DIM, CARD, 9));
+    page.items.push_back(section(p + "Credits", "Credits", std::move(credits)));
+    return page;
+}
+
+// A button runs its launcher action (the Python side's calls() list)
+bool act_tools(const std::string &id, const std::string &kind, Changes &changes) {
+    const std::string p = "native:tools:";
+    if (kind != "button" || id.compare(0, p.size(), p) != 0) return false;
+    const std::string action = id.substr(p.size());
+    for (auto &sec : tool_sections())
+        for (auto &b : sec.buttons)
+            if (action == b.action) {
+                changes.call = Value::text(action);
+                return true;
+            }
+    return false;
+}
+
 }  // namespace
 
 extern "C" {
@@ -1058,6 +1138,7 @@ UN_API int un_page(const char *name, const char *state_json, char *out, int cap)
     if (n == "display") return give(json::dump(page_display(state), false), out, cap);
     if (n == "setup") return give(json::dump(page_setup(state), false), out, cap);
     if (n == "advanced") return give(json::dump(page_advanced(state), false), out, cap);
+    if (n == "tools") return give(json::dump(page_tools(state), false), out, cap);
     return 2;
 }
 
@@ -1077,12 +1158,14 @@ UN_API int un_page_act(const char *name, const char *id, const char *kind, const
     else if (n == "display") act_display(state, i, k, value, changes);
     else if (n == "setup") act_setup(state, i, k, changes);
     else if (n == "advanced") act_advanced(state, i, k, value, changes);
+    else if (n == "tools") act_tools(i, k, changes);
     else return 2;
     Value result = Value::object();
     result.set("config", std::move(changes.config));
     result.set("ini", std::move(changes.ini));
     result.set("game", std::move(changes.game));
     result.set("ini_all", std::move(changes.ini_all));
+    if (changes.call.kind == Value::String) result.set("call", std::move(changes.call));
     return give(json::dump(result, false), out, cap);
 }
 
