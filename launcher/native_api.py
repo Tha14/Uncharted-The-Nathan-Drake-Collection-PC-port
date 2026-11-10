@@ -203,6 +203,24 @@ class OnlineSection:
             self.dll.u3o_section_close()
 
 
+# ---------------------------------------------------------------------------------------------- shortcuts.cpp
+
+
+def shortcuts(root, request):
+    """TOOLS' desktop shortcuts: {"kind": "info" | "error", "text"} (request: which, games, python, script)."""
+    dll = _native()
+    dll.un_shortcuts.argtypes = [ctypes.c_wchar_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+    dll.un_shortcuts.restype = ctypes.c_int
+    size = 1 << 14
+    while True:
+        out = ctypes.create_string_buffer(size)
+        status = dll.un_shortcuts(str(root), json.dumps(request).encode("utf-8"), out, size)
+        if status >= 0:
+            break
+        size = -status
+    return json.loads(out.value.decode("utf-8", "replace"))
+
+
 # ---------------------------------------------------------------------------------------------- play.cpp
 
 

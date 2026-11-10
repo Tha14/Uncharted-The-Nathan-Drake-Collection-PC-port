@@ -191,11 +191,6 @@ def dark_title_bar(window):
         pass
 
 
-def desktop_folder():
-    """The user's Desktop folder (SHGetKnownFolderPath: OneDrive or a redirected Desktop, #39)."""
-    return Path(native_api.system("desktop"))
-
-
 def gpu_detect():
     """(card, integrated, preset) for Quick Setup: the card the game used last (its newest log), else Windows'
     strongest known adapter (launcher/native/display.cpp)."""
@@ -2460,27 +2455,12 @@ class Launcher:
         shutil.rmtree(cache, ignore_errors=True)
         messagebox.showinfo(APP_TITLE, "Shader cache cleared.")
 
-    def make_shortcut(self, name, description, play=None):
-        """A desktop shortcut to the launcher, or with `play` (u1/u2/u3) to that game directly."""
-        link = desktop_folder() / f"{name}.lnk"
-        pythonw = Path(sys.executable).with_name("pythonw.exe")
-        target = pythonw if pythonw.exists() else Path(sys.executable)
-        arguments = f"\"{Path(__file__).resolve()}\""
-        if STARTER_EXE.exists():
-            target, arguments = STARTER_EXE, ""
-        if play:
-            arguments = f"{arguments} --play {play}".strip()
-        def ps(value):  # a PowerShell single-quoted string ("Drake's" doubles the quote)
-            return "'" + str(value).replace("'", "''") + "'"
-        # Messages in UTF-8 (a German or Portuguese Windows answers in its own language).
-        script = ("[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;"
-                  f"$s=(New-Object -ComObject WScript.Shell).CreateShortcut({ps(link)});"
-                  f"$s.TargetPath={ps(target)};$s.Arguments={ps(arguments)};"
-                  f"$s.WorkingDirectory={ps(ROOT)};$s.IconLocation={ps(ASSETS / 'uncharted.ico')};"
-                  f"$s.Description={ps(description)};$s.Save()")
-        result = subprocess.run(["powershell", "-NoProfile", "-Command", script], creationflags=NO_WINDOW,
-                                capture_output=True, text=True, encoding="utf-8", errors="replace")
-        return link, result
+    def make_shortcuts(self, which):
+        """TOOLS' desktop shortcuts (launcher/native/shortcuts.cpp): "launcher", or "games" (one per game, started
+        directly with --play); the result is shown as it says."""
+        result = native_api.shortcuts(ROOT, {"which": which, "games": [{"key": g["key"], "name": g["name"]} for g in GAMES],
+                                             "python": sys.executable, "script": str(Path(__file__).resolve())})
+        (messagebox.showerror if result["kind"] == "error" else messagebox.showinfo)(APP_TITLE, result["text"])
 
     def update_installer(self):
         return native_api.GameUpdate(ROOT)
@@ -2630,26 +2610,11 @@ class Launcher:
         poll()
 
     def desktop_shortcut(self):
-        link, result = self.make_shortcut("Uncharted", APP_TITLE)
-        if result.returncode == 0:
-            messagebox.showinfo(APP_TITLE, f"Shortcut created:\n{link}")
-        else:
-            messagebox.showerror(APP_TITLE, f"Could not create the shortcut:\n{result.stderr.strip()}")
+        self.make_shortcuts("launcher")
 
     def game_shortcuts(self):
         """One desktop shortcut per game: starts it directly with the launcher's settings."""
-        made, failed = [], []
-        for game in GAMES:
-            name = game["name"].replace(":", " -")
-            link, result = self.make_shortcut(name, f"{game['name']} (starts directly)", play=game["key"])
-            (made if result.returncode == 0 else failed).append(link.name if result.returncode == 0
-                                                                else result.stderr.strip())
-        if failed:
-            messagebox.showerror(APP_TITLE, "Could not create the shortcuts:\n" + "\n".join(failed))
-        else:
-            messagebox.showinfo(APP_TITLE, "Shortcuts created on the desktop:\n" + "\n".join(made) +
-                                "\n\nEach starts its game directly with the launcher's settings. From a command "
-                                "prompt: \"Uncharted Launcher.exe\" --play u1 (or u2, u3).")
+        self.make_shortcuts("games")
 
     def add_to_steam(self, per_game=False):
         """Adds the Collection (or each game, started with --play) to Steam's library as a non-Steam
