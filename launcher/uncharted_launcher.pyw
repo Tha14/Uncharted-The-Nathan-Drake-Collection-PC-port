@@ -146,11 +146,6 @@ INI_DEFAULTS = native_api.ini_defaults()
 LAUNCHER_DEFAULTS = {"game": "u1", "diagnostics": True, "game_dir": "", "check_updates": True, "language": "1",
                      "unlock": False}
 
-def voice_languages(game_dir):
-    """Language ids with speech in this copy of the game (its *_ps4.psarc speech packs)."""
-    return set((native_api.system("voices", game_dir) or "").split()) if game_dir else set()
-
-
 GAME_KEYS = ("u1", "u2", "u3")
 GAME_SETTING_DEFAULTS = {"preset": "medium", "resolution": "1920x1080", "aspect": "16:9", "multithreaded": False, "save_profile": "1",
                          "async_readback": False, "controls": None, "mouse": True, "mouse_sens": "1.0",
@@ -1103,8 +1098,6 @@ class Launcher:
             elif isinstance(widget, Segmented):
                 widget.set(self.ini.get(key, INI_DEFAULTS[key]))
         settings = self.game_settings()
-        if isinstance(self.widgets.get("save_profile"), Segmented):
-            self.widgets["save_profile"].set(str(settings.get("save_profile", "1")))
         if isinstance(self.widgets.get("mouse"), Toggle):
             self.widgets["mouse"].set(settings.get("mouse", True))
             self.widgets["mouse_sens"].set(settings.get("mouse_sens", "1.0"))
@@ -1220,14 +1213,13 @@ class Launcher:
         self.root.bind_all("<MouseWheel>", self.wheel)
         self.pages = {
             "controls": self.page_controls(),
-            "advanced": self.page_advanced(),
             "u3mp": self.page_u3mp(),
             "multiplayer": self.page_multiplayer(),
             "launcher": self.page_launcher(),
         }
-        self.pages["tools"] = self.tools_page   # made by page_advanced (its shortcut, Steam and folder buttons)
-        # QUICK SETUP, DISPLAY, PERFORMANCE and CHEATS are built natively (launcher/native/pages.cpp, drawn by
-        # launcher-qt): no Tk page
+        self.pages["tools"] = self.page_tools()
+        # QUICK SETUP, DISPLAY, PERFORMANCE, CHEATS and ADVANCED are built natively (launcher/native/pages.cpp,
+        # drawn by launcher-qt): no Tk page
         for page in self.pages.values():
             self.organize(page)
 
@@ -1679,137 +1671,9 @@ class Launcher:
         self.save_controls()
         self.refresh_controls()
 
-    def page_advanced(self):
+    def page_tools(self):
+        """The TOOLS tab: shortcuts, Steam, folders, the game update, troubleshooting and the credits."""
         page = self.page()
-
-        # Save profiles (#66): profile N plays as PS4 user N, with its saves in savedata\N.
-        def save_profile(parent):
-            return Segmented(parent, (("1", "Profile 1"), ("2", "Profile 2"), ("3", "Profile 3")),
-                             str(self.game_settings().get("save_profile", "1")),
-                             lambda v: self.change_game_setting("save_profile", v), self.f_small)
-        self.section(page, "Game")
-        self.widgets["save_profile"] = self.row(
-            page, "Save profile",
-            "Separate saves for this game: each profile keeps its own progress and in-game settings, "
-            "like another PS4 user. Profile 1 has your saves from earlier versions; switching never "
-            "deletes anything.", save_profile)
-
-        def language(parent):
-            voices = voice_languages(self.game_dir())
-            options = [(code, label + ("  (+ voices)" if code in voices else "")) for code, label in LANGUAGES]
-            return Dropdown(parent, options, self.config.get("language", "1"),
-                            lambda v: self.change_config("language", v), self.f_small)
-        self.widgets["language"] = self.row(
-            page, "Language",
-            "Menus and subtitles in another language: pick it here, then press Square in a game's main "
-            "menu to switch. Languages marked + voices are also spoken in your copy of the game.", language)
-
-        # GitHub #199/#195/#204/#212: Uncharted 3 too bright on some PCs (pavlikdcx's exposure patch,
-        # tools/probe_uncharted.py u3_exposure_patch).
-        def u3_exposure(parent):
-            return Segmented(parent, (("0", "Game's"), ("-0.3", "-0.3"), ("-0.6", "-0.6"), ("-1.0", "-1.0")),
-                             str(self.config.get("u3_exposure", "0")),
-                             lambda v: self.change_config("u3_exposure", v), self.f_small, recommended="0")
-        self.row(page, "Uncharted 3 exposure",
-                 "If Uncharted 3 looks washed out or too bright on your PC (bright skies and highlights), "
-                 "lower its exposure here: -0.3 a little, -1.0 about half as bright. Game's = unchanged.",
-                 u3_exposure)
-
-        def speakers(parent):
-            return Segmented(parent, (("auto", "Auto"), ("2", "Stereo"), ("6", "5.1"), ("8", "7.1")),
-                             str(self.config.get("speakers", "auto")),
-                             lambda v: self.change_config("speakers", v), self.f_small, recommended="auto")
-        self.row(page, "Speakers",
-                 "The games have their own stereo, 5.1 and 7.1 sound mixes. Auto picks the one that matches "
-                 "your Windows sound output (Sound settings -> speaker setup); headphones get stereo.",
-                 speakers)
-
-        def menu_shortcut(parent):
-            # 29 Oct 2026 (GitHub #300): L2 + R3 also zooms the scope with some guns. Written to
-            # probe-u*.ini like the in-game menu does (menu_shortcut, gow3_settings.cpp); a custom
-            # combination set in the game stays until another choice is made here.
-            def save(value):  # all three games: the menu is the same in each
-                self.ini["menu_shortcut"] = value
-                for game in ("u1", "u2", "u3"):
-                    if game != self.config["game"]:
-                        write_ini(game, {"menu_shortcut": value})
-                self.save_ini({"menu_shortcut": value})
-            return Segmented(parent, (("lt_r3", "L2 + R3"), ("view_menu", "Select + Start"),
-                                      ("keyboard", "Keyboard only")),
-                             self.ini.get("menu_shortcut", "lt_r3"), save, self.f_small)
-        self.row(page, "In-game menu shortcut",
-                 "The controller buttons that open the in-game menu. L2 + R3 also zooms the scope with some "
-                 "guns: pick Select + Start (View + Menu on Xbox) or Keyboard only (Insert) then.", menu_shortcut)
-
-        def anisotropy(parent):
-            return Segmented(parent, (("0", "Game"), ("4", "4x"), ("8", "8x"), ("16", "16x")),
-                             str(self.config.get("anisotropy", "0")),
-                             lambda v: self.change_config("anisotropy", v), self.f_small, recommended="16")
-        self.section(page, "Extra quality")
-        self.row(page, "Texture filtering",
-                 "Sharper ground and wall textures seen at an angle, in all three games. 16x costs "
-                 "almost no frame rate. Game = as on the PS4.", anisotropy)
-
-        def hires_shadows(parent):
-            return Toggle(parent, self.s, self.config.get("hires_shadows", False),
-                          lambda v: self.change_config("hires_shadows", v))
-        self.row(page, "Sharper lamp shadows (Uncharted 2 and 3)",
-                 "The game's own high-resolution shadow buffer for lamps and flashlights (off on the "
-                 "PS4). Extra quality, being tested. Needs update 1.02.", hires_shadows)
-
-        def full_res_textures(parent):
-            return Toggle(parent, self.s, self.config.get("full_res_textures", False),
-                          lambda v: self.change_config("full_res_textures", v))
-        self.row(page, "Full-resolution textures (Uncharted 2 and 3)",
-                 "Always the sharpest version of every texture, no blurry ones while the game streams "
-                 "(off on the PS4). Extra quality, being tested. Needs update 1.02.", full_res_textures)
-
-        def no_dof(parent):
-            return Toggle(parent, self.s, self.config.get("no_dof", False),
-                          lambda v: self.change_config("no_dof", v))
-        self.row(page, "No depth of field (Uncharted 2 and 3)",
-                 "Turns off the background blur (while aiming, in cutscenes and in gameplay). Needs "
-                 "update 1.02.", no_dof)
-
-        def movie_stretch(parent):
-            return Toggle(parent, self.s, self.config.get("movie_stretch", False),
-                          lambda v: self.change_config("movie_stretch", v))
-        self.row(page, "Stretch movies to the screen",
-                 "The prerecorded cutscenes are 16:9 videos. Off: they keep their shape with black bars on "
-                 "ultrawide screens. On: they fill the whole screen, stretched.", movie_stretch)
-
-        def unlock(parent):
-            return Toggle(parent, self.s, self.config.get("unlock", False),
-                          lambda v: self.change_config("unlock", v))
-        self.section(page, "Unlocks")
-        self.row(page, "Unlock all chapters",
-                 "Every chapter in Chapter Select and the Brutal difficulty from the start, in all three "
-                 "games. Your saves and progress stay as they are. Needs update 1.02.", unlock)
-
-        def unlock_rewards(parent):
-            return Toggle(parent, self.s, self.config.get("unlock_rewards", False),
-                          lambda v: self.change_config("unlock_rewards", v))
-        self.row(page, "Unlock all rewards",
-                 "Every reward in Bonuses (skins, weapons, render modes, art galleries, gameplay tweaks) "
-                 "and every story cutscene, while this is on. Nothing is saved: turned off, the menus show "
-                 "your own progress again. Needs update 1.02.", unlock_rewards)
-
-        def diagnostics(parent):
-            return Toggle(parent, self.s, self.config.get("diagnostics", True),
-                          lambda v: self.change_config("diagnostics", v))
-        self.section(page, "Launcher")
-        self.row(page, "Performance log", "Writes frame rate statistics to the log every 5 seconds. Helps when "
-                                          "you report a problem.", diagnostics)
-
-        def torch_forward(parent):
-            return Toggle(parent, self.s, self.config.get("torch_forward", True),
-                          lambda v: self.change_config("torch_forward", v))
-        self.row(page, "Torch follows Nate (Uncharted 2)",
-                 "The torch lights where Nate points it. Off: as on the PS4, it lights where the camera "
-                 "looks. Needs update 1.02.", torch_forward)
-
-        advanced = page
-        page = self.tools_page = self.page()   # the TOOLS tab
 
         def section(title, actions, note=""):
             self.section(page, title.capitalize(), note)
@@ -1845,7 +1709,7 @@ class Launcher:
         tk.Label(page, text=CREDITS, font=self.f_small, bg=BG, fg=DIM, anchor="w", justify="left",
                  wraplength=self.width - 2 * self.px(40) - self.px(30)).pack(side="top", fill="x",
                                                                               pady=(self.px(10), 0))
-        return advanced
+        return page
 
     def page_launcher(self):
         """The launcher itself: how its updates install."""
@@ -3307,6 +3171,15 @@ class Launcher:
     def change_config(self, key, value):
         self.config[key] = value
         write_config(self.config)
+
+    def change_all_games(self, key, value):
+        """A value in every game's settings file (the in-game menu shortcut: the menu is the same in each); the
+        preset stays as it is."""
+        self.ini[key] = value
+        for game in GAME_KEYS:
+            if game != self.config["game"]:
+                write_ini(game, {key: value})
+        self.save_ini({key: value})
 
     # -- game -------------------------------------------------------------------------------
 

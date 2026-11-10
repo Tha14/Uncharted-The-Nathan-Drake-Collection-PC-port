@@ -263,7 +263,8 @@ bool Backend::nativeAct(const QString &id, const QString &kind, const QVariant &
     // each change through the Python side's own code: launcher.json (change_config), the game's settings file
     // (change: the preset becomes Custom ...), the game's launcher settings (change_game_setting)
     const QJsonObject result = QJsonDocument::fromJson(text).object();
-    for (const auto &[part, op] : {std::pair{"config", "config"}, std::pair{"ini", "ini"}, std::pair{"game", "game_setting"}}) {
+    for (const auto &[part, op] : {std::pair{"config", "config"}, std::pair{"ini", "ini"}, std::pair{"game", "game_setting"},
+                                     std::pair{"ini_all", "ini_all"}}) {
         const QVariantMap changes = result.value(QLatin1String(part)).toObject().toVariantMap();
         for (auto it = changes.cbegin(); it != changes.cend(); ++it)
             send({{"op", QLatin1String(op)}, {"key", it.key()}, {"value", it.value()}});

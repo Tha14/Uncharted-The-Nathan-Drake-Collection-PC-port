@@ -8,13 +8,15 @@
 // state: {"config": launcher.json, "ini": the selected game's settings file (analysis/uncharted-user/probe-*.ini)}.
 //
 // Pages: cheats (the games' developer switches), performance (frame rate, processor, video memory), display (resolution,
-// upscaling, picture, performance counter), setup (Quick Setup's preset cards). state also has "root": the launcher's
+// upscaling, picture, performance counter), setup (Quick Setup's preset cards), advanced (game, extra quality, unlocks,
+// launcher switches). state also has "root": the launcher's
 // folder (which upscalers it has), and "gpu": {"name", "recommended"}: the graphics card the launcher found and its preset.
 
 #include "native.h"
 #include "json.h"
 
 #include <cctype>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -42,11 +44,13 @@ struct State {
     Value ini = Value::object();
     std::string root = ".";   // the launcher's folder
     Value gpu = Value::object();   // {"name", "recommended"}
+    Value game_dir;                // the game folder (the launcher's game_dir())
 };
 struct Changes {
     Value config = Value::object();   // launcher.json keys
     Value ini = Value::object();      // the selected game's settings file
     Value game = Value::object();     // the selected game's launcher settings (config["games"][game])
+    Value ini_all = Value::object();  // all three games' settings files, without making the preset Custom
 };
 
 bool read_state(const char *state_json, State &state) {
@@ -56,6 +60,7 @@ bool read_state(const char *state_json, State &state) {
     if (const Value *i = v.get("ini")) { if (!i->is_object()) return false; state.ini = *i; }
     if (const Value *r = v.get("root")) if (r->kind == Value::String && !r->s.empty()) state.root = r->s;
     if (const Value *g = v.get("gpu")) if (g->is_object()) state.gpu = *g;
+    if (const Value *d = v.get("game_dir")) state.game_dir = *d;
     return true;
 }
 
@@ -844,6 +849,200 @@ bool act_setup(const State &state, const std::string &id, const std::string &kin
     return true;
 }
 
+// ------------------------------------------------------------------------------------------------ advanced
+
+// Python's str() of a settings value (a float as its shortest round-trip form, a bool as True / False)
+std::string py_str(const Value &v) {
+    switch (v.kind) {
+    case Value::String: return v.s;
+    case Value::Int: return std::to_string(v.i);
+    case Value::Bool: return v.b ? "True" : "False";
+    case Value::Null: return "None";
+    case Value::Float: {
+        char b[40];
+        for (int digits = 1; digits <= 17; ++digits) {
+            std::snprintf(b, sizeof b, "%.*g", digits, v.f);
+            if (std::strtod(b, nullptr) == v.f) break;
+        }
+        std::string s = b;
+        if (s.find_first_of(".e") == std::string::npos && s.find("inf") == std::string::npos && s.find("nan") == std::string::npos)
+            s += ".0";   // Python writes 1.0, not 1
+        return s;
+    }
+    default: return "";
+    }
+}
+
+// str(config.get(key, default))
+std::string config_str(const State &state, const std::string &key, const std::string &fallback) {
+    const Value *v = state.config.get(key);
+    return v ? py_str(*v) : fallback;
+}
+// config.get(key, default) as a toggle shows it
+bool config_bool(const State &state, const std::string &key, bool fallback) {
+    const Value *v = state.config.get(key);
+    return v ? v->truthy() : fallback;
+}
+
+Value dropdown(const std::string &id, const Value &v, const Options &options) {
+    Value d = Value::object();
+    d.set("t", Value::text("dropdown"));
+    d.set("id", Value::text(id));
+    d.set("v", v);
+    std::string label = py_str(v);   // Dropdown.label: the option's label, else the value itself
+    for (auto &o : options) if (o.first == py_str(v) && v.kind == Value::String) label = o.second;
+    d.set("label", Value::text(label));
+    Value opts = array();
+    for (auto &o : options) {
+        Value pair = array();
+        pair.items = {Value::text(o.first), Value::text(o.second)};
+        opts.items.push_back(std::move(pair));
+    }
+    d.set("opts", std::move(opts));
+    return d;
+}
+
+// The languages (system.cpp's LANGUAGES), "  (+ voices)" where this copy of the game has their speech
+Options language_options(const State &state) {
+    Options list;
+    std::string text(1 << 16, '\0');
+    if (un_system_tables(&text[0], (int)text.size()) != 0) return list;
+    Value tables;
+    if (!json::parse(text.c_str(), tables)) return list;
+    const Value *dir = state.game_dir.kind == Value::String ? &state.game_dir : nullptr;
+    std::string voices;
+    if (dir && !dir->s.empty()) {
+        const std::wstring folder = widen_utf8(dir->s);
+        voices = "\n" + native_text([&](char *o, int c) { return un_system("voices", folder.c_str(), o, c); });
+    }
+    if (const Value *langs = tables.get("LANGUAGES"))
+        for (auto &l : langs->items)
+            if (l.items.size() == 2)
+                list.push_back({l.items[0].s, l.items[1].s + (voices.find("\n" + l.items[0].s + "\n") != std::string::npos
+                                                                   ? "  (+ voices)" : "")});
+    return list;
+}
+
+const Options SAVE_PROFILES = {{"1", "Profile 1"}, {"2", "Profile 2"}, {"3", "Profile 3"}};
+const Options EXPOSURES = {{"0", "Game's"}, {"-0.3", "-0.3"}, {"-0.6", "-0.6"}, {"-1.0", "-1.0"}};
+const Options SPEAKERS = {{"auto", "Auto"}, {"2", "Stereo"}, {"6", "5.1"}, {"8", "7.1"}};
+const Options MENU_SHORTCUTS = {{"lt_r3", "L2 + R3"}, {"view_menu", "Select + Start"}, {"keyboard", "Keyboard only"}};
+const Options ANISOTROPY = {{"0", "Game"}, {"4", "4x"}, {"8", "8x"}, {"16", "16x"}};
+
+// The launcher.json toggles of ADVANCED: key, default, title, hint (in the page's order, by section)
+struct ConfigToggle { const char *key; bool fallback; const char *title, *hint; };
+const ConfigToggle EXTRA_QUALITY[] = {
+    {"hires_shadows", false, "Sharper lamp shadows (Uncharted 2 and 3)",
+     "The game's own high-resolution shadow buffer for lamps and flashlights (off on the PS4). Extra quality, being "
+     "tested. Needs update 1.02."},
+    {"full_res_textures", false, "Full-resolution textures (Uncharted 2 and 3)",
+     "Always the sharpest version of every texture, no blurry ones while the game streams (off on the PS4). Extra "
+     "quality, being tested. Needs update 1.02."},
+    {"no_dof", false, "No depth of field (Uncharted 2 and 3)",
+     "Turns off the background blur (while aiming, in cutscenes and in gameplay). Needs update 1.02."},
+    {"movie_stretch", false, "Stretch movies to the screen",
+     "The prerecorded cutscenes are 16:9 videos. Off: they keep their shape with black bars on ultrawide screens. On: "
+     "they fill the whole screen, stretched."}};
+const ConfigToggle UNLOCKS[] = {
+    {"unlock", false, "Unlock all chapters",
+     "Every chapter in Chapter Select and the Brutal difficulty from the start, in all three games. Your saves and "
+     "progress stay as they are. Needs update 1.02."},
+    {"unlock_rewards", false, "Unlock all rewards",
+     "Every reward in Bonuses (skins, weapons, render modes, art galleries, gameplay tweaks) and every story cutscene, "
+     "while this is on. Nothing is saved: turned off, the menus show your own progress again. Needs update 1.02."}};
+const ConfigToggle LAUNCHER_TOGGLES[] = {
+    {"diagnostics", true, "Performance log",
+     "Writes frame rate statistics to the log every 5 seconds. Helps when you report a problem."},
+    {"torch_forward", true, "Torch follows Nate (Uncharted 2)",
+     "The torch lights where Nate points it. Off: as on the PS4, it lights where the camera looks. Needs update 1.02."}};
+
+template <size_t N> void add_toggles(std::vector<Value> &rows, const State &state, const ConfigToggle (&list)[N]) {
+    for (auto &t : list)
+        rows.push_back(row(std::string("native:advanced:row:") + t.key, t.title, t.hint,
+                           toggle(std::string("native:advanced:") + t.key, config_bool(state, t.key, t.fallback))));
+}
+
+Value page_advanced(const State &state) {
+    const std::string p = "native:advanced:";
+    const Value *settings = game_settings(state);
+    Value page = array();
+
+    std::vector<Value> game;
+    game.push_back(row(p + "row:save_profile", "Save profile",
+                       "Separate saves for this game: each profile keeps its own progress and in-game settings, "
+                       "like another PS4 user. Profile 1 has your saves from earlier versions; switching never "
+                       "deletes anything.",
+                       choice(p + "save_profile",
+                              Value::text(settings && settings->get("save_profile") ? py_str(*settings->get("save_profile")) : "1"),
+                              SAVE_PROFILES, "")));
+    const Value *lang = state.config.get("language");
+    game.push_back(row(p + "row:language", "Language",
+                       "Menus and subtitles in another language: pick it here, then press Square in a game's main "
+                       "menu to switch. Languages marked + voices are also spoken in your copy of the game.",
+                       dropdown(p + "language", lang ? *lang : Value::text("1"), language_options(state))));
+    game.push_back(row(p + "row:u3_exposure", "Uncharted 3 exposure",
+                       "If Uncharted 3 looks washed out or too bright on your PC (bright skies and highlights), "
+                       "lower its exposure here: -0.3 a little, -1.0 about half as bright. Game's = unchanged.",
+                       choice(p + "u3_exposure", Value::text(config_str(state, "u3_exposure", "0")), EXPOSURES, "0")));
+    game.push_back(row(p + "row:speakers", "Speakers",
+                       "The games have their own stereo, 5.1 and 7.1 sound mixes. Auto picks the one that matches "
+                       "your Windows sound output (Sound settings -> speaker setup); headphones get stereo.",
+                       choice(p + "speakers", Value::text(config_str(state, "speakers", "auto")), SPEAKERS, "auto")));
+    const Value *shortcut = state.ini.get("menu_shortcut");
+    game.push_back(row(p + "row:menu_shortcut", "In-game menu shortcut",
+                       "The controller buttons that open the in-game menu. L2 + R3 also zooms the scope with some "
+                       "guns: pick Select + Start (View + Menu on Xbox) or Keyboard only (Insert) then.",
+                       choice(p + "menu_shortcut", shortcut ? *shortcut : Value::text("lt_r3"), MENU_SHORTCUTS, "")));
+    page.items.push_back(section(p + "game", "Game", with_separators(std::move(game))));
+
+    std::vector<Value> extra;
+    extra.push_back(row(p + "row:anisotropy", "Texture filtering",
+                        "Sharper ground and wall textures seen at an angle, in all three games. 16x costs "
+                        "almost no frame rate. Game = as on the PS4.",
+                        choice(p + "anisotropy", Value::text(config_str(state, "anisotropy", "0")), ANISOTROPY, "16")));
+    add_toggles(extra, state, EXTRA_QUALITY);
+    page.items.push_back(section(p + "extra", "Extra quality", with_separators(std::move(extra))));
+
+    std::vector<Value> unlocks;
+    add_toggles(unlocks, state, UNLOCKS);
+    page.items.push_back(section(p + "unlocks", "Unlocks", with_separators(std::move(unlocks))));
+
+    std::vector<Value> launcher;
+    add_toggles(launcher, state, LAUNCHER_TOGGLES);
+    page.items.push_back(section(p + "launcher", "Launcher", with_separators(std::move(launcher))));
+    return page;
+}
+
+bool act_advanced(const State &state, const std::string &id, const std::string &kind, const Value &value, Changes &changes) {
+    const std::string p = "native:advanced:";
+    if (id.compare(0, p.size(), p) != 0) return false;
+    const std::string key = id.substr(p.size()), v = text_of(value);
+    if (kind == "choice") {
+        if (key == "save_profile" && has_option(SAVE_PROFILES, v)) changes.game.set(key, Value::text(v));
+        else if (key == "u3_exposure" && has_option(EXPOSURES, v)) changes.config.set(key, Value::text(v));
+        else if (key == "speakers" && has_option(SPEAKERS, v)) changes.config.set(key, Value::text(v));
+        else if (key == "anisotropy" && has_option(ANISOTROPY, v)) changes.config.set(key, Value::text(v));
+        else if (key == "menu_shortcut" && has_option(MENU_SHORTCUTS, v)) changes.ini_all.set(key, Value::text(v));
+        else return false;
+        return true;
+    }
+    if (kind == "dropdown" && key == "language" && has_option(language_options(state), v)) {
+        changes.config.set(key, Value::text(v));
+        return true;
+    }
+    if (kind == "toggle") {
+        auto in = [&](const ConfigToggle *first, size_t n) {
+            for (size_t i = 0; i < n; ++i) if (key == first[i].key) return true;
+            return false;
+        };
+        if (in(EXTRA_QUALITY, 4) || in(UNLOCKS, 2) || in(LAUNCHER_TOGGLES, 2)) {
+            changes.config.set(key, Value::boolean(value.truthy()));
+            return true;
+        }
+    }
+    return false;
+}
+
 }  // namespace
 
 extern "C" {
@@ -858,6 +1057,7 @@ UN_API int un_page(const char *name, const char *state_json, char *out, int cap)
     if (n == "performance") return give(json::dump(page_performance(state), false), out, cap);
     if (n == "display") return give(json::dump(page_display(state), false), out, cap);
     if (n == "setup") return give(json::dump(page_setup(state), false), out, cap);
+    if (n == "advanced") return give(json::dump(page_advanced(state), false), out, cap);
     return 2;
 }
 
@@ -876,11 +1076,13 @@ UN_API int un_page_act(const char *name, const char *id, const char *kind, const
     else if (n == "performance") act_performance(i, k, value, changes);
     else if (n == "display") act_display(state, i, k, value, changes);
     else if (n == "setup") act_setup(state, i, k, changes);
+    else if (n == "advanced") act_advanced(state, i, k, value, changes);
     else return 2;
     Value result = Value::object();
     result.set("config", std::move(changes.config));
     result.set("ini", std::move(changes.ini));
     result.set("game", std::move(changes.game));
+    result.set("ini_all", std::move(changes.ini_all));
     return give(json::dump(result, false), out, cap);
 }
 

@@ -13,6 +13,7 @@ Requests ({"op": ...}):
                               un_page; the launcher still writes launcher.json): change_config(key, value)
   ini     {"key", "value"}    a native page's change to the selected game's settings file: change(key, value)
   game_setting {"key", "value"}  ... to the selected game's launcher settings: change_game_setting(key, value)
+  ini_all {"key", "value"}    ... to every game's settings file (the menu shortcut): change_all_games(key, value)
   act     {"id", "kind", "value"}  what a click on a control does in the Tk window: toggle / choice / dropdown /
                               chip -> set(value, notify), button -> action(), entry -> new text, click / dclick ->
                               the widget's own <Button-1> / <Double-Button-1> binding
@@ -527,6 +528,8 @@ def main():
             app.change_config(message.get("key"), message.get("value"))
         elif op == "ini":
             app.change(message.get("key"), message.get("value"))
+        elif op == "ini_all":
+            app.change_all_games(message.get("key"), message.get("value"))
         elif op == "game_setting":
             app.change_game_setting(message.get("key"), message.get("value"))
         elif op == "act":
