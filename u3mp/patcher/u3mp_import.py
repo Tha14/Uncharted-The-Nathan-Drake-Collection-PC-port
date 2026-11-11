@@ -507,6 +507,13 @@ def main():
     event(phase='recipe', status='running')
     recipe_id = u3mp_version.shipped_id()   # the recipe this run applies (the launcher updates when it changes)
     nxt = data / 'recipe-next'
+    if (nxt / '.stopped').exists():
+        # the launcher stopped this update to install its own update first (core.cpp u3_stop_staged): the half-built
+        # copy may hold a file a step was rewriting in place, so it is not reused; the caches go back to the import
+        log('update: the last update was stopped for a launcher update; it starts again from the current files')
+        discard_next(data)
+        state.pop('next', None)
+        state.pop('staging', None)
     pending = state.pop('next', None)
     if pending and (nxt / '.ready').exists():
         # an update finished earlier but could not be swapped in (the game had the files open)

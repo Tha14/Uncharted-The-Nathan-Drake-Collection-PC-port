@@ -900,6 +900,29 @@ void u3_import(bool silent, bool image_only, const std::string &reason, const st
     start();
 }
 
+// Automatic updates: a newer launcher goes first (updates.cpp asks with "stop_staged_imports"). An Uncharted 3 import
+// update builds in its own copy (<data>/recipe-next, state "staging") while the current files stay as they are, so it
+// is stopped and marked; the importer then deletes that copy (u3mp_import.py) and the new launcher runs the update again.
+// A first import, or an update made in place (too little disk space), writes the import itself: it is left to finish.
+void u3_stop_staged() {
+    if (!u3_running()) return;
+    const Value s = u3_state();
+    if (!truthy(s.get("staging"))) return;
+    long long pid = 0;
+    if (process_running(g.u3.proc)) pid = (long long)GetProcessId(g.u3.proc);
+    else if (const Value *p = s.get("pid")) pid = p->kind == Value::Int ? p->i : 0;
+    if (!pid) return;
+    kill_tree(pid);
+    const std::string marker = join(join(u3_data(), "recipe-next"), ".stopped");
+    HANDLE f = CreateFileW(wide(marker).c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f != INVALID_HANDLE_VALUE) {
+        DWORD n = 0;
+        WriteFile(f, "launcher update\n", 16, &n, nullptr);
+        CloseHandle(f);
+    }
+    g.u3.step = "Import update stopped: the launcher updates first, then runs it again.";
+}
+
 void u3_cancel() {
     long long pid = 0;
     if (process_running(g.u3.proc)) pid = (long long)GetProcessId(g.u3.proc);
@@ -1591,6 +1614,7 @@ void update_op(const char *op, Value fields = Value::object()) {
     }
     if (const Value *u = reply.get("updating")) g.update_view = *u;
     if (const Value *h = reply.get("hold_imports")) g.hold_imports = h->truthy();
+    if (truthy(reply.get("stop_staged_imports"))) u3_stop_staged();
     if (const Value *d = reply.get("dialog")) {
         const std::string kind = text(*d, "kind");
         if (kind == "yesno")

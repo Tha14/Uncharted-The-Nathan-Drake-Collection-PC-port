@@ -13,6 +13,8 @@
 //       "dialog": {"kind": info | error | yesno, "text"}   yesno: the answer goes back with op "confirmed"
 //       "exit": true                     the installer runs: the launcher saves its window place and closes
 //       "updating": [done, total] | null the window's banner: busy with a release found (installing, or checking again)
+//       "stop_staged_imports": true      Automatic mode, a found release waits for an import: the launcher stops an
+//                                        Uncharted 3 import update (it builds in its own copy) and the install follows
 //       "hold_imports": bool             in every answer: true while the check runs, and in Automatic mode while a found
 //                                        release waits to install or installs, so the launcher holds back its own
 //                                        automatic import updates (the new launcher brings its own recipe)
@@ -255,8 +257,11 @@ void tick(const Host &h, Value &out) {
     if (g.auto_at && now_ms() >= g.auto_at) {   // auto mode: install once neither a game nor an import is running
         g.auto_at = 0;
         if (h.mode == "auto" && g.release.is_object() && !g.busy) {
-            if (h.game_running || h.import_running) g.auto_at = now_ms() + 60000;
-            else install(h, true, out);
+            if (h.game_running) g.auto_at = now_ms() + 60000;
+            else if (h.import_running) {   // the launcher goes first: a staged import update is stopped, a first import finishes
+                out.set("stop_staged_imports", Value::boolean(true));
+                g.auto_at = now_ms() + 5000;
+            } else install(h, true, out);
         }
     }
     if (g.installing) {
