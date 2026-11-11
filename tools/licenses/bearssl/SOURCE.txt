@@ -1,1 +1,1 @@
-BearSSL (https://bearssl.org), MIT license: the TLS code inside u3_online.dll and the multiplayer helper (profile-helper.bin).
+BearSSL (https://bearssl.org), MIT license: the TLS code inside uncharted_online.exe and the multiplayer helper (profile-helper.bin).

@@ -11,7 +11,7 @@
 //                                        {"ev": "closed"})
 //   un_core_tick(out, cap)               about every 50 ms: the events the timers caused (the game's output, the
 //                                        imports, the update, the online section)
-//   un_core_close()                      the window is gone: the online session ends
+//   un_core_close()                      the window is gone: the online program is told to close
 // Dialogs: an {"ev": "dialog", "dialog": id, "kind", "title", "message", ...} event; the window answers with
 // {"op": "answer", "dialog": id, "value"} and the action goes on from there. Slow work (Python with numpy for the
 // Uncharted 2 import, the Uncharted 2 menu overlay, the recipe fingerprints, the graphics card) runs in threads and goes
@@ -398,14 +398,11 @@ struct Core {
     bool u3_shipped_known = false, u2_shipped_known = false;
     Value release;
     bool release_read = false;
-    // the online section (u3_online.dll, when the package has it)
-    HMODULE online = nullptr;
-    int (*o_open)(const wchar_t *, const char *) = nullptr;
-    int (*o_tick)(const char *, char *, int) = nullptr;
-    int (*o_page)(const char *, char *, int) = nullptr;
-    int (*o_act)(const char *, const char *, const char *, const char *, char *, int) = nullptr;
-    int (*o_handoff)(const char *, const char *, char *, int) = nullptr;
-    void (*o_close)(void) = nullptr;
+    // the online program (online\uncharted_online.exe, when the package has it): a separate process, started hidden,
+    // that the launcher talks to over its stdin/stdout, one JSON object per line each way
+    bool online = false;
+    HANDLE online_process = nullptr, online_in = nullptr, online_out = nullptr;
+    std::string online_pending;   // what the program wrote past the last full line
     long long online_next = 0;
     // dialogs, timers, background work
     int next_dialog = 1;
@@ -1193,55 +1190,183 @@ void online_apply(const Value &r) {
             if (!g.config.get(f.first) || json::dump(*g.config.get(f.first), false) != json::dump(f.second, false))
                 change_config(f.first, f.second);
 }
-template <typename Call> Value online_json(Call call) {
-    auto t = text_call([&](char *o, int c) { return call(o, c); });
-    Value v;
-    json::parse(t.second, v);
-    SecureZeroMemory(&t.second[0], t.second.size());   // the hand-off's values are secret
-    return v;
+// The online program is a separate process. It gets its requests on stdin and answers each with one line on stdout:
+// a JSON object written as one line (json.h lays objects out over several lines, but strings never hold a raw line
+// break, so turning the layout's breaks into spaces keeps it valid). Replies to a hand-off carry secrets, so every
+// buffer that held a line is wiped.
+void wipe(std::string &s) {
+    if (!s.empty()) SecureZeroMemory(&s[0], s.size());
+    s.clear();
 }
+
+// Ending the conversation: closing its input tells the program to wind down. It may stay alive a while for a game
+// still using its session (it exits by itself), so it is not waited for.
+void online_stop() {
+    for (HANDLE *h : {&g.online_in, &g.online_out, &g.online_process})
+        if (*h) { CloseHandle(*h); *h = nullptr; }
+    wipe(g.online_pending);
+    g.online = false;
+}
+
+bool online_spawn(const std::string &exe) {
+    SECURITY_ATTRIBUTES pass_on{sizeof pass_on, nullptr, TRUE};
+    HANDLE its_in = nullptr, our_in = nullptr, our_out = nullptr, its_out = nullptr;
+    if (!CreatePipe(&its_in, &our_in, &pass_on, 0)) return false;
+    if (!CreatePipe(&our_out, &its_out, &pass_on, 0)) {
+        CloseHandle(its_in);
+        CloseHandle(our_in);
+        return false;
+    }
+    SetHandleInformation(our_in, HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(our_out, HANDLE_FLAG_INHERIT, 0);
+    // only the two pipe ends go to the program, not every inheritable handle the launcher happens to hold
+    HANDLE handed[2] = {its_in, its_out};
+    SIZE_T size = 0;
+    InitializeProcThreadAttributeList(nullptr, 1, 0, &size);
+    std::vector<char> room(size);
+    auto attributes = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(room.data());
+    const bool listed = InitializeProcThreadAttributeList(attributes, 1, 0, &size);
+    bool started = listed && UpdateProcThreadAttribute(attributes, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, handed,
+                                                       sizeof handed, nullptr, nullptr);
+    STARTUPINFOEXW start{};
+    start.StartupInfo.cb = sizeof start;
+    start.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    start.StartupInfo.hStdInput = its_in;
+    start.StartupInfo.hStdOutput = its_out;
+    start.lpAttributeList = attributes;
+    PROCESS_INFORMATION child{};
+    std::wstring command = L"\"" + wide(exe) + L"\"";
+    const std::wstring folder = wide(join(g.u3mp_dir, "online"));
+    started = started && CreateProcessW(nullptr, &command[0], nullptr, nullptr, TRUE,
+                                        CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT, nullptr, folder.c_str(),
+                                        &start.StartupInfo, &child);
+    if (listed) DeleteProcThreadAttributeList(attributes);
+    CloseHandle(its_in);
+    CloseHandle(its_out);
+    if (!started) {
+        CloseHandle(our_in);
+        CloseHandle(our_out);
+        return false;
+    }
+    CloseHandle(child.hThread);
+    g.online_process = child.hProcess;
+    g.online_in = our_in;
+    g.online_out = our_out;
+    return true;
+}
+
+// The next full line from the program, within wait_ms. The program answers in well under a millisecond, so this
+// first yields the thread for a moment before it starts sleeping between looks.
+bool online_line(std::string &line, DWORD wait_ms) {
+    const ULONGLONG start = GetTickCount64();
+    for (;;) {
+        const size_t end = g.online_pending.find('\n');
+        if (end != std::string::npos) {
+            line.assign(g.online_pending, 0, end);
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            SecureZeroMemory(&g.online_pending[0], end + 1);
+            g.online_pending.erase(0, end + 1);
+            return true;
+        }
+        DWORD waiting = 0;
+        if (!PeekNamedPipe(g.online_out, nullptr, 0, nullptr, &waiting, nullptr)) return false;   // it has ended
+        if (waiting) {
+            std::string chunk(waiting, '\0');
+            DWORD got = 0;
+            const bool read = ReadFile(g.online_out, &chunk[0], waiting, &got, nullptr) && got;
+            g.online_pending.append(chunk, 0, got);
+            wipe(chunk);
+            if (!read) return false;
+            continue;
+        }
+        const ULONGLONG spent = GetTickCount64() - start;
+        if (spent >= wait_ms) return false;
+        if (spent < 5) SwitchToThread();
+        else Sleep(1);
+    }
+}
+
+// One request and its reply. A program that stops answering (or has ended) is let go, and the online section is
+// simply gone for the rest of this launcher run.
+Value online_request(const Value &request, DWORD wait_ms = 15000) {
+    if (!g.online_in) return Value::null();
+    std::string out = json::dump(request);
+    for (char &c : out) if (c == '\n') c = ' ';
+    out += '\n';
+    DWORD put = 0;
+    const bool sent = WriteFile(g.online_in, out.data(), (DWORD)out.size(), &put, nullptr) && put == out.size();
+    wipe(out);
+    std::string line;
+    if (!sent || !online_line(line, wait_ms)) {
+        wipe(line);
+        online_stop();
+        return Value::null();
+    }
+    Value reply;
+    json::parse(line, reply);
+    wipe(line);
+    return reply;
+}
+Value online_op(const char *op, const std::string &game = std::string()) {
+    Value r = Value::object();
+    r.set("op", Value::text(op));
+    if (!game.empty()) r.set("game", Value::text(game));
+    return r;
+}
+// what an "out" reply holds (null when there is none)
+Value online_out(const Value &reply) {
+    const Value *out = reply.get("out");
+    return out ? *out : Value::null();
+}
+
 void online_open() {
-    const std::string path = join(join(g.u3mp_dir, "online"), "u3_online.dll");
-    if (!is_file(path)) return;
-    HMODULE m = LoadLibraryExW(wide(path).c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
-    if (!m) return;
-    auto abi = reinterpret_cast<int (*)(void)>(reinterpret_cast<void *>(GetProcAddress(m, "u3o_abi")));
-    if (!abi || abi() < 5) { FreeLibrary(m); return; }
-    g.o_open = reinterpret_cast<decltype(g.o_open)>(reinterpret_cast<void *>(GetProcAddress(m, "u3o_section_open")));
-    g.o_tick = reinterpret_cast<decltype(g.o_tick)>(reinterpret_cast<void *>(GetProcAddress(m, "u3o_section_tick")));
-    g.o_page = reinterpret_cast<decltype(g.o_page)>(reinterpret_cast<void *>(GetProcAddress(m, "u3o_section_page")));
-    g.o_act = reinterpret_cast<decltype(g.o_act)>(reinterpret_cast<void *>(GetProcAddress(m, "u3o_section_act")));
-    g.o_handoff = reinterpret_cast<decltype(g.o_handoff)>(reinterpret_cast<void *>(GetProcAddress(m, "u3o_section_handoff")));
-    g.o_close = reinterpret_cast<decltype(g.o_close)>(reinterpret_cast<void *>(GetProcAddress(m, "u3o_section_close")));
-    if (!g.o_open || !g.o_tick || !g.o_page || !g.o_act || !g.o_handoff || !g.o_close) { FreeLibrary(m); return; }
-    Value state = Value::object();
+    const std::string exe = join(join(g.u3mp_dir, "online"), "uncharted_online.exe");
+    if (!is_file(exe) || !online_spawn(exe)) return;
+    if (num(online_request(online_op("hello"), 5000).get("abi")) < 1) { online_stop(); return; }
+    Value open = online_op("open"), state = Value::object();
+    open.set("user_dir", Value::text(g.user_dir));
     state.set("dns", Value::text(text(g.config, "u3mp_dns")));
     state.set("direct", Value::boolean(!g.direct.empty()));
-    const std::string s = json::dump(state, false);
-    if (!g.o_open(wide(g.user_dir).c_str(), s.c_str())) { FreeLibrary(m); return; }
-    g.online = m;
+    open.set("state", state);
+    if (!truthy(online_request(open, 5000).get("ok"))) { online_stop(); return; }
+    g.online = true;
+}
+void online_close() {
+    if (!g.online) return;
+    online_request(online_op("close"), 3000);
+    online_stop();
 }
 void online_tick() {
     if (!g.online) return;
-    const std::string h = json::dump(online_host(), false);
-    online_apply(online_json([&](char *o, int c) { return g.o_tick(h.c_str(), o, c); }));
+    Value tick = online_op("tick");
+    tick.set("host", online_host());
+    online_apply(online_out(online_request(tick)));
 }
 Value online_page(const std::string &game) {
     if (!g.online) return array();
-    Value v = online_json([&](char *o, int c) { return g.o_page(game.c_str(), o, c); });
+    Value v = online_out(online_request(online_op("page", game)));
     return v.kind == Value::Array ? v : array();
 }
+// an online control on a MULTIPLAYER page: the page says which game's account and server it belongs to
 void online_act(const std::string &id, const std::string &kind, const Value &value) {
     if (!g.online) return;
-    const std::string v = json::dump(value, false), h = json::dump(online_host(), false);
-    online_apply(online_json([&](char *o, int c) { return g.o_act(id.c_str(), kind.c_str(), v.c_str(), h.c_str(), o, c); }));
+    Value act = online_op("act", g.tab == "multiplayer" ? "u2" : "u3");
+    act.set("id", Value::text(id));
+    act.set("kind", Value::text(kind));
+    act.set("value", value);
+    act.set("host", online_host());
+    online_apply(online_out(online_request(act)));
 }
 void online_env(std::vector<std::pair<std::string, Value>> &env, const char *game) {
     if (!g.online) return;
-    const std::string h = json::dump(online_host(), false);
-    Value r = online_json([&](char *o, int c) { return g.o_handoff(game, h.c_str(), o, c); });
+    Value handoff = online_op("handoff", game);
+    handoff.set("host", online_host());
+    Value r = online_out(online_request(handoff));
     if (const Value *unset = r.get("unset")) for (auto &n : unset->items) env.push_back({text(&n), Value::null()});
     if (const Value *set = r.get("set")) for (auto &f : set->fields) env.push_back({f.first, f.second});
+    for (auto &f : r.fields)   // the reply held the hand-off's secrets
+        if (f.second.kind == Value::Object)
+            for (auto &v : f.second.fields) if (v.second.kind == Value::String) wipe(v.second.s);
 }
 
 }  // namespace
@@ -1857,7 +1982,7 @@ Value model() {
 void close_launcher() {
     if (g.closing) return;
     g.closing = true;
-    if (g.online && g.o_close) g.o_close();
+    online_close();
     Value e = Value::object();
     e.set("ev", Value::text("closed"));
     emit(std::move(e));
@@ -2129,7 +2254,7 @@ UN_API int un_core_tick(char *out, int cap) {
 }
 
 UN_API void un_core_close(void) {
-    if (g.online && g.o_close && !g.closing) g.o_close();
+    if (!g.closing) online_close();
     g.closing = true;
 }
 
