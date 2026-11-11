@@ -567,9 +567,41 @@ void host_create();
 void log_match_choice();
 
 // Page-event handler for every page (page id 0): event 6 every frame while a menu page is up.
+// Multiplayer left without LEAVE_MULTIPLAYER (the page closed by Back, or replaced by the main menu):
+// PS3 always tore down on the way out (0x4386d0); PS4 kept NET_SM at 18, so the campaign started next
+// ran with multiplayer on and asserted (NetEventPlayVox "no me NetPlayerTracker"). In the idle party state
+// with PAGE_MULTIPLAYER no longer on the menu page stack (menu +0x9d0 pages, top index +0x1010, page id
+// +0x10; as PopPage 0x5cc6f0 reads it) for half a second, the teardown runs.
+constexpr uint32_t kPageMultiplayer = sid("PAGE_MULTIPLAYER");
+static_assert(kPageMultiplayer == 0x53cbb5f2u, "PAGE_MULTIPLAYER id");
+constexpr uint64_t MENU_PAGES = 0x9d0, MENU_PAGE_TOP = 0x1010, PAGE_ID = 0x10;
+constexpr int kMenuPagesMax = int((MENU_PAGE_TOP - MENU_PAGES) / 8);
+bool multiplayer_page_open() {
+    const uint64_t menu = addr::menu_manager;
+    const int32_t top = G<int32_t>(menu + MENU_PAGE_TOP);
+    if (top < 0 || top >= kMenuPagesMax) return true;   // not a stack we understand: leave it alone
+    for (int32_t i = 0; i <= top; ++i) {
+        const uint64_t page = G<uint64_t>(menu + MENU_PAGES + 8 * uint64_t(i));
+        if (page && *reinterpret_cast<const uint32_t *>(uintptr_t(page + PAGE_ID)) == kPageMultiplayer) return true;
+    }
+    return false;
+}
+int frames_without_mp_page = 0;
+void teardown(bool pop);
+
 U2MP_GUEST void page_event(uint32_t *event) {
     if (!event || event[0] != kEventUpdate) return;
     finish_leaving_game();   // also after the transport closed (host lost: the client wait page's error path)
+    if (active && state() == kChooseHostJoin && !multiplayer_page_open()) {
+        if (++frames_without_mp_page >= 30) {
+            frames_without_mp_page = 0;
+            log("PAGE_MULTIPLAYER closed without Leave Multiplayer: multiplayer teardown (PS3 0x4386d0)");
+            teardown(false);
+            return;
+        }
+    } else {
+        frames_without_mp_page = 0;
+    }
     tick();
 }
 
@@ -1129,8 +1161,10 @@ void host_create() {
     set_state(kCreateGameWait);
 }
 
-// LEAVE_MULTIPLAYER (PS4 0x5eb180 only popped the page; PS3 teardown 0x4386d0).
-U2MP_GUEST void leave_multiplayer(void *, void *, void *) {
+// The multiplayer teardown (PS3 0x4386d0: score / cinema / party / session / sockets / signaling / voice
+// shut down, net player data freed, then NET_SM 0). LEAVE_MULTIPLAYER runs it (PS4 0x5eb180 only popped the
+// page), and so does page_event when PAGE_MULTIPLAYER was closed another way (pop = false then).
+void teardown(bool pop) {
     log("leaving multiplayer");
     unregister_frame_handler();
     for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) gamenet::detach(slot);
@@ -1146,8 +1180,9 @@ U2MP_GUEST void leave_multiplayer(void *, void *, void *) {
     progression_publish();   // unlocks bought in the menus since the last match
     set_state(kStateOff);
     for (auto &m : members) m = Member{};
-    fn<void(U2MP_GUEST *)(void *)>(fPopPage)(image.at<void>(addr::menu_manager));
+    if (pop) fn<void(U2MP_GUEST *)(void *)>(fPopPage)(image.at<void>(addr::menu_manager));
 }
+U2MP_GUEST void leave_multiplayer(void *, void *, void *) { teardown(true); }
 
 // Once per game frame (menu page handler or match state update, whichever runs first).
 double last_tick = -1;

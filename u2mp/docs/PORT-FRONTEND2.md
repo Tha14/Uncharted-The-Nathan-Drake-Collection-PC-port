@@ -58,3 +58,15 @@ functions run inside flows that other files own; the table notes them.
 4. **Matchmaking.** Done in frontend3.cpp on session.cpp's transport: the page handler `64e910`
    (PS3 `0x4b0a58`), the vote callback `64e8e0` with its broadcast, START_MATCHMAKING `5eba40` with
    the party message (PS3 0x107). `0xe15591` itself is not needed (the port keeps its own state).
+
+
+## Leaving multiplayer without Leave Multiplayer (2026-11-11)
+
+PS3 always ran the teardown `0x4386d0` on the way out of multiplayer (score term `0x4ab66c`, cinema abort
+`0x464148`, party reset `0x4c3ac0`, session manager term `0x4d1a00`, sockets, signaling `0x4e8afc`, voice end
+`0x4e7038`, net player data freed `0x4a9918`, NET_SM 0). On PS4 closing PAGE_MULTIPLAYER by another way (Back,
+or the main menu replacing it) left NET_SM at 18, and a campaign started next asserted in NetEventPlayVox ("no
+me NetPlayerTracker"). session.cpp: `teardown(pop)` is the shared body of LEAVE_MULTIPLAYER; `page_event`
+runs it when NET_SM is 18 (idle party) and PAGE_MULTIPLAYER (`53cbb5f2`) has not been on the menu page stack
+(menu +0x9d0 pages, top index +0x1010, page id +0x10) for 30 frames. Log: `PAGE_MULTIPLAYER closed without
+Leave Multiplayer: multiplayer teardown (PS3 0x4386d0)`.
