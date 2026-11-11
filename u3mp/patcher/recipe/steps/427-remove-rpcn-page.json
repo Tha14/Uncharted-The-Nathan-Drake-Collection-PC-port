@@ -1,0 +1,28 @@
+{
+ "id": "remove-rpcn-page",
+ "title": "No RPCN page in the game's menus: page 0x52504e01 taken out of menu.bin, modules.bin menu size updated (no-rpcn-menu/remove_rpcn_page.py)",
+ "kind": "script",
+ "job": "no-rpcn-menu",
+ "with_jobs": [
+  "dctools"
+ ],
+ "family": "overlay-r3/dc1",
+ "needs": [],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/remove_rpcn_page.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/dc1/ps4/menu.bin",
+  "work/overlay-r3/u3data/build/main/dc1/ps4/modules.bin"
+ ],
+ "must_write": false,
+ "reference_check": false,
+ "status": "reproducible",
+ "applied": "2026-11-11 (tested on a copy of an import's menu.bin / modules.bin)",
+ "notes": "Owner's decision 2026-11-11: the launcher signs in and has the RPCN section, so the game shows no RPCN menu (helper v7.105 never offers L2 RPCN). Local builds added the page in an earlier step, which is gone; this step removes it from older imports (151 -> 150 pages, DCEdit append-only) and keeps modules.bin's menu size word equal to menu.bin. Idempotent: 'already applied' when the page is not there; backups in work/backup-no-rpcn-page.",
+ "recipe_version_added": "1.16.0"
+}

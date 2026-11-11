@@ -104,7 +104,8 @@ converted pak run once the conversion exists.
 5. `registry-final` (pak23_ps4.txt of the four overlays, line provenance), `remove-lab` (recipe 1.15.0: no Lab maps on
    PC; deletes the Lab level / actor paks and Lab map pictures older imports have and strips the Lab blocks of
    pak23_ps4.txt; `levels-lab`, `levels-maps-batch` and `maps-batch-files` are retired, convert-actors skips the 48
-   labsrc jobs, the DATA2 Lab psarcs are never read), then `netgame-order-119` (recipe 1.14.0,
+   labsrc jobs, the DATA2 Lab psarcs are never read), `remove-rpcn-page` (1.16.0: no RPCN page in the game's menus;
+   the launcher has the RPCN section), then `netgame-order-119` (recipe 1.14.0,
    `tools/fixes/netgame-order/netgame_order.py`, with_jobs dctools): the overlay net.bin netgame table and playlists
    rebuilt in the order of the player's DATA2 `net18.bin` (exactly PS3's netgames: count, order, names, maps, types;
    PS3 scalar values; PC-only netgames dropped; a PS3 map the PC lacks added with +0x94 = 1), modules.bin net size

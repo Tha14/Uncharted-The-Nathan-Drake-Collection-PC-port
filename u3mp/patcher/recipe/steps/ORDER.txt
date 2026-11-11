@@ -51,4 +51,5 @@ map-lighting
 vram-gap
 registry-final
 remove-lab
+remove-rpcn-page
 netgame-order-119
