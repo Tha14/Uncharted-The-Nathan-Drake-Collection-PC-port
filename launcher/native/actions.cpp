@@ -266,14 +266,14 @@ Value open_saves(const Request &q) {
 Value clear_cache(const Request &q) {
     const std::string cache = q.user_dir + "\\cache";
     if (q.step == 0) {
-        if (!exists(cache)) return finally("info", "There is no shader cache yet.");
-        if (q.game_running) return finally("warning", "Close the game first.");
-        return dialog("yesno", "Delete the shader cache?\n\nShaders are compiled again the next time you play, which brings "
-                               "back stutters for a while.", 1);
+        if (!exists(cache)) return finally("info", "No shader cache has been built yet.");
+        if (q.game_running) return finally("warning", "Please close the game first.");
+        return dialog("yesno", "Clear the shader cache?\n\nThe shaders get rebuilt the next time you play, so "
+                               "expect some stutter until that is done.", 1);
     }
     if (!answered_yes(q)) return done();
     delete_tree(wide(cache));
-    return finally("info", "Shader cache cleared.");
+    return finally("info", "The shader cache is cleared.");
 }
 
 Value game_folder_change(const Request &q, const std::string &folder) {
@@ -285,14 +285,14 @@ Value game_folder_change(const Request &q, const std::string &folder) {
 
 Value choose_game_dir(const Request &q) {
     if (q.step == 0)
-        return file_dialog("directory", "Select the Uncharted game folder (the one with eboot.bin and sce_sys)",
+        return file_dialog("directory", "Pick the game folder (it contains eboot.bin and sce_sys)",
                            exists(q.game_dir) ? q.game_dir : q.root, 1);
     if (q.step == 1) {
         const std::string folder = answered_path(q);
         if (folder.empty()) return with(done(), "result", Value::boolean(false));
         if (!is_game_dir(folder))
-            return with(dialog("error", "That folder has no eboot.bin and sce_sys/param.sfo.\n\nChoose the game's root folder "
-                                        "(CUSA02344).", 2), "result", Value::boolean(false));
+            return with(dialog("error", "eboot.bin and sce_sys/param.sfo are not in that folder.\n\nPick the top "
+                                        "folder of the game (CUSA02344).", 2), "result", Value::boolean(false));
         return with(with(done(), "config", game_folder_change(q, folder)), "result", Value::boolean(true));
     }
     return with(done(), "result", Value::boolean(false));
@@ -300,18 +300,18 @@ Value choose_game_dir(const Request &q) {
 
 Value choose_update_folder(const Request &q) {
     if (q.step == 0) {
-        if (q.game_running) return finally("warning", "Close the game first.");
-        if (!is_game_dir(q.game_dir)) return finally("warning", "Choose the game folder first (Change game folder).");
-        Value d = file_dialog("directory", "Choose the extracted update 1.02 folder", "", 1);
+        if (q.game_running) return finally("warning", "Please close the game first.");
+        if (!is_game_dir(q.game_dir)) return finally("warning", "Set the game folder first (Change game folder).");
+        Value d = file_dialog("directory", "Pick the unpacked update 1.02 folder", "", 1);
         return d;
     }
     const std::string folder = answered_path(q);
     if (folder.empty()) return done();
     auto r = game_update("check_folder", q.root, {folder, q.game_dir});
-    if (r.first == 1) return finally("error", "This folder can't be used:\n" + r.second);
-    if (r.first != 0) return finally("error", "This folder can't be used:\n" + (r.first == 3 ? os_error(r.second) : r.second));
+    if (r.first == 1) return finally("error", "That folder doesn't work as the update:\n" + r.second);
+    if (r.first != 0) return finally("error", "That folder doesn't work as the update:\n" + (r.first == 3 ? os_error(r.second) : r.second));
     const std::string version = system_answer("app_version", r.second);
-    return with(finally("info", "Game update " + (version.empty() ? std::string("?") : version) + " is used from now on:\n" +
+    return with(finally("info", "Update " + (version.empty() ? std::string("?") : version) + " will be used from now on:\n" +
                                     r.second),
                 "config", config_change({{"update_dir", Value::text(r.second)}}));
 }
@@ -324,9 +324,9 @@ std::string install_error(const std::pair<int, std::string> &r, const char *what
 
 Value install_game_update(const Request &q) {
     if (q.step == 0) {
-        if (q.game_running) return finally("warning", "Close the game first.");
-        if (!is_game_dir(q.game_dir)) return finally("warning", "Choose the game folder first (Change game folder).");
-        return file_dialog("open", "Choose the game update (.pkg)", "", 1, Value::object(), true);
+        if (q.game_running) return finally("warning", "Please close the game first.");
+        if (!is_game_dir(q.game_dir)) return finally("warning", "Set the game folder first (Change game folder).");
+        return file_dialog("open", "Pick the update package (.pkg)", "", 1, Value::object(), true);
     }
     auto begin = [&](const std::string &pkg) {
         start_work("install", q.root, {pkg, q.game_dir});
@@ -334,7 +334,7 @@ Value install_game_update(const Request &q) {
         r.set("work", Value::boolean(true));
         r.set("step", Value::integer(3));
         r.set("data", Value::object());
-        r.set("progress", config_change({{"update", Value::text("Checking the update...")}}));
+        r.set("progress", config_change({{"update", Value::text("Checking the update package...")}}));
         return r;
     };
     if (q.step == 1) {
@@ -344,7 +344,7 @@ Value install_game_update(const Request &q) {
         if (existing.first == 0 && !existing.second.empty()) {
             Value data = Value::object();
             data.set("pkg", Value::text(pkg));
-            return dialog("yesno", "There is an update folder already:\n" + existing.second + "\n\nReplace it with this update?",
+            return dialog("yesno", "An update folder exists already:\n" + existing.second + "\n\nReplace it with this package?",
                           2, std::move(data));
         }
         return begin(pkg);
@@ -357,10 +357,11 @@ Value install_game_update(const Request &q) {
         auto r = work_result();
         Value out;
         if (r.first == 0) {   // the installed one is used, also over a folder chosen before
-            out = finally("info", "Update installed:\n" + r.second + "\n\nThe games use it from their next start.");
+            out = finally("info", "The update is installed:\n" + r.second + "\n\nThe games pick it up when they "
+                                                                            "next start.");
             out.set("config", config_change({{"update_dir", Value::text(r.second)}}));
         } else {
-            out = finally("error", "The update was not installed:\n" + install_error(r, "install"));
+            out = finally("error", "The update could not be installed:\n" + install_error(r, "install"));
         }
         out.set("progress", config_change({{"update", Value::text("")}}));
         return out;
@@ -370,15 +371,15 @@ Value install_game_update(const Request &q) {
 
 Value install_game_pkg(const Request &q) {
     if (q.step == 0) {
-        if (q.game_running) return finally("warning", "Close the game first.");
-        return file_dialog("open", "Choose the game (.pkg), not the update", "", 1, Value::object(), true);
+        if (q.game_running) return finally("warning", "Please close the game first.");
+        return file_dialog("open", "Pick the game package (.pkg), not the update", "", 1, Value::object(), true);
     }
     if (q.step == 1) {
         const std::string pkg = answered_path(q);
         if (pkg.empty()) return done();
         Value data = Value::object();
         data.set("pkg", Value::text(pkg));
-        return file_dialog("directory", "Choose where to put the game (about 60 GB)", parent_of(pkg), 2, std::move(data));
+        return file_dialog("directory", "Pick a folder for the game (it needs about 60 GB)", parent_of(pkg), 2, std::move(data));
     }
     if (q.step == 2) {
         const std::string parent = answered_path(q);
@@ -388,18 +389,20 @@ Value install_game_pkg(const Request &q) {
         r.set("work", Value::boolean(true));
         r.set("step", Value::integer(3));
         r.set("data", Value::object());
-        r.set("progress", config_change({{"game_dir", Value::text("Checking the game package...")}}));
+        r.set("progress", config_change({{"game_dir", Value::text("Checking the game package first...")}}));
         return r;
     }
     if (q.step == 3) {
         auto r = work_result();
         Value out;
         if (r.first == 0) {
-            out = finally("info", "Game installed:\n" + r.second + "\n\nIt is the game folder now. Next, install update 1.02: "
-                                  "GAME UPDATE -> Install from .pkg.");
+            out = finally("info", "The game is installed:\n" + r.second + "\n\nThe launcher uses it as the game "
+                                                                          "folder from now on. Next step: add update "
+                                                                          "1.02 with GAME UPDATE -> Install from "
+                                                                          ".pkg.");
             out.set("config", game_folder_change(q, r.second));
         } else {
-            out = finally("error", "The game was not installed:\n" + install_error(r, "install_game"));
+            out = finally("error", "The game could not be installed:\n" + install_error(r, "install_game"));
         }
         out.set("progress", config_change({{"game_dir", Value::text("")}}));
         return out;
@@ -434,13 +437,13 @@ Value check_game_files(const Request &q) {
         for (size_t i = from; i < l.size() && i < from + count; ++i) s += (i > from ? "\n" : "") + l[i];
         return s;
     };
-    if (status == 2) return finally("error", "The check could not run:\n\n" + joined(lines, 0, lines.size()));
-    if (status == 0) return finally("info", "Your game files are complete.\n\n" + (lines.empty() ? std::string() : lines[0]));
+    if (status == 2) return finally("error", "The file check could not be done:\n\n" + joined(lines, 0, lines.size()));
+    if (status == 0) return finally("info", "All game files are present.\n\n" + (lines.empty() ? std::string() : lines[0]));
     const size_t problems = lines.size() > 1 ? lines.size() - 1 : 0;
     std::string shown = joined(lines, 1, 15);
     if (problems > 15) shown += "\n... and " + std::to_string(problems - 15) + " more";
-    return finally("error", "Your game files are incomplete, so the game will stop where it needs them. Extract or dump the "
-                            "base game again.\n\n" + (lines.empty() ? std::string() : lines[0]) + "\n\n" + shown);
+    return finally("error", "Some game files are missing or wrong, and the game will stop when it reaches them. "
+                            "Unpack or dump the base game again.\n\n" + (lines.empty() ? std::string() : lines[0]) + "\n\n" + shown);
 }
 
 // Steam's text requests (steam.cpp): rows of tab-separated fields
@@ -470,9 +473,9 @@ Value add_to_steam(const Request &q) {
     if (q.step == 1 && !answered_yes(q)) return done();   // Retry / Cancel on "Steam is open"
     if (q.step <= 1) {
         if (un_steam_running())
-            return dialog("retrycancel", "Steam is open. Steam saves its own list of games when it closes, so a game added "
-                                         "now would be lost.\n\nClose Steam completely (Steam menu -> Exit, or right-click "
-                                         "its icon by the clock -> Exit), then press Retry.", 1);
+            return dialog("retrycancel", "Steam is running. It rewrites its game list when it quits, which would "
+                                         "undo anything added now.\n\nQuit Steam fully (Steam menu -> Exit, or "
+                                         "right-click its tray icon -> Exit) and then press Retry.", 1);
     }
     if (q.step > 1) return done();
     std::vector<std::vector<std::string>> rows = {{"root", q.root}, {"starter", q.root + "\\Uncharted Launcher.exe"},
@@ -499,14 +502,15 @@ Value add_to_steam(const Request &q) {
         if (a.items.size() == 2) add.push_back({"account", a.items[0].s, a.items[1].s});
     auto result = steam_request(un_steam_add, add);
     if (result.first == 1) {
-        std::string text = "Steam was not found on this PC (no Steam account folder in Steam's userdata). Install Steam and "
-                           "sign in once, then try again.";
-        if (q.wine) text += "\n\nOn Linux, add the launcher from Steam itself: Games -> Add a Non-Steam Game to My Library.";
+        std::string text = "Steam isn't set up on this PC (Steam's userdata has no account folder). Install Steam, "
+                           "sign in once, and try again.";
+        if (q.wine) text += "\n\nOn Linux, add the launcher from inside Steam: Games -> Add a Non-Steam Game to My "
+                            "Library.";
         return finally("error", text);
     }
     if (result.first == 2)
-        return finally("error", "Steam's list of non-Steam games could not be read, so it was left as it is:\n" + result.second);
-    if (result.first != 0) return finally("error", "Could not write Steam's list of games:\n" + result.second);
+        return finally("error", "Steam's non-Steam game list couldn't be read, so it was not changed:\n" + result.second);
+    if (result.first != 0) return finally("error", "Steam's game list could not be saved:\n" + result.second);
     std::string lines, backups;
     for (auto &line : lines_of(result.second)) {
         if (line.empty()) continue;
@@ -520,11 +524,11 @@ Value add_to_steam(const Request &q) {
         if (!f[4].empty()) backups += (backups.empty() ? "" : "\n") + f[4];
     }
     const std::string added = per_game ? "the three games" : std::string("\"") + APP_TITLE + "\"";
-    const std::string pictures_text = pictures ? "Library pictures come from your game files."
-                                               : "No library pictures: choose the game folder first, then add again.";
+    const std::string pictures_text = pictures ? "The library artwork is taken from your game files."
+                                               : "No library artwork yet: set the game folder, then add again.";
     return finally("info", "Added " + added + " to Steam:\n" + lines + "\n\n" + pictures_text +
-                               (backups.empty() ? "" : "\n\nThe previous list was saved as:\n" + backups) +
-                               "\n\nStart Steam again: " + (per_game ? "they are" : "it is") + " in your Library.");
+                               (backups.empty() ? "" : "\n\nA copy of the old list is at:\n" + backups) +
+                               "\n\nOpen Steam again: " + (per_game ? "they are" : "it is") + " in your Library now.");
 }
 
 Value run(const Request &q) {

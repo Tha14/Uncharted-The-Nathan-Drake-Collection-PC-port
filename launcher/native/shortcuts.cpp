@@ -113,7 +113,7 @@ Value shortcuts(const std::wstring &root, const Value &request) {
                 if (!k || !n) continue;
                 std::string name = n->s;
                 for (size_t at; (at = name.find(':')) != std::string::npos;) name.replace(at, 1, " -");
-                links.push_back({name, n->s + " (starts directly)", k->s});
+                links.push_back({name, n->s + " (opens directly)", k->s});
             }
     } else {
         links.push_back({"Uncharted", "Uncharted: The Nathan Drake Collection", ""});
@@ -142,16 +142,16 @@ Value shortcuts(const std::wstring &root, const Value &request) {
     };
     if (!failed.empty()) {
         out.set("kind", Value::text("error"));
-        out.set("text", Value::text((which == "games" ? "Could not create the shortcuts:\n" : "Could not create the shortcut:\n") +
+        out.set("text", Value::text((which == "games" ? "The shortcuts couldn't be created:\n" : "The shortcut couldn't be created:\n") +
                                     lines(failed)));
     } else if (which == "games") {
         out.set("kind", Value::text("info"));
-        out.set("text", Value::text("Shortcuts created on the desktop:\n" + lines(made) +
-                                    "\n\nEach starts its game directly with the launcher's settings. From a command prompt: "
-                                    "\"Uncharted Launcher.exe\" --play u1 (or u2, u3)."));
+        out.set("text", Value::text("These shortcuts are now on your desktop:\n" + lines(made) +
+                                    "\n\nEach one opens its game right away with the launcher's settings. A command "
+                                    "prompt does the same with \"Uncharted Launcher.exe\" --play u1 (or u2, u3)."));
     } else {
         out.set("kind", Value::text("info"));
-        out.set("text", Value::text("Shortcut created:\n" + first_link));
+        out.set("text", Value::text("The shortcut is on your desktop:\n" + first_link));
     }
     return out;
 }

@@ -149,7 +149,7 @@ void show_button(Value &out, bool shown) {
 void check(const Host &h, bool manual, Value &out) {
     const std::string current = installed(h.root);
     if (current.empty()) {
-        if (manual) out.set("dialog", dialog("info", "This copy runs from the source tree: update it with git."));
+        if (manual) out.set("dialog", dialog("info", "This is a source checkout: update it with git."));
         return;
     }
     if (g.busy) return;
@@ -158,7 +158,7 @@ void check(const Host &h, bool manual, Value &out) {
     g.check_done = false;
     g.manual = manual;
     g.current = current;
-    if (manual) out.set("status", status("Checking for updates...", ""));
+    if (manual) out.set("status", status("Looking for a new version...", ""));
     join();
     g.worker = std::thread([current]() {   // offline, GitHub's rate limit: said as the check's error
         auto t = text_call([&](char *o, int c) { return un_update_latest(current.c_str(), 15, o, c); }, 1 << 22);
@@ -174,7 +174,7 @@ void check(const Host &h, bool manual, Value &out) {
 void install(const Host &h, bool automatic, Value &out) {
     if (!g.release.is_object() || g.busy) return;
     if (h.game_running) {
-        out.set("dialog", dialog("info", "Close the game first: the update replaces the game's runtime."));
+        out.set("dialog", dialog("info", "Please close the game first: the update replaces the game's runtime files."));
         return;
     }
     if (h.import_running) {
@@ -184,9 +184,10 @@ void install(const Host &h, bool automatic, Value &out) {
     if (!automatic) {
         const Value *page = g.release.get("page");
         out.set("dialog", dialog("yesno", "Install version " + version_text(g.release) + " (" +
-                                              fixed0((double)size_of(g.release) / 1e6) + " MB download)?\n\nSaves, settings and "
-                                              "the shader cache are kept. The launcher closes, installs the update and starts "
-                                              "again.\n\nWhat's new: " + (page && page->kind == Value::String ? page->s : "")));
+                                              fixed0((double)size_of(g.release) / 1e6) + " MB to download)?\n\nYour saves, "
+                                                                                         "settings and shader cache stay. The "
+                                                                                         "launcher will close, install the update "
+                                                                                         "and reopen.\n\nRelease notes: " + (page && page->kind == Value::String ? page->s : "")));
         return;
     }
     g.busy = true;
@@ -228,19 +229,20 @@ void tick(const Host &h, Value &out) {
             g.release = g.found;
             const std::string version = version_text(g.release);
             if (h.mode == "auto") {
-                if (!h.game_running) out.set("status", status("Version " + version + " is available.",
-                                                              "It installs by itself in a moment."));
+                if (!h.game_running) out.set("status", status("Version " + version + " is out.",
+                                                              "It will install automatically shortly."));
                 g.auto_at = now_ms() + 1500;
             } else {
                 g.button = "UPDATE TO " + version;
                 show_button(out, true);
                 if (!h.game_running)
-                    out.set("status", status("Version " + version + " is available.",
-                                             "UPDATE installs it: saves and settings are kept, the launcher restarts."));
+                    out.set("status", status("Version " + version + " is out.",
+                                             "Press UPDATE to install it; saves and settings stay, and the launcher "
+                                             "restarts."));
             }
         } else if (g.manual) {
-            if (!g.check_error.empty()) out.set("status", status("Could not check for updates.", g.check_error));
-            else out.set("status", status("No update found.", "Version " + g.current + " is the newest."));
+            if (!g.check_error.empty()) out.set("status", status("The update check failed.", g.check_error));
+            else out.set("status", status("You're up to date.", "Version " + g.current + " is the latest release."));
         }
     }
     if (g.auto_at && now_ms() >= g.auto_at) {   // automatic updates: as soon as no game or import runs
@@ -256,14 +258,14 @@ void tick(const Host &h, Value &out) {
             un_update_progress(&done, &total);
             const std::string amount = total ? fixed0(100.0 * (double)done / (double)total) + "%"
                                              : fixed0((double)done / 1e6) + " MB";
-            out.set("status", status("Downloading the update... " + amount, "Keep the launcher open."));
+            out.set("status", status("Downloading the new version... " + amount, "Please keep the launcher open."));
         } else {
             g.installing = false;
             join();
             if (!g.install_error.empty()) {
                 g.busy = false;
-                out.set("status", status("The update failed.", "The installed version is unchanged."));
-                out.set("dialog", dialog("error", "The update could not be installed:\n\n" + g.install_error));
+                out.set("status", status("The update didn't go through.", "Your current version is still installed."));
+                out.set("dialog", dialog("error", "The update couldn't be installed:\n\n" + g.install_error));
             } else if (h.import_running) {
                 // an import started while the update downloaded: it uses the launcher's files, which the update
                 // replaces (Windows refuses to move files in use); the update installs at the next try
@@ -272,13 +274,13 @@ void tick(const Host &h, Value &out) {
                 out.set("status", status("Update downloaded.", "Press UPDATE again when the multiplayer import has finished."));
                 out.set("dialog", dialog("info", IMPORT_BUSY));
             } else {
-                out.set("status", status("Installing the update...", "The launcher starts again in a moment."));
+                out.set("status", status("Installing the new version...", "The launcher will reopen shortly."));
                 const std::wstring r = wide(h.root), s = wide(g.staged);
                 auto a = text_call([&](char *o, int c) { return un_update_start_apply(r.c_str(), s.c_str(), o, c); }, 1 << 16,
                                    false);
                 if (a.first != 0) {
                     g.busy = false;
-                    out.set("dialog", dialog("error", "The update could not be started:\n\n" + a.second));
+                    out.set("dialog", dialog("error", "The installer couldn't be started:\n\n" + a.second));
                 } else {
                     out.set("exit", Value::boolean(true));   // the installer waits for the launcher to close
                 }

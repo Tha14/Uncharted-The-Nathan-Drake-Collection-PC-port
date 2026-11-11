@@ -299,45 +299,47 @@ Value page_performance(const State &state) {
     Value rate = array();
     const int hz = un_monitor_refresh_hz();
     rate.items.push_back(row(p + "row:fps_limit", "Frame rate limit",
-                             "60 is how the games were made. Higher is smoother but experimental: if the game runs too "
-                             "fast or Nate falls through the floor, go back to 60. With VSync, your monitor's refresh "
-                             "rate (" + std::to_string(hz) + " Hz) is the smoothest.",
+                             "The games were built for 60. Going higher feels smoother but is experimental: if a "
+                             "game speeds up or Nate drops through the floor, return to 60. With VSync on, matching "
+                             "your monitor's refresh rate (" + std::to_string(hz) + " Hz) gives the smoothest result.",
                              choice(p + "fps_limit", ini_value(state, "fps_limit"), fps_options(), "60")));
     rate.items.push_back(separator());
     rate.items.push_back(row(p + "row:frames_queued", "Frames queued",
-                             "Keep 1. 2 can add a few FPS in heavy scenes, but in Uncharted 2 Nate and other "
-                             "characters then float a little above the floor.",
+                             "Leave this at 1. A value of 2 may gain a few FPS in demanding scenes, but Uncharted "
+                             "2's characters then hover slightly above the ground.",
                              choice(p + "frames_queued", ini_value(state, "frames_queued"), FRAMES_QUEUED, "1")));
     page.items.push_back(section(p + "rate", "Frame rate", std::move(rate)));
 
     Value cpu = array();
     const Value async = ini_value(state, "async_shaders");
-    cpu.items.push_back(row(p + "row:async_shaders", "Compile shaders in the background",
-                            "Fewer stutters when you reach new areas. Recommended on.",
+    cpu.items.push_back(row(p + "row:async_shaders", "Build shaders in the background",
+                            "Reduces hitches when you enter new areas. Best left on.",
                             toggle(p + "async_shaders", async.kind == Value::String && async.s == "1")));
     cpu.items.push_back(separator());
     const Value *settings = game_settings(state);
     const Value *mt = settings ? settings->get("multithreaded") : nullptr;
-    cpu.items.push_back(row(p + "row:multithreaded", "Multithreaded rendering (experimental)",
-                            "Prepares the picture on a second CPU core: more FPS where the CPU is the limit, mostly "
-                            "in Uncharted 2 and 3 (on by default in Uncharted 3; keep Frames queued at 1 with it). "
-                            "Turn it off if a game hangs while loading. Drake's Fortune always runs without it.",
+    cpu.items.push_back(row(p + "row:multithreaded", "Render on two threads (experimental)",
+                            "Uses a second CPU core to prepare each frame, which raises FPS when the processor "
+                            "holds the game back, mainly in Uncharted 2 and 3 (Uncharted 3 has it on by default; "
+                            "leave Frames queued at 1 with it). Switch it off if a game freezes while loading. "
+                            "Drake's Fortune never uses it.",
                             toggle(p + "multithreaded", mt && mt->truthy())));
     cpu.items.push_back(separator());
-    cpu.items.push_back(row(p + "row:job_sleep", "Idle game threads",
-                            "Sleep: the game's helper threads rest while they wait, which keeps 4-6 core CPUs fast "
-                            "and saves power. Spin keeps their cores busy, as on the PS4: smoother on CPUs with "
-                            "many cores. Auto picks Spin in Uncharted 1 on CPUs with 8 or more threads (it smooths "
-                            "the camera there) and Sleep in Uncharted 2 and 3.",
+    cpu.items.push_back(row(p + "row:job_sleep", "Waiting game threads",
+                            "Sleep lets the game's worker threads pause while they have nothing to do, which helps "
+                            "4 to 6 core processors and uses less power. Spin keeps those cores working the way the "
+                            "PS4 does, which is smoother on processors with many cores. Auto uses Spin for Uncharted "
+                            "1 when the processor has 8 or more threads (the camera moves more smoothly) and Sleep "
+                            "for Uncharted 2 and 3.",
                             choice(p + "job_sleep", Value::text(config_choice(state, "job_sleep", "auto", JOB_SLEEP)),
                                    JOB_SLEEP, "auto")));
     page.items.push_back(section(p + "cpu", "Processor", std::move(cpu)));
 
     Value vram = array();
-    vram.items.push_back(row(p + "row:low_vram", "Save video memory (experimental)",
-                             "For graphics cards with 2-4 GB: smaller memory reserves, about 0.5 GB less video "
-                             "memory (Uncharted 2 at 720p: 2.1 -> 1.5 GB). New and not yet tried on a real 2 GB "
-                             "card. Auto turns it on for cards with 4 GB or less.",
+    vram.items.push_back(row(p + "row:low_vram", "Lower video memory use (experimental)",
+                             "Meant for 2 to 4 GB graphics cards: the game reserves less memory, roughly 0.5 GB "
+                             "less (Uncharted 2 at 720p went from 2.1 to 1.5 GB). Still new and untested on an "
+                             "actual 2 GB card. Auto enables it on cards with 4 GB or less.",
                              choice(p + "low_vram", Value::text(config_choice(state, "low_vram", "off", LOW_VRAM)),
                                     LOW_VRAM, "")));
     // above 60 FPS, a note in gold (Python's update_fps_note: int(limit) > 60)
@@ -345,8 +347,8 @@ Value page_performance(const State &state) {
     char *end = nullptr;
     const long fps = limit.empty() ? 60 : std::strtol(limit.c_str(), &end, 10);
     if (fps > 60)
-        vram.items.push_back(label(p + "fps_note", "Frame rate unlocked up to " + limit + " FPS (your monitor: " +
-                                   std::to_string(hz) + " Hz). Applied when the game starts.", GOLD, CARD, 9));
+        vram.items.push_back(label(p + "fps_note", "Frame rate allowed up to " + limit + " FPS (monitor: " +
+                                   std::to_string(hz) + " Hz). Takes effect the next time a game starts.", GOLD, CARD, 9));
     page.items.push_back(section(p + "vram", "Video memory", std::move(vram)));
     return page;
 }
@@ -536,25 +538,26 @@ Value page_display(const State &state) {
 
     std::vector<Value> res;
     res.push_back(row(p + "row:aspect", "Aspect ratio",
-                      "For ultrawide monitors (21:9, 32:9), with Borderless or Fullscreen: the games show more at "
-                      "the sides and the same view top to bottom as on a 16:9 screen. 16:10 (Steam Deck: 800p is "
-                      "1280x800) fills the screen and shows more at the top and bottom.",
+                      "Ultrawide monitors (21:9, 32:9) in Borderless or Fullscreen get a wider view at the sides "
+                      "with the same height as 16:9. 16:10 (the Steam Deck's 800p is 1280x800) fills the screen and "
+                      "adds view above and below.",
                       choice(p + "aspect", Value::text(aspect), display_table("aspects"), "")));
     const Options resolutions = rows_of(native_text([&](char *o, int c) { return un_resolution_options(aspect.c_str(), o, c); }));
     res.push_back(row(p + "row:resolution", "Resolution",
-                      "How sharp the picture is; higher needs a faster graphics card (the PS4 drew 1080p). With "
-                      "upscaling below, the game draws less and is upscaled to it. If a game crashes above 1080p, "
-                      "go back to 1080p. Drake's Fortune draws at most 1620p and scales up.",
+                      "Sets how sharp the picture is; higher values need a stronger graphics card (the PS4 rendered "
+                      "1080p). With upscaling, the game renders fewer pixels and enlarges them to this size. If a "
+                      "game crashes above 1080p, return to 1080p. Drake's Fortune renders at most 1620p and enlarges "
+                      "from there.",
                       choice(p + "resolution", settings && settings->get("resolution") ? *settings->get("resolution")
                                                                                        : Value::null(),
                              resolutions, "")));
     if (sizes.second.empty())   // with upscaling, the quality row's note shows the sizes instead
         res.push_back(label(p + "render_size", "Render size: " + times(sizes.first), GOLD, CARD, 9));
     res.push_back(row(p + "row:upscaling", "Upscaling",
-                      "More FPS: the game draws below the resolution and each frame is upscaled to it; the HUD and "
-                      "menus stay sharp at the resolution. FSR 1 is the lightest and works on any card; FSR 3.1, "
-                      "FSR 4 and DLSS (NVIDIA RTX cards) also use the previous frames: more detail, and they smooth "
-                      "edges themselves. Also in the in-game menu.",
+                      "Raises FPS by rendering below the resolution and enlarging every frame to it, while the HUD "
+                      "and menus keep full sharpness. FSR 1 is the cheapest and runs on any card; FSR 3.1, FSR 4 and "
+                      "DLSS (NVIDIA RTX cards) draw on earlier frames for more detail and smooth edges on their own. "
+                      "Also available in the in-game menu.",
                       choice(p + "upscaling", Value::text(upscaling), upscaling_options(state), "")));
     if (upscaling != "off") {   // the quality row, with an upscaler only
         Options presets;
@@ -571,51 +574,52 @@ Value page_display(const State &state) {
             inner.items.push_back(packed(label(p + "upscale_note", "Draws " + times(sizes.first) + ", upscaled to " +
                                                times(sizes.second), GOLD, CARD, 9), "top"));
         res.push_back(row(p + "row:upscale", "Upscaling quality",
-                          "How much below the resolution the game draws: Quality 1/1.5, Balanced 1/1.7, Performance 1/2, "
-                          "Ultra Performance 1/3 of its width and height. Native AA (DLAA with DLSS) draws at the "
-                          "resolution and only smooths edges.",
+                          "How far below the resolution the game renders, per side: Quality 1/1.5, Balanced 1/1.7, "
+                          "Performance 1/2, Ultra Performance 1/3. Native AA (DLAA with DLSS) renders at full "
+                          "resolution and only cleans up edges.",
                           box(p + "upscale_box", "v", std::move(inner))));
     }
     Value aa = choice(p + "aa", Value::text(anti_aliasing_of(state, settings)), ANTI_ALIASING, "");
     aa.set("en", Value::boolean(!temporal_upscaler(upscaling)));
     res.push_back(row(p + "row:aa", "Anti-aliasing",
-                      "Smooths jagged, shimmering edges, with upscaling Off or FSR 1. FSR 3.1, FSR 4 and DLSS do "
-                      "it themselves.", aa));
+                      "Evens out jagged, flickering edges when upscaling is Off or FSR 1. FSR 3.1, FSR 4 and DLSS "
+                      "already take care of this.", aa));
     page.items.push_back(section(p + "resolution", "Resolution and upscaling", with_separators(std::move(res))));
 
     std::vector<Value> picture;
     picture.push_back(row(p + "row:display_mode", "Display mode",
                           "A normal window, a borderless window (quick Alt+Tab) or fullscreen.",
                           choice(p + "display_mode", ini_choice_value(state, "display_mode"), DISPLAY_MODES, "")));
-    picture.push_back(row(p + "row:vsync", "VSync", "Stops tearing (a line across the picture when the camera turns). "
-                                                    "Recommended on.",
+    picture.push_back(row(p + "row:vsync", "VSync", "Prevents tearing, the visible split in the image when the "
+                                                    "camera moves. Best left on.",
                           toggle(p + "vsync", ini_text(state, "vsync", "0") == "1")));
     const std::string sharp = ini_text(state, "rcas", "1") == "1" ? ini_text(state, "rcas_strength", "75") : "off";
-    picture.push_back(row(p + "row:sharpening", "Sharpening", "Makes the final picture crisper (AMD FidelityFX RCAS).",
+    picture.push_back(row(p + "row:sharpening", "Sharpening", "Adds crispness to the finished image (AMD FidelityFX "
+                                                              "RCAS).",
                           choice(p + "sharpening", Value::text(sharp), SHARPENING, "")));
     page.items.push_back(section(p + "picture", "Picture", with_separators(std::move(picture))));
 
     std::vector<Value> counter;
     counter.push_back(row(p + "row:show_fps", "Show performance counter",
-                          "FPS, temperatures and memory in a corner of the screen. Insert, then the Overlay "
-                          "tab, changes it in the game too.",
+                          "Shows FPS, temperatures and memory in a corner of the screen. In a game, press Insert "
+                          "and open the Overlay tab to adjust it.",
                           toggle(p + "show_fps", ini_text(state, "show_fps", "0") == "1")));
     Value chips = array();
     for (auto &item : OVERLAY_ITEMS)
         chips.items.push_back(packed(chip(p + item.first, ini_text(state, item.first, ini_default(item.first)) == "1",
                                           item.second), "left"));
-    counter.push_back(row(p + "row:overlay_items", "What it shows",
-                          "The frame rate, the frame time in milliseconds, the graphics card and the processor "
-                          "with their temperatures, and memory. Pick any; with nothing picked the counter is "
-                          "just its box.", box(p + "overlay_items", "h", std::move(chips))));
-    counter.push_back(row(p + "row:overlay_corner", "Counter corner", "Where the counter sits.",
+    counter.push_back(row(p + "row:overlay_items", "Items shown",
+                          "Frame rate, frame time in milliseconds, graphics card and processor with their "
+                          "temperatures, and memory use. Choose any mix; with none chosen only the empty box remains.", box(p + "overlay_items", "h", std::move(chips))));
+    counter.push_back(row(p + "row:overlay_corner", "Counter corner", "Which corner of the screen it uses.",
                           choice(p + "overlay_corner", ini_choice_value(state, "overlay_corner"), OVERLAY_CORNER, "")));
-    counter.push_back(row(p + "row:overlay_layout", "Counter layout", "One line, or one item per line.",
+    counter.push_back(row(p + "row:overlay_layout", "Counter layout", "Everything on one line, or each item on its "
+                                                                      "own line.",
                           choice(p + "overlay_layout", ini_choice_value(state, "overlay_layout"), OVERLAY_LAYOUT, "")));
-    counter.push_back(row(p + "row:overlay_scale", "Counter size", "Text size of the counter.",
+    counter.push_back(row(p + "row:overlay_scale", "Counter size", "How large the counter's text is.",
                           choice(p + "overlay_scale", ini_choice_value(state, "overlay_scale"), OVERLAY_SCALE, "")));
     counter.push_back(row(p + "row:overlay_opacity", "Counter background",
-                          "How dark the counter's box is. None leaves the text on the picture.",
+                          "How dark the box behind the counter is. None puts the text straight on the image.",
                           choice(p + "overlay_opacity", ini_choice_value(state, "overlay_opacity"), OVERLAY_OPACITY, "")));
     page.items.push_back(section(p + "counter", "Performance counter", with_separators(std::move(counter))));
     return page;
@@ -771,12 +775,12 @@ Value page_setup(const State &state) {
     const std::string gpu_name = gpu ? text_of(*gpu) : "", recommended = rec ? text_of(*rec) : "";
 
     std::vector<Value> items;
-    std::string intro = "Pick a quality level. Every setting can still be changed in Display and Performance.";
+    std::string intro = "Choose a quality level. You can still fine-tune each setting under Display and Performance.";
     if (!recommended.empty()) {
         const Preset *r = preset_named(list, recommended);
         const std::string name = recommended == "igpu" ? "iGPU" : r ? title_case(r->title) : recommended;
-        intro = "Recommended for your graphics card (" + gpu_name + "): " + name +
-                ". Every setting can still be changed in Display and Performance.";
+        intro = "Suggested for your graphics card (" + gpu_name + "): " + name +
+                ". You can still fine-tune each setting under Display and Performance.";
     }
     items.push_back(label(p + "intro", intro, MUTED, CARD, 10));
 
@@ -819,8 +823,9 @@ Value page_setup(const State &state) {
     items.push_back(box(p + "presets", "v", std::move(grid)));
 
     const std::string game = game_name(state);
-    items.push_back(label(p + "custom_note", preset_named(list, current) ? "Settings are kept per game: these are " + game + "'s."
-                                                                        : game + ": custom settings (changed by hand).",
+    items.push_back(label(p + "custom_note", preset_named(list, current) ? "Each game has its own settings: these "
+                                                                           "belong to " + game + "'s."
+                                                                        : game + ": custom settings (adjusted manually).",
                           MUTED, CARD, 9));
     Value page = array();
     page.items.push_back(section(p + "quality", "Quality level", with_separators(std::move(items))));
@@ -951,29 +956,31 @@ const Options ANISOTROPY = {{"0", "Game"}, {"4", "4x"}, {"8", "8x"}, {"16", "16x
 // The launcher.json toggles of ADVANCED: key, default, title, hint (in the page's order, by section)
 struct ConfigToggle { const char *key; bool fallback; const char *title, *hint; };
 const ConfigToggle EXTRA_QUALITY[] = {
-    {"hires_shadows", false, "Sharper lamp shadows (Uncharted 2 and 3)",
-     "The game's own high-resolution shadow buffer for lamps and flashlights (off on the PS4). Extra quality, being "
-     "tested. Needs update 1.02."},
+    {"hires_shadows", false, "Higher-resolution lamp shadows (Uncharted 2 and 3)",
+     "Uses the game's built-in high-resolution shadow buffer for lamps and flashlights (unused on the PS4). An "
+     "extra-quality option still in testing. Requires update 1.02."},
     {"full_res_textures", false, "Full-resolution textures (Uncharted 2 and 3)",
-     "Always the sharpest version of every texture, no blurry ones while the game streams (off on the PS4). Extra "
-     "quality, being tested. Needs update 1.02."},
-    {"no_dof", false, "No depth of field (Uncharted 2 and 3)",
-     "Turns off the background blur (while aiming, in cutscenes and in gameplay). Needs update 1.02."},
-    {"movie_stretch", false, "Stretch movies to the screen",
-     "The prerecorded cutscenes are 16:9 videos. Off: they keep their shape with black bars on ultrawide screens. On: "
-     "they fill the whole screen, stretched."}};
+     "Keeps every texture at its sharpest version, so nothing looks blurry while the game streams data (unused on "
+     "the PS4). An extra-quality option still in testing. Requires update 1.02."},
+    {"no_dof", false, "Turn off depth of field (Uncharted 2 and 3)",
+     "Removes the background blur when aiming, in cutscenes and during play. Requires update 1.02."},
+    {"movie_stretch", false, "Stretch cutscene videos to fit",
+     "Prerecorded cutscenes are 16:9 videos. Off keeps their proportions, with black bars on ultrawide screens. On "
+     "stretches them across the whole screen."}};
 const ConfigToggle UNLOCKS[] = {
     {"unlock", false, "Unlock all chapters",
-     "Every chapter in Chapter Select and the Brutal difficulty from the start, in all three games. Your saves and "
-     "progress stay as they are. Needs update 1.02."},
+     "Opens every chapter in Chapter Select and the Brutal difficulty right away, in all three games. Your saves "
+     "and progress are left untouched. Requires update 1.02."},
     {"unlock_rewards", false, "Unlock all rewards",
-     "Every reward in Bonuses (skins, weapons, render modes, art galleries, gameplay tweaks) and every story cutscene, "
-     "while this is on. Nothing is saved: turned off, the menus show your own progress again. Needs update 1.02."}};
+     "Makes every Bonuses reward (skins, weapons, render modes, art galleries, gameplay tweaks) and every story "
+     "cutscene available while enabled. Nothing gets saved: turn it off and the menus show your real progress again. "
+     "Requires update 1.02."}};
 const ConfigToggle LAUNCHER_TOGGLES[] = {
     {"diagnostics", true, "Performance log",
-     "Writes frame rate statistics to the log every 5 seconds. Helps when you report a problem."},
-    {"torch_forward", true, "Torch follows Nate (Uncharted 2)",
-     "The torch lights where Nate points it. Off: as on the PS4, it lights where the camera looks. Needs update 1.02."}};
+     "Records frame rate statistics in the log every 5 seconds, which is useful when reporting a problem."},
+    {"torch_forward", true, "Torch aims with Nate (Uncharted 2)",
+     "The torch shines where Nate aims it. Off matches the PS4, where it lights wherever the camera faces. Requires "
+     "update 1.02."}};
 
 template <size_t N> void add_toggles(std::vector<Value> &rows, const State &state, const ConfigToggle (&list)[N]) {
     for (auto &t : list)
@@ -988,36 +995,38 @@ Value page_advanced(const State &state) {
 
     std::vector<Value> game;
     game.push_back(row(p + "row:save_profile", "Save profile",
-                       "Separate saves for this game: each profile keeps its own progress and in-game settings, "
-                       "like another PS4 user. Profile 1 has your saves from earlier versions; switching never "
-                       "deletes anything.",
+                       "Independent saves for this game: every profile has its own progress and in-game settings, "
+                       "like a separate PS4 user. Profile 1 holds the saves from earlier versions; changing profiles "
+                       "never removes anything.",
                        choice(p + "save_profile",
                               Value::text(settings && settings->get("save_profile") ? py_str(*settings->get("save_profile")) : "1"),
                               SAVE_PROFILES, "")));
     const Value *lang = state.config.get("language");
     game.push_back(row(p + "row:language", "Language",
-                       "Menus and subtitles in another language: pick it here, then press Square in a game's main "
-                       "menu to switch. Languages marked + voices are also spoken in your copy of the game.",
+                       "Choose a language for menus and subtitles here, then press Square in a game's main menu to "
+                       "apply it. Entries marked + voices also have spoken dialogue in your copy of the game.",
                        dropdown(p + "language", lang ? *lang : Value::text("1"), language_options(state))));
     game.push_back(row(p + "row:u3_exposure", "Uncharted 3 exposure",
-                       "If Uncharted 3 looks washed out or too bright on your PC (bright skies and highlights), "
-                       "lower its exposure here: -0.3 a little, -1.0 about half as bright. Game's = unchanged.",
+                       "If Uncharted 3 appears washed out or overly bright on your PC (skies and highlights), "
+                       "reduce its exposure here: -0.3 slightly, -1.0 to roughly half the brightness. Game's leaves "
+                       "it unchanged.",
                        choice(p + "u3_exposure", Value::text(config_str(state, "u3_exposure", "0")), EXPOSURES, "0")));
     game.push_back(row(p + "row:speakers", "Speakers",
-                       "The games have their own stereo, 5.1 and 7.1 sound mixes. Auto picks the one that matches "
-                       "your Windows sound output (Sound settings -> speaker setup); headphones get stereo.",
+                       "Each game includes stereo, 5.1 and 7.1 mixes. Auto selects the one that matches your "
+                       "Windows speaker setup (Sound settings -> speaker configuration); headphones use stereo.",
                        choice(p + "speakers", Value::text(config_str(state, "speakers", "auto")), SPEAKERS, "auto")));
     const Value *shortcut = state.ini.get("menu_shortcut");
     game.push_back(row(p + "row:menu_shortcut", "In-game menu shortcut",
-                       "The controller buttons that open the in-game menu. L2 + R3 also zooms the scope with some "
-                       "guns: pick Select + Start (View + Menu on Xbox) or Keyboard only (Insert) then.",
+                       "Which controller buttons open the in-game menu. Since L2 + R3 also zooms some weapon "
+                       "scopes, choose Select + Start (View + Menu on Xbox) or Keyboard only (Insert) if that gets "
+                       "in the way.",
                        choice(p + "menu_shortcut", shortcut ? *shortcut : Value::text("lt_r3"), MENU_SHORTCUTS, "")));
     page.items.push_back(section(p + "game", "Game", with_separators(std::move(game))));
 
     std::vector<Value> extra;
     extra.push_back(row(p + "row:anisotropy", "Texture filtering",
-                        "Sharper ground and wall textures seen at an angle, in all three games. 16x costs "
-                        "almost no frame rate. Game = as on the PS4.",
+                        "Keeps floor and wall textures crisp when seen at an angle, in all three games. 16x has "
+                        "almost no cost in frame rate. Game matches the PS4.",
                         choice(p + "anisotropy", Value::text(config_str(state, "anisotropy", "0")), ANISOTROPY, "16")));
     add_toggles(extra, state, EXTRA_QUALITY);
     page.items.push_back(section(p + "extra", "Extra quality", with_separators(std::move(extra))));
@@ -1065,23 +1074,25 @@ bool act_advanced(const State &state, const std::string &id, const std::string &
 // ------------------------------------------------------------------------------------------------ tools
 
 // The anti-aliasing technologies' credits (NVIDIA's DLSS license asks for its attribution).
-const char *const CREDITS = "Credits: DLSS and DLAA use NVIDIA DLSS technology. NVIDIA, RTX and DLSS are trademarks of "
-                            "NVIDIA Corporation. AMD FidelityFX Super Resolution (FSR 3.1, FSR 4) by AMD. Uncharted camera "
-                            "motion for anti-aliasing after SuperMedo's Uncharted port.";
+const char *const CREDITS = "Credits: DLSS and DLAA are powered by NVIDIA DLSS technology; NVIDIA, RTX and DLSS are "
+                            "trademarks of NVIDIA Corporation. FSR 3.1 and FSR 4 are AMD FidelityFX Super "
+                            "Resolution, made by AMD. The camera motion data used for anti-aliasing follows "
+                            "SuperMedo's Uncharted port.";
 
 // TOOLS' buttons: the launcher action each one runs (the Python side's calls(), by name), and its label
 struct ToolButton { const char *action, *label; };
 struct ToolSection { const char *title, *note; std::vector<ToolButton> buttons; };
 const std::vector<ToolSection> &tool_sections() {
     static const std::vector<ToolSection> sections = {
-        {"Shortcuts", "Game shortcuts: one per game on the desktop, each starts its game directly.",
+        {"Shortcuts", "Game shortcuts puts one icon per game on the desktop that launches that game straight away.",
          {{"desktop_shortcut", "Desktop shortcut"}, {"game_shortcuts", "Game shortcuts"}}},
-        {"Steam", "A non-Steam game in your library: the Collection, or one entry per game.",
+        {"Steam", "Adds a non-Steam entry to your library: the whole Collection, or one per game.",
          {{"add_to_steam", "Add to Steam"}, {"add_games_to_steam", "Add games to Steam"}}},
         {"Folders", "",
          {{"open_logs", "Open log folder"}, {"open_saves", "Open save folder"}, {"choose_game_dir", "Change game folder"},
           {"install_game_pkg", "Install game from .pkg"}, {"check_game_files", "Check game files"}}},
-        {"Game update", "Your extracted update 1.02 folder, wherever it is, or the update's .pkg file.",
+        {"Game update", "Point to your unpacked update 1.02 folder, wherever it is, or install it from its .pkg "
+                        "file.",
          {{"choose_update_folder", "Choose update folder"}, {"install_game_update", "Install from .pkg"}}},
         {"Troubleshooting", "",
          {{"check_updates", "Check for updates"}, {"clear_cache", "Clear shader cache"}, {"reset", "Reset all settings"}}}};
@@ -1176,7 +1187,7 @@ Value page_launcher(const State &state) {
                        choice(p + "update_mode", mode ? *mode : Value::text("manual"), UPDATE_MODES, "")));
     const std::string version = installed_version(state);
     rows.push_back(row(p + "row:check_updates", "Check for updates at start",
-                       "Installed: " + (version.empty() ? std::string("source tree (updates with git)") : version) + ".",
+                       "Installed: " + (version.empty() ? std::string("source checkout (update it with git)") : version) + ".",
                        toggle(p + "check_updates", config_bool(state, "check_updates", true))));
     rows.push_back(row(p + "row:check_now", "Check for a new version", "", button(p + "check_now", "Check now", "secondary")));
     Value page = array();
@@ -1213,8 +1224,9 @@ bool act_launcher(const std::string &id, const std::string &kind, const Value &v
 const char *const FIELD = "#222228";
 const char *const FIELD_HI = "#2c2c34";
 const char *const STOP_RED = "#c4553f";
-const char *const BINDINGS_HINT = "Click a slot, then press a key or a mouse button (right-click a slot to clear it). In game "
-                                  "the mouse is captured; Alt+Tab or Insert (menu) frees it. A controller always works too.";
+const char *const BINDINGS_HINT = "Select a slot, then press the key or mouse button to assign (right-click a slot "
+                                  "to empty it). During play the mouse is locked to the game; Alt+Tab or Insert "
+                                  "(menu) releases it. Controllers work at all times.";
 
 const Value &control_tables() {
     static Value tables;
@@ -1478,14 +1490,16 @@ bool act_controls(const State &state, const std::string &id, const std::string &
     const Capture cap = capture_of(state);
     auto saved_keys = [&]() {
         return ui_with(state, {{"capturing", Value::null()}, {"pad_capture", Value::null()},
-                               {"hint", Value::text("Saved for " + name + ". Click a slot, then press a key or a mouse button "
-                                                    "(right-click a slot to clear it).")},
+                               {"hint", Value::text("Saved for " + name + ". Select a slot, then press the key or "
+                                                                          "mouse button to assign (right-click a "
+                                                                          "slot to empty it).")},
                                {"hint_error", Value::boolean(false)}});
     };
     auto saved_pad = [&]() {
         return ui_with(state, {{"pad_capture", Value::null()},
-                               {"hint", Value::text("Saved for " + name + ". Right-click a controller slot to clear it; "
-                                                    "Reset controls restores the defaults.")},
+                               {"hint", Value::text("Saved for " + name + ". Right-click a controller slot to empty "
+                                                                          "it; Reset controls brings back the "
+                                                                          "defaults.")},
                                {"hint_error", Value::boolean(false)}});
     };
     auto error = [&](const std::string &text) {
@@ -1551,12 +1565,12 @@ bool act_controls(const State &state, const std::string &id, const std::string &
         if (kind != "click") return false;
         const Pads pads = pad_state(state);
         if (pads.count < 0) {
-            changes.ui = error("No controller support found (SDL3.dll).");
+            changes.ui = error("Controller support is unavailable (SDL3.dll is missing).");
             return true;
         }
         if (pads.count == 0) {
             changes.ui = ui_with(state, {{"capturing", Value::null()}, {"pad_capture", Value::null()},
-                                         {"hint", Value::text("Connect a controller, then click the slot again.")},
+                                         {"hint", Value::text("Plug in a controller and select the slot again.")},
                                          {"hint_error", Value::boolean(true)}});
             return true;
         }
@@ -1581,8 +1595,8 @@ bool act_controls(const State &state, const std::string &id, const std::string &
         if (cap.action.empty()) return true;
         if (!keysym.empty()) {
             if (in_list("RESERVED_KEYS", keysym)) {
-                changes.ui = error(keysym + " is used by the game window (Insert opens the menu, F9 records input, comma "
-                                            "separates bindings). Choose another key.");
+                changes.ui = error(keysym + " is reserved by the game window (Insert opens the menu, F9 records "
+                                            "input, comma separates bindings). Pick a different key.");
                 return true;
             }
             std::string sdl;
@@ -1591,7 +1605,7 @@ bool act_controls(const State &state, const std::string &id, const std::string &
             if (sdl.empty() && keysym.size() == 1 && std::isalnum((unsigned char)keysym[0]))
                 sdl = std::string(1, (char)std::toupper((unsigned char)keysym[0]));
             if (sdl.empty()) {
-                changes.ui = error("The key " + keysym + " can't be used. Choose another key.");
+                changes.ui = error("The key " + keysym + " can't be assigned. Pick a different key.");
                 return true;
             }
             set_binding(cap.action, cap.slot, Value::text("key:" + sdl));
@@ -1599,7 +1613,7 @@ bool act_controls(const State &state, const std::string &id, const std::string &
         }
         if (!mouse.empty()) {
             if (in_list("STICK_ACTIONS", cap.action)) {
-                changes.ui = error("Stick directions take keys; the mouse moves the camera by itself.");
+                changes.ui = error("Stick directions need keys; the mouse already controls the camera.");
                 return true;
             }
             set_binding(cap.action, cap.slot, Value::text("mouse:" + mouse));

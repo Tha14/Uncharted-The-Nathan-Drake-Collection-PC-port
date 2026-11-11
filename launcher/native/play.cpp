@@ -682,10 +682,13 @@ json::Value play_questions(const json::Value &state) {
     if (update.empty() && !version.empty() && version < "01.02" && str_field(config, "warned_no_update") != game) {
         const std::string title = lower_ascii(name_of(game)) == "uroot" ? name_of(parent_of(game)) : name_of(game);
         json::Value q = question("without_update",
-            "Your game is version " + lstrip_zeros(version) + ", without update 1.02.\n\nMost of this port's fixes, crash fixes "
-            "among them, are written for update 1.02, so without it the games crash more often.\n\nDump update 1.02 from "
-            "your PS4 and extract it next to the game folder as " + title + "-patch (the Advanced tab then shows it).\n\n"
-            "Play anyway?");
+            "This copy of the game is version " + lstrip_zeros(version) + " and has no update 1.02.\n\nThe port's "
+                                                                          "fixes, including the crash fixes, mostly "
+                                                                          "target update 1.02, so the games crash "
+                                                                          "more often without it.\n\nDump update "
+                                                                          "1.02 from your PS4 and unpack it beside "
+                                                                          "the game folder as " + title + "-patch (TOOLS then lists it).\n\nStart "
+                                                                                                          "the game anyway?");
         q.get("remember")->set("warned_no_update", json::Value::text(game));
         list.items.push_back(std::move(q));
     }
@@ -696,9 +699,10 @@ json::Value play_questions(const json::Value &state) {
             std::string named;
             for (size_t i = 0; i < problems.size() && i < 6; ++i) named += (i ? "\n" : "") + problems[i];
             list.items.push_back(question("update_files",
-                "Your game update folder has missing or damaged files:\n\n" + named + "\n\n" + update + "\n\nThe games will "
-                "probably stop at start. Extract the update again (or use Install from .pkg under Advanced -> GAME UPDATE). "
-                "Play anyway?"));
+                "Files in your game update folder are missing or damaged:\n\n" + named + "\n\n" + update + "\n\nThe games will most likely stop "
+                                                                                                           "while starting. Unpack the update again "
+                                                                                                           "(or use TOOLS -> Game update -> Install "
+                                                                                                           "from .pkg). Start the game anyway?"));
         }
     }
 
@@ -712,10 +716,10 @@ json::Value play_questions(const json::Value &state) {
         std::string text;
         for (size_t i = 0; i < places.size(); ++i) text += (i ? "\n" : "") + places[i];
         json::Value q = question("slow_drive",
-            text + "\n\nOn such drives the games freeze for up to a second, again and again, while the port writes its "
-            "shader cache, logs and saves (Windows writes to them without a cache).\n\nFor smooth play, copy this port "
-            "folder and the game folder to an internal drive (an SSD such as C:) and start the launcher from there.\n\n"
-            "Play anyway?");
+            text + "\n\nOn drives like this the games keep pausing for up to a second while the port writes its "
+                   "shader cache, logs and saves (Windows writes to them without caching).\n\nFor smooth play, move "
+                   "this port folder and the game folder to an internal drive (an SSD such as C:) and start the "
+                   "launcher from that copy.\n\nStart the game anyway?");
         q.get("remember")->set("warned_slow_drive", json::Value::text(key));
         list.items.push_back(std::move(q));
     }
@@ -737,24 +741,26 @@ json::Value play_end(const json::Value &state) {
     const bool clean = !code || code->kind == json::Value::Null || (code->kind == json::Value::Int && code->i == 0);
     json::Value end = json::Value::object();
     if ((clean || stopping) && !froze) {
-        end.set("status", json::Value::text("Game closed."));
-        end.set("detail", json::Value::text("Ready to play again."));
+        end.set("status", json::Value::text("The game was closed."));
+        end.set("detail", json::Value::text("You can play again."));
         end.set("ask", json::Value::text(""));
         return end;
     }
-    end.set("status", json::Value::text(froze ? "The game froze." : "The game stopped unexpectedly."));
-    end.set("detail", json::Value::text(froze ? "A report was saved; see the log folder."
+    end.set("status", json::Value::text(froze ? "The game froze." : "The game ended unexpectedly."));
+    end.set("detail", json::Value::text(froze ? "A report is in the log folder."
                                               : "Exit code " + (code && code->kind == json::Value::Int ? std::to_string(code->i)
                                                                                                        : std::string("None")) +
-                                                    ". See the log for details."));
+                                                    ". The log has the details."));
     if (!reason.empty()) {
         // 24 Oct 2026 (#148, #163, #172): crashes of a 1.00 game were reported as port bugs; most of the port's fixes
         // are written for update 1.02
         const std::string version = system_answer("app_version", game);
         if (update.empty() && !version.empty() && version < "01.02")
-            reason += "\n\nYour game is version " + lstrip_zeros(version) + " without update 1.02, so most of the port's crash "
-                      "fixes are skipped. Install update 1.02 first (Advanced -> GAME UPDATE).";
-        end.set("ask", json::Value::text("The game stopped with an error:\n\n" + reason + "\n\nOpen the log folder?"));
+            reason += "\n\nThis copy of the game is version " + lstrip_zeros(version) + " and has no update 1.02, so most of "
+                                                                                        "the port's crash fixes don't apply. Add "
+                                                                                        "update 1.02 first (TOOLS -> Game "
+                                                                                        "update).";
+        end.set("ask", json::Value::text("The game ended with an error:\n\n" + reason + "\n\nOpen the log folder now?"));
     } else {
         end.set("ask", json::Value::text(""));
     }
