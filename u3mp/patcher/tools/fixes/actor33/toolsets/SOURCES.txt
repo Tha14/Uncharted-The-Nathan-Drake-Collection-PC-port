@@ -1,5 +1,5 @@
-Converter snapshots used by build_actors.py (u3mp/paktools of github.com/fidalgojoao/Uncharted2-Multiplayer-Dev,
-branch U3_Multiplayer, GPL v2 like tools/paktools). Each folder is a complete paktools copy (Python only).
+Converter snapshots used by build_actors.py (the project's own u3mp/paktools,
+GPL v2 like tools/paktools). Each folder is a complete paktools copy (Python only).
 
 folder    origin                                                     used for
 c6b291a   git c6b291a (2026-10-26 13:13), = tools/paktools ps4actor   overlay-mp hero-london(-ring) (10-26 06:xx)

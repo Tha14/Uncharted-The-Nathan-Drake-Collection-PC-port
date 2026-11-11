@@ -8,7 +8,7 @@ Recipe steps: `convert-levels-port` (port), `convert-levels-r2` (r2), `convert-l
 
 Nothing of the cloud runs (plan / req / bundle json, res files, texture caps) was on this PC. Instead:
 
-* **Converter versions.** The GitHub repo `fidalgojoao/Uncharted2-Multiplayer-Dev` (branch U3_Multiplayer) now ends at
+* **Converter versions.** The converter's published history now ends at
   2026-10-27 23:45; its 9 paktools commits (10-26 13:13 .. 10-27 00:02) were extracted. The 10-31 tip `f525859` (used for
   the Lab conversion, gone from GitHub) is `tools/paktools` for 70 of 74 files; its `ndpak.py` was recovered from a full
   transcript Read (2026-11-01 07:09) and its `ps4writer.py` is git `b6eb7767` (6db6b8f..003b433), proven by the Lab

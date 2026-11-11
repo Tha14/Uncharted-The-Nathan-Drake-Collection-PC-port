@@ -1,7 +1,7 @@
 """dctools/common.py: shared DC helpers of the dctools scripts.
 
-Restored 2026-11-05 from the session transcripts: the original (u3mp/dctools/common.py of the
-U3_Multiplayer GitHub branch, 1445 bytes) was printed in full on 2026-11-01 15:09 (sub-agent
+Restored 2026-11-05 from the session transcripts: the original (the project's own
+u3mp/dctools/common.py, 1445 bytes) was printed in full on 2026-11-01 15:09 (sub-agent
 af07dd9685e27624a, line 45) and at 00:21 (main transcript line 5817). It was a thin layer over
 paktools/dc.py: `from dc import DC, sid, dump` plus the cloud-sandbox paths below and three helpers.
 The only local change then was the sys.path line (pointed at scratchpad/gh2/u3mp/paktools).

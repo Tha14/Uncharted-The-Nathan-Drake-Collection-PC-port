@@ -11,7 +11,7 @@ jobs.tsv columns: overlay, name, sha256, status, method, toolset, ps3 source, te
                         hat-colour, airport-igc2) replaces it, so it is only written when the file is missing
   env      json: extra PS4ACTOR_* variables (PS4ACTOR_DONORS = ':'-separated retail pak names)
   method   ps4actor | anim | rename | wpnmods | convert_net | lab
-  toolset  toolsets/<name>/ (paktools snapshots: git commits of fidalgojoao/Uncharted2-Multiplayer-Dev and the
+  toolset  toolsets/<name>/ (paktools snapshots: git commits of the project's own converter and the
            recovered cloud variants, see toolsets/SOURCES.txt)
   post     cubefix, cb3fix (stage/ post passes), '|solo' = template directory holding only the template
 Writes {{WORK}}/overlay-<o>/u3data/build/main/actor33/ps4/<name> (backup of a replaced file in
