@@ -1,18 +1,20 @@
-// apply.cpp - apply_update.exe, the launcher update's installer (tools/apply_update.py before it). It runs from the
-// NEW version's unpacked package (update\staged\tools\apply_update.exe) after the old launcher has closed:
-//   1. waits for the launcher (--wait-pid) to exit,
-//   2. moves each program item (everything in the package except analysis\) to update\old and copies the new one in
-//      its place; the runtime's defaults file in analysis\uncharted-user is replaced too, nothing else there (saves,
-//      settings, logs, shader cache),
-//   3. on any error puts every moved item back, so the old version keeps working,
-//   4. moves back into the new folders everything of the old ones that the package does not install: the player's
-//      own files (ReShade's ReShade.ini, presets and reshade-shaders\ next to Uncharted.exe, a game folder put inside
-//      gow3_pc\, notes). Only files the previous package installed itself (installed-files.txt) and the new one no
-//      longer has stay behind (#134), also inside folders the new package no longer has, and whole program folders
-//      the new package dropped (an old python\) are emptied of those files and removed,
-//   5. starts "Uncharted Launcher.exe" (the new launcher removes update\ when it starts).
+// apply.cpp builds apply_update.exe, the program that swaps in a downloaded launcher version (it replaced
+// tools/apply_update.py). It is started from the unpacked copy of the NEW version, as
+// update\staged\tools\apply_update.exe, once the running launcher is on its way out, and goes through these stages:
+//   1. Wait until the launcher process given by --wait-pid has ended.
+//   2. For every top-level program item in the package (anything but analysis\), move the installed one aside into
+//      update\old and copy the new one into the root. Inside analysis\uncharted-user only the runtime's defaults file
+//      is overwritten; the shader cache, logs, settings and saves are left alone.
+//   3. If anything fails, move every item that was set aside back again so the previous version still runs.
+//   4. Bring across, into the fresh folders, whatever the old folders held that the package does not ship. That covers
+//      the player's own additions: ReShade (ReShade.ini, presets, reshade-shaders\ beside Uncharted.exe), a game folder
+//      placed under gow3_pc\, personal notes and so on. The only things left out are files that the previous package
+//      itself shipped (recorded in installed-files.txt) and that the new package has dropped (#134); this holds in
+//      folders that disappeared from the package too. Program folders that the new package no longer contains at all
+//      (an old python\, say) lose those files and are deleted once empty.
+//   5. Launch "Uncharted Launcher.exe"; that new launcher deletes update\ on startup.
 // usage: apply_update.exe --root <package folder> --wait-pid <launcher pid> [--no-restart] [--quiet]
-// Statically linked and self-contained: it needs nothing from the folder it replaces.
+// The exe is statically linked, so it does not depend on anything in the folder it is about to replace.
 
 #include <windows.h>
 
@@ -26,8 +28,9 @@ namespace {
 
 const wchar_t *const TITLE = L"Uncharted: The Nathan Drake Collection";
 const wchar_t *const DEFAULTS[] = {L"analysis/uncharted-user/disabled-optimizations.txt"};
-// The files the installed package put there (relative, "/"), written after each update: the next update leaves out
-// the ones its package dropped and carries over everything else.
+// Written at the end of every update: one line per file the package shipped, relative to the root with "/" between
+// folders. When the following update runs, files listed here that its package lacks are left behind, and all other
+// files are kept.
 const wchar_t *const MANIFEST = L"installed-files.txt";
 
 struct Error { std::wstring message; };
@@ -55,7 +58,7 @@ void write_std(DWORD which, const std::wstring &text) {
 }
 void print(const std::wstring &text) { write_std(STD_OUTPUT_HANDLE, text); }
 
-// Python's OSError words: "[WinError n] text: 'a' -> 'b'"
+// Formats a system error the way Python prints an OSError: "[WinError n] text: 'a' -> 'b'"
 std::wstring os_error(DWORD code, const std::wstring &a = L"", const std::wstring &b = L"") {
     wchar_t *text = nullptr;
     FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, code,
@@ -69,7 +72,7 @@ std::wstring os_error(DWORD code, const std::wstring &a = L"", const std::wstrin
     return o;
 }
 
-// ------------------------------------------------------------------------------------------------ paths
+// ------------------------------------------------------------------------------------------------ file system helpers
 
 std::wstring join(const std::wstring &a, const std::wstring &b) {
     if (a.empty()) return b;
@@ -80,7 +83,7 @@ std::wstring native_rel(std::wstring rel) {
     return rel;
 }
 DWORD attrs(const std::wstring &p) { return GetFileAttributesW(p.c_str()); }
-bool exists(const std::wstring &p) {   // Path.exists (links followed)
+bool exists(const std::wstring &p) {   // like Path.exists: a link counts only if its target is there
     const DWORD a = attrs(p);
     if (a == INVALID_FILE_ATTRIBUTES) return false;
     if (!(a & FILE_ATTRIBUTE_REPARSE_POINT)) return true;
@@ -97,7 +100,7 @@ bool is_link(const std::wstring &p) {
 bool is_dir(const std::wstring &p) { return exists(p) && (attrs(p) & FILE_ATTRIBUTE_DIRECTORY); }
 bool is_file(const std::wstring &p) { return exists(p) && !(attrs(p) & FILE_ATTRIBUTE_DIRECTORY); }
 
-// the folder's entries, sorted by name (sorted(Path.iterdir()))
+// Names inside a folder in the order sorted(Path.iterdir()) would produce
 std::vector<std::wstring> entries(const std::wstring &folder) {
     std::vector<std::wstring> names;
     WIN32_FIND_DATAW fd;
@@ -108,7 +111,7 @@ std::vector<std::wstring> entries(const std::wstring &folder) {
         if (n != L"." && n != L"..") names.push_back(n);
     } while (FindNextFileW(h, &fd));
     FindClose(h);
-    // Windows paths sort without regard to case (pathlib compares them lowercased)
+    // case-insensitive, because pathlib lower-cases Windows paths before it compares them
     std::stable_sort(names.begin(), names.end(), [](const std::wstring &a, const std::wstring &b) {
         std::wstring x = a, y = b;
         CharLowerBuffW(&x[0], (DWORD)x.size());
@@ -126,7 +129,8 @@ std::wstring full_path(const std::wstring &p) {
     return f;
 }
 
-// Files of a process that just exited can stay locked for a moment (antivirus scans too).
+// Repeats `action` every half second until it works or `seconds` run out. Right after a process ends its files may
+// still be locked briefly, and a virus scanner can hold them as well.
 template <typename F> void retry(F action, int seconds = 15) {
     const ULONGLONG deadline = GetTickCount64() + (ULONGLONG)seconds * 1000;
     while (true) {
@@ -151,7 +155,7 @@ void make_dirs(const std::wstring &p) {
         throw Error{os_error(GetLastError(), p)};
 }
 
-// shutil.copytree / copy2: the files with their times
+// Recursive copy that keeps file times, as shutil.copytree / copy2 do
 void copy_item(const std::wstring &source, const std::wstring &target) {
     if (is_dir(source)) {
         if (!CreateDirectoryW(target.c_str(), nullptr)) throw Error{os_error(GetLastError(), target)};
@@ -161,7 +165,7 @@ void copy_item(const std::wstring &source, const std::wstring &target) {
     }
 }
 
-// shutil.rmtree (links removed, never followed) / unlink
+// Deletes a file or a whole tree (shutil.rmtree / unlink); a link is removed without touching what it points to
 void remove_item(const std::wstring &path) {
     const DWORD a = attrs(path);
     if (a == INVALID_FILE_ATTRIBUTES) return;
@@ -172,7 +176,7 @@ void remove_item(const std::wstring &path) {
     if (!ok) throw Error{os_error(GetLastError(), path)};
 }
 
-// ------------------------------------------------------------------------------------------------ the install
+// ------------------------------------------------------------------------------------------------ installing
 
 std::wstring g_root, g_staged;
 HWND g_window = nullptr, g_label = nullptr;
@@ -191,7 +195,7 @@ void status(const std::wstring &text) {
     print(text);
     if (!g_label) return;
     SetWindowTextW(g_label, text.c_str());
-    // the window fits its text with Tk's padding (28 x 22)
+    // resize the window around the text, padded 28 x 22 like the old Tk label
     HDC dc = GetDC(g_label);
     HGDIOBJ previous = SelectObject(dc, g_font);
     RECT r{0, 0, 0, 0};
@@ -215,7 +219,7 @@ LRESULT CALLBACK window_proc(HWND w, UINT m, WPARAM wp, LPARAM lp) {
         SetBkColor((HDC)wp, RGB(0x14, 0x11, 0x0d));
         return (LRESULT)g_brush;
     }
-    if (m == WM_CLOSE) return 0;   // the install runs to its end
+    if (m == WM_CLOSE) return 0;   // closing is ignored: the install has to finish
     return DefWindowProcW(w, m, wp, lp);
 }
 
@@ -238,13 +242,13 @@ void open_window() {
                               wc.hInstance, nullptr);
     SendMessageW(g_label, WM_SETFONT, (WPARAM)g_font, TRUE);
     ShowWindow(g_window, SW_SHOW);
-    status(L"Updating the launcher...");
+    status(L"The launcher is being updated...");
 }
 
 bool wait_for_exit(DWORD pid, int seconds) {
     HANDLE h = OpenProcess(SYNCHRONIZE, FALSE, pid);
-    if (!h) return true;   // already gone
-    // the status window stays responsive while it waits
+    if (!h) return true;   // the process has ended already
+    // keep pumping messages so the status window does not freeze during the wait
     const ULONGLONG deadline = GetTickCount64() + (ULONGLONG)seconds * 1000;
     bool gone = false;
     while (!gone) {
@@ -258,7 +262,7 @@ bool wait_for_exit(DWORD pid, int seconds) {
     return gone;
 }
 
-// The new package's program files (relative, "/"), as installed into the root.
+// Collects every program file the new package will put in the root, as root-relative paths with "/" separators.
 void package_files(const std::wstring &folder, const std::wstring &rel, std::vector<std::wstring> &out) {
     for (const std::wstring &n : entries(folder)) {
         const std::wstring path = join(folder, n), r = rel.empty() ? n : rel + L"/" + n;
@@ -271,7 +275,7 @@ void package_files(const std::wstring &folder, const std::wstring &rel, std::vec
 std::set<std::wstring> read_manifest() {
     std::set<std::wstring> lines;
     HANDLE h = CreateFileW(join(g_root, MANIFEST).c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
-    if (h == INVALID_HANDLE_VALUE) return lines;   // 0.5.0 and older wrote none: everything not in the new package is carried over
+    if (h == INVALID_HANDLE_VALUE) return lines;   // versions up to 0.5.0 never wrote one: keep every file the package lacks
     std::string data;
     char buf[1 << 16];
     DWORD got = 0;
@@ -291,22 +295,23 @@ std::set<std::wstring> read_manifest() {
     return lines;
 }
 
-// Whether the previous package installed a file at or below `rel` that the new one dropped.
+// True if some file below `rel` came with the previous package and is absent from the new one.
 bool holds_dropped(const std::set<std::wstring> &dropped, const std::wstring &rel) {
     const std::wstring prefix = rel + L"/";
     auto it = dropped.lower_bound(prefix);
     return it != dropped.end() && it->compare(0, prefix.size(), prefix) == 0;
 }
 
-// A folder of Python's compiled caches (__pycache__): Python writes them by itself next to the program's scripts; no
-// package installs them and they are never the player's, so they are not carried over (they go with update\old).
+// Detects a __pycache__ folder. Python creates these beside its scripts on its own; they are neither part of any
+// package nor something the player made, so they are not kept and end up in update\old instead.
 bool python_cache(const std::wstring &name) {
     return CompareStringOrdinal(name.c_str(), (int)name.size(), L"__pycache__", -1, TRUE) == CSTR_EQUAL;
 }
 
-// Moves what `old` (the previous version of a program folder) holds and `fresh` does not back into `fresh`: folders
-// whole when the previous package installed nothing in them (a rename on the same drive: instant, also for a game
-// folder), else file by file, leaving out the previous package's own files that the new one dropped.
+// Brings into `fresh` everything that `old`, the set-aside copy of the same program folder, has and `fresh` lacks.
+// A subfolder that `fresh` lacks moves over in one rename (same drive, so it is instant even for a whole game folder)
+// unless it contains files the new package dropped. Folders found on both sides, and folders with dropped files, are
+// walked entry by entry instead, and the previous package's files that the new package no longer ships are skipped.
 void carry_over(const std::wstring &old, const std::wstring &fresh, const std::wstring &relative,
                 const std::set<std::wstring> &dropped, std::vector<std::wstring> &kept) {
     for (const std::wstring &n : entries(old)) {
@@ -314,15 +319,15 @@ void carry_over(const std::wstring &old, const std::wstring &fresh, const std::w
         const std::wstring rel = relative.empty() ? n : relative + L"/" + n;
         const bool real_dir = is_dir(item) && !is_link(item);
         if (real_dir && python_cache(n)) {
-            continue;   // Python's own caches
+            continue;   // __pycache__ is not kept
         } else if (real_dir && is_dir(target)) {
             carry_over(item, target, rel, dropped, kept);
         } else if (exists(target) || is_link(target)) {
-            continue;   // the package's new file
+            continue;   // the new package supplies this one
         } else if (is_file(item) && dropped.count(rel)) {
-            continue;   // the previous package's own file, gone from this one
+            continue;   // shipped by the previous package, no longer by this one
         } else if (real_dir && holds_dropped(dropped, rel)) {
-            // a folder the new package no longer has: the player's files in it come back, the dropped ones don't
+            // folder missing from the new package: recreate it for the player's files, without the dropped ones
             make_dirs(target);
             carry_over(item, target, rel, dropped, kept);
             if (entries(target).empty()) RemoveDirectoryW(target.c_str());
@@ -333,13 +338,14 @@ void carry_over(const std::wstring &old, const std::wstring &fresh, const std::w
     }
 }
 
-// A program item the new package no longer has (an old python\): the previous package's own files in it go to
-// update\old, the player's own files stay, and folders left empty are removed. Returns whether the item is gone.
+// Cleans up a program item that the new package does not contain any more (for example a leftover python\ folder).
+// Files the previous package shipped there are moved into update\old, files the player added stay, and any folder that
+// ends up empty is deleted. Returns true when the item no longer exists afterwards.
 bool prune(const std::wstring &path, const std::wstring &rel, const std::wstring &old, const std::set<std::wstring> &dropped,
            std::vector<std::wstring> &problems) {
     if (is_link(path)) return false;
     const std::wstring name = rel.substr(rel.find_last_of(L'/') + 1);
-    if (is_dir(path) && python_cache(name)) {   // Python's own caches go whole
+    if (is_dir(path) && python_cache(name)) {   // a __pycache__ folder is moved away in one piece
         try {
             const std::wstring target = join(old, native_rel(rel));
             make_dirs(target.substr(0, target.find_last_of(L'\\')));
@@ -361,7 +367,7 @@ bool prune(const std::wstring &path, const std::wstring &rel, const std::wstring
         }
         return empty;
     }
-    if (!dropped.count(rel)) return false;   // the player's own file
+    if (!dropped.count(rel)) return false;   // not from the previous package, so it belongs to the player
     try {
         const std::wstring target = join(old, native_rel(rel));
         make_dirs(target.substr(0, target.find_last_of(L'\\')));
@@ -381,7 +387,8 @@ std::wstring timestamp() {
     return b;
 }
 
-// Moves update\old out of update\ (which the launcher removes); returns where it is.
+// The launcher wipes update\ when it starts, so this moves update\old up into the root under a dated name. Returns
+// the folder's final location (unchanged if the move failed).
 std::wstring preserve(const std::wstring &old) {
     const std::wstring target = join(g_root, L"update-kept-" + timestamp() + L"-old");
     try {
@@ -404,11 +411,11 @@ void apply() {
     std::vector<std::wstring> items;
     for (const std::wstring &n : entries(g_staged))
         if (n != L"analysis" && n != L"update") items.push_back(n);
-    std::sort(items.begin(), items.end());   // sorted names (as text: case counts)
+    std::sort(items.begin(), items.end());   // plain string order, so upper and lower case differ
     std::vector<std::wstring> moved, added;
     try {
         for (const std::wstring &name : items) {
-            status(L"Installing " + name + L"...");
+            status(L"Copying " + name + L"...");
             const std::wstring current = join(g_root, name);
             if (exists(current)) {
                 retry([&] { rename(current, join(old, name)); });
@@ -430,9 +437,9 @@ void apply() {
             if (!CopyFileW(source.c_str(), target.c_str(), FALSE)) throw Error{os_error(GetLastError(), source, target)};
         }
     } catch (const Error &) {
-        status(L"The update failed: restoring the installed version...");
-        // Every step is tried even when an earlier one fails (a file held by a virus scanner): stopping halfway would
-        // leave folders in update\old and an install that can't start.
+        status(L"Update failed, putting the previous version back...");
+        // Each undo step runs even if one before it failed (a virus scanner may be holding a file). Giving up partway
+        // would strand folders in update\old and leave an install that does not start.
         std::vector<std::wstring> stuck;
         std::vector<std::wstring> both = moved;
         both.insert(both.end(), added.begin(), added.end());
@@ -442,7 +449,7 @@ void apply() {
                 try {
                     retry([&] { remove_item(join(g_root, name)); });
                 } catch (const Error &e) {
-                    stuck.push_back(name + L" (remove: " + e.message + L")");
+                    stuck.push_back(name + L" (could not remove: " + e.message + L")");
                 }
             }
         }
@@ -450,7 +457,7 @@ void apply() {
             try {
                 retry([&] { rename(join(old, name), join(g_root, name)); });
             } catch (const Error &e) {
-                stuck.push_back(name + L" (restore: " + e.message + L")");
+                stuck.push_back(name + L" (could not restore: " + e.message + L")");
             }
         }
         for (const wchar_t *relative : DEFAULTS) {
@@ -459,32 +466,33 @@ void apply() {
                 stuck.push_back(std::wstring(relative) + L" (" + os_error(GetLastError(), saved, join(g_root, rel)) + L")");
         }
         if (!stuck.empty()) {
-            // update\old is deleted when the launcher starts: keep what is left out of it.
+            // The next launcher start wipes update\old, so get the leftovers out of there first.
             const std::wstring kept_at = preserve(old);
             std::wstring list;
             for (size_t k = 0; k < stuck.size(); ++k) list += (k ? L", " : L"") + stuck[k];
-            throw Error{L"The previous version could not be fully restored; move these back from " + kept_at + L" by hand: " + list};
+            throw Error{L"Not everything of the previous version could be put back; move these from " + kept_at +
+                        L" back yourself: " + list};
         }
         throw;
     }
-    // Installed. The player's files go back into the new folders; one that can't be moved stays in a folder of its own
-    // beside them (update\ is removed when the launcher starts).
+    // The new version is in place. Now the player's own files return to the new folders. Anything that refuses to move
+    // goes to a separate dated folder next to them, since update\ is wiped on the launcher's next start.
     std::vector<std::wstring> kept, left_in_old;
-    status(L"Keeping your own files...");
+    status(L"Carrying over your own files...");
     for (const std::wstring &name : moved) {
         if (!(is_dir(join(old, name)) && is_dir(join(g_root, name)))) continue;
         try {
             carry_over(join(old, name), join(g_root, name), name, dropped, kept);
         } catch (const Error &e) {
             const std::wstring rescue = join(g_root, L"update-kept-" + timestamp());
-            status(L"Some of your files in " + name + L" could not be moved back (" + e.message + L"); they are in " +
+            status(L"Files of yours in " + name + L" could not be returned (" + e.message + L"); you can find them in " +
                    rescue.substr(rescue.find_last_of(L'\\') + 1) + L".");
             try {
                 if (!CreateDirectoryW(rescue.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)
                     throw Error{os_error(GetLastError(), rescue)};
                 retry([&] { rename(join(old, name), join(rescue, name)); });
             } catch (const Error &rescue_error) {
-                // The new version is installed: report it, don't turn it into a failed update.
+                // Only mention it: the update itself succeeded and must not be reported as failed.
                 left_in_old.push_back(name + L" (" + rescue_error.message + L")");
             }
         }
@@ -492,10 +500,10 @@ void apply() {
     if (!left_in_old.empty()) {
         std::wstring list;
         for (size_t k = 0; k < left_in_old.size(); ++k) list += (k ? L", " : L"") + left_in_old[k];
-        status(L"Some of your old files stay in " + preserve(old) + L": " + list);
+        status(L"A few of your old files are left in " + preserve(old) + L": " + list);
     }
-    // Program items the new package no longer has (an old python\ once the launcher needs no Python): the previous
-    // package's own files go, the player's own stay.
+    // Clean up top-level items that are not in the new package any more (e.g. python\ after the launcher stopped
+    // needing Python): remove what the previous package shipped there, keep what the player put there.
     std::vector<std::wstring> problems;
     for (const std::wstring &name : entries(g_root)) {
         if (name == L"analysis" || name == L"update" || name.rfind(L"update-kept-", 0) == 0) continue;
@@ -511,7 +519,7 @@ void apply() {
     HANDLE h = CreateFileW(join(g_root, MANIFEST).c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     DWORD put = 0;
     if (h == INVALID_HANDLE_VALUE || !WriteFile(h, manifest.data(), (DWORD)manifest.size(), &put, nullptr))
-        write_std(STD_ERROR_HANDLE, std::wstring(L"Could not write ") + MANIFEST + L": " + os_error(GetLastError()));
+        write_std(STD_ERROR_HANDLE, std::wstring(L"Failed to write ") + MANIFEST + L": " + os_error(GetLastError()));
     if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
 }
 
@@ -559,19 +567,19 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         std::vector<wchar_t> self(32768);
         GetModuleFileNameW(nullptr, self.data(), 32768);
         std::wstring s = self.data();
-        s = s.substr(0, s.find_last_of(L'\\'));   // tools
+        s = s.substr(0, s.find_last_of(L'\\'));   // the exe's own folder, tools; its parent is the staged package
         g_staged = s.substr(0, s.find_last_of(L'\\'));
     }
     if (!quiet) open_window();
     bool ok = true;
     try {
-        if (wait_pid && !wait_for_exit(wait_pid, 60)) throw Error{L"The launcher did not close."};
+        if (wait_pid && !wait_for_exit(wait_pid, 60)) throw Error{L"The launcher did not exit in time."};
         apply();
-        status(L"Update installed.");
+        status(L"The update is installed.");
     } catch (const Error &e) {
         ok = false;
-        const std::wstring message = L"The update could not be installed, the previous version is kept.\n\n" + e.message +
-                                     L"\n\nClose the game if it is running and try again, or download the new version from the "
+        const std::wstring message = L"The update failed to install; the previous version stays in place.\n\n" + e.message +
+                                     L"\n\nIf the game is running, close it and try once more, or get the new version from the "
                                      L"releases page.";
         write_std(STD_ERROR_HANDLE, message);
         if (g_window) MessageBoxW(g_window, message.c_str(), TITLE, MB_OK | MB_ICONERROR);
@@ -587,7 +595,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
             CloseHandle(pi.hThread);
             CloseHandle(pi.hProcess);
         } else {
-            write_std(STD_ERROR_HANDLE, L"Could not start " + starter + L": " + os_error(GetLastError()));
+            write_std(STD_ERROR_HANDLE, L"Failed to start " + starter + L": " + os_error(GetLastError()));
         }
     }
     return ok ? 0 : 1;

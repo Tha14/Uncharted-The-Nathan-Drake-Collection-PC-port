@@ -1,11 +1,12 @@
-// hang.cpp - freeze reports for a running game, part of uncharted_native.dll (used by the game starter's hang
-// watchdog in start.cpp, and by the debugging tools). Everything is read from outside the game process,
-// so it works while the game's own threads are stuck.
+// hang.cpp - diagnostics for a game that stopped responding (built into uncharted_native.dll). The watchdog that the
+// game starter runs (start.cpp) relies on it, and so do the debugging tools. All inspection happens from the
+// launching process, never inside the game, which keeps it usable even when every game thread is blocked.
 //
-// un_thread_report: every thread of the game, grouped by identical stacks: thread ids and names, then the native
-//   frames (module+offset, walked with Windows' StackWalk64 and the modules' own unwind tables, no symbol files), then
-//   the game-code frames (game code keeps frame pointers: the rbp chain, offsets from the guest image base).
-// un_minidump: a Windows minidump of every thread's stack and registers.
+// un_thread_report: dumps all game threads, merging threads whose stacks are identical. Each group lists thread ids
+//   and names, the host frames as module+offset (unwound by StackWalk64 using the PE unwind data, so no PDBs are
+//   needed) and, when present, the guest frames (guest code preserves rbp, so they are found by chasing the rbp
+//   chain; printed as offsets from the guest image base).
+// un_minidump: writes a Windows minidump holding the stacks and registers of all threads.
 
 #include "native.h"
 
@@ -99,7 +100,7 @@ Stack walk(HANDLE process, HANDLE thread, const std::vector<Module> &modules, ui
     CONTEXT ctx{};
     ctx.ContextFlags = CONTEXT_FULL;
     if (!GetThreadContext(thread, &ctx)) return s;
-    // the game-code frames: follow the frame pointers (rbp -> {previous rbp, return address})
+    // guest frames: each rbp points at {caller's rbp, return address}; stop when the chain stops going up the stack
     uint64_t rbp = ctx.Rbp;
     if (guest && ctx.Rip >= guest && ctx.Rip < guest + guest_size) s.game.push_back(hex(ctx.Rip - guest));
     for (int i = 0; i < MAX_FRAMES && rbp; ++i) {
@@ -110,7 +111,7 @@ Stack walk(HANDLE process, HANDLE thread, const std::vector<Module> &modules, ui
         if (pair[0] <= rbp) break;
         rbp = pair[0];
     }
-    // the native frames
+    // host frames via dbghelp's unwinder
     STACKFRAME64 frame{};
     frame.AddrPC.Offset = ctx.Rip;
     frame.AddrPC.Mode = AddrModeFlat;
@@ -146,7 +147,7 @@ extern "C" {
 UN_API int un_thread_report(unsigned long pid, unsigned long long guest_base, unsigned long long guest_size, char *out,
                             int cap) {
     HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
-    if (!process) return give("  (the game process cannot be opened)", out, cap);
+    if (!process) return give("  (could not open the game process)", out, cap);
     SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
     bool symbols = SymInitializeW(process, nullptr, TRUE) != FALSE;
     std::vector<Module> modules = modules_of(process);
@@ -179,7 +180,7 @@ UN_API int un_thread_report(unsigned long pid, unsigned long long guest_base, un
         std::vector<std::string> shown(who.begin(), who.begin() + std::min<size_t>(who.size(), 6));
         text += "  threads " + joined(shown, ", ") +
                 (who.size() > 6 ? " (+" + std::to_string(who.size() - 6) + " more)" : std::string()) + ":\n";
-        text += "    host: " + (s.native.empty() ? std::string("(no stack)") : joined(s.native, " <- ")) + "\n";
+        text += "    host: " + (s.native.empty() ? std::string("(stack unavailable)") : joined(s.native, " <- ")) + "\n";
         if (!s.game.empty()) text += "    guest: " + joined(s.game, " <- ") + "\n";
     }
     return give(text, out, cap);
@@ -199,7 +200,7 @@ struct Watchdog {
     std::vector<std::wstring> reports;
 };
 std::mutex watchdogs_lock;
-std::vector<Watchdog *> watchdogs;   // kept for the process's life: the game starter asks for each one's reports
+std::vector<Watchdog *> watchdogs;   // never freed; the game starter may query any watchdog's reports until exit
 
 std::wstring parent_of(const std::wstring &p) {
     size_t cut = p.find_last_of(L"\\/");
@@ -214,7 +215,7 @@ std::wstring env_text(const wchar_t *name) {
 
 bool exists(const std::wstring &p) { return GetFileAttributesW(p.c_str()) != INVALID_FILE_ATTRIBUTES; }
 
-// the files matching folder\pattern, sorted by name, full paths
+// full paths of the plain files matching folder\pattern, in case-insensitive name order
 std::vector<std::wstring> sorted_files(const std::wstring &folder, const wchar_t *pattern) {
     std::vector<std::wstring> out;
     WIN32_FIND_DATAW fd;
@@ -230,7 +231,7 @@ std::vector<std::wstring> sorted_files(const std::wstring &folder, const wchar_t
     return out;
 }
 
-// a line on the game starter's own output (its log), unbuffered
+// writes one line straight to the starter's stdout (which is its log), bypassing any buffering
 void say(const std::string &line) {
     HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
     if (!out || out == INVALID_HANDLE_VALUE) return;
@@ -254,20 +255,21 @@ void freeze_report(Watchdog *w, uint64_t guest_base) {
     struct tm local;
     localtime_s(&local, &now);
     std::strftime(stamp, sizeof stamp, "%Y%m%d-%H%M%S", &local);
-    std::vector<std::string> lines = {"Hang watchdog: no new frame for " + std::to_string(w->seconds) +
-                                      " s (game frozen) at " + stamp + "; stacks of every thread:"};
+    std::vector<std::string> lines = {"Hang watchdog: freeze detected at " + std::string(stamp) + ", nothing rendered for " +
+                                      std::to_string(w->seconds) + " s. Per-thread stacks:"};
     ULONGLONG started = GetTickCount64();
     std::string text = report_text(GetProcessId(w->process), guest_base);
-    for (size_t at = 0; at < text.size();) {   // its lines (Python's splitlines: no empty last line)
+    for (size_t at = 0; at < text.size();) {   // split at '\n'; a trailing newline does not add an empty line
         size_t end = text.find('\n', at);
         if (end == std::string::npos) end = text.size();
         lines.push_back(text.substr(at, end - at));
         at = end + 1;
     }
     char took[64];
-    std::snprintf(took, sizeof took, "(report took %.1f s)", (GetTickCount64() - started) / 1000.0);
+    std::snprintf(took, sizeof took, "(collecting the stacks took %.1f s)", (GetTickCount64() - started) / 1000.0);
     lines.push_back(took);
-    // a minidump too (hundreds of MB): in the source tree or with UNCHARTED_HANG_DUMP=1
+    // Minidumps run to hundreds of MB, so one is only written in a source checkout (no VERSION file) or when
+    // UNCHARTED_HANG_DUMP=1 asks for it
     std::wstring dump_env = env_text(L"UNCHARTED_HANG_DUMP");
     SetLastError(0);
     if (!GetEnvironmentVariableW(L"UNCHARTED_HANG_DUMP", nullptr, 0) && GetLastError() == ERROR_ENVVAR_NOT_FOUND) dump_env = exists(w->root + L"\\VERSION") ? L"0" : L"1";
@@ -275,14 +277,14 @@ void freeze_report(Watchdog *w, uint64_t guest_base) {
         CreateDirectoryW(parent_of(w->dumps).c_str(), nullptr);
         CreateDirectoryW(w->dumps.c_str(), nullptr);
         std::vector<std::wstring> old = sorted_files(w->dumps, L"hang-*.dmp");
-        for (size_t i = 0; i + 1 < old.size(); ++i) DeleteFileW(old[i].c_str());   // with the new one, the newest 2 stay
+        for (size_t i = 0; i + 1 < old.size(); ++i) DeleteFileW(old[i].c_str());   // keep 1 old dump + the new one = 2
         std::wstring dump = w->dumps + L"\\hang-" + std::wstring(stamp, stamp + std::strlen(stamp)) + L".dmp";
-        lines.push_back(un_minidump(GetProcessId(w->process), dump.c_str()) ? "Hang watchdog: minidump " + utf8(dump)
-                                                                            : "Hang watchdog: the minidump failed");
+        lines.push_back(un_minidump(GetProcessId(w->process), dump.c_str()) ? "Hang watchdog: minidump written to " + utf8(dump)
+                                                                            : "Hang watchdog: could not write a minidump");
     }
     std::wstring folder = parent_of(w->log);
     std::vector<std::wstring> old = sorted_files(folder, L"hang-*.txt");
-    for (size_t i = 0; i + 9 < old.size(); ++i) DeleteFileW(old[i].c_str());   // with the new one, the newest 10 stay
+    for (size_t i = 0; i + 9 < old.size(); ++i) DeleteFileW(old[i].c_str());   // keep 9 old reports + the new one = 10
     std::wstring report = folder + L"\\hang-" + std::wstring(stamp, stamp + std::strlen(stamp)) + L".txt";
     std::string body;
     for (auto &l : lines) body += l + "\n";
@@ -299,8 +301,9 @@ void freeze_report(Watchdog *w, uint64_t guest_base) {
     say("Hang watchdog: the game froze; report " + utf8(report));
 }
 
-// The runtime logs a Frame stats line every 5 s while frames are shown: none for `seconds` while the game runs is a
-// freeze. Once per freeze; frames coming back re-arm it.
+// Polls the game log. While rendering, the runtime prints a "Frame stats" line every 5 s, so if the process is still
+// alive and no such line has appeared for `seconds`, the game is treated as frozen. One report is written per
+// freeze; the watchdog arms itself again once frame lines resume.
 DWORD WINAPI watch(void *arg) {
     Watchdog *w = (Watchdog *)arg;
     uint64_t position = 0, guest_base = 0;
@@ -350,9 +353,9 @@ DWORD WINAPI watch(void *arg) {
 
 extern "C" {
 
-// Starts the freeze watchdog on its own thread: game `pid`, its log, the minidump folder, the seconds without a new
-// frame that count as a freeze, the launcher's folder (a package has VERSION there: no minidumps unless
-// UNCHARTED_HANG_DUMP=1). Returns its id (> 0), 0 when it could not start.
+// Launches a watchdog thread for process `pid`. Arguments: the game log to poll, the folder for minidumps, how many
+// seconds without frames mean frozen, and the launcher root (a release package has a VERSION file there, which turns
+// minidumps off unless UNCHARTED_HANG_DUMP=1). Returns a watchdog id > 0, or 0 on failure.
 UN_API int un_hang_watchdog(unsigned long pid, const wchar_t *log, const wchar_t *dumps, int seconds, const wchar_t *root) {
     HANDLE process = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
     if (!process) return 0;
@@ -369,7 +372,7 @@ UN_API int un_hang_watchdog(unsigned long pid, const wchar_t *log, const wchar_t
     return id;
 }
 
-// out: the reports a watchdog wrote so far, one path per line
+// paths of every report this watchdog has produced so far, newline-separated
 UN_API int un_hang_reports(int id, char *out, int cap) {
     Watchdog *w = nullptr;
     {

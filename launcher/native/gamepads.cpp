@@ -1,6 +1,7 @@
-// gamepads.cpp - controllers for the launcher's Controls page, part of uncharted_native.dll: through SDL3, the game's
-// own library (gow3_pc/out in a release, MSYS2 in the source tree), which buttons are held and whether the first
-// controller is a PlayStation one. The launcher has no SDL window: controller input arrives anyway (background events).
+// gamepads.cpp - live controller input for the Controls page (uncharted_native.dll). It loads the same SDL3 build the
+// game uses (gow3_pc/out in a release package, the MSYS2 copy when running from source) and reports which buttons are
+// currently pressed and whether the first pad is a PlayStation model. SDL's background-events hint lets input through
+// even though the launcher never creates an SDL window.
 
 #include "native.h"
 
@@ -36,12 +37,12 @@ struct Sdl {
     GetType type = nullptr;
     Free free = nullptr;
     Void pump = nullptr, update = nullptr;
-    std::map<uint32_t, void *> pads;   // joystick id -> open gamepad, in id order
-    std::vector<uint32_t> order;       // ids in the order SDL listed them
+    std::map<uint32_t, void *> pads;   // open SDL_Gamepad handles keyed by joystick id
+    std::vector<uint32_t> order;       // joystick ids in first-seen order
 } sdl;
 bool tried = false;
 
-// SDL_GamepadButton order (SDL3)
+// indexed like SDL3's SDL_GamepadButton values
 const char *const BUTTONS[] = {"a", "b", "x", "y", "back", "guide", "start", "leftstick", "rightstick", "leftshoulder",
                                "rightshoulder", "dpup", "dpdown", "dpleft", "dpright", "misc1", "paddle1", "paddle2",
                                "paddle3", "paddle4", "touchpad"};
@@ -95,7 +96,7 @@ void load(const std::wstring &root) {
     }
 }
 
-// the open controllers, in the order they were first seen
+// opens newly connected pads, closes vanished ones, and returns the open handles in first-seen order
 std::vector<void *> refresh() {
     std::vector<void *> out;
     if (!sdl.ready) return out;
@@ -133,7 +134,7 @@ int give(const std::string &s, char *out, int cap) {
 
 extern "C" {
 
-// loads SDL3 once (root: the launcher's folder); 1 when controllers can be read
+// one-time SDL3 load, searching relative to `root` (the launcher folder); returns 1 if gamepad input is available
 UN_API int un_pad_init(const wchar_t *root) {
     if (!tried) {
         tried = true;
@@ -142,8 +143,9 @@ UN_API int un_pad_init(const wchar_t *root) {
     return sdl.ready ? 1 : 0;
 }
 
-// out: three lines: the number of controllers, the first one's style (playstation, xbox or empty), the buttons held
-// on any of them (SDL order, then lefttrigger / righttrigger, then lstick / rstick for a pushed stick), space-separated
+// Writes three lines to `out`: pad count; button style of the first pad ("playstation", "xbox", or empty with no
+// pad); and a space-separated list of everything pressed on any pad - SDL buttons in enum order, then
+// lefttrigger / righttrigger, then lstick / rstick when a stick is deflected.
 UN_API int un_pad_state(char *out, int cap) {
     std::vector<void *> pads = refresh();
     std::string style, held;
@@ -157,7 +159,7 @@ UN_API int un_pad_state(char *out, int cap) {
             if (sdl.button(pad, i)) down.push_back(BUTTONS[i]);
         if (sdl.axis(pad, 4) > 16000) down.push_back("lefttrigger");
         if (sdl.axis(pad, 5) > 16000) down.push_back("righttrigger");
-        // a stick pushed well past its dead zone (Move and Look take a stick)
+        // count a stick as used only when it is deflected far beyond the dead zone (Move / Look bind whole sticks)
         auto pushed = [&](int x, int y) { return std::abs((int)sdl.axis(pad, x)) > 20000 || std::abs((int)sdl.axis(pad, y)) > 20000; };
         if (pushed(0, 1)) down.push_back("lstick");
         if (pushed(2, 3)) down.push_back("rstick");

@@ -1,7 +1,7 @@
-// play.cpp - PLAY, part of uncharted_native.dll (used by the launcher's core, core.cpp): the game's environment
-// from the launcher's settings, the running game (the game starter as a
-// child process, its output in launcher-last-run.log and handed to the launcher line by line, STOP), and why a game
-// that stopped did so (its boot.log).
+// play.cpp - everything behind the PLAY button, inside uncharted_native.dll and driven by core.cpp. It turns the
+// launcher's settings into environment variables, runs the game starter as a child process (its output is copied to
+// launcher-last-run.log and passed up to the launcher one line at a time; STOP kills it), and afterwards reads the
+// newest boot.log to explain why the game ended.
 
 #include "native.h"
 #include "json.h"
@@ -50,7 +50,7 @@ std::wstring widen(const std::string &s) {   // invalid UTF-8 becomes U+FFFD (Py
     return w;
 }
 
-// Python's str() of a settings value, and its truth
+// a settings value printed the way Python's str() prints it, plus a truth test with a default for missing keys
 std::string str_of(const Value *v, const std::string &missing) {
     if (!v) return missing;
     switch (v->kind) {
@@ -71,8 +71,9 @@ std::string call_text(int (*f)(const char *, const char *, const char *, const c
     return status == 0 ? std::string(buf.data()) : std::string();
 }
 
-// play(): the environment values from the launcher's settings, in play()'s order: [name, value] to set, [name, null]
-// to remove. The update folder, the multiplayer values and the window title's suffix are the launcher's own.
+// The variables PLAY passes to the game, in the same order the old play() set them. Each entry is [name, value], or
+// [name, null] when the name must be dropped. Not included here: the update folder, the multiplayer variables and the
+// window title suffix, which the launcher adds itself.
 Value play_env(const Value &config, const std::wstring &user_dir) {
     Value out;
     out.kind = Value::Array;
@@ -93,7 +94,8 @@ Value play_env(const Value &config, const std::wstring &user_dir) {
     set("UNCHARTED_TORCH_FORWARD", truthy_or(get("torch_forward"), true) ? "1" : "0");
     const std::string job = str_of(get("job_sleep"), "auto");
     set("UNCHARTED_JOB_SLEEP", job == "off" ? "0" : job == "on" ? "1" : "auto");
-    // renderer_vulkan/vk_instance.cpp: 1 on, auto (cards of 4.5 GiB or less), anything else off
+    // read by renderer_vulkan/vk_instance.cpp: "1" forces it, "auto" enables it on GPUs with at most 4.5 GiB, other
+    // values disable it
     const std::string vram = str_of(get("low_vram"), "off");
     set("GOW3_LOW_VRAM", vram == "on" ? "1" : vram == "auto" ? "auto" : "0");
     set("UNCHARTED_LANGUAGE", str_of(get("language"), "1"));
@@ -106,13 +108,14 @@ Value play_env(const Value &config, const std::wstring &user_dir) {
     set("GOW3_MOVIE_STRETCH", truthy_or(get("movie_stretch"), false) ? "1" : "0");
     set("UNCHARTED_UNLOCK", truthy_or(get("unlock"), false) ? "1" : "0");
     set("UNCHARTED_UNLOCK_REWARDS", truthy_or(get("unlock_rewards"), false) ? "1" : "0");
-    // the cheats chosen (the Advanced page's switches, system.cpp's CHEATS)
+    // enabled cheat switches as a comma list (names from system.cpp's CHEATS table)
     std::string cheats;
     for (const char *name : {"invincible", "ammo", "noreload", "grenades", "onehit"})
         if (truthy_or(config.get(std::string("cheat_") + name), false)) cheats += (cheats.empty() ? "" : ",") + std::string(name);
     set("UNCHARTED_CHEATS", cheats);
-    // Every game's own options: the Collection menu starts the others itself, and the game starter applies the started
-    // game's (its settings file decides the vblank rate for frame rates above 60).
+    // Per-game values go out for all three titles, because a game can switch to another one from the Collection
+    // menu without the launcher. GOW3_VBLANK_HZ is cleared: the starter sets it for whichever game it launches,
+    // from that game's settings file, when the frame rate is above 60.
     remove("GOW3_VBLANK_HZ");
     const Value *games = config.get("games");
     for (const char *key : {"u1", "u2", "u3"}) {
@@ -120,7 +123,7 @@ Value play_env(const Value &config, const std::wstring &user_dir) {
         if (!settings) throw std::string("KeyError: '") + key + "'";
         std::string upper = key;
         upper[0] = 'U';
-        // With upscaling the game draws below the resolution chosen, upscaled to it.
+        // An upscaler makes the render size smaller than the picked resolution, which then becomes the output size.
         std::vector<char> buf(1 << 15);
         std::string upscaler, fsr1 = "0";
         bool have_upscaler = false;
@@ -225,8 +228,9 @@ std::wstring rstrip(std::wstring s) {
     return s;
 }
 
-// The reader: the starter's output decoded as UTF-8 (errors replaced), lines split at \r\n, \r and \n as Python's
-// text mode does; each line goes to the log (with \r\n, as Python's text mode writes it) and to the launcher.
+// Reader thread for the starter's pipe. Bytes are decoded as UTF-8 with bad sequences replaced, and a line ends at
+// \r\n, a lone \r or \n (the same rule as Python text mode). Every line is written to the run log ending in \r\n and
+// queued for the launcher.
 void read_output(HANDLE pipe, HANDLE log) {
     std::string pending;   // bytes of the line being read
     bool cr = false;       // the last byte read was \r (a \n right after it belongs to the same line end)
@@ -275,8 +279,9 @@ void read_output(HANDLE pipe, HANDLE log) {
     g_session.reading = false;
 }
 
-// Starts the game starter: command (its argv), env ([name, value] pairs: the whole environment), cwd, log (the run
-// log: a header line with the time and the command, then the output). Returns the process id, or the error.
+// Launches the game starter. The request carries command (argv), env (the complete environment as [name, value]
+// pairs), cwd and log (path of the run log, which gets a timestamp-and-command header and then the output). pid
+// receives the process id; failures are thrown as text.
 std::string play_start(const Value &request, DWORD &pid) {
     {
         std::lock_guard<std::mutex> guard(g_session.lock);
@@ -323,8 +328,8 @@ std::string play_start(const Value &request, DWORD &pid) {
     std::wstring cmd = command_line(command);
     std::vector<wchar_t> cmd_buf(cmd.begin(), cmd.end());
     cmd_buf.push_back(0);
-    // The game window may take the foreground (Windows only lets the foreground process do that; the game starts two
-    // processes down): fullscreen and keyboard input need the focus.
+    // Let any process grab the foreground. Windows reserves that for the current foreground process, and the game
+    // window belongs to a grandchild, yet it needs focus for fullscreen and for keyboard input.
     AllowSetForegroundWindow(ASFW_ANY);
     PROCESS_INFORMATION pi{};
     const BOOL ok = CreateProcessW(nullptr, cmd_buf.data(), nullptr, nullptr, TRUE,
@@ -339,7 +344,7 @@ std::string play_start(const Value &request, DWORD &pid) {
         throw os_error(error);
     }
     CloseHandle(pi.hThread);
-    // The run log ("the game does not start" reports): the time and the command, then the starter's output.
+    // Run log, for bug reports where the game never comes up: a timestamp and the command line, then the output.
     HANDLE log = nullptr;
     if (const Value *l = request.get("log")) {
         log = CreateFileW(widen(l->s).c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, CREATE_ALWAYS,
@@ -410,7 +415,7 @@ double mtime_of(const std::wstring &path, bool &ok) {
     return (double)(long long)(t - 116444736000000000ull) / 1e7;
 }
 
-// The newest of the games' boot.log files; empty when there is none.
+// Most recently written boot.log among the three games' folders, or an empty path.
 std::wstring latest_log(const std::wstring &root) {
     std::wstring best;
     double best_time = 0;
@@ -426,8 +431,8 @@ std::wstring latest_log(const std::wstring &root) {
     return best;
 }
 
-// Why the game stopped, from the newest boot.log written since started_at: a freeze report, the runtime's fault report
-// with where it happened, or the assertion or stop message; found false when the log tells none.
+// Looks at the last lines of the newest boot.log (only if it changed after started_at) for, in this order: a hang
+// watchdog report, a runtime fault with its location, or a STOP / assertion message. found stays false otherwise.
 std::string crash_reason(const std::wstring &root, double started_at, bool &found) {
     found = false;
     const std::wstring log = latest_log(root);
@@ -450,11 +455,12 @@ std::string crash_reason(const std::wstring &root, double started_at, bool &foun
         const size_t at = line.find(L" report ");
         if (starts(line, L"Hang watchdog:") && at != std::wstring::npos) {
             found = true;
-            return "The game froze. A report of where it stopped was saved:\n" + utf8(line.substr(at + 8)) +
-                   "\n\nPlease attach it with the log folder's boot.log to a GitHub issue.";
+            // play_end tells a freeze by this text's first 14 characters ("The game froze")
+            return "The game froze; a report showing where it got stuck is here:\n" + utf8(line.substr(at + 8)) +
+                   "\n\nWhen you open a GitHub issue, include that report and boot.log from the log folder.";
         }
     }
-    // A crash (exit code 3): the runtime's fault report names where it happened.
+    // Exit code 3 is a crash; the runtime then logs a "Fault:" line followed by a backtrace whose #0 frame is the spot.
     for (size_t i = 0; i < tail.size(); ++i) {
         if (!starts(tail[i], L"Fault:")) continue;
         std::wstring where;
@@ -470,8 +476,8 @@ std::string crash_reason(const std::wstring &root, double started_at, bool &foun
         }
         found = true;
         return utf8(strip(tail[i])) + (where.empty() ? "" : "\n" + utf8(where)) +
-               "\n\nPlease attach boot.log from the log folder (and your graphics card, game version and settings) to a "
-               "GitHub issue.";
+               "\n\nTo report it, open a GitHub issue with boot.log from the log folder and name your graphics card, "
+               "game version and settings.";
     }
     for (size_t i = 0; i < tail.size(); ++i) {
         const std::wstring &line = tail[i];
@@ -495,9 +501,9 @@ std::string crash_reason(const std::wstring &root, double started_at, bool &foun
 
 extern "C" {
 
-// The game's environment values from the launcher's settings (config_json: launcher.json as the launcher holds it;
-// user_dir: where the games' settings files are): a JSON list of [name, value] (value null: remove the name), in
-// play()'s order. 0 ok; 1 the settings lack a game's values (out: why).
+// config_json is the launcher's in-memory launcher.json, user_dir the folder with the games' settings files. Writes
+// a JSON list of [name, value] pairs (null value = unset that name) in the old play() order. Returns 0, or 1 with
+// the reason in out when a game's block is missing from the settings.
 UN_API int un_play_env(const char *config_json, const wchar_t *user_dir, char *out, int cap) {
     Value config;
     if (!json::parse(config_json ? config_json : "{}", config)) return give("invalid settings", out, cap) < 0 ? -1 : 1;
@@ -509,8 +515,8 @@ UN_API int un_play_env(const char *config_json, const wchar_t *user_dir, char *o
     }
 }
 
-// Starts the game starter (request_json: {command: [...], env: [[name, value], ...], cwd, log}). 0 ok (out: the
-// process id); 1 it could not start (out: why, as Python's OSError words it).
+// request_json = {command: [...], env: [[name, value], ...], cwd, log}. Returns 0 with the new process id in out,
+// or 1 with the failure text in out (in the "[WinError n] message" form Python's OSError used).
 UN_API int un_play_start(const char *request_json, char *out, int cap) {
     Value request;
     if (!json::parse(request_json ? request_json : "{}", request)) return give("invalid request", out, cap) < 0 ? -1 : 1;
@@ -524,8 +530,9 @@ UN_API int un_play_start(const char *request_json, char *out, int cap) {
     }
 }
 
-// The game's state: {"lines": [the output lines since the last call], "exit": the exit code once the game has ended
-// and all its output was handed over, else null}. The lines are handed over once (call it again with room if it asks).
+// Polled by the launcher: {"lines": new output since the previous poll, "exit": null while running, the exit code
+// once the process is gone and its last line has been delivered}. Lines are delivered only once; if out is too small
+// nothing is consumed and the needed size comes back negative.
 UN_API int un_play_poll(char *out, int cap) {
     std::lock_guard<std::mutex> guard(g_session.lock);
     Value state = Value::object(), lines;
@@ -545,7 +552,7 @@ UN_API int un_play_poll(char *out, int cap) {
     return give(text, out, cap);
 }
 
-// STOP: ends the game starter and everything it started (taskkill /T /F, as the launcher did).
+// The STOP button: kills the starter's whole process tree with taskkill /T /F, the same command the Python used.
 UN_API int un_play_stop(void) {
     DWORD pid;
     {
@@ -573,8 +580,8 @@ UN_API int un_play_stop(void) {
     return 0;
 }
 
-// Why the game stopped (root: the launcher's folder; started_at: when PLAY started it, seconds since 1970): 0 and the
-// reason, or 2 when its newest boot.log tells none.
+// root is the launcher folder, started_at the PLAY time in Unix seconds. Returns 0 with an explanation in out, or 2
+// if the newest boot.log gives no reason.
 UN_API int un_play_crash_reason(const wchar_t *root, double started_at, char *out, int cap) {
     bool found = false;
     const std::string reason = crash_reason(root ? root : L"", started_at, found);
@@ -646,7 +653,7 @@ std::vector<std::string> update_problems(const std::string &root, const std::str
         status = un_game_update("check_update", r.c_str(), a.c_str(), &out[0], (int)out.size());
     }
     std::vector<std::string> lines;
-    if (status != 0) return lines;   // the check must never keep a game from starting
+    if (status != 0) return lines;   // a failing check stays silent rather than blocking PLAY
     out.resize(std::strlen(out.c_str()));
     size_t at = 0;
     while (at < out.size()) {   // str.splitlines()
@@ -666,12 +673,13 @@ json::Value question(const char *id, const std::string &text) {
     return q;
 }
 
-// PLAY's questions before the game starts, in order (the launcher asks each, OK / Cancel; Cancel stops PLAY; OK saves
-// the question's "remember" settings so it is asked once):
-//  - without_update: the game without update 1.02 (most of the port's fixes are written for it), once per game folder
-//  - update_files: an update folder with missing or damaged files (#43: a bin.psarc the games couldn't read)
-//  - slow_drive: the port or the game on a USB, SD or FAT/exFAT drive (the games freeze while files are written), once
-//    per pair of folders
+// Warnings shown before launch, each as an OK / Cancel box in this order. Cancel aborts PLAY; OK stores the entry's
+// "remember" values so the same warning does not come back:
+//  - without_update: base game lacks update 1.02, which the bulk of the port's fixes target (asked once per game
+//    folder)
+//  - update_files: files of the update folder missing or broken (#43 was an unreadable bin.psarc)
+//  - slow_drive: port or game folder on USB, SD or a FAT/exFAT volume, where file writes stall the games (asked once
+//    per port + game folder combination)
 json::Value play_questions(const json::Value &state) {
     json::Value list;
     list.kind = json::Value::Array;
@@ -682,13 +690,10 @@ json::Value play_questions(const json::Value &state) {
     if (update.empty() && !version.empty() && version < "01.02" && str_field(config, "warned_no_update") != game) {
         const std::string title = lower_ascii(name_of(game)) == "uroot" ? name_of(parent_of(game)) : name_of(game);
         json::Value q = question("without_update",
-            "This copy of the game is version " + lstrip_zeros(version) + " and has no update 1.02.\n\nThe port's "
-                                                                          "fixes, including the crash fixes, mostly "
-                                                                          "target update 1.02, so the games crash "
-                                                                          "more often without it.\n\nDump update "
-                                                                          "1.02 from your PS4 and unpack it beside "
-                                                                          "the game folder as " + title + "-patch (TOOLS then lists it).\n\nStart "
-                                                                                                          "the game anyway?");
+            "Update 1.02 is missing: this game folder holds version " + lstrip_zeros(version) +
+                " only.\n\nThe port's fixes, crash fixes included, were built mainly around update 1.02, so expect "
+                "more crashes without it.\n\nTo add it, dump update 1.02 from your PS4 and unpack it next to the "
+                "game folder, named " + title + "-patch. TOOLS will then show it.\n\nStart the game anyway?");
         q.get("remember")->set("warned_no_update", json::Value::text(game));
         list.items.push_back(std::move(q));
     }
@@ -699,35 +704,35 @@ json::Value play_questions(const json::Value &state) {
             std::string named;
             for (size_t i = 0; i < problems.size() && i < 6; ++i) named += (i ? "\n" : "") + problems[i];
             list.items.push_back(question("update_files",
-                "Files in your game update folder are missing or damaged:\n\n" + named + "\n\n" + update + "\n\nThe games will most likely stop "
-                                                                                                           "while starting. Unpack the update again "
-                                                                                                           "(or use TOOLS -> Game update -> Install "
-                                                                                                           "from .pkg). Start the game anyway?"));
+                "Some files of the game update are missing or damaged:\n\n" + named + "\n\n" + update +
+                    "\n\nWith these files broken, the games will probably not get past startup. Unpack the update "
+                    "once more, or install it with TOOLS -> Game update -> Install from .pkg. Start the game anyway?"));
         }
     }
 
     std::vector<std::string> places;
     for (auto &place : {std::make_pair(std::string("This port"), root), std::make_pair(std::string("The game"), game)}) {
         const std::string reason = system_answer("slow_drive", place.second);
-        if (!reason.empty()) places.push_back(place.first + " (" + place.second + "): " + reason + ".");
+        if (!reason.empty()) places.push_back(place.first + " (" + place.second + ") is on " + reason + ".");
     }
     const std::string key = root + "|" + game;
     if (!places.empty() && str_field(config, "warned_slow_drive") != key) {
         std::string text;
         for (size_t i = 0; i < places.size(); ++i) text += (i ? "\n" : "") + places[i];
         json::Value q = question("slow_drive",
-            text + "\n\nOn drives like this the games keep pausing for up to a second while the port writes its "
-                   "shader cache, logs and saves (Windows writes to them without caching).\n\nFor smooth play, move "
-                   "this port folder and the game folder to an internal drive (an SSD such as C:) and start the "
-                   "launcher from that copy.\n\nStart the game anyway?");
+            text + "\n\nWindows doesn't cache writes to drives like this, so whenever the port stores its shader "
+                   "cache, logs or saves there, the games can hang for up to a second, over and over.\n\nTo avoid "
+                   "that, put both this port folder and the game folder on an internal drive (an SSD such as C:) and "
+                   "run the launcher from its new place.\n\nStart the game anyway?");
         q.get("remember")->set("warned_slow_drive", json::Value::text(key));
         list.items.push_back(std::move(q));
     }
     return list;
 }
 
-// What the launcher says when the game ended: {"status", "detail", "ask"} ("ask": the error to show with "Open the
-// log folder?", "" for none). A freeze is reported however the game was closed (STOP, or Task Manager).
+// The launcher's words after the game exits: {"status", "detail", "ask"}, where "ask" is a yes / no error box that
+// offers the log folder, or "" when there is nothing to show. A hang report wins even when the player ended the game
+// with STOP or from Task Manager.
 json::Value play_end(const json::Value &state) {
     const std::string root = str_field(state, "root"), game = str_field(state, "game_dir"), update = str_field(state, "update_dir");
     const json::Value *code = state.get("code");
@@ -746,21 +751,20 @@ json::Value play_end(const json::Value &state) {
         end.set("ask", json::Value::text(""));
         return end;
     }
-    end.set("status", json::Value::text(froze ? "The game froze." : "The game ended unexpectedly."));
+    end.set("status", json::Value::text(froze ? "The game stopped responding." : "The game ended unexpectedly."));
     end.set("detail", json::Value::text(froze ? "A report is in the log folder."
                                               : "Exit code " + (code && code->kind == json::Value::Int ? std::to_string(code->i)
                                                                                                        : std::string("None")) +
                                                     ". The log has the details."));
     if (!reason.empty()) {
-        // 24 Oct 2026 (#148, #163, #172): crashes of a 1.00 game were reported as port bugs; most of the port's fixes
-        // are written for update 1.02
+        // 24 Oct 2026 (#148, #163, #172): players on an unpatched 1.00 game filed its crashes as port bugs, while the
+        // port's fixes are largely made for update 1.02; say so next to the crash
         const std::string version = system_answer("app_version", game);
         if (update.empty() && !version.empty() && version < "01.02")
-            reason += "\n\nThis copy of the game is version " + lstrip_zeros(version) + " and has no update 1.02, so most of "
-                                                                                        "the port's crash fixes don't apply. Add "
-                                                                                        "update 1.02 first (TOOLS -> Game "
-                                                                                        "update).";
-        end.set("ask", json::Value::text("The game ended with an error:\n\n" + reason + "\n\nOpen the log folder now?"));
+            reason += "\n\nNote: this game folder is version " + lstrip_zeros(version) +
+                      " without update 1.02, and the bulk of this port's crash fixes rely on that update. Add it first "
+                      "(TOOLS -> Game update).";
+        end.set("ask", json::Value::text("Something went wrong in the game:\n\n" + reason + "\n\nShow the log folder?"));
     } else {
         end.set("ask", json::Value::text(""));
     }

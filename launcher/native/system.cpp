@@ -1,7 +1,8 @@
-// system.cpp - the launcher's game detection and system helpers, part of uncharted_native.dll: the games and languages
-// tables, the game folder and its update, the game version (param.sfo, checked against the executables), the voice
-// languages a copy has, Wine detection and paths, drives that make the games freeze, process checks, the Desktop
-// folder, and the launcher / recipe versions.
+// system.cpp - environment and install queries for the launcher, compiled into uncharted_native.dll. Covers: the
+// static game / language / cheat tables; validating a game folder and locating its update; reading the game version
+// from param.sfo and cross-checking it with the actual executable; detecting which speech languages are installed;
+// Wine detection and path conversion; spotting drives that cause stutter; process liveness; the Desktop location;
+// and the launcher and recipe version files.
 
 #include "native.h"
 #include "json.h"
@@ -100,9 +101,9 @@ Value tables() {
     Value games;
     games.kind = Value::Array;
     const char *rows[][7] = {
-        {"u1", "1", "DRAKE'S FORTUNE", "Uncharted: Drake's Fortune", "Uncharted 1  \xE2\x80\xA2  double-click to play", "eboot.bin", "uncharted"},
-        {"u2", "2", "AMONG THIEVES", "Uncharted 2: Among Thieves", "Uncharted 2  \xE2\x80\xA2  double-click to play", "big2-ps4_Shipping.elf", "big2-ps4_Shipping"},
-        {"u3", "3", "DRAKE'S DECEPTION", "Uncharted 3: Drake's Deception", "Uncharted 3  \xE2\x80\xA2  double-click to play", "big3-ps4_Shipping.elf", "big3-ps4_Shipping"}};
+        {"u1", "1", "DRAKE'S FORTUNE", "Uncharted: Drake's Fortune", "Uncharted 1  \xE2\x80\xA2  double-click to start", "eboot.bin", "uncharted"},
+        {"u2", "2", "AMONG THIEVES", "Uncharted 2: Among Thieves", "Uncharted 2  \xE2\x80\xA2  double-click to start", "big2-ps4_Shipping.elf", "big2-ps4_Shipping"},
+        {"u3", "3", "DRAKE'S DECEPTION", "Uncharted 3: Drake's Deception", "Uncharted 3  \xE2\x80\xA2  double-click to start", "big3-ps4_Shipping.elf", "big3-ps4_Shipping"}};
     const char *keys[] = {"key", "number", "title", "name", "subtitle", "exe", "log"};
     for (auto &r : rows) {
         Value g = Value::object();
@@ -110,7 +111,7 @@ Value tables() {
         games.items.push_back(g);
     }
     t.set("GAMES", games);
-    // the PS4's system language ids of the 22 languages the Collection has text for
+    // PS4 system-language ids, one per text language the Collection ships (22 in total)
     const char *langs[][2] = {
         {"1", "English (US)"}, {"18", "English (UK)"}, {"2", "Fran\xC3\xA7" "ais"}, {"4", "Deutsch"}, {"5", "Italiano"},
         {"3", "Espa\xC3\xB1ol (Espa\xC3\xB1" "a)"}, {"20", "Espa\xC3\xB1ol (Latinoam\xC3\xA9rica)"},
@@ -129,11 +130,11 @@ Value tables() {
         l.items.push_back(p);
     }
     t.set("LANGUAGES", l);
-    const char *cheats[][3] = {{"invincible", "Invincible", "Nate takes no damage. All three games."},
-                               {"ammo", "Infinite ammo", "Ammo never runs out. All three games."},
-                               {"noreload", "No reload", "The magazine never empties. Uncharted 2 and 3."},
-                               {"grenades", "Infinite grenades", "Grenades never run out. Uncharted 3."},
-                               {"onehit", "One-hit kills", "Enemies go down with one hit. Uncharted 3."}};
+    const char *cheats[][3] = {{"invincible", "Invincible", "Nate cannot be hurt. Works in all three games."},
+                               {"ammo", "Infinite ammo", "Unlimited ammunition. Works in all three games."},
+                               {"noreload", "No reload", "The current magazine stays full. Uncharted 2 and 3 only."},
+                               {"grenades", "Infinite grenades", "Unlimited grenades. Uncharted 3 only."},
+                               {"onehit", "One-hit kills", "A single hit is enough to drop an enemy. Uncharted 3 only."}};
     Value c;
     c.kind = Value::Array;
     for (auto &r : cheats) {
@@ -146,7 +147,7 @@ Value tables() {
     return t;
 }
 
-// the speech packs (sound1/.../<language>_ps4.psarc) and the language ids they voice
+// speech archive base name (sound1/.../<language>_ps4.psarc) -> language ids that archive provides audio for
 const std::map<std::string, std::vector<const char *>> &speech_packs() {
     static const std::map<std::string, std::vector<const char *>> m = {
         {"english", {"1", "18"}}, {"french", {"2"}},     {"german", {"4"}},     {"italian", {"5"}},
@@ -184,8 +185,9 @@ std::wstring update_folder(std::wstring folder) {
     return std::wstring();
 }
 
-// Uncharted 2's torch code as update 1.02 compiled it, and its PlayerBase::UpdateFocus assert as 1.00 compiled it
-// (both exact bytes of the player's own executable; tools/probe_uncharted.py patches the same places)
+// Two byte signatures inside Uncharted 2's executable: the torch routine in its 1.02 build, and the
+// PlayerBase::UpdateFocus assert in its 1.00 build. Both are copied verbatim from the shipped binaries; the probe
+// (tools/probe_uncharted.py) patches these same spots.
 std::string hex(const char *h) {
     std::string out;
     for (size_t i = 0; h[i] && h[i + 1]; i += 2) out += (char)std::strtol(std::string(h + i, 2).c_str(), nullptr, 16);
@@ -198,7 +200,8 @@ const std::string &code_100() {
     return c;
 }
 
-// (has the 1.02 code, has the 1.00 code) of the folder's Uncharted 2 executable, cached by file and write time
+// scans the folder's big2-ps4_Shipping.elf for both signatures -> {1.02 found, 1.00 found}; results are memoized
+// per path and last-write time
 std::pair<bool, bool> executable_codes(const std::wstring &folder) {
     static std::map<std::wstring, std::pair<bool, bool>> cache;
     std::wstring path = join(folder, L"big2-ps4_Shipping.elf");
@@ -220,8 +223,8 @@ uint32_t u32(const std::string &d, size_t at) {
            ((uint32_t)(uint8_t)d[at + 3] << 24);
 }
 
-// APP_VER of a game folder (sce_sys/param.sfo); 01.02 when the executables are 1.02 although param.sfo says otherwise,
-// 01.00 when they are 1.00 although it says 01.02; "" when not readable
+// Reads APP_VER from sce_sys/param.sfo. The executable overrides it when they disagree: a 1.02 binary under an older
+// APP_VER reports "01.02", and a 1.00 binary under APP_VER 01.02 or later reports "01.00". Returns "" if unreadable.
 std::string version_of(const std::wstring &folder, bool &found) {
     std::string d;
     found = false;
@@ -248,7 +251,8 @@ std::string version_of(const std::wstring &folder, bool &found) {
     return "";
 }
 
-// language ids with speech in this copy of the game (its u*data/build/main/sound1/[streams/]speech/*_ps4.psarc)
+// language ids whose voice-over is installed, judged by the *_ps4.psarc files under
+// u*data/build/main/sound1/[streams/]speech
 std::vector<std::string> voices(const std::wstring &game_dir) {
     std::set<std::string> ids;
     if (game_dir.empty()) return {};
@@ -298,7 +302,8 @@ std::wstring env(const wchar_t *name) {
     return (n && n < 2048) ? std::wstring(buf, n) : std::wstring();
 }
 
-// under Wine: launcher.json in the Linux user's data folder (the same for every Steam shortcut's prefix)
+// Wine only: path of a launcher.json kept in the Linux user's XDG data directory, so every Steam shortcut prefix
+// sees one common file
 std::wstring shared_config() {
     std::wstring home = env(L"HOME"), data = env(L"XDG_DATA_HOME");
     if (data.empty()) data = (!home.empty() && home[0] == L'/') ? home + L"/.local/share" : L"";
@@ -308,7 +313,8 @@ std::wstring shared_config() {
     return folder.empty() ? L"" : join(join(folder, L"uncharted-launcher"), L"launcher.json");
 }
 
-// why the drive holding path makes the games freeze (USB / SD / MMC / FireWire bus, removable, FAT/exFAT), or ""
+// Explains why the volume containing `path` is likely to stall the games (attached over USB, SD, MMC or FireWire;
+// flagged removable; FAT or exFAT file system). Empty when none applies, and always empty under Wine.
 std::string slow_drive(const std::wstring &path) {
     if (under_wine()) return "";
     wchar_t full[MAX_PATH * 4];
@@ -316,7 +322,7 @@ std::string slow_drive(const std::wstring &path) {
     std::wstring p = (n && n < MAX_PATH * 4) ? std::wstring(full, n) : path;
     HANDLE h = CreateFileW(p.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
                            FILE_FLAG_BACKUP_SEMANTICS, nullptr);
-    if (h != INVALID_HANDLE_VALUE) {   // the real path (a junction or a substituted drive points elsewhere)
+    if (h != INVALID_HANDLE_VALUE) {   // resolve junctions and SUBST drives to the volume that really holds the data
         wchar_t real[MAX_PATH * 4];
         DWORD r = GetFinalPathNameByHandleW(h, real, MAX_PATH * 4, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
         CloseHandle(h);
@@ -359,7 +365,7 @@ std::string slow_drive(const std::wstring &path) {
             text += (seen.empty() ? "" : ", ") + r;
             seen.push_back(r);
         }
-    return utf8(drive) + " is a " + text + " drive";
+    return "drive " + utf8(drive) + " (" + text + ")";
 }
 
 std::string first_line_text(const std::wstring &path) {
@@ -385,7 +391,7 @@ std::wstring desktop() {
     return join(profile.empty() ? L"." : profile, L"Desktop");
 }
 
-// the newest multiplayer build shipped (u3mp/patcher/build/v<version>/build.json), its JSON; "" when none
+// JSON of the highest-versioned multiplayer build found as u3mp/patcher/build/v<version>/build.json; "" if there is none
 std::string newest_build(const std::wstring &u3mp_dir) {
     std::wstring builds = join(u3mp_dir, L"build");
     std::vector<long long> best_key;
@@ -422,7 +428,7 @@ std::string newest_build(const std::wstring &u3mp_dir) {
 
 // ------------------------------------------------------------------------------------------------ game starter
 
-// text as UTF-8 with each invalid byte as U+FFFD
+// returns the input with every byte that is not part of a valid UTF-8 sequence replaced by U+FFFD
 std::string utf8_replace(const std::string &t) {
     std::string out;
     for (size_t i = 0; i < t.size();) {
@@ -439,7 +445,8 @@ std::string utf8_replace(const std::string &t) {
     return out;
 }
 
-// param.sfo's values as gow3_pc/scripts/prepare.py reads them (numbers for integer entries); false when unreadable
+// every param.sfo entry as a JSON object (integer-format entries become numbers, the rest strings), matching what
+// gow3_pc/scripts/prepare.py extracts; false if the file is missing or malformed
 bool sfo_values(const std::wstring &folder, Value &out) {
     std::string d;
     if (!read_all(join(folder, L"sce_sys\\param.sfo"), d, 1 << 24) || d.size() < 20 || d.compare(0, 4, std::string("\0PSF", 4)))
@@ -472,8 +479,8 @@ bool sfo_values(const std::wstring &folder, Value &out) {
     return true;
 }
 
-// the game starter's version of a folder: APP_VER, checked against Uncharted 2's executable as the launcher does;
-// found false when param.sfo has none
+// version as the game starter sees it: APP_VER, corrected by the Uncharted 2 executable signatures in the same way
+// as version_of(); `found` stays false if param.sfo lacks APP_VER
 std::string starter_version(const std::wstring &folder, bool &found) {
     Value sfo;
     found = false;
@@ -489,7 +496,8 @@ std::string starter_version(const std::wstring &folder, bool &found) {
     return version;
 }
 
-// the final path of an existing file or folder (links and substituted drives followed), as Python's resolve()
+// canonical path of an existing file or directory after following links and SUBST drives (the \\?\ prefix is
+// stripped); the absolute input path if it cannot be opened
 std::wstring final_path(const std::wstring &path) {
     wchar_t full[MAX_PATH * 4];
     DWORD n = GetFullPathNameW(path.c_str(), MAX_PATH * 4, full, nullptr);
@@ -507,8 +515,10 @@ std::wstring final_path(const std::wstring &path) {
     return f;
 }
 
-// the game's update: UNCHARTED_UPDATE (a folder, 0 for none), else a folder next to the game named like it plus
-// -patch/-update (any case), with or without uroot. Two lines: the update's path (or empty), a message (or empty).
+// Locates the update for a game folder. UNCHARTED_UPDATE wins if set ("0" disables updates); otherwise a sibling
+// folder whose name is the game folder's name plus -patch/-update/_patch/_update (case-insensitive) is used, either
+// directly or through its uroot subfolder. Result is two lines: update path (may be empty), then a notice (may be
+// empty).
 std::string starter_update(std::wstring game) {
     std::wstring chosen = env(L"UNCHARTED_UPDATE");
     if (chosen == L"0") return "\n";
@@ -537,7 +547,7 @@ std::string starter_update(std::wstring game) {
     for (const std::wstring &c : candidates)
         if (game_folder(c)) return utf8(final_path(c)) + "\n";
     if (!chosen.empty())
-        return "\nUNCHARTED_UPDATE=" + utf8(chosen) + " holds no eboot.bin and sce_sys/param.sfo; starting without it";
+        return "\nUNCHARTED_UPDATE=" + utf8(chosen) + " is missing eboot.bin and sce_sys/param.sfo, so no update is used";
     return "\n";
 }
 
@@ -548,9 +558,10 @@ extern "C" {
 UN_API int un_system_tables(char *out, int cap) { return give(json::dump(tables()), out, cap); }
 UN_API int un_wine(void) { return under_wine() ? 1 : 0; }
 
-// what: "unix_path", "windows_path", "shared_config", "slow_drive", "is_game_dir", "update_dir", "app_version",
-// "voices" (ids, one per line), "launcher_version" (arg: root), "recipe_version" (arg: u3mp_dir),
-// "u3mp_release" (arg: u3mp_dir; build.json or ""), "desktop", "u3mp_default_data". "" = none.
+// Dispatcher for small system lookups. `what` is one of unix_path, windows_path, shared_config, slow_drive,
+// is_game_dir, update_dir, app_version, voices (one id per line), launcher_version (arg = install root),
+// recipe_version (arg = u3mp dir), u3mp_release (arg = u3mp dir; build.json text or ""), desktop, sfo,
+// starter_version, find_update, u3mp_default_data. An empty answer means "nothing".
 UN_API int un_system(const char *what, const wchar_t *arg, char *out, int cap) {
     std::string w = what ? what : "", r;
     bool found = true;

@@ -1,17 +1,19 @@
-// updater.cpp - launcher updates from the project's GitHub releases (launcher/updater.py), part of
-// uncharted_native.dll.
+// updater.cpp (in uncharted_native.dll) keeps the launcher itself up to date from the project's releases on GitHub;
+// it took over from launcher/updater.py.
 //
-// The package's VERSION file (written by tools/package_windows.sh) names the installed version; a copy run from the
-// source tree has none and is never updated. An update:
-//   1. latest: the newest release with a newer version and an Uncharted-windows.zip asset whose SHA-256 GitHub
-//      publishes (the asset's "digest"),
-//   2. download: the zip into update\, checked against that size and SHA-256; a connection that stalls or breaks is
-//      opened again and the download goes on where it stopped (HTTP Range),
-//   3. stage: unpacked to update\staged and checked (the files the package needs, its VERSION),
-//   4. start_apply: the new version's own Python runs its tools\apply_update.py, which waits for this launcher to
-//      close, swaps the program folders (rolling back on any error) and starts the new launcher.
-// Saves, settings, logs and the shader cache (analysis\) are not touched. UNCHARTED_UPDATE_API points the check at
-// another releases list (tests; http only on 127.0.0.1).
+// The installed version is read from the VERSION file that tools/package_windows.sh puts in every package. Running
+// straight from a source checkout means there is no VERSION file, and then no update is ever offered. The update runs
+// in four stages:
+//   1. latest       pick the highest release above the installed version that carries an Uncharted-windows.zip asset
+//                   with a published SHA-256 (GitHub's "digest" field on the asset)
+//   2. download     fetch that zip into update\ and verify its size and SHA-256; when the connection hangs or drops,
+//                   reconnect and resume from the last byte received (HTTP Range)
+//   3. stage        unzip it into update\staged and verify it (required files present, VERSION matches)
+//   4. start_apply  launch the installer that ships inside the new version (once Python's tools\apply_update.py),
+//                   which holds off until this launcher has exited, exchanges the program folders with rollback on failure,
+//                   and starts the new launcher
+// analysis\ (saves, settings, logs, shader cache) is never modified. Setting UNCHARTED_UPDATE_API makes the check read
+// a different releases list, for tests; plain http is then accepted for 127.0.0.1 only.
 
 #include "native.h"
 #include "json.h"
@@ -35,8 +37,8 @@ using json::Value;
 
 const char *const REPOSITORY = "fidalgojoao/Uncharted-The-Nathan-Drake-Collection-PC-port";
 const char *const ASSET = "Uncharted-windows.zip";
-// What a package must hold to be installed over this one: the launcher, its native code, the runtime and the update's
-// own installer (none of them Python, so a package without Python installs too).
+// Files a downloaded package needs before it may replace this install: the launcher exe, its native DLL, the runtime
+// and the package's own update installer. None of these is Python, so packages that no longer ship Python qualify.
 const char *const REQUIRED[] = {"Uncharted Launcher.exe", "VERSION", "launcher/native/uncharted_native.dll",
                                 "tools/apply_update.exe", "gow3_pc/out/gow3-probe.exe"};
 
@@ -83,9 +85,9 @@ std::string win_error(DWORD code) {
     return "[WinError " + std::to_string(code) + "] " + utf8(t);
 }
 
-// ------------------------------------------------------------------------------------------------ versions
+// ------------------------------------------------------------------------------------------------ version numbers
 
-// 'v0.1.10' / '0.1.10' -> {0, 1, 10}; empty if it is not a version.
+// Parses "v0.1.10" or "0.1.10" into {0, 1, 10}. Anything that is not exactly three numbers gives an empty vector.
 std::vector<long long> parse_version(const std::string &text) {
     std::string t = text;
     while (!t.empty() && isspace((unsigned char)t.front())) t.erase(t.begin());
@@ -113,7 +115,7 @@ std::string version_text(const std::vector<long long> &v) {
     return s;
 }
 
-// The package's version, or empty for a copy run from the source tree.
+// Version from the root's VERSION file; empty when the file is absent (a source checkout).
 std::vector<long long> installed_version(const std::wstring &root) {
     HANDLE h = CreateFileW(join(root, L"VERSION").c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
     if (h == INVALID_HANDLE_VALUE) return {};
@@ -139,8 +141,8 @@ bool allowed_url(const std::wstring &url) {
            !env(L"UNCHARTED_UPDATE_API").empty();
 }
 
-std::string http_error_text(DWORD code) {   // urllib's words for a failed connection
-    if (code == ERROR_WINHTTP_TIMEOUT) return "The read operation timed out";
+std::string http_error_text(DWORD code) {   // connection failures, mostly phrased as urllib reported them
+    if (code == ERROR_WINHTTP_TIMEOUT) return "No data arrived in time (timeout)";
     if (code == ERROR_WINHTTP_NAME_NOT_RESOLVED) return "<urlopen error [Errno 11001] getaddrinfo failed>";
     if (code == ERROR_WINHTTP_CANNOT_CONNECT) return "<urlopen error [WinError 10061] No connection could be made>";
     if (code == ERROR_WINHTTP_CONNECTION_ERROR) return "[WinError 10054] An existing connection was forcibly closed by the remote host";
@@ -155,7 +157,8 @@ struct Http {
         if (connect) WinHttpCloseHandle(connect);
         if (session) WinHttpCloseHandle(session);
     }
-    // GET url with the extra headers; throws the connection's error text; status is the final HTTP status.
+    // Sends a GET for `url` with the given extra headers and leaves the final HTTP status in `status`. Failures are
+    // thrown as a std::string describing them.
     void open(const std::wstring &url, const std::wstring &headers, int timeout_s) {
         URL_COMPONENTS u{};
         u.dwStructSize = sizeof u;
@@ -191,7 +194,7 @@ struct Http {
             throw "HTTP Error " + std::to_string(status) + ": " + utf8(reason);
         }
     }
-    // the next piece of the body; 0 at its end; throws the connection's error text
+    // Reads the next chunk of the response body, returning 0 once it is exhausted; failures are thrown as text
     DWORD read(char *buf, DWORD cap) {
         DWORD got = 0;
         if (!WinHttpReadData(request, buf, cap, &got)) throw http_error_text(GetLastError());
@@ -206,7 +209,7 @@ std::wstring api_url() {
 }
 
 Value fetch_json(const std::wstring &url, int timeout) {
-    if (!allowed_url(url)) throw UpdateError{"Refusing a non-HTTPS address: " + utf8(url)};
+    if (!allowed_url(url)) throw UpdateError{"Not an HTTPS address, so it was refused: " + utf8(url)};
     Http http;
     std::string body;
     try {
@@ -221,8 +224,8 @@ Value fetch_json(const std::wstring &url, int timeout) {
     return v;
 }
 
-// The newest release newer than `current` with an installable package (version, tag, page, notes, url, size, sha256),
-// or null. Pre-releases count: every release so far is a beta.
+// Returns the highest release above `current` that has a usable package, as an object with version, tag, page, notes,
+// url, size and sha256; null if there is none. Pre-releases are included, since all releases to date are betas.
 Value latest_release(const std::vector<long long> &current, int timeout) {
     Value best;
     std::vector<long long> best_version;
@@ -264,7 +267,7 @@ Value latest_release(const std::vector<long long> &current, int timeout) {
     return best;
 }
 
-// ------------------------------------------------------------------------------------------------ download
+// ------------------------------------------------------------------------------------------------ downloading
 
 std::atomic<long long> g_done{0}, g_total{0};
 
@@ -295,12 +298,13 @@ struct Sha256 {
     }
 };
 
-// The release's zip into update\, its size and SHA-256 checked. A connection that stalls or breaks is opened again
-// and the download goes on where it stopped (HTTP Range), up to `attempts` times in a row without progress.
+// Saves the release's zip in update\ and verifies its size and SHA-256. If the connection hangs or drops, a new one is
+// made and the transfer resumes at the byte where it stopped (HTTP Range). It gives up after `attempts` consecutive
+// tries that each moved less than 1 MiB.
 std::wstring download(const Value &release, const std::wstring &root, int attempts = 8, int timeout = 60, double pause = 2.0) {
     const Value *url_v = release.get("url");
     const std::wstring url = widen(url_v && url_v->kind == Value::String ? url_v->s : "");
-    if (!allowed_url(url)) throw UpdateError{"Refusing a non-HTTPS download: " + utf8(url)};
+    if (!allowed_url(url)) throw UpdateError{"Not an HTTPS download, so it was refused: " + utf8(url)};
     const std::wstring folder = join(root, L"update");
     if (!CreateDirectoryW(folder.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)
         throw UpdateError{win_error(GetLastError()) + ": '" + utf8(folder) + "'"};
@@ -323,10 +327,11 @@ std::wstring download(const Value &release, const std::wstring &root, int attemp
             if (done) headers = L"Range: bytes=" + std::to_wstring(done) + L"-\r\n";
             const long long start = done;
             try {
-                // Each try asks github.com again: its redirect to the file host is signed and expires.
+                // Start every try at github.com again, because the signed redirect it hands out to the file host only
+                // stays valid for a limited time.
                 Http http;
                 http.open(url, headers, timeout);
-                if (done && http.status != 206) {   // the range was ignored: from the start
+                if (done && http.status != 206) {   // server sent the whole file instead of the range: start over
                     SetFilePointer(out, 0, nullptr, FILE_BEGIN);
                     SetEndOfFile(out);
                     digest.reset();
@@ -342,14 +347,14 @@ std::wstring download(const Value &release, const std::wstring &root, int attemp
                 }
                 if (!size) break;
                 if (done < size)
-                    throw std::string("the connection closed after " + std::to_string(done) + " of " + std::to_string(size) +
+                    throw std::string("the connection ended after " + std::to_string(done) + " of " + std::to_string(size) +
                                       " bytes");
-            } catch (const std::string &error) {   // timeouts, resets, HTTP errors
+            } catch (const std::string &error) {   // time-outs, dropped connections and HTTP error statuses land here
                 failures = done - start >= (1 << 20) ? 0 : failures + 1;
                 if (failures >= attempts)
-                    throw UpdateError{"The download from GitHub keeps stopping (" + error + ").\n\nTry UPDATE again later, or "
-                                      "download Uncharted-windows.zip from the releases page and extract it over this "
-                                      "folder (saves and settings in analysis\\ are kept)."};
+                    throw UpdateError{"The download from GitHub keeps breaking off (" + error + ").\n\nPress UPDATE again "
+                                      "later, or get Uncharted-windows.zip from the releases page yourself and unpack it "
+                                      "over this folder (the saves and settings in analysis\\ stay)."};
                 Sleep((DWORD)(std::min(pause * std::max(failures, 1), 15.0) * 1000));
             }
         }
@@ -360,25 +365,25 @@ std::wstring download(const Value &release, const std::wstring &root, int attemp
     CloseHandle(out);
     if (size && done != size) {
         DeleteFileW(partial.c_str());
-        throw UpdateError{"The download is incomplete (" + std::to_string(done) + " of " + std::to_string(size) + " bytes)."};
+        throw UpdateError{"Only part of the download arrived (" + std::to_string(done) + " of " + std::to_string(size) + " bytes)."};
     }
     if (digest.hex() != want) {
         DeleteFileW(partial.c_str());
-        throw UpdateError{"The download does not match the release's SHA-256: not installed."};
+        throw UpdateError{"The downloaded file's SHA-256 differs from the release's, so it was not installed."};
     }
     if (!MoveFileExW(partial.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING))
         throw UpdateError{win_error(GetLastError()) + ": '" + utf8(partial) + "' -> '" + utf8(target) + "'"};
     return target;
 }
 
-// ------------------------------------------------------------------------------------------------ zip (inflate)
+// ------------------------------------------------------------------------------------------------ zip reading (inflate)
 
 using inflate::crc32;
 using inflate::Inflater;
 
 struct Entry {
-    std::string name;   // as zipfile names it ('/' for the separator)
-    std::string raw;    // the name's bytes in the central directory
+    std::string name;   // decoded name, '/' between folders (what Python's zipfile reports)
+    std::string raw;    // undecoded name bytes as stored in the central directory
     uint16_t flags = 0, method = 0;
     uint32_t crc = 0;
     uint64_t csize = 0, usize = 0, offset = 0;
@@ -392,7 +397,7 @@ uint64_t le(const std::string &d, size_t at, int n) {
 }
 
 std::vector<Entry> central_directory(const std::string &zip) {
-    // the end record: at most 64 KiB of comment after it
+    // search backwards for the end-of-directory record; a trailing comment can be up to 64 KiB long
     size_t end = std::string::npos;
     for (size_t k = zip.size() >= 22 ? zip.size() - 22 : 0; zip.size() >= 22; --k) {
         if (le(zip, k, 4) == 0x06054b50) { end = k; break; }
@@ -422,13 +427,13 @@ std::vector<Entry> central_directory(const std::string &zip) {
         if (at + 46 + nlen > zip.size()) throw UpdateError{"File is not a zip file"};
         std::string raw = zip.substr(at + 46, nlen);
         e.raw = raw;
-        // zipfile: UTF-8 when flagged, else code page 437; a NUL ends the name; the system's separator becomes '/'
+        // decode like zipfile: UTF-8 if bit 11 is set, code page 437 otherwise; cut at a NUL; backslashes become '/'
         std::wstring name = (e.flags & 0x800) ? widen(raw) : widen(raw, 437);
         const size_t nul = name.find(L'\0');
         if (nul != std::wstring::npos) name.resize(nul);
         std::replace(name.begin(), name.end(), L'\\', L'/');
         e.name = utf8(name);
-        // ZIP64 sizes and offset
+        // a ZIP64 extra field (id 1) supplies the sizes and offset that did not fit in 32 bits
         for (size_t x = at + 46 + nlen; x + 4 <= at + 46 + nlen + xlen;) {
             const uint64_t id = le(zip, x, 2), len = le(zip, x + 2, 2);
             if (id == 1) {
@@ -451,7 +456,7 @@ std::string member(const std::string &zip, const Entry &e) {
     const size_t local_name = (size_t)le(zip, (size_t)e.offset + 26, 2);
     const size_t start = (size_t)e.offset + 30 + local_name + (size_t)le(zip, (size_t)e.offset + 28, 2);
     if ((size_t)e.offset + 30 + local_name > zip.size()) throw UpdateError{"File is not a zip file"};
-    // the local header names the same file as the directory (zipfile checks this)
+    // the local header's name must equal the central directory's, a check zipfile makes as well
     const std::string header_name = zip.substr((size_t)e.offset + 30, local_name);
     if (header_name != e.raw)
         throw UpdateError{"File name in directory '" + e.name + "' and header b'" + header_name + "' differ."};
@@ -506,7 +511,7 @@ std::wstring full_path(const std::wstring &p) {
     return f;
 }
 
-// shutil.rmtree(ignore_errors=True): best effort, links are removed and never followed
+// Deletes a tree, ignoring failures (as shutil.rmtree(ignore_errors=True)); links go, their targets are not entered
 void remove_tree(const std::wstring &path) {
     const DWORD a = GetFileAttributesW(path.c_str());
     if (a == INVALID_FILE_ATTRIBUTES) return;
@@ -525,7 +530,7 @@ void remove_tree(const std::wstring &path) {
     else DeleteFileW(path.c_str());
 }
 
-// Unpacks the package to update\staged and checks it; returns that folder.
+// Extracts the downloaded package into update\staged, verifies the result and returns the folder's path.
 std::wstring stage(const std::wstring &archive, const std::wstring &root, const std::vector<long long> &version) {
     const std::wstring staged = join(join(root, L"update"), L"staged");
     remove_tree(staged);
@@ -533,7 +538,7 @@ std::wstring stage(const std::wstring &archive, const std::wstring &root, const 
     std::string zip;
     if (!read_all(archive, zip)) throw UpdateError{win_error(GetLastError()) + ": '" + utf8(archive) + "'"};
     const std::vector<Entry> entries = central_directory(zip);
-    // Compress-Archive puts everything under one folder (Uncharted-windows/).
+    // Zips made with Compress-Archive wrap all files in a single top folder (Uncharted-windows/); strip it if present.
     std::vector<std::string> names;
     for (auto &e : entries) if (!e.name.empty() && e.name.back() != '/') names.push_back(e.name);
     std::vector<std::string> tops;
@@ -551,14 +556,14 @@ std::wstring stage(const std::wstring &archive, const std::wstring &root, const 
         std::wstring rel = widen(name.substr(prefix.size()));
         std::replace(rel.begin(), rel.end(), L'/', L'\\');
         std::wstring joined;
-        if (rel.size() >= 2 && rel[1] == L':') joined = rel;                                  // another drive
-        else if (!rel.empty() && rel[0] == L'\\') joined = base.substr(0, 2) + rel;          // the drive's root
+        if (rel.size() >= 2 && rel[1] == L':') joined = rel;                                  // names a drive itself
+        else if (!rel.empty() && rel[0] == L'\\') joined = base.substr(0, 2) + rel;          // rooted on base's drive
         else joined = base + L"\\" + rel;
         const std::wstring target = full_path(joined);
         if (!(target.size() > base.size() + 1 && CompareStringOrdinal(target.c_str(), (int)base.size(), base.c_str(),
                                                                          (int)base.size(), TRUE) == CSTR_EQUAL &&
               target[base.size()] == L'\\'))
-            throw UpdateError{"The package holds a path outside its folder: " + name};
+            throw UpdateError{"The package contains a path that leads outside its folder: " + name};
         const size_t cut = target.find_last_of(L'\\');
         make_dirs(target.substr(0, cut));
         const std::string data = member(zip, e);
@@ -581,12 +586,12 @@ std::wstring stage(const std::wstring &archive, const std::wstring &root, const 
         const DWORD a = GetFileAttributesW(join(staged, p).c_str());
         if (a == INVALID_FILE_ATTRIBUTES || (a & FILE_ATTRIBUTE_DIRECTORY)) missing += (missing.empty() ? "" : ", ") + std::string(path);
     }
-    if (!missing.empty()) throw UpdateError{"The package is incomplete: " + missing};
-    if (installed_version(staged) != version) throw UpdateError{"The package's VERSION does not match the release."};
+    if (!missing.empty()) throw UpdateError{"Files are missing from the package: " + missing};
+    if (installed_version(staged) != version) throw UpdateError{"The VERSION in the package differs from the release's."};
     return staged;
 }
 
-// subprocess.list2cmdline
+// Joins arguments into one command line with the quoting rules of subprocess.list2cmdline
 std::wstring command_line(const std::vector<std::wstring> &args) {
     std::wstring result;
     for (const std::wstring &arg : args) {
@@ -605,8 +610,8 @@ std::wstring command_line(const std::vector<std::wstring> &args) {
     return result;
 }
 
-// Starts the new version's installer (its tools\apply_update.exe; a package without it: its Python with
-// tools\apply_update.py), which waits for this process to exit.
+// Launches the installer of the staged version, normally its tools\apply_update.exe. Older packages that lack the
+// exe get their bundled Python running tools\apply_update.py instead. Either one waits for this process to end.
 void start_apply(const std::wstring &root, const std::wstring &staged) {
     const std::wstring installer = join(join(staged, L"tools"), L"apply_update.exe");
     const std::wstring pid = std::to_wstring(GetCurrentProcessId());
@@ -631,7 +636,7 @@ void start_apply(const std::wstring &root, const std::wstring &staged) {
     CloseHandle(pi.hProcess);
 }
 
-// Removes what an applied or abandoned update left (best effort: files may still be in use).
+// Deletes the leftovers of a finished or aborted update. Failures are ignored, since some files may still be open.
 void cleanup(const std::wstring &root) {
     const std::wstring folder = join(root, L"update");
     if (GetFileAttributesW(folder.c_str()) == INVALID_FILE_ATTRIBUTES) return;
@@ -646,15 +651,16 @@ std::vector<long long> version_of(const char *text) { return parse_version(text 
 
 extern "C" {
 
-// The installed version ("0.10.62"); 2 for a copy run from the source tree (no VERSION).
+// Writes the installed version, such as "0.10.62", to out. Returns 2 when there is no VERSION (a source checkout).
 UN_API int un_update_installed(const wchar_t *root, char *out, int cap) {
     const std::vector<long long> v = installed_version(root ? root : L".");
     if (v.empty()) return give("", out, cap) < 0 ? -1 : 2;
     return give(version_text(v), out, cap);
 }
 
-// The newest release newer than `current` ("0.10.62") as JSON (version as a list, tag, page, notes, url, size, sha256),
-// or "null". 1: the check failed (out: why).
+// Looks up the best release above `current` (e.g. "0.10.62") and writes it to out as JSON with version (a list), tag,
+// page, notes, url, size and sha256, or writes "null" when there is nothing newer. Returns 1 with the reason in out
+// if the lookup failed.
 UN_API int un_update_latest(const char *current, int timeout, char *out, int cap) {
     try {
         return give(json::dump(latest_release(version_of(current), timeout > 0 ? timeout : 15), false), out, cap);
@@ -664,8 +670,9 @@ UN_API int un_update_latest(const char *current, int timeout, char *out, int cap
     }
 }
 
-// Downloads the release (release_json as un_update_latest gave it) into root\update; out: the zip's path. Blocks; its
-// progress comes from un_update_progress. 1: it failed (out: why).
+// Fetches the release described by release_json (the object un_update_latest produced) into root\update and writes
+// the zip's path to out. The call blocks until done; poll un_update_progress meanwhile. Returns 1 with the reason in
+// out on failure.
 UN_API int un_update_download(const char *release_json, const wchar_t *root, char *out, int cap) {
     Value release;
     json::parse(release_json ? release_json : "{}", release);
@@ -677,14 +684,14 @@ UN_API int un_update_download(const char *release_json, const wchar_t *root, cha
     }
 }
 
-// The running download: bytes done and the total (0: unknown).
+// Progress of the current download: bytes received so far and the expected total (0 when not known).
 UN_API void un_update_progress(long long *done, long long *total) {
     if (done) *done = g_done;
     if (total) *total = g_total;
 }
 
-// Unpacks the downloaded zip to root\update\staged and checks it against the version ("0.10.63"); out: the folder.
-// 1: the package can't be installed (out: why).
+// Extracts the downloaded zip into root\update\staged, checks it against `version` (e.g. "0.10.63") and writes the
+// folder to out. Returns 1 with the reason in out when the package is unusable.
 UN_API int un_update_stage(const wchar_t *archive, const wchar_t *root, const char *version, char *out, int cap) {
     try {
         return give(utf8(stage(archive ? archive : L"", root ? root : L".", version_of(version))), out, cap);
@@ -697,7 +704,8 @@ UN_API int un_update_stage(const wchar_t *archive, const wchar_t *root, const ch
     }
 }
 
-// Starts the staged version's installer (it waits for this process to exit). 1: it could not start (out: why).
+// Launches the staged version's installer, which then waits for this process to end. Returns 1 with the reason in
+// out if it would not start.
 UN_API int un_update_start_apply(const wchar_t *root, const wchar_t *staged, char *out, int cap) {
     try {
         start_apply(root ? root : L".", staged ? staged : L".");
@@ -708,7 +716,7 @@ UN_API int un_update_start_apply(const wchar_t *root, const wchar_t *staged, cha
     }
 }
 
-// Removes what an applied or abandoned update left.
+// Clears out update\ after an update finished or was given up.
 UN_API void un_update_cleanup(const wchar_t *root) { cleanup(root ? root : L"."); }
 
 }  // extern "C"

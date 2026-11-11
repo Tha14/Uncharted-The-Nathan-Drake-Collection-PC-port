@@ -1,10 +1,11 @@
-// controls.cpp - keyboard, mouse and controller bindings for the launcher's Controls page, part of uncharted_native.dll.
-// The tables (actions, defaults, controller buttons, sensitivity steps, key names), and the conversion between the
-// launcher's per-game settings and the game's settings file, where the runtime (runtime_pad.c) reads them as
-// key_map / mouse_map / pad_map and the in-game menu changes them too.
+// controls.cpp - input binding logic behind the launcher's Controls page (built into uncharted_native.dll).
+// Holds the fixed data (action list, default bindings, gamepad button names, sensitivity choices, key-name mapping)
+// and converts between the per-game launcher settings and the game's settings file. In that file the runtime
+// (runtime_pad.c) picks them up as key_map / mouse_map / pad_map, and the in-game menu can edit them as well.
 //
-// Bindings: an action has up to two, "key:<SDL key name>" or "mouse:<left|middle|right|x1|x2|wheel_up|wheel_down>";
-// stick directions take keys only. Map syntax: "action=name,..." ("action=" binds nothing).
+// Binding format: each action holds at most two entries, either "key:<name of an SDL key>" or
+// "mouse:<left|middle|right|x1|x2|wheel_up|wheel_down>"; the stick-direction actions accept keys only.
+// A map string is "action=name,..." and an empty right side ("action=") means unbound.
 
 #include "native.h"
 #include "json.h"
@@ -28,7 +29,7 @@ using Pairs = std::vector<std::pair<const char *, const char *>>;
 
 struct Group {
     const char *title;
-    Pairs actions;   // action, label
+    Pairs actions;   // (action id, text shown on the page)
 };
 
 const std::vector<Group> &groups() {
@@ -45,22 +46,22 @@ const std::vector<Group> &groups() {
     return g;
 }
 
-// the controller button of each action, as SDL names it (runtime_pad.c's default controller map)
+// default gamepad input per action, using SDL's button names; mirrors the built-in pad map in runtime_pad.c
 const Pairs PAD_DEFAULTS = {{"cross", "a"},         {"circle", "b"},        {"square", "x"},    {"triangle", "y"},
                             {"l1", "leftshoulder"}, {"r1", "rightshoulder"}, {"l3", "leftstick"}, {"r3", "rightstick"},
                             {"options", "start"},   {"touchpad_right", "back"}, {"up", "dpup"}, {"down", "dpdown"},
                             {"left", "dpleft"},     {"right", "dpright"},
-                            // the triggers, and the stick that moves (Move) and looks (Look): runtime_pad.c
+                            // triggers, then the movement stick and the camera stick (as in runtime_pad.c)
                             {"l2", "lefttrigger"},  {"r2", "righttrigger"},
                             {"ls_up", "lstick"},    {"ls_down", "lstick"},  {"ls_left", "lstick"}, {"ls_right", "lstick"},
                             {"rs_up", "rstick"},    {"rs_down", "rstick"},  {"rs_left", "rstick"}, {"rs_right", "rstick"}};
-// the touchpad's left click (Back/View with LB held) can't be rebound
+// left touchpad click is hard-wired to LB + Back/View and is not remappable
 const Pairs PAD_FIXED = {{"touchpad_left", "leftshoulder+back"}};
-// SDL_GamepadButton order (SDL3)
+// in the same order as SDL3's SDL_GamepadButton enum
 const char *const SDL_BUTTONS[] = {"a", "b", "x", "y", "back", "guide", "start", "leftstick", "rightstick", "leftshoulder",
                                    "rightshoulder", "dpup", "dpdown", "dpleft", "dpright", "misc1", "paddle1", "paddle2",
                                    "paddle3", "paddle4", "touchpad"};
-// (Xbox, PlayStation): the slot's text where there is no icon, and hints
+// SDL name -> Xbox name, PlayStation name; used as slot text when no icon exists and in tooltips
 const std::vector<std::vector<const char *>> PAD_NAMES = {
     {"a", "A", "Cross"}, {"b", "B", "Circle"}, {"x", "X", "Square"}, {"y", "Y", "Triangle"}, {"back", "View", "Share"},
     {"guide", "Guide", "PS"}, {"start", "Menu", "Options"}, {"leftstick", "LS", "L3"}, {"rightstick", "RS", "R3"},
@@ -78,17 +79,17 @@ const std::vector<std::pair<const char *, std::vector<const char *>>> DEFAULT_CO
     {"l2", {"mouse:right"}}, {"r2", {"mouse:left"}}, {"l1", {"key:Q", "mouse:x1"}}, {"r1", {"key:E", "mouse:x2"}},
     {"l3", {"key:Left Shift"}}, {"r3", {"key:V", "mouse:middle"}}, {"options", {"key:Escape", "key:Return"}},
     {"touchpad_left", {"key:Tab"}}, {"touchpad_right", {"key:Backspace"}}};
-// button icons in the games' text and menus: the device used last, or fixed
+// which button glyphs the games show in prompts and menus: follow the last device used, or one fixed set
 const Pairs PROMPT_MODES = {{"auto", "Auto"}, {"keyboard", "Keyboard and mouse"}, {"playstation", "PlayStation"}, {"xbox", "Xbox"}};
 const Pairs MOUSE_SENSITIVITIES = {{"0.5", "0.5x"}, {"0.75", "0.75x"}, {"1.0", "1x"}, {"1.5", "1.5x"},
                                    {"2.0", "2x"},   {"3.0", "3x"},     {"4.0", "4x"}, {"5.0", "5x"}};
-// while aiming (times the sensitivity) and up/down compared with left/right
+// multipliers: aim-down-sights speed relative to the base sensitivity, and vertical speed relative to horizontal
 const Pairs MOUSE_FACTORS = {{"0.5", "0.5x"}, {"0.75", "0.75x"}, {"1.0", "1x"}, {"1.25", "1.25x"}, {"1.5", "1.5x"}, {"2.0", "2x"}};
 const Pairs MOUSE_AIM_FACTORS = {{"0.5", "0.5x"}, {"1.0", "1x"}, {"2.0", "2x"}, {"3.0", "3x"}, {"5.0", "5x"}, {"10.0", "10x"}};
 const Pairs MOUSE_LABELS = {{"left", "Left mouse"},    {"middle", "Middle mouse"}, {"right", "Right mouse"},
                             {"x1", "Mouse back"},      {"x2", "Mouse forward"},    {"wheel_up", "Wheel up"},
                             {"wheel_down", "Wheel down"}};
-// Tk key names -> SDL key names (letters and digits map to themselves, upper case)
+// maps Tk keysym names to SDL key names; letters and digits need no entry (they are used as is, in upper case)
 Pairs tk_to_sdl() {
     Pairs p = {{"space", "Space"}, {"Return", "Return"}, {"Escape", "Escape"}, {"Tab", "Tab"}, {"BackSpace", "Backspace"},
                {"Shift_L", "Left Shift"}, {"Shift_R", "Right Shift"}, {"Control_L", "Left Ctrl"}, {"Control_R", "Right Ctrl"},
@@ -108,7 +109,7 @@ Pairs tk_to_sdl() {
     for (int n = 0; n < 10; ++n) p.push_back({extra[12 + 2 * n].c_str(), extra[13 + 2 * n].c_str()});
     return p;
 }
-// keys the runtime keeps for itself: Insert opens the in-game menu, F9 records the pad
+// not bindable because the runtime uses them: Insert toggles the in-game menu, F9 starts a pad recording
 const char *const RESERVED_KEYS[] = {"Insert", "F9", "comma"};
 
 Value text(const char *s) { return Value::text(s); }
@@ -189,7 +190,8 @@ std::string trim(const std::string &s) {
     return s.substr(a, s.find_last_not_of(ws) - a + 1);
 }
 
-// action -> its bindings: the defaults, with a game's own (up to two each) for the known actions
+// full action -> bindings table: start from the defaults and, for every action we know, take the game's saved list
+// instead (capped at two)
 std::vector<std::pair<std::string, std::vector<std::string>>> merged(const Value *controls) {
     std::vector<std::pair<std::string, std::vector<std::string>>> m;
     for (auto &d : DEFAULT_CONTROLS) m.push_back({d.first, std::vector<std::string>(d.second.begin(), d.second.end())});
@@ -206,7 +208,7 @@ std::vector<std::pair<std::string, std::vector<std::string>>> merged(const Value
     return m;
 }
 
-// the controller button of each action: the defaults with a game's own (an empty one = none)
+// full action -> gamepad button table: defaults overlaid with the game's overrides; an empty override means unbound
 Value merged_pad(const Value *pad) {
     Value m = Value::object();
     for (auto &kv : PAD_DEFAULTS) m.set(kv.first, text(kv.second));
@@ -242,14 +244,14 @@ std::vector<std::pair<std::string, std::string>> parse_map(const std::string &sp
     }
 }
 
-// Python's float(): surrounding whitespace allowed; nan/inf words allowed
+// parses a decimal number; leading/trailing whitespace is ignored and "nan"/"inf" are accepted
 bool to_number(const std::string &s, double &v) {
     std::string t = trim(s);
     if (t.empty()) return false;
     char *end = nullptr;
     v = std::strtod(t.c_str(), &end);
     if (end != t.c_str() + t.size()) return false;
-    if (t.find_first_of("xXpP") != std::string::npos) return false;   // strtod reads hex; Python does not
+    if (t.find_first_of("xXpP") != std::string::npos) return false;   // reject hex floats, which strtod would take
     return true;
 }
 
@@ -261,7 +263,8 @@ std::string g_format(double v) {
     return s;
 }
 
-// a mouse value as one of the options when it is one (the in-game menu sets any)
+// snaps a mouse factor to the matching option string if it equals one; the in-game menu may store values that are
+// not in the list, and those are returned in %g form
 std::string option_value(const Value *v, const Pairs &options) {
     double value;
     if (!v || v->kind != Value::String || !to_number(v->s, value)) return "1.0";
@@ -308,12 +311,14 @@ Value to_ini(const Value &settings) {
     return out;
 }
 
-// a game's controls from its settings file into the launcher's settings; false when the file has none yet
+// copies the control keys found in a game's settings file into its launcher settings; returns false if the file
+// contains none of the map keys yet
 bool from_ini(const Value &values, Value &settings) {
     if (!values.get("key_map") && !values.get("mouse_map") && !values.get("pad_map")) return false;
     std::vector<std::pair<std::string, std::vector<std::string>>> controls;
     for (auto &d : DEFAULT_CONTROLS) controls.push_back({d.first, std::vector<std::string>(d.second.begin(), d.second.end())});
-    // a map on top, as the runtime applies it: an action's first entry replaces its sources of this kind
+    // apply each map over the defaults the way the runtime does: the first entry for an action drops that action's
+    // existing bindings of the same kind, later entries add to it
     for (auto &kind : {std::make_pair("key_map", "key:"), std::make_pair("mouse_map", "mouse:")}) {
         const Value *spec = values.get(kind.first);
         std::set<std::string> replaced;
@@ -378,14 +383,17 @@ int give(const std::string &s, char *out, int cap) {
 
 extern "C" {
 
-// every Controls table as one JSON object (CONTROL_GROUPS, PAD_DEFAULTS, PAD_FIXED, SDL_BUTTONS, PAD_NAMES,
-// STICK_ACTIONS, DEFAULT_CONTROLS, PROMPT_MODES, MOUSE_SENSITIVITIES, MOUSE_FACTORS, MOUSE_AIM_FACTORS, MOUSE_LABELS,
-// TK_TO_SDL, RESERVED_KEYS)
+// Returns all Controls data in a single JSON object with these members: CONTROL_GROUPS, PAD_DEFAULTS, PAD_FIXED,
+// SDL_BUTTONS, PAD_NAMES, STICK_ACTIONS, DEFAULT_CONTROLS, PROMPT_MODES, MOUSE_SENSITIVITIES, MOUSE_FACTORS,
+// MOUSE_AIM_FACTORS, MOUSE_LABELS, TK_TO_SDL, RESERVED_KEYS.
 UN_API int un_controls_tables(char *out, int cap) { return give(json::dump(all_tables()), out, cap); }
 
-// what: "to_ini" (in: a game's launcher settings; out: the settings file's control keys), "from_ini" (in: {"values":
-// the settings file, "settings": the game's launcher settings}; out: {"found": bool, "settings": updated}),
-// "merged" (in: controls; out: action -> bindings), "merged_pad" (in: pad controls; out: action -> button or null)
+// Operations selected by `what`:
+//   "to_ini"     in = one game's launcher settings          -> out = the control keys for its settings file
+//   "from_ini"   in = {"values": file keys, "settings": ...} -> out = {"found": bool, "settings": updated settings}
+//   "merged"     in = controls                               -> out = action -> binding list
+//   "merged_pad" in = pad controls                           -> out = action -> button (or null)
+// plus "set_binding", "set_pad_binding" and "label", described where they are handled.
 UN_API int un_controls(const char *what, const char *in_json, char *out, int cap) {
     Value in;
     if (!json::parse(in_json ? in_json : "null", in)) return give("null", out, cap) < 0 ? -5 : 2;
@@ -406,8 +414,9 @@ UN_API int un_controls(const char *what, const char *in_json, char *out, int cap
     } else if (w == "merged_pad") {
         result = merged_pad(&in);
     } else if (w == "set_binding") {
-        // in: {"controls", "action", "slot", "binding" (null clears)}; out: the game's controls with that slot set.
-        // A key or button does one thing: it leaves the action (and slot) it had. Each action keeps two at most.
+        // Input {"controls", "action", "slot", "binding"} (binding null = clear); output is the controls table with
+        // that slot filled. Bindings are unique: assigning one removes it from whichever action/slot used it before.
+        // No action ends up with more than two.
         const Value *c = in.get("controls"), *a = in.get("action"), *sl = in.get("slot"), *bv = in.get("binding");
         const std::string action = a && a->kind == Value::String ? a->s : "";
         const size_t slot = sl && sl->kind == Value::Int && sl->i >= 0 ? (size_t)sl->i : 0;
@@ -434,9 +443,10 @@ UN_API int un_controls(const char *what, const char *in_json, char *out, int cap
             result.set(e.first, string_list(list));
         }
     } else if (w == "set_pad_binding") {
-        // in: {"pad_controls", "action", "button" (null clears)}; out: the game's pad_controls (its differences from the
-        // defaults). Move and Look each take a whole stick (the other one gets this one's old stick); a button does one
-        // thing (the action that had it gets this one's old button).
+        // Input {"pad_controls", "action", "button"} (button null = clear); output is pad_controls reduced to the
+        // entries that differ from PAD_DEFAULTS. Stick actions move as a group of four directions; picking the stick
+        // the other group uses swaps the two. For buttons, the action that previously owned the button receives this
+        // action's former button, so the two trade places.
         const Value *p = in.get("pad_controls"), *a = in.get("action"), *bv = in.get("button");
         Value pad = p && p->is_object() ? *p : Value::object();
         std::string action = a && a->kind == Value::String ? a->s : "";
@@ -470,7 +480,7 @@ UN_API int un_controls(const char *what, const char *in_json, char *out, int cap
             if (!same) result.set(kv.first, kv.second);
         }
     } else if (w == "label") {
-        // a binding as the Controls page shows it: the key's name, the mouse button's label, or a dash
+        // display text for one binding: key name for keys, MOUSE_LABELS text for mouse buttons, an em dash if empty
         std::string b = in.kind == Value::String ? in.s : std::string(), label = "\xE2\x80\x94";
         if (!b.empty()) {
             size_t colon = b.find(':');

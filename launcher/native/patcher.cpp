@@ -1,9 +1,13 @@
-// patcher.cpp - the game starter's code patches (tools/probe_uncharted.py), part of uncharted_native.dll: byte patterns
-// ("??" any byte) found in the linked game image, and the patches applied there.
+// patcher.cpp - code patching for the game starter (taken over from tools/probe_uncharted.py), built into
+// uncharted_native.dll. It searches the linked game image for byte patterns, where "??" stands for any byte, and writes
+// the patches at the places it finds.
 //
-// A patch lists variants; the first variant whose pattern occurs exactly once (counted without overlaps, from the
-// start) is applied. A variant changes one place (pattern, offset, original, replacement: other bytes there stop the
-// start) or several, all or none (pattern, [(offset, original, replacement), ...]: other bytes skip the variant).
+// Each patch comes with one or more variants, tried in order. A variant is used only when its pattern matches exactly
+// once (matches are counted left to right and may not overlap). There are two kinds of variant:
+//   - (pattern, offset, original, replacement) edits a single place; if the bytes there are not `original`, the start
+//     is aborted.
+//   - (pattern, [(offset, original, replacement), ...]) edits several places together; if any of them holds unexpected
+//     bytes, none is touched and the next variant is tried.
 
 #include "native.h"
 #include "json.h"
@@ -23,7 +27,7 @@ namespace {
 using json::Value;
 
 struct Pattern {
-    std::vector<int> bytes;   // 0..255, -1 any byte
+    std::vector<int> bytes;   // a byte value 0..255, or -1 where any byte is accepted
     bool ok = true;
 };
 
@@ -66,14 +70,14 @@ bool matches_at(const std::string &data, size_t at, const Pattern &p) {
     return true;
 }
 
-// match starts, without overlaps, at most `limit` of them
+// Where the pattern matches, left to right with no two matches overlapping; stops after `limit` hits.
 std::vector<size_t> find_all(const std::string &data, const Pattern &p, size_t limit) {
     std::vector<size_t> found;
-    if (p.bytes.empty()) {   // an empty pattern matches between every byte (Python's finditer)
+    if (p.bytes.empty()) {   // nothing to match: every position counts, the end included (as Python's finditer does)
         for (size_t i = 0; i <= data.size() && found.size() < limit; ++i) found.push_back(i);
         return found;
     }
-    size_t anchor = 0;   // the first fixed byte, searched with memchr
+    size_t anchor = 0;   // index of the first non-wildcard byte; memchr jumps to candidates for it
     while (anchor < p.bytes.size() && p.bytes[anchor] < 0) ++anchor;
     size_t at = 0;
     while (found.size() < limit && at + p.bytes.size() <= data.size()) {
@@ -108,8 +112,9 @@ void put(std::string &data, long long at, const std::string &replacement) {
     std::memcpy(&data[(size_t)at], replacement.data(), replacement.size());
 }
 
-// Applies the patches to data; log: the lines the game starter prints. false: a patch's place held other bytes
-// (log ends with the error, data must not be written).
+// Patches `data` in memory and appends a line per patch to `log` for the starter to print. Returns false (with the
+// reason in `error`) when a single-place variant found unexpected bytes or the list was malformed; the caller must then
+// leave the file as it was.
 bool apply(std::string &data, const Value &patches, std::string &log, std::string &error) {
     if (patches.kind != Value::Array) { error = "bad patch list"; return false; }
     for (const Value &patch : patches.items) {
@@ -125,7 +130,7 @@ bool apply(std::string &data, const Value &patches, std::string &log, std::strin
             if (!p.ok) { error = "Patch '" + description + "': bad pattern"; return false; }
             std::vector<size_t> found = find_all(data, p, 2);
             if (found.size() != 1) continue;
-            if (variant.items.size() == 2) {   // several changes: all of them, or none if any bytes differ
+            if (variant.items.size() == 2) {   // a group of edits: applied together only if every place checks out
                 struct Edit { long long at; std::string original, replacement; };
                 std::vector<Edit> edits;
                 for (const Value &e : variant.items[1].items) {
@@ -139,8 +144,8 @@ bool apply(std::string &data, const Value &patches, std::string &log, std::strin
                 for (const Edit &x : edits) same = same && range_equals(data, x.at, x.original);
                 if (!same) continue;
                 for (const Edit &x : edits) put(data, x.at, x.replacement);
-                log += "Patched: " + description + " (image offset " + hex_offset((long long)found[0]) + ", " +
-                       std::to_string(edits.size()) + " changes)\n";
+                log += "Applied: " + description + " (at image offset " + hex_offset((long long)found[0]) + ", " +
+                       std::to_string(edits.size()) + " edits)\n";
                 applied = true;
                 break;
             }
@@ -149,15 +154,16 @@ bool apply(std::string &data, const Value &patches, std::string &log, std::strin
             bytes_from_hex(variant.items[2].s, original);
             bytes_from_hex(variant.items[3].s, replacement);
             if (!range_equals(data, at, original)) {
-                error = "Patch '" + description + "': unexpected bytes at " + hex_offset(at);
+                error = "Patch '" + description + "': the bytes found differ from the expected ones at " +
+                        hex_offset(at);
                 return false;
             }
             put(data, at, replacement);
-            log += "Patched: " + description + " (image offset " + hex_offset(at) + ")\n";
+            log += "Applied: " + description + " (at image offset " + hex_offset(at) + ")\n";
             applied = true;
             break;
         }
-        if (!applied) log += "Patch '" + description + "' NOT applied: no variant matches this game version\n";
+        if (!applied) log += "Patch '" + description + "' NOT applied: none of its variants fits this game version\n";
     }
     return true;
 }
@@ -202,13 +208,15 @@ int give(const std::string &s, char *out, int cap) {
 
 // ------------------------------------------------------------------------------------------------ render resolution
 
-// Render resolution. The engine's display settings (constructors and the 1080p/720p mode switch, all within ~0x700
-// bytes) store the size in several fields: display and render size (+0x08/+0x18/+0x24/+0x38), aspect, tile grid
-// (+0x40 = width/8, +0x44 = height/4, as the engine's own SetResolution computes them) and a larger size at
-// +0x30/+0x34 (2560x1216 at 1080p), scaled with the rest. The render target heaps of the engine's memory table grow
-// with the pixel count (see tools/probe_uncharted.py for the measurements behind each step).
+// Changing the render resolution. The code that fills in the engine's display settings (its constructors plus the
+// switch between the 1080p and 720p modes, together about 0x700 bytes long) writes the size into a number of fields:
+//   +0x08/+0x18/+0x24/+0x38  display and render size, alongside the aspect
+//   +0x40 / +0x44            the tile grid, width/8 and height/4 (the same formula the engine's SetResolution uses)
+//   +0x30/+0x34              a bigger size, 2560x1216 in 1080p mode, which is scaled along with the others
+// The render target heaps in the engine's memory table are enlarged in step with the number of pixels; the numbers
+// each step rests on were measured in tools/probe_uncharted.py.
 struct Failure {
-    int kind;   // 1 the game's code is not as expected, 2 the size is too large
+    int kind;   // 1: the game's code doesn't look the way the patch expects; 2: the requested size can't fit
     std::string message;
 };
 
@@ -225,7 +233,7 @@ std::string stored(uint8_t base, uint8_t disp, uint32_t value) {
     for (int i = 0; i < 4; ++i) s += (char)(value >> (8 * i));
     return s;
 }
-// replaces every occurrence (without overlaps, from the left) inside [start, end); how many there were
+// Swaps `from` for `to` everywhere inside [start, end), scanning left to right without overlaps; returns the count.
 int replace_in(std::string &d, size_t start, size_t end, const std::string &from, const std::string &to) {
     int n = 0;
     for (size_t at = d.find(from, start); at != std::string::npos && at + from.size() <= end; at = d.find(from, at)) {
@@ -239,7 +247,7 @@ int replace_in(std::string &d, size_t start, size_t end, const std::string &from
 long long resolution(std::string &data, int width, int height, bool move, std::string &log) {
     const long long mib = 1 << 20;
     std::vector<size_t> anchor = find_all(data, parse_pattern("c7 ?? 08 80070000 c7 ?? 0c 38040000"), 1);
-    if (anchor.empty()) throw Failure{1, "Resolution patch: display settings code not found"};
+    if (anchor.empty()) throw Failure{1, "Resolution patch: can't find the display settings code"};
     size_t first = anchor[0];
     size_t start = first >= 0x40 ? first - 0x40 : 0, end = std::min(data.size(), first + 0x800);
     struct Store { int disp; uint32_t old_value, new_value; };
@@ -249,7 +257,7 @@ long long resolution(std::string &data, int width, int height, bool move, std::s
         {0x28, 1080, (uint32_t)height}, {0x3c, 1080, (uint32_t)height}, {0x40, 240, (uint32_t)(width / 8)},
         {0x44, 270, (uint32_t)(height / 4)}, {0x30, 2560, (uint32_t)(2560LL * width / 1920)},
         {0x34, 1216, (uint32_t)(1216LL * height / 1080)}};
-    // Diagnostics: UNCHARTED_RES_KEEP=<hex field offsets> leaves those fields at 1080p.
+    // For troubleshooting, UNCHARTED_RES_KEEP=<hex field offsets> keeps the listed fields at their 1080p values.
     char keep_text[512] = "";
     GetEnvironmentVariableA("UNCHARTED_RES_KEEP", keep_text, sizeof keep_text);
     std::vector<long> keep;
@@ -262,7 +270,7 @@ long long resolution(std::string &data, int width, int height, bool move, std::s
         t = e;
     }
     int changed = 0;
-    for (uint8_t base : {0x47, 0x40})   // [rdi+disp] and [rax+disp]
+    for (uint8_t base : {0x47, 0x40})   // stores through rdi and through rax: mov dword [reg+disp], imm32
         for (const Store &s : stores) {
             bool kept = false;
             for (long k : keep) kept = kept || k == s.disp;
@@ -275,15 +283,18 @@ long long resolution(std::string &data, int width, int height, bool move, std::s
     for (int i = 0; i < 4; ++i) packed_new += (char)((uint32_t)width >> (8 * i));
     for (int i = 0; i < 4; ++i) packed_new += (char)((uint32_t)height >> (8 * i));
     changed += replace_in(data, start, end, packed_old, packed_new);
-    // The screen wipe of Uncharted 2 and 3 is drawn from the render size: it takes the PS4's 1920x1080 instead.
+    // Uncharted 2 and 3 size their screen wipe from the render size; this makes the wipe use a fixed 1920x1080, the
+    // PS4's own size, so it still covers the screen.
     std::vector<size_t> wipe = find_all(data, parse_pattern("48 8d 05 ???????? 8b 48 08 8b 40 0c c4 e1 fa 2a c0"), (size_t)-1);
     if (wipe.size() == 1) {
         std::string patch;
         bytes_from_hex("b980070000b8380400000f1f00", patch);
         data.replace(wipe[0], patch.size(), patch);
-        log += "Patched: screen wipe in the PS4's 1920x1080 (image offset " + hex_offset((long long)wipe[0]) + ")\n";
+        log += "Applied: screen wipe fixed at the PS4's 1920x1080 (at image offset " + hex_offset((long long)wipe[0]) +
+               ")\n";
     } else if (!wipe.empty()) {
-        log += "Screen wipe patch NOT applied: " + std::to_string(wipe.size()) + " matches in this game version\n";
+        log += "Screen wipe fix NOT applied: its pattern occurs " + std::to_string(wipe.size()) +
+               " times in this game version\n";
     }
     const double factor = std::max(1.0, (double)((long long)width * height) / (double)(1920 * 1080));
     auto table_entry = [&](uint32_t id, uint32_t parent, uint64_t align, uint64_t min_size) {
@@ -298,17 +309,18 @@ long long resolution(std::string &data, int width, int height, bool move, std::s
         }
         if (found.size() != 1) {
             char m[160];
-            std::snprintf(m, sizeof m, "Resolution patch: memory table entry %#x found %d times", id, (int)found.size());
+            std::snprintf(m, sizeof m, "Resolution patch: the memory table holds entry %#x %d times instead of once", id,
+                          (int)found.size());
             throw Failure{1, m};
         }
         return found[0];
     };
     auto onion = table_entry(2, 2, 0x100000, 0x40000000);
     auto garlic = table_entry(3, 2, 0x100000, 0x80000000ULL);
-    auto heap = table_entry(0x85, 6, 0x80, 0x10000000);   // Render Target Heap
-    auto rt = table_entry(0x84, 6, 0x80, 0x4000000);      // Render Target
+    auto heap = table_entry(0x85, 6, 0x80, 0x10000000);   // the engine's "Render Target Heap" entry
+    auto rt = table_entry(0x84, 6, 0x80, 0x4000000);      // the engine's "Render Target" entry
     const long long step = 64 * mib, area_limit = 4096 * mib, headroom = 128 * mib;
-    auto ceil_div = [](long long a, long long b) { return a >= 0 ? (a + b - 1) / b : -((-a) / b); };   // Python's -(-a // b)
+    auto ceil_div = [](long long a, long long b) { return a >= 0 ? (a + b - 1) / b : -((-a) / b); };   // rounds up
     auto size_text = std::to_string(width) + "x" + std::to_string(height);
     long long heap_new = 0, rt_new = 0, onion_new = 0, garlic_new = 0;
     int heap_context = 6;
@@ -324,7 +336,7 @@ long long resolution(std::string &data, int width, int height, bool move, std::s
             long long o = onion.second, g = garlic.second + (h - heap.second) + (r - rt.second);
             int context = 6;
             if (g >= area_limit) {
-                if (!move) throw Failure{2, size_text + ": the render targets don't fit the GPU area"};
+                if (!move) throw Failure{2, size_text + ": the GPU memory area is too small for its render targets"};
                 h = ceil_div(h, step) * step;
                 o = onion.second + h;
                 long long rest = garlic.second - heap.second - rt.second;
@@ -333,7 +345,7 @@ long long resolution(std::string &data, int width, int height, bool move, std::s
                 context = 5;
             }
             if (o + headroom >= area_limit || g >= area_limit)
-                throw Failure{2, size_text + " needs more memory than the game's areas hold"};
+                throw Failure{2, size_text + " would take more memory than the game's memory areas can hold"};
             heap_new = h; rt_new = r; onion_new = o; garlic_new = g; heap_context = context;
             fitted = true;
             break;
@@ -349,14 +361,17 @@ long long resolution(std::string &data, int width, int height, bool move, std::s
     le(data, rt.first + 8, (uint64_t)rt_new, 8);
     le(data, onion.first + 8, (uint64_t)onion_new, 8);
     le(data, garlic.first + 8, (uint64_t)garlic_new, 8);
-    // The memory table check (ValidateContext) expects the direct memory blocks to add up to 4608 MiB.
+    // ValidateContext compares the sum of the direct memory blocks with a constant of 4608 MiB; that constant has to
+    // grow by the same amount as the areas.
     std::vector<size_t> total = find_all(data, parse_pattern("488d75 ?? 48ba 0000002001000000"), (size_t)-1);
     if (total.size() != 1)
-        throw Failure{1, "Resolution patch: memory total check found " + std::to_string(total.size()) + " times"};
+        throw Failure{1, "Resolution patch: the memory total check occurs " + std::to_string(total.size()) +
+                             " times instead of once"};
     le(data, total[0] + 6, (uint64_t)(0x120000000LL + extra), 8);
-    log += "Patched: render resolution " + size_text + " (" + std::to_string(changed) + " stores; render target heaps " +
-           std::to_string(heap_new / mib) + " + " + std::to_string(rt_new / mib) + " MiB, the first in the " +
-           (heap_context == 5 ? "CPU" : "GPU") + " area)\n";
+    log += "Applied: render resolution " + size_text + " (" + std::to_string(changed) +
+           " stores changed; render target heaps of " + std::to_string(heap_new / mib) + " + " +
+           std::to_string(rt_new / mib) + " MiB, the first one placed in the " + (heap_context == 5 ? "CPU" : "GPU") +
+           " memory area)\n";
     return extra / mib;
 }
 
@@ -364,9 +379,11 @@ long long resolution(std::string &data, int width, int height, bool move, std::s
 
 extern "C" {
 
-// patches_json: [[description, [variant, ...]], ...]; a variant is [pattern, offset, original hex, replacement hex] or
-// [pattern, [[offset, original hex, replacement hex], ...]]. out: the log lines. 0 applied and written; 1 not written
-// (the last line says why); negative: out too small (nothing written; call again with that size).
+// Applies a patch list to the image file. patches_json has the shape [[description, [variant, ...]], ...], each
+// variant being either [pattern, offset, original hex, replacement hex] or [pattern, [[offset, original hex,
+// replacement hex], ...]]. `out` receives the log lines. Returns 0 once the patched file is saved; 1 if the file was
+// left alone (the final line gives the reason); a negative number if `out` is too small, in which case nothing was
+// saved and its absolute value is the size to call again with.
 UN_API int un_apply_patches(const wchar_t *image, const char *patches_json, char *out, int cap) {
     Value patches;
     std::string data, log, error;
@@ -381,8 +398,8 @@ UN_API int un_apply_patches(const wchar_t *image, const char *patches_json, char
     return status < 0 ? status : 1;
 }
 
-// out: the start offsets of the pattern's matches in the file (decimal, one per line, without overlaps, at most
-// `limit`)
+// Lists, one decimal number per line, the offsets in the file where the pattern starts to match (non-overlapping;
+// no more than `limit` of them when limit > 0).
 UN_API int un_pattern_find(const wchar_t *file, const char *pattern, int limit, char *out, int cap) {
     std::string data, text;
     Pattern p = parse_pattern(pattern ? pattern : "");
@@ -391,9 +408,10 @@ UN_API int un_pattern_find(const wchar_t *file, const char *pattern, int limit, 
     return give(text, out, cap);
 }
 
-// Patches the render resolution into the linked image in data (in place, only when it worked). extra_mib: the memory
-// the areas grew by. out: the log lines. 0 patched; 1 the game's code is not as expected, 2 the size is too large (the
-// last line says why); negative: out too small (data unchanged; call again with that size).
+// Writes a new render resolution into the linked image held in `data`; the buffer is only changed if every step
+// succeeds. *extra_mib receives how many MiB the memory areas were enlarged by, `out` the log lines. Returns 0 when
+// patched, 1 when the game's code didn't match what the patch expects, 2 when the size can't fit (in both cases the
+// last line explains), or a negative number when `out` is too small (data untouched; retry with that size).
 UN_API int un_resolution_patch(unsigned char *data, unsigned long long size, int width, int height, int move,
                                long long *extra_mib, char *out, int cap) {
     std::string work((const char *)data, (size_t)size), log;
@@ -410,13 +428,15 @@ UN_API int un_resolution_patch(unsigned char *data, unsigned long long size, int
     }
 }
 
-// The render size of the linked image at `image` for the size chosen (width x height): the first that fits of the size
-// itself and smaller ones. Drake's Fortune keeps its render targets in the GPU area (move off): above ~1620p it renders
-// at the largest 16:9 size that fits there, and the output is upscaled. Ultrawide sizes fall back to smaller sizes of
-// the same shape (width/16 and height/4 whole: Uncharted 3 asserts widths in steps of 16 in its post processing).
-// multiplayer: Uncharted 3's multiplayer image, which keeps the PS4's render size if the patch does not fit it.
-// out: "<width> <height> <extra MiB>", then the log lines. 0 ok; 1 the game's code is not as expected (the last line
-// says why; the image is unchanged); negative: out too small (nothing written; call again with that size).
+// Picks the render size for the linked image file at `image` and patches it in. The requested width x height is tried
+// first, then smaller candidates, and the first one that fits is used. Drake's Fortune cannot move its render targets
+// out of the GPU area (move is off for it), so past roughly 1620p it renders at the biggest 16:9 size the area holds
+// and the picture is upscaled. Sizes that are not 16:9 step down while keeping their shape, rounded so the width is a
+// multiple of 16 and the height a multiple of 4 (Uncharted 3's post processing asserts on widths that aren't steps of
+// 16). With `multiplayer` set (the Uncharted 3 multiplayer image), a patch that doesn't match leaves the PS4's render
+// size in place instead of failing. `out` starts with "<width> <height> <extra MiB>" followed by the log lines.
+// Returns 0 on success; 1 when the game's code didn't match (the last line explains, the file is untouched); a
+// negative number when `out` is too small (nothing saved; retry with that size).
 UN_API int un_render_resolution(const wchar_t *image, const char *executable, int width, int height, int multiplayer,
                                 char *out, int cap) {
     std::string exe = executable ? executable : "", data, log;
@@ -441,19 +461,20 @@ UN_API int un_render_resolution(const wchar_t *image, const char *executable, in
             extra_mib = resolution(patched, candidate.first, candidate.second, move, log);
         } catch (const Failure &f) {
             if (f.kind == 2) {
-                log += "Render resolution " + f.message + "\n";
+                log += "Render resolution skipped, " + f.message + "\n";
                 continue;
             }
             if (!multiplayer) {
                 int status = give(log + f.message, out, cap);
                 return status < 0 ? status : 1;
             }
-            log += "Uncharted 3 multiplayer: render resolution not changed (" + f.message + ")\n";
+            log += "Uncharted 3 multiplayer: keeping the PS4's render resolution (" + f.message + ")\n";
             break;
         }
         if (candidate.first != width || candidate.second != height)
-            log += "Drake's Fortune renders at " + std::to_string(candidate.first) + "x" + std::to_string(candidate.second) +
-                   " instead of " + std::to_string(width) + "x" + std::to_string(height) + "\n";
+            log += "Drake's Fortune: rendering at " + std::to_string(candidate.first) + "x" +
+                   std::to_string(candidate.second) + " in place of " + std::to_string(width) + "x" +
+                   std::to_string(height) + "\n";
         chosen = patched;
         render_w = candidate.first;
         render_h = candidate.second;

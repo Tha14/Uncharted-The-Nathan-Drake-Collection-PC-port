@@ -1,7 +1,7 @@
-// memstat.cpp - resource tracking for a running game, part of uncharted_native.dll. un_memory_monitor starts a
-// background thread that writes one CSV row of the game's memory, handles, threads and GUI objects (and the PC's free
-// memory) every few seconds to memory-<time>.csv in a folder, until the game ends, so a slow leak shows as a column
-// that keeps rising over a long session. Everything is read from outside the game process.
+// memstat.cpp - leak hunting aid in uncharted_native.dll. un_memory_monitor spawns a thread that samples the game's
+// memory counters, handle / thread / GDI / USER object counts and the system's free memory at a fixed interval and
+// appends each sample as a CSV row to memory-<time>.csv, stopping when the game exits. Over a long session a leak
+// then appears as a column that only ever grows. Sampling is done from the launcher side, not inside the game.
 
 #include "native.h"
 
@@ -23,7 +23,8 @@ const char *const HEADER =
     "gdi_objects,user_objects,pc_free_ram_mib,pc_free_commit_mib,pc_memory_load_pct\n";
 const int KEEP_FILES = 10;
 
-// one row (without time and seconds); false when the process has ended or can't be read
+// formats the measured columns of one CSV row (the time and seconds columns are added by the caller); returns false
+// once the process has exited or its counters are not accessible
 bool sample(HANDLE process, DWORD pid, char *row, size_t cap) {
     DWORD exit_code = 0;
     if (!GetExitCodeProcess(process, &exit_code) || exit_code != STILL_ACTIVE) return false;
@@ -51,7 +52,7 @@ bool sample(HANDLE process, DWORD pid, char *row, size_t cap) {
     return true;
 }
 
-// keeps the newest KEEP_FILES - 1 memory-*.csv in the folder (the new one makes KEEP_FILES)
+// deletes older memory-*.csv files so that only KEEP_FILES - 1 remain, leaving room for the file about to be created
 void trim_old(const std::wstring &folder) {
     std::vector<std::wstring> names;
     WIN32_FIND_DATAW fd;
@@ -61,7 +62,7 @@ void trim_old(const std::wstring &folder) {
         while (FindNextFileW(h, &fd));
         FindClose(h);
     }
-    std::sort(names.begin(), names.end());   // memory-YYYYmmdd-HHMMSS.csv: name order is time order
+    std::sort(names.begin(), names.end());   // timestamped names (memory-YYYYmmdd-HHMMSS.csv) sort chronologically
     for (size_t i = 0; i + (KEEP_FILES - 1) < names.size(); ++i) DeleteFileW((folder + L"\\" + names[i]).c_str());
 }
 
@@ -89,7 +90,7 @@ DWORD WINAPI run(void *arg) {
                               (unsigned long long)((GetTickCount64() - start) / 1000), row);
         WriteFile(job->file, line, (DWORD)n, &written, nullptr);
         FlushFileBuffers(job->file);
-        if (WaitForSingleObject(job->process, job->interval_ms) != WAIT_TIMEOUT) break;   // the game ended
+        if (WaitForSingleObject(job->process, job->interval_ms) != WAIT_TIMEOUT) break;   // process handle signalled: exited
     }
     CloseHandle(job->file);
     CloseHandle(job->process);
@@ -101,9 +102,9 @@ DWORD WINAPI run(void *arg) {
 
 extern "C" {
 
-// Starts tracking the process: writes <folder>\memory-<YYYYmmdd-HHMMSS>.csv every `seconds` until it ends (the newest
-// 10 such files stay in the folder). out receives the file's path (UTF-8). Returns 0 started, 1 not started,
-// -needed when out is too small.
+// Begins sampling process `pid` every `seconds` into <folder>\memory-<YYYYmmdd-HHMMSS>.csv until it exits; the folder
+// is pruned to the 10 most recent such files. On success the CSV path is copied to `out` as UTF-8 and 0 is returned;
+// 1 means monitoring could not start, and a negative value is the buffer size `out` would need.
 UN_API int un_memory_monitor(unsigned long pid, const wchar_t *folder, double seconds, char *out, int cap) {
     if (seconds <= 0 || !folder) return 1;
     std::time_t now = std::time(nullptr);

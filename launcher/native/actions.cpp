@@ -125,7 +125,7 @@ std::pair<int, std::string> game_update(const char *what, const std::string &roo
     return text_call([&](char *o, int c) { return un_game_update(what, r.c_str(), j.c_str(), o, c); });
 }
 
-// a file system failure as the launcher's Python worded it: "<its OSError class>: <message>"
+// file system errors keep the old "<Python exception name>: <message>" form, picked from the WinError code
 std::string os_error(const std::string &text) {
     int code = 0;
     if (text.compare(0, 10, "[WinError ") == 0) code = std::atoi(text.c_str() + 10);
@@ -367,12 +367,12 @@ Value install_game_update(const Request &q) {
     if (q.step == 3) {
         auto r = work_result();
         Value out;
-        if (r.first == 0) {   // the installed one is used, also over a folder chosen before
+        if (r.first == 0) {   // a fresh install wins: update_dir points at it even if another folder was picked earlier
             out = finally("info", "The update is installed:\n" + r.second + "\n\nThe games pick it up when they "
                                                                             "next start.");
             out.set("config", config_change({{"update_dir", Value::text(r.second)}}));
         } else {
-            out = finally("error", "The update could not be installed:\n" + install_error(r, "install"));
+            out = finally("error", "Installing the update failed:\n" + install_error(r, "install"));
         }
         out.set("progress", config_change({{"update", Value::text("")}}));
         return out;
@@ -515,12 +515,12 @@ Value add_to_steam(const Request &q) {
     if (result.first == 1) {
         std::string text = "Steam isn't set up on this PC (Steam's userdata has no account folder). Install Steam, "
                            "sign in once, and try again.";
-        if (q.wine) text += "\n\nOn Linux, add the launcher from inside Steam: Games -> Add a Non-Steam Game to My "
-                            "Library.";
+        if (q.wine) text += "\n\nOn Linux, use Steam's own Games -> Add a Non-Steam Game to My Library to add the "
+                            "launcher.";
         return finally("error", text);
     }
     if (result.first == 2)
-        return finally("error", "Steam's non-Steam game list couldn't be read, so it was not changed:\n" + result.second);
+        return finally("error", "Reading Steam's non-Steam shortcuts failed; nothing was changed:\n" + result.second);
     if (result.first != 0) return finally("error", "Steam's game list could not be saved:\n" + result.second);
     std::string lines, backups;
     for (auto &line : lines_of(result.second)) {
@@ -534,7 +534,7 @@ Value add_to_steam(const Request &q) {
         lines += (lines.empty() ? "" : "\n") + who + ": " + changes;
         if (!f[4].empty()) backups += (backups.empty() ? "" : "\n") + f[4];
     }
-    const std::string added = per_game ? "the three games" : std::string("\"") + APP_TITLE + "\"";
+    const std::string added = per_game ? "all three games" :std::string("\"") + APP_TITLE + "\"";
     const std::string pictures_text = pictures ? "The library artwork is taken from your game files."
                                                : "No library artwork yet: set the game folder, then add again.";
     return finally("info", "Added " + added + " to Steam:\n" + lines + "\n\n" + pictures_text +

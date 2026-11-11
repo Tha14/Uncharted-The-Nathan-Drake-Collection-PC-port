@@ -1,18 +1,19 @@
-// steam.cpp - "Add to Steam" for the launcher (Advanced -> STEAM), part of uncharted_native.dll.
+// steam.cpp - implements the launcher's "Add to Steam" action (Advanced -> STEAM) inside uncharted_native.dll.
 //
-// Steam keeps non-Steam games in <Steam>/userdata/<account>/config/shortcuts.vdf (binary key/value file) and their
-// library pictures in config/grid/<app id><suffix>.png. Steam reads that file at start and rewrites it on exit, so the
-// launcher asks the player to close Steam first (un_steam_running).
+// Non-Steam shortcuts live in <Steam>/userdata/<account>/config/shortcuts.vdf, a binary key/value file, with their
+// artwork beside it as config/grid/<app id><suffix>.png. Because Steam loads the file on startup and overwrites it
+// when it quits, the launcher first makes sure Steam is closed (un_steam_running).
 //
-// What this file guarantees:
-//   * the shortcut file round-trips: every entry the launcher did not make keeps its exact bytes and order;
-//   * the launcher's own entries are found again (same program and options, or one of its names started by a launcher
-//     file from another folder) and updated in place, so play time, categories and hidden state stay;
-//   * every account's file is checked before the first one is written; each write keeps a timestamped backup (the
-//     newest five) and goes through a temporary file;
-//   * pictures come only from the player's own game files (sce_sys) and are never put over a picture already there.
+// Design rules:
+//   * Lossless round trip: shortcuts created by anyone else are written back byte for byte, in their original order.
+//   * Existing launcher shortcuts are recognised (matching program and options, or a known name pointing at a
+//     launcher file in a different folder) and edited in place, so Steam keeps their play time, collections and
+//     hidden flag.
+//   * All accounts' files are parsed before any of them is touched. Every write first saves a timestamped backup
+//     (at most five are kept) and goes through a temporary file.
+//   * Artwork is generated only from the player's own game files (sce_sys) and never replaces an image that exists.
 //
-// C interface (UTF-8 text in and out, one record per line, fields separated by tabs) - see native.h.
+// The exported functions exchange UTF-8 text: one record per line, tab-separated fields (documented in native.h).
 
 #include "native.h"
 
@@ -53,7 +54,7 @@ std::string narrow(const std::wstring &w) {
     return s;
 }
 
-// Unicode lower case (comparisons of names, paths and options are case-insensitive, as Windows paths are)
+// lowercases with Unicode rules; names, paths and options are compared case-insensitively like Windows paths
 std::string folded(const std::string &s) {
     std::wstring w = widen(s);
     if (!w.empty()) CharLowerBuffW(w.data(), (DWORD)w.size());
@@ -167,8 +168,8 @@ int fixed_size(uint8_t kind) {
     }
 }
 
-// One entry: its key, and its value as the exact bytes from the file (a string without its terminator, a wide string
-// without its two zero bytes, a number's bytes), or the entries of a map.
+// A parsed node. `raw` keeps the value's bytes untouched (strings minus the NUL, wide strings minus the double NUL,
+// numbers as stored); for a map the children sit in `items` instead.
 struct Item {
     uint8_t kind = K_STRING;
     std::string key;
@@ -187,7 +188,7 @@ struct Reader {
 
     bool cstring(std::string &out) {
         size_t end = d.find('\0', pos);
-        if (end == std::string::npos) { error = "a text runs past the end of the file"; return false; }
+        if (end == std::string::npos) { error = "a string has no terminating zero byte"; return false; }
         out.assign(d, pos, end - pos);
         pos = end + 1;
         return true;
@@ -195,7 +196,7 @@ struct Reader {
 
     bool entries(std::vector<Item> &out) {
         for (;;) {
-            if (pos >= d.size()) { error = "the file ends inside a map"; return false; }
+            if (pos >= d.size()) { error = "a map is cut off by the end of the file"; return false; }
             uint8_t kind = (uint8_t)d[pos++];
             if (kind == K_END) return true;
             Item it;
@@ -208,7 +209,7 @@ struct Reader {
             } else if (kind == K_WSTRING) {
                 size_t end = pos;
                 while (true) {
-                    if (end + 1 >= d.size()) { error = "unterminated wide string"; return false; }
+                    if (end + 1 >= d.size()) { error = "a wide string has no terminator"; return false; }
                     if (d[end] == '\0' && d[end + 1] == '\0') break;
                     end += 2;
                 }
@@ -216,11 +217,11 @@ struct Reader {
                 pos = end + 2;
             } else if (fixed_size(kind) > 0) {
                 size_t n = (size_t)fixed_size(kind);
-                if (pos + n > d.size()) { error = "the file ends inside a number"; return false; }
+                if (pos + n > d.size()) { error = "a number is cut off by the end of the file"; return false; }
                 it.raw.assign(d, pos, n);
                 pos += n;
             } else {
-                error = "unknown entry type " + std::to_string(kind) + " at byte " + std::to_string(pos - 1);
+                error = "byte " + std::to_string(pos - 1) + " holds an unsupported node type " + std::to_string(kind);
                 return false;
             }
             out.push_back(std::move(it));
@@ -232,7 +233,7 @@ bool parse_file(const std::string &data, std::vector<Item> &top, std::string &er
     Reader r(data);
     if (!r.entries(top)) { error = r.error; return false; }
     for (size_t i = r.pos; i < data.size(); ++i)
-        if (data[i] != '\0') { error = "unexpected data after byte " + std::to_string(r.pos); return false; }
+        if (data[i] != '\0') { error = "extra bytes follow the end of the data at byte " + std::to_string(r.pos); return false; }
     return true;
 }
 
@@ -308,7 +309,7 @@ uint32_t crc32_of(const std::string &s) {
     return c ^ 0xFFFFFFFFu;
 }
 
-// The id Steam gives a non-Steam game, which also names its pictures: CRC-32 of program and name, top bit set.
+// Steam's app id for a shortcut (also the file name stem of its artwork): CRC-32 over exe + name with bit 31 forced on.
 uint32_t game_id(const std::string &exe, const std::string &name) { return crc32_of(exe + name) | 0x80000000u; }
 
 struct Target {
@@ -345,7 +346,8 @@ struct MergeResult {
     int added = 0, updated = 0, removed = 0;
 };
 
-// Is this entry ours: started by the same program and, for the source tree, the same script?
+// True for a shortcut this launcher made: same executable and, when running from source, launch options that begin
+// with the same script path.
 bool is_ours(const std::vector<Item> &entry, const std::string &exe, const std::string &base) {
     std::string its = folded(trimmed(trimmed(text_of(entry, "Exe")), "\""));
     if (its != folded(trimmed(exe, "\""))) return false;
@@ -354,7 +356,8 @@ bool is_ours(const std::vector<Item> &entry, const std::string &exe, const std::
     return options.empty() || starts_with(options, "--play");
 }
 
-// Is this entry ours from another folder (the port moved, or switched between the package and the source tree)?
+// True for one of our shortcuts that points at a different install location, e.g. after the port folder was moved
+// or after switching between the release package and a source checkout.
 bool is_ours_elsewhere(const std::vector<Item> &entry, const std::set<std::string> &names) {
     if (!names.count(text_of(entry, "AppName"))) return false;
     std::string command = folded(text_of(entry, "Exe") + " " + text_of(entry, "LaunchOptions"));
@@ -480,7 +483,7 @@ std::vector<std::wstring> steam_folders() {
     return out;
 }
 
-// account folder number -> the name shown in Steam, from config/loginusers.vdf (text format)
+// pairs of (userdata folder number, persona name), taken from the text-format config/loginusers.vdf
 std::vector<std::pair<std::string, std::string>> persona_names(const std::wstring &root) {
     std::vector<std::pair<std::string, std::string>> out;
     std::string text;
@@ -542,7 +545,7 @@ std::vector<Account> accounts_on_this_pc() {
 
 struct Picture {
     int w = 0, h = 0;
-    std::vector<uint8_t> px;   // RGBA, 8 bits each, top row first
+    std::vector<uint8_t> px;   // 8-bit RGBA, rows stored top to bottom
     bool has_alpha = false;
 
     uint8_t *at(int x, int y) { return &px[((size_t)y * w + x) * 4]; }
@@ -588,7 +591,7 @@ bool load_picture(Com &com, const std::wstring &path, Picture &pic) {
     pic.h = (int)h;
     pic.px.assign((size_t)w * h * 4, 0);
     if (FAILED(conv->CopyPixels(nullptr, w * 4, (UINT)pic.px.size(), pic.px.data()))) return false;
-    for (size_t i = 3; i < pic.px.size(); i += 4) pic.px[i] = 255;   // the game's pictures are used as opaque
+    for (size_t i = 3; i < pic.px.size(); i += 4) pic.px[i] = 255;   // source art is treated as fully opaque
     return true;
 }
 
@@ -603,7 +606,7 @@ bool save_picture(Com &com, const Picture &pic, const std::wstring &path) {
         FAILED(enc->Initialize(stream.p, WICBitmapEncoderNoCache)) || FAILED(enc->CreateNewFrame(frame.out(), nullptr)) ||
         FAILED(frame->Initialize(nullptr)) || FAILED(frame->SetSize((UINT)pic.w, (UINT)pic.h)))
         return false;
-    // RGB pictures are written without an alpha channel; the title lettering keeps its transparency
+    // opaque images are saved as 24-bit RGB; only the logo (which has has_alpha set) is saved with transparency
     std::vector<uint8_t> rows;
     WICPixelFormatGUID fmt = pic.has_alpha ? GUID_WICPixelFormat32bppRGBA : GUID_WICPixelFormat24bppRGB;
     WICPixelFormatGUID want = fmt;
@@ -637,7 +640,8 @@ bool save_picture(Com &com, const Picture &pic, const std::wstring &path) {
            SUCCEEDED(frame->Commit()) && SUCCEEDED(enc->Commit());
 }
 
-// Lanczos (a = 3) resampling, separable, in linear float per channel (alpha-weighted when the picture has alpha)
+// Lanczos-3 kernel; resized() applies it in two separable passes on float channels, premultiplying by alpha when the
+// image carries transparency
 double lanczos(double x) {
     const double a = 3.0;
     x = std::fabs(x);
@@ -651,7 +655,7 @@ Picture resized(const Picture &src, int w, int h) {
     auto pass = [](const std::vector<float> &in, int iw, int ih, int ow, bool horizontal) {
         int in_len = horizontal ? iw : ih, out_len = horizontal ? ow : ih;
         int lines = horizontal ? ih : iw;
-        if (!horizontal) out_len = ow;   // for the vertical pass ow carries the new height
+        if (!horizontal) out_len = ow;   // vertical pass: `ow` is reused as the target height
         std::vector<float> out((size_t)(horizontal ? ow * ih : iw * ow) * 4, 0.f);
         double scale = (double)in_len / out_len;
         double support = 3.0 * std::max(1.0, scale);
@@ -720,7 +724,7 @@ Picture cropped(const Picture &src, int x0, int y0, int x1, int y1) {
 
 int round_half_even(double v) { return (int)std::nearbyint(v); }
 
-// scaled to cover w x h, then cut around the focus point (0..1 on each axis)
+// "cover" fit: scale until w x h is completely filled, then crop, positioning the cut by the focus (fx, fy in 0..1)
 Picture covering(const Picture &src, int w, int h, double fx = 0.5, double fy = 0.5) {
     double scale = std::max((double)w / src.w, (double)h / src.h);
     int sw = std::max(w, round_half_even(src.w * scale)), sh = std::max(h, round_half_even(src.h * scale));
@@ -729,7 +733,7 @@ Picture covering(const Picture &src, int w, int h, double fx = 0.5, double fy = 
     return cropped(big, left, top, left + w, top + h);
 }
 
-// pic laid over base at (x, y), its outer `fade` pixels blending into base
+// paste `pic` onto `base` at (x, y) with a soft border: opacity ramps from 0 to full across the outer `fade` pixels
 void blend_in(Picture &base, const Picture &pic, int x, int y, int fade) {
     for (int py = 0; py < pic.h; ++py)
         for (int px = 0; px < pic.w; ++px) {
@@ -743,7 +747,8 @@ void blend_in(Picture &base, const Picture &pic, int x, int y, int fade) {
         }
 }
 
-// The Collection's title lettering cut out of the cover (icon0.png): dark ink becomes opaque, the parchment clear
+// Extracts the Collection's title text from the cover art (icon0.png) for the logo: dark pixels turn opaque and the
+// light parchment background turns transparent; the result is trimmed and scaled to 1280 px wide.
 Picture title_lettering(const Picture &cover) {
     const int w = cover.w, h = cover.h;
     Picture area = cropped(cover, round_half_even(w * 0.06), round_half_even(h * 0.47), round_half_even(w * 0.94),
@@ -777,7 +782,8 @@ std::vector<Made> pictures_from_game(Com &com, const std::wstring &game_dir) {
     bool have_cover = load_picture(com, join(sce, L"icon0.png"), cover);
     if (have_art) out.push_back({"_hero", covering(art, 1920, 620, 0.5, 0.25)});
     if (have_cover) {
-        // the cover on plain parchment (the empty left of the background picture), so the hero shows once
+        // Backdrop for the capsules: the blank left strip of the background art (just parchment), so Drake does not
+        // appear twice next to the cover
         Picture paper = have_art ? cropped(art, 0, 0, round_half_even(art.w * 0.3), art.h) : cropped(cover, 0, 0, 8, 8);
         Picture tall = covering(paper, 600, 900);
         blend_in(tall, resized(cover, 600, 600), 0, 210, 130);
@@ -790,7 +796,8 @@ std::vector<Made> pictures_from_game(Com &com, const std::wstring &game_dir) {
     return out;
 }
 
-// writes each picture for each id into grid\, never over a picture already there (any format); returns the count
+// saves every generated image for every app id into grid\, skipping any stem that already has a file in any format;
+// returns how many files were created
 int write_pictures(Com &com, const std::wstring &grid, const std::vector<uint32_t> &ids, const std::vector<Made> &made) {
     if (made.empty()) return 0;
     make_dirs(grid);
@@ -837,7 +844,7 @@ struct AccountResult {
 bool read_shortcuts(const std::wstring &file, std::vector<Item> &top, std::string &error) {
     std::string data;
     if (!is_file(file)) return true;
-    if (!read_file(file, data)) { error = "cannot read"; return false; }
+    if (!read_file(file, data)) { error = "could not be read"; return false; }
     if (only_zeros(data)) return true;
     return parse_file(data, top, error);
 }
@@ -923,10 +930,10 @@ UN_API int un_steam_add(const char *request, char *out, int cap) {
         else if (tag == "game_dir" && r.size() > 1) game_dir = r[1];
         else if (tag == "account" && r.size() > 2) { given_accounts = true; accounts.push_back({widen(r[1]), r[2]}); }
     }
-    if (targets.empty()) { int r = give("no targets", out, cap); return r < 0 ? r : UN_ERR_OS; }
+    if (targets.empty()) { int r = give("no shortcut targets were given", out, cap); return r < 0 ? r : UN_ERR_OS; }
     if (!given_accounts) accounts = accounts_on_this_pc();
     if (accounts.empty()) { int r = give("", out, cap); return r < 0 ? r : UN_ERR_NO_STEAM; }
-    // every file is checked before the first one is written
+    // validate all accounts up front so a broken file aborts before anything has been modified
     for (const Account &a : accounts) {
         std::vector<Item> probe;
         std::string error;
@@ -956,7 +963,7 @@ UN_API int un_steam_add(const char *request, char *out, int cap) {
         write_entries(top, data);
         std::wstring writing = file + L".writing";
         if (!write_file(writing, data) || !MoveFileExW(writing.c_str(), file.c_str(), MOVEFILE_REPLACE_EXISTING)) {
-            int r = give(narrow(last_error_text(L"cannot write", file)), out, cap);
+            int r = give(narrow(last_error_text(L"failed to write", file)), out, cap);
             return r < 0 ? r : UN_ERR_OS;
         }
         res.pictures = write_pictures(com, join(config, L"grid"), res.merged.ids, made);
@@ -970,7 +977,8 @@ UN_API int un_steam_add(const char *request, char *out, int cap) {
 }
 
 UN_API int un_steam_roundtrip(const char *path) {
-    // test hook: reads a shortcut file and writes it back to <path>.roundtrip; 0 ok, 1 unreadable, 2 bad file
+    // for tests: parse a shortcuts file and re-serialize it to <path>.roundtrip. 0 = done, 1 = I/O problem,
+    // 2 = parse failure
     std::wstring file = widen(path ? path : "");
     std::vector<Item> top;
     std::string error;

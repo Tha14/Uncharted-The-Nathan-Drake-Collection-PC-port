@@ -1,7 +1,8 @@
-// starter.cpp - the game starter's settings (tools/probe_uncharted.py), part of uncharted_native.dll: the CPU threads
-// the game may use, the job workers and whether idle ones sleep, Uncharted 3's exposure, a second instance's folder
-// suffix and the Uncharted 3 multiplayer image the launcher's import made. Everything comes from the environment the
-// launcher sets (UNCHARTED_*); see probe_uncharted.py's notes for the measurements behind each choice.
+// starter.cpp - small settings queries for the game starter, in uncharted_native.dll. It answers: how many CPU threads
+// the game can run on, how many job workers to use and whether idle workers sleep or spin, the Uncharted 3 exposure
+// bias, the folder suffix for an extra instance, and which Uncharted 3 multiplayer image (made by the launcher's
+// import) to boot. All answers are derived from the UNCHARTED_* variables the launcher exports. The measurements that
+// justified the defaults were recorded alongside tools/probe_uncharted.py, which this replaces.
 
 #include "native.h"
 #include "json.h"
@@ -44,7 +45,7 @@ std::wstring widen(const std::string &s) {
     return w;
 }
 
-// an environment value (UTF-8), `fallback` when it is not set
+// Reads an environment variable as UTF-8; returns `fallback` only if the variable is not defined at all.
 std::string env(const char *name, const char *fallback = "") {
     std::wstring wname = widen(name);
     SetLastError(0);
@@ -68,7 +69,8 @@ std::string lower(std::string s) {
     return s;
 }
 
-// Python's int(): optional sign, digits (underscores between them); false when it isn't one
+// Integer parsing with Python int() rules: optional sign, then digits that may be grouped by single underscores.
+// Returns false for anything else.
 bool python_int(const std::string &text, long long &value) {
     std::string t = strip(text), digits;
     size_t i = 0;
@@ -80,12 +82,13 @@ bool python_int(const std::string &text, long long &value) {
         else return false;
     }
     if (digits.empty()) return false;
-    long long n = digits.size() > 18 ? (1LL << 62) : std::strtoll(digits.c_str(), nullptr, 10);   // big: only its sign counts
+    // Huge values become a large stand-in: callers clamp the result, so only its sign matters.
+    long long n = digits.size() > 18 ? (1LL << 62) : std::strtoll(digits.c_str(), nullptr, 10);
     value = negative ? -n : n;
     return true;
 }
 
-// Python's float() for plain decimal text, inf and nan; false when it isn't one
+// Float parsing with Python float() rules for ordinary decimal numbers plus inf/infinity/nan. Returns false otherwise.
 bool python_float(const std::string &text, double &value) {
     std::string t = lower(strip(text));
     if (t.empty()) return false;
@@ -101,7 +104,7 @@ bool python_float(const std::string &text, double &value) {
     return end == t.c_str() + t.size();
 }
 
-// logical processors this process may run on (its affinity mask; the game inherits it)
+// Number of logical CPUs in this process's affinity mask. The game is started as a child, so it gets the same mask.
 int hardware_threads() {
     DWORD_PTR process = 0, system = 0;
     if (GetProcessAffinityMask(GetCurrentProcess(), &process, &system) && process) {
@@ -120,8 +123,9 @@ const char *game_key(const std::string &executable) {
     return "";
 }
 
-// JOB_SLEEP_PATCHES: idle job workers sleep (UNCHARTED_JOB_SLEEP: 0/off/no/spin spin; auto: spin in Uncharted 1 from
-// 8 hardware threads, sleep below and in the other games)
+// Decides whether the JOB_SLEEP_PATCHES go in, i.e. whether idle job workers sleep instead of spinning.
+// UNCHARTED_JOB_SLEEP = 0, off, no or spin -> spin. auto (the default) -> spin only for Uncharted 1 on a CPU with at
+// least 8 hardware threads; sleep on smaller CPUs and always in Uncharted 2 and 3. Any other value -> sleep.
 bool job_sleep(const std::string &executable) {
     std::string value = lower(strip(env("UNCHARTED_JOB_SLEEP", "auto")));
     if (value == "0" || value == "off" || value == "no" || value == "spin") return false;
@@ -129,7 +133,8 @@ bool job_sleep(const std::string &executable) {
     return true;
 }
 
-// UNCHARTED_JOB_WORKERS=<1..6> | auto (hardware threads minus two, 2..6) | 0/off (the engine's own 6): 0 for none
+// Job worker count override from UNCHARTED_JOB_WORKERS: a number (clamped to 1..6), auto (hardware threads minus
+// two, kept within 2..6), or 0/off to leave the engine at its built-in 6. Returns 0 when no override applies.
 int job_workers() {
     std::string value = lower(strip(env("UNCHARTED_JOB_WORKERS", "0")));
     if (value.empty() || value == "0" || value == "off" || value == "no") return 0;
@@ -139,7 +144,7 @@ int job_workers() {
     return (int)std::max(1LL, std::min(6LL, n));
 }
 
-// UNCHARTED_U3_EXPOSURE=<EV>: -2..1, 0 below 0.05 either way
+// Exposure bias in EV from UNCHARTED_U3_EXPOSURE, limited to -2..1. Magnitudes under 0.05 count as 0.
 double u3_exposure() {
     std::string text = strip(env("UNCHARTED_U3_EXPOSURE", "0"));
     double bias = 0;
@@ -147,7 +152,8 @@ double u3_exposure() {
     return std::fabs(bias) >= 0.05 ? std::max(-2.0, std::min(1.0, bias)) : 0.0;
 }
 
-// UNCHARTED_INSTANCE=<n> (n >= 2): "-i<n>", the folders of another game on this PC
+// For UNCHARTED_INSTANCE=<n> with n >= 2 this returns "-i<n>", which gives a second game running on the same PC its
+// own folders. Instance 1 (the default) gets an empty suffix.
 std::string instance_suffix() {
     std::string value = strip(env("UNCHARTED_INSTANCE", "1"));
     bool digits = !value.empty();
@@ -190,18 +196,21 @@ bool sha256_file(const std::wstring &path, std::string &hex, std::string &error)
     return true;
 }
 
-// Uncharted 3 multiplayer as the launcher set it: UNCHARTED_U3MP_IMAGE (the linked image), UNCHARTED_U3MP_IMAGE_SHA256,
-// UNCHARTED_U3MP_OVERLAYS (folders, ';' between them, the first wins), UNCHARTED_U3MP_VERSION. A message for the
-// log (or an empty line), then the image as JSON {image, overlays, version} (nothing: start Uncharted 3 as usual).
+// Checks the Uncharted 3 multiplayer setup the launcher exported: UNCHARTED_U3MP_IMAGE (path of the linked image),
+// UNCHARTED_U3MP_IMAGE_SHA256 (its expected hash), UNCHARTED_U3MP_OVERLAYS (';'-separated folders, earliest has
+// priority) and UNCHARTED_U3MP_VERSION.
+// Result: first line = a log message, possibly empty. If the image is usable, a second part follows with the JSON
+// {image, overlays, version}; if that part is missing, Uncharted 3 boots normally.
 std::string u3mp_image(const std::string &executable) {
     std::string image = env("UNCHARTED_U3MP_IMAGE", "");
     if (executable != "big3-ps4_Shipping.elf" || image.empty()) return "\n";
     std::string want = lower(env("UNCHARTED_U3MP_IMAGE_SHA256", "")), digest, error;
     if (!sha256_file(widen(image), digest, error))
-        return "Uncharted 3 multiplayer image not readable (" + error + "): starting Uncharted 3 without it\n";
+        return "Uncharted 3 multiplayer image could not be read (" + error + "): Uncharted 3 starts without it\n";
     if (!want.empty() && digest != want)
-        return "Uncharted 3 multiplayer image " + image + " changed (sha256 " + digest.substr(0, 12) + "..., expected " +
-               want.substr(0, 12) + "...): starting Uncharted 3 without it; import it again in the launcher\n";
+        return "Uncharted 3 multiplayer image " + image + " no longer matches (sha256 " + digest.substr(0, 12) +
+               "..., expected " + want.substr(0, 12) +
+               "...): Uncharted 3 starts without it. Redo the multiplayer import in the launcher\n";
     Value overlays;
     overlays.kind = Value::Array;
     std::string missing, list = env("UNCHARTED_U3MP_OVERLAYS", "");
@@ -218,7 +227,7 @@ std::string u3mp_image(const std::string &executable) {
         start = cut + 1;
     }
     if (!missing.empty())
-        return "Uncharted 3 multiplayer overlays missing (" + missing + "): starting Uncharted 3 without them\n";
+        return "Uncharted 3 multiplayer overlay folders not found (" + missing + "): Uncharted 3 starts without them\n";
     Value info = Value::object();
     info.set("image", Value::text(image));
     info.set("overlays", overlays);
@@ -230,8 +239,10 @@ std::string u3mp_image(const std::string &executable) {
 
 extern "C" {
 
-// what: hardware_threads, job_sleep (arg: the executable; 1 or 0), job_workers (0 none), u3_exposure (EV, repr),
-// instance_suffix, u3mp_image (arg: the executable; a message line, then JSON). 0 ok, 1 unknown what.
+// Settings query. `what` selects the answer:
+//   hardware_threads, job_workers (0 = no override), u3_exposure (EV, printed with full precision), instance_suffix,
+//   job_sleep (arg = executable; "1" or "0"), u3mp_image (arg = executable; message line, then optional JSON).
+// Returns 0 on success, 1 when `what` is not recognised.
 UN_API int un_starter(const char *what, const char *arg, char *out, int cap) {
     std::string w = what ? what : "", a = arg ? arg : "", r;
     if (w == "hardware_threads") r = std::to_string(hardware_threads());

@@ -1,5 +1,6 @@
-// self_reader.h - shared by prepare.cpp and link.cpp (uncharted_native.dll): a plaintext PS4 SELF read into its ELF,
-// bounds-checked reads (an offset out of range throws Failure), file reading and writing, and SHA hashes.
+// self_reader.h - helpers that prepare.cpp and link.cpp (both in uncharted_native.dll) have in common: turning an
+// unencrypted PS4 SELF back into the ELF it carries, reads that check their range first (Failure is thrown for any
+// offset past the end), whole-file input and output, and SHA digests.
 #pragma once
 
 #include "native.h"
@@ -37,14 +38,14 @@ inline std::wstring join(const std::wstring &a, const std::wstring &b) {
     return (a.back() == L'\\' || a.back() == L'/') ? a + b : a + L"\\" + b;
 }
 
-// a path as Python's repr shows it in an error (backslashes doubled)
+// the path written the way Python's repr() puts it inside an error message, i.e. with every backslash doubled
 inline std::string shown(const std::wstring &path) {
     std::string out;
     for (char c : utf8(path)) out += c == '\\' ? std::string("\\\\") : std::string(1, c);
     return out;
 }
 
-inline std::string hex0x(uint64_t v) {   // Python's hex()
+inline std::string hex0x(uint64_t v) {   // same text as Python's hex(): lower case, 0x prefix
     char b[24];
     std::snprintf(b, sizeof b, "0x%llx", (unsigned long long)v);
     return b;
@@ -57,7 +58,7 @@ inline std::string hexbytes(const std::string &d) {
     return o;
 }
 
-inline std::string grouped(unsigned long long v) {   // Python's {:,}
+inline std::string grouped(unsigned long long v) {   // thousands separated by commas, like Python's {:,} format
     std::string s = std::to_string(v), o;
     int n = 0;
     for (size_t i = s.size(); i-- > 0;) {
@@ -100,7 +101,8 @@ inline void write_file(const std::wstring &path, const std::string &data) {
     if (!ok) throw Failure{"cannot write " + utf8(path)};
 }
 
-// The folder and any missing parents (Python: mkdir(parents=True, exist_ok=True)).
+// Creates the folder plus whichever parent folders don't exist yet; an existing folder is fine (the same as
+// Python's mkdir(parents=True, exist_ok=True)).
 inline void make_dirs(const std::wstring &path) {
     for (size_t at = 0; (at = path.find_first_of(L"\\/", at + 1)) != std::wstring::npos;) {
         const std::wstring part = path.substr(0, at);
@@ -125,13 +127,13 @@ inline std::string digest(const wchar_t *algorithm, const std::string &data, siz
 }
 inline std::string sha256_hex(const std::string &data) { return hexbytes(digest(BCRYPT_SHA256_ALGORITHM, data, 32)); }
 
-// ------------------------------------------------------------------------------------------------ bounds-checked reads
+// ---------------------------------------------------------------------------------------------- range-checked reading
 
 inline void need(const std::string &d, long long offset, long long size) {
     if (offset < 0 || size < 0 || offset + size > (long long)d.size()) {
         char b[96];
-        std::snprintf(b, sizeof b, "out of bounds: %s+%s / %s", hex0x((uint64_t)offset).c_str(), hex0x((uint64_t)size).c_str(),
-                      hex0x(d.size()).c_str());
+        std::snprintf(b, sizeof b, "read outside the data: %s+%s, size %s", hex0x((uint64_t)offset).c_str(),
+                      hex0x((uint64_t)size).c_str(), hex0x(d.size()).c_str());
         throw Failure{b};
     }
 }
@@ -145,7 +147,8 @@ inline uint64_t u(const std::string &d, long long at, int n) {
     for (int i = 0; i < n; ++i) v |= (uint64_t)(uint8_t)d[(size_t)at + i] << (8 * i);
     return v;
 }
-// the NUL-terminated ASCII text at `off` (Python: data[off:data.index(0, off)].decode('ascii'))
+// the ASCII string that starts at `off` and runs up to the next zero byte (what Python's
+// data[off:data.index(0, off)].decode('ascii') gives)
 inline std::string cstring(const std::string &d, long long off) {
     need(d, off, 1);
     size_t end = d.find('\0', (size_t)off);
@@ -156,7 +159,7 @@ inline std::string cstring(const std::string &d, long long off) {
     return s;
 }
 
-// ------------------------------------------------------------------------------------------------ SELF
+// --------------------------------------------------------------------------------------------- the PS4 SELF container
 
 struct Header {
     uint64_t entry = 0, phoff = 0;
@@ -176,10 +179,10 @@ struct Self {
     std::vector<int> missing;
 };
 
-// The plaintext ELF inside a PS4 SELF (its segments placed at their file offsets); a segment that is encrypted,
-// compressed or blocked stops it.
+// Rebuilds the ELF that a decrypted PS4 SELF wraps, copying every segment back to its offset in the ELF file. Segments
+// that are still encrypted or compressed, or are stored in a layout this reader doesn't know, raise a Failure.
 inline Self parse_self(const std::string &data) {
-    if (span(data, 0, 4) != std::string("O\x15=\x1d", 4)) throw Failure{"expected PS4 SELF"};
+    if (span(data, 0, 4) != std::string("O\x15=\x1d", 4)) throw Failure{"not a PS4 SELF file"};
     unsigned count = (unsigned)u(data, 24, 2);
     long long base = 32 + (long long)count * 32;
     need(data, base, 64);
@@ -191,8 +194,9 @@ inline Self parse_self(const std::string &data) {
     s.header.phentsize = (unsigned)u(data, base + 54, 2);
     s.header.phnum = (unsigned)u(data, base + 56, 2);
     if (ident.compare(0, 7, std::string("\x7f" "ELF\x02\x01\x01", 7)) != 0 || s.header.machine != 62)
-        throw Failure{"expected little-endian x86-64 ELF"};
-    if (s.header.phentsize != 56 || !(0 < s.header.phnum && s.header.phnum < 256)) throw Failure{"unsupported program headers"};
+        throw Failure{"the SELF does not hold a little-endian x86-64 ELF"};
+    if (s.header.phentsize != 56 || !(0 < s.header.phnum && s.header.phnum < 256))
+        throw Failure{"program header table of an unknown shape"};
     for (unsigned i = 0; i < s.header.phnum; ++i) {
         long long at = base + (long long)s.header.phoff + i * 56;
         need(data, at, 56);
@@ -201,7 +205,7 @@ inline Self parse_self(const std::string &data) {
     }
     uint64_t end = 0;
     for (const Ph &p : s.ph) end = std::max(end, p.offset + p.filesz);
-    if (end > 512ull * 1024 * 1024) throw Failure{"probe image exceeds 512 MiB limit"};
+    if (end > 512ull * 1024 * 1024) throw Failure{"the ELF would be larger than 512 MiB"};
     s.elf.assign((size_t)end, '\0');
     uint64_t header_end = s.header.phoff + s.header.phnum * 56ull;
     std::string head = span(data, base, (long long)header_end);
@@ -213,11 +217,12 @@ inline Self parse_self(const std::string &data) {
                  mem = u(data, 32 + i * 32 + 24, 8);
         s.segments.push_back({flags, off, size});
         if (!(flags & 0x800)) continue;
-        if (flags & 10) throw Failure{"encrypted/compressed SELF segment is unsupported"};
+        if (flags & 10) throw Failure{"a SELF segment is still encrypted or compressed; only plain ones can be read"};
         uint64_t index = (flags >> 20) & 4095;
-        if (index >= s.ph.size()) throw Failure{"invalid segment index"};
+        if (index >= s.ph.size()) throw Failure{"a SELF segment names a program header that does not exist"};
         const Ph &p = s.ph[(size_t)index];
-        if (size != p.filesz || size != mem) throw Failure{"unsupported blocked segment layout"};
+        if (size != p.filesz || size != mem)
+            throw Failure{"a blocked SELF segment is laid out in a way this reader can't handle"};
         std::string bytes = span(data, (long long)off, (long long)size);
         std::memcpy(&s.elf[(size_t)p.offset], bytes.data(), bytes.size());
         covered.push_back({p.offset, p.offset + size});
@@ -230,7 +235,7 @@ inline Self parse_self(const std::string &data) {
         if (in) continue;
         s.missing.push_back((int)i);
         if (p.type == 1 || p.type == 2 || p.type == 0x61000000 || p.type == 0x61000010)
-            throw Failure{"required segment " + std::to_string(i) + " is unavailable"};
+            throw Failure{"segment " + std::to_string(i) + " is needed but missing from the SELF"};
     }
     return s;
 }

@@ -1,9 +1,10 @@
-// prepare.cpp - the game's preparation (gow3_pc/scripts/prepare.py), part of uncharted_native.dll: an already plaintext
-// PS4 SELF (the player's own executable) read into the memory image the runtime loads (boot.bin: its loadable segments,
-// base-relative relocations and the symbols it imports), with eboot.elf, entry.bin and the analysis.json report.
+// prepare.cpp - getting a game ready to run (the native replacement for gow3_pc/scripts/prepare.py), built into
+// uncharted_native.dll. Input: the player's own executable, a PS4 SELF that is already decrypted. Output: boot.bin, the
+// memory image the runtime loads (loadable segments, relocations relative to the image base, the list of imported
+// symbols), plus eboot.elf, entry.bin and an analysis.json report.
 //
-// No decryption, nothing patched in the source files. All offsets are checked before use: a value out of bounds stops
-// the preparation ("prepare failed: ...").
+// Nothing gets decrypted here and the game's files are never modified. Every offset is range-checked before it is
+// read; one that points outside its data ends the preparation with an error message.
 
 #include "native.h"
 #include "json.h"
@@ -26,8 +27,8 @@ using json::Value;
 
 using namespace selfread;
 
-// A symbol's NID as the PS4 names imports: SHA-1 of the name and a fixed salt, the first 8 bytes reversed, Base64
-// without padding and with '-' for '/'.
+// The NID the PS4 uses in place of a symbol name: hash the name followed by a constant salt with SHA-1, keep 8 bytes of
+// the digest in reverse order and write them in Base64, dropping the '=' padding and turning '/' into '-'.
 std::string nid(const std::string &name) {
     std::string salt = std::string("\x51\x8d\x64\xa6\x35\xde\xd8\xc1\xe6\xb0\x39\xb1\xc3\xe5\x52\x30", 16);
     std::string h = digest(BCRYPT_SHA1_ALGORITHM, name + salt, 20).substr(0, 8);
@@ -48,7 +49,8 @@ const Ph &first_of(const std::vector<Ph> &ph, uint64_t type) {
     throw Failure{"segment missing"};
 }
 
-// Proves that this dump's libc _init_env is exactly RET (never assumed), and notes ios_base::Init.
+// Looks at the bundled libc: checks whether its _init_env consists of nothing but a RET instruction (read from the dump
+// each time, not taken for granted) and records where ios_base::Init lives.
 Value inspect_libc(const std::wstring &path) {
     std::string source;
     if (!read_file(path, source)) throw Failure{"[Errno 2] No such file or directory: '" + shown(path) + "'"};
@@ -102,7 +104,8 @@ Value inspect_libc(const std::wstring &path) {
     return evidence;
 }
 
-// the files under a folder, depth first in name order (their first path part: the top-level folder)
+// Collects every file below `folder` (sub-folders after the files of each level) with its size; each one is filed under
+// the top-level folder it sits in (a file lying directly in `folder` under its own name).
 void walk(const std::wstring &folder, const std::wstring &top, std::vector<std::pair<std::wstring, uint64_t>> &files) {
     WIN32_FIND_DATAW fd;
     HANDLE h = FindFirstFileW(join(folder, L"*").c_str(), &fd);
@@ -132,10 +135,11 @@ std::string prepare(const std::wstring &game, const std::wstring &out, const std
     uint64_t size = 0;
     for (const Ph *p : loads) size = std::max(size, p->vaddr + p->memsz);
     if (loads.empty()) throw Failure{"max() arg is an empty sequence"};
-    if (size > 512ull * 1024 * 1024 || !mapped(s.header.entry, 1)) throw Failure{"invalid memory image"};
+    if (size > 512ull * 1024 * 1024 || !mapped(s.header.entry, 1))
+        throw Failure{"the loadable segments don't make a usable memory image"};
     std::string image((size_t)size, '\0');
     for (const Ph *p : loads) {
-        if (p->filesz > p->memsz) throw Failure{"segment file size exceeds memory size"};
+        if (p->filesz > p->memsz) throw Failure{"a segment holds more file bytes than its memory size"};
         std::string bytes = span(s.elf, (long long)p->offset, (long long)p->filesz);
         std::memcpy(&image[(size_t)p->vaddr], bytes.data(), bytes.size());
     }
@@ -157,7 +161,7 @@ std::string prepare(const std::wstring &game, const std::wstring &out, const std
     std::string blob = span(s.elf, (long long)lib.offset, (long long)lib.filesz);
     std::string strings = span(blob, tag(0x61000035), tag(0x61000037));
     std::string syms = span(blob, tag(0x61000039), tag(0x6100003f));
-    if (syms.size() % 24) throw Failure{"bad symbol table size"};
+    if (syms.size() % 24) throw Failure{"the symbol table's size is not a whole number of entries"};
     struct Symbol { std::string name; unsigned type, section; uint64_t value, size; };
     std::vector<Symbol> symbols;
     for (long long pos = 0; pos < (long long)syms.size(); pos += 24) {
@@ -167,11 +171,11 @@ std::string prepare(const std::wstring &game, const std::wstring &out, const std
     }
     struct Reloc { uint64_t target, kind; int64_t value, addend; };
     std::vector<Reloc> relocs;
-    std::vector<std::pair<uint64_t, long long>> counts;   // relocation kind -> how many, in first-seen order
-    std::vector<std::pair<uint64_t, uint64_t>> imports;   // symbol -> import index, in first-seen order
+    std::vector<std::pair<uint64_t, long long>> counts;   // relocation type -> count, types in the order met
+    std::vector<std::pair<uint64_t, uint64_t>> imports;   // imported symbol -> slot, symbols in the order met
     for (auto tables : {std::make_pair(0x61000029ull, 0x6100002dull), std::make_pair(0x6100002full, 0x61000031ull)}) {
         std::string table = span(blob, tag(tables.first), tag(tables.second));
-        if (table.size() % 24) throw Failure{"bad relocation table size"};
+        if (table.size() % 24) throw Failure{"a relocation table's size is not a whole number of entries"};
         for (long long pos = 0; pos < (long long)table.size(); pos += 24) {
             uint64_t target = u(table, pos, 8), info = u(table, pos + 8, 8);
             int64_t addend = (int64_t)u(table, pos + 16, 8);
@@ -179,9 +183,9 @@ std::string prepare(const std::wstring &game, const std::wstring &out, const std
             bool seen = false;
             for (auto &c : counts) if (c.first == kind) { ++c.second; seen = true; }
             if (!seen) counts.push_back({kind, 1});
-            if (!mapped(target, 8)) throw Failure{"relocation outside mapped segments: " + hex0x(target)};
+            if (!mapped(target, 8)) throw Failure{"a relocation points outside the loaded segments: " + hex0x(target)};
             if (kind == 8) {
-                relocs.push_back({target, 0, addend, 0});   // base-relative
+                relocs.push_back({target, 0, addend, 0});   // relative to where the image is loaded
             } else if (kind == 1 || kind == 6 || kind == 7) {
                 if (sym >= symbols.size()) throw Failure{"list index out of range"};
                 const Symbol &symbol = symbols[(size_t)sym];
@@ -198,11 +202,12 @@ std::string prepare(const std::wstring &game, const std::wstring &out, const std
                     for (auto &i : imports) if (i.first == sym) { index = i.second; found = true; }
                     if (!found) imports.push_back({sym, index});
                     uint64_t import_kind = symbol.type == 1 ? 2 : 1;
-                    if ((import_kind == 1 && addend) || !(0 <= addend && addend < 4096)) throw Failure{"unsupported import addend"};
+                    if ((import_kind == 1 && addend) || !(0 <= addend && addend < 4096))
+                        throw Failure{"an import carries an addend this loader can't express"};
                     relocs.push_back({target, import_kind, (int64_t)index, addend});
                 }
             } else {
-                throw Failure{"unsupported relocation " + std::to_string(kind)};
+                throw Failure{"relocation type not handled: " + std::to_string(kind)};
             }
         }
     }
@@ -226,13 +231,14 @@ std::string prepare(const std::wstring &game, const std::wstring &out, const std
     Value libc_evidence = inspect_libc(join(game, L"sce_module\\libc.prx"));
     const bool init_env_is_ret = libc_evidence.get("init_env_is_ret")->b;
     make_dirs(out);
-    // boot.bin: a deliberately small format, consumed by the runtime's loader; no host struct packing
+    // boot.bin is kept simple on purpose: the runtime's loader reads it field by field (little-endian 64-bit values),
+    // so no compiler struct layout is involved
     std::string boot = "G3PROBE2";
     auto q = [&](uint64_t v) { for (int i = 0; i < 8; ++i) boot += (char)(v >> (8 * i)); };
     q(size); q(s.header.entry); q(loads.size()); q(relocs.size()); q(names.size()); q(init_env_is_ret ? 1 : 0);
     for (const Ph *p : loads) { q(p->vaddr); q(p->memsz); q(p->flags); }
     for (const std::string &name : names) {
-        if (name.size() >= 128) throw Failure{"import name too long"};
+        if (name.size() >= 128) throw Failure{"an imported name is 128 bytes or longer"};
         boot += name;
         boot += std::string(128 - name.size(), '\0');
     }
@@ -241,7 +247,7 @@ std::string prepare(const std::wstring &game, const std::wstring &out, const std
     write_file(join(out, L"boot.bin"), boot);
     write_file(join(out, L"eboot.elf"), s.elf);
     write_file(join(out, L"entry.bin"), image.substr(0, 1024));
-    // the game's resources (dvdroot_ps4), counted by top-level folder
+    // how many files dvdroot_ps4 holds per top-level folder, and their total size
     std::vector<std::pair<std::wstring, uint64_t>> files;
     walk(join(game, L"dvdroot_ps4"), L"", files);
     Value resources = Value::object();
@@ -252,10 +258,10 @@ std::string prepare(const std::wstring &game, const std::wstring &out, const std
         resources.set(key, Value::integer(v ? v->i + 1 : 1));
         total_bytes += f.second;
     }
-    // the report
+    // analysis.json
     char sfo_buf[1 << 16];
-    if (un_system("sfo", game.c_str(), sfo_buf, sizeof sfo_buf) != 0)   // the folder's sce_sys\param.sfo (system.cpp)
-        throw Failure{"bad SFO signature"};
+    if (un_system("sfo", game.c_str(), sfo_buf, sizeof sfo_buf) != 0)   // system.cpp reads sce_sys\param.sfo for us
+        throw Failure{"param.sfo could not be read as an SFO file"};
     Value sfo;
     json::parse(sfo_buf, sfo);
     Value report = Value::object();
@@ -317,7 +323,7 @@ std::string prepare(const std::wstring &game, const std::wstring &out, const std
             if (n != L"." && n != L"..") modules.push_back(utf8(n));
         } while (FindNextFileW(h, &fd));
         FindClose(h);
-        std::sort(modules.begin(), modules.end());   // UTF-8 byte order is code point order (Python's sorted)
+        std::sort(modules.begin(), modules.end());   // sorting UTF-8 bytes gives code point order, as Python sorts
     }
     Value modules_v;
     modules_v.kind = Value::Array;
@@ -325,11 +331,11 @@ std::string prepare(const std::wstring &game, const std::wstring &out, const std
     report.set("bundled_modules", modules_v);
     report.set("resources", resources);
     report.set("resource_bytes", Value::integer((long long)total_bytes));
-    report.set("status", Value::text("Prepared only; execution and Vulkan are tested separately."));
+    report.set("status", Value::text("Preparation only: running the game and Vulkan are checked on their own."));
     std::string text = json::dump(report, false) + "\n", crlf;
-    for (char c : text) { if (c == '\n') crlf += "\r\n"; else crlf += c; }   // Python's write_text on Windows
+    for (char c : text) { if (c == '\n') crlf += "\r\n"; else crlf += c; }   // CRLF line ends, as the Python tool wrote
     write_file(join(out, L"analysis.json"), crlf);
-    // what prepare.py prints
+    // the summary lines for the console
     const Value *title = sfo.get("TITLE");
     std::string missing_text = "[";
     for (size_t i = 0; i < s.missing.size(); ++i) missing_text += (i ? ", " : "") + std::to_string(s.missing[i]);
@@ -339,15 +345,17 @@ std::string prepare(const std::wstring &game, const std::wstring &out, const std
     std::wstring resolved = n && n < MAX_PATH * 4 ? std::wstring(full, n) : out;
     while (resolved.size() > 3 && resolved.back() == L'\\') resolved.pop_back();
     return (title ? (title->kind == Value::String ? title->s : std::to_string(title->i)) : std::string("None")) +
-           " | entry=" + hex0x(s.header.entry) + " | image=" + grouped(size) + " bytes\n" + std::to_string(names.size()) +
-           " imported symbols; " + grouped((unsigned long long)total_relocs) + " relocations; " +
-           std::to_string(needed.items.size()) + " required modules\n" + "Unavailable non-loadable metadata headers: " +
-           missing_text + "; not a byte-exact ELF reconstruction\n" + "Output: " + utf8(resolved) + "\n" +
-           "libc _init_env verified RET: " + (init_env_is_ret ? "True" : "False") + "\n";
+           ": entry point " + hex0x(s.header.entry) + ", image size " + grouped(size) + " bytes\n" +
+           std::to_string(names.size()) + " symbols imported, " + grouped((unsigned long long)total_relocs) +
+           " relocations, " + std::to_string(needed.items.size()) + " modules needed\n" +
+           "Metadata headers absent from the SELF (none of them loadable): " + missing_text +
+           "; the rebuilt ELF is not byte-identical to the original\n" + "Files written to: " + utf8(resolved) + "\n" +
+           "libc _init_env is a lone RET: " + (init_env_is_ret ? "True" : "False") + "\n";
 }
 
-// content_profile.py: the game's offline AppContent metadata (content.bin for the runtime, content-profile.json). The
-// SKU is a probe setting ("full" or "trial"), not a license check; the four user-defined values come from param.sfo.
+// The offline AppContent data the runtime hands to the game (content.bin, with content-profile.json beside it for
+// people to read); this replaces content_profile.py. The SKU ("full" or "trial") is simply chosen by the caller and
+// checks no license. USER_DEFINED_PARAM_1..4 are taken from param.sfo.
 std::string content_profile(const std::wstring &game, const std::wstring &out, const std::string &sku) {
     if (sku != "full" && sku != "trial") throw Failure{"'" + sku + "'"};
     char sfo_buf[1 << 16];
@@ -361,7 +369,8 @@ std::string content_profile(const std::wstring &game, const std::wstring &out, c
     std::string shown_params = "[";
     for (int i = 0; i < 4; ++i) {
         const Value *v = sfo.get("USER_DEFINED_PARAM_" + std::to_string(i + 1));
-        if (v && (v->kind != Value::Int || v->i < 0 || v->i > 0xffffffffll)) throw Failure{"invalid user-defined parameter"};
+        if (v && (v->kind != Value::Int || v->i < 0 || v->i > 0xffffffffll))
+            throw Failure{"a USER_DEFINED_PARAM in param.sfo is not an unsigned 32-bit number"};
         params[i] = v ? (uint32_t)v->i : 0;
         params_v.items.push_back(Value::integer(params[i]));
         shown_params += (i ? ", " : "") + std::to_string(params[i]);
@@ -383,17 +392,18 @@ std::string content_profile(const std::wstring &game, const std::wstring &out, c
     for (uint32_t p : params) put(p);
     write_file(join(out, L"content.bin"), bin);
     std::string text = json::dump(profile) + "\n", crlf;
-    for (char c : text) { if (c == '\n') crlf += "\r\n"; else crlf += c; }   // Python's write_text on Windows
+    for (char c : text) { if (c == '\n') crlf += "\r\n"; else crlf += c; }   // CRLF line ends, as the Python tool wrote
     write_file(join(out, L"content-profile.json"), crlf);
-    return "AppContent profile: SKU=" + sku + " (probe setting), user params=" + shown_params + ", mounted add-ons=0\n";
+    return "AppContent: SKU " + sku + " (a setting, not a license check), user parameters " + shown_params +
+           ", no add-ons mounted\n";
 }
 
 }  // namespace
 
 extern "C" {
 
-// prepare.py's work for the game folder: boot.bin, eboot.elf, entry.bin and analysis.json in `out`. out: the lines
-// prepare.py prints. 0 ok; 1 failed (out: why, as "prepare failed: <why>" ends it).
+// Prepares the game folder: writes boot.bin, eboot.elf, entry.bin and analysis.json into out_dir. On success (0) `out`
+// gets the console summary; on failure (1) it gets the reason only, without any prefix.
 UN_API int un_prepare(const wchar_t *game, const wchar_t *out_dir, const char *executable, char *out, int cap) {
     try {
         return give(prepare(game ? game : L"", out_dir ? out_dir : L"", executable ? executable : "eboot.bin"), out, cap);
@@ -403,8 +413,8 @@ UN_API int un_prepare(const wchar_t *game, const wchar_t *out_dir, const char *e
     }
 }
 
-// content_profile.py's work: content.bin and content-profile.json in `out` (sku: "full" or "trial"; null: "full").
-// out: the line content_profile.py prints. 0 ok; 1 failed (out: why).
+// Writes content.bin and content-profile.json into out_dir. sku is "full" or "trial" (null or empty means "full").
+// Returns 0 with a one-line summary in `out`, or 1 with the reason it failed.
 UN_API int un_content_profile(const wchar_t *game, const wchar_t *out_dir, const char *sku, char *out, int cap) {
     try {
         return give(content_profile(game ? game : L"", out_dir ? out_dir : L"", sku && *sku ? sku : "full"), out, cap);

@@ -301,8 +301,8 @@ msys2_licenses() {
     done < <({ "$pacman" -Qlq "${packages[@]}" | grep '/share/licenses/.*[^/]$' || true; })
     {
         echo "Third-party packages whose files ship in this package (MSYS2 builds)."
-        echo "Their sources: https://repo.msys2.org/mingw/sources/ and https://packages.msys2.org/"
-        "$pacman" -Qi "${packages[@]}" | awk '/^Name /{print ""} /^(Name|Version|Licenses|URL) /{print}'
+        echo "Source code for each: https://repo.msys2.org/mingw/sources/ (package pages: https://packages.msys2.org/)"
+        "$pacman" -Qi "${packages[@]}" | awk '$1 == "Name" { print "" } $1 ~ /^(Name|Version|Licenses|URL)$/ { print }'
     } > "$lic/THIRD-PARTY.txt"
 }
 

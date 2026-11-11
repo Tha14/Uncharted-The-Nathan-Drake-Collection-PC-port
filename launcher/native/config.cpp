@@ -1,9 +1,11 @@
-// config.cpp - the launcher's settings core, part of uncharted_native.dll: the per-game runtime settings files
-// (analysis/uncharted-user/probe-<game>.ini, shared with the in-game menu), their defaults, the frame-rate limits and the
-// graphics presets. The launcher's pages show and change these through the functions below.
+// config.cpp - settings handling inside uncharted_native.dll. It owns one runtime settings file per game
+// (analysis/uncharted-user/probe-<game>.ini, which the in-game menu reads and writes too), the default values, the
+// list of frame-rate caps and the graphics presets. The launcher pages read and update all of it through the exports
+// further down.
 //
-// The settings file is plain "key=value" lines. Writing changes the listed keys where they are and appends new ones;
-// every other line (comments, keys the in-game menu writes) stays as it was. Lines end in CR LF.
+// File format: one "key=value" per line. An update rewrites matching keys on the line they already occupy and adds
+// keys that are not there yet at the end; anything else in the file (comment lines, keys only the in-game menu
+// knows) is left untouched. Output uses CR LF line breaks.
 
 #include "native.h"
 #include "json.h"
@@ -27,7 +29,8 @@ const Pairs &ini_defaults() {
         {"display_mode", "windowed"}, {"vsync", "1"}, {"fps_limit", "60"}, {"frames_queued", "1"},
         {"async_shaders", "1"}, {"fsr1", "0"}, {"rcas", "1"}, {"rcas_strength", "75"}, {"show_fps", "1"},
         {"upscaler", "off"},
-        // the performance counter: items, corner, layout, text size and background opacity, as the runtime starts
+        // FPS overlay start values (which readouts, screen corner, arrangement, text scale, backdrop opacity), matching
+        // what the runtime uses when nothing is set
         {"overlay_fps", "1"}, {"overlay_frametime", "1"}, {"overlay_gpu", "0"}, {"overlay_cpu", "0"},
         {"overlay_ram", "0"}, {"overlay_vram", "0"}, {"overlay_upscaler", "1"}, {"overlay_corner", "1"},
         {"overlay_layout", "0"}, {"overlay_scale", "100"}, {"overlay_opacity", "50"},
@@ -51,25 +54,28 @@ Pairs common(const char *fps, const char *fsr1, const char *sharpen) {
 const std::vector<Preset> &presets() {
     static const std::vector<Preset> list = [] {
         std::vector<Preset> p;
-        // IGPU card adapted from PR #223 by memeguyoffical (the card, its values and the iGPU detection)
+        // Credit: the IGPU preset (its card, the values it sets and the integrated-GPU detection) is based on
+        // PR #223 by memeguyoffical.
         Pairs igpu = common("60", "1", "75");
         igpu.push_back({"upscaler", "off"});
         p.push_back({"igpu", "IGPU", "30\xE2\x80\x93" "60 FPS  \xE2\x80\xA2  540\xE2\x80\x93" "720p, FSR 1",
-                     "Intel and AMD integrated graphics: the game draws at 540p (720p on the strongest iGPUs, 360p on "
-                     "the weakest) and FSR 1 upscales it to 1080p. About 30 FPS on Vega and 2-CU Radeon, 60 on Radeon "
-                     "680M/760M/780M and Iris Xe. No anti-aliasing; the lowest memory use.",
+                     "Made for Intel and AMD integrated GPUs. Rendering happens at 540p (720p on the fastest iGPUs, "
+                     "360p on the slowest), then FSR 1 brings it up to 1080p. Expect around 30 FPS on Vega and 2-CU "
+                     "Radeon and 60 on Radeon 680M/760M/780M or Iris Xe. Anti-aliasing is off and memory use is "
+                     "the smallest of all presets.",
                      "1920x1080", "performance", igpu});
         p.push_back({"low", "LOW", "60 FPS  \xE2\x80\xA2  1080p, FSR 1",
-                     "For older graphics cards: the game draws at half of 1080p and FSR 1 upscales it; the HUD stays "
-                     "sharp.",
+                     "Made for older GPUs. Rendering happens at half of 1080p and FSR 1 scales it back up, while "
+                     "the HUD is kept at full sharpness.",
                      "1920x1080", "performance", common("60", "1", "75")});
         p.push_back({"medium", "MEDIUM", "60 FPS  \xE2\x80\xA2  as on PS4",
-                     "Like the PS4: 1080p at 60 FPS. Right for most PCs.", "1920x1080", "off", common("60", "0", "75")});
-        p.push_back({"high", "HIGH", "60 FPS  \xE2\x80\xA2  1440p", "Sharper: the game draws at 1440p.", "2560x1440",
-                     "off", common("60", "0", "50")});
+                     "Matches the PS4 version: 1080p at 60 FPS. A good fit for most PCs.", "1920x1080", "off",
+                     common("60", "0", "75")});
+        p.push_back({"high", "HIGH", "60 FPS  \xE2\x80\xA2  1440p", "A crisper picture, rendered at 1440p.",
+                     "2560x1440", "off", common("60", "0", "50")});
         p.push_back({"ultra", "ULTRA", "4K  \xE2\x80\xA2  up to 120 FPS",
-                     "For fast graphics cards: native 4K and up to 120 FPS (experimental). Drake's Fortune draws at "
-                     "1620p and scales up.",
+                     "Made for fast GPUs: renders at native 4K and allows up to 120 FPS (experimental). In "
+                     "Drake's Fortune rendering stops at 1620p and is upscaled from there.",
                      "3840x2160", "off", common("120", "0", "50")});
         return p;
     }();
@@ -109,7 +115,8 @@ bool read_text(const std::wstring &path, std::string &text) {
     return ok;
 }
 
-// lines as Python's splitlines() gives them for these files (CR LF, LF or CR), without the endings
+// splits text at CR LF, a lone LF or a lone CR and drops the break characters (same result as splitlines() on
+// these files)
 std::vector<std::string> lines_of(const std::string &text) {
     std::vector<std::string> out;
     std::string cur;
@@ -131,7 +138,8 @@ std::wstring settings_file(const std::wstring &user_dir, const char *game) {
     return user_dir + L"\\probe-" + widen(game) + L".ini";
 }
 
-// the game's file, else the shared file of earlier versions as its starting point, else a header line
+// starts from the per-game file; failing that, from probe.ini (the single file older versions shared); failing
+// both, from just a header comment
 std::vector<std::string> settings_lines(const std::wstring &user_dir, const char *game) {
     std::string text;
     if (read_text(settings_file(user_dir, game), text) || read_text(user_dir + L"\\probe.ini", text)) return lines_of(text);
@@ -145,7 +153,8 @@ bool is_setting(const std::string &line) {
 
 std::string key_of(const std::string &line) { return trim(line.substr(0, line.find('='))); }
 
-// a listed limit; unlimited (0) and faster ones (earlier versions offered 144-240) become the top one
+// keeps a value from FPS_LIMITS as is; 0 (no cap) or anything above MAX_FPS (older builds let you pick 144-240) is
+// clamped to MAX_FPS, and everything else turns into 60
 std::string fps_limit(const std::string &value) {
     for (int v : FPS_LIMITS)
         if (value == std::to_string(v)) return value;
@@ -183,8 +192,10 @@ bool write_config(const std::wstring &path, const json::Value &config);
 
 extern "C" {
 
-// name: "ini_defaults" (key\tvalue), "fps_limits" (value\tlabel), "presets" (name\ttitle\tsummary\tdetail\t
-// resolution\tupscale\tkey=value;key=value...)
+// Returns one of the fixed tables as tab-separated lines, picked by name:
+//   "ini_defaults" -> key\tvalue
+//   "fps_limits"   -> value\tlabel
+//   "presets"      -> name\ttitle\tsummary\tdetail\tresolution\tupscale\tkey=value;key=value...
 UN_API int un_settings_table(const char *name, char *out, int cap) {
     std::string text, n = name ? name : "";
     if (n == "ini_defaults") {
@@ -204,16 +215,17 @@ UN_API int un_settings_table(const char *name, char *out, int cap) {
     return give(text, out, cap);
 }
 
-// the game's runtime settings: the defaults, then the file's keys (key\tvalue lines, defaults first, then the file's
-// own keys in file order); the frame-rate limit normalized
+// Effective runtime settings for one game as key\tvalue lines: every default key comes first (overridden by the
+// file where present), followed by keys only the file has, in the order they appear there. fps_limit is passed
+// through fps_limit() before it is returned.
 UN_API int un_ini_read(const wchar_t *user_dir, const char *game, char *out, int cap) {
     std::string text;
     for (auto &kv : ini_values(user_dir, game)) text += kv.first + "\t" + kv.second + "\n";
     return give(text, out, cap);
 }
 
-// updates: key\tvalue lines. Changes those keys in place (every line with the key) and appends the missing ones;
-// returns 0, or 1 when the file can't be written
+// `updates` holds key\tvalue lines. Each key is rewritten on every line where it already occurs, keys that occur
+// nowhere are added at the end. Result: 0 on success, 1 if writing the file failed.
 UN_API int un_ini_write(const wchar_t *user_dir, const char *game, const char *updates) {
     Pairs changes;
     std::string u = updates ? updates : "";
@@ -265,7 +277,7 @@ bool ini_update(const std::wstring &user_dir, const char *game, const Pairs &cha
     }
     for (size_t i = 0; i < changes.size(); ++i)
         if (!done[i]) {
-            bool earlier = false;   // a key listed twice is appended once (the last value), as a dict would
+            bool earlier = false;   // duplicate keys in `changes`: only the final occurrence gets appended (dict-like)
             for (size_t j = i + 1; j < changes.size(); ++j) earlier |= changes[j].first == changes[i].first;
             if (!earlier) lines.push_back(changes[i].first + "=" + changes[i].second);
         }
@@ -295,7 +307,7 @@ Value launcher_defaults() {
     return d;
 }
 
-// each game's own settings, with their defaults
+// settings stored separately for every game, and the value each starts with
 std::vector<std::pair<std::string, Value>> game_setting_defaults() {
     return {{"preset", Value::text("medium")},       {"resolution", Value::text("1920x1080")},
             {"aspect", Value::text("16:9")},         {"multithreaded", Value::boolean(false)},
@@ -318,8 +330,9 @@ bool valid_utf8(const std::string &s) {
     return MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, s.data(), (int)s.size(), nullptr, 0) > 0 || s.empty();
 }
 
-// a launcher.json as an object; an empty one when missing. One that can't be read (cut off while written) is kept
-// beside it as .bad, and the defaults apply.
+// Loads a launcher.json and returns its top-level object (empty if the file does not exist). If the content does
+// not parse, for example because a write was interrupted, a copy is saved next to it with a .bad suffix and an
+// empty object is returned so the defaults take over.
 Value load_config_file(const std::wstring &path) {
     std::string text;
     if (!read_text(path, text)) return Value::object();
@@ -337,7 +350,7 @@ double version_of(const Value &config) {
     if (v->kind == Value::Int) return (double)v->i;
     if (v->kind == Value::Float) return v->f;
     if (v->kind == Value::Bool) return v->b ? 1 : 0;
-    return 1e18;   // not a number: no migration applies (Python's comparison would refuse it)
+    return 1e18;   // non-numeric version: treat it as newer than everything so no migration step runs
 }
 
 std::string unix_path(const std::wstring &path) {
@@ -355,7 +368,8 @@ Value read_config(const std::wstring &config_file, const std::wstring &prefix_fi
     Value config = launcher_defaults();
     Value stored = load_config_file(config_file);
     if (lstrcmpiW(config_file.c_str(), prefix_file.c_str()) != 0) {
-        // under Wine the shared file wins; what it lacks comes from this prefix's own file, game by game
+        // Wine case: values in the shared file take priority; gaps are filled per game from the copy stored in this
+        // Wine prefix
         Value older = load_config_file(prefix_file);
         if (!older.fields.empty()) {
             Value games = Value::object();
@@ -375,9 +389,10 @@ Value read_config(const std::wstring &config_file, const std::wstring &prefix_fi
         }
     }
     for (auto &f : stored.fields) config.set(f.first, f.second);
-    // version 2: render resolutions above 1080p crashed in gameplay; earlier presets chose them
+    // migration to 2: older presets could pick a render resolution above 1080p, which crashed during play
     if (version_of(config) < 2) config.set("resolution", Value::text("1920x1080"));
-    // version 3: preset, resolution and multithreading per game; the shared values start all three
+    // migration to 3: preset, resolution and multithreading become per-game; each game is seeded from the old
+    // top-level values
     if (!config.get("games") || !config.get("games")->is_object()) config.set("games", Value::object());
     Value &games = *config.get("games");
     for (const char *game : GAME_KEYS) {
@@ -388,7 +403,7 @@ Value read_config(const std::wstring &config_file, const std::wstring &prefix_fi
             entry.setdefault(d.first, shared ? *shared : d.second);
         }
         if (entry.get("preset")->equals_text("balanced")) entry.set("preset", Value::text("medium"));
-        // a value that isn't valid (another version, a hand edit) falls back alone
+        // an unknown value (from a different build or edited by hand) is reset on its own, the rest is kept
         bool ok = false;
         for (const char *r : RESOLUTION_IDS) ok |= entry.get("resolution")->equals_text(r);
         if (!ok) entry.set("resolution", Value::text("1920x1080"));
@@ -400,7 +415,7 @@ Value read_config(const std::wstring &config_file, const std::wstring &prefix_fi
         for (auto &kv : games.fields)
             if (kv.second.is_object()) body(kv.first, kv.second);
     };
-    // version 4: the presets draw at 720p / 1080p / 1440p / 4K (all were 1080p before)
+    // migration to 4: presets now render at 720p, 1080p, 1440p or 4K instead of a fixed 1080p
     if (version_of(config) < 4)
         each_game([&](const std::string &game, Value &entry) {
             const Value *name = entry.get("preset");
@@ -409,20 +424,22 @@ Value read_config(const std::wstring &config_file, const std::wstring &prefix_fi
                 ini_update(user_dir, game.c_str(), p->values);
             }
         });
-    // version 5: presets queued 2 frames (not with multithreaded rendering)
+    // migration to 5: preset users got frames_queued=2, except where multithreaded rendering was on
     if (version_of(config) < 5)
         each_game([&](const std::string &game, Value &entry) {
             const Value *name = entry.get("preset"), *mt = entry.get("multithreaded");
             if (name && preset_named(*name) && !(mt && mt->truthy())) ini_update(user_dir, game.c_str(), {{"frames_queued", "2"}});
         });
-    // version 6: every preset queues 1 frame again (with 2, GPU results arrived a frame late); custom settings stay
+    // migration to 6: back to frames_queued=1 for preset users, because a depth of 2 delivered GPU results one frame
+    // too late; hand-tuned settings are not touched
     if (version_of(config) < 6)
         each_game([&](const std::string &game, Value &entry) {
             const Value *name = entry.get("preset");
             if (name && preset_named(*name)) ini_update(user_dir, game.c_str(), {{"frames_queued", "1"}});
         });
-    // version 7: FSR 1 is an upscaler (the game draws below the resolution); Low draws at half of 1080p with it, other
-    // settings that had it on keep their resolution without it
+    // migration to 7: FSR 1 now works as an upscaler, so the game renders below the chosen resolution. The Low preset
+    // switches to half-1080p rendering with FSR 1; any other setup that had FSR 1 enabled gets it turned off and
+    // keeps its resolution
     if (version_of(config) < 7)
         each_game([&](const std::string &game, Value &entry) {
             const Value *name = entry.get("preset");
@@ -440,11 +457,13 @@ Value read_config(const std::wstring &config_file, const std::wstring &prefix_fi
                 if (fsr1 == "1" && off) ini_update(user_dir, game.c_str(), {{"fsr1", "0"}});
             }
         });
-    // version 8: Drake's Deception with multithreaded rendering (once; a player who turns it off keeps it off)
+    // migration to 8: switch multithreaded rendering on for Drake's Deception. This runs a single time, so turning
+    // it off afterwards sticks
     if (version_of(config) < 8) games.get("u3")->set("multithreaded", Value::boolean(true));
     for (auto &d : game_setting_defaults()) config.remove(d.first);
     config.set("version", Value::integer(8));
-    // under Wine the game folder is also kept as a Linux path (another prefix may show it under another drive letter)
+    // on Wine, store the game folder's Linux path as well, since a different prefix can map that folder to a
+    // different drive letter
     const Value *folder = config.get("game_dir");
     const Value *known = config.get("game_dir_unix");
     if (wine && folder && folder->kind == Value::String && !folder->s.empty() && !(known && known->truthy())) {
@@ -460,8 +479,9 @@ Value read_config(const std::wstring &config_file, const std::wstring &prefix_fi
     return config;
 }
 
-// through a temporary file (a launcher and a game started from a shortcut may write at once, and a write cut short
-// must not leave half a file); in place when Windows refuses the swap (a virus scanner, a second launcher)
+// Saves via <file>.<pid>.tmp and a rename, because the launcher and a shortcut-started game can save at the same
+// moment and an interrupted save must never leave a truncated file. If the rename is refused (the file held open
+// by an antivirus or another launcher instance), the file is written directly instead.
 bool write_config(const std::wstring &path, const Value &config) {
     std::string text, raw = json::dump(config);
     for (char c : raw) {

@@ -1,6 +1,7 @@
-// starter_files.cpp - the game starter's files (tools/probe_uncharted.py), part of uncharted_native.dll: the runtime as
-// Uncharted.exe, a second instance's user folder, the update's copies for drives that hold no links, and the game
-// window's icon.
+// starter_files.cpp - file chores of the game starter (formerly in tools/probe_uncharted.py), built into
+// uncharted_native.dll: putting the runtime in place under the name Uncharted.exe, setting up the user folder of an
+// extra instance, copying the update's files for drives that can't hold links, making the game window's icon, and
+// building the combined game-plus-update view.
 
 #include "native.h"
 #include "json.h"
@@ -66,7 +67,7 @@ std::wstring base_name(const std::wstring &p) {
     return cut == std::wstring::npos ? p : p.substr(cut + 1);
 }
 
-// the last Windows error as Python words an OSError: "[WinError n] text: 'path'"
+// Formats a Windows error code the way Python prints an OSError for a path: "[WinError n] text: 'path'".
 std::string os_error(const std::wstring &path, DWORD code = GetLastError()) {
     wchar_t *text = nullptr;
     FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, code,
@@ -74,7 +75,7 @@ std::string os_error(const std::wstring &path, DWORD code = GetLastError()) {
     std::wstring t = text ? text : L"error";
     if (text) LocalFree(text);
     while (!t.empty() && (t.back() == L'\n' || t.back() == L'\r' || t.back() == L' ' || t.back() == L'.')) t.pop_back();
-    std::string shown;   // the path as Python's repr shows it
+    std::string shown;   // the path with doubled backslashes, matching Python's repr()
     for (char c : utf8(path)) shown += c == '\\' ? std::string("\\\\") : std::string(1, c);
     return "[WinError " + std::to_string(code) + "] " + utf8(t) + ": '" + shown + "'";
 }
@@ -91,7 +92,7 @@ bool is_dir(const std::wstring &p) {
     return attributes(p, a) && (a.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
 }
 uint64_t size_of(const WIN32_FILE_ATTRIBUTE_DATA &a) { return ((uint64_t)a.nFileSizeHigh << 32) | a.nFileSizeLow; }
-uint64_t ticks(const FILETIME &f) { return ((uint64_t)f.dwHighDateTime << 32) | f.dwLowDateTime; }   // 100 ns
+uint64_t ticks(const FILETIME &f) { return ((uint64_t)f.dwHighDateTime << 32) | f.dwLowDateTime; }   // in 100 ns units
 
 bool make_dirs(const std::wstring &p) {
     if (is_dir(p)) return true;
@@ -102,7 +103,7 @@ bool make_dirs(const std::wstring &p) {
 
 struct Failure { std::string message; };
 
-// a folder copied with its files' times (shutil.copytree)
+// Copies a folder and everything in it; file times come along with the files (like shutil.copytree).
 void copy_tree(const std::wstring &from, const std::wstring &to) {
     if (!CreateDirectoryW(to.c_str(), nullptr)) throw Failure{os_error(to)};
     WIN32_FIND_DATAW fd;
@@ -117,27 +118,32 @@ void copy_tree(const std::wstring &from, const std::wstring &to) {
     FindClose(h);
 }
 
-// The runtime as Uncharted.exe (Task Manager, Windows' graphics settings and overlays show this name), copied from the
-// build output whenever they differ. UNCHARTED_TEST_PROBE_EXE=1: the build output itself (tests); UNCHARTED_PROBE_EXE=
-// <file>: another build run as Uncharted.exe (copied back at the next normal start). Lines: the executable, a message.
+// Which program to start as the runtime. The game runs as Uncharted.exe because that name is what Task Manager, the
+// Windows graphics settings and overlays display; it is refreshed from the build output any time the two differ.
+// UNCHARTED_TEST_PROBE_EXE=1 (used by tests) runs the build output under its own name. UNCHARTED_PROBE_EXE=<file> runs
+// a different build as Uncharted.exe; the regular build is put back on the next normal start. The answer is two lines:
+// the program's path, then an optional message.
 std::string game_executable(const std::wstring &root) {
     std::wstring built = join(root, L"gow3_pc\\out\\gow3-probe.exe"), game_exe = join(root, L"gow3_pc\\out\\Uncharted.exe");
     if (env(L"UNCHARTED_TEST_PROBE_EXE") == L"1") return utf8(built) + "\n";
     std::wstring other = env(L"UNCHARTED_PROBE_EXE");
     if (!other.empty()) built = other;
     WIN32_FILE_ATTRIBUTE_DATA b, g;
-    if (!attributes(built, b))   // still running from a previous start: the build output
-        return utf8(built) + "\nUsing " + utf8(base_name(built)) + ": " + os_error(built);
+    // If Uncharted.exe can't be refreshed (for example because an earlier start is still running), the build output is
+    // started directly, here and in the copy below.
+    if (!attributes(built, b))
+        return utf8(built) + "\nFalling back to " + utf8(base_name(built)) + ": " + os_error(built);
     bool have = attributes(game_exe, g);
     if (!have || ticks(b.ftLastWriteTime) != ticks(g.ftLastWriteTime) || size_of(b) != size_of(g)) {
         if (!CopyFileW(built.c_str(), game_exe.c_str(), FALSE))
-            return utf8(built) + "\nUsing " + utf8(base_name(built)) + ": " + os_error(game_exe);
+            return utf8(built) + "\nFalling back to " + utf8(base_name(built)) + ": " + os_error(game_exe);
     }
     return utf8(game_exe) + "\n";
 }
 
-// The user folder (saves, settings, caches) of this instance: a second one (UNCHARTED_INSTANCE=<n>) starts with copies
-// of the main one's settings, saves, trophies and shader caches (an empty cache would compile for minutes).
+// The folder where this instance keeps its saves, settings and caches. An extra instance (UNCHARTED_INSTANCE=<n>) gets
+// its own folder, seeded on first use with copies of the main instance's settings, saves, trophies and shader caches;
+// starting with empty caches would mean minutes of shader compiling.
 std::string user_dir(const std::wstring &root, const std::string &suffix) {
     std::wstring main_user = join(root, L"analysis\\uncharted-user");
     if (suffix.empty()) return utf8(main_user) + "\n";
@@ -150,8 +156,8 @@ std::string user_dir(const std::wstring &root, const std::string &suffix) {
         if (is_dir(source)) copy_tree(source, dest);
         else if (is_file(source) && !CopyFileW(source.c_str(), dest.c_str(), FALSE)) throw Failure{os_error(source)};
     }
-    return utf8(user) + "\nInstance " + suffix.substr(2) + ": new user folder " + utf8(user) +
-           " (settings, saves and caches copied)";
+    return utf8(user) + "\nInstance " + suffix.substr(2) + ": created the user folder " + utf8(user) +
+           " with copies of the main settings, saves and caches";
 }
 
 void files_under(const std::wstring &folder, const std::wstring &relative, std::vector<std::wstring> &out) {
@@ -177,18 +183,19 @@ std::string sfo_text(const std::wstring &folder, const char *key) {
     return f->kind == Value::String ? f->s : f->kind == Value::Int ? std::to_string(f->i) : "";
 }
 
-// For drives that hold no links (exFAT, FAT32): copies of the files the prepare scripts read (the executables,
-// sce_module, sce_sys), the update's over the game's, in analysis\views (about 90 MB, copied again only when a source
-// changes). The runtime reads the update over the game itself (--app0-overlay).
+// Used when the game's drive can't hold links (exFAT, FAT32). The preparation only reads the executables, sce_module
+// and sce_sys, so just those are copied into analysis\views, with the update's version of a file taking priority over
+// the game's. That is roughly 90 MB, and a file is copied again only after its source changes. Everything else the runtime
+// reads from the game with the update laid on top by itself (--app0-overlay).
 std::string boot_view(const std::wstring &root, const std::wstring &base, const std::wstring &update) {
-    std::map<std::wstring, std::pair<std::wstring, std::wstring>> chosen;   // lower relative -> (relative, source)
+    std::map<std::wstring, std::pair<std::wstring, std::wstring>> chosen;   // lower-case path -> (path, source)
     std::vector<std::wstring> order;
     auto choose = [&](const std::wstring &relative, const std::wstring &source) {
         std::wstring key = lower(relative);
         if (!chosen.count(key)) order.push_back(key);
         chosen[key] = {relative, source};
     };
-    for (const std::wstring &layer : {base, update}) {   // the update last: its files win
+    for (const std::wstring &layer : {base, update}) {   // update second, so its entries overwrite the game's
         WIN32_FIND_DATAW fd;
         HANDLE h = FindFirstFileW(join(layer, L"*").c_str(), &fd);
         if (h == INVALID_HANDLE_VALUE) throw Failure{os_error(layer)};
@@ -214,13 +221,14 @@ std::string boot_view(const std::wstring &root, const std::wstring &base, const 
         std::wstring dest = join(view, entry.first), source = entry.second;
         WIN32_FILE_ATTRIBUTE_DATA wanted, current;
         if (!attributes(source, wanted)) throw Failure{os_error(source)};
-        // FAT32 keeps write times in 2-second steps.
+        // Same size and a write time within 2 s counts as unchanged: FAT32 only stores times to the even second.
         if (attributes(dest, current) && size_of(current) == size_of(wanted)) {
             uint64_t a = ticks(current.ftLastWriteTime), b = ticks(wanted.ftLastWriteTime);
             if ((a > b ? a - b : b - a) <= 20000000ULL) continue;
         }
         make_dirs(dest.substr(0, dest.find_last_of(L'\\')));
-        // a plain copy, then the source's times: a read-only source attribute would make the next refresh fail
+        // Only the contents and the times are copied, not the attributes: a copy marked read-only like its source
+        // could not be overwritten the next time it is refreshed.
         HANDLE in = CreateFileW(source.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN,
                                 nullptr);
         if (in == INVALID_HANDLE_VALUE) throw Failure{os_error(source)};
@@ -247,12 +255,13 @@ std::string boot_view(const std::wstring &root, const std::wstring &base, const 
 
 // ------------------------------------------------------------------------------------------------ window icon
 
-// The game's own icon (sce_sys\icon0.png) as a 64x64 24-bit BMP for the window (SDL loads only BMP), made once into
-// launcher\assets\window_icon.bmp. Made as the game starter made it with Pillow (convert to RGB, resize with its
-// bicubic filter, save as BMP), byte for byte: Pillow's fixed-point resampling and its BMP header.
+// The window icon: the game's sce_sys\icon0.png scaled to a 64x64 24-bit BMP, since SDL only loads BMP files. It is
+// created once, as launcher\assets\window_icon.bmp. The bytes are identical to what the older Python starter produced
+// through Pillow (RGB conversion, bicubic resize, BMP save), which is why Pillow's fixed-point resampler and its BMP
+// header are reproduced here.
 struct Rgb {
     int w = 0, h = 0;
-    std::vector<uint8_t> px;   // R, G, B per pixel, top row first
+    std::vector<uint8_t> px;   // three bytes (red, green, blue) per pixel, rows from the top down
 };
 
 bool load_rgb(const std::wstring &path, Rgb &out, std::string &error) {
@@ -284,8 +293,9 @@ bool load_rgb(const std::wstring &path, Rgb &out, std::string &error) {
     return ok;
 }
 
-// Pillow's resampling (libImaging/Resample.c) with its bicubic filter (a = -0.5): coefficients per output pixel,
-// normalized, as 22-bit fixed point; a horizontal pass, then a vertical one, each rounding to 8 bits.
+// The resampler follows Pillow's libImaging/Resample.c with the bicubic kernel (a = -0.5). Each output pixel gets its
+// own set of weights, normalized to sum to 1 and stored as 22-bit fixed point. One pass scales horizontally and one
+// vertically, and each rounds its result to 8 bits.
 const int PRECISION_BITS = 32 - 8 - 2;
 double bicubic(double x) {
     const double a = -0.5;
@@ -296,8 +306,8 @@ double bicubic(double x) {
 }
 struct Coeffs {
     int ksize = 0;
-    std::vector<int> bounds;   // per output pixel: first input, count
-    std::vector<int> k;        // ksize per output pixel
+    std::vector<int> bounds;   // two ints per output pixel: index of its first input pixel and how many inputs it uses
+    std::vector<int> k;        // ksize weights for each output pixel
 };
 Coeffs coefficients(int in_size, int out_size) {
     double scale = (double)in_size / out_size, filterscale = scale < 1.0 ? 1.0 : scale;
@@ -332,7 +342,7 @@ uint8_t clip8(long long v) {
     long long x = v >> PRECISION_BITS;
     return (uint8_t)(x < 0 ? 0 : x > 255 ? 255 : x);
 }
-Rgb horizontal(const Rgb &in, int w, const Coeffs &hz, int row0, int rows) {   // rows row0.. of `in`, to width w
+Rgb horizontal(const Rgb &in, int w, const Coeffs &hz, int row0, int rows) {   // `rows` rows from row0, scaled to w
     Rgb mid;
     mid.w = w;
     mid.h = rows;
@@ -349,7 +359,7 @@ Rgb horizontal(const Rgb &in, int w, const Coeffs &hz, int row0, int rows) {   /
         }
     return mid;
 }
-Rgb vertical(const Rgb &in, int h, const Coeffs &vt, int row0) {   // to height h; vt's rows are counted from row0
+Rgb vertical(const Rgb &in, int h, const Coeffs &vt, int row0) {   // scaled to h; `in` begins at source row row0
     Rgb out;
     out.w = in.w;
     out.h = h;
@@ -370,7 +380,8 @@ Rgb resize_horizontal_first(const Rgb &in, int w, int h, const Coeffs &hz, const
 Rgb resize(const Rgb &in, int w, int h) {
     Coeffs hz = coefficients(in.w, w), vt = coefficients(in.h, h);
     const bool need_h = w != in.w, need_v = h != in.h;
-    // Pillow 13 runs the vertical pass first when the height shrinks by more than twice as much as the width
+    // Order of the passes, as in Pillow 13: vertical first only when the height loses more than double what the
+    // width loses
     const bool horizontal_first = !((in.h - h) > 0 && (in.h - h) > (in.w - w) * 2);
     if (!horizontal_first && need_v) {
         Rgb mid = vertical(in, h, vt, 0);
@@ -379,7 +390,7 @@ Rgb resize(const Rgb &in, int w, int h) {
     return resize_horizontal_first(in, w, h, hz, vt);
 }
 Rgb resize_horizontal_first(const Rgb &in, int w, int h, const Coeffs &hz, const Coeffs &vt) {
-    // the horizontal pass on the rows the vertical pass uses, then the vertical pass
+    // scale horizontally only the rows the vertical pass will read, then scale vertically
     int first = vt.bounds[0], last = vt.bounds[(size_t)h * 2 - 2] + vt.bounds[(size_t)h * 2 - 1];
     if (w == in.w) return h == in.h ? in : vertical(in, h, vt, 0);
     Rgb mid = horizontal(in, w, hz, first, last - first);
@@ -395,11 +406,12 @@ std::string window_icon(const std::wstring &root, const std::wstring &game) {
     std::wstring png = join(game, L"sce_sys\\icon0.png");
     Rgb picture;
     std::string error;
-    if (!load_rgb(png, picture, error)) return "\nNo window icon: " + error;
+    if (!load_rgb(png, picture, error)) return "\nWindow icon unavailable: " + error;
     Rgb small = resize(picture, 64, 64);
-    // BMP as Pillow writes it: file header, BITMAPINFOHEADER, BGR rows bottom-up, each padded to 4 bytes
+    // The BMP layout Pillow writes: a 14-byte file header, a BITMAPINFOHEADER, then the rows from the bottom up in
+    // blue-green-red order, each row padded to a multiple of 4 bytes.
     uint32_t stride = ((uint32_t)small.w * 3 + 3) & ~3u, image = stride * (uint32_t)small.h;
-    const uint32_t ppm = 3780;   // 96 dpi: Pillow's resized copy does not keep the PNG's resolution
+    const uint32_t ppm = 3780;   // 96 dpi, since Pillow drops the PNG's resolution when it resizes
     std::string bmp = "BM";
     put32(bmp, 14 + 40 + image);
     put32(bmp, 0);
@@ -428,40 +440,41 @@ std::string window_icon(const std::wstring &root, const std::wstring &game) {
     }
     make_dirs(icon.substr(0, icon.find_last_of(L'\\')));
     HANDLE f = CreateFileW(icon.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (f == INVALID_HANDLE_VALUE) return "\nNo window icon: " + os_error(icon);
+    if (f == INVALID_HANDLE_VALUE) return "\nWindow icon unavailable: " + os_error(icon);
     DWORD put = 0;
     bool ok = WriteFile(f, bmp.data(), (DWORD)bmp.size(), &put, nullptr) && put == bmp.size();
     CloseHandle(f);
-    if (!ok) return "\nNo window icon: " + os_error(icon);
+    if (!ok) return "\nWindow icon unavailable: " + os_error(icon);
     return utf8(icon) + "\n";
 }
 
 // ------------------------------------------------------------------------------------------------ the update view
-// (gow3_pc/scripts/game_update.py) A read-only combined view of a dumped base game and its separate update folder: the
-// update is laid over the base in a temporary folder of links, so neither dump is changed and a 47 GB game costs a
-// handful of links. Files are hard links first (same drive, no privilege, every stat sees the real size), then symbolic
-// links, then (folders) junctions or (files) copies. Names are matched without regard to case.
+// (replaces gow3_pc/scripts/game_update.py) When a dumped game and its update sit in separate folders, the starter
+// builds a temporary folder made of links that shows the game with the update on top. Neither dump is written to, and
+// even a 47 GB game needs only a few links. A file is hard-linked when possible (works on the same drive, needs no
+// special privilege, and its size reads correctly through every API); otherwise a symbolic link is tried, and as a
+// last resort a folder becomes a junction and a file a copy. File names are compared case-insensitively.
 
 struct ValueError { std::string message; };
 
-// a link error as Python words one: "[WinError n] text: 'source' -> 'link'"
+// Formats a failed link the way Python reports it: "[WinError n] text: 'source' -> 'link'".
 std::string os_error2(const std::wstring &source, const std::wstring &link, DWORD code = GetLastError()) {
     std::string shown;
     for (char c : utf8(link)) shown += c == '\\' ? std::string("\\\\") : std::string(1, c);
     return os_error(source, code) + " -> '" + shown + "'";
 }
 
-// an error without a file name: "[WinError n] text"
+// Same, for an error that names no file: "[WinError n] text".
 std::string win_error(DWORD code = GetLastError()) {
     const std::string full = os_error(L"", code);
-    return full.substr(0, full.size() - 4);   // without ": ''"
+    return full.substr(0, full.size() - 4);   // cut off the trailing ": ''"
 }
 
 bool is_reparse(const std::wstring &p) {
     const DWORD a = GetFileAttributesW(p.c_str());
     return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_REPARSE_POINT);
 }
-bool exists(const std::wstring &p) {   // following links (Path.exists)
+bool exists(const std::wstring &p) {   // true only if a link's target is reachable too (like Path.exists)
     WIN32_FILE_ATTRIBUTE_DATA a;
     if (!attributes(p, a)) return false;
     if (!(a.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) return true;
@@ -474,7 +487,8 @@ bool exists(const std::wstring &p) {   // following links (Path.exists)
 bool is_dir_followed(const std::wstring &p) { return exists(p) && is_dir(p); }
 bool is_file_followed(const std::wstring &p) { return exists(p) && is_file(p); }
 
-// Path.resolve(): the final path with links followed (\\?\ dropped), else the full path.
+// The real location behind a path, with links followed and any \\?\ prefix removed (what Path.resolve() gives); the
+// plain absolute path when that can't be determined.
 std::wstring resolved(const std::wstring &p) {
     std::vector<wchar_t> full(32768);
     DWORD n = GetFullPathNameW(p.c_str(), 32768, full.data(), nullptr);
@@ -491,14 +505,14 @@ std::wstring resolved(const std::wstring &p) {
     return r;
 }
 
-std::wstring fold(const std::wstring &s) {   // str.casefold for the names games use
+std::wstring fold(const std::wstring &s) {   // lower case for comparing names (enough of str.casefold for game files)
     std::wstring o(s);
     if (!o.empty())
         LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_LOWERCASE, s.c_str(), (int)s.size(), &o[0], (int)o.size(), nullptr, nullptr, 0);
     return o;
 }
 
-// The folder's entries in the file system's order (os.scandir), without . and ..
+// Names inside a folder, in whatever order the file system returns them (as os.scandir), skipping . and ..
 std::vector<std::wstring> entries_of(const std::wstring &folder) {
     std::vector<std::wstring> names;
     WIN32_FIND_DATAW fd;
@@ -512,7 +526,8 @@ std::vector<std::wstring> entries_of(const std::wstring &folder) {
     return names;
 }
 
-// A junction (a folder link that needs no privilege), as _winapi.CreateJunction makes one.
+// Creates a junction, the kind of folder link any user may make, with the same reparse data _winapi.CreateJunction
+// writes.
 bool create_junction(const std::wstring &target, const std::wstring &link) {
     const std::wstring substitute = L"\\??\\" + target;
     const size_t sub = substitute.size() * 2, print = target.size() * 2;
@@ -520,10 +535,10 @@ bool create_junction(const std::wstring &target, const std::wstring &link) {
     auto put16 = [&](size_t at, size_t v) { buf[at] = (char)v; buf[at + 1] = (char)(v >> 8); };
     const DWORD tag = IO_REPARSE_TAG_MOUNT_POINT;
     std::memcpy(&buf[0], &tag, 4);
-    put16(4, buf.size() - 8);   // the reparse data after the 8-byte header
-    put16(8, 0);                // the substitute name's offset
+    put16(4, buf.size() - 8);   // length of everything after the 8-byte header
+    put16(8, 0);                // substitute name: offset, then length
     put16(10, sub);
-    put16(12, sub + 2);         // the print name's offset
+    put16(12, sub + 2);         // print name: offset, then length
     put16(14, print);
     std::memcpy(&buf[16], substitute.data(), sub);
     std::memcpy(&buf[16 + sub + 2], target.data(), print);
@@ -542,11 +557,12 @@ bool create_junction(const std::wstring &target, const std::wstring &link) {
     return ok;
 }
 
-// mods.make_link: a hard link (files), a symbolic link, a junction (folders) or a copy (files).
+// Makes `link` point at `target`, trying in turn: a hard link (files only), a symbolic link, then a junction for a
+// folder or a plain copy for a file. (Native version of mods.make_link.)
 void make_link(const std::wstring &link, const std::wstring &target) {
     const bool file = is_file_followed(target), dir = is_dir_followed(target);
     if (file && CreateHardLinkW(link.c_str(), target.c_str(), nullptr)) return;
-    // UNCHARTED_TEST_NO_SYMLINKS=1 (tests): as on a PC without the symlink privilege
+    // tests set UNCHARTED_TEST_NO_SYMLINKS=1 to behave like a PC where symbolic links are not allowed
     if (env(L"UNCHARTED_TEST_NO_SYMLINKS") != L"1" && CreateSymbolicLinkW(link.c_str(), target.c_str(),
                             (dir ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0) | SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE))
         return;
@@ -558,12 +574,13 @@ void make_link(const std::wstring &link, const std::wstring &target) {
     if (!CopyFileW(target.c_str(), link.c_str(), FALSE)) throw Failure{os_error2(target, link)};
 }
 
-// game_update.remove: a file, link or folder of a view, without following links into the dumps.
+// Deletes one entry of a view (file, link or folder). Links are removed themselves; what they point to inside the
+// dumps is never entered or touched. (Was game_update.remove.)
 void remove_path(const std::wstring &path) {
     const DWORD a = GetFileAttributesW(path.c_str());
     if (a == INVALID_FILE_ATTRIBUTES) throw Failure{os_error(path)};
     if (a & FILE_ATTRIBUTE_DIRECTORY) {
-        if (!(a & FILE_ATTRIBUTE_REPARSE_POINT))   // a real folder: its contents first
+        if (!(a & FILE_ATTRIBUTE_REPARSE_POINT))   // not a link but an actual folder: empty it before removing it
             for (const std::wstring &child : entries_of(path)) remove_path(join(path, child));
         if (!RemoveDirectoryW(path.c_str())) throw Failure{os_error(path)};
     } else if (!DeleteFileW(path.c_str())) {
@@ -571,17 +588,18 @@ void remove_path(const std::wstring &path) {
     }
 }
 
-// game_update.overlay: source laid over dest (its files replace dest's, folders are merged, names case-insensitive).
-// dest holds links to the base; a folder both have becomes a real one.
+// Puts the contents of `source` on top of `dest`, whose entries are links into the base game. A file from source
+// takes the place of dest's entry with the same name (compared case-insensitively); a folder present on both sides
+// is turned into a real folder and merged recursively. (Was game_update.overlay.)
 void overlay(const std::wstring &source, const std::wstring &dest) {
-    std::map<std::wstring, std::wstring> names;   // folded -> dest's spelling (the last one wins, as in a dict)
+    std::map<std::wstring, std::wstring> names;   // lower-cased name -> how dest spells it; a later duplicate wins
     for (const std::wstring &n : entries_of(dest)) names[fold(n)] = n;
     for (const std::wstring &n : entries_of(source)) {
         const std::wstring item = join(source, n);
         auto it = names.find(fold(n));
         const std::wstring match = join(dest, it != names.end() ? it->second : n);
         if (is_dir_followed(item) && is_dir_followed(match)) {
-            if (is_reparse(match)) {   // a linked folder of the base: the link becomes a merged copy
+            if (is_reparse(match)) {   // dest only links to the base's folder: replace the link with a folder of links
                 const std::wstring inner = resolved(match);
                 remove_path(match);
                 if (!CreateDirectoryW(match.c_str(), nullptr)) throw Failure{os_error(match)};
@@ -595,13 +613,13 @@ void overlay(const std::wstring &source, const std::wstring &dest) {
     }
 }
 
-bool below(const std::wstring &child, const std::wstring &parent) {   // parent in child.parents (case-insensitive)
+bool below(const std::wstring &child, const std::wstring &parent) {   // child lies somewhere inside parent (any case)
     std::wstring c = fold(child), p = fold(parent);
     while (!p.empty() && (p.back() == L'\\' || p.back() == L'/')) p.pop_back();
     return c.size() > p.size() + 1 && c.compare(0, p.size(), p) == 0 && (c[p.size()] == L'\\' || c[p.size()] == L'/');
 }
 
-// tempfile.mkdtemp(prefix, dir): a new folder with 8 random characters after the prefix.
+// Creates a fresh folder in `dir` named `prefix` plus 8 random characters (the same naming as tempfile.mkdtemp).
 std::wstring make_temp_dir(const std::wstring &dir, const std::wstring &prefix) {
     static const wchar_t *chars = L"abcdefghijklmnopqrstuvwxyz0123456789_";
     std::vector<wchar_t> full(32768);
@@ -619,21 +637,24 @@ std::wstring make_temp_dir(const std::wstring &dir, const std::wstring &prefix) 
     throw Failure{"No usable temporary directory name found"};
 }
 
-// game_update.create_view: the folder holding base with update over it, made in out; remove it with remove_view.
+// Builds, inside `out`, a new folder showing the base game with the update over it, and returns its path. The caller
+// deletes it again through remove_view. (Was game_update.create_view.)
 std::string game_view(const std::wstring &base_in, const std::wstring &update_in, const std::wstring &out) {
     const std::wstring base = resolved(base_in), update = resolved(update_in);
     const std::string base_id = sfo_text(base, "TITLE_ID"), update_id = sfo_text(update, "TITLE_ID");
     if (base_id.empty() || base_id != update_id)
-        throw ValueError{"Game and update are not the same title: " + (base_id.empty() ? std::string("None") : base_id) +
-                         " / " + (update_id.empty() ? std::string("None") : update_id)};
+        throw ValueError{"The game and the update belong to different titles: " +
+                         (base_id.empty() ? std::string("None") : base_id) + " / " +
+                         (update_id.empty() ? std::string("None") : update_id)};
     if (fold(base) == fold(update) || below(base, update) || below(update, base))
-        throw ValueError{"Choose two separate folders for the game and its update"};
+        throw ValueError{"The game and its update have to be in two different folders, neither inside the other"};
     if (!is_file_followed(join(update, L"eboot.bin")))
-        throw ValueError{"The update folder needs eboot.bin and sce_sys/param.sfo"};
+        throw ValueError{"An update folder must contain eboot.bin and sce_sys/param.sfo"};
     if (!make_dirs(out)) throw Failure{os_error(out)};
     const std::wstring target = make_temp_dir(out, L"game-update-");
     try {
-        // Folders first: a drive without links (exFAT, FAT32) fails at the first one, before any file is copied.
+        // Link the folders before the files: on a drive that can't hold links (exFAT, FAT32) the very first folder
+        // fails, so no time is spent copying files first.
         std::vector<std::wstring> names = entries_of(base);
         std::vector<std::wstring> folders, files;
         for (const std::wstring &n : names) (is_dir_followed(join(base, n)) ? folders : files).push_back(n);
@@ -655,10 +676,15 @@ std::wstring arg_at(const Value &args, size_t i) {
 
 extern "C" {
 
-// what: game_executable [root] (lines: the executable, a message), user_dir [root, suffix] (lines: the folder, a
-// message), boot_view [root, game, update] (the folder), game_view [game, update, out] (the view's folder), remove_view
-// [view] (nothing). args_json: the arguments as a JSON array. 0 ok; 1 failed (out: why, worded as Python's OSError);
-// 2 unknown what; 3 the folders can't be combined (out: why, game_update.py's ValueError).
+// One entry point for the file chores above: `what` picks the chore, args_json holds its arguments as a JSON array.
+//   game_executable [root]               -> the program's path, then a message line
+//   user_dir [root, suffix]              -> the folder, then a message line
+//   boot_view [root, game, update]       -> the folder holding the copies
+//   game_view [game, update, out]        -> the folder of the combined view
+//   remove_view [view]                   -> nothing
+//   window_icon [root, game]             -> the icon's path, then a message line
+// Returns 0 on success; 1 on a file error (`out` has it in Python's OSError wording); 2 for an unknown `what`; 3 when
+// the game and update folders can't be combined (`out` says why).
 UN_API int un_starter_files(const char *what, const char *args_json, char *out, int cap) {
     std::string w = what ? what : "";
     Value args;

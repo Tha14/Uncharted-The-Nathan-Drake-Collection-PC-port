@@ -1,7 +1,7 @@
 import QtQuick
 
-// The Collection's picture across the top, fading to transparent into the frosted background (no edge), with the
-// title on the left and the three games on the right. `art` is the picture item (the game cards' glass blurs it).
+// Header band: the Collection artwork, fading out into the frosted window background without a visible edge; the
+// title sits at the left and one card per game at the right. `art` exposes the image so the cards can blur it.
 Item {
     id: hero
     property alias source: art.source
@@ -17,7 +17,7 @@ Item {
         Image {
             id: art
             width: hero.width
-            y: -width * 0.0113   // as the Tk launcher: 2 % down the picture
+            y: -width * 0.0113   // same crop as the old Tk window (starts about 2 % into the image)
             fillMode: Image.PreserveAspectFit
             asynchronous: true
             smooth: true
@@ -46,7 +46,7 @@ Item {
                 return
             ctx.drawImage(url, 0, art.y, width, art.paintedHeight)
             ctx.globalCompositeOperation = "destination-out"
-            // fully erased a little above the bottom edge (no last row of the picture left as a line)
+            // reach full transparency before the very bottom so no single pixel row survives as a thin line
             const fade = ctx.createLinearGradient(0, height * 0.40, 0, height * 0.94)
             fade.addColorStop(0.0, "rgba(0,0,0,0)")
             fade.addColorStop(0.55, "rgba(0,0,0,0.6)")

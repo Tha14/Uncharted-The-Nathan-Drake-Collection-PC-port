@@ -524,7 +524,8 @@ std::string game_name() {
     return e ? text(*e, "name") : "";
 }
 
-// a game's controls from its settings file into the launcher's settings; false when the file has none yet
+// copies the bindings stored in a game's ini into launcher.json's game block; returns false if the ini has no
+// bindings written yet
 bool controls_from_ini(const Value &values, Value &settings) {
     Value in = Value::object();
     in.set("values", values);
@@ -547,14 +548,14 @@ void save_controls() {
     write_config();
     save_ini(controls("to_ini", game_settings()));
 }
-void follow_ini() {   // what the in-game menu saved (Insert, then closing the menu)
+void follow_ini() {   // picks up the ini again after the in-game (Insert) menu was closed and wrote to it
     if (mtime_of(ini_file(game_key())) != g.ini_seen) reload_ini();
 }
 
 const char *const CONTROL_KEYS[] = {"mouse", "mouse_sens", "mouse_invert", "prompts", "mouse_aim_sens", "mouse_vertical",
                                     "mouse_invert_x", "vibration", "controls", "pad_controls"};
 
-void change_ini(const std::string &key, const Value &value) {   // a page's change: the preset becomes Custom
+void change_ini(const std::string &key, const Value &value) {   // edits from a page switch the preset to Custom
     g.ini.set(key, value);
     Value u = Value::object();
     u.set(key, value);
@@ -574,7 +575,7 @@ void change_config(const std::string &key, const Value &value) {
     g.config.set(key, value);
     write_config();
 }
-void change_all_games(const std::string &key, const Value &value) {   // every game's settings file; the preset stays
+void change_all_games(const std::string &key, const Value &value) {   // written to all three inis, preset untouched
     g.ini.set(key, value);
     Value u = Value::object();
     u.set(key, value);
@@ -588,13 +589,14 @@ void change_all_games(const std::string &key, const Value &value) {   // every g
 std::string game_dir() {
     const std::string folder = text(g.config, "game_dir");
     if (folder.empty()) return join(join(join(g.root, "game"), "CUSA02344"), "uroot");
-    if (g.wine && !exists(folder)) {   // chosen in another prefix (another Steam shortcut): the same folder by its Linux path
+    if (g.wine && !exists(folder)) {   // the path came from a different Wine prefix (e.g. a second Steam shortcut):
+                                       // try the stored Linux path mapped into this prefix
         const std::string here = sys("windows_path", text(g.config, "game_dir_unix"));
         if (!here.empty() && exists(here)) return as_path(here);
     }
     return as_path(folder);
 }
-std::string chosen_update() {   // the update folder chosen on TOOLS, if it is still there
+std::string chosen_update() {   // update_dir from TOOLS (or its uroot), "" once it no longer exists
     const std::string folder = text(g.config, "update_dir");
     if (folder.empty()) return "";
     for (const std::string &candidate : {as_path(folder), join(as_path(folder), "uroot")})
@@ -617,9 +619,10 @@ std::string update_text() {
     }
     const std::string version = sys("app_version", game_dir());
     if (!version.empty() && version >= "01.02")
-        return "Game version " + version + " (the update is already inside the game folder).";
-    return "Game version " + (version.empty() ? std::string("?") : version) +
-           " with no update found. For the 1.02 fixes, add your update 1.02 folder (or its .pkg) under Game update.";
+        return "The game folder is version " + version + " and already includes the update.";
+    return "The game folder is version " + (version.empty() ? std::string("?") : version) +
+           ", and no update was found. To get the 1.02 fixes, add your update 1.02 folder or its .pkg under "
+           "Game update.";
 }
 Value tools_lines() {
     Value t = Value::object();
@@ -1443,7 +1446,7 @@ void update_op(const char *op, Value fields = Value::object()) {
         else
             tell(kind == "error" ? "error" : "info", text(*d, "text"));
     }
-    if (truthy(reply.get("exit"))) close_launcher();   // the installer waits for this process to end
+    if (truthy(reply.get("exit"))) close_launcher();   // the installer holds off until we have quit
 }
 
 // ------------------------------------------------------------------------------------------------ the game
@@ -1566,7 +1569,8 @@ void start_game(std::function<void(bool)> done, const std::string &overlay) {
     if (done) done(true);
 }
 
-// PLAY: the game folder, the questions before a start, the multiplayer updates, then the game with its environment
+// PLAY in order: make sure a game folder is set, run through the pre-launch warnings, wait for pending multiplayer
+// updates, then launch the starter with the built environment
 void play(std::function<void(bool)> done = nullptr) {
     auto fail = [done]() { if (done) done(false); };
     if (!is_file(join(join(join(g.root, "launcher"), "native"), "game_starter.exe"))) {
@@ -1598,7 +1602,7 @@ void play(std::function<void(bool)> done = nullptr) {
                 return;
             }
             if (!u3_confirm_play()) { fail(); return; }
-            follow_ini();   // the in-game menu's last changes, not older ones
+            follow_ini();   // reload first so a stale copy can't overwrite what the in-game menu saved
             Value all = Value::object();
             for (auto &f : g.ini_defaults.fields) all.set(f.first, g.ini.get(f.first) ? *g.ini.get(f.first) : f.second);
             save_ini(all);
@@ -1617,8 +1621,8 @@ void play(std::function<void(bool)> done = nullptr) {
         after_folder();
         return;
     }
-    ask("info", "Pick your Uncharted: The Nathan Drake Collection game folder first (CUSA02344, the one containing eboot.bin "
-                "and sce_sys).", [after_folder, fail](const Value &) {
+    ask("info", "First, show the launcher where your Uncharted: The Nathan Drake Collection game is: the CUSA02344 "
+                "folder with eboot.bin and sce_sys in it.", [after_folder, fail](const Value &) {
         action("choose_game_dir", Value::null(), [after_folder, fail](const Value &chosen) {
             if (chosen.truthy()) after_folder();
             else fail();
@@ -1642,7 +1646,7 @@ void poll_game() {
             g.last_output = now_ms();
             const std::string line = text(&l);
             const std::string marker = "Collection: switching to";
-            if (line.compare(0, marker.size(), marker) == 0) {   // the Collection menu started another game
+            if (line.compare(0, marker.size(), marker) == 0) {   // player picked a different title in the Collection menu
                 std::string exe = strip(line.substr(marker.size()));
                 exe = exe.substr(0, exe.find(' '));
                 const Value *other = game_by_exe(exe);
@@ -1655,9 +1659,9 @@ void poll_game() {
         finished_game(exit_code->i, true);
         return;
     }
-    if (!g.game_started && now_ms() - g.last_output > 2500) {   // the starter went quiet: the game runs
+    if (!g.game_started && now_ms() - g.last_output > 2500) {   // 2.5 s without output: loading is over
         g.game_started = true;
-        set_status("Now playing " + game_name(), "Insert or R3 + L2 brings up the in-game menu; STOP ends the game.");
+        set_status("Now playing " + game_name(), "In-game menu: Insert or R3 + L2. Press STOP to quit the game.");
     }
 }
 
@@ -1696,7 +1700,7 @@ void select_game(std::string key, bool save) {
     const bool changed = key != game_key();
     g.config.set("game", Value::text(key));
     if (save) write_config();
-    if (changed) reload_ini();   // each game keeps its own settings
+    if (changed) reload_ini();   // settings are per game, so load the new one's ini
     if (!g.playing) set_status(game_name() + " is ready to play.");
     // the Multiplayer tab: Uncharted 2's while it is chosen, Uncharted 3's otherwise
     if (key == "u2" && g.tab == "u3mp") show_tab("multiplayer", false);
@@ -1958,7 +1962,7 @@ void handle(const Value &m) {
         }
     } else if (op == "close") {
         if (g.playing)
-            ask("yesno", "A game is still running. Close the launcher anyway? (The game stays open.)",
+            ask("yesno", "Your game is still open. Quit the launcher and leave the game running?",
                 [](const Value &yes) { if (yes.truthy()) close_launcher(); });
         else
             close_launcher();
@@ -2021,7 +2025,8 @@ void start(const std::string &root, const Value &args) {
         if (json::parse(t.second, cfg) && cfg.is_object()) g.config = cfg;
     }
     if (!game_entry(game_key())) g.config.set("game", Value::text("u1"));
-    for (const char *game : GAME_KEYS) {   // every game's controls follow its settings file (the in-game menu writes them)
+    for (const char *game : GAME_KEYS) {   // the ini is the source of truth for bindings, since the in-game menu edits it;
+                                           // an ini with none yet gets the launcher's copy
         Value *games = g.config.get("games");
         if (!games) continue;
         Value *settings = games->get(game);
@@ -2032,8 +2037,8 @@ void start(const std::string &root, const Value &args) {
     g.gpu_name = text(g.config, "gpu");
     if (!g.gpu_name.empty())
         g.recommended = text_call([](char *o, int c) { return un_gpu_query("recommend", g.gpu_name.c_str(), -1, o, c); }).second;
-    write_config();   // keeps the settings file's one-time updates
-    g.detail = "In game, Insert or R3 + L2 brings up the menu.";
+    write_config();   // persist any migrations un_config_read applied, even if nothing else changes
+    g.detail = "During play, Insert or R3 + L2 shows the in-game menu.";
     select_game(game_key(), false);
     std::string saved = text(g.config, "tab");
     bool known = false;
@@ -2049,7 +2054,7 @@ void start(const std::string &root, const Value &args) {
     after(3000, []() { un_update_cleanup(wide(g.root).c_str()); });
     if (truthy(g.config.get("check_updates")) || !g.config.get("check_updates"))
         if (g.direct.empty()) after(1500, []() { update_op("check"); });
-    if (g.direct.empty()) {   // the graphics card for Quick Setup's advice (Windows' list takes a moment)
+    if (g.direct.empty()) {   // detect the GPU off-thread (Windows is slow to enumerate) for the Quick Setup suggestion
         auto found = std::make_shared<std::string>();
         background([found]() {
             std::wstring logs;
@@ -2070,7 +2075,7 @@ void start(const std::string &root, const Value &args) {
             g.recommended = f[2];
             if (text(g.config, "gpu") != f[0]) change_config("gpu", Value::text(f[0]));
         });
-    } else {   // --play: the game starts at once; the launcher ends with it
+    } else {   // --play mode: launch right away and quit together with the game
         select_game(g.direct, false);
         after(100, []() { play([](bool started) { if (!started) close_launcher(); }); });
     }

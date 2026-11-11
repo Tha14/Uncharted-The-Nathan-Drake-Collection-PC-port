@@ -41,8 +41,8 @@ namespace {
 using json::Value;
 
 const char *const IMPORT_BUSY =
-    "A multiplayer import or update is still running in the background. Wait until it has finished (Multiplayer tab), "
-    "then press UPDATE again: the update replaces the files the import is using.";
+    "The Multiplayer tab is still importing or updating in the background, and the update would overwrite files that "
+    "work needs. Let it finish, then press UPDATE again.";
 
 int give(const std::string &s, char *out, int cap) {
     if ((int)s.size() + 1 > cap) return -(int)(s.size() + 1);
@@ -72,7 +72,7 @@ template <typename Call> std::pair<int, std::string> text_call(Call call, int ro
     return {status, out};
 }
 
-// updater.version_text(installed_version(root)): "" in a source tree
+// the installed version as dotted numbers without leading zeros; empty when running from a git checkout
 std::string installed(const std::string &root) {
     const std::wstring r = wide(root);
     auto t = text_call([&](char *o, int c) { return un_update_installed(r.c_str(), o, c); });
@@ -163,7 +163,7 @@ void check(const Host &h, bool manual, Value &out) {
     g.current = current;
     if (manual) out.set("status", status("Looking for a new version...", ""));
     join();
-    g.worker = std::thread([current]() {   // offline, GitHub's rate limit: said as the check's error
+    g.worker = std::thread([current]() {   // no network or a GitHub rate limit ends up in check_error
         auto t = text_call([&](char *o, int c) { return un_update_latest(current.c_str(), 15, o, c); }, 1 << 22);
         std::lock_guard<std::mutex> l(g.m);
         g.found = Value::null();
@@ -177,7 +177,7 @@ void check(const Host &h, bool manual, Value &out) {
 void install(const Host &h, bool automatic, Value &out) {
     if (!g.release.is_object() || g.busy) return;
     if (h.game_running) {
-        out.set("dialog", dialog("info", "Please close the game first: the update replaces the game's runtime files."));
+        out.set("dialog", dialog("info", "Please close the game first, since the update swaps out the runtime it is using."));
         return;
     }
     if (h.import_running) {
@@ -186,7 +186,7 @@ void install(const Host &h, bool automatic, Value &out) {
     }
     if (!automatic) {
         const Value *page = g.release.get("page");
-        out.set("dialog", dialog("yesno", "Install version " + version_text(g.release) + " (" +
+        out.set("dialog", dialog("yesno", "Update to version " + version_text(g.release) + " (" +
                                               fixed0((double)size_of(g.release) / 1e6) + " MB to download)?\n\nYour saves, "
                                                                                          "settings and shader cache stay. The "
                                                                                          "launcher will close, install the update "
@@ -249,7 +249,7 @@ void tick(const Host &h, Value &out) {
             else out.set("status", status("You're up to date.", "Version " + g.current + " is the latest release."));
         }
     }
-    if (g.auto_at && now_ms() >= g.auto_at) {   // automatic updates: as soon as no game or import runs
+    if (g.auto_at && now_ms() >= g.auto_at) {   // auto mode: install once neither a game nor an import is running
         g.auto_at = 0;
         if (h.mode == "auto" && g.release.is_object() && !g.busy) {
             if (h.game_running || h.import_running) g.auto_at = now_ms() + 60000;
@@ -271,11 +271,11 @@ void tick(const Host &h, Value &out) {
                 out.set("status", status("The update didn't go through.", "Your current version is still installed."));
                 out.set("dialog", dialog("error", "The update couldn't be installed:\n\n" + g.install_error));
             } else if (h.import_running) {
-                // an import started while the update downloaded: it uses the launcher's files, which the update
-                // replaces (Windows refuses to move files in use); the update installs at the next try
+                // a multiplayer import began during the download and now holds files the update would swap out;
+                // Windows won't move a file that is open, so stop here and let the next UPDATE press do the install
                 g.busy = false;
                 g.staged.clear();
-                out.set("status", status("Update downloaded.", "Press UPDATE again when the multiplayer import has finished."));
+                out.set("status", status("The update is downloaded.", "Once the multiplayer import is done, press UPDATE again."));
                 out.set("dialog", dialog("info", IMPORT_BUSY));
             } else {
                 out.set("status", status("Installing the new version...", "The launcher will reopen shortly."));
@@ -286,7 +286,7 @@ void tick(const Host &h, Value &out) {
                     g.busy = false;
                     out.set("dialog", dialog("error", "The installer couldn't be started:\n\n" + a.second));
                 } else {
-                    out.set("exit", Value::boolean(true));   // the installer waits for the launcher to close
+                    out.set("exit", Value::boolean(true));   // close now: the installer only starts its work once we are gone
                 }
             }
         }

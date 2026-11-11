@@ -15,7 +15,8 @@ ApplicationWindow {
     color: Theme.bg
     title: backend.chrome.title || "Uncharted: The Nathan Drake Collection"
 
-    // The window opens where and as large as it was closed (and maximized if it was), if that is still on a screen.
+    // Saved window geometry: position, size and maximized state come back on the next start, provided the old spot
+    // still lies on one of the screens.
     Settings {
         id: saved
         category: "window"
@@ -84,7 +85,7 @@ ApplicationWindow {
         anchors.fill: parent
         spacing: 0
 
-        // the picture, with the title and the three games on it
+        // header art carrying the title and one card per game
         Hero {
             Layout.fillWidth: true
             Layout.preferredHeight: 168
@@ -138,8 +139,9 @@ ApplicationWindow {
         }
     }
 
-    // A CONTROLS slot waits for its key: the next key, mouse button or wheel step goes to the page (pages.cpp
-    // act_controls, through backend.capture). The layer covers the window only while a slot waits.
+    // Binding capture for CONTROLS: while a slot is armed, this layer sits over the whole window and hands whatever
+    // comes first (a key press, a mouse click or a scroll of the wheel) to backend.capture, which passes it on to
+    // pages.cpp act_controls. Otherwise it stays hidden.
     Item {
         id: captureLayer
         anchors.fill: parent

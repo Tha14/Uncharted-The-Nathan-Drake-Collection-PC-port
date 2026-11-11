@@ -95,7 +95,8 @@ Value shortcuts(const std::wstring &root, const Value &request) {
     std::string folder = text("folder");
     if (folder.empty()) folder = desktop();
     const std::wstring starter = root + L"\\Uncharted Launcher.exe";
-    // the target: the packaged build's starter, else the launcher's Python with its script
+    // what the link runs: "Uncharted Launcher.exe" in a release package; in a checkout without it, pythonw (or
+    // python) with the launcher's .pyw as its argument
     std::wstring target = starter, base_args;
     if (!is_file(starter)) {
         const std::wstring python = wide(text("python"));

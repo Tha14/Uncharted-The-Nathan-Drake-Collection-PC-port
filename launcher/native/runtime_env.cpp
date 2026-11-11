@@ -1,8 +1,9 @@
-// runtime_env.cpp - the game's runtime settings, part of uncharted_native.dll: the game starter (tools/probe_uncharted.py)
-// hands the runtime (Uncharted.exe) its options as GOW3_* environment values, made here from the launcher's UNCHARTED_*
-// ones, the chosen game and render size. Values already in the environment win where noted ("default": only when not
-// set), so test-env.txt and explicit GOW3_* values keep working. The reasons behind each value (issues, measurements)
-// are kept next to it.
+// runtime_env.cpp - builds the runtime's option set; lives in uncharted_native.dll. The runtime (Uncharted.exe) is
+// configured through GOW3_* environment variables. This file derives them from three inputs: the UNCHARTED_* variables
+// the launcher exports, which game is starting, and the render size. Where a comment says so, a value that is already
+// present in the environment is left alone ("default" = only filled in when missing); that is what lets test-env.txt
+// and hand-set GOW3_* variables take effect. Each value carries a note with the issue or measurement that led to it.
+// (This replaces the environment set-up that tools/probe_uncharted.py used to do.)
 
 #include "native.h"
 #include "json.h"
@@ -58,7 +59,8 @@ bool digits_only(const std::string &s) {
     return true;
 }
 
-// Python's str(Path(p)) for a Windows path: '/' as '\', repeated separators once, no trailing one but a drive root's
+// Normalises a Windows path the way Python's str(Path(p)) does: forward slashes turn into backslashes, runs of
+// separators collapse to one, and a trailing separator is dropped unless the path is a bare drive root.
 std::string norm(std::string p) {
     std::replace(p.begin(), p.end(), '/', '\\');
     std::string out;
@@ -109,7 +111,8 @@ bool make_dirs(const std::string &p) {
     return CreateDirectoryW(widen(p).c_str(), nullptr) || GetLastError() == ERROR_ALREADY_EXISTS;
 }
 
-// UTF-8 with each invalid byte as U+FFFD (Python's errors="replace" for whole bad bytes)
+// Returns the text as valid UTF-8, swapping every byte that cannot start a valid sequence for U+FFFD (matching how
+// Python's errors="replace" handles single bad bytes).
 std::string utf8_replace(const std::string &t) {
     std::string out;
     for (size_t i = 0; i < t.size();) {
@@ -124,7 +127,7 @@ std::string utf8_replace(const std::string &t) {
     return out;
 }
 
-// text read as Python's read_text does it (universal newlines): \r\n and \r become \n
+// Newline normalisation like Python's universal-newlines reading: every \r\n pair and every lone \r turns into \n.
 std::string universal(const std::string &t) {
     std::string out;
     for (size_t i = 0; i < t.size(); ++i) {
@@ -134,7 +137,7 @@ std::string universal(const std::string &t) {
     return out;
 }
 
-std::vector<std::string> lines_of(const std::string &t) {   // splitlines over \n (after universal())
+std::vector<std::string> lines_of(const std::string &t) {   // splits on \n; run universal() on the text first
     std::vector<std::string> out;
     size_t at = 0;
     while (at < t.size()) {
@@ -146,7 +149,7 @@ std::vector<std::string> lines_of(const std::string &t) {   // splitlines over \
     return out;
 }
 
-// the value of key in a key=value settings file (probe-<game>.ini); `found` false when it has none
+// Looks up `key` in a key=value settings file such as probe-<game>.ini. `found` stays false if the key is absent.
 std::string ini_value(const std::string &path, const std::string &key, bool &found) {
     found = false;
     std::string data;
@@ -161,7 +164,8 @@ std::string ini_value(const std::string &path, const std::string &key, bool &fou
 
 // ------------------------------------------------------------------------------------------------ tables
 
-// Cheats (launcher -> Cheats): the games' own switches, kept set while the game runs (GOW3_POKE; 1.02 image offsets)
+// Cheats page of the launcher. Each entry is a built-in switch of the game that the runtime holds on for the whole
+// session through GOW3_POKE. The offsets refer to the update 1.02 image.
 const std::map<std::string, std::vector<std::pair<std::string, std::string>>> &cheats() {
     static const std::map<std::string, std::vector<std::pair<std::string, std::string>>> t = {
         {"eboot.bin", {{"invincible", "aa5ff8"}, {"ammo", "ab9c01"}}},
@@ -170,16 +174,18 @@ const std::map<std::string, std::vector<std::pair<std::string, std::string>>> &c
                                    {"noreload", "17faa93"}, {"onehit", "17fab94"}}}};
     return t;
 }
-// Unlock all rewards (UNCHARTED_UNLOCK_REWARDS=1): the debug menu's "Give all Store Items" and "Give All Movies",
-// kept set like the cheats: every reward and story cutscene counts as unlocked while they are set; nothing is saved.
+// UNCHARTED_UNLOCK_REWARDS=1: the flags behind the debug-menu entries "Give all Store Items" and "Give All Movies",
+// held on the same way as the cheats. As long as they stay set, all rewards and story cutscenes appear unlocked; the
+// save file is never touched.
 const std::map<std::string, std::vector<std::string>> &reward_pokes() {
     static const std::map<std::string, std::vector<std::string>> t = {
         {"big2-ps4_Shipping.elf", {"1114178", "1114179"}}, {"big3-ps4_Shipping.elf", {"17b2a94", "17b2a95"}}};
     return t;
 }
-// Extra quality (launcher -> Advanced): debug-menu render switches kept set like the cheats. Hi-res local shadow
-// buffer and full resolution textures (~0% and ~1% FPS in Uncharted 2 at 1440p); no depth of field and no motion blur
-// (GitHub #169) kept at 0. Uncharted 1 not mapped.
+// The Advanced page's extra-quality options: render flags from the debug menu, held like the cheats. The
+// high-resolution local shadow buffer cost about 0% and full-resolution textures about 1% FPS (Uncharted 2, 1440p).
+// The depth-of-field and motion-blur entries (GitHub #169) work the other way round: they pin a flag to 0. No
+// addresses are known for Uncharted 1.
 const std::map<std::string, std::vector<std::pair<std::string, std::vector<std::string>>>> &quality_pokes() {
     static const std::map<std::string, std::vector<std::pair<std::string, std::vector<std::string>>>> t = {
         {"big2-ps4_Shipping.elf", {{"hires_shadows", {"1247d04"}}, {"full_res_textures", {"1248300"}},
@@ -192,7 +198,7 @@ const std::map<std::string, std::vector<std::pair<std::string, std::vector<std::
 // ------------------------------------------------------------------------------------------------ environment
 
 struct Env {
-    std::vector<std::pair<std::string, std::string>> items;   // in insertion order, like a Python dict
+    std::vector<std::pair<std::string, std::string>> items;   // keeps the order entries were first added
     const std::string *find(const std::string &k) const {
         for (auto &kv : items) if (kv.first == k) return &kv.second;
         return nullptr;
@@ -218,7 +224,7 @@ uint64_t time_ns() {
     return (t - 116444736000000000ULL) * 100;
 }
 
-// a line on the game starter's own output, unbuffered (the deletion below runs on its own thread)
+// Writes one line straight to the starter's stdout with no buffering, since the cleanup thread below calls it too.
 void say(const std::string &line) {
     HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
     if (!out || out == INVALID_HANDLE_VALUE) return;
@@ -227,9 +233,9 @@ void say(const std::string &line) {
     WriteFile(out, text.data(), (DWORD)text.size(), &put, nullptr);
 }
 
-// Deletes the pipeline binaries earlier versions saved (<cache>\<game>*\pipeline-binaries, ~2 MB each, 20 GB on a
-// tester's PC) on a background thread while the game runs: they are no longer used (24 Oct 2026). A start that ends
-// first leaves the rest to the next start.
+// Since 24 Oct 2026 pipeline binaries are not used any more, but older versions left them in
+// <cache>\<game>*\pipeline-binaries (around 2 MB apiece; one tester had 20 GB of them). This thread clears them out in
+// the background while the game is running. If the session ends before it is done, the next start picks up the rest.
 DWORD WINAPI remove_binaries(void *arg) {
     std::vector<std::wstring> *folders = (std::vector<std::wstring> *)arg;
     long long files = 0;
@@ -251,8 +257,8 @@ DWORD WINAPI remove_binaries(void *arg) {
         RemoveDirectoryW(folder.c_str());
     }
     char line[160];
-    std::snprintf(line, sizeof line, "Pipeline binaries: %lld old files removed (%.1f GB), no longer used", files,
-                  size / 1073741824.0);
+    std::snprintf(line, sizeof line, "Pipeline binaries: cleared %lld leftover files (%.1f GB) that are no longer needed",
+                  files, size / 1073741824.0);
     say(line);
     delete folders;
     return 0;
@@ -280,7 +286,7 @@ void remove_pipeline_binaries(const std::string &cache) {
 }
 
 struct Inputs {
-    Env original;          // the starter's own environment (os.environ)
+    Env original;          // environment the starter process itself was given
     std::string executable, game_key, game, user, out, root, loadexec;
     int render_w = 1920, render_h = 1080, width = 1920, height = 1080;
     long long extra_mib = 0;
@@ -291,18 +297,19 @@ std::string orig(const Inputs &in, const std::string &k, const std::string &fall
     return in.original.get(upper(k), fallback);
 }
 
-// the game's version as the game starter reads it (system.cpp; "" when unknown)
+// Game version as system.cpp's starter_version reports it; empty if it can't be determined.
 std::string game_version(const std::string &game) {
     char buf[256];
     return un_system("starter_version", widen(game).c_str(), buf, sizeof buf) == 0 ? buf : "";
 }
 
-// the environment the runtime starts with; prints: what the starter tells the log
+// Produces the full environment for the runtime process. Lines meant for the starter's log are appended to `prints`.
 Env build(const Inputs &in, std::vector<std::string> &prints, std::string &capture_dir, std::string &trigger) {
     Env env = in.original;
     const std::string &exe = in.executable, KEY = upper(in.game_key);
     const bool u1 = exe == "eboot.bin", u2 = exe == "big2-ps4_Shipping.elf", u3 = exe == "big3-ps4_Shipping.elf";
-    // Cheats, unlocked rewards and extra quality: the games' own switches kept set (GOW3_POKE), update 1.02 only.
+    // Cheats, reward unlocks and extra-quality flags all become GOW3_POKE entries. Their addresses only exist for
+    // update 1.02, so older game versions get none of them.
     std::vector<std::string> wanted;
     {
         std::string list = orig(in, "UNCHARTED_CHEATS"), t;
@@ -331,19 +338,19 @@ Env build(const Inputs &in, std::vector<std::string> &prints, std::string &captu
                 if (c != cheats().end())
                     for (auto &kv : c->second) if (kv.first == w) { pokes.push_back(kv.second); named.push_back(w); break; }
             if (!wanted.empty()) {
-                std::string line = "Cheats: ";
+                std::string line = "Cheats in use: ";
                 for (size_t i = 0; i < named.size(); ++i) line += (i ? ", " : "") + named[i];
                 prints.push_back(line);
             }
             auto r = reward_pokes().find(exe);
             if (rewards && r != reward_pokes().end() && !r->second.empty()) {
                 pokes.insert(pokes.end(), r->second.begin(), r->second.end());
-                prints.push_back("Unlock all rewards: on");
+                prints.push_back("Unlock all rewards: enabled");
             }
             for (const std::string &name : quality)
                 for (auto &kv : q->second) if (kv.first == name) pokes.insert(pokes.end(), kv.second.begin(), kv.second.end());
             if (!quality.empty()) {
-                std::string line = "Extra quality: ";
+                std::string line = "Extra quality in use: ";
                 for (size_t i = 0; i < quality.size(); ++i) line += (i ? ", " : "") + quality[i];
                 prints.push_back(line);
             }
@@ -353,41 +360,44 @@ Env build(const Inputs &in, std::vector<std::string> &prints, std::string &captu
                 env.set("GOW3_POKE", v);
             }
         } else {
-            prints.push_back("Cheats and unlocked rewards: need update 1.02 (not used)");
+            prints.push_back("Cheats and unlocked rewards skipped: they require update 1.02");
         }
     }
-    // Texture filtering (launcher -> Advanced -> Texture filtering): sampler.cpp GOW3_ANISOTROPY raises mipmapped
-    // colour textures to at least that ratio (~0% FPS measured in Uncharted 2).
+    // Advanced -> Texture filtering. With GOW3_ANISOTROPY set, sampler.cpp lifts the anisotropy of mipmapped colour
+    // textures to at least the chosen ratio. Measured cost in Uncharted 2: about 0% FPS.
     std::string aniso = orig(in, "UNCHARTED_ANISOTROPY", "0");
     if (aniso == "2" || aniso == "4" || aniso == "8" || aniso == "16") {
         env.setdefault("GOW3_ANISOTROPY", aniso);
-        prints.push_back("Texture filtering: " + aniso + "x");
+        prints.push_back("Texture filtering set to " + aniso + "x");
     }
-    // Measurement logging and live trigger files (frame/fault/wait statistics every 5 s, GPU checkpoints,
-    // capture/readback/DMA triggers). On unless the launcher turns it off.
+    // Diagnostics switch: covers the performance logging (frame, fault and wait statistics every 5 s, GPU checkpoints)
+    // and the trigger files that can be poked while the game runs (capture, readback, DMA). Enabled by default; only
+    // UNCHARTED_DIAGNOSTICS=0 from the launcher disables it.
     const bool diagnostics = env.get("UNCHARTED_DIAGNOSTICS", "1") != "0";
     env.set("PATH", join(norm(env.get("MSYS2_ROOT", "C:/msys64")), "clang64\\bin") + ";" + env.get("PATH", ""));
-    // UNCHARTED_TEST_GPU_USER_DIR: GPU caches in another folder (tests from an empty shader cache).
+    // UNCHARTED_TEST_GPU_USER_DIR moves the GPU caches elsewhere, so a test can begin with no shader cache at all.
     std::string gpu_dir = env.get("UNCHARTED_TEST_GPU_USER_DIR");
     env.set("GOW3_GPU_USER_DIR", gpu_dir.empty() ? in.user : gpu_dir);
     std::string settings = join(in.user, "probe-" + in.game_key + ".ini");
-    if (!exists(settings) && exists(join(in.user, "probe.ini")))   // earlier versions shared one file
+    if (!exists(settings) && exists(join(in.user, "probe.ini")))   // one probe.ini used to serve all three games
         CopyFileW(widen(join(in.user, "probe.ini")).c_str(), widen(settings).c_str(), FALSE);
-    // UNCHARTED_CONFIG_FILE: another settings file (tests that must not touch the player's).
+    // UNCHARTED_CONFIG_FILE points the runtime at a different settings file, for tests that must leave the player's
+    // own file untouched.
     std::string config_file = orig(in, "UNCHARTED_CONFIG_FILE");
     env.set("GOW3_CONFIG", config_file.empty() ? settings : config_file);
-    // Frame rates above 60 need the fast vblank (GOW3_VBLANK_HZ=0); an explicit one is kept.
+    // An fps_limit of 0 (unlimited) or above 60 only works with the fast vblank, GOW3_VBLANK_HZ=0. A GOW3_VBLANK_HZ
+    // that was already set is respected.
     if (!in.original.has("GOW3_VBLANK_HZ")) {
         bool found = false;
         std::string limit = ini_value(env.get("GOW3_CONFIG"), "fps_limit", found);
         if (!found) limit = "60";
-        long long n = digits_only(limit) ? std::strtoll(limit.c_str(), nullptr, 10) : -1;   // saturates when huge
+        long long n = digits_only(limit) ? std::strtoll(limit.c_str(), nullptr, 10) : -1;   // clamps on overflow
         if (digits_only(limit) && (n == 0 || n > 60))
             env.set("GOW3_VBLANK_HZ", "0");
     }
-    // Save profiles (launcher Advanced, GitHub #66, 24 Oct 2026): profile N plays as PS4 user N, whose saves are in
-    // analysis\uncharted-user\savedata\N (profile 1: the folder of every earlier version). GOW3_USER_ID set outside
-    // the launcher (tests) wins.
+    // Save profiles from the Advanced page (GitHub #66, added 24 Oct 2026). Choosing profile N signs in as PS4 user N,
+    // which keeps its saves under analysis\uncharted-user\savedata\N. Profile 1 is the folder all earlier versions
+    // used. A GOW3_USER_ID coming from outside the launcher (for tests) takes priority.
     std::string profile = orig(in, "UNCHARTED_SAVE_PROFILE_" + KEY, "1");
     long long profile_n = digits_only(profile) ? std::strtoll(profile.c_str(), nullptr, 10) : 0;
     bool profile_ok = digits_only(profile) && profile_n >= 1 && profile_n <= 16;
@@ -395,21 +405,23 @@ Env build(const Inputs &in, std::vector<std::string> &prints, std::string &captu
     const std::string *mt_value = in.original.find("UNCHARTED_MULTITHREADED_" + KEY);
     std::string multithreaded = mt_value ? *mt_value : "";
     bool have_mt = mt_value != nullptr;
-    // Drake's Fortune: its weapons (and at times other objects) drew with another draw's look on some frames with
-    // multithreaded rendering (flat grey guns, GitHub #23, 18 Oct 2026), and it gains nothing from it. Off until that
-    // is fixed; UNCHARTED_U1_MULTITHREADED_TEST=1 keeps the launcher's choice (tests).
+    // Uncharted 1 is forced to single-threaded rendering. With the threaded path some frames rendered its guns (and
+    // sometimes other objects) using the state of a different draw, giving flat grey weapons (GitHub #23,
+    // 18 Oct 2026), and the game runs no faster with it anyway. This stays until the bug is found. For testing,
+    // UNCHARTED_U1_MULTITHREADED_TEST=1 lets the launcher's setting through unchanged.
     if (u1 && have_mt && multithreaded == "1" && orig(in, "UNCHARTED_U1_MULTITHREADED_TEST") != "1") {
-        prints.push_back("Multithreaded rendering: off for Drake's Fortune (its weapons flicker with it)");
+        prints.push_back("Multithreaded rendering disabled for Drake's Fortune: it makes the weapons flicker");
         multithreaded = "0";
     }
-    // Drake's Deception froze with multithreaded rendering (GitHub #51, fixed in the runtime 19 Oct 2026); since
-    // 21 Oct the launcher's choice counts (heavy Cartagena spot: 53.7 FPS with 11 stalls off, 60 FPS with 1 on). An
-    // explicit GOW3_DRAW_PIPE / GOW3_VK_RECORD_THREAD (tests: one of the two alone) wins over the launcher's choice.
+    // Uncharted 3 used to hang with threaded rendering (GitHub #51); the runtime fix landed 19 Oct 2026 and from
+    // 21 Oct the launcher's setting is honoured again. In a demanding Cartagena scene it made the difference between
+    // 53.7 FPS with 11 stalls (off) and 60 FPS with 1 (on). If GOW3_DRAW_PIPE or GOW3_VK_RECORD_THREAD is already set
+    // (tests sometimes set just one of them), that value beats the launcher's setting.
     if (have_mt) {
         env.set("GOW3_DRAW_PIPE", in.original.get("GOW3_DRAW_PIPE", multithreaded));
         env.set("GOW3_VK_RECORD_THREAD", in.original.get("GOW3_VK_RECORD_THREAD", multithreaded));
     }
-    // Keyboard and mouse (launcher Controls tab, per game; explicit GOW3_* values win).
+    // Per-game input settings from the Controls tab, forwarded unless the matching GOW3_* variable is already set.
     const char *const controls[][2] = {{"KEY_MAP", "GOW3_KEY_MAP"},       {"MOUSE_MAP", "GOW3_MOUSE_MAP"},
                                        {"MOUSE", "GOW3_MOUSE"},           {"MOUSE_SENS", "GOW3_MOUSE_SENS"},
                                        {"MOUSE_INVERT", "GOW3_MOUSE_INVERT"}, {"PROMPTS", "GOW3_PROMPTS"},
@@ -418,47 +430,55 @@ Env build(const Inputs &in, std::vector<std::string> &prints, std::string &captu
         const std::string *v = in.original.find(std::string("UNCHARTED_") + c[0] + "_" + KEY);
         if (v && !in.original.has(c[1])) env.set(c[1], *v);
     }
-    // GPU readbacks are asynchronous. Unprotected (the runtime default, 2) crashed Uncharted 3 within a minute in the
-    // Cartagena museum and let characters fly or NPCs fall from the sky (U2, U3, 16 Oct); waiting for every readback
-    // (0) cost U2 ~20 FPS. Protected (1) since 16 Oct: new GPU data stays read-protected until it lands.
+    // Readback mode for Uncharted 2 and 3, set on 16 Oct. Mode 2 (asynchronous with no protection, the runtime's own
+    // default) made Uncharted 3 crash inside a minute in the Cartagena museum, and in both games characters flew off
+    // or NPCs dropped out of the sky. Mode 0 (block on every readback) was correct but cost Uncharted 2 about 20 FPS.
+    // Mode 1 keeps readbacks asynchronous but read-protects fresh GPU data until it has arrived.
     if (u2 || u3) env.setdefault("GOW3_ASYNC_READBACK", "1");
-    // The 64-wide copy shader's results (cs 6a6422a9) come back at the frame's end-of-pipe fence: read back a frame
-    // late, NPCs floated and Nate's feet sank (U2, 16 Oct; U3 17 Oct); in Drake's Fortune enemy grenades exploded in
-    // front of Drake (GitHub #6, 19 Oct).
+    // Output of the 64-wide copy shader (cs 6a6422a9) is fetched at the end-of-pipe fence of the same frame. When it
+    // arrived one frame late, NPCs hovered and Nate's feet went into the floor (Uncharted 2 on 16 Oct, Uncharted 3 on
+    // 17 Oct), and in Uncharted 1 enemy grenades went off right in front of Drake (GitHub #6, 19 Oct).
     if (u1 || u2 || u3) env.setdefault("GOW3_COPY64_EOP_READBACK", "1");
-    // Uncharted 2 and 3's aim depth of field reads its focus distance from a 1x1 render target the GPU writes: tiny
-    // GPU-written images come back with the frame's end-of-pipe fence (16 Oct, 19 Oct). Drake's Fortune skips it.
+    // While aiming, Uncharted 2 and 3 take the depth-of-field focus distance from a 1x1 render target written on the
+    // GPU. Very small GPU-written images are therefore fetched at the end-of-pipe fence too (16 Oct for Uncharted 2,
+    // 19 Oct for Uncharted 3). Uncharted 1 has no need for it and is left out.
     if (u2 || u3) env.setdefault("GOW3_TINY_IMAGE_READBACK", "1");
-    // 24 Oct (GitHub #140, Uncharted 3 washed out in sunny areas): its bloom is drawn into mips 1 and 2 of a 7-level
-    // texture; GOW3_MIP_TARGETS=1 draws them into the texture's mips.
+    // GitHub #140 (24 Oct): sunny areas in Uncharted 3 looked washed out. The game renders its bloom into mips 1 and 2
+    // of a texture with 7 levels; GOW3_MIP_TARGETS=1 makes those draws land in the texture's own mip levels.
     if (u3) env.setdefault("GOW3_MIP_TARGETS", "1");
-    // 2 Nov 2026 (GitHub #161/#253, Drake's Fortune water flat dark green): HTILE clears of freed depth images are
-    // kept (its reflection's depth buffer is cleared only through its HTILE). Drake's Fortune only for now.
+    // GitHub #161/#253 (2 Nov 2026): water in Uncharted 1 showed as flat dark green. Its reflection uses a depth
+    // buffer that is cleared solely through HTILE, so clears on depth images that have been freed must survive.
+    // Only enabled for Uncharted 1 so far.
     if (u1) env.setdefault("GOW3_HTILE_KEEP_CLEARS", "1");
-    // The PS4's system language (launcher -> Advanced -> Language; runtime_services.c). 1 = English (US).
+    // Console system language, from Advanced -> Language (handled in runtime_services.c). 1 means English (US).
     std::string language = strip(orig(in, "UNCHARTED_LANGUAGE"));
     if (digits_only(language)) env.setdefault("GOW3_LANGUAGE", language);
-    // Speakers (launcher -> Advanced): auto = the Windows output device's (stereo, 5.1 or 7.1), or 2, 6, 8.
+    // Speaker layout from the Advanced page: 2, 6 or 8 channels, or auto to follow the Windows playback device
+    // (stereo, 5.1 or 7.1).
     std::string speakers = lower(strip(orig(in, "UNCHARTED_SPEAKERS")));
     if (speakers == "auto" || speakers == "2" || speakers == "6" || speakers == "8")
         env.setdefault("GOW3_AUDIO_SPEAKERS", speakers);
     const std::string render = std::to_string(in.render_w) + "x" + std::to_string(in.render_h);
-    // Temporal anti-aliasing (in-game menu -> Image: TAA, FSR 3.1/FSR 4 Native AA, DLAA) at the render size: the
-    // camera comes from the motion blur's camera velocity pass (shader f4b18264), the anti-aliasing runs on the lit
-    // scene before the post processing (compute aec539f0). UNCHARTED_TEMPORAL_AA=0 switches it off.
+    // Temporal anti-aliasing at the render resolution (picked in the in-game Image menu: TAA, FSR 3.1 or FSR 4 Native
+    // AA, DLAA). Camera motion is taken from the camera velocity pass used by motion blur (shader f4b18264), and the
+    // AA pass is inserted on the lit scene ahead of post processing (compute aec539f0). Setting
+    // UNCHARTED_TEMPORAL_AA=0 disables all of this.
     if (orig(in, "UNCHARTED_TEMPORAL_AA", "1") == "0") {
         env.set("GOW3_UPSCALER", "none");
     } else {
         env.setdefault("GOW3_VELOCITY_PS", "f4b18264");
         env.setdefault("GOW3_UPSCALE_BEFORE_CS", "aec539f0");
-        // Full-screen passes that rebuild positions from the jittered scene depth get the jitter too: the sun shadow
-        // pass (Supermedo/uncharted_pc #261), Uncharted 1's boat details and Uncharted 3's London bar surfaces.
+        // Some full-screen pixel shaders reconstruct positions from the jittered depth, so they must be jittered as
+        // well: the sun shadow pass (Supermedo/uncharted_pc #261), boat detail in Uncharted 1 and the London bar
+        // surfaces in Uncharted 3.
         env.setdefault("GOW3_JITTER_PS", "f614041e,b2a42acf,1a08df2d");
         env.set("GOW3_SCENE_SIZE", render);
-        // FSR 4's model files, when installed; DLAA needs gow3_dlss.dll and nvngx_dlss.dll beside Uncharted.exe.
+        // Point the runtime at the FSR 4 model files if that folder exists. (DLAA instead relies on gow3_dlss.dll
+        // and nvngx_dlss.dll sitting next to Uncharted.exe.)
         std::string fsr4 = join(in.root, "gow3_pc\\fsr4_shaders");
         if (is_dir(fsr4)) env.setdefault("GOW3_FSR4_DIR", fsr4);
-        // The renderer's own default is FSR 3; here it starts off until it is picked.
+        // Left alone, the renderer would choose FSR 3. A settings file without an upscaler entry gets upscaler=off
+        // written into it, so nothing is used until the player picks something.
         std::string config = env.get("GOW3_CONFIG");
         bool found = false;
         ini_value(config, "upscaler", found);
@@ -474,18 +494,19 @@ Env build(const Inputs &in, std::vector<std::string> &prints, std::string &captu
         }
     }
     if (in.extra_mib) env.set("GOW3_DMEM_MB", std::to_string(5056 + in.extra_mib + 64));
-    // The movie player reads its (1080p) movies with the render size: the decoder scales them to it (else movies come
-    // out green and tiled above 1080p).
+    // Cutscene videos are 1080p, but the movie player expects frames at the render size. The decoder is told that size
+    // and scales to it; without this, videos turn green and tiled at resolutions above 1080p.
     if (in.render_w != 1920 || in.render_h != 1080) env.set("GOW3_MOVIE_SIZE", render);
-    // Output resolution above the render resolution (UNCHARTED_OUTPUT_RES[_U1/_U2/_U3]=WxH): the finished frame is
-    // upscaled to the output size where it is copied back into the display buffer (pixel shader 749bbec9) by FSR 3.1,
-    // FSR 4 or DLSS, else TAA or nothing, then FSR 1 or a bilinear stretch; the HUD is drawn after that.
+    // UNCHARTED_OUTPUT_RES (optionally suffixed _U1/_U2/_U3) = WxH, larger than the render size. The upscale happens at
+    // the point where the completed frame is copied into the display buffer (pixel shader 749bbec9): first FSR 3.1,
+    // FSR 4 or DLSS (or TAA, or no temporal step), then FSR 1 or plain bilinear scaling. The HUD is drawn on top
+    // afterwards.
     std::string output = orig(in, "UNCHARTED_OUTPUT_RES_" + KEY);
     if (output.empty()) output = orig(in, "UNCHARTED_OUTPUT_RES");
     output = lower(output);
     if (output.find('x') == std::string::npos && (in.render_w != in.width || in.render_h != in.height)) {
-        // Drake's Fortune above the size it can render at: that size is upscaled to the one chosen, with FSR 1 unless
-        // a temporal upscaler is chosen.
+        // The Uncharted 1 case where the chosen size is more than it can render: it renders at the smaller size and
+        // the frame is scaled up to the chosen one, using FSR 1 when no temporal upscaler has been selected.
         output = std::to_string(in.width) + "x" + std::to_string(in.height);
         env.setdefault("GOW3_FSR1", "1");
     }
@@ -499,32 +520,33 @@ Env build(const Inputs &in, std::vector<std::string> &prints, std::string &captu
             env.set("GOW3_RENDER_RES", render);
             env.set("GOW3_OUTPUT_RES", std::to_string(out_w) + "x" + std::to_string(out_h));
             env.setdefault("GOW3_UI_COMPOSITE_PS", "749bbec9");
-            // The tonemap draw finishing the frame: Uncharted 3 draws world-anchored prompts into its target after
-            // it, so the upscale runs at the draw after it.
+            // Last tonemap draw of the frame. Uncharted 3 renders prompts tied to world positions into the same target
+            // after that draw, so the upscale is placed at the draw that follows it.
             env.setdefault("GOW3_UI_TONEMAP_PS", "484cdbf5");
-            prints.push_back("Upscaling: " + render + " -> " + std::to_string(out_w) + "x" + std::to_string(out_h));
+            prints.push_back("Output upscaled: " + render + " -> " + std::to_string(out_w) + "x" + std::to_string(out_h));
         }
     }
     std::string pad_file = join(in.user, "probe-pad.txt");
     write_file(pad_file, "");
     env.set("GOW3_PAD_FILE", pad_file);
-    // A serialized renderer unless chosen above (the base runtime enables these concurrency optimizations).
+    // Unless a choice was made earlier, render single-threaded; the upstream runtime would otherwise switch these
+    // concurrency features on.
     env.setdefault("GOW3_DRAW_PIPE", "0");
     env.setdefault("GOW3_VK_RECORD_THREAD", "0");
     env.setdefault("GOW3_NATIVE_TSC", "1");
-    // Frame captures on demand: write a pass count (e.g. 600) into this file; captures land in
-    // analysis/uncharted-user/captures. Every draw's/dispatch's buffer addresses are listed.
+    // Frame capture trigger: put a pass count such as 600 in capture.trigger and a capture is written to
+    // analysis/uncharted-user/captures. The capture lists the buffer addresses of every draw and dispatch.
     if (diagnostics) {
         env.setdefault("GOW3_CAPTURE_TRIGGER", join(in.user, "capture.trigger"));
         env.setdefault("GOW3_CAPTURE_ALL_BUFFERS", "1");
     }
-    // The file analysis/uncharted-user/precise-readbacks turns Precise readbacks on for the next start.
+    // If a file named precise-readbacks exists in analysis/uncharted-user, the game starts with precise readbacks.
     if (exists(join(in.user, "precise-readbacks"))) {
         env.setdefault("GOW3_READBACKS", "2");
-        prints.push_back("Readbacks: precise (analysis/uncharted-user/precise-readbacks)");
+        prints.push_back("Precise readbacks on (found analysis/uncharted-user/precise-readbacks)");
     }
-    // Test settings for the next start without code changes: KEY=VALUE lines (# comments) in
-    // analysis/uncharted-user/test-env.txt; they override everything set above.
+    // analysis/uncharted-user/test-env.txt lets a tester try settings without rebuilding anything. Each KEY=VALUE line
+    // (lines starting with # are ignored) replaces whatever was set up to this point.
     std::string test_env = join(in.user, "test-env.txt");
     if (exists(test_env)) {
         std::string data;
@@ -537,39 +559,45 @@ Env build(const Inputs &in, std::vector<std::string> &prints, std::string &captu
             size_t eq = line.find('=');
             std::string key = strip(line.substr(0, eq)), value = strip(line.substr(eq + 1));
             env.set(key, value);
-            prints.push_back("Test setting: " + key + "=" + value);
+            prints.push_back("From test-env.txt: " + key + "=" + value);
         }
     }
-    // GPU-written constants back to guest memory for the SRT walker: write "auto"/"off" or "<lo> <hi>" (hex range,
-    // one-off) into this file. GOW3_SYNC_GPU_CONSTANTS=1 starts it on.
+    // readback.trigger controls copying GPU-written constants back into guest memory for the SRT walker. It accepts
+    // "auto", "off", or a hex range "<lo> <hi>" for a single copy. GOW3_SYNC_GPU_CONSTANTS=1 has it running from start.
     if (diagnostics) env.setdefault("GOW3_READBACK_TRIGGER", join(in.user, "readback.trigger"));
-    // Grey-world fix (confirmed 14 October 2026): GPU-written constants back to guest memory each submission.
+    // Fix for the grey world, confirmed 14 October 2026: after every submission, constants the GPU wrote are copied
+    // back into guest memory.
     env.setdefault("GOW3_SYNC_GPU_CONSTANTS", "1");
-    // Uncharted 1 compiles shaders asynchronously like the others since 18 Oct (synchronous froze for 1-2.4 s per new
-    // area on a Ryzen laptop); UNCHARTED_U1_SYNC_SHADERS=1 restores synchronous compilation.
+    // Since 18 Oct Uncharted 1 compiles shaders in the background like the other two games; compiling synchronously
+    // stalled it for 1 to 2.4 s whenever a new area loaded (Ryzen laptop). UNCHARTED_U1_SYNC_SHADERS=1 goes back to
+    // synchronous compilation.
     if (u1 && orig(in, "UNCHARTED_U1_SYNC_SHADERS") == "1") env.setdefault("GOW3_ASYNC_SHADERS", "0");
-    // Every 5 s: fault counts/time, hottest guest instructions and windows; flip rate/frame time spread, compile time
-    // on the GPU thread and details of frames over 40 ms; the DMA sync mode is switchable live through dma.trigger.
+    // Statistics logged every 5 s: how many faults and how long they took, the busiest guest instructions and memory
+    // windows, flip rate and frame time spread, GPU-thread compile time, and a breakdown of any frame slower than 40 ms.
+    // dma.trigger switches the DMA sync mode while the game runs.
     if (diagnostics) {
         env.setdefault("GOW3_FAULT_STATS", "1");
         env.setdefault("GOW3_FRAME_STATS", "1");
         env.setdefault("GOW3_DMA_TRIGGER", join(in.user, "dma.trigger"));
     }
-    // DMA shaders (tiled lighting; shadow cascade loads of hair/cobwebs/characters): make 256 KiB windows at the guest
-    // addresses in their user data resident and current, instead of uploading every CPU-dirty resident range.
+    // Shaders that read memory directly (tiled lighting, and the shadow cascade loads for hair, cobwebs and
+    // characters): only the 256 KiB windows around guest addresses found in their user data are made resident and
+    // up to date, rather than uploading every resident range the CPU has dirtied.
     env.setdefault("GOW3_DMA_SYNC", "pointers 256");
-    // Which code waits for the GPU (scheduler waits by caller), reported with the frame stats.
+    // Adds a per-caller breakdown of scheduler waits on the GPU to the frame statistics.
     if (diagnostics) env.setdefault("GOW3_PERF_DIAG", "1");
-    // The tiled lighting shader (cs 0x43b8ee5e) reads per-light records with an index computed on the GPU: they are
-    // read from guest memory on the GPU.
+    // The tiled lighting compute shader (0x43b8ee5e) indexes per-light records with a value it computes on the GPU,
+    // so the GPU fetches those records from guest memory itself.
     env.setdefault("GOW3_DIRECT_MEMORY_ACCESS", "1");
-    // GPU checkpoints (which draw a lost device was on) cost ~2% of the GPU command thread: only on request.
+    // GPU checkpoints record which draw was running when the device was lost. They take about 2% of the GPU command
+    // thread, so they are only enabled when UNCHARTED_GPU_CHECKPOINTS=1 asks for them.
     if (orig(in, "UNCHARTED_GPU_CHECKPOINTS") == "1") env.setdefault("GOW3_GPU_CHECKPOINTS", "1");
-    // Cached pipelines avoid recompiling every shader on each run (GOW3_PIPELINE_CACHE=0 when testing shader
-    // recompiler changes).
+    // The pipeline cache saves recompiling all shaders on every launch. Turn it off with GOW3_PIPELINE_CACHE=0 while
+    // testing changes to the shader recompiler.
     env.setdefault("GOW3_PIPELINE_CACHE", "1");
-    // No pipeline binaries (24 Oct 2026): Uncharted 2 used 15.5 GB of RAM with them and 7.0 GB without, and loaded its
-    // pipelines in 40 s instead of 9.6 s. GOW3_PIPELINE_BINARIES=1 (test-env.txt) turns them back on.
+    // Pipeline binaries are off since 24 Oct 2026. With them Uncharted 2 needed 15.5 GB of RAM against 7.0 GB without,
+    // and took 40 s rather than 9.6 s to load its pipelines. A test-env.txt line GOW3_PIPELINE_BINARIES=1 brings them
+    // back.
     env.setdefault("GOW3_PIPELINE_BINARIES", "0");
     if (env.get("GOW3_PIPELINE_BINARIES") == "0") remove_pipeline_binaries(join(env.get("GOW3_GPU_USER_DIR"), "cache"));
     env.set("GOW3_TOGGLE_FILE", join(in.user, "disabled-optimizations.txt"));
@@ -582,8 +610,8 @@ Env build(const Inputs &in, std::vector<std::string> &prints, std::string &captu
         env.set("GOW3_DUMP_DIR", capture_dir);
         write_file(trigger, "");
     } else if (diagnostics) {
-        // On-demand image dumps (no trigger file at start, so nothing is dumped until asked): create
-        // analysis/uncharted/dumps/trigger, plus guest-images.trigger listing addresses.
+        // Image dumps only when requested: no trigger file exists at launch, so nothing is written until someone
+        // creates analysis/uncharted/dumps/trigger (and, optionally, guest-images.trigger with a list of addresses).
         std::string dumps = join(in.out, "dumps");
         make_dirs(dumps);
         env.setdefault("GOW3_FRAME_DUMP_TRIGGER", join(dumps, "trigger"));
@@ -606,9 +634,11 @@ long long int_of(const Value &v, const char *k) {
 
 extern "C" {
 
-// The runtime's environment. inputs_json: {env: [[name, value], ...] (the starter's own), executable, game_key,
-// game (its folder), user, out, root, loadexec, render: [w, h], size: [w, h], extra_mib,
-// capture}. out: {env: [[name, value], ...], print: [lines], capture: dir, trigger: file}. 0 ok, 1 failed (out: why).
+// Computes the runtime's environment.
+// inputs_json: {env: [[name, value], ...] taken from the starter process, executable, game_key, game (game folder),
+//               user, out, root, loadexec, render: [w, h], size: [w, h], extra_mib, capture}
+// out on success: {env: [[name, value], ...], print: [log lines], capture: dir, trigger: file}
+// Returns 0 on success, 1 on failure (with the reason in out).
 UN_API int un_runtime_env(const char *inputs_json, char *out, int cap) {
     Value in_json;
     if (!json::parse(inputs_json ? inputs_json : "", in_json) || !in_json.is_object()) return give("bad inputs", out, cap) < 0 ? -12 : 1;

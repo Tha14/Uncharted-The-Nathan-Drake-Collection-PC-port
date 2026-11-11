@@ -1,15 +1,19 @@
-// start.cpp - the game starter (tools/probe_uncharted.py), part of uncharted_native.dll: prepares a game of the
-// Collection and runs it on the local runtime, the start sequence the launcher runs for PLAY (python -u
-// tools/probe_uncharted.py --boot --seconds 0 --executable <exe> --game <folder>).
+// start.cpp - game starter inside uncharted_native.dll. When the player presses PLAY, the launcher calls this to get a
+// Collection game ready and run it on the local runtime. It accepts the same command line as the old
+// tools/probe_uncharted.py (--boot --seconds 0 --executable <exe> --game <folder>).
 //
-// Every step is the launcher's own native code: the update found next to the game and laid over it (a folder of links,
-// else copies of the files the preparation reads), the preparation (prepare.cpp: boot.bin, link.cpp: boot-linked.bin,
-// the content profile), Uncharted 3 multiplayer's image, the code patches, the render size, the runtime's settings,
-// the window icon; then the runtime (Uncharted.exe) with its output in <out>\boot.log, the freeze watchdog and the
-// memory tracker, boot.json and a copy of both in <out>\attempts. When the game asks for another executable of the
-// Collection (exit code 30 and loadexec.txt: the menu starting Uncharted 2 or 3, or back), that one starts next.
+// Order of work, all in native code:
+//   1. Look for an update beside the game and merge it in, as a folder of links or, failing that, as copies of just
+//      the files the preparation needs.
+//   2. Prepare the image (prepare.cpp writes boot.bin, link.cpp writes boot-linked.bin, plus the content profile).
+//   3. Swap in the Uncharted 3 multiplayer image if one is set up, otherwise apply the code patches.
+//   4. Patch the render size, compute the runtime environment, pick the window icon.
+//   5. Launch Uncharted.exe with output going to <out>\boot.log, along with the freeze watchdog and the memory
+//      tracker; afterwards write boot.json and keep copies of the log and JSON in <out>\attempts.
+// Exit code 30 together with loadexec.txt means the game wants a different Collection executable (the menu opening
+// Uncharted 2 or 3, or returning to the menu); the starter then loops and runs that one.
 //
-// Output: what the Python starter printed, line for line, on stdout; the reasons it stopped on stderr.
+// Progress lines go to stdout, laid out as the Python starter's were; the reason for an abort goes to stderr.
 
 #include "native.h"
 #include "json.h"
@@ -38,11 +42,12 @@ namespace {
 using json::Value;
 
 const char *const EXECUTABLES[] = {"eboot.bin", "big2-ps4_Shipping.elf", "big3-ps4_Shipping.elf"};
-// Exit code of sceSystemServiceLoadExec (runtime_services.c): the game asked for another executable of the
-// Collection; GOW3_LOADEXEC_FILE holds its /app0 path and arguments.
+// runtime_services.c exits with this code from sceSystemServiceLoadExec, meaning the game wants to switch to another
+// Collection executable. The /app0 path and arguments of that executable are in the file named by GOW3_LOADEXEC_FILE.
 const unsigned long LOADEXEC_EXIT = 30;
 
-// The start stops (Python: SystemExit or an exception): the message goes to stderr, the exit code to the caller.
+// Thrown to abort the start (where the Python version raised SystemExit or let an exception escape). The message is
+// written to stderr and the code is returned to the caller.
 struct Stop {
     std::string message;
     int code = 1;
@@ -63,7 +68,7 @@ std::wstring widen(const std::string &s) {
     return w;
 }
 
-// print(): the text and a line end, as Python's text-mode stdout writes it ("\r\n").
+// Writes text to stdout or stderr with \n expanded to \r\n, which is what a text-mode Python stream produced.
 void write_std(DWORD which, const std::string &text) {
     std::string o;
     for (char c : text) { if (c == '\n') o += "\r\n"; else o += c; }
@@ -72,7 +77,7 @@ void write_std(DWORD which, const std::string &text) {
     if (h && h != INVALID_HANDLE_VALUE) WriteFile(h, o.data(), (DWORD)o.size(), &put, nullptr);
 }
 void print(const std::string &line) { write_std(STD_OUTPUT_HANDLE, line + "\n"); }
-// what a native step returned: its lines, each printed
+// Prints the multi-line text a native step handed back, adding a final newline if it lacks one.
 void print_text(const std::string &text) {
     if (!text.empty()) write_std(STD_OUTPUT_HANDLE, text.back() == '\n' ? text : text + "\n");
 }
@@ -85,7 +90,7 @@ std::wstring env(const wchar_t *name) {
     v.resize(n);
     return v;
 }
-bool has_env(const wchar_t *name) {   // set, even when empty
+bool has_env(const wchar_t *name) {   // true for a defined variable, including one with an empty value
     SetLastError(0);
     return GetEnvironmentVariableW(name, nullptr, 0) > 0 || GetLastError() != ERROR_ENVVAR_NOT_FOUND;
 }
@@ -105,7 +110,8 @@ std::wstring lower(const std::wstring &s) {
 
 // ------------------------------------------------------------------------------------------------ paths (pathlib)
 
-// str(Path(p)) on Windows: / as \, no repeated or trailing separators, no "." parts.
+// Canonical spelling of a Windows path, equal to Python's str(Path(p)): backslashes only, single separators, no
+// trailing separator and no "." components.
 std::wstring path_str(std::wstring p) {
     std::replace(p.begin(), p.end(), L'/', L'\\');
     std::wstring prefix;
@@ -149,12 +155,13 @@ std::wstring name_of(const std::wstring &p) {
     size_t cut = s.find_last_of(L"\\:");
     return cut == std::wstring::npos ? s : s.substr(cut + 1);
 }
-std::wstring anchor(const std::wstring &p) {   // Path.anchor: "D:\"
+std::wstring anchor(const std::wstring &p) {   // drive part plus root, e.g. "D:\" (Python's Path.anchor)
     const std::wstring s = path_str(p);
     if (s.size() >= 2 && s[1] == L':') return s.substr(0, 2) + (s.size() > 2 && s[2] == L'\\' ? L"\\" : L"");
     return L"";
 }
-// Path.resolve(): the final path with links followed, else the full path.
+// Like Python's Path.resolve(): absolute path with links followed; if the target can't be opened, just the
+// absolute path.
 std::wstring resolved(const std::wstring &p) {
     std::vector<wchar_t> full(32768);
     DWORD n = GetFullPathNameW(p.c_str(), 32768, full.data(), nullptr);
@@ -188,7 +195,8 @@ void make_dirs(const std::wstring &p) {
 
 // ------------------------------------------------------------------------------------------------ the native steps
 
-// A native function's text with room to grow (functions without side effects may be asked again).
+// Calls a native text function, retrying with the size it asks for when the buffer was too small. Only safe for
+// functions that can be called twice without side effects.
 template <typename F> int call_grow(F f, std::string &text, int size = 1 << 16) {
     while (true) {
         std::vector<char> buf((size_t)size);
@@ -210,7 +218,7 @@ std::string starter(const char *what, const std::string &arg = "") {
     return text;
 }
 
-// system(): the game detection (system.cpp); found false when it has no answer.
+// Asks system.cpp (game detection) a question; `found` is false when it has nothing to report.
 std::string system_text(const char *what, const std::wstring &arg, bool &found) {
     std::string text;
     int status = call_grow([&](char *o, int c) { return un_system(what, arg.c_str(), o, c); }, text, 1 << 12);
@@ -218,8 +226,8 @@ std::string system_text(const char *what, const std::wstring &arg, bool &found) 
     return found ? text : "";
 }
 
-// starter_files(): these copy or link files, so they run once with room for the answer. status: 0 ok, 1 OSError,
-// 3 ValueError (game_view).
+// Runs one of starter_files.cpp's file operations. They copy or link files, so each is called exactly once with a
+// generous buffer instead of call_grow. Status 0 = success, 1 = file system error, 3 = bad input (game_view only).
 int starter_files(const char *what, const std::vector<std::wstring> &args, std::string &text) {
     Value list;
     list.kind = Value::Array;
@@ -233,7 +241,7 @@ int starter_files(const char *what, const std::vector<std::wstring> &args, std::
 
 std::string instance_suffix() { return starter("instance_suffix"); }
 
-// The user folder (saves, settings, caches) of this instance (starter_files.cpp).
+// Folder that holds this instance's saves, settings and caches, as starter_files.cpp chooses it.
 std::wstring user_dir() {
     std::string text;
     if (starter_files("user_dir", {g_root, widen(instance_suffix())}, text) == 1) throw Stop{"OSError: " + text};
@@ -243,7 +251,7 @@ std::wstring user_dir() {
     return path_str(widen(path));
 }
 
-// The runtime as Uncharted.exe, copied from the build output whenever they differ (starter_files.cpp).
+// Path of Uncharted.exe; starter_files.cpp refreshes it from the build output if the two copies differ.
 std::wstring game_executable() {
     std::string text;
     if (starter_files("game_executable", {g_root}, text) == 1) throw Stop{"OSError: " + text};
@@ -253,7 +261,7 @@ std::wstring game_executable() {
     return path_str(widen(text.substr(0, nl)));
 }
 
-// The game's own icon as the window's (starter_files.cpp); empty without one.
+// Icon file for the game window, taken from the game itself by starter_files.cpp; empty if the game has none.
 std::wstring game_window_icon(const std::wstring &game) {
     std::string text;
     if (starter_files("window_icon", {g_root, game}, text) == 1) throw Stop{"OSError: " + text};
@@ -263,7 +271,7 @@ std::wstring game_window_icon(const std::wstring &game) {
     return path.empty() ? L"" : path_str(widen(path));
 }
 
-// The game's update next to it (system.cpp find_update); empty for none.
+// Update folder located beside the game by system.cpp's find_update; empty if there isn't one.
 std::wstring find_update(const std::wstring &game) {
     bool found = false;
     std::string text = system_text("find_update", game, found) + "\n";
@@ -292,7 +300,7 @@ std::string game_version(const std::wstring &game) {
 
 // ------------------------------------------------------------------------------------------------ the runtime process
 
-// subprocess.list2cmdline
+// Quotes arguments into one command line using the MSVC rules (same result as Python's subprocess.list2cmdline).
 std::wstring command_line(const std::vector<std::wstring> &args) {
     std::wstring result;
     for (const std::wstring &arg : args) {
@@ -322,7 +330,7 @@ std::wstring command_line(const std::vector<std::wstring> &args) {
     return result;
 }
 
-// The environment block, names sorted without regard to case as Windows wants them.
+// Builds a CreateProcess environment block; Windows expects the names in case-insensitive sorted order.
 std::vector<wchar_t> environment_block(const std::vector<std::pair<std::wstring, std::wstring>> &vars) {
     std::vector<std::pair<std::wstring, std::wstring>> sorted = vars;
     std::stable_sort(sorted.begin(), sorted.end(), [](auto &a, auto &b) { return upper(a.first) < upper(b.first); });
@@ -353,10 +361,10 @@ struct Process {
     DWORD pid = 0;
 };
 
-// The runtime with its stdout and stderr in the log. u3mp: Uncharted 3 multiplayer's start (as
-// the multiplayer test runner does it): bottom-up and high-entropy ASLR off for this one child (mitigation policy
-// 0x220000), started suspended and checked that nothing sits in the PS4 reserve 0x1000000000..0xfc00000000 before it
-// runs. No image, registry or system setting is changed.
+// Launches the runtime with stdout and stderr both going to the log handle. With u3mp set it follows the
+// multiplayer test runner's recipe: mitigation policy 0x220000 turns off bottom-up and high-entropy ASLR for this
+// child only, the process is created suspended, and it is resumed only after confirming that the PS4 reserve range
+// 0x1000000000..0xfc00000000 is still empty. Nothing in the image, the registry or system settings is modified.
 Process start_process(const std::vector<std::wstring> &command, const std::wstring &cwd,
                       const std::vector<std::pair<std::wstring, std::wstring>> &vars, HANDLE log, bool u3mp) {
     if (u3mp && !is_file(command[0])) throw std::string("runtime executable missing");
@@ -484,7 +492,7 @@ struct Args {
 };
 
 struct Result {
-    Value json;   // boot.json
+    Value json;   // contents written to boot.json
     unsigned long long exit_code = 0;
     bool timed_out = false;
 };
@@ -493,7 +501,8 @@ std::string game_key_of(const std::string &executable) {
     return executable == "eboot.bin" ? "u1" : executable == "big2-ps4_Shipping.elf" ? "u2" : "u3";
 }
 
-// The game's environment as os.environ holds it: names in capitals, in the process's order.
+// Snapshot of this process's environment, names upper-cased (as Python's os.environ shows them on Windows), in the
+// order Windows lists them.
 std::vector<std::pair<std::string, std::string>> process_environment() {
     std::vector<std::pair<std::string, std::string>> vars;
     wchar_t *block = GetEnvironmentStringsW();
@@ -510,7 +519,7 @@ std::vector<std::pair<std::string, std::string>> process_environment() {
     return vars;
 }
 
-int parse_int(const std::wstring &s, bool &ok) {   // Python's int() for a decimal text
+int parse_int(const std::wstring &s, bool &ok) {   // decimal parse accepting what Python's int() accepts
     std::wstring t = s;
     while (!t.empty() && iswspace(t.front())) t.erase(t.begin());
     while (!t.empty() && iswspace(t.back())) t.pop_back();
@@ -530,7 +539,7 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
     const std::wstring out = join(join(g_root, L"analysis"), stem + widen(instance_suffix()));
     const std::wstring user = user_dir();
     make_dirs(user);
-    // The preparation (prepare.cpp, link.cpp): boot.bin, boot-linked.bin and the content profile in `out`.
+    // Preparation step: prepare.cpp and link.cpp write boot.bin, boot-linked.bin and the content profile into `out`.
     {
         std::vector<char> buf(1 << 16);
         int status = un_prepare(game.c_str(), out.c_str(), executable.c_str(), buf.data(), (int)buf.size());
@@ -544,8 +553,9 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
         print_text(buf.data());
     }
     const std::wstring image = join(out, L"boot-linked.bin");
-    // Uncharted 3 multiplayer (launcher -> Multiplayer): the image the launcher's import linked on this PC replaces the
-    // prepared one. It already holds the port's code patches it was tested with, so the patches are not applied again.
+    // If Uncharted 3 multiplayer is set up (Multiplayer page), the image its import linked on this machine is copied
+    // over the freshly prepared one. That image already contains the code patches it was tested with, so the patch
+    // step is skipped for it.
     std::string mp_text = starter("u3mp_image", executable);
     size_t nl = mp_text.find('\n');
     const std::string mp_message = mp_text.substr(0, nl), mp_found = nl == std::string::npos ? "" : mp_text.substr(nl + 1);
@@ -561,10 +571,10 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
         if (!CopyFileW(mp_image.c_str(), image.c_str(), FALSE))
             throw Stop{"OSError: " + win_error_text(GetLastError()) + ": '" + utf8(mp_image) + "'"};
         const Value *version = info.get("version");
-        print("Uncharted 3 multiplayer v" + (version ? (version->kind == Value::String ? version->s : std::to_string(version->i)) : "") +
+        print("Using Uncharted 3 multiplayer v" + (version ? (version->kind == Value::String ? version->s : std::to_string(version->i)) : "") +
               ": " + utf8(mp_image) + " with " + std::to_string(mp_overlays.size()) + " overlays");
     } else {
-        // The game's code patches for the current settings (patch_tables.cpp, patcher.cpp).
+        // Apply the code patches that match the current settings (tables in patch_tables.cpp, applied by patcher.cpp).
         std::string text;
         int status = call_grow([&](char *o, int c) { return un_apply_image_patches(image.c_str(), executable.c_str(), o, c); },
                                text);
@@ -581,15 +591,15 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
         }
         for (auto &l : lines) print(l);
     }
-    // Settings per game (the launcher keeps them apart): the started game's own, also when the Collection menu
-    // switches games.
+    // The launcher stores settings separately for each game. Read the ones for the executable being started, which
+    // matters when the Collection menu hands over to another game.
     const std::string game_key = game_key_of(executable);
     std::wstring resolution = env(widen("UNCHARTED_RESOLUTION_" + std::string(game_key == "u1" ? "U1" : game_key == "u2" ? "U2" : "U3")).c_str());
     if (resolution.empty()) resolution = env(L"UNCHARTED_RESOLUTION");
     resolution = lower(resolution);
     int width = 1920, height = 1080;
     if (!resolution.empty()) {
-        // width, height = (int(value) for value in resolution.split("x")): Python's errors, in its order
+        // Split on "x" into exactly two integers; errors match the Python unpacking's, checked in the same order
         std::vector<std::wstring> parts;
         for (size_t a = 0;;) {
             size_t b = resolution.find(L'x', a);
@@ -610,8 +620,8 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
         width = values[0];
         height = values[1];
     }
-    // The render size (patcher.cpp): the size chosen, or the largest smaller one that fits the game's memory, patched
-    // into the linked image with the memory the areas grow by.
+    // patcher.cpp writes the render size into the linked image: the requested size if the game's memory can hold it,
+    // otherwise the biggest smaller size that fits, together with how much the memory areas have to grow.
     int render_w = width, render_h = height;
     long long extra_mib = 0;
     {
@@ -633,8 +643,8 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
         if (!lines.empty()) std::sscanf(lines[0].c_str(), "%d %d %lld", &render_w, &render_h, &extra_mib);
         for (size_t k = 1; k < lines.size(); ++k) print(lines[k]);
     }
-    // The runtime's options (GOW3_* environment values) from the launcher's (UNCHARTED_*), the game and its render
-    // size (runtime_env.cpp, which keeps the reasons for each).
+    // runtime_env.cpp turns the launcher's UNCHARTED_* settings, the game and its render size into the runtime's GOW3_*
+    // variables; the reasoning behind each one is documented there.
     std::vector<std::pair<std::wstring, std::wstring>> vars;
     std::wstring capture_dir, trigger;
     {
@@ -689,8 +699,8 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
     if (!window_icon.empty() && !var(L"GOW3_WINDOW_ICON")) vars.push_back({L"GOW3_WINDOW_ICON", window_icon});
     std::vector<std::wstring> command = {game_executable(), image, L"--no-game-hooks", L"--low-image", L"--content-profile",
                                          join(out, L"content.bin"), L"--app0", app0.empty() ? game : app0, L"--user", user};
-    // Uncharted 2 multiplayer (u2mp, set by the launcher): UNCHARTED_U2MP_OVERLAY, folders (; between them, the first
-    // holding a file wins) laid over /app0 ahead of the update.
+    // Uncharted 2 multiplayer: the launcher puts a ';'-separated folder list in UNCHARTED_U2MP_OVERLAY. Each folder is
+    // overlaid on /app0 with priority over the update; where folders overlap, the earlier one's file is used.
     if (executable == "big2-ps4_Shipping.elf") {
         const std::wstring list = env(L"UNCHARTED_U2MP_OVERLAY");
         for (size_t a = 0; a <= list.size();) {
@@ -701,15 +711,16 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
             a = b + 1;
         }
     }
-    // Uncharted 3 multiplayer: its four overlays (the first wins) ahead of the update.
+    // Uncharted 3 multiplayer adds four overlay folders, also ranked above the update, earliest first.
     for (auto &o : mp_overlays) command.insert(command.end(), {L"--app0-overlay", o});
     for (auto &o : extra_overlays) command.insert(command.end(), {L"--app0-overlay", o});
-    // guest_args is the game's complete argv; argv[0] is the program name.
+    // guest_args holds the full argv for the game, with the program name in slot 0.
     command.push_back(L"--guest-path");
     command.push_back(guest_args.empty() ? widen("/app0/" + executable) : widen(guest_args[0]));
     for (size_t k = 1; k < guest_args.size(); ++k) command.insert(command.end(), {L"--guest-arg", widen(guest_args[k])});
-    // Diagnostics: UNCHARTED_RENDERDOC=<RenderDoc folder or renderdoccmd.exe> loads RenderDoc's Vulkan layer into the
-    // game: F12 captures a frame. Found through this process's environment only; nothing is registered.
+    // Debugging aid: UNCHARTED_RENDERDOC may name a RenderDoc install folder or its renderdoccmd.exe. The game then
+    // loads RenderDoc's Vulkan layer and F12 grabs a frame. The layer is announced only through the child's
+    // environment variables; nothing gets registered on the system.
     const std::wstring renderdoc = env(L"UNCHARTED_RENDERDOC");
     if (!renderdoc.empty()) {
         std::wstring layer_dir = path_str(renderdoc);
@@ -723,7 +734,7 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
                                                                              {L"GOW3_PIPELINE_BINARIES", L"0"}}) {
                 if (std::wstring *v = var(kv.first)) *v = kv.second; else vars.push_back(kv);
             }
-            print("RenderDoc: Vulkan layer from " + utf8(layer_dir));
+            print("RenderDoc: loading its Vulkan layer from " + utf8(layer_dir));
         }
     }
     if (!args.boot) command.push_back(L"--check-imports");
@@ -751,9 +762,10 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
             process = start_process(command, g_root, vars, log, true);
             started = true;
         } catch (const std::string &error) {
-            print("Uncharted 3 multiplayer: started without its address layout (" + error + ")");
+            print("Uncharted 3 multiplayer: could not reserve its address layout, starting it the normal way (" + error + ")");
         } catch (const Stop &stop) {
-            print("Uncharted 3 multiplayer: started without its address layout (" + stop.message + ")");
+            print("Uncharted 3 multiplayer: could not reserve its address layout, starting it the normal way (" +
+                  stop.message + ")");
         }
     }
     if (!started) {
@@ -764,8 +776,8 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
             throw Stop{"FileNotFoundError: " + error};
         }
     }
-    // The freeze watchdog (hang.cpp; needs the Frame stats lines, i.e. diagnostics on). UNCHARTED_HANG_SECONDS sets
-    // its wait (30 s), 0 turns it off.
+    // Freeze watchdog from hang.cpp. It watches for the runtime's Frame stats lines, so it only works with diagnostics
+    // enabled. UNCHARTED_HANG_SECONDS changes how long it waits (default 30 s); 0 disables it.
     long long hang_seconds = 30;
     if (has_env(L"UNCHARTED_HANG_SECONDS")) {
         bool ok = false;
@@ -777,8 +789,8 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
     if (args.boot && hang_seconds > 0 && frame_stats && *frame_stats == L"1")
         watchdog = un_hang_watchdog(process.pid, log_path.c_str(), join(out, L"dumps").c_str(), (int)hang_seconds,
                                     g_root.c_str());
-    // Resource tracking for long sessions (memstat.cpp): memory-<time>.csv beside the log, one row every
-    // UNCHARTED_MEMORY_SECONDS (10; 0 turns it off).
+    // Memory use over long sessions (memstat.cpp): a memory-<time>.csv next to the log gets one row per
+    // UNCHARTED_MEMORY_SECONDS seconds (default 10; 0 disables it).
     double memory_seconds = 10;
     if (has_env(L"UNCHARTED_MEMORY_SECONDS")) {
         const std::wstring v = env(L"UNCHARTED_MEMORY_SECONDS");
@@ -791,7 +803,7 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
     }
     DWORD code = 0;
     bool timed_out = false;
-    auto wait_for = [&](double seconds) -> bool {   // true when the game ended
+    auto wait_for = [&](double seconds) -> bool {   // returns true once the process has exited
         DWORD millis = seconds < 0 ? INFINITE : (DWORD)std::min<double>(0xfffffffe, std::max<double>(0, seconds * 1000));
         return WaitForSingleObject(process.handle, millis) == WAIT_OBJECT_0;
     };
@@ -830,7 +842,8 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
     result.set("elapsed_seconds", elapsed);
     const std::wstring json_path = join(out, name + L".json");
     write_crlf(json_path, json::dump(result));
-    // The game has ended: the log can take the freeze reports' names (the launcher looks there).
+    // Only now that the runtime has stopped writing the log is it safe to append the freeze report paths to it; the
+    // launcher reads them from there.
     std::vector<std::wstring> hang_reports;
     if (args.boot && watchdog) {
         std::string text;
@@ -863,7 +876,7 @@ Result run_game(const Args &args, const std::wstring &game, const std::string &e
     if (args.boot && !memory_csv.empty() && is_file(memory_csv))
         CopyFileW(memory_csv.c_str(), join(attempt, name_of(memory_csv)).c_str(), FALSE);
     print(json::dump(result));
-    print("Log: " + utf8(log_path));
+    print("Log written to: " + utf8(log_path));
     return {result, code, timed_out};
 }
 
@@ -875,8 +888,8 @@ Result run_once(const Args &args, const std::string &executable, const std::vect
         const std::string version = game_version(base);
         if (!version.empty() && version < "01.02") {
             const std::wstring title = lower(name_of(base)) == L"uroot" ? parent(base) : base;
-            print("Game version " + version + " without update 1.02: the fixes written for 1.02 are skipped (the patches "
-                  "marked NOT applied). Extract update 1.02 next to the game folder as " + utf8(name_of(title)) + "-patch.");
+            print("Game version " + version + " has no update 1.02, so the fixes made for 1.02 are left out (they show "
+                  "as NOT applied). Unpack update 1.02 beside the game folder as " + utf8(name_of(title)) + "-patch.");
         }
         return run_game(args, base, executable, guest_args, loadexec);
     }
@@ -884,13 +897,14 @@ Result run_once(const Args &args, const std::string &executable, const std::vect
     print("Update " + (app_ver.empty() ? std::string("?") : app_ver) + ": " + utf8(update));
     const std::string update_version = game_version(update);
     if (!update_version.empty() && update_version < "01.02")
-        print("The update folder holds version " + update_version + " executables (its param.sfo says otherwise): the "
-              "fixes written for 1.02 are skipped. Extract update 1.02 again.");
-    // The game with its update laid over it, as a folder of links (starter_files.cpp game_view), made on the game's
-    // drive when possible: file links can't cross drives (else copies).
+        print("The update folder's executables are version " + update_version + " even though its param.sfo says "
+              "otherwise, so the fixes made for 1.02 are left out. Unpack update 1.02 once more.");
+    // Build a merged view of game plus update out of file links (starter_files.cpp game_view). It is placed on the
+    // same drive as the game if possible, because links cannot point across drives (elsewhere it falls back to
+    // copies).
     std::wstring view;
     std::string not_combined;
-    if (env(L"UNCHARTED_TEST_OVERLAY") == L"1") {   // test: the drive-without-links path
+    if (env(L"UNCHARTED_TEST_OVERLAY") == L"1") {   // testing aid: force the path used on drives without links
         not_combined = "UNCHARTED_TEST_OVERLAY=1";
     } else {
         std::vector<std::wstring> places = {join(g_root, L"analysis\\views")};
@@ -901,17 +915,17 @@ Result run_once(const Args &args, const std::string &executable, const std::vect
             const int status = starter_files("game_view", {base, update, place}, text);
             if (status == 0) { view = path_str(widen(text)); break; }
             if (status == 3) throw Stop{"ValueError: " + text};
-            print("Game view in " + utf8(place) + " failed: " + text);
+            print("Making the game view in " + utf8(place) + " failed: " + text);
         }
-        if (view.empty()) not_combined = "Could not combine the game and its update";
+        if (view.empty()) not_combined = "The game and its update could not be joined";
     }
     if (view.empty()) {
-        // exFAT/FAT32 drives (USB sticks) hold no links: the runtime lays the update over the game itself, and the
-        // preparation reads copies of the few files it needs.
-        print(not_combined + ": the runtime lays the update over the game instead (drive without links)");
+        // Drives formatted exFAT or FAT32 (typically USB sticks) cannot store links. In that case the runtime itself
+        // overlays the update on the game, and preparation works from copies of the handful of files it reads.
+        print(not_combined + ": the drive holds no links, so the runtime overlays the update on the game itself");
         std::string text;
         if (starter_files("boot_view", {g_root, base, update}, text) == 1) {
-            print("Update files not copied (" + text + "): starting the game without its update");
+            print("Copying the update files failed (" + text + "): the game starts without its update");
             return run_game(args, base, executable, guest_args, loadexec);
         }
         return run_game(args, path_str(widen(text)), executable, guest_args, loadexec, base, {update});
@@ -919,12 +933,14 @@ Result run_once(const Args &args, const std::string &executable, const std::vect
     try {
         Result r = run_game(args, view, executable, guest_args, loadexec);
         std::string text;
-        if (starter_files("remove_view", {view}, text) == 1) print("Game view " + utf8(view) + " not removed: " + text);
+        if (starter_files("remove_view", {view}, text) == 1)
+            print("Game view " + utf8(view) + " could not be deleted: " + text);
         return r;
     } catch (...) {
         std::string text;
         try {
-            if (starter_files("remove_view", {view}, text) == 1) print("Game view " + utf8(view) + " not removed: " + text);
+            if (starter_files("remove_view", {view}, text) == 1)
+                print("Game view " + utf8(view) + " could not be deleted: " + text);
         } catch (...) {}
         throw;
     }
@@ -935,7 +951,8 @@ const char *USAGE = "usage: probe_uncharted.py [-h] [--game GAME] [--boot]\n"
                     "                          [--guest-arg GUEST_ARG] [--collection-menu]\n"
                     "                          [--cpu-only] [--capture] [--seconds SECONDS]\n";
 
-// argparse's reading of the command line (options may be shortened while they stay unique; --name=value works too).
+// Command-line parsing compatible with the old argparse setup: an option may be abbreviated to any unambiguous
+// prefix, and --name=value is accepted as well as --name value.
 Args parse_args(const std::vector<std::string> &argv) {
     static const char *const options[] = {"--game", "--boot", "--executable", "--guest-arg", "--collection-menu",
                                           "--cpu-only", "--capture", "--seconds", "--help"};
@@ -962,7 +979,8 @@ Args parse_args(const std::vector<std::string> &argv) {
         if (option.empty()) throw fail("unrecognized arguments: " + argv[i]);
         auto take = [&]() -> std::string {
             if (has_value) return value;
-            // a value may start with '-' only as a negative number (argparse, no option looks like one)
+            // a following word starting with '-' is treated as the next option unless it parses as a negative number
+            // (argparse behaves this way when none of the defined options look numeric)
             auto negative_number = [](const std::string &s) {
                 if (s.size() < 2 || s[0] != '-') return false;
                 char *end = nullptr;
@@ -995,7 +1013,7 @@ Args parse_args(const std::vector<std::string> &argv) {
             if (!ok) throw fail("argument --seconds: invalid int value: '" + v + "'");
         }
     }
-    if (a.seconds < 0) throw fail("--seconds must be nonnegative");
+    if (a.seconds < 0) throw fail("--seconds cannot be negative");
     return a;
 }
 
@@ -1007,8 +1025,8 @@ long long start_game(const std::vector<std::string> &argv) {
     std::string executable = args.executable;
     std::vector<std::string> guest_args = args.guest_args;
     if (!args.guest_given) {
-        // As the Collection menu starts each game: "ispartofuccollection" makes eboot.bin start Drake's Fortune itself
-        // (without it, it shows the Collection's game selection).
+        // Mirror the arguments the Collection menu passes. With "ispartofuccollection", eboot.bin goes straight into
+        // Drake's Fortune; without it, eboot.bin opens the Collection's game picker.
         if (executable == "eboot.bin" && args.collection_menu)
             guest_args = {"/app0/eboot.bin"};
         else
@@ -1019,7 +1037,7 @@ long long start_game(const std::vector<std::string> &argv) {
         DeleteFileW(loadexec.c_str());
         result = run_once(args, executable, guest_args, loadexec);
         if (!args.boot || result.timed_out || result.exit_code != LOADEXEC_EXIT || !exists(loadexec)) break;
-        // The Collection switched games (menu -> Uncharted 2/3, or back to the menu).
+        // A game switch inside the Collection: the menu opened Uncharted 2 or 3, or a game returned to the menu.
         std::string text;
         {
             HANDLE h = CreateFileW(loadexec.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
@@ -1031,7 +1049,7 @@ long long start_game(const std::vector<std::string> &argv) {
                 CloseHandle(h);
             }
         }
-        std::vector<std::string> lines;   // str.splitlines()
+        std::vector<std::string> lines;   // split on \r\n, \r or \n, like Python's str.splitlines()
         for (size_t a = 0; a < text.size();) {
             size_t b = text.find_first_of("\r\n", a);
             if (b == std::string::npos) { lines.push_back(text.substr(a)); break; }
@@ -1046,10 +1064,11 @@ long long start_game(const std::vector<std::string> &argv) {
         bool known = false;
         for (const char *e : EXECUTABLES) known = known || target == e;
         if (!known) {
-            print("Game asked to start " + (lines.empty() ? std::string("(nothing)") : first) + "; not part of the Collection");
+            print("The game requested " + (lines.empty() ? std::string("(nothing)") : first) +
+                  ", which is not one of the Collection's games");
             break;
         }
-        // LoadExec's argv is the new program's complete argv.
+        // The argv passed to LoadExec is used unchanged as the next program's whole argv.
         executable = target;
         guest_args.assign(lines.begin() + 1, lines.end());
         if (guest_args.empty()) guest_args = {"/app0/" + target};
@@ -1064,9 +1083,11 @@ long long start_game(const std::vector<std::string> &argv) {
 
 extern "C" {
 
-// The game starter: root is the launcher's folder, args_json probe_uncharted.py's command line (a JSON array of
-// texts). Prints as the Python starter did; returns the exit code it ended with (124 when the game timed out, 2 for
-// a wrong command line, 1 when the start failed).
+// Entry point of the game starter.
+//   root:      the launcher's install folder
+//   args_json: JSON array of strings, the same arguments probe_uncharted.py used to take
+// Output goes to stdout/stderr in the Python starter's format. Return value: the game's exit code, or 124 if it was
+// stopped on timeout, 2 for an invalid command line, 1 if starting failed.
 UN_API long long un_start_game(const wchar_t *root, const char *args_json) {
     g_root = path_str(root ? root : L".");
     Value args;

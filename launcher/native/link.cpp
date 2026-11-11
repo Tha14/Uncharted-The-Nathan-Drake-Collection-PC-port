@@ -1,12 +1,15 @@
-// link.cpp - the module linker (gow3_pc/scripts/link_modules.py), part of uncharted_native.dll: the prepared eboot
-// (boot.bin, G3PROBE2) linked with the game's own bundled system modules (default: libc.prx, then libSceFios2.prx) into
-// one image the runtime loads (boot-linked.bin, G3PROBE5), with the link.json report.
+// link.cpp - joins modules into one image (native version of gow3_pc/scripts/link_modules.py), built into
+// uncharted_native.dll. Starting from the prepared eboot (boot.bin, format G3PROBE2), it appends system modules that
+// ship with the game (unless told otherwise: libc.prx and then libSceFios2.prx) and writes the result the runtime
+// loads, boot-linked.bin (format G3PROBE5), along with a link.json report.
 //
-// Every module is placed after the previous one (64 KiB aligned); the imports of all modules share one import table,
-// so the C runtime can override any function (host contracts first) and otherwise binds the module's native export.
-// Exports are matched by (NID, library identity, module identity). Imports of libSceLibcInternal are served by
-// libc.prx's same-NID export: the internal library is not shipped with the game and exposes the same functions.
-// Initial-exec `mov rax, fs:[0]` loads become gs: loads (the host owns fs).
+// Layout: each module starts on the next 64 KiB boundary after the one before it. All modules feed a single shared
+// import table; the C runtime gets the first chance to supply any function (its host contracts), and whatever it
+// doesn't supply is bound to the module's own native export. An export matches an import when the NID, the library
+// identity and the module identity are all equal. libSceLibcInternal is not part of the game's files, but libc.prx
+// exports the same functions under the same NIDs, so imports from the internal library are bound to those.
+// Thread-local loads of the form `mov rax, fs:[0]` (initial-exec model) are rewritten to read gs: instead, because
+// fs belongs to the host.
 
 #include "native.h"
 #include "json.h"
@@ -27,7 +30,7 @@ namespace {
 using json::Value;
 using namespace selfread;
 
-// A module or library ID as the PS4 writes it in symbol names (Base64 digits, most significant first).
+// Spells a module or library ID the way PS4 symbol names carry it: Base64 digits with the highest one leading.
 std::string encode_id(uint64_t value) {
     static const char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-";
     std::string result(1, alphabet[value & 63]);
@@ -39,7 +42,8 @@ std::string encode_id(uint64_t value) {
     return result;
 }
 
-// (NID, (library, version), (module, version)) of a NID#library#module name; ok false for plain names.
+// What a "NID#library#module" symbol name stands for: the NID plus the library and module, each with its version.
+// Names without that shape leave ok false.
 struct Identity {
     bool ok = false;
     std::string nid, library, module;
@@ -95,7 +99,8 @@ struct Module {
     }
 };
 
-// NID#library for an import identity (the host tables' key: the eboot's own letters differ per game).
+// The "NID#library" name an import is stored under. The host's tables are keyed this way because the short letter IDs
+// inside each eboot are not the same from game to game.
 std::string canonical(const Identity &id, const std::string &fallback) { return id.ok ? id.nid + "#" + id.library : fallback; }
 
 const Ph *find_ph(const std::vector<Ph> &ph, uint64_t type) {
@@ -131,7 +136,8 @@ Module load_module(const std::wstring &path) {
         std::pair<std::string, unsigned> identity{cstring(strings, (long long)(value & 0xffffffff)),
                                                   (unsigned)((value >> 32) & 65535)};
         auto it = table.find(key);
-        if (it != table.end() && it->second != identity) throw Failure{"conflicting module/library IDs"};
+        if (it != table.end() && it->second != identity)
+            throw Failure{"one module or library ID is given two different meanings"};
         table[key] = identity;
     }
     std::string symtab = span(blob, (long long)m.tag(0x61000039), (long long)m.tag(0x6100003f));
@@ -167,7 +173,8 @@ void put64(std::string &image, uint64_t at, uint64_t value) {
     for (int i = 0; i < 8; ++i) image[(size_t)at + i] = (char)(value >> (8 * i));
 }
 
-// Initial-exec `mov rax, fs:[0]` -> gs: in the executable segments (glibc owned fs on Linux; the host keeps it).
+// Turns each initial-exec `mov rax, fs:[0]` in the code segments into the same load from gs:, by swapping the 0x64
+// prefix for 0x65. The host needs fs for itself (on Linux glibc used it). Returns how many were changed.
 int patch_fs_loads(std::string &image, const std::vector<Ph> &ph, uint64_t base) {
     static const std::string fs_load("\x64\x48\x8b\x04\x25\x00\x00\x00\x00", 9);
     int patched = 0;
@@ -207,7 +214,8 @@ std::string link(const std::wstring &game, const std::wstring &out, const std::v
     if (!read_file(join(out, L"boot.bin"), raw))
         throw Failure{"[Errno 2] No such file or directory: '" + shown(join(out, L"boot.bin")) + "'"};
     need(raw, 0, 56);
-    if (raw.compare(0, 8, "G3PROBE2") != 0) throw Failure{"linker expects freshly prepared G3PROBE2"};
+    if (raw.compare(0, 8, "G3PROBE2") != 0)
+        throw Failure{"boot.bin is not a G3PROBE2 image straight from the preparation"};
     const uint64_t size = u(raw, 8, 8), entry = u(raw, 16, 8), ns = u(raw, 24, 8), nr = u(raw, 32, 8), ni = u(raw, 40, 8),
                    flags = u(raw, 48, 8);
     long long pos = 56;
@@ -222,11 +230,12 @@ std::string link(const std::wstring &game, const std::wstring &out, const std::v
     for (uint64_t i = 0; i < nr; ++i, pos += 32)
         relocs.push_back({u(raw, pos, 8), u(raw, pos + 8, 8), (int64_t)u(raw, pos + 16, 8), (int64_t)u(raw, pos + 24, 8)});
     std::string image = span(raw, pos, (long long)size);
-    if (pos + (long long)size != (long long)raw.size()) throw Failure{"unexpected boot trailer"};
+    if (pos + (long long)size != (long long)raw.size()) throw Failure{"boot.bin has extra bytes after its image"};
     raw.clear();
     raw.shrink_to_fit();
 
-    // The import table: identity -> index, in first-seen order (a later duplicate takes the index, as a dict does).
+    // Import slots by identity. Identities keep the position where they first appeared; when one shows up again, the
+    // newer slot number replaces the older one (the same thing a Python dict does on reassignment).
     std::vector<std::pair<std::string, size_t>> order;
     std::vector<Identity> order_identity;
     std::map<std::string, size_t> where;
@@ -269,7 +278,7 @@ std::string link(const std::wstring &game, const std::wstring &out, const std::v
         if (loads.empty()) throw Failure{"max() arg is an empty sequence"};
         uint64_t modsize = 0;
         for (const Ph &p : loads) modsize = std::max(modsize, p.vaddr + p.memsz);
-        if (base + modsize > 512ull * 1024 * 1024) throw Failure{"linked image exceeds probe limit"};
+        if (base + modsize > 512ull * 1024 * 1024) throw Failure{"the linked image would be larger than 512 MiB"};
         if (base + modsize < image.size()) throw Failure{"negative count"};
         image.resize((size_t)(base + modsize), '\0');
         auto mapped = [&](uint64_t address, uint64_t length) {
@@ -278,7 +287,7 @@ std::string link(const std::wstring &game, const std::wstring &out, const std::v
             return false;
         };
         for (const Ph &p : loads) {
-            if (p.filesz > p.memsz) throw Failure{filename + ": invalid segment size"};
+            if (p.filesz > p.memsz) throw Failure{filename + ": a segment's file size is larger than its memory size"};
             std::string bytes = span(m.elf, (long long)p.offset, (long long)p.filesz);
             std::memcpy(&image[(size_t)(base + p.vaddr)], bytes.data(), bytes.size());
             segments.push_back({base + p.vaddr, p.memsz, p.flags});
@@ -286,12 +295,14 @@ std::string link(const std::wstring &game, const std::wstring &out, const std::v
         const Ph *tls = find_ph(m.ph, 7);
         uint64_t module_id = 0;
         if (tls) {
-            if (tls->filesz > tls->memsz || !mapped(tls->vaddr, tls->memsz)) throw Failure{filename + ": unsupported TLS layout"};
+            if (tls->filesz > tls->memsz || !mapped(tls->vaddr, tls->memsz))
+                throw Failure{filename + ": thread-local segment laid out in a way the linker can't handle"};
             module_id = tls_module++;
         }
         uint64_t tls_relocations = 0;
         for (const Relocation &r : m.relocs) {
-            if (!mapped(r.target, 8)) throw Failure{filename + ": relocation outside image " + hex0x(r.target)};
+            if (!mapped(r.target, 8))
+                throw Failure{filename + ": a relocation points outside the module at " + hex0x(r.target)};
             const uint64_t target = r.target + base;
             if (r.kind == 8) {
                 relocs.push_back({target, 0, (int64_t)base + r.addend, 0});
@@ -299,7 +310,7 @@ std::string link(const std::wstring &game, const std::wstring &out, const std::v
                 if (r.symbol >= m.symbols.size()) throw Failure{"list index out of range"};
                 const Symbol &symbol = m.symbols[(size_t)r.symbol];
                 if (!symbol.name.empty() || symbol.type != 3 || r.addend || !module_id)
-                    throw Failure{filename + ": unsupported external TLS relocation"};
+                    throw Failure{filename + ": thread-local relocation of a kind the linker can't handle"};
                 put64(image, target, module_id);
                 ++tls_relocations;
             } else if (r.kind == 1 || r.kind == 6 || r.kind == 7) {
@@ -311,23 +322,24 @@ std::string link(const std::wstring &game, const std::wstring &out, const std::v
                     else
                         relocs.push_back({target, 0, (int64_t)(base + symbol.value) + r.addend, 0});
                 } else if (!symbol.identity.ok && symbol.binding == 2) {
-                    put64(image, target, 0);   // weak undefined (module_start/stop)
+                    put64(image, target, 0);   // weak symbol nobody defines, e.g. module_start/module_stop
                 } else {
                     const uint64_t rk = symbol.type == 1 ? 2 : 1;
                     if ((rk == 1 && r.addend) || !(0 <= r.addend && r.addend < 4096))
-                        throw Failure{filename + ": unsupported import addend"};
+                        throw Failure{filename + ": an import carries an addend the linker can't express"};
                     relocs.push_back({target, rk, (int64_t)imported(symbol), r.addend});
                 }
             } else {
-                throw Failure{filename + ": unsupported relocation type " + std::to_string(r.kind)};
+                throw Failure{filename + ": relocation type not handled: " + std::to_string(r.kind)};
             }
         }
         uint64_t count = 0;
         for (const Symbol &s : m.symbols) {
             if (!(s.section && (s.binding == 1 || s.binding == 2) && s.identity.ok && (s.type == 1 || s.type == 2))) continue;
-            if (!mapped(s.value, std::max<uint64_t>(1, s.size))) throw Failure{filename + ": export outside load segments"};
+            if (!mapped(s.value, std::max<uint64_t>(1, s.size)))
+                throw Failure{filename + ": an export lies outside the loaded segments"};
             const std::string key = s.identity.key();
-            if (exports.count(key)) throw Failure{filename + ": ambiguous export"};
+            if (exports.count(key)) throw Failure{filename + ": the same export is defined more than once"};
             Export e{base + s.value, s.type == 1 ? 2u : 1u};
             exports[key] = e;
             by_nid[{s.identity.nid, s.identity.library}].push_back(e);
@@ -367,7 +379,7 @@ std::string link(const std::wstring &game, const std::wstring &out, const std::v
         tls_values[2] = main_tls->memsz;
         tls_values[3] = main_tls->align;
         if (main_tls->filesz > main_tls->memsz || main_tls->memsz > 1024 * 1024 || main_tls->vaddr + main_tls->filesz > size)
-            throw Failure{"unsupported eboot TLS layout"};
+            throw Failure{"the eboot's thread-local segment is laid out in a way the linker can't handle"};
     }
     const Ph *procparam = find_ph(main.ph, 0x61000001);
     if (!procparam) throw Failure{"no process parameter segment"};
@@ -387,7 +399,7 @@ std::string link(const std::wstring &game, const std::wstring &out, const std::v
     for (auto &b : bindings) for (uint64_t v : b) add64(o, v);
     for (auto &s : segments) for (uint64_t v : s) add64(o, v);
     for (const std::string &name : names) {
-        if (name.size() >= 128) throw Failure{"name too long"};
+        if (name.size() >= 128) throw Failure{"an import name is 128 bytes or longer"};
         o += name;
         o.append(128 - name.size(), '\0');
     }
@@ -432,13 +444,13 @@ std::string link(const std::wstring &game, const std::wstring &out, const std::v
     for (const std::string &n : unresolved) unresolved_v.items.push_back(Value::text(n));
     report.set("unresolved_imports", unresolved_v);
     std::string text = json::dump(report) + "\n", crlf;
-    for (char c : text) { if (c == '\n') crlf += "\r\n"; else crlf += c; }   // Python's write_text on Windows
+    for (char c : text) { if (c == '\n') crlf += "\r\n"; else crlf += c; }   // CRLF line ends, as the Python tool wrote
     write_file(join(out, L"link.json"), crlf);
 
     std::string summary;
     for (size_t i = 0; i < table.size(); ++i) summary += (i ? ", " : "") + table[i].file + "@" + hex0x(table[i].base);
-    return "Linked modules: " + summary + "; " + std::to_string(bindings.size()) + " native bindings, " +
-           std::to_string(unresolved.size()) + " imports left to the host runtime, fs->gs patched=" +
+    return "Modules linked: " + summary + "; " + std::to_string(bindings.size()) +
+           " imports bound to module exports, " + std::to_string(unresolved.size()) + " for the host runtime to supply, fs->gs loads rewritten: " +
            std::to_string(fs_patched) + "\n";
 }
 
@@ -446,9 +458,9 @@ std::string link(const std::wstring &game, const std::wstring &out, const std::v
 
 extern "C" {
 
-// link_modules.py's work: boot-linked.bin and link.json in `out_dir` from its boot.bin and the game folder's executable
-// and bundled modules. modules: file names in sce_module, one per line (empty: libc.prx and libSceFios2.prx).
-// out: the line link_modules.py prints. 0 ok; 1 failed (out: why).
+// Builds boot-linked.bin and link.json in out_dir, from the boot.bin already there plus the game folder's executable
+// and the modules it ships. `modules` lists file names inside sce_module, one per line; null or empty picks libc.prx
+// and libSceFios2.prx. Returns 0 with a one-line summary in `out`, or 1 with the reason it failed.
 UN_API int un_link_modules(const wchar_t *game, const wchar_t *out_dir, const char *executable, const char *modules,
                            char *out, int cap) {
     try {

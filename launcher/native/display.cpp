@@ -1,6 +1,6 @@
-// display.cpp - graphics card and screen logic for the launcher, part of uncharted_native.dll: which Quick Setup preset
-// suits the player's graphics card, how strong an integrated GPU is, the monitor's refresh rate, and the resolution /
-// aspect ratio / upscaling arithmetic and tables of the Display page.
+// display.cpp - GPU and monitor helpers in uncharted_native.dll. Picks a Quick Setup preset from the GPU model,
+// grades integrated GPUs, reads the display refresh rate, and does the size math (resolution, aspect ratio,
+// upscaling) plus the option tables used by the Display page.
 
 #include "native.h"
 
@@ -31,7 +31,7 @@ bool found(const std::string &s, const std::regex &r) { return std::regex_search
 
 // ------------------------------------------------------------------------------------------------ graphics cards
 
-// lower case, without (tm) / (r), single spaces
+// normalizes a GPU name for matching: lowercased, "(tm)" and "(r)" removed, runs of whitespace collapsed to one space
 std::string name_key(const std::string &name) {
     std::string s;
     for (char c : name) s += (char)std::tolower((unsigned char)c);
@@ -57,10 +57,10 @@ const std::regex &integrated_amd() {
 const std::regex &discrete_arc() { static const std::regex r(R"(\barc\s*(?:pro\s*)?[ab]\d{2,3})"); return r; }
 const std::regex &strix_halo() { static const std::regex r(R"(\bradeon\s*80[4-6]0s\b)"); return r; }
 
-// the Ryzen AI Max APUs (Radeon 8040S/8050S/8060S): integrated, but not a low-end GPU
+// Ryzen AI Max parts (Radeon 8040S/8050S/8060S) are on-die GPUs yet far too fast to count as low-end
 bool is_strix_halo(const std::string &n) { return found(n, strix_halo()); }
 
-// low-end integrated graphics (the IGPU preset's GPUs), from the model name
+// true when the model name looks like a low-end on-die GPU, i.e. the kind the IGPU preset targets
 bool is_integrated(const std::string &n) {
     if (n.empty() || is_strix_halo(n) || has(n, "nvidia") || has(n, "geforce")) return false;
     static const std::regex rx(R"(\brx\s*\d)");
@@ -69,7 +69,7 @@ bool is_integrated(const std::string &n) {
     return found(n, integrated_amd());
 }
 
-// how strong an integrated GPU is: "weak" (30 FPS), "mainstream" (60 FPS at 540p) or "strong" (60 FPS at 720p)
+// grades an on-die GPU: "weak" (about 30 FPS), "mainstream" (60 FPS at 540p) or "strong" (60 FPS at 720p)
 std::string igpu_strength(const std::string &name) {
     std::string n = name_key(name);
     static const std::regex strong(R"(\b(880m|890m)\b)"), mainstream(R"(\b(680m|760m|780m|860m)\b)"),
@@ -80,7 +80,7 @@ std::string igpu_strength(const std::string &name) {
     return "mainstream";
 }
 
-// the Quick Setup preset for a graphics card, from its model name; "" when not known
+// maps a GPU model name to a Quick Setup preset; returns "" for names it cannot classify
 std::string tier(const std::string &name) {
     std::string n = name_key(name);
     if (is_strix_halo(n)) return "medium";
@@ -128,7 +128,7 @@ std::string tier(const std::string &name) {
     } else if (std::regex_search(n, m, arc_r)) {
         t = std::stoi(m[2]) >= 500 ? "medium" : "low";
     } else if (has(n, "intel") || (has(n, "radeon") && has(n, "graphics"))) {
-        t = "low";   // other Intel (Arc Pro) and Radeon graphics the checks above did not place
+        t = "low";   // fallback for Intel (e.g. Arc Pro) and Radeon names none of the patterns above matched
     } else {
         return "";
     }
@@ -139,8 +139,9 @@ std::string tier(const std::string &name) {
     return t;
 }
 
-// the Quick Setup preset for a card: IGPU for low-end integrated graphics (the game log's kind when known, else the
-// model name), else its tier; Strix Halo never takes IGPU. integrated: 1 yes, 0 no, -1 not known
+// Preset to suggest for a GPU. Low-end on-die GPUs get "igpu"; whether a GPU is on-die comes from the game log
+// when it said so, otherwise from the name. Everything else gets tier(). Strix Halo is never sent to "igpu".
+// `integrated`: 1 = on-die, 0 = discrete, -1 = unknown.
 std::string recommendation(const std::string &name, int integrated) {
     std::string n = name_key(name);
     if (is_strix_halo(n)) return tier(n);
@@ -158,8 +159,9 @@ std::string utf8(const std::wstring &w) {
     return s;
 }
 
-// the graphics card the game used last, from its newest log ("GPU: using <name>", and its kind from the
-// "GPU <n>: <name> (DiscreteGpu|IntegratedGpu)" lines of the first 400 lines); false when no log has it
+// Finds the GPU of the most recent game run. Logs are tried newest first; within the first 400 lines the
+// "GPU: using <name>" line gives the name and the "GPU <n>: <name> (DiscreteGpu|IntegratedGpu)" lines give its type.
+// Returns false if none of the logs contains a "using" line.
 bool from_logs(const std::vector<std::wstring> &logs, std::string &name, int &integrated) {
     struct Log { std::wstring path; FILETIME written; };
     std::vector<Log> present;
@@ -214,7 +216,7 @@ bool from_logs(const std::vector<std::wstring> &logs, std::string &name, int &in
     return false;
 }
 
-// Windows' graphics adapters (hardware only)
+// names of the DXGI adapters, skipping software renderers and duplicates
 std::vector<std::string> adapters() {
     std::vector<std::string> out;
     IDXGIFactory1 *factory = nullptr;
@@ -261,15 +263,16 @@ bool temporal(const std::string &u) { return u == "fsr3" || u == "fsr4" || u == 
 
 long long half_even(double v) { return (long long)std::nearbyint(v); }
 
-// the render resolution at the aspect ratio: 1440p at 21:9 is 3440x1440 (widths in steps of 16), 720p at 16:10 is
-// 1280x800 (heights in steps of 4)
+// Adjusts a 16:9 resolution to another aspect ratio. Wider ratios keep the height and round the width to a multiple
+// of 16 (e.g. 1440p at 21:9 -> 3440x1440); narrower ones keep the width and round the height to a multiple of 4
+// (e.g. 720p at 16:10 -> 1280x800).
 std::string at_aspect(const std::string &resolution, const std::string &aspect) {
     long long width = std::stoll(resolution.substr(0, resolution.find('x'))), height = std::stoll(resolution.substr(resolution.find('x') + 1));
     double w = aspect_width(aspect);
     if (w == 0 || aspect == "16:9") return resolution;
     if (w < 16.0 / 9) height = half_even(width / w / 4) * 4;
     else if (aspect == "21:9" && (height == 1080 || height == 1440 || height == 1600))
-        width = height == 1080 ? 2560 : height == 1440 ? 3440 : 3840;   // the common monitor sizes
+        width = height == 1080 ? 2560 : height == 1440 ? 3440 : 3840;   // real ultrawide panel widths
     else width = half_even(height * w / 16) * 16;
     return std::to_string(width) + "x" + std::to_string(height);
 }
@@ -278,8 +281,8 @@ std::string at_aspect(const std::string &resolution, const std::string &aspect) 
 
 extern "C" {
 
-// the recommended preset: from the game's newest log (logs: one path per line), else Windows' adapters (the
-// strongest known one). out: name\tintegrated(1/0/-1)\tpreset (preset may be empty)
+// Suggests a preset. `logs` lists game log paths, one per line; the newest one naming a GPU decides. Without such
+// a log, the highest-ranked DXGI adapter is used. Output: name\tintegrated(1/0/-1)\tpreset, preset possibly empty.
 UN_API int un_gpu_recommendation(const wchar_t *logs, char *out, int cap) {
     std::vector<std::wstring> paths;
     std::wstring all = logs ? logs : L"";
@@ -309,7 +312,7 @@ UN_API int un_gpu_recommendation(const wchar_t *logs, char *out, int cap) {
     return give(name + "\t" + std::to_string(integrated) + "\t" + preset, out, cap);
 }
 
-// one GPU question: what "tier" | "recommend" | "igpu_class" | "integrated"; integrated as above
+// single GPU lookup selected by `what`: "tier", "recommend", "igpu_class" or "integrated" (`integrated` arg: 1/0/-1)
 UN_API int un_gpu_query(const char *what, const char *name, int integrated, char *out, int cap) {
     std::string w = what ? what : "", n = name ? name : "", r;
     if (w == "tier") r = tier(n);
@@ -326,7 +329,8 @@ UN_API int un_monitor_refresh_hz(void) {
     return hz > 1 ? hz : 60;
 }
 
-// tables: "resolutions" (value\tlabel), "aspects" (value\tvalue), "upscale_presets" (value\tlabel)
+// fixed option lists by name: "resolutions" and "upscale_presets" give value\tlabel, "aspects" gives value\tvalue,
+// "temporal_upscalers" gives one id per line
 UN_API int un_display_table(const char *name, char *out, int cap) {
     std::string n = name ? name : "", text;
     if (n == "resolutions") for (auto &r : RESOLUTIONS) text += std::string(r[0]) + "\t" + r[1] + "\n";
@@ -336,7 +340,7 @@ UN_API int un_display_table(const char *name, char *out, int cap) {
     return give(text, out, cap);
 }
 
-// the resolution list labelled by the height the game draws at this aspect ratio (value\tlabel; 2160 lines are 4K)
+// value\tlabel per resolution, where the label is the height after aspect adjustment ("4K" when it is 2160)
 UN_API int un_resolution_options(const char *aspect, char *out, int cap) {
     std::string text, a = aspect ? aspect : "16:9";
     for (auto &r : RESOLUTIONS) {
@@ -351,8 +355,8 @@ UN_API int un_aspect_resolution(const char *resolution, const char *aspect, char
     return give(at_aspect(resolution ? resolution : "1920x1080", aspect ? aspect : "16:9"), out, cap);
 }
 
-// the size a game draws at and, with upscaling, the size it is upscaled to: out "render\toutput" (output empty
-// without upscaling). Widths in steps of 16, heights in steps of 4.
+// Output "render\toutput". With an upscaler active, render is the reduced internal size (width rounded to 16, height
+// to 4) and output the final size; without one, the first field is the plain size and the second stays empty.
 UN_API int un_game_sizes(const char *resolution, const char *aspect, const char *upscale, const char *upscaling, char *out,
                          int cap) {
     std::string output = at_aspect(resolution ? resolution : "1920x1080", aspect ? aspect : "16:9");
@@ -365,7 +369,8 @@ UN_API int un_game_sizes(const char *resolution, const char *aspect, const char 
     return give(render + "\t" + output, out, cap);
 }
 
-// the upscaler a game's settings hold: a temporal one, else FSR 1, else off; and the anti-aliasing (TAA or off)
+// derive the upscaler choice from the stored settings (temporal upscaler if set, otherwise fsr1 if on, otherwise
+// off); the next export does the same for anti-aliasing (taa or off)
 UN_API int un_upscaling_choice(const char *upscaler, const char *fsr1, char *out, int cap) {
     std::string u = upscaler ? upscaler : "off";
     if (temporal(u)) return give(u, out, cap);
@@ -378,7 +383,8 @@ UN_API int un_anti_aliasing_choice(const char *upscaler, const char *launcher_aa
     return give(std::string(launcher_aa && std::string(launcher_aa) == "taa" ? "taa" : "off"), out, cap);
 }
 
-// the upscalers this package can use (value\tlabel): FSR 1 and FSR 3.1 always; FSR 4 with its model, DLSS with its DLLs
+// upscalers available in this install as value\tlabel: off, FSR 1 and FSR 3.1 always; FSR 4 only if its model file
+// is present, DLSS only if both DLLs are
 UN_API int un_upscaling_options(const wchar_t *root, char *out, int cap) {
     std::wstring r = root ? root : L".";
     auto file = [&](const wchar_t *rel) {
