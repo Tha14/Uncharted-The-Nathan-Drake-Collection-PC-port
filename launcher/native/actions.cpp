@@ -142,6 +142,9 @@ struct Work {
     std::atomic<bool> running{false};
     int status = 0;
     std::string text;
+    ~Work() {   // the launcher may close while an install runs: never end the program over a joinable thread
+        if (thread.joinable()) thread.detach();
+    }
 } g_work;
 
 void start_work(const char *what, const std::string &root, std::vector<std::string> args) {

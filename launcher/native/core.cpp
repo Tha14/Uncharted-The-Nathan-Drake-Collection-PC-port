@@ -1,11 +1,12 @@
 // core.cpp - the launcher itself, part of uncharted_native.dll: its settings, the window's model (game cards, tabs,
 // status line, PLAY, the update banner), every action, PLAY and the running game, the launcher's own updates, the
 // online section and the multiplayer imports. The Qt window (launcher-qt) runs it in its own process and talks to it
-// with the messages it used to send the Python launcher (launcher/qt_backend.py), so nothing in the window changed:
+// with JSON messages:
 //
 //   un_core_open(root, args_json)        once; args: {"direct": "u1" | "u2" | "u3" | null} (--play: the game starts
 //                                        at once and the launcher ends with it)
-//   un_core_send(message_json, out, cap) one request ({"op": ...}, as qt_backend.py took them); out: a JSON array of
+//   un_core_send(message_json, out, cap) one request ({"op": ...}: model, config, ini, game_setting, ini_all, call, act,
+//                                        game, playgame, tab, play, update, answer, close); out: a JSON array of
 //                                        the replies and events it caused ({"re": "model", ...}, {"ev": "dialog", ...},
 //                                        {"ev": "closed"})
 //   un_core_tick(out, cap)               about every 50 ms: the events the timers caused (the game's output, the

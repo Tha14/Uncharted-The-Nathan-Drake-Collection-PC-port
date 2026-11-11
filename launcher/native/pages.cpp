@@ -95,7 +95,7 @@ Value array() {
     return v;
 }
 
-// The colours of the launcher's look (uncharted_launcher.pyw / Theme.qml): page and section backgrounds, text.
+// The colours of the launcher's look (launcher-qt's Theme.qml): page and section backgrounds, text.
 const char *const BG = "#0c0c0e";
 const char *const CARD = "#151519";
 const char *const MUTED = "#a3a09a";

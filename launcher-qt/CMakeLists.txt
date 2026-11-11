@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 # The launcher's window in Qt 6 (C++ + QML). Open this folder in Qt Creator (or the QML files in Qt Design
-# Studio) to edit it. The launcher's logic stays in launcher/uncharted_launcher.pyw: launcher/qt_backend.py runs
-# it without its Tk window and this program draws it (see README.md).
+# Studio) to edit it. The launcher itself is launcher/native/uncharted_native.dll's core, which this program runs
+# (see README.md).
 project(UnchartedLauncherQt VERSION 1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)

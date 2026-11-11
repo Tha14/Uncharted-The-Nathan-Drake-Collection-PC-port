@@ -121,6 +121,9 @@ struct Updates {
     bool installing = false, install_done = false;
     std::string staged, install_error;
     std::thread worker;
+    ~Updates() {   // the launcher may close while a check runs: never end the program over a joinable thread
+        if (worker.joinable()) worker.detach();
+    }
 } g;
 
 Value status(const std::string &text, const std::string &detail) {
@@ -225,6 +228,7 @@ void tick(const Host &h, Value &out) {
     if (g.checking && g.check_done) {
         g.checking = false;
         g.busy = false;
+        if (g.worker.joinable()) g.worker.join();   // it has just finished
         if (g.found.is_object()) {
             g.release = g.found;
             const std::string version = version_text(g.release);

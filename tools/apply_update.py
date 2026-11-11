@@ -1,15 +1,15 @@
-"""Hands a launcher update to tools\\apply_update.exe (launcher/native/apply.cpp), the installer that sits next to this
-file in the new version's package.
+r"""Kept for launchers up to 0.10.63, which install an update by running the new package's
+    python\pythonw.exe -I tools\apply_update.py --root <install folder> --wait-pid <launcher process id>.
+The installer is tools\apply_update.exe (launcher/native/apply.cpp), beside this file: it gets the same arguments,
+and its exit code is this script's."""
+import pathlib
+import subprocess as sp
+import sys as _sys
 
-Launchers up to 0.10.63 install an update by starting the new package's
-    python\\pythonw.exe -I tools\\apply_update.py --root <install folder> --wait-pid <launcher process id>
-so this script stays in every package for them; newer launchers start apply_update.exe themselves. It passes its
-arguments on unchanged and ends with the installer's exit code.
-"""
-import subprocess
-import sys
-from pathlib import Path
 
-if __name__ == "__main__":
-    installer = Path(__file__).resolve().with_name("apply_update.exe")
-    sys.exit(subprocess.call([str(installer), *sys.argv[1:]], close_fds=True))
+def main(arguments):
+    installer = pathlib.Path(__file__).resolve().parent / "apply_update.exe"
+    return sp.call([str(installer)] + list(arguments), close_fds=True)
+
+
+raise SystemExit(main(_sys.argv[1:])) if __name__ == "__main__" else None

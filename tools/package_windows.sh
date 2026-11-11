@@ -139,9 +139,8 @@ cp launcher/native/game_starter.exe "$stage/launcher/native/"   # PLAY's game st
 # launcher/updater.py, tools/apply_update.py and tools/probe_uncharted.py): launchers up to 0.10.63 check for those
 # files and start python\pythonw.exe -I tools\apply_update.py, which the bridge turns into tools\apply_update.exe.
 cp launcher/native/apply_update.exe "$stage/tools/"
-# The launcher's window (launcher-qt: Qt 6, C++ and QML; it runs launcher\qt_backend.py), built with CLANG64's
+# The launcher's window (launcher-qt: Qt 6, C++ and QML; it runs the launcher's native core), built with CLANG64's
 # Qt (mingw-w64-clang-x86_64-qt6-base, -qt6-declarative) and deployed with its Qt modules and every DLL it loads.
-# Without Qt the package keeps the launcher's own window (the starter falls back to it).
 qt_dlls=()
 if [[ -f $msys/clang64/bin/windeployqt6.exe ]]; then
     qt_build=dist/stage/qt-build
@@ -221,9 +220,9 @@ else
 fi
 cp launcher/assets/uncharted.ico launcher/assets/icon.png "$stage/launcher/assets/"
 
-# The starter, Uncharted Launcher.exe (tools/windows_starter), with its icon and version resource.
+# Uncharted Launcher.exe, the program players start (tools/windows_starter/starter.cpp), with the launcher's icon.
 windres tools/windows_starter/starter.rc -O coff -o dist/stage/starter.res.o
-clang -O2 -municode -mwindows tools/windows_starter/starter.c dist/stage/starter.res.o \
+clang++ -O2 -std=c++17 -municode -mwindows -static -s tools/windows_starter/starter.cpp dist/stage/starter.res.o \
     -o "$stage/Uncharted Launcher.exe"
 
 # ------------------------------------------------------------------------------------------ texts and defaults

@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 
-// One element of a page as qt_backend.py describes it: a section, a row, a group of elements or a control.
+// One element of a page as the launcher's core describes it (pages.cpp): a section, a row, a group of elements or a control.
 Item {
     id: root
     property var node: ({})

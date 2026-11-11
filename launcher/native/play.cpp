@@ -1,5 +1,5 @@
-// play.cpp - PLAY's native side (launcher/uncharted_launcher.pyw play/poll/stop/crash_reason), part of
-// uncharted_native.dll: the game's environment from the launcher's settings, the running game (the game starter as a
+// play.cpp - PLAY, part of uncharted_native.dll (used by the launcher's core, core.cpp): the game's environment
+// from the launcher's settings, the running game (the game starter as a
 // child process, its output in launcher-last-run.log and handed to the launcher line by line, STOP), and why a game
 // that stopped did so (its boot.log).
 

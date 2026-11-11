@@ -1,2 +1,2 @@
-// The starter's icon: the project's own (tools/make_icon.py draws it).
-1 ICON "../../launcher/assets/uncharted.ico"
+// Uncharted Launcher.exe's icon: the launcher's own (drawn by tools/make_icon.py). The lowest icon id is the program's.
+100 ICON "..\\..\\launcher\\assets\\uncharted.ico"
