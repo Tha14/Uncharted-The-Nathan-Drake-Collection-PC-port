@@ -618,14 +618,25 @@ std::string update_text() {
     if (!version.empty() && version >= "01.02")
         return "The game folder is version " + version + " and already includes the update.";
     return "The game folder is version " + (version.empty() ? std::string("?") : version) +
-           ", and no update was found. To get the 1.02 fixes, add your update 1.02 folder or its .pkg under "
-           "Game update.";
+           ", and no update was found. To get the 1.02 fixes, add your update 1.02 folder or its .pkg in "
+           "step 2 on the Setup tab.";
+}
+// SETUP's first two steps: a game folder the starter accepts, and update 1.02 (a chosen or found update folder, or a
+// game folder that is already 01.02 or later)
+Value setup_steps() {
+    Value s = Value::object();
+    const std::string dir = game_dir();
+    s.set("game", Value::boolean(!dir.empty() && is_game_dir(dir)));
+    const std::string version = dir.empty() ? "" : sys("app_version", dir);
+    s.set("update", Value::boolean(!update_dir().empty() || (!version.empty() && version >= "01.02")));
+    return s;
 }
 Value tools_lines() {
     Value t = Value::object();
     t.set("game_dir", Value::text(!g.progress_game_dir.empty() ? g.progress_game_dir : "Game folder: " + game_dir()));
     t.set("update", Value::text(!g.progress_update.empty() ? g.progress_update : update_text()));
     t.set("ini", Value::text("Settings file: " + ini_file(game_key())));
+    t.set("steps", setup_steps());
     return t;
 }
 
@@ -810,7 +821,7 @@ void u3_import(bool silent, bool image_only, const std::string &reason, const st
     }
     const std::string game = game_dir();
     if (!is_game_dir(game)) {
-        if (!silent) tell("info", "Choose your PS4 Uncharted: The Nathan Drake Collection folder first (TOOLS -> Change game folder).");
+        if (!silent) tell("info", "Choose your PS4 Uncharted: The Nathan Drake Collection folder first (SETUP -> Change game folder).");
         return;
     }
     std::vector<std::string> folders;
@@ -1835,8 +1846,8 @@ void select_game(std::string key, bool save) {
 
 // ------------------------------------------------------------------------------------------------ the model
 
-const char *const TABS[][2] = {{"setup", "SETUP"}, {"display", "DISPLAY"}, {"performance", "PERFORMANCE"},
-                               {"controls", "CONTROLS"}, {"cheats", "CHEATS"}, {"advanced", "ADVANCED"}, {"tools", "TOOLS"},
+const char *const TABS[][2] = {{"setup", "SETUP"}, {"graphics", "GRAPHICS"}, {"controls", "CONTROLS"}, {"game", "GAME"},
+                               {"cheats", "CHEATS"}, {"experimental", "EXPERIMENTAL"}, {"tools", "TOOLS"},
                                {"u3mp", "MULTIPLAYER"}, {"multiplayer", "MULTIPLAYER"}, {"launcher", "LAUNCHER"}};
 
 Value chrome() {
@@ -2166,9 +2177,14 @@ void start(const std::string &root, const Value &args) {
     g.detail = "During play, Insert or R3 + L2 shows the in-game menu.";
     select_game(game_key(), false);
     std::string saved = text(g.config, "tab");
+    if (saved == "display" || saved == "performance") saved = "graphics";   // the tabs before 0.10.78
+    if (saved == "advanced") saved = "game";
     bool known = false;
     for (auto &t : TABS) known = known || saved == t[0];
-    show_tab(known ? saved : "setup", false);
+    // until the game folder and update 1.02 are set up, the launcher opens on SETUP's steps
+    const Value steps = setup_steps();
+    const bool set_up = truthy(steps.get("game")) && truthy(steps.get("update"));
+    show_tab(known && set_up ? saved : "setup", false);
     online_open();
     every(150, []() { poll_game(); if (++g.poll_count % 7 == 0) follow_ini(); });
     every(200, []() { update_op("tick"); });

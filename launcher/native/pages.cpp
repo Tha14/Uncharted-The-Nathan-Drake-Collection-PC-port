@@ -798,12 +798,21 @@ Value page_setup(const State &state) {
     const Value *gpu = state.gpu.get("name"), *rec = state.gpu.get("recommended");
     const std::string gpu_name = gpu ? text_of(*gpu) : "", recommended = rec ? text_of(*rec) : "";
 
-    // The first thing a new player sees: three steps in one section (the game, its update, a quality level)
+    // The first thing a new player sees: three steps in one section (the game, its update, a quality level). A done
+    // step gets a check mark; the first one still to do says so.
+    const Value *steps = state.tools.get("steps");
+    const bool game_done = steps && steps->get("game") && steps->get("game")->truthy();
+    const bool update_done = steps && steps->get("update") && steps->get("update")->truthy();
+    const bool quality_done = !current.empty();
+    const int next = !game_done ? 1 : !update_done ? 2 : !quality_done ? 3 : 0;
+    auto step = [&](int n, const std::string &title, bool done) {
+        return done ? "\xe2\x9c\x93  " + title : n == next ? title + "   \xe2\x86\x90 start here" : title;
+    };
     std::vector<Value> items;
     items.push_back(label(p + "steps_intro", "Three steps before the first game: show the launcher your copy of the "
                                              "Collection, add update 1.02, then pick a quality level.",
                           MUTED, CARD, 10));
-    items.push_back(row(p + "row:game", "1. Your game",
+    items.push_back(row(p + "row:game", step(1, "1. Your game", game_done),
                         "Your own dumped copy of the Collection: the folder that holds eboot.bin and sce_sys. Got only "
                         "the game's .pkg? Install it from there. Check game files compares the folder with the retail "
                         "files.",
@@ -812,7 +821,7 @@ Value page_setup(const State &state) {
         if (const Value *t = state.tools.get(key))
             if (!text_of(*t).empty()) items.push_back(label(p + "line:" + key, text_of(*t), DIM, CARD, 9));
     items.push_back(separator());
-    items.push_back(row(p + "row:update", "2. Update 1.02",
+    items.push_back(row(p + "row:update", step(2, "2. Update 1.02", update_done),
                         "The fixes in this port need the game's update 1.02: choose its unpacked folder from any "
                         "place, or install it from its .pkg file. Skip this if your game folder already includes it.",
                         setup_buttons("update", SETUP_UPDATE)));
@@ -820,14 +829,14 @@ Value page_setup(const State &state) {
         if (!text_of(*t).empty()) items.push_back(label(p + "line:update", text_of(*t), DIM, CARD, 9));
 
     items.push_back(separator());
-    items.push_back(bold_label(p + "quality_title", "3. Quality level", TEXT));
-    std::string intro = "Start from one of these quality levels; every setting stays adjustable on the Display and "
-                        "Performance tabs.";
+    items.push_back(bold_label(p + "quality_title", step(3, "3. Quality level", quality_done), TEXT));
+    std::string intro = "Start from one of these quality levels; every setting stays adjustable on the Graphics "
+                        "tab.";
     if (!recommended.empty()) {
         const Preset *r = preset_named(list, recommended);
         const std::string name = recommended == "igpu" ? "iGPU" : r ? title_case(r->title) : recommended;
         intro = "Best match for your graphics card (" + gpu_name + "): " + name +
-                ". Every setting stays adjustable on the Display and Performance tabs.";
+                ". Every setting stays adjustable on the Graphics tab.";
     }
     items.push_back(label(p + "intro", intro, MUTED, CARD, 10));
 
@@ -875,9 +884,9 @@ Value page_setup(const State &state) {
                                                                         : game + " uses custom settings you changed yourself.",
                           MUTED, CARD, 9));
     Value page = array();
-    Value steps = array();
-    for (auto &i : items) steps.items.push_back(std::move(i));
-    page.items.push_back(section(p + "quality", "Get started", std::move(steps)));
+    Value list_items = array();
+    for (auto &i : items) list_items.items.push_back(std::move(i));
+    page.items.push_back(section(p + "quality", "Get started", std::move(list_items)));
     return page;
 }
 
@@ -1037,6 +1046,69 @@ template <size_t N> void add_toggles(std::vector<Value> &rows, const State &stat
                            toggle(std::string("native:advanced:") + t.key, config_bool(state, t.key, t.fallback))));
 }
 
+// ------------------------------------------------------------------------------------------------ regrouping parts
+// GRAPHICS (DISPLAY + PERFORMANCE + the stable extras), GAME, EXPERIMENTAL and LAUNCHER's additions are made of the
+// older pages' parts. Every control keeps its id ("native:display:...", "native:advanced:..."), so its clicks still go
+// to the same act_* handler.
+
+Value *field_of(Value &v, const char *key) {
+    for (auto &f : v.fields) if (f.first == key) return &f.second;
+    return nullptr;
+}
+// the element with this id, taken out of a list (with one separator beside it when asked); null when absent
+Value take_item(std::vector<Value> &list, const std::string &id, bool with_separator) {
+    for (size_t i = 0; i < list.size(); ++i) {
+        if (str_or(list[i].get("id"), "") != id) continue;
+        Value out = std::move(list[i]);
+        list.erase(list.begin() + (long)i);
+        if (with_separator) {
+            auto sep = [&](size_t k) { return k < list.size() && str_or(list[k].get("t"), "") == "sep"; };
+            if (i > 0 && sep(i - 1)) list.erase(list.begin() + (long)(i - 1));
+            else if (sep(i)) list.erase(list.begin() + (long)i);
+        }
+        return out;
+    }
+    return Value();
+}
+Value take_section(Value &page, const std::string &id) { return take_item(page.items, id, false); }
+Value take_row(Value &section, const std::string &id) {
+    Value *items = field_of(section, "items");
+    return items ? take_item(items->items, id, true) : Value();
+}
+// rows added at a section's end, each after a separator (absent ones skipped)
+void add_rows(Value &section, std::vector<Value> rows) {
+    Value *items = field_of(section, "items");
+    if (!items) return;
+    for (auto &r : rows) {
+        if (r.kind == Value::Null) continue;
+        if (!items->items.empty()) items->items.push_back(separator());
+        items->items.push_back(std::move(r));
+    }
+}
+// settings fewer players change, folded away under a title (the window remembers it open once opened)
+Value folded_group(const std::string &id, const std::string &title, std::vector<Value> rows) {
+    std::vector<Value> kept;
+    for (auto &r : rows) if (r.kind != Value::Null) kept.push_back(std::move(r));
+    Value g = Value::object();
+    g.set("t", Value::text("group"));
+    g.set("id", Value::text(id));
+    g.set("title", Value::text(title));
+    g.set("folded", Value::boolean(true));
+    g.set("items", with_separators(std::move(kept)));
+    return g;
+}
+// one of ADVANCED's launcher.json toggles, by key, as its row
+Value toggle_row(const State &state, const std::string &key) {
+    auto make = [&](const ConfigToggle &t) {
+        return row(std::string("native:advanced:row:") + t.key, t.title, t.hint,
+                   toggle(std::string("native:advanced:") + t.key, config_bool(state, t.key, t.fallback)));
+    };
+    for (auto &t : EXTRA_QUALITY) if (key == t.key) return make(t);
+    for (auto &t : UNLOCKS) if (key == t.key) return make(t);
+    for (auto &t : LAUNCHER_TOGGLES) if (key == t.key) return make(t);
+    return Value();
+}
+
 // Unlocks: shown on CHEATS (right column); its toggles keep ADVANCED's ids, so their clicks still go to act_advanced
 Value unlocks_section(const State &state) {
     std::vector<Value> unlocks;
@@ -1175,10 +1247,7 @@ Value page_tools(const State &state) {
         for (auto &i : items) list.items.push_back(std::move(i));
         page.items.push_back(section_with_note(p + sec.title, sec.title, sec.note, std::move(list)));
     }
-    Value credits = array();
-    credits.items.push_back(label(p + "credits", CREDITS, DIM, CARD, 9));
-    page.items.push_back(section(p + "Credits", "Credits", std::move(credits)));
-    return page;
+    return page;   // the credits are on LAUNCHER
 }
 
 // A button runs its launcher action (the Python side's calls() list)
@@ -1238,6 +1307,12 @@ Value page_launcher(const State &state) {
     rows.push_back(row(p + "row:check_now", "Check for a new version", "", button(p + "check_now", "Check now", "secondary")));
     Value page = array();
     page.items.push_back(section(p + "updates", "Updates", with_separators(std::move(rows))));
+    std::vector<Value> logs;   // ADVANCED's Performance log (its id still goes to act_advanced)
+    logs.push_back(toggle_row(state, "diagnostics"));
+    page.items.push_back(section(p + "logs", "Logs", with_separators(std::move(logs))));
+    Value credits = array();
+    credits.items.push_back(label("native:tools:credits", CREDITS, DIM, CARD, 9));
+    page.items.push_back(section(p + "credits", "Credits", std::move(credits)));
     return page;
 }
 
@@ -1757,6 +1832,19 @@ Value progress_bar(const std::string &id, const Value &mp) {
     return b;
 }
 
+// MULTIPLAYER's top line: what is set up, a check mark per piece, so whatever is missing shows at a glance
+Value checklist(const std::string &p, std::initializer_list<std::pair<const char *, bool>> pieces, const char *then) {
+    Value line = array();
+    line.items.push_back(packed(bold_label(p + "check:title", "Ready for multiplayer:", TEXT), "left"));
+    int i = 0;
+    for (auto &piece : pieces)
+        line.items.push_back(packed(label(p + "check:" + std::to_string(i++),
+                                          std::string(piece.second ? "\xe2\x9c\x93 " : "\xe2\x97\x8b ") + piece.first,
+                                          piece.second ? GOLD : MUTED, CARD, 10), "left"));
+    if (then) line.items.push_back(packed(label(p + "check:then", then, DIM, CARD, 9), "left"));
+    return box(p + "checklist", "h", std::move(line));
+}
+
 // a row of buttons (Choose / Clear ...) and the line under it
 Value buttons_box(const std::string &p, const std::string &key, std::initializer_list<std::pair<const char *, const char *>> list) {
     Value line = array();
@@ -1898,6 +1986,9 @@ Value page_u3mp(const State &state) {
     storage.push_back(label(p + "line:keep_ps3", keep_text, DIM, CARD, 9));
 
     Value page = array();
+    page.items.push_back(checklist(p, {{"PS3 folders", folders && !folders->items.empty()}, {"Decrypted EBOOT", !elf.empty()},
+                                       {"Imported", ready}},
+                                   "then sign in under RPCN online play"));
     Value set_up = section(p + "setup", "Set up multiplayer", with_separators(std::move(setup)));
     set_up.set("note", Value::text("New here? Do these four steps in order."));
     page.items.push_back(std::move(set_up));
@@ -1967,6 +2058,9 @@ Value page_u2mp(const State &state) {
     import.push_back(label(p + "note", "Runs in the background, even while you play.", DIM, CARD, 9));
 
     Value page = array();
+    page.items.push_back(checklist(p, {{"PS3 folder", !ps3.empty()}, {"RPCS3 game data", !found.empty()},
+                                       {"Imported", status == "imported" || status == "partial"}},
+                                   "then sign in under RPCN online play"));
     page.items.push_back(section(p + "game", "Your PS3 game", with_separators(std::move(game))));
     page.items.push_back(section(p + "storage", "Storage", with_separators(std::move(storage))));
     page.items.push_back(section(p + "import", "Import", with_separators(std::move(import))));
@@ -2001,6 +2095,80 @@ const std::vector<std::string> U3MP_BUTTONS = {"ps3_u3:add", "ps3_u3:clear", "ps
 const std::vector<std::string> U2MP_BUTTONS = {"ps3:choose", "ps3:clear", "data:choose", "data:clear", "dir:open",
                                                "import", "cancel", "log"};
 
+// ------------------------------------------------------------------------------------------------ the regrouped tabs
+
+// GRAPHICS: DISPLAY's resolution and picture (with the stable extras), PERFORMANCE's frame rate and the counter; the
+// settings fewer players touch are folded away. The experimental ones are on EXPERIMENTAL.
+Value page_graphics(const State &state) {
+    Value display = page_display(state), perf = page_performance(state), advanced = page_advanced(state);
+    Value page = array();
+    for (auto &item : perf.items)   // the "★ = recommended" note
+        if (str_or(item.get("t"), "") != "section") page.items.push_back(item);
+    page.items.push_back(take_section(display, "native:display:resolution"));
+
+    Value picture = take_section(display, "native:display:picture");
+    Value extra = take_section(advanced, "native:advanced:extra");
+    add_rows(picture, {take_row(extra, "native:advanced:row:anisotropy"), toggle_row(state, "no_dof"),
+                       toggle_row(state, "movie_stretch")});
+    page.items.push_back(std::move(picture));
+
+    Value rate = take_section(perf, "native:performance:rate");
+    Value cpu = take_section(perf, "native:performance:cpu");
+    Value vram = take_section(perf, "native:performance:vram");
+    Value queued = take_row(rate, "native:performance:row:frames_queued");
+    Value note = take_row(vram, "native:performance:fps_note");
+    if (Value *items = field_of(rate, "items")) {
+        if (note.kind != Value::Null) items->items.push_back(std::move(note));
+        items->items.push_back(separator());
+        items->items.push_back(folded_group("native:graphics:more_rate", "More frame rate settings",
+                                            {std::move(queued), take_row(cpu, "native:performance:row:async_shaders"),
+                                             take_row(cpu, "native:performance:row:job_sleep")}));
+    }
+    page.items.push_back(std::move(rate));
+
+    Value counter = take_section(display, "native:display:counter");
+    std::vector<Value> style;
+    for (const char *key : {"overlay_items", "overlay_corner", "overlay_layout", "overlay_scale", "overlay_opacity"})
+        style.push_back(take_row(counter, std::string("native:display:row:") + key));
+    if (Value *items = field_of(counter, "items")) {
+        items->items.push_back(separator());
+        items->items.push_back(folded_group("native:graphics:counter_style", "Counter style", std::move(style)));
+    }
+    page.items.push_back(std::move(counter));
+    return page;
+}
+
+// GAME: language, save profile, exposure, speakers, the in-game menu shortcut, Uncharted 2's torch
+Value page_game(const State &state) {
+    Value advanced = page_advanced(state);
+    Value game = take_section(advanced, "native:advanced:game");
+    add_rows(game, {toggle_row(state, "torch_forward")});
+    Value page = array();
+    page.items.push_back(std::move(game));
+    return page;
+}
+
+// EXPERIMENTAL: features still being tested, in one place; one that proves reliable moves to its usual tab
+Value page_experimental(const State &state) {
+    Value perf = page_performance(state);
+    Value cpu = take_section(perf, "native:performance:cpu"), vram = take_section(perf, "native:performance:vram");
+    Value page = array();
+    page.items.push_back(label("native:experimental:intro",
+                               "Features still being tested. They can cause glitches, slowdowns or crashes, so turn one "
+                               "off again if a game misbehaves. Once a feature has proven reliable it moves to its usual "
+                               "tab.",
+                               MUTED, CARD, 10));
+    std::vector<Value> speed;
+    speed.push_back(take_row(cpu, "native:performance:row:multithreaded"));
+    speed.push_back(take_row(vram, "native:performance:row:low_vram"));
+    page.items.push_back(section("native:experimental:performance", "Performance", with_separators(std::move(speed))));
+    std::vector<Value> quality;
+    quality.push_back(toggle_row(state, "hires_shadows"));
+    quality.push_back(toggle_row(state, "full_res_textures"));
+    page.items.push_back(section("native:experimental:quality", "Picture quality", with_separators(std::move(quality))));
+    return page;
+}
+
 }  // namespace
 
 extern "C" {
@@ -2021,6 +2189,9 @@ UN_API int un_page(const char *name, const char *state_json, char *out, int cap)
     if (n == "controls") return give(json::dump(page_controls(state), false), out, cap);
     if (n == "u3mp") return give(json::dump(page_u3mp(state), false), out, cap);
     if (n == "multiplayer") return give(json::dump(page_u2mp(state), false), out, cap);
+    if (n == "graphics") return give(json::dump(page_graphics(state), false), out, cap);
+    if (n == "game") return give(json::dump(page_game(state), false), out, cap);
+    if (n == "experimental") return give(json::dump(page_experimental(state), false), out, cap);
     return 2;
 }
 

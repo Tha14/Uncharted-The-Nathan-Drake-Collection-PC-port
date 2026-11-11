@@ -21,7 +21,8 @@ Rectangle {
     onNodeChanged: {
         if (!loaded && node && node.title) {
             loaded = true
-            open = String(remembered.value(node.title, "true")) !== "false"
+            // a group the page marks "folded" starts closed until the player opens it
+            open = String(remembered.value(node.title, node.folded ? "false" : "true")) !== "false"
         }
     }
     function toggle() {

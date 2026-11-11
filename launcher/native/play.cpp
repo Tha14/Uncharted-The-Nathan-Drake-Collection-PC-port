@@ -706,7 +706,7 @@ json::Value play_questions(const json::Value &state) {
             list.items.push_back(question("update_files",
                 "Some files of the game update are missing or damaged:\n\n" + named + "\n\n" + update +
                     "\n\nWith these files broken, the games will probably not get past startup. Unpack the update "
-                    "once more, or install it with TOOLS -> Game update -> Install from .pkg. Start the game anyway?"));
+                    "once more, or install it with SETUP -> step 2 -> Install update from .pkg. Start the game anyway?"));
         }
     }
 
@@ -763,7 +763,7 @@ json::Value play_end(const json::Value &state) {
         if (update.empty() && !version.empty() && version < "01.02")
             reason += "\n\nNote: this game folder is version " + lstrip_zeros(version) +
                       " without update 1.02, and the bulk of this port's crash fixes rely on that update. Add it first "
-                      "(TOOLS -> Game update).";
+                      "(SETUP, step 2).";
         end.set("ask", json::Value::text("Something went wrong in the game:\n\n" + reason + "\n\nShow the log folder?"));
     } else {
         end.set("ask", json::Value::text(""));
