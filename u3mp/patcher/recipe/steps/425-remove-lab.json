@@ -1,0 +1,24 @@
+{
+ "id": "remove-lab",
+ "title": "No Lab maps on PC: Lab level paks, the 48 Lab actor paks, Lab map pictures and Lab registry blocks removed from the overlays (no-lab/remove_lab.py)",
+ "kind": "script",
+ "job": "no-lab",
+ "family": "overlay-r3/pak23",
+ "needs": [],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/remove_lab.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-*/u3data/build/main/pak23_ps4.txt"
+ ],
+ "must_write": false,
+ "reference_check": false,
+ "status": "reproducible",
+ "applied": "2026-11-11 (tested on a copy of an import)",
+ "notes": "Owner's decision 2026-11-11: no Lab maps on PC, from any source (the player's DATA2 or the server). levels-lab and levels-maps-batch are retired, convert-actors skips the labsrc jobs, copy-ps3-vtex1 no longer copies the Lab map pictures, the DATA2 input check no longer needs the Lab psarcs. This step deletes what older imports have (70 level paks, 48 actor paks, 3 pictures) and strips the 28 Lab blocks of pak23_ps4.txt (lab-registration and registry-final still write them). Runs before netgame-order-119, which marks the Lab maps not listed (their levels are no longer in the registry) and keeps Lab netgames out of the playlists, with PS3's netgame indices kept. Idempotent: 'already applied' when nothing Lab is left; pak23_ps4.txt backed up once to work/backup-no-lab.",
+ "recipe_version_added": "1.15.0"
+}

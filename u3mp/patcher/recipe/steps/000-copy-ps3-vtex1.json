@@ -1,6 +1,6 @@
 {
  "id": "copy-ps3-vtex1",
- "title": "overlay-mp vtex1: 882 PS3 UI textures (ranks, medals, emblems, playlists, net-levels, controller schemes)",
+ "title": "overlay-mp vtex1: 879 PS3 UI textures (ranks, medals, emblems, playlists, net-levels, controller schemes)",
  "kind": "copy-list",
  "list": "copy-ps3-vtex1.tsv",
  "family": "overlay-mp/vtex1",
@@ -11,6 +11,6 @@
  "tolerate_missing": 0.01,
  "status": "reproducible",
  "applied": "2026-10-26 (pre-session seed) + 2026-11-01 lab-*.dds",
- "notes": "710 loose files of the disc build/main/vtex1, 134 from dlc-patch13.psarc, 11 from dlc-patch18.psarc, 25 from goty-patch.psarc, 2 from DATA2 lab-trench-v1-7.psarc. Byte copies (PS3 DDS is accepted by the PS4 loader).",
+ "notes": "710 loose files of the disc build/main/vtex1, 134 from dlc-patch13.psarc, 11 from dlc-patch18.psarc, 25 from goty-patch.psarc (recipe 1.15.0: the 3 Lab map pictures, 2 of them from DATA2 lab-trench-v1-7.psarc, are no longer copied: no Lab maps on PC). Byte copies (PS3 DDS is accepted by the PS4 loader).",
  "recipe_version_added": "1.0.0"
 }

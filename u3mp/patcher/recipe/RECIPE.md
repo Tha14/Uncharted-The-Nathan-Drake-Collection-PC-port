@@ -101,7 +101,10 @@ converted pak run once the conversion exists.
    `map-colors2`, `actor-materials`, `coop-desc-fix`, `excess-wall`, `hat-colour`, `airport-igc2`,
    `enemy-stall-option-defaults`, `emblem-cap3`, `coop-audit-option-defaults`, `shade-npc-paks`, `coop-voice-all`,
    `london-fade`, `airport-igc3`, `vram-gap` (* = dctools steps: restored 2026-11-05, verified sha256-identical from their backups with `tools/dcconv/verify_dctools_chain.py`; maps-batch is now `maps-batch-dc` + `maps-batch-files`, and `eula-menu-box` follows `rpcn-menu-page`)
-5. `registry-final` (pak23_ps4.txt of the four overlays, line provenance), then `netgame-order-119` (recipe 1.14.0,
+5. `registry-final` (pak23_ps4.txt of the four overlays, line provenance), `remove-lab` (recipe 1.15.0: no Lab maps on
+   PC; deletes the Lab level / actor paks and Lab map pictures older imports have and strips the Lab blocks of
+   pak23_ps4.txt; `levels-lab`, `levels-maps-batch` and `maps-batch-files` are retired, convert-actors skips the 48
+   labsrc jobs, the DATA2 Lab psarcs are never read), then `netgame-order-119` (recipe 1.14.0,
    `tools/fixes/netgame-order/netgame_order.py`, with_jobs dctools): the overlay net.bin netgame table and playlists
    rebuilt in the order of the player's DATA2 `net18.bin` (exactly PS3's netgames: count, order, names, maps, types;
    PS3 scalar values; PC-only netgames dropped; a PS3 map the PC lacks added with +0x94 = 1), modules.bin net size

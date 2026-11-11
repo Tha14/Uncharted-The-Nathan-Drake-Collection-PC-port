@@ -24,6 +24,6 @@
  "must_write": false,
  "status": "reproducible",
  "applied": "2026-10-31 23:47..23:59 (scratchpad lab/, gh2 paktools f525859)",
- "notes": "The 2026-10-31 local conversion replayed from the transcript: labsrc = dlc-patch13 + lab-multi-01-7 + actor-parts-7 + lab-trench-v1-7 psarcs (xl.py), res = mkres.py over the retail pak23, stagepipe (no paramfix/cubefix, no caps, U3_TEXDICT = retail TextureDictionaries.csv), ps4ingame for the -pak-ingame12 paks, the 248-byte empty level for the -pak stubs. All 63 files byte-identical (verified 2026-11-05).",
+ "notes": "RETIRED in recipe 1.15.0 (no Lab maps on PC, owner 2026-11-11): not in ORDER.txt; step remove-lab deletes its outputs from older imports. The 2026-10-31 local conversion replayed from the transcript: labsrc = dlc-patch13 + lab-multi-01-7 + actor-parts-7 + lab-trench-v1-7 psarcs (xl.py), res = mkres.py over the retail pak23, stagepipe (no paramfix/cubefix, no caps, U3_TEXDICT = retail TextureDictionaries.csv), ps4ingame for the -pak-ingame12 paks, the 248-byte empty level for the -pak stubs. All 63 files byte-identical (verified 2026-11-05).",
  "recipe_version_added": "1.6.0"
 }

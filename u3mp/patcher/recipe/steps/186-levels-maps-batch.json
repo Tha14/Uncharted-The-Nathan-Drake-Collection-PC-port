@@ -27,6 +27,6 @@
  "must_write": false,
  "status": "reproducible",
  "applied": "2026-11-01 14:52 (maps-batch/tools/build_paks.py + apply_maps.py)",
- "notes": "The pak23 part of maps-batch/tools/build_paks.py (slicepak.slice_pages with patch7, ps4ingame with NEUTRALIZE_ARTS sd-pitch/sd-structure, collision.havok_bg_blobs); FG hk tables are not needed for these. 7 files byte-identical. The 48 box / stadium actor paks of build_paks.py are actor33 (maps-batch-files).",
+ "notes": "RETIRED in recipe 1.15.0 (no Lab maps on PC, owner 2026-11-11): not in ORDER.txt; step remove-lab deletes its outputs from older imports. The pak23 part of maps-batch/tools/build_paks.py (slicepak.slice_pages with patch7, ps4ingame with NEUTRALIZE_ARTS sd-pitch/sd-structure, collision.havok_bg_blobs); FG hk tables are not needed for these. 7 files byte-identical. The 48 box / stadium actor paks of build_paks.py are actor33 (maps-batch-files).",
  "recipe_version_added": "1.6.0"
 }

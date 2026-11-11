@@ -8,7 +8,6 @@ convert-levels-r2
 convert-levels-r3
 lost-batches-r3
 cloud-batches-r3
-levels-lab
 actors-hk-tables
 convert-actors-r3
 convert-dc1
@@ -23,8 +22,6 @@ elim-pic
 classic-netgames
 skins-net-names
 maps-batch-dc
-maps-batch-files
-levels-maps-batch
 eula-menu-box
 skin-textures
 wall-emblem
@@ -53,4 +50,5 @@ airport-igc3
 map-lighting
 vram-gap
 registry-final
+remove-lab
 netgame-order-119

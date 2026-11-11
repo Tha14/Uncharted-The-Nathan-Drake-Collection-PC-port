@@ -122,8 +122,8 @@ PS3_U3_KINDS = {
                ('dlc-patch18.psarc', 'dlc-patch13.psarc'),
                'dlc-patch13.psarc, dlc-patch18.psarc (menus, net tables, patched level paks, vtex1 rank art)'),
     'data2': ('U3 PS3 game-data install written by the game/server (...DATA2/USRDIR: net18.bin, build/main/*-7.psarc)',
-              ('net18.bin', 'build/main/lab-trench-v1-7.psarc', 'build/main/actor-parts-7.psarc'),
-              'net18.bin, lab-*-7.psarc, actor-parts-7.psarc, pak23/*-7.psarc, http-cache (EULA text)'),
+              ('net18.bin', 'build/main/actor-parts-7.psarc'),
+              'net18.bin, actor-parts-7.psarc, pak23/*-7.psarc, http-cache (EULA text); its Lab psarcs are not used (no Lab maps on PC)'),
     'dlcmaps': ('U3 PS3 DLC map packs install (USRDIR with dlc-map1..4.psarc)',
                 ('dlc-map1.psarc', 'dlc-map2.psarc', 'dlc-map3.psarc', 'dlc-map4.psarc'),
                 'dlc-map1..4.psarc (Flashback maps, DLC sound banks/streams)'),
@@ -177,10 +177,10 @@ def full_import_problems(inp):
         out.append('the Uncharted 3 game data folder (dev_hdd0/game/BCES01670DATA2) was not found: start Uncharted 3 '
                    'in RPCS3 with update 1.19 and go online once, so the game writes it, then add dev_hdd0/game.')
         return out
-    missing = [r for r in ('net18.bin', 'build/main/lab-trench-v1-7.psarc') if not os.path.exists(os.path.join(d2, r))]
+    missing = [r for r in ('net18.bin', 'build/main/actor-parts-7.psarc') if not os.path.exists(os.path.join(d2, r))]
     if missing:
         out.append('the game data folder %s is incomplete (missing %s): it is written by Uncharted 3 when it goes '
-                   'online in RPCS3 (net tables and the Lab maps it downloads); go online in Uncharted 3 multiplayer '
+                   'online in RPCS3 (net tables and map updates); go online in Uncharted 3 multiplayer '
                    'once in RPCS3 with update 1.19, then import again.' % (d2, ', '.join(missing)))
         return out
     want = accepted_net18_sha256()

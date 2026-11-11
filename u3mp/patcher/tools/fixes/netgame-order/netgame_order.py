@@ -16,14 +16,31 @@ same count, order, names, maps and game types.
     records as f0670de8 -> 3 x 8b617b51); any other pointer field stops the step.
   * PC-only netgames (old PS4-retail Hardcore, the lab-custom-* TDM entries, old Lab Dodgeball, ...) are dropped.
   * a PS3 map the map list lacks (net18 2026-11-07: 0x416ad15b lab-multi-35) gets a map-list entry converted like
-    lab_reg.py with +0x94 = 1 (not listed): the PC has no paks for it; its netgames keep their PS3 indices.
+    lab_reg.py: +0x94 = 1 (not listed) when the PC has no paks for it (its main level is not in overlay-r3's
+    pak23_ps4.txt), else 0; its netgames keep their PS3 indices. PS3's +0x14 (mode bit mask: co-op 0x80, hunter
+    0x40, comp 0x1/0x4/0x10, ...) has no slot in the PS4 record (the PC records of the same maps drop it too), so it
+    is not converted (0.10.82: a net.bin without warzone-multi-comp-pak stopped here on its +0x14 = 4).
   * playlists: PS3 order, ids, words, netgame lists with weights and pools; the PC entry of the same id is the
     template (PS4 layout, picture string) and keeps its content-pack word (+0x2c).
+  * no Lab maps on PC (owner decision 2026-11-11; rules in dctools/ng119.py): every map whose main level starts with
+    'lab-' gets +0x94 = 1 (not listed), the PC entries it already has (copied to a new map array) and converted ones
+    alike, so Custom Game never lists it (the helper's m004 Game Type rows, ported 1.19 f_355808, skip such maps; no
+    game type is Lab-only in 1.19, so every type keeps maps). The netgames on Lab maps (net18 2026-11-07: PS3 indices
+    94, 130, 131, 205..210, 270) stay in the table at their PS3 index, but are removed from every playlist netgame list
+    (order and weights of the others as on PS3). Playlist pools are matchmaking pool ids (helper onb_startmatch passes
+    pool[0] to 0x7a2790 = 1.19 f_37efec), not netgames, so they stay PS3's. A playlist left with no netgame (PS3's
+    0x5242014b net-playlists/lab, all 5 Lab) keeps its place and gets content pack 0xff (ng119.HIDDEN_PACK): PS4's
+    playlist enum 0x752630 (Find Game) and its count / n-th / index-of-id helpers 0x73f910 / 0x73f990 / 0x73f730 list
+    an entry only when byte 0x17c3a40[+0x2c] is set, and nothing sets 0xff.
+Same order on every PC (recipe 1.15.0): the map list is rebuilt in net18 order (PC entries copied whole, missing
+ones converted); maps only the PC has are dropped (no netgame refers to them; stale history entries); before, each PC kept its own order.
 Append-only (dctools DCEdit): the original bytes stay, new arrays go after them; only the table headers change.
 modules.bin: the size word of module 'net' (found by name) is set to the new net.bin size.
-Dry run by default; --apply writes (net.bin / modules.bin backed up once to work/backup-netgame-order/).
-Idempotent: exits 0 'already applied' when the table already equals net18's (ng119.check finds nothing).
---verify: only report the differences to net18 (exit 1 when there are any)."""
+Dry run by default; --apply writes (net.bin / modules.bin backed up once to work/backup-netgame-order/; the log
+netgame_order.log.json there lists the Lab maps hidden, the Lab netgames and per playlist what was removed).
+Idempotent: exits 0 'already applied' when the table already equals net18's with the Lab rules (ng119.check finds
+nothing); a table made by an earlier version (Lab visible) is rebuilt from itself.
+--verify: only report the differences to that expected table (exit 1 when there are any)."""
 import argparse, collections, hashlib, json, os, shutil, struct, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path[0:0] = [HERE, os.path.join(HERE, '..', 'dctools')]
@@ -36,6 +53,17 @@ D = PROJECT + "/work/overlay-r3/u3data/build/main/dc1/ps4/"
 BK = PROJECT + "/work/backup-netgame-order/"
 NET18 = "{{PS3_DATA2}}/net18.bin"
 DROP_LEVELS = {'cargo-plane-static'}       # as lab_reg.py: not a PS4 level
+MAP3_PS3_ONLY = {0x14}                     # PS3 map record words with no PS4 slot (+0x14 mode bit mask): not converted
+REGISTRY = PROJECT + "/work/overlay-r3/u3data/build/main/pak23_ps4.txt"
+
+
+def pc_levels():
+    """level names the PC registry defines (overlay-r3 pak23_ps4.txt 'level-name' lines); empty when it is missing"""
+    try:
+        with open(REGISTRY, encoding='latin-1') as f:
+            return {ln.split(None, 1)[1].strip() for ln in f if ln.startswith('level-name ') and len(ln.split()) > 1}
+    except OSError:
+        return set()
 MODULE_T = 0x61183179                      # modules.bin module list (entries 0x28: name pointer +0, .bin size +0x10)
 
 
@@ -105,18 +133,42 @@ def build(net, b, log):
             raise SystemExit('internal: scalar write over a pointer slot at %x' % o)
         struct.pack_into('<I', e.d, o, v)
 
-    # ------------------------------------------------------------------ map list: PS3 maps the PC lacks
+    # ------------------------------------------------------------------ map list in PS3 order, Lab maps hidden
+    # 1.15.0: the map list is rebuilt in net18's order (PC-only maps after it, by id), so every PC has the same list
+    # whatever order its import history left (a map that was missing used to be appended at the end).
     om, nm, am = N.table(a, N.MAPS)
     _, nm3, am3 = N.table(b, N.MAPS)
-    ids4 = {a.u32(am + i * N.MAP4) for i in range(nm)}
-    new_maps = [i for i in range(nm3) if b.u32(am3 + i * N.MAP3) not in ids4]
+    pc_at = {a.u32(am + i * N.MAP4): i for i in range(nm)}
+    order = N.map_order(b, a)                 # [(id, PS3 slot)]: exactly net18's maps
+    try:
+        labs, lab_ng, lab_names = N.lab_netgames(b, a)
+    except ValueError as x:
+        raise SystemExit(str(x))
+    mains4 = N.map_mains(a)
     log['maps_added'] = []
-    if new_maps:
-        known = set(N.MAP_STR) | set(N.MAP_U32) | {0x30}
-        na = e.alloc(N.MAP4 * (nm + len(new_maps)), 16)
-        e.copy_words(am, na, N.MAP4 * nm)
-        for j, i3 in enumerate(new_maps):
-            src, m = am3 + i3 * N.MAP3, na + N.MAP4 * (nm + j)
+    log['lab_maps_hidden'] = []
+    log['map_order_changed'] = [a.u32(am + i * N.MAP4) for i in range(nm)] != [m for m, _ in order]
+    map_ids = {m for m, _ in order}
+    log['pc_only_maps_dropped'] = ['%08x %s' % (m, N.map_mains(a).get(m, '')) for m in pc_at if m not in map_ids]
+    hide = [m for m, _ in order if m in pc_at and a.u32(am + pc_at[m] * N.MAP4 + N.MAP_NOT_LISTED) != N.not_listed_want(mains4[m], a.u32(am + pc_at[m] * N.MAP4 + N.MAP_NOT_LISTED))]
+    if log['map_order_changed'] or hide:
+        known = set(N.MAP_STR) | set(N.MAP_U32) | {0x30} | MAP3_PS3_ONLY
+        levels = pc_levels()
+        na = e.alloc(N.MAP4 * len(order), 16)
+        for slot, (mid, i3) in enumerate(order):
+            m = na + N.MAP4 * slot
+            if mid in pc_at:                     # the PC entry, copied whole (PS4 sub-structures and earlier fixes kept)
+                i = pc_at[mid]
+                e.copy_words(am + i * N.MAP4, m, N.MAP4)
+                was = a.u32(am + i * N.MAP4 + N.MAP_NOT_LISTED)
+                want = N.not_listed_want(mains4[mid], was)
+                if want != was:             # Lab -> 1; a junk value (a DC-recipe rebuild left 0x8d820000 on shambhala-multi-comp) -> 0
+                    put(m + N.MAP_NOT_LISTED, want)
+                if N.is_lab(mains4[mid]) and was != 1:
+                    log['lab_maps_hidden'].append(dict(id='%08x' % mid, main=mains4[mid], slot=slot,
+                                                       was=a.u32(am + i * N.MAP4 + N.MAP_NOT_LISTED)))
+                continue
+            src = am3 + i3 * N.MAP3
             for k in range(0, N.MAP3, 4):
                 if b.isptr(src + k) and k not in N.MAP_STR and k != 0x30:
                     raise SystemExit('PS3 map %08x: unexpected pointer at +%x' % (b.u32(src), k))
@@ -141,11 +193,12 @@ def build(net, b, log):
                 elif b.u32(src + k3):
                     raise SystemExit('PS3 map %08x: +%x is a value, not a string' % (b.u32(src), k3))
             e.putptr(m + 0x58, lst)
-            put(m + N.MAP_NOT_LISTED, 1)
-            ids4.add(b.u32(src))
-            log['maps_added'].append(dict(id='%08x' % b.u32(src), ps3_slot=i3, main=b.cstr(b.ptr(src + 0x18)) if b.isptr(src + 0x18) else '',
-                                          sublevels=len(sub), not_listed=1))
-        e.put32(om, nm + len(new_maps)); e.putptr(om + 8, na)
+            main = b.cstr(b.ptr(src + 0x18)) if b.isptr(src + 0x18) else ''
+            not_listed = 0 if main and main in levels and not N.is_lab(main) else 1
+            put(m + N.MAP_NOT_LISTED, not_listed)
+            log['maps_added'].append(dict(id='%08x' % mid, ps3_slot=i3, main=main, sublevels=len(sub),
+                                          not_listed=not_listed, lab=N.is_lab(main)))
+        e.put32(om, len(order)); e.putptr(om + 8, na)
 
     # ------------------------------------------------------------------ netgames in PS3 order
     o4, n4, ar4 = N.table(a)
@@ -168,7 +221,7 @@ def build(net, b, log):
         for k3, k4 in N.MAP.items():
             if k4 is None and b.u32(src + k3) and not (k3 in N.DROPPED_CLASSIC and b.u32(src + 0xc) == N.CLASSIC):
                 raise SystemExit('PS3 netgame %d (%08x): +%x = %x has no PC field' % (i3, b.u32(src), k3, b.u32(src + k3)))
-        if b.u32(src + 4) and b.u32(src + 4) not in ids4:
+        if b.u32(src + 4) and b.u32(src + 4) not in map_ids:
             raise SystemExit('PS3 netgame %d (%08x): map %08x is in no map list' % (i3, b.u32(src), b.u32(src + 4)))
         free = [i for i in pc_by.get(b.u32(src), []) if i not in used]
         if free:
@@ -250,8 +303,14 @@ def build(net, b, log):
         for k3, k4 in N.PL_MAP.items():
             if k4 not in N.PL_KEEP_PC:
                 put(m + k4, b.u32(m3 + k3))
-        n, it3 = b.u32(l3), b.ptr(l3 + 4)
-        items = [(b.u32(it3 + 8 * k), b.u32(it3 + 8 * k + 4)) for k in range(n)]
+        items3 = N.playlist_list(b, m3)
+        items, hidden = N.pc_playlist_list(b, m3, lab_names)   # PS3's list without the Lab netgames (no Lab maps on PC)
+        n = len(items)
+        pack = a.u32(tpl + N.PL_PACK)
+        if hidden:                            # nothing left to play: a content pack nothing installs, Find Game skips it
+            put(m + N.PL_PACK, N.HIDDEN_PACK)
+        elif pack == N.HIDDEN_PACK:           # hidden by an earlier run but playable now: the base multiplayer pack
+            put(m + N.PL_PACK, 1)
         it = e.alloc(max(8 * n, 8), 8)       # plain array, no type header
         for k, (s, w) in enumerate(items):
             struct.pack_into('<II', e.d, it + 8 * k, s, w)
@@ -267,12 +326,21 @@ def build(net, b, log):
             pool = obj(N.PL_POOL_T, 16); struct.pack_into('<I', e.d, pool, pn); e.putptr(pool + 8, pit); e.putptr(m + 0x40, pool)
         elif 0x40 in p4:                      # PS3 has no pool here: none on the PC either
             e.ptrs.discard(m + 0x40); struct.pack_into('<Q', e.d, m + 0x40, 0)
-        missing = [s for s, _ in items if s not in names]
+        missing = [s for s, _ in items3 if s not in names]
         if missing:
             raise SystemExit('PS3 playlist %08x names netgames PS3 does not have: %s' % (pid, ['%08x' % s for s in missing]))
-        plog.append(dict(id='%08x' % pid, netgames=n, pool=b.u32(b.ptr(m3 + 0x38)) if 0x38 in p3 else 0))
+        removed = [s for s, _ in items3 if s in lab_names]
+        plog.append(dict(id='%08x' % pid, name=b.cstr(b.ptr(m3 + 0x10)) if 0x10 in p3 else '', netgames_ps3=len(items3),
+                         netgames=n, lab_removed=['%08x' % s for s in removed],
+                         weight_ps3=sum(w for _, w in items3), weight=sum(w for _, w in items),
+                         pack='%#x' % (N.HIDDEN_PACK if hidden else (1 if pack == N.HIDDEN_PACK else pack)), hidden=hidden,
+                         pool=b.u32(b.ptr(m3 + 0x38)) if 0x38 in p3 else 0))
     e.put32(op4, np3); e.putptr(op4 + 8, npl)
     log['playlists'] = plog
+    log['lab'] = dict(maps=sorted('%08x' % x for x in labs), netgames_kept_unlisted=['%d:%08x' % kv for kv in sorted(lab_ng.items())],
+                      maps_hidden=len(log['lab_maps_hidden']) + sum(1 for x in log['maps_added'] if x['lab']),
+                      playlist_entries_removed=sum(len(p['lab_removed']) for p in plog),
+                      playlists_hidden=[p['id'] for p in plog if p['hidden']])
     out = e.build()
     # nothing but the table headers (and the reloc offset) may differ in the original part
     allowed = set(range(8, 16))
@@ -309,7 +377,8 @@ def main():
         print('differences to net18:', len(errs))
         return 1 if errs else 0
     if not errs:
-        print('already applied: the netgame table and playlists equal net18.bin (%d netgames)' % N.table(b)[1])
+        print('already applied: the netgame table and playlists equal net18.bin (%d netgames), Lab maps and netgames hidden'
+              % N.table(b)[1])
         return 0
     print('%d difference(s) to net18.bin, first: %s' % (len(errs), errs[0]))
     log = collections.OrderedDict(net18=A.net18, net18_sha256=h, net_before=dict(size=os.path.getsize(A.net), sha256=sha256(A.net)))
@@ -330,9 +399,16 @@ def main():
             raise SystemExit('the rebuilt table still differs from net18.bin in %d place(s); nothing written' % len(left))
     log['net_after'] = dict(size=len(out), sha256=hashlib.sha256(out).hexdigest())
     log['modules_net_size_slot'] = '%#x' % slot
-    s = {k: v for k, v in log.items() if k not in ('converted', 'pc_only_dropped', 'playlists')}
+    s = {k: v for k, v in log.items() if k not in ('converted', 'pc_only_dropped', 'playlists', 'lab_maps_hidden')}
     print(json.dumps(s, indent=1))
     print('dropped PC-only netgames:', ' '.join(log['pc_only_dropped']))
+    print('Lab maps hidden (+0x94 = 1):', ' '.join('%s %s' % (x['id'], x['main']) for x in log['lab_maps_hidden']) or '-',
+          '| added hidden:', ' '.join('%s %s' % (x['id'], x['main']) for x in log['maps_added'] if x['lab']) or '-')
+    for p in log['playlists']:
+        if p['lab_removed'] or p['hidden']:
+            print('playlist %s %s: %d -> %d netgames (removed %s), weight %d -> %d%s' % (
+                p['id'], p['name'], p['netgames_ps3'], p['netgames'], ' '.join(p['lab_removed']), p['weight_ps3'], p['weight'],
+                ', hidden (content pack %s)' % p['pack'] if p['hidden'] else ''))
     if not A.apply:
         print('dry run: net.bin %d -> %d, modules.bin net size %d -> %d; nothing written' % (old, len(out), old, len(out)))
         return 0

@@ -303,6 +303,12 @@ def main():
     cols = 'overlay name sha256 status method toolset source template mode cap env post'.split()
     rows = [dict(zip(cols, l.rstrip('\n').split('\t'))) for l in open(os.path.join(HERE, 'jobs.tsv')) if l.strip() and not l.startswith('#')]
     rows = [r for r in rows if r['overlay'] in ovs and (not only or r['name'] in only)]
+    # recipe 1.15.0: no Lab maps on PC. The 48 Lab art groups (lt-box*, sd* stadium pieces; source labsrc = the DATA2 Lab
+    # psarcs) are never built; step remove-lab deletes them from older imports.
+    n0 = len(rows)
+    rows = [r for r in rows if r['source'] != 'labsrc']
+    if n0 != len(rows):
+        print('%d Lab jobs skipped (no Lab maps on PC)' % (n0 - len(rows)), flush=True)
     hidden = shadowed()
     if hidden:
         n0 = len(rows)
