@@ -1,4 +1,4 @@
-# Game files, player data and build output never belong in this repository.
+# Never in the repository: anything from a game or a player, and what the builds make.
 /game/
 /user/
 /reference/
