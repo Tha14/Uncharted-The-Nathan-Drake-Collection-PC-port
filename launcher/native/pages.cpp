@@ -195,7 +195,10 @@ std::vector<std::vector<std::string>> cheat_list() {
     return list;
 }
 
-Value page_cheats(const Value &config) {
+Value unlocks_section(const State &state);   // defined with ADVANCED's toggles
+
+Value page_cheats(const State &state) {
+    const Value &config = state.config;
     Value items = array();
     items.items.push_back(label("native:cheats:intro",
                                 "Switches the developers built into the games. They take effect when a game launches and "
@@ -211,6 +214,7 @@ Value page_cheats(const Value &config) {
     }
     Value page = array();
     page.items.push_back(section("native:cheats", "Developer switches", std::move(items)));
+    page.items.push_back(unlocks_section(state));   // the right column
     return page;
 }
 
@@ -770,6 +774,22 @@ Value card_text(const std::string &text, const char *fg, int size, bool bold, bo
     return t;
 }
 
+Value button(const std::string &id, const std::string &text, const char *kind);   // with TOOLS' buttons
+Value bold_label(const std::string &id, const std::string &text, const char *fg);
+
+// SETUP's game and update steps: TOOLS actions (their ids stay "native:tools:<action>", so act_tools runs them)
+struct SetupButton { const char *action, *label; };
+const SetupButton SETUP_GAME[] = {{"choose_game_dir", "Change game folder"}, {"install_game_pkg", "Install game from .pkg"},
+                                  {"check_game_files", "Check game files"}};
+const SetupButton SETUP_UPDATE[] = {{"choose_update_folder", "Choose update folder"},
+                                    {"install_game_update", "Install update from .pkg"}};
+template <size_t N> Value setup_buttons(const std::string &key, const SetupButton (&list)[N]) {
+    Value line = array();
+    for (auto &b : list)
+        line.items.push_back(packed(button(std::string("native:tools:") + b.action, b.label, "secondary"), "left"));
+    return box("native:setup:buttons:" + key, "h", std::move(line));
+}
+
 Value page_setup(const State &state) {
     const std::string p = "native:setup:";
     const std::vector<Preset> list = presets();
@@ -778,7 +798,29 @@ Value page_setup(const State &state) {
     const Value *gpu = state.gpu.get("name"), *rec = state.gpu.get("recommended");
     const std::string gpu_name = gpu ? text_of(*gpu) : "", recommended = rec ? text_of(*rec) : "";
 
+    // The first thing a new player sees: three steps in one section (the game, its update, a quality level)
     std::vector<Value> items;
+    items.push_back(label(p + "steps_intro", "Three steps before the first game: show the launcher your copy of the "
+                                             "Collection, add update 1.02, then pick a quality level.",
+                          MUTED, CARD, 10));
+    items.push_back(row(p + "row:game", "1. Your game",
+                        "Your own dumped copy of the Collection: the folder that holds eboot.bin and sce_sys. Got only "
+                        "the game's .pkg? Install it from there. Check game files compares the folder with the retail "
+                        "files.",
+                        setup_buttons("game", SETUP_GAME)));
+    for (const char *key : {"game_dir", "ini"})   // the game folder and the settings file
+        if (const Value *t = state.tools.get(key))
+            if (!text_of(*t).empty()) items.push_back(label(p + "line:" + key, text_of(*t), DIM, CARD, 9));
+    items.push_back(separator());
+    items.push_back(row(p + "row:update", "2. Update 1.02",
+                        "The fixes in this port need the game's update 1.02: choose its unpacked folder from any "
+                        "place, or install it from its .pkg file. Skip this if your game folder already includes it.",
+                        setup_buttons("update", SETUP_UPDATE)));
+    if (const Value *t = state.tools.get("update"))
+        if (!text_of(*t).empty()) items.push_back(label(p + "line:update", text_of(*t), DIM, CARD, 9));
+
+    items.push_back(separator());
+    items.push_back(bold_label(p + "quality_title", "3. Quality level", TEXT));
     std::string intro = "Start from one of these quality levels; every setting stays adjustable on the Display and "
                         "Performance tabs.";
     if (!recommended.empty()) {
@@ -833,7 +875,9 @@ Value page_setup(const State &state) {
                                                                         : game + " uses custom settings you changed yourself.",
                           MUTED, CARD, 9));
     Value page = array();
-    page.items.push_back(section(p + "quality", "Quality level", with_separators(std::move(items))));
+    Value steps = array();
+    for (auto &i : items) steps.items.push_back(std::move(i));
+    page.items.push_back(section(p + "quality", "Get started", std::move(steps)));
     return page;
 }
 
@@ -993,6 +1037,15 @@ template <size_t N> void add_toggles(std::vector<Value> &rows, const State &stat
                            toggle(std::string("native:advanced:") + t.key, config_bool(state, t.key, t.fallback))));
 }
 
+// Unlocks: shown on CHEATS (right column); its toggles keep ADVANCED's ids, so their clicks still go to act_advanced
+Value unlocks_section(const State &state) {
+    std::vector<Value> unlocks;
+    add_toggles(unlocks, state, UNLOCKS);
+    Value s = section("native:advanced:unlocks", "Unlocks", with_separators(std::move(unlocks)));
+    s.set("column", Value::text("right"));
+    return s;
+}
+
 Value page_advanced(const State &state) {
     const std::string p = "native:advanced:";
     const Value *settings = game_settings(state);
@@ -1034,10 +1087,6 @@ Value page_advanced(const State &state) {
                         choice(p + "anisotropy", Value::text(config_str(state, "anisotropy", "0")), ANISOTROPY, "16")));
     add_toggles(extra, state, EXTRA_QUALITY);
     page.items.push_back(section(p + "extra", "Extra quality", with_separators(std::move(extra))));
-
-    std::vector<Value> unlocks;
-    add_toggles(unlocks, state, UNLOCKS);
-    page.items.push_back(section(p + "unlocks", "Unlocks", with_separators(std::move(unlocks))));
 
     std::vector<Value> launcher;
     add_toggles(launcher, state, LAUNCHER_TOGGLES);
@@ -1092,14 +1141,10 @@ const std::vector<ToolSection> &tool_sections() {
          {{"desktop_shortcut", "Desktop shortcut"}, {"game_shortcuts", "Game shortcuts"}}},
         {"Steam", "Lists the Collection, or each game separately, as a non-Steam game in your Steam library.",
          {{"add_to_steam", "Add to Steam"}, {"add_games_to_steam", "Add games to Steam"}}},
-        {"Folders", "",
-         {{"open_logs", "Open log folder"}, {"open_saves", "Open save folder"}, {"choose_game_dir", "Change game folder"},
-          {"install_game_pkg", "Install game from .pkg"}, {"check_game_files", "Check game files"}}},
-        {"Game update", "Use an unpacked update 1.02 folder from any location, or install the update from its .pkg "
-                        "file.",
-         {{"choose_update_folder", "Choose update folder"}, {"install_game_update", "Install from .pkg"}}},
-        {"Troubleshooting", "",
-         {{"check_updates", "Check for updates"}, {"clear_cache", "Clear shader cache"}, {"reset", "Reset all settings"}}}};
+        // the game folder and the game update moved to SETUP's steps (their buttons still run these actions)
+        {"Troubleshooting", "Logs for a bug report, your saves, a fresh shader cache or a clean start.",
+         {{"open_logs", "Open log folder"}, {"open_saves", "Open save folder"}, {"check_updates", "Check for updates"},
+          {"clear_cache", "Clear shader cache"}, {"reset", "Reset all settings"}}}};
     return sections;
 }
 
@@ -1126,10 +1171,6 @@ Value page_tools(const State &state) {
         for (auto &b : sec.buttons) line.items.push_back(packed(button(p + b.action, b.label, "secondary"), "left"));
         std::vector<Value> items;
         items.push_back(box(p + "box:" + sec.title, "h", std::move(line)));
-        if (std::string(sec.title) == "Folders")   // the game folder, the game update, the settings file
-            for (const char *key : {"game_dir", "update", "ini"})
-                if (const Value *t = state.tools.get(key))
-                    if (!text_of(*t).empty()) items.push_back(label(p + "line:" + key, text_of(*t), DIM, CARD, 9));
         Value list = array();
         for (auto &i : items) list.items.push_back(std::move(i));
         page.items.push_back(section_with_note(p + sec.title, sec.title, sec.note, std::move(list)));
@@ -1145,14 +1186,15 @@ bool act_tools(const std::string &id, const std::string &kind, Changes &changes)
     const std::string p = "native:tools:";
     if (kind != "button" || id.compare(0, p.size(), p) != 0) return false;
     const std::string action = id.substr(p.size());
+    bool known = false;
     for (auto &sec : tool_sections())
-        for (auto &b : sec.buttons)
-            if (action == b.action) {
-                changes.call = Value::object();
-                changes.call.set("name", Value::text(action));
-                return true;
-            }
-    return false;
+        for (auto &b : sec.buttons) known = known || action == b.action;
+    for (auto &b : SETUP_GAME) known = known || action == b.action;   // SETUP's steps
+    for (auto &b : SETUP_UPDATE) known = known || action == b.action;
+    if (!known) return false;
+    changes.call = Value::object();
+    changes.call.set("name", Value::text(action));
+    return true;
 }
 
 // ------------------------------------------------------------------------------------------------ launcher
@@ -1401,7 +1443,9 @@ Value page_controls(const State &state) {
                 if (entry.items.size() != 2) continue;
                 const std::string action = text_of(entry.items[0]);
                 Value line = array();
-                line.items.push_back(packed(label(p + "action:" + action, text_of(entry.items[1]), TEXT, CARD, 9), "left"));
+                Value name = label(p + "action:" + action, text_of(entry.items[1]), TEXT, CARD, 9);
+                name.set("w", Value::integer(196));   // a fixed name column, so the slots line up as a grid
+                line.items.push_back(packed(std::move(name), "left"));
                 const Value *list = merged.get(action);
                 for (int slot = 0; slot < 2; ++slot) {
                     const bool waiting = cap.action == action && cap.slot == slot;
@@ -1453,8 +1497,14 @@ Value page_controls(const State &state) {
     grid_row.set("t", Value::text("box"));
     grid_row.set("dir", Value::text("h"));
     Value cols = array();
-    for (int c = 0; c < 2; ++c) cols.items.push_back(box(p + "column:" + std::to_string(c), "v", std::move(columns[c])));
+    for (int c = 0; c < 2; ++c) {   // Movement and Weapons on the left, Actions on the right, sharing the line
+        Value column = box(p + "column:" + std::to_string(c), "v", std::move(columns[c]));
+        column.set("share", Value::boolean(true));
+        cols.items.push_back(std::move(column));
+    }
     grid_row.set("items", std::move(cols));
+    grid_row.set("center", Value::boolean(true));   // the grid keeps a readable width, centred in the card
+    grid_row.set("maxw", Value::integer(1360));
     Value inner_items = array();
     inner_items.items.push_back(std::move(grid_row));
     Value scroller = Value::object();   // the scrolling list (a canvas holding the grid)
@@ -1470,7 +1520,9 @@ Value page_controls(const State &state) {
     Value holder_items = array();
     holder_items.items.push_back(std::move(scroller));
     bindings.push_back(box(p + "holder", "h", std::move(holder_items)));
-    page.items.push_back(section(p + "bindings", "Bindings", with_separators(std::move(bindings))));
+    Value bindings_section = section(p + "bindings", "Bindings", with_separators(std::move(bindings)));
+    bindings_section.set("column", Value::text("wide"));   // the whole width, under Mouse and Controller
+    page.items.push_back(std::move(bindings_section));
     return page;
 }
 
@@ -1758,7 +1810,11 @@ Value page_u3mp(const State &state) {
 
     std::vector<Value> setup;
     setup.push_back(row(p + "row:ps3_u3", "1. Add your PS3 Uncharted 3 folders",
-                        "Your PS3 game folder and RPCS3's dev_hdd0/game folder (update, game data, map packs). Add both.",
+                        "Add two folders.\n"
+                        "\xe2\x80\xa2 The game: your Game of the Year disc dump's PS3_GAME/USRDIR (it holds build/main/pak23.psarc).\n"
+                        "\xe2\x80\xa2 RPCS3's dev_hdd0/game: it holds update 1.19 (e.g. BCES01670), the game data the game "
+                        "writes when it first goes online (BCES01670DATA2: start Uncharted 3 in RPCS3 once and enter "
+                        "multiplayer) and the four DLC map packs.",
                         buttons_box(p, "ps3_u3", {{"add", "Add folder"}, {"clear", "Clear"}})));
     const Value *folders = state.config.get("u3mp_ps3_u3");
     const std::string folder_text = folders && !folders->items.empty() ? joined(folders, (size_t)-1, "\n") : "None chosen yet.";
@@ -1955,7 +2011,7 @@ UN_API int un_page(const char *name, const char *state_json, char *out, int cap)
     State state;
     if (!read_state(state_json, state)) return 3;
     const std::string n = name ? name : "";
-    if (n == "cheats") return give(json::dump(page_cheats(state.config), false), out, cap);
+    if (n == "cheats") return give(json::dump(page_cheats(state), false), out, cap);
     if (n == "performance") return give(json::dump(page_performance(state), false), out, cap);
     if (n == "display") return give(json::dump(page_display(state), false), out, cap);
     if (n == "setup") return give(json::dump(page_setup(state), false), out, cap);

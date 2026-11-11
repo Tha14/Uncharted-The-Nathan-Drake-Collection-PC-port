@@ -6,8 +6,11 @@ Item {
     id: root
     property var node: ({})
     readonly property string kind: node ? (node.t || "") : ""
-    // the width it needs on one line: a text's unwrapped width, a group's items side by side, else implicitWidth
-    readonly property real naturalWidth: kind === "label" && !(loader.item && loader.item.naturalWidth !== undefined)
+    // the width it needs on one line: a fixed width the page asks for (node.w), a text's unwrapped width, a group's
+    // items side by side, else implicitWidth (a Controls slot: its box, not its text)
+    readonly property bool plainLabel: kind === "label" && !(node.slot || node.image || node.pad)
+    readonly property real naturalWidth: node && node.w ? node.w
+        : plainLabel && !(loader.item && loader.item.naturalWidth !== undefined)
         ? labelMetrics.advanceWidth + 6
         : (loader.item && loader.item.naturalWidth !== undefined ? loader.item.naturalWidth
                                                                   : (loader.item ? loader.item.implicitWidth : 0))
@@ -97,11 +100,13 @@ Item {
                     source: "NodeView.qml"
                     readonly property bool grows: modelData.t === "label"
                     readonly property bool fills: modelData.t === "box" || modelData.t === "log" || modelData.t === "progress"
-                    readonly property bool shares: modelData.t === "card"   // cards side by side share the line
+                    // cards side by side share the line, and so do boxes marked "share" (the Controls columns)
+                    readonly property bool shares: modelData.t === "card" || modelData.share === true
                     onLoaded: item.node = Qt.binding(() => modelData)
-                    // the cell's width (the Loader sizes its item to it)
+                    // the cell's width (the Loader sizes its item to it); a label with a fixed width keeps it
                     width: !item ? 0 : shares ? (room - hbox.spacing * (count - 1)) / count
                         : fills ? room
+                        : grows && modelData.w ? Math.min(modelData.w, room)
                         : grows ? Math.max(40, Math.min(item.naturalWidth, room))
                         : Math.min(item.naturalWidth, room)
                     height: item ? item.implicitHeight : 0
@@ -109,7 +114,10 @@ Item {
             }
             Flow {
                 id: hrow
-                width: Math.max(40, root.width - (hbox.rights.length ? rightRow.width + hbox.spacing : 0))
+                // a line may ask for a maximum width (node.maxw) and to be centred (node.center), like the Controls grid
+                width: Math.max(40, Math.min(root.node.maxw || 100000,
+                                             root.width - (hbox.rights.length ? rightRow.width + hbox.spacing : 0)))
+                x: root.node.center ? Math.max(0, (root.width - width) / 2) : 0
                 spacing: hbox.spacing
                 readonly property real naturalWidth: {
                     let w = 0, n = 0

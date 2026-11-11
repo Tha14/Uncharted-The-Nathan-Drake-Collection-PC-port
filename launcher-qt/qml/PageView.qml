@@ -15,15 +15,16 @@ Flickable {
     readonly property real innerWidth: width - 2 * Theme.gutter - 6
     readonly property real columnWidth: (innerWidth - (columns - 1) * gap) / columns
 
-    // one section alone (Quick Setup, Cheats) takes the whole width
-    readonly property bool single: items.filter(n => n.t === "section").length === 1
+    // a section marked "wide" (the Controls bindings) spans the width under the columns
+    readonly property var below: items.filter(n => n.t === "section" && n.column === "wide")
+    readonly property var columned: items.filter(n => n.t === "section" && n.column !== "wide")
+    // one section alone (Setup) takes the whole width
+    readonly property bool single: columned.length === 1 && below.length === 0
     readonly property var wide: items.filter(n => n.t !== "section" || single)
-    // a very long section (RPCN with its friend list) gets the right column to itself; the others stack on the left
-    readonly property bool pinned: items.some(n => n.t === "section" && n.column === "right")
-    readonly property var full: single ? [] : items.filter(n => n.t === "section"
-                                                             && (pinned ? n.column === "right" : weight(n) >= 40))
-    readonly property var sections: single ? [] : items.filter(n => n.t === "section"
-                                                                 && (pinned ? n.column !== "right" : weight(n) < 40))
+    // a section can ask for the right column (RPCN with its friend list, Cheats' Unlocks); the others stack on the left
+    readonly property bool pinned: columned.some(n => n.column === "right")
+    readonly property var full: single ? [] : columned.filter(n => pinned ? n.column === "right" : weight(n) >= 40)
+    readonly property var sections: single ? [] : columned.filter(n => pinned ? n.column !== "right" : weight(n) < 40)
 
     // a section's rough height, to put each in the shorter column (rows count most, long notes and logs too)
     function weight(n) {
@@ -53,8 +54,14 @@ Flickable {
 
     clip: true
     // Where the page meets the tabs and the PLAY bar, the cards curve away (rounded corners per column) instead of
-    // being cut straight: the page is drawn through this mask.
+    // being cut straight: the page is drawn through this mask. Where a full-width card touches the top or the bottom
+    // edge, that edge is rounded across the whole width instead, so the card has no notch at the column gap.
     readonly property real edgeRadius: Theme.radiusCard
+    readonly property real viewBottom: contentY + height
+    readonly property bool topWide: (wideBlock.visible && contentY < wideBlock.y + wideBlock.height)
+                                    || (belowBlock.visible && contentY >= belowBlock.y - gap)
+    readonly property bool bottomWide: (wideBlock.visible && viewBottom <= wideBlock.y + wideBlock.height + gap)
+                                       || (belowBlock.visible && viewBottom > belowBlock.y)
     property Item viewMask: Item {
         parent: view   // the Flickable itself, not its scrolling content
         width: view.width
@@ -75,6 +82,21 @@ Flickable {
                 height: view.height
                 radius: view.edgeRadius
             }
+        }
+        // a full-width card at the top or bottom edge: one rounded strip across the width there (switched by its
+        // height: everything in this hidden mask item counts as invisible, so `visible` cannot switch it)
+        Rectangle {
+            x: Theme.gutter
+            width: view.innerWidth
+            height: view.topWide ? 2 * view.edgeRadius : 0
+            radius: view.edgeRadius
+        }
+        Rectangle {
+            x: Theme.gutter
+            y: view.height - 2 * view.edgeRadius
+            width: view.innerWidth
+            height: view.bottomWide ? 2 * view.edgeRadius : 0
+            radius: view.edgeRadius
         }
         Rectangle { x: view.width - 14; width: 14; height: view.height }   // the scroll bar
     }
@@ -124,15 +146,22 @@ Flickable {
         x: Theme.gutter
         width: view.innerWidth
         spacing: view.gap
-        Repeater {   // a page's intro (the multiplayer banner, a note): a full-width card of its own
-            model: view.wide
-            SectionCard {
-                width: content.width
-                node: modelData.t === "section" ? modelData : ({ t: "section", title: "", note: "", items: [modelData] })
+        Column {   // a page's intro (the multiplayer banner, a note): a full-width card of its own
+            id: wideBlock
+            width: content.width
+            spacing: view.gap
+            visible: view.wide.length > 0
+            Repeater {
+                model: view.wide
+                SectionCard {
+                    width: content.width
+                    node: modelData.t === "section" ? modelData : ({ t: "section", title: "", note: "", items: [modelData] })
+                }
             }
         }
         Row {
             spacing: view.gap
+            visible: view.split.some(c => c.length > 0)
             Repeater {
                 model: view.split
                 Column {
@@ -143,6 +172,16 @@ Flickable {
                         NodeView { width: view.columnWidth; node: modelData }
                     }
                 }
+            }
+        }
+        Column {   // full-width sections under the columns (the Controls bindings)
+            id: belowBlock
+            width: content.width
+            spacing: view.gap
+            visible: view.below.length > 0
+            Repeater {
+                model: view.below
+                NodeView { width: content.width; node: modelData }
             }
         }
     }

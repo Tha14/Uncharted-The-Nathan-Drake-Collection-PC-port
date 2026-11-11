@@ -11,7 +11,8 @@ Bluepoint stubbed out rather than inventing replacements.
 >
 > **Region:** every PS4 address in this folder was found on the **CUSA02320** (EU) U3 executable
 > (U3 1.02). The README of this repository targets CUSA02344; the offsets have not been checked
-> against that build yet.
+> against that build yet. The CUSA02343 (US) 1.02 executables are byte-identical to CUSA02320's,
+> so the offsets hold for them too.
 
 **For players:** the launcher's MULTIPLAYER tab imports the current build (v7.55) from your own
 copies; see "Uncharted 3 multiplayer (beta)" in the [main README](../README.md). It uses

@@ -1835,7 +1835,7 @@ void select_game(std::string key, bool save) {
 
 // ------------------------------------------------------------------------------------------------ the model
 
-const char *const TABS[][2] = {{"setup", "QUICK SETUP"}, {"display", "DISPLAY"}, {"performance", "PERFORMANCE"},
+const char *const TABS[][2] = {{"setup", "SETUP"}, {"display", "DISPLAY"}, {"performance", "PERFORMANCE"},
                                {"controls", "CONTROLS"}, {"cheats", "CHEATS"}, {"advanced", "ADVANCED"}, {"tools", "TOOLS"},
                                {"u3mp", "MULTIPLAYER"}, {"multiplayer", "MULTIPLAYER"}, {"launcher", "LAUNCHER"}};
 

@@ -76,7 +76,8 @@ saves, settings and the shader cache, and restores the installed version if anyt
 Drake's Deception's multiplayer (competitive, co-op, LAN party), restored on top of this port. The
 **MULTIPLAYER** tab builds it on your PC from your own copies. You need:
 
-- The PS4 Collection **CUSA02320 (EU), version 1.02** as the game folder.
+- The PS4 Collection **version 1.02** as the game folder: CUSA02320 (EU) or CUSA02343 (US), whose 1.02 game
+  executables are byte-identical.
 - PS3 **Uncharted 3 Game of the Year** (BCES01670, BCES01692, BCUS99086 or BCAS25014): the game folder
   and RPCS3's `dev_hdd0/game` folder with update 1.19, the game data install and the DLC map packs.
 - The decrypted 1.19 `EBOOT.elf` of your own copy, and about 12 GB of free space.

@@ -482,7 +482,10 @@ static void StartProfileWriter() {
 }
 #endif
 
+extern "C" void gow3_install_terminate_trace();   // gow3_terminate.cpp
+
 extern "C" int gow3gpu_init(const Gow3GpuConfig* config) {
+    gow3_install_terminate_trace();   // a std::terminate writes where it came from before the process ends
     Gow3Settings::Load();
 #ifdef GOW3_PGO_GENERATE
     StartProfileWriter();

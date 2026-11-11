@@ -3,7 +3,7 @@
 No game bytes are shipped. The chain, each step checked by sha256:
 
   1. base:        the port's own prepare.py + link_modules.py (gow3_pc/scripts) run on the player's retail
-                  big3-ps4_Shipping.elf (CUSA02320 1.02).  Result: the PC runtime's prepared image (G3PROBE5).
+                  big3-ps4_Shipping.elf (CUSA02320 / CUSA02343 1.02, the same file).  Result: the PC runtime's prepared image (G3PROBE5).
   2. menu shell:  build/<version>/menu-shell.json applied to it: the PC port's code patches of 25 Oct 2026 and the
                   menu-flow stubs (code bytes we wrote; the bytes they replace are only checked by hash), plus the
                   menu-flow segment at 0x2050000 (our compiled helpers).  = outputs/builds/menu-shell-v1.
