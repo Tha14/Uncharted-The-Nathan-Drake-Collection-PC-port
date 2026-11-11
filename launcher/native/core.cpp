@@ -388,6 +388,7 @@ struct Core {
     // the launcher's update, TOOLS' lines
     std::string update_button;
     bool update_shown = false;
+    bool hold_imports = false;   // the launcher's own update goes first (updates.cpp "hold_imports")
     Value update_view;
     std::string progress_game_dir, progress_update;
     // the imports
@@ -804,6 +805,24 @@ std::string u3_block_reason() {
     const std::string status = text(s, "status");
     if ((status == "imported" || status == "partial") && !u3_pending(s).empty()) return "pending";
     return "";
+}
+
+void u2_auto_update();
+void u3_auto_update();
+
+// The imports' automatic updates wait for the launcher's own update: while its check runs, or (Automatic mode) while a
+// newer launcher waits to install or installs, nothing starts; that launcher restarts with its own recipe and runs the
+// import once, instead of an import for the old recipe and then another one. Checked again every second (at most
+// about 2 minutes, in case the check never answers).
+void auto_updates_after_launcher() {
+    static int waited = 0;
+    if (g.hold_imports && waited < 120) {
+        ++waited;
+        after(1000, auto_updates_after_launcher);
+        return;
+    }
+    u3_auto_update();
+    after(500, u2_auto_update);
 }
 
 void u3_auto_update() {   // after a launcher update: an existing import brought up to date in the background
@@ -1571,6 +1590,7 @@ void update_op(const char *op, Value fields = Value::object()) {
         g.update_shown = !g.update_button.empty();
     }
     if (const Value *u = reply.get("updating")) g.update_view = *u;
+    if (const Value *h = reply.get("hold_imports")) g.hold_imports = h->truthy();
     if (const Value *d = reply.get("dialog")) {
         const std::string kind = text(*d, "kind");
         if (kind == "yesno")
@@ -2190,8 +2210,7 @@ void start(const std::string &root, const Value &args) {
     every(200, []() { update_op("tick"); });
     every(200, []() { online_tick(); });
     every(1000, []() { u3_poll(); u2_poll(); });
-    after(4000, u3_auto_update);
-    after(4500, u2_auto_update);
+    after(4000, auto_updates_after_launcher);
     after(3000, []() { un_update_cleanup(wide(g.root).c_str()); });
     if (truthy(g.config.get("check_updates")) || !g.config.get("check_updates"))
         if (g.direct.empty()) after(1500, []() { update_op("check"); });

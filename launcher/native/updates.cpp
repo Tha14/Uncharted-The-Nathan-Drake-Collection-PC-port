@@ -13,6 +13,9 @@
 //       "dialog": {"kind": info | error | yesno, "text"}   yesno: the answer goes back with op "confirmed"
 //       "exit": true                     the installer runs: the launcher saves its window place and closes
 //       "updating": [done, total] | null the window's banner: busy with a release found (installing, or checking again)
+//       "hold_imports": bool             in every answer: true while the check runs, and in Automatic mode while a found
+//                                        release waits to install or installs, so the launcher holds back its own
+//                                        automatic import updates (the new launcher brings its own recipe)
 //   "tick": about every 200 ms; it reports what the threads did and starts the automatic install when it is due.
 #include "native.h"
 #include "json.h"
@@ -340,6 +343,11 @@ UN_API int un_updates(const char *request_json, char *out, int cap) {
         }
     } else if (op == "tick") {
         tick(h, result);
+    }
+    {
+        std::lock_guard<std::mutex> l(g.m);
+        result.set("hold_imports", Value::boolean(g.checking || (h.mode == "auto" && g.release.is_object() &&
+                                                                 (g.busy || g.auto_at != 0))));
     }
     return give(json::dump(result, false), out, cap);
 }
