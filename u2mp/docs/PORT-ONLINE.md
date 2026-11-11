@@ -200,3 +200,22 @@ receive button (6b2970e2) tells how many came.
   the RTT check of the PS3 search (no location service), Kickout as a service call (no such call), player
   counts / lat-lon (no heartbeat server).
 - The transport is a star over the owner: clients do not exchange game packets directly (as LAN).
+
+
+## 7. Review against RPCN master (2026-11-11)
+
+The DLL was checked line by line against RPCN 1.12.1 (7a3c3c4) and RPCS3 master: command / notification ids,
+framing, every proto3 field, attribute ranges, signaling (SIGN v3, UDP 3657 ping) match. Fixed after the review:
+- DLL: a member leaving one room keeps its P2P link while still in another of our rooms (it broke the party link
+  when a member followed the leader into a match room); CONNECT_ACK resends echo the peer's timestamp; create / join
+  wait up to 2 s for the first UDP pong (RPCN copies our address into the room then); lowest server / world id;
+  IPv6 addresses ignored; room data only for our rooms; friend requests rolled back on error; exit presence under
+  the empty communication id; timed-out peers tried again every 5 s.
+- online.cpp: a joined room that is CLOSED (match running; RPCN does not enforce it) is left again ("That game has
+  already started."); the join list shows PC rooms only (0x52 >= 1); party rooms get an owner succession (lowest
+  member id first, re-sent when the members change; the match room uses the same order); host migration falls
+  back to that order (or the promoted player) when RPCN has not moved the room in 15 s; a lost link is reopened
+  every 15 s while in multiplayer; a refused party-room create waits 5 s.
+- Still in the launcher's relay (another change in progress there): only the command ids the game uses should be
+  forwarded (any server-side error closes the launcher's RPCN session), RemoveFriend's NotFound is 26, and the
+  handoff should pass the RPCN host as UNCHARTED_U2MP_RPCN_HOST (the DLL's UDP pings default to np.rpcs3.net).

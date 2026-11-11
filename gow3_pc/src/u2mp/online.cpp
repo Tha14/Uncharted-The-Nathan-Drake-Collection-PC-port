@@ -215,6 +215,7 @@ struct Room {
     bool lobby_started = false;   // 0x53 = 1 sent for this lobby (PS3 0x465fe8)
     std::array<uint8_t, kBlobSize> sent_blob{};
     bool blob_sent = false;
+    uint64_t rank_sig = 0;        // the member set the owner succession was last sent for
     std::vector<Member> members;
     bool owned() const { return id && my_id && my_id == owner_id; }
     const Member *member(uint16_t mid) const {
@@ -248,6 +249,7 @@ uint32_t world = 0;
 uint16_t world_server = 0;
 uint64_t world_req = 0;
 double next_world_try = 0;
+double next_party_try = 0, next_link_try = 0;   // backoffs: our party room create, reopening a lost link
 Room party_room, match_room_;
 std::map<uint64_t, Pending> pending;
 std::vector<Peer> peers;
@@ -575,7 +577,8 @@ void start_search() {
     s.flag_attr = 0;
     s.ints[0] = U2oIntFilter{1, 0, A_KEY, room_key()};
     s.ints[1] = U2oIntFilter{2, 0, A_KIND, kKindMatchmaking};   // matchmaking rooms: Find Match only
-    s.int_count = 2;
+    s.ints[2] = U2oIntFilter{6, 0, A_KIND, kKindParty};         // PC rooms only (RPCS3's PS3 rooms carry 0 there)
+    s.int_count = 3;
     s.start = 1;
     s.max = U2O_MAX_ROOMS;
     search_req = api.search_rooms(world, &s);
@@ -917,6 +920,8 @@ void mm_search_done(const U2oEvent &e) {
 // ---- host migration (PS3 0x4409c4 / 0x440478 -> RoomOwnerChanged -> listener slot 6) ---------------
 void finish_migration(Room &r, const Member &owner) {
     migrating = false;
+    promote_room = 0;   // a promotion ends here too
+    promote_target.clear();
     const bool mine = r.owned();
     const uint64_t room_id = r.id;
     if (migrating_match) {
@@ -982,6 +987,24 @@ void migration_tick(double t) {
         return;
     }
     if (t >= migrate_deadline) {
+        // RPCN moves a room only when it notices the owner's session end; a PC that dropped off the network can
+        // take minutes. Every PC then picks the same successor: the lowest member id left (the order of the
+        // succession list every owner sends, send_succession), and RPCN's own move later agrees with it.
+        const Member *next = nullptr;
+        for (const Member &m : r->members)   // the player the leader promoted, if any (kOpPromote)
+            if (!promote_target.empty() && m.npid == promote_target && m.npid != migrate_old_owner) next = &m;
+        for (const Member &m : r->members)
+            if (!next && m.npid != migrate_old_owner && !m.npid.empty()) next = &m;
+        for (const Member &m : r->members)
+            if (promote_target.empty() && m.npid != migrate_old_owner && !m.npid.empty() && m.id < next->id) next = &m;
+        if (next) {
+            const Member owner = *next;
+            log("online: host migration: RPCN has not moved room %llx in %.0f s; member %u (%s) takes over (lowest id)",
+                (unsigned long long)migrate_room, kMigrateTimeout, unsigned(owner.id), owner.npid.c_str());
+            r->owner_id = owner.id;
+            finish_migration(*r, owner);
+            return;
+        }
         log("online: host migration: no new owner of room %llx in %.0f s: the party ends", (unsigned long long)migrate_room,
             kMigrateTimeout);
         migrating = false;
@@ -1104,6 +1127,21 @@ void on_event(const U2oEvent &e) {
             publish_blob(match_room_, true);
             break;
         }
+        // RPCN does not refuse a CLOSED room (it checks only FULL): an invite or a stale list can lead into a
+        // match that is already running (the host closes and hides its room for the match, set_hidden).
+        if ((p.kind == Req::JoinList || p.kind == Req::JoinMatchmaking) && (e.room->flag_attr & kFlagClosed)) {
+            log("online: room %llx is closed (its match is running): leaving it again", (unsigned long long)e.room->room_id);
+            const uint64_t id = api.leave_room(e.room->room_id);
+            request(id, Pending{Req::Message, e.room->room_id, 0, false, "leave (closed room)"});
+            if (p.kind == Req::JoinMatchmaking) {
+                mm_bad_rooms.push_back(e.room->room_id);
+                mm_state = Mm::Failed;   // frontend3 searches again
+            } else {
+                notice("That game has already started.");
+                if (top_page_id() == kPageJoin) search_failed();
+            }
+            break;
+        }
         join_succeeded(p, *e.room);
         if (p.kind == Req::JoinMatchmaking) mm_state = Mm::Joined;
         break;
@@ -1168,9 +1206,8 @@ void on_event(const U2oEvent &e) {
                 break;
             }
         if (e.member->id == r->owner_id)
-            log("online: the owner of room %llx left; the new owner comes with the room update (no host migration: "
-                "the transport ends like a LAN host leaving)", (unsigned long long)r->id);
-        if (e.room) r->owner_id = e.room->owner_id;
+            log("online: the owner of room %llx left; the new owner comes with the room update (U2O_EV_ROOM_UPDATED)",
+                (unsigned long long)r->id);
         const std::string npid = npid_text(e.member->npid);
         const bool elsewhere = (r != &party_room && in_room(party_room, npid)) || (r != &match_room_ && in_room(match_room_, npid));
         if (!elsewhere && !npid.empty()) {
@@ -1300,6 +1337,23 @@ void open_link() {
 }
 
 // NET_SM-driven room state (PS3 call sites in PORT-MATCHMAKING.md 1.6 / 1.7 and section 6 item 9).
+// The owner succession of a room we own: the other members, lowest member id first (RPCN otherwise picks any).
+void send_succession(Room &r) {
+    if (!r.owned() || promote_room == r.id) return;
+    std::vector<uint16_t> ids;
+    for (const Member &m : r.members)
+        if (m.id != r.my_id && ids.size() < U2O_MAX_MEMBERS) ids.push_back(m.id);
+    std::sort(ids.begin(), ids.end());
+    uint64_t sig = 0;
+    for (uint16_t i : ids) sig = sig * 1000003u + i;
+    if (ids.empty() || sig == r.rank_sig) return;
+    r.rank_sig = sig;
+    const uint64_t id = api.set_owner_rank(r.id, ids.data(), uint32_t(ids.size()));
+    log("online: %s room %llx: owner succession of %zu member(s) (request %llu)", kind_name(r.kind),
+        (unsigned long long)r.id, ids.size(), (unsigned long long)id);
+    request(id, Pending{Req::OwnerRank, r.id, r.kind, false, "owner succession"});
+}
+
 void room_state() {
     const int32_t s = G<int32_t>(kNetState);
     const bool match_running = s == kUpdate || s == kReset || s == kReplay || s == kResults || s == kRoundResults;
@@ -1313,9 +1367,13 @@ void room_state() {
     in_match = match_running;
     if (began && link_state == U2O_READY && match_room_.owned()) {
         // PS3 HostRank 0x4d4868 (the remote players in slot order) + HostMigrate: who takes the room over
+        // (lowest member id first: the order every PC assumes when RPCN is slow to move the room, migration_tick)
         std::vector<uint16_t> ids;
         for (const Member &m : match_room_.members)
             if (m.id != match_room_.my_id && ids.size() < U2O_MAX_MEMBERS) ids.push_back(m.id);
+        std::sort(ids.begin(), ids.end());
+        match_room_.rank_sig = 0;
+        for (uint16_t i : ids) match_room_.rank_sig = match_room_.rank_sig * 1000003u + i;
         if (!ids.empty()) {
             const uint64_t id = api.set_owner_rank(match_room_.id, ids.data(), uint32_t(ids.size()));
             log("online: match room %llx: owner succession of %zu player(s) (request %llu)", (unsigned long long)match_room_.id,
@@ -1324,6 +1382,7 @@ void room_state() {
         }
     }
     if (link_state != U2O_READY) return;
+    send_succession(party_room);   // the party room's owner order, whenever its members change
     for (Room *r : {&party_room, &match_room_}) {
         if (!r->owned()) continue;
         if (r->hidden != match_running) set_hidden(*r, match_running);   // 0x4d5338: closed during the match
@@ -1410,10 +1469,20 @@ void frame() {
             else own_party("could not rejoin after the promotion");
         }
     }
+    // the link went down (launcher reconnect, network): open it again every 15 s while in multiplayer
+    const char *relay_env = std::getenv("UNCHARTED_U2MP_RELAY");   // signed in in the launcher (never logged)
+    if (started && link_opened && relay_env && *relay_env && (link_state == U2O_FAILED || link_state == U2O_OFF) &&
+        t >= next_link_try) {
+        next_link_try = t + 15;
+        log("online: the link is down: opening it again");
+        open_link();
+    }
     // our own party room, while this PC leads a party and is in no other room (PS3 0x4c48d0)
     if (link_state == U2O_READY && world && session::is_host() && !party_room.id && !match_room_.id && !create_party_req &&
-        !waiting_host && !switch_at)
+        !waiting_host && !switch_at && t >= next_party_try) {
         create_party_req = create_room(kKindParty);
+        if (!create_party_req) next_party_try = t + 5;   // refused locally: not again every frame
+    }
     if (switch_at && t >= switch_at) {
         switch_at = 0;
         log("online: transport switch: the party was told, joining the owner of room %llx", (unsigned long long)waiting_room);
