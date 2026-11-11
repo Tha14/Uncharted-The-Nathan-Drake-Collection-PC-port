@@ -135,10 +135,8 @@ follows [CONTRIBUTING.md](CONTRIBUTING.md) and is licensed under the GNU GPL v2 
   [Qt 6](https://www.qt.io) (LGPL v3, unmodified shared libraries), [Python](https://www.python.org)
   (PSF) with [Pillow](https://python-pillow.org) (HPND) and [NumPy](https://numpy.org) (BSD),
   [Opus](https://opus-codec.org) (BSD) and liborbispkg (`licenses/liborbispkg`).
-- Uncharted 3 multiplayer restoration (`u3mp/`): João Fidalgo's fork. Its pak tools come from the
-  `U3_Multiplayer` branch of
-  [fidalgojoao/Uncharted2-Multiplayer-Dev](https://github.com/fidalgojoao/Uncharted2-Multiplayer-Dev)
-  (GPL v2); TLS by [BearSSL](https://bearssl.org) (MIT).
+- Uncharted 3 multiplayer restoration (`u3mp/`), including its pak tools: João Fidalgo. TLS by
+  [BearSSL](https://bearssl.org) (MIT).
 - Map and character visual fixes by **33martyr** (Yeti mask, Outdoor Jacket, map lighting).
 - **RPCS3 and RPCN:** online play uses **RPCN**, the online service of the [RPCS3](https://rpcs3.net)
   emulator, and talks to it as RPCS3 does. RPCN is by **RipleyTom** and contributors
