@@ -7,13 +7,11 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QProcessEnvironment>
-#include <QStandardPaths>
 #include <QUrl>
 
 namespace {
 
-// The launcher's folder: the first folder at or above this program's with launcher/qt_backend.py.
+// The launcher's folder: the first folder at or above this program's with the launcher's native code.
 QString launcherRoot()
 {
     const QString override = qEnvironmentVariable("UNCHARTED_LAUNCHER_ROOT");
@@ -21,7 +19,7 @@ QString launcherRoot()
         return override;
     QDir dir(QCoreApplication::applicationDirPath());
     for (int i = 0; i < 6; ++i) {
-        if (QFileInfo::exists(dir.filePath("launcher/qt_backend.py")))
+        if (QFileInfo::exists(dir.filePath("launcher/native/uncharted_native.dll")))
             return dir.absolutePath();
         if (!dir.cdUp())
             break;
@@ -29,101 +27,91 @@ QString launcherRoot()
     return {};
 }
 
-// The Python that runs the launcher: the package's own (python/), else UNCHARTED_PYTHON, else PATH.
-QString pythonFor(const QString &root)
-{
-    for (const char *name : {"python/pythonw.exe", "python/python.exe"}) {
-        const QString path = QDir(root).filePath(QString::fromLatin1(name));
-        if (QFileInfo::exists(path))
-            return path;
-    }
-    const QString env = qEnvironmentVariable("UNCHARTED_PYTHON");
-    if (!env.isEmpty())
-        return env;
-    for (const char *name : {"pythonw", "python", "py"}) {
-        const QString found = QStandardPaths::findExecutable(QString::fromLatin1(name));
-        if (!found.isEmpty())
-            return found;
-    }
-    return {};
-}
-
 } // namespace
 
-Backend::Backend(QObject *parent) : QObject(parent)
+Backend::Backend(const QString &direct, QObject *parent) : QObject(parent), m_direct(direct)
 {
-    connect(&m_process, &QProcess::readyReadStandardOutput, this, &Backend::readLines);
-    connect(&m_process, &QProcess::finished, this, [this] {
-        if (!m_closing && !m_ready) {
-            m_error = QStringLiteral("The launcher's Python part stopped at start (see "
-                                     "analysis/uncharted-user/launcher-error.log).");
-            emit readyChanged();
-            return;
-        }
-        emit finished();
-    });
     m_poll.setInterval(200);
     connect(&m_poll, &QTimer::timeout, this, [this] { requestModel(); });
     m_padPoll.setInterval(30);
     connect(&m_padPoll, &QTimer::timeout, this, [this] {
         nativeAct(QStringLiteral("native:%1:pad_poll").arg(m_tab), QStringLiteral("poll"), QVariantMap{});
     });
+    m_tick.setInterval(50);   // the core's timers: the game's output, the imports, the update, the online section
+    connect(&m_tick, &QTimer::timeout, this, [this] { deliver(drain(m_coreTick, nullptr)); });
     start();
 }
 
 Backend::~Backend()
 {
-    if (m_process.state() != QProcess::NotRunning) {
-        m_process.kill();
-        m_process.waitForFinished(2000);
-    }
+    if (m_coreClose)
+        m_coreClose();
 }
 
+// The launcher itself is uncharted_native.dll's core (launcher/native/core.cpp), run here: this window sends it the
+// player's requests and shows its model, dialogs and events.
 void Backend::start()
 {
     const QString root = launcherRoot();
-    const QString python = pythonFor(root);
-    if (root.isEmpty() || python.isEmpty()) {
-        m_error = root.isEmpty() ? QStringLiteral("launcher/qt_backend.py was not found next to this program.")
-                                 : QStringLiteral("No Python found (the package's python folder is missing).");
+    if (root.isEmpty()) {
+        m_error = QStringLiteral("launcher/native/uncharted_native.dll was not found next to this program.");
         emit readyChanged();
         return;
     }
     m_root = root;
     loadNative(root);
-    m_process.setWorkingDirectory(root);
-    m_process.setProcessChannelMode(QProcess::SeparateChannels);
-    m_process.setStandardErrorFile(QDir(root).filePath("analysis/uncharted-user/qt-backend.log"));
+    m_coreOpen = reinterpret_cast<CoreOpenFn>(m_dll.resolve("un_core_open"));
+    m_coreSend = reinterpret_cast<CoreSendFn>(m_dll.resolve("un_core_send"));
+    m_coreTick = reinterpret_cast<CoreTickFn>(m_dll.resolve("un_core_tick"));
+    m_coreClose = reinterpret_cast<CoreCloseFn>(m_dll.resolve("un_core_close"));
+    if (!m_coreOpen || !m_coreSend || !m_coreTick || !m_coreClose) {
+        m_error = QStringLiteral("launcher/native/uncharted_native.dll is missing or older than this window.");
+        emit readyChanged();
+        return;
+    }
     QDir(root).mkpath("analysis/uncharted-user");
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    env.insert("PYTHONIOENCODING", "utf-8");
-    env.insert("PYTHONUNBUFFERED", "1");
-    m_process.setProcessEnvironment(env);
-    m_process.start(python, {"-u", QDir(root).filePath("launcher/qt_backend.py")});
+    QJsonObject args;
+    args.insert("direct", m_direct.isEmpty() ? QJsonValue() : QJsonValue(m_direct));
+    const QByteArray a = QJsonDocument(args).toJson(QJsonDocument::Compact);
+    const std::wstring r = QDir::toNativeSeparators(root).toStdWString();
+    m_coreOpen(r.c_str(), a.constData());
+    deliver(drain(m_coreSend, nullptr));
+    m_tick.start();
+}
+
+// what the core says (a JSON array of replies and events), as many calls as its size needs
+QVariantList Backend::drain(CoreSendFn send, const char *message)
+{
+    QByteArray out(1 << 16, '\0');
+    int status = send(message, out.data(), int(out.size()));
+    while (status < 0) {
+        out.resize(-status);
+        status = send(nullptr, out.data(), int(out.size()));
+    }
+    return QJsonDocument::fromJson(QByteArray(out.constData())).array().toVariantList();
+}
+QVariantList Backend::drain(CoreTickFn tick, std::nullptr_t)
+{
+    QByteArray out(1 << 16, '\0');
+    int status = tick(out.data(), int(out.size()));
+    while (status < 0) {
+        out.resize(-status);
+        status = tick(out.data(), int(out.size()));
+    }
+    return QJsonDocument::fromJson(QByteArray(out.constData())).array().toVariantList();
+}
+void Backend::deliver(const QVariantList &messages)
+{
+    for (const QVariant &m : messages)
+        handle(m.toMap());
 }
 
 void Backend::send(const QVariantMap &message)
 {
-    if (m_process.state() != QProcess::Running)
+    if (!m_coreSend || m_closed)
         return;
-    QByteArray line = QJsonDocument(QJsonObject::fromVariantMap(message)).toJson(QJsonDocument::Compact);
-    line.append('\n');
-    m_process.write(line);
-}
-
-void Backend::readLines()
-{
-    m_buffer += m_process.readAllStandardOutput();
-    int at;
-    while ((at = m_buffer.indexOf('\n')) >= 0) {
-        const QByteArray line = m_buffer.left(at).trimmed();
-        m_buffer.remove(0, at + 1);
-        if (line.isEmpty())
-            continue;
-        const QJsonDocument doc = QJsonDocument::fromJson(line);
-        if (doc.isObject())
-            handle(doc.object().toVariantMap());
-    }
+    const QByteArray line = QJsonDocument(QJsonObject::fromVariantMap(message)).toJson(QJsonDocument::Compact);
+    deliver(drain(m_coreSend, line.constData()));
 }
 
 void Backend::handle(const QVariantMap &message)
@@ -138,8 +126,11 @@ void Backend::handle(const QVariantMap &message)
         m_poll.start();
         return;
     }
-    if (ev == "closed") {
+    if (ev == "closed") {   // the launcher ended (closed, or an update's installer takes over)
+        m_closed = true;
         m_poll.stop();
+        m_tick.stop();
+        emit finished();
         return;
     }
     if (ev == "dialog") {
@@ -378,11 +369,10 @@ void Backend::capture(const QString &key, const QString &mouse)
 
 void Backend::close()
 {
-    if (m_process.state() != QProcess::Running) {
+    if (!m_coreSend || m_closed) {
         emit finished();
         return;
     }
-    m_closing = true;
     send({{"op", "close"}});
 }
 

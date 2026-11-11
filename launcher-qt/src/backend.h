@@ -1,10 +1,9 @@
-// The bridge to launcher/qt_backend.py: the launcher's Python side runs in that process (its Tk window hidden);
-// this object keeps the window's model (game cards, tabs, status, the shown tab's page) and sends the clicks.
+// The window's link to the launcher (uncharted_native.dll's core, launcher/native/core.cpp, run in this process): it
+// keeps the window's model (game cards, tabs, status, the shown tab's page) and sends the clicks.
 #pragma once
 
 #include <QLibrary>
 #include <QObject>
-#include <QProcess>
 #include <QTimer>
 #include <QVariant>
 
@@ -17,7 +16,8 @@ class Backend : public QObject {
     Q_PROPERTY(QString error READ error NOTIFY readyChanged)
 
 public:
-    explicit Backend(QObject *parent = nullptr);
+    // direct: a game to start at once (--play u1 | u2 | u3), the window only shows for a question
+    explicit Backend(const QString &direct = {}, QObject *parent = nullptr);
     ~Backend() override;
 
     QVariantMap chrome() const { return m_chrome; }
@@ -51,7 +51,6 @@ signals:
 private:
     void start();
     void send(const QVariantMap &message);
-    void readLines();
     void handle(const QVariantMap &message);
     void requestModel(bool force = false);
     void fileDialog(int dialog, const QVariantMap &message);
@@ -63,9 +62,21 @@ private:
     void showCapture();                  // chrome's capturing flags from it
     bool nativeCapturing() const;
 
-    QProcess m_process;
+    using CoreOpenFn = int (*)(const wchar_t *, const char *);
+    using CoreSendFn = int (*)(const char *, char *, int);
+    using CoreTickFn = int (*)(char *, int);
+    using CoreCloseFn = void (*)();
+    QVariantList drain(CoreSendFn send, const char *message);
+    QVariantList drain(CoreTickFn tick, std::nullptr_t);
+    void deliver(const QVariantList &messages);
+    CoreOpenFn m_coreOpen = nullptr;
+    CoreSendFn m_coreSend = nullptr;
+    CoreTickFn m_coreTick = nullptr;
+    CoreCloseFn m_coreClose = nullptr;
+    QTimer m_tick;
+    QString m_direct;
+    bool m_closed = false;
     QTimer m_poll;
-    QByteArray m_buffer;
     QVariantMap m_chrome;
     QVariantList m_page;
     QVariantMap m_native;   // what native pages are built from, as the Python side sends it with each model:
@@ -83,6 +94,5 @@ private:
     QString m_tab;
     bool m_ready = false;
     bool m_waiting = false;
-    bool m_closing = false;
     QString m_error;
 };

@@ -4,7 +4,7 @@
 // steam.cpp and system.cpp.
 //
 //   un_action(request_json, out, cap)
-//     request: {"name": open_logs | open_saves | clear_cache | choose_game_dir | choose_update_folder |
+//     request: {"name": open_logs | open_saves | open_folder (value: the path) | clear_cache | choose_game_dir | choose_update_folder |
 //               install_game_update | install_game_pkg | check_game_files | add_to_steam, "value": the action's
 //               argument (add_to_steam: one entry per game), "step": 0 to start, else the step the last answer said,
 //               "data": what the last answer said to keep, "answer": the dialog's answer (true / false, a path, "" for
@@ -254,6 +254,14 @@ Value open_logs(const Request &q) {
         }
     }
     open_folder(best.empty() ? q.root + "\\analysis" : parent_of(best));
+    return done();
+}
+
+// a folder or file (the Multiplayer tabs' Open buttons): itself when it is there, else the folder it would be in
+Value open_folder(const Request &q) {
+    const std::string path = q.value.kind == Value::String ? q.value.s : "";
+    const std::string target = exists(path) ? path : parent_of(path);
+    if (!target.empty() && exists(target)) open_folder(target);
     return done();
 }
 
@@ -535,6 +543,7 @@ Value run(const Request &q) {
     if (q.step == -1) return done();   // after a last message
     if (q.name == "open_logs") return open_logs(q);
     if (q.name == "open_saves") return open_saves(q);
+    if (q.name == "open_folder") return open_folder(q);
     if (q.name == "clear_cache") return clear_cache(q);
     if (q.name == "choose_game_dir") return choose_game_dir(q);
     if (q.name == "choose_update_folder") return choose_update_folder(q);
