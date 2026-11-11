@@ -118,8 +118,8 @@ follows [CONTRIBUTING.md](CONTRIBUTING.md) and is licensed under the GNU GPL v2 
 - **BilalReloaded** ([YouTube](https://www.youtube.com/@BilalReloaded/videos),
   [GitHub](https://github.com/bc160201983)) made the
   [original PC port](https://github.com/bc160201983/Uncharted-The-Nathan-Drake-Collection-PC-port):
-  the Uncharted port (the game runtime) and the game fixes are his. This fork's launcher was later
-  rewritten in C++ for the fork, following the original's design. Without his port, none of this
+  the Uncharted port (the game runtime), the game fixes and the launcher are his. This fork's
+  launcher is his launcher's code converted from Python to C++. Without his port, none of this
   would exist.
 - The runtime started from [gow3_pc](https://github.com/FelipePrado0/gow3_pc) (whose `GOW3_*` names it
   keeps) and the [shadPS4](https://github.com/shadps4-emu/shadPS4) video core.
