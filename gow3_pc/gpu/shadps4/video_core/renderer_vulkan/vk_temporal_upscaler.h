@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "common/types.h"
-#include "video_core/renderer_vulkan/host_passes/fsr_pass.h"
 #include "video_core/renderer_vulkan/vk_common.h"
 #include "video_core/renderer_vulkan/vk_dlss.h"
 #include "video_core/renderer_vulkan/vk_fsr4.h"
@@ -30,6 +29,10 @@ struct FfxVkPortableUpscaleContext;
 
 namespace VideoCore {
 class TextureCache;
+}
+
+namespace Vulkan::HostPasses {
+class FsrPass; // spatial FSR 1, only reached through a pointer here
 }
 
 namespace Vulkan {
@@ -125,21 +128,21 @@ public:
     };
     bool DisplayOverride(VAddr address, Display& display);
 
-    /// gow3: Uncharted drawn below the output size (velocity mode, GOW3_RENDER_RES smaller than
-    /// GOW3_OUTPUT_RES, GOW3_UI_COMPOSITE_PS). The game copies its finished frame back into the
-    /// display buffer with that pixel shader and draws the HUD and menus over it. That copy is
-    /// replaced by the upscale into a host display buffer of the output size; the HUD and menu
-    /// draws after it go there at the output resolution. True: skip the guest's draw, and the
-    /// next frame starts here (the rasterizer calls OnFrameStart).
-    bool OnComposite(u64 ps_hash, VideoCore::ImageId color);
+    /// gow3: for Uncharted rendering below the output size (velocity mode, with GOW3_RENDER_RES
+    /// under GOW3_OUTPUT_RES and GOW3_UI_COMPOSITE_PS set). The game uses that pixel shader to
+    /// copy its finished frame into the display buffer, then draws the HUD and menus on top.
+    /// Here the copy becomes an upscale into an output-size host display buffer, so the HUD
+    /// and menu draws that follow land there at full output resolution. Returns true when the
+    /// guest draw must be skipped; the next frame then starts at this point (the rasterizer
+    /// calls OnFrameStart).
+    bool OnComposite(u64 pixel_shader, VideoCore::ImageId target_id);
+    /// OnComposite takes over this session's frames (see above).
+    [[nodiscard]] bool CompositeFrames() const noexcept { return composite_frames; }
     /// gow3 26 Oct 2026 (#237/#243/#222): a compute shader writes the display buffer at
     /// `address` (Uncharted 3's movie player: cs 3e242626 puts the movie frame and the subtitle
     /// layer together straight into it). Such a frame has no composite pass: it is shown from the
     /// guest buffer, and the UI phase of the last upscaled frame ends here.
     void OnDisplayStorageWrite(VAddr address);
-    [[nodiscard]] bool CompositeFrames() const noexcept {
-        return composite_frames;
-    }
 
 private:
     /// gow3: views of guest images the upscaler reads, kept across frames: FSR 4 registers
@@ -265,19 +268,23 @@ private:
     };
     std::mutex display_mutex;
     std::unordered_map<VAddr, DisplayImage> displays;
-    /// The host buffer for a display buffer at ui_width x ui_height (display_mutex held).
-    DisplayImage& HostDisplay(VAddr address, vk::Format format);
-    /// Upscales source (the finished frame at the render size) into ui_image; draws into source
-    /// go to ui_image after it.
-    void UpscaleToUi(VideoCore::ImageId source);
-    u64 composite_ps = 0;
-    u64 tonemap_ps = 0;               ///< the draw finishing the frame (GOW3_UI_TONEMAP_PS)
-    VideoCore::ImageId tonemap_target{};
-    bool tonemap_pending = false;     ///< the next draw upscales tonemap_target
-    bool composite_frames = false;  ///< OnComposite replaces the frame's display copy
-    bool composite_done = false;    ///< this frame's OnComposite ran: its UI draws follow
-    HostPasses::FsrPass fsr1_pass;  ///< FSR 1 (EASU) at OnComposite without a temporal upscale
-    bool fsr1_created = false;
+    /// Output-size (ui_width x ui_height) host stand-in for the guest display buffer at
+    /// `address`, recreated when its size or format no longer fits. Needs display_mutex.
+    DisplayImage& OutputDisplay(VAddr address, vk::Format pixel_format);
+    /// Scales `source`, the finished frame at render size, into ui_image; afterwards draws
+    /// aimed at `source` are sent to ui_image.
+    void UpscaleIntoUi(VideoCore::ImageId source);
+    /// FSR 1 (EASU only) for frames OnComposite scales without a temporal upscaler; made on
+    /// first use.
+    HostPasses::FsrPass& SpatialFsr();
+    // Uncharted below the output size (OnComposite).
+    u64 copy_back_ps{};                 ///< GOW3_UI_COMPOSITE_PS: copies the frame for display
+    u64 tonemap_shader{};               ///< GOW3_UI_TONEMAP_PS: the draw finishing the frame
+    VideoCore::ImageId tonemap_color{}; ///< target of that draw this frame
+    bool tonemap_pending{};             ///< upscale tonemap_color at the next draw
+    bool composite_frames{};            ///< frames are upscaled instead of the display copy
+    bool composite_done{};              ///< OnComposite ran this frame; its UI draws follow
+    std::unique_ptr<HostPasses::FsrPass> spatial_fsr;
     FfxVkPortableUpscaleContext* context = nullptr;
     bool resources_ready = false; ///< images below match width/height/out size
     bool resources_fsr4 = false;  ///< made for FSR 4 (no FSR 3 context)

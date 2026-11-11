@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // gow3: numbers for the performance overlay (gow3_overlay.cpp). A thread started once samples
-// CPU, RAM, GPU use and their temperatures (Windows counters, NVIDIA's driver) and VRAM
-// (VK_EXT_memory_budget) once a second while the overlay shows one of them (20 Oct 2026;
-// GOW3_PERF_SAMPLER_PAUSE=0: twice a second, always); a value that cannot be measured stays
-// negative and shows as "n/a".
-//
-// 24 Oct 2026: GPU and CPU temperatures next to their use (nvml.dll for the graphics card, the
-// ACPI thermal zone for the processor), and the graphics card shows as "GPU" instead of its
-// full name so the counter fits one line.
-//
+// processor and graphics card load plus their temperatures (PDH counters, NVML), the game's RAM,
+// and VRAM through VK_EXT_memory_budget. It runs once a second, and only while the overlay shows
+// at least one of those items (20 Oct 2026); GOW3_PERF_SAMPLER_PAUSE=0 makes it run every 500 ms
+// without pausing. Anything that could not be measured is left negative and printed as "n/a".
+// Since 24 Oct 2026 the temperatures follow the load figures (the card's from nvml.dll, the
+// processor's from the ACPI thermal zone), and the card is labelled plain "GPU" rather than by
+// its model name, which kept the one-line counter from wrapping.
 // 24 Oct 2026: RAM is the game's own memory (its working set), shown without the system's total
 // ("RAM 6.1 GB") so the line stays short.
 
@@ -43,8 +41,10 @@ struct Sample {
     std::string upscaler;
     std::string gpu_name;
     float gpu_percent = -1.0f, cpu_percent = -1.0f;
-    float gpu_temp_c = -1.0f, cpu_temp_c = -1.0f;
-    // RAM is the whole system (not this process); VRAM is the card's memory budget.
+    float gpu_temp_c = -1.0f; ///< graphics card, degrees Celsius
+    float cpu_temp_c = -1.0f; ///< processor (ACPI zone), degrees Celsius
+    // RAM used = this process's working set, RAM total = installed memory; the VRAM total is the
+    // budget the driver grants.
     double ram_used_gb = -1.0, ram_total_gb = -1.0, vram_used_gb = -1.0, vram_total_gb = -1.0;
 };
 
@@ -75,8 +75,17 @@ inline std::string Format(const Sample& s, unsigned mask, bool row) {
             std::snprintf(to, size, "%s %.1f / %.1f GB", label, used, total);
         }
     };
-    // "°C" as UTF-8; the overlay's DejaVu Sans font has it.
-    constexpr const char* degree = "\xc2\xb0" "C";
+    // Load in percent, then the temperature when one is known. The degree sign is UTF-8 (U+00B0),
+    // a glyph DejaVu Sans, the overlay font, provides.
+    const auto load = [](char* to, size_t size, const char* label, float percent, float celsius) {
+        if (percent < 0.0f) {
+            std::snprintf(to, size, "%s n/a", label);
+        } else if (celsius < 0.0f) { // no sensor reading
+            std::snprintf(to, size, "%s %.0f%%", label, percent);
+        } else {
+            std::snprintf(to, size, "%s %.0f%% %.0f\xc2\xb0" "C", label, percent, celsius);
+        }
+    };
     if (mask & Fps) {
         std::snprintf(part, sizeof(part), "%.0f FPS", s.fps);
         add();
@@ -89,30 +98,19 @@ inline std::string Format(const Sample& s, unsigned mask, bool row) {
         std::snprintf(part, sizeof(part), "%s", s.upscaler.empty() ? "Native" : s.upscaler.c_str());
         add();
     }
-    // The card's name is not shown (24 Oct 2026): "GPU" keeps the one-line counter short.
     if (mask & Gpu) {
-        if (s.gpu_percent < 0.0f) {
-            std::snprintf(part, sizeof(part), "GPU n/a");
-        } else if (s.gpu_temp_c < 0.0f) {
-            std::snprintf(part, sizeof(part), "GPU %.0f%%", s.gpu_percent);
-        } else {
-            std::snprintf(part, sizeof(part), "GPU %.0f%% %.0f%s", s.gpu_percent, s.gpu_temp_c, degree);
-        }
+        // Labelled "GPU", not by s.gpu_name, so the single-line counter stays short.
+        load(part, sizeof(part), "GPU", s.gpu_percent, s.gpu_temp_c);
         add();
     }
     if (mask & Cpu) {
-        if (s.cpu_percent < 0.0f) {
-            std::snprintf(part, sizeof(part), "CPU n/a");
-        } else if (s.cpu_temp_c < 0.0f) {
-            std::snprintf(part, sizeof(part), "CPU %.0f%%", s.cpu_percent);
-        } else {
-            std::snprintf(part, sizeof(part), "CPU %.0f%% %.0f%s", s.cpu_percent, s.cpu_temp_c, degree);
-        }
+        load(part, sizeof(part), "CPU", s.cpu_percent, s.cpu_temp_c);
         add();
     }
     if (mask & Ram) {
-        // The system's RAM in use, without the total (24 Oct 2026).
-        pair(part, sizeof(part), "RAM", s.ram_used_gb, -1.0);
+        // Only the amount in use is printed, never the total (24 Oct 2026).
+        constexpr double kNoTotal = -1.0;
+        pair(part, sizeof(part), "RAM", s.ram_used_gb, kNoTotal);
         add();
     }
     if (mask & Vram) {
@@ -125,8 +123,8 @@ inline std::string Format(const Sample& s, unsigned mask, bool row) {
 /// Starts the sampling thread the first time. Every call also keeps it sampling: it sleeps
 /// once no call came for 2 s (the overlay calls it on each frame that shows a sampled item).
 void Start(const Vulkan::Instance& instance);
-/// The latest CPU, RAM, GPU and VRAM values, with their temperatures (the caller fills FPS,
-/// frametime and upscaler).
+/// Most recent sampler output: load, temperature and memory figures. FPS, frame time and the
+/// upscaler name are left for the caller to fill in.
 Sample Latest();
 
 } // namespace Gow3PerfStats

@@ -25,8 +25,8 @@ layout(push_constant) uniform Constants {
     vec2 jitter;       // current viewport shift in render pixels (x right, y down)
     vec2 previous_jitter;
     uint mode;         // motion: 1 = object motion vectors available, 2 = Uncharted's velocity
-                       // pass camera, 3 = none (zero), 4 = 2 with the object motion (characters);
-                       // debug: 0 motion, 1 raw depth,
+                       // pass camera, 3 = none (all zero), 4 = as 2 but characters use their
+                       // vertex motion; debug modes: 0 motion, 1 raw depth,
                        // 2 view z / 50, 3 reprojected previous frame, 4 |difference|
 };
 
@@ -86,7 +86,8 @@ void main() {
     imageStore(color_img, pixel, vec4(mix(current.rgb, mv_color, 0.75), current.a));
 #else
     vec2 result = motion;
-    if (mode == 2 || mode == 4) {
+    const bool velocity_camera = mode == 2u || mode == 4u;
+    if (velocity_camera) {
         // Uncharted's camera velocity pass (CameraMotion::OnVelocityConstants): reproject holds
         // the view to previous clip x, y, w rows; proj the view from uv; prev_proj.xy the view
         // z from depth.
@@ -100,17 +101,17 @@ void main() {
         if (any(isnan(result)) || any(isinf(result))) {
             result = vec2(0.0);
         }
-        if (mode == 4 && !sky && all(lessThan(pixel, textureSize(object_tex, 0)))) {
-            // Characters' own motion from their vertices (previous minus current clip position,
-            // pixels, b = valid, a = the depth it was drawn at). A later draw over the pixel
-            // leaves another depth: then the camera's motion of that surface stays.
-            const vec4 object_motion = texelFetch(object_tex, pixel, 0);
-            const float object_z = prev_proj.y / (object_motion.a - prev_proj.x);
-            if (object_motion.b > 0.99 && !any(isnan(object_motion.rg)) &&
-                !any(isinf(object_motion.rg)) &&
-                abs(object_z - view_z) <= 0.01 * abs(view_z) + 1e-3) {
-                result = object_motion.rg;
-            }
+        const bool inside_objects = all(lessThan(pixel, textureSize(object_tex, 0)));
+        if (mode == 4u && !sky && inside_objects) {
+            // Per-vertex character motion: rg = previous minus current clip position in
+            // pixels, b = valid flag, a = depth the character was drawn at. When a later
+            // draw covered the pixel the depths disagree and the camera motion is kept.
+            const vec4 vertex_motion = texelFetch(object_tex, pixel, 0);
+            const float drawn_view_z = prev_proj.y / (vertex_motion.a - prev_proj.x);
+            const bool finite = !any(isnan(vertex_motion.rg)) && !any(isinf(vertex_motion.rg));
+            const bool same_surface = abs(drawn_view_z - view_z) <= 0.01 * abs(view_z) + 1e-3;
+            const bool usable = vertex_motion.b > 0.99 && finite && same_surface;
+            result = usable ? vertex_motion.rg : result;
         }
     } else if (mode == 3) {
         result = vec2(0.0); // no camera this frame

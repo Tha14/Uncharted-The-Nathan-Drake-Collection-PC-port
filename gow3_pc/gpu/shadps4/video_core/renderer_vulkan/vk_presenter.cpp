@@ -15,7 +15,7 @@
 #include "gow3_overlay.h"
 #include "gow3_settings.h"
 #include "gow3_graphics.h"
-#include "gow3_thumbnail.h"
+#include "gow3_thumbnail.h" // gow3: save list pictures (CopySavePicture)
 #include "video_core/renderer_vulkan/vk_temporal_upscaler.h"
 #include "video_core/renderer_vulkan/vk_presenter.h"
 #include "video_core/renderer_vulkan/vk_warmup_inbox.h"
@@ -216,11 +216,14 @@ Presenter::~Presenter() {
     Check(flip_scheduler.CommandBuffer().reset());
 
     const vk::Device device = instance.GetDevice();
-    if (thumbnail.image) {
-        vmaDestroyImage(instance.GetAllocator(), thumbnail.image, thumbnail.image_allocation);
+    // gow3: only handles that were created are released; a failed readback buffer is already gone.
+    if (save_picture.target) {
+        vmaDestroyImage(instance.GetAllocator(), static_cast<VkImage>(save_picture.target),
+                        save_picture.target_memory);
     }
-    if (thumbnail.buffer) {
-        vmaDestroyBuffer(instance.GetAllocator(), thumbnail.buffer, thumbnail.buffer_allocation);
+    if (save_picture.readback) {
+        vmaDestroyBuffer(instance.GetAllocator(), static_cast<VkBuffer>(save_picture.readback),
+                         save_picture.readback_memory);
     }
     for (auto& frame : present_frames) {
         vmaDestroyImage(instance.GetAllocator(), frame.image, frame.allocation);
@@ -913,140 +916,137 @@ void Presenter::PresentLoadingFrame() {
     present_scheduler.Finish();
 }
 
-// gow3 3 Nov 2026: the save list's pictures (gow3_thumbnail.h). The game frame (in
-// TransferSrcOptimal after its blit to the swapchain) is scaled into a small RGBA8 image, which is
-// copied to a mapped buffer; ReadThumbnail takes it once that frame's present has finished. The
-// overlay is drawn later, straight into the swapchain image, so it is never in the picture.
-void Presenter::CaptureThumbnail(vk::CommandBuffer cmdbuf, const Frame* frame) {
-    using Gow3Thumbnail::Height;
-    using Gow3Thumbnail::Width;
-    const vk::Device device = instance.GetDevice();
-    const vk::Format frame_format = swapchain.GetSurfaceFormat().format;
-    // An sRGB frame into an sRGB picture: the bytes stay as shown (a UNORM one would darken it).
-    const vk::Format format = frame_format == vk::Format::eB8G8R8A8Srgb ||
-                                      frame_format == vk::Format::eR8G8B8A8Srgb
-                                  ? vk::Format::eR8G8B8A8Srgb
-                                  : vk::Format::eR8G8B8A8Unorm;
-    if (!thumbnail.image) {
-        const vk::FormatProperties props = instance.GetPhysicalDevice().getFormatProperties(format);
-        if (!(props.optimalTilingFeatures & vk::FormatFeatureFlagBits::eBlitDst)) {
-            thumbnail.failed = true;
-            LOG_WARNING(Render_Vulkan, "Save pictures: {} cannot be a blit target", vk::to_string(format));
-            return;
-        }
-        const VkImageCreateInfo image_info = static_cast<VkImageCreateInfo>(vk::ImageCreateInfo{
-            .imageType = vk::ImageType::e2D,
-            .format = format,
-            .extent = {Width, Height, 1},
-            .mipLevels = 1,
-            .arrayLayers = 1,
-            .samples = vk::SampleCountFlagBits::e1,
-            .usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferSrc,
-        });
-        const VmaAllocationCreateInfo image_alloc{.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE};
-        VkImage image{};
-        const VkBufferCreateInfo buffer_info{
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = VkDeviceSize(Width) * Height * 4,
-            .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        };
-        const VmaAllocationCreateInfo buffer_alloc{
-            .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
-            .usage = VMA_MEMORY_USAGE_AUTO,
-        };
-        VkBuffer buffer{};
-        VmaAllocationInfo buffer_out{};
-        if (vmaCreateImage(instance.GetAllocator(), &image_info, &image_alloc, &image,
-                           &thumbnail.image_allocation, nullptr) != VK_SUCCESS) {
-            thumbnail.failed = true;
-            return;
-        }
-        thumbnail.image = vk::Image{image};
-        if (vmaCreateBuffer(instance.GetAllocator(), &buffer_info, &buffer_alloc, &buffer,
-                            &thumbnail.buffer_allocation, &buffer_out) != VK_SUCCESS ||
-            !buffer_out.pMappedData) {
-            if (buffer) {
-                vmaDestroyBuffer(instance.GetAllocator(), buffer, thumbnail.buffer_allocation);
-            }
-            thumbnail.failed = true;
-            return;
-        }
-        thumbnail.buffer = vk::Buffer{buffer};
-        thumbnail.mapped = buffer_out.pMappedData;
-        SetObjectName(device, thumbnail.image, "Save picture");
+// gow3 3 Nov 2026: save list thumbnails (gow3_thumbnail.h). Right after the game frame has been
+// blitted to the swapchain, while it still sits in TransferSrcOptimal, it is shrunk into a small
+// RGBA8 image and that image is copied into a host-mapped buffer; CollectSavePicture reads the
+// bytes after the frame's present fence has signalled. The overlay is drawn onto the swapchain
+// image later, so menus never show up in a picture.
+bool Presenter::CreateSavePictureTargets(vk::Format format) {
+    if (!CanBlitToSwapchain(instance.GetPhysicalDevice(), format)) {
+        LOG_WARNING(Render_Vulkan, "Save pictures: {} cannot be a blit target",
+                    vk::to_string(format));
+        return false;
     }
-    const vk::ImageSubresourceRange range{
-        .aspectMask = vk::ImageAspectFlagBits::eColor,
-        .baseMipLevel = 0,
-        .levelCount = 1,
-        .baseArrayLayer = 0,
-        .layerCount = 1,
-    };
-    const vk::ImageMemoryBarrier to_dst{
-        .srcAccessMask = vk::AccessFlagBits::eNone,
-        .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
-        .oldLayout = vk::ImageLayout::eUndefined,
-        .newLayout = vk::ImageLayout::eTransferDstOptimal,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = thumbnail.image,
-        .subresourceRange = range,
-    };
-    cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
-                           {}, {}, {}, to_dst);
-    cmdbuf.blitImage(frame->image, vk::ImageLayout::eTransferSrcOptimal, thumbnail.image,
-                     vk::ImageLayout::eTransferDstOptimal,
-                     MakeImageBlitStretch(frame->width, frame->height, Width, Height), vk::Filter::eLinear);
-    const vk::ImageMemoryBarrier to_src{
-        .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
-        .dstAccessMask = vk::AccessFlagBits::eTransferRead,
-        .oldLayout = vk::ImageLayout::eTransferDstOptimal,
-        .newLayout = vk::ImageLayout::eTransferSrcOptimal,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = thumbnail.image,
-        .subresourceRange = range,
-    };
-    cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
-                           {}, {}, {}, to_src);
-    const vk::BufferImageCopy copy{
-        .bufferOffset = 0,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
-        .imageSubresource = MakeImageSubresourceLayers(),
-        .imageOffset = {0, 0, 0},
-        .imageExtent = {Width, Height, 1},
-    };
-    cmdbuf.copyImageToBuffer(thumbnail.image, vk::ImageLayout::eTransferSrcOptimal, thumbnail.buffer, copy);
-    const vk::BufferMemoryBarrier to_host{
-        .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
-        .dstAccessMask = vk::AccessFlagBits::eHostRead,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .buffer = thumbnail.buffer,
-        .offset = 0,
-        .size = VK_WHOLE_SIZE,
-    };
-    cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eHost, {}, {},
-                           to_host, {});
-    thumbnail.pending = frame->present_done;
+    VmaAllocator allocator = instance.GetAllocator();
+
+    VkImageCreateInfo target_info{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    target_info.imageType = VK_IMAGE_TYPE_2D;
+    target_info.format = static_cast<VkFormat>(format);
+    target_info.extent = VkExtent3D{Gow3Thumbnail::Width, Gow3Thumbnail::Height, 1};
+    target_info.mipLevels = 1;
+    target_info.arrayLayers = 1;
+    target_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    target_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    target_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    target_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    target_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VmaAllocationCreateInfo target_alloc{};
+    target_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+    VkImage target = VK_NULL_HANDLE;
+    if (vmaCreateImage(allocator, &target_info, &target_alloc, &target,
+                       &save_picture.target_memory, nullptr) != VK_SUCCESS) {
+        return false;
+    }
+    save_picture.target = vk::Image{target};
+
+    // Four bytes per pixel, written by the GPU and read back on the CPU.
+    VkBufferCreateInfo readback_info{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+    readback_info.size = VkDeviceSize{Gow3Thumbnail::Width} * Gow3Thumbnail::Height * 4;
+    readback_info.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    VmaAllocationCreateInfo readback_alloc{};
+    readback_alloc.flags =
+        VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+    readback_alloc.usage = VMA_MEMORY_USAGE_AUTO;
+    VkBuffer readback = VK_NULL_HANDLE;
+    VmaAllocationInfo readback_out{};
+    const VkResult made = vmaCreateBuffer(allocator, &readback_info, &readback_alloc, &readback,
+                                          &save_picture.readback_memory, &readback_out);
+    if (made != VK_SUCCESS || readback_out.pMappedData == nullptr) {
+        if (readback != VK_NULL_HANDLE) {
+            vmaDestroyBuffer(allocator, readback, save_picture.readback_memory);
+        }
+        return false;
+    }
+    save_picture.readback = vk::Buffer{readback};
+    save_picture.readback_ptr = readback_out.pMappedData;
+    SetObjectName(instance.GetDevice(), save_picture.target, "Save picture");
+    return true;
 }
 
-void Presenter::ReadThumbnail() {
-    if (!thumbnail.pending ||
-        instance.GetDevice().getFenceStatus(thumbnail.pending) != vk::Result::eSuccess) {
-        return;
+void Presenter::CopySavePicture(vk::CommandBuffer cmdbuf, const Frame* frame) {
+    constexpr u32 width = Gow3Thumbnail::Width;
+    constexpr u32 height = Gow3Thumbnail::Height;
+    if (!save_picture.target) {
+        // sRGB frames go into an sRGB picture, so the stored bytes match what is on screen (a
+        // UNORM target would come out darker).
+        const vk::Format shown = swapchain.GetSurfaceFormat().format;
+        const bool srgb = shown == vk::Format::eB8G8R8A8Srgb || shown == vk::Format::eR8G8B8A8Srgb;
+        const vk::Format wanted = srgb ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm;
+        save_picture.unavailable = !CreateSavePictureTargets(wanted);
+        if (save_picture.unavailable) return; // no pictures from here on
     }
-    thumbnail.pending = vk::Fence{};
-    vmaInvalidateAllocation(instance.GetAllocator(), thumbnail.buffer_allocation, 0, VK_WHOLE_SIZE);
-    Gow3Thumbnail::Store(static_cast<const unsigned char*>(thumbnail.mapped));
+
+    const vk::ImageSubresourceRange whole{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1};
+    const auto transition = [&](vk::AccessFlags src_access, vk::AccessFlags dst_access,
+                                vk::ImageLayout from, vk::ImageLayout to) {
+        vk::ImageMemoryBarrier barrier{};
+        barrier.srcAccessMask = src_access;
+        barrier.dstAccessMask = dst_access;
+        barrier.oldLayout = from;
+        barrier.newLayout = to;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = save_picture.target;
+        barrier.subresourceRange = whole;
+        cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+                               vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, barrier);
+    };
+
+    // The previous contents are not needed: start from Undefined.
+    transition(vk::AccessFlagBits::eNone, vk::AccessFlagBits::eTransferWrite,
+               vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+    const vk::ImageBlit shrink = MakeImageBlitStretch(frame->width, frame->height, width, height);
+    cmdbuf.blitImage(frame->image, vk::ImageLayout::eTransferSrcOptimal, save_picture.target,
+                     vk::ImageLayout::eTransferDstOptimal, shrink, vk::Filter::eLinear);
+    transition(vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eTransferRead,
+               vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal);
+
+    vk::BufferImageCopy region{};
+    region.imageSubresource = MakeImageSubresourceLayers();
+    region.imageExtent = vk::Extent3D{width, height, 1};
+    cmdbuf.copyImageToBuffer(save_picture.target, vk::ImageLayout::eTransferSrcOptimal,
+                             save_picture.readback, region);
+
+    vk::BufferMemoryBarrier host_visible{};
+    host_visible.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+    host_visible.dstAccessMask = vk::AccessFlagBits::eHostRead;
+    host_visible.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    host_visible.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    host_visible.buffer = save_picture.readback;
+    host_visible.offset = 0;
+    host_visible.size = VK_WHOLE_SIZE;
+    cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eHost,
+                           {}, {}, host_visible, {});
+    save_picture.in_flight = frame->present_done;
+}
+
+void Presenter::CollectSavePicture() {
+    const vk::Fence fence = save_picture.in_flight;
+    if (!fence || instance.GetDevice().getFenceStatus(fence) != vk::Result::eSuccess) {
+        return; // nothing copied, or the copy has not finished yet
+    }
+    save_picture.in_flight = nullptr;
+    vmaInvalidateAllocation(instance.GetAllocator(), save_picture.readback_memory, 0,
+                            VK_WHOLE_SIZE);
+    Gow3Thumbnail::Store(static_cast<const unsigned char*>(save_picture.readback_ptr));
 }
 
 void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame) {
-    // gow3: a finished save picture copy is read before any present_done fence is reset.
-    ReadThumbnail();
-    if (thumbnail.pending == frame->present_done) {
-        thumbnail.pending = vk::Fence{}; // its fence is reset below: that copy is dropped
+    // gow3: pick up a finished save picture before any present_done fence can be reset. A copy
+    // still tied to this frame's fence is abandoned, because that fence gets reset further down.
+    CollectSavePicture();
+    if (save_picture.in_flight == frame->present_done) {
+        save_picture.in_flight = nullptr;
     }
     // Free the frame for reuse
     const auto free_frame = [&] {
@@ -1162,9 +1162,10 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
         }
         cmdbuf.blitImage(frame->image, vk::ImageLayout::eTransferSrcOptimal, swapchain_image,
                          vk::ImageLayout::eTransferDstOptimal, blit, vk::Filter::eLinear);
-        if (is_game_frame && !frame->is_hdr && !thumbnail.failed && !thumbnail.pending &&
-            Gow3Thumbnail::Wanted()) {
-            CaptureThumbnail(cmdbuf, frame);
+        // gow3: a save list picture from this game frame, taken before the overlay goes on top.
+        const bool picture_slot_free = !save_picture.unavailable && !save_picture.in_flight;
+        if (is_game_frame && !frame->is_hdr && picture_slot_free && Gow3Thumbnail::Wanted()) {
+            CopySavePicture(cmdbuf, frame);
         }
         // gow3: the settings menu / FPS counter over the frame, at display resolution.
         const bool overlay = Gow3Overlay::Visible();

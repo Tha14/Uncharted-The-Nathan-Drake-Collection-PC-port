@@ -19,16 +19,14 @@ public:
 
     void Create(vk::Device device, VmaAllocator allocator, u32 num_images);
 
-    /// input_size is the part read, from the top-left of an input image of input_image_size
-    /// (the same when empty). The output (R16G16B16A16Sfloat) is left shader-read-only.
+    /// Reads an input_size region starting at the top-left corner of the input. source_extent
+    /// is the full size of that input image; leave it zero when it equals input_size.
+    /// Returns an R16G16B16A16Sfloat view whose image ends in the shader-read-only layout.
     vk::ImageView Render(vk::CommandBuffer cmdbuf, vk::ImageView input, vk::Extent2D input_size,
-                         vk::Extent2D output_size, Settings settings, bool hdr,
-                         vk::Extent2D input_image_size = {});
-
-    /// The image behind the view the last Render returned.
-    vk::Image LastOutput() const {
-        return last_output;
-    }
+                         vk::Extent2D output_size, Settings settings,
+                         bool hdr, vk::Extent2D source_extent = {});
+    /// Image that owns the view handed out by the most recent Render call.
+    vk::Image LastOutput() const { return most_recent_output; }
 
 private:
     struct Img {
@@ -58,7 +56,7 @@ private:
 
     vk::Extent2D cur_size{};
     u32 cur_image{};
-    vk::Image last_output{};
+    vk::Image most_recent_output{};
     std::vector<Img> available_imgs;
 };
 

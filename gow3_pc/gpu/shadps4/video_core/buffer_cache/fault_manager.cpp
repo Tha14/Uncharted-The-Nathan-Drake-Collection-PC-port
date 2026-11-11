@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright 2025 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -169,10 +168,13 @@ void FaultManager::ProcessFaultBuffer() {
     scheduler.DeferOperation([this, mapped, area = current_area] {
         fault_ranges.Clear();
         const u64* fault_buf = std::bit_cast<const u64*>(mapped);
-        // The shader counts every fault but stores only indices 1..MaxPageFaults-1: past that the
-        // count would read into the next area (or past the buffer for the last area).
-        const u32 fault_count =
-            static_cast<u32>(std::min<u64>(fault_buf[0], MaxPageFaults - 1));
+        // Slot 0 keeps counting every fault, yet only slots 1..MaxPageFaults-1 receive addresses.
+        // Clamp it, or a full area walks into its neighbour (the last one off the buffer's end).
+        u64 recorded = fault_buf[0];
+        if (recorded > MaxPageFaults - 1) {
+            recorded = MaxPageFaults - 1;
+        }
+        const u32 fault_count = static_cast<u32>(recorded);
         for (u32 i = 1; i <= fault_count; ++i) {
             fault_ranges.Add(fault_buf[i], sparse_pagesize);
             LOG_INFO(Render_Vulkan, "Accessed non-GPU cached memory at {:#x}", fault_buf[i]);

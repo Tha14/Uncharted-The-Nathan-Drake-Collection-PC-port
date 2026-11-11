@@ -364,8 +364,8 @@ bool VdecDecoder::WriteMovieCopy(const AVFrame& frame, u64 base) {
     if (!m_scaled) {
         return false;
     }
-    // The movie keeps its own shape inside the display size: black bars at the top and bottom
-    // (16:10) or at the sides (ultrawide) instead of a stretched picture. 16:9 sizes fill it.
+    // Instead of being stretched, the movie is fitted into the display size with its aspect ratio
+    // intact: bars above and below on 16:10, bars left and right on ultrawide, none on 16:9.
     // gow3 1 Nov 2026 (GitHub #145, ultrawide players): GOW3_MOVIE_STRETCH=1 (launcher "Movies:
     // Stretch") fills the whole display instead, as before 0.3.
     static const bool stretch = [] {
@@ -376,23 +376,30 @@ bool VdecDecoder::WriteMovieCopy(const AVFrame& frame, u64 base) {
     if (stretch) {
         // the whole display
     } else if ((u64)frame.width * height > (u64)frame.height * width) {
-        fit_height = std::min(height, (u32)((u64)width * frame.height / frame.width) & ~1u);
-    } else {
-        fit_width = std::min(width, (u32)((u64)height * frame.width / frame.height) & ~1u);
+        // Wider than the display: full width, the height follows the movie's shape.
+        const u64 shaped_height = (u64)width * frame.height / frame.width;
+        fit_height = std::min<u32>(height, static_cast<u32>(shaped_height) & ~1u);
+    } else { // as wide or narrower: full height, the width follows the movie's shape
+        const u64 shaped_width = (u64)height * frame.width / frame.height;
+        fit_width = std::min<u32>(width, static_cast<u32>(shaped_width) & ~1u);
     }
-    const u32 left = (width - fit_width) / 2 & ~1u, top = (height - fit_height) / 2 & ~1u;
-    if ((u32)m_scaled->width != fit_width || (u32)m_scaled->height != fit_height) {
+    // Centred, with even offsets so the half-resolution chroma lines up with the luma.
+    const u32 left = ((width - fit_width) / 2) & ~1u;
+    const u32 top = ((height - fit_height) / 2) & ~1u;
+    const int scaled_w = static_cast<int>(fit_width);
+    const int scaled_h = static_cast<int>(fit_height);
+    if (m_scaled->width != scaled_w || m_scaled->height != scaled_h) {
         av_frame_unref(m_scaled);
         m_scaled->format = AV_PIX_FMT_NV12;
-        m_scaled->width = (int)fit_width;
-        m_scaled->height = (int)fit_height;
+        m_scaled->width = scaled_w;
+        m_scaled->height = scaled_h;
         if (av_frame_get_buffer(m_scaled, 0) < 0) {
             av_frame_unref(m_scaled);
             return false;
         }
     }
     m_scale_context = sws_getCachedContext(m_scale_context, frame.width, frame.height, AV_PIX_FMT_NV12,
-                                           (int)fit_width, (int)fit_height, AV_PIX_FMT_NV12, SWS_BICUBIC,
+                                           scaled_w, scaled_h, AV_PIX_FMT_NV12, SWS_BICUBIC,
                                            nullptr, nullptr, nullptr);
     if (!m_scale_context || sws_scale(m_scale_context, frame.data, frame.linesize, 0, frame.height,
                                       m_scaled->data, m_scaled->linesize) < 0) {
@@ -401,26 +408,35 @@ bool VdecDecoder::WriteMovieCopy(const AVFrame& frame, u64 base) {
     const u32 pitch = Gow3Movie::ScaledPitch(), rows = Gow3Movie::ScaledRows();
     const u32 chroma_pitch = Gow3Movie::ScaledChromaPitch();
     const u64 bytes = Gow3Movie::ScaledFrameBytes();
-    // Black (video range) around the picture.
-    m_movie_copy.assign(bytes, 128);
+    // The bars are video-range black: neutral chroma (128) over the whole buffer, then luma 16.
+    constexpr u8 NeutralChroma = 128, BlackLuma = 16;
+    m_movie_copy.assign(bytes, NeutralChroma);
     u8* copy = m_movie_copy.data();
     u8* chroma = copy + (u64)pitch * rows;
-    std::memset(copy, 16, (u64)pitch * rows);
-    for (u32 y = 0; y < fit_height; ++y) {
-        std::memcpy(copy + (u64)(top + y) * pitch + left,
-                    m_scaled->data[0] + (u64)y * m_scaled->linesize[0], fit_width);
-        if (y < fit_height / 2) {
-            std::memcpy(chroma + (u64)(top / 2 + y) * chroma_pitch + left,
-                        m_scaled->data[1] + (u64)y * m_scaled->linesize[1], fit_width);
+    const u64 luma_bytes = (u64)pitch * rows;
+    std::memset(copy, BlackLuma, luma_bytes);
+    // The scaled picture goes in line by line at (left, top); NV12 chroma has half the lines.
+    const u8* src_luma = m_scaled->data[0];
+    const u8* src_chroma = m_scaled->data[1];
+    u8* dst_luma = copy + (u64)top * pitch + left;
+    u8* dst_chroma = chroma + (u64)(top / 2) * chroma_pitch + left;
+    const u32 chroma_lines = fit_height / 2;
+    for (u32 line = 0; line < fit_height; ++line) {
+        std::memcpy(dst_luma + (u64)line * pitch, src_luma + (u64)line * m_scaled->linesize[0], fit_width);
+        if (line < chroma_lines) {
+            std::memcpy(dst_chroma + (u64)line * chroma_pitch,
+                        src_chroma + (u64)line * m_scaled->linesize[1], fit_width);
         }
     }
     // The rows up to the aligned height repeat the last one (sampling at the bottom edge reads
     // them at heights that aren't a multiple of 16, e.g. 1620).
-    for (u32 y = height; y < rows; ++y) {
-        std::memcpy(copy + (u64)y * pitch, copy + (u64)(height - 1) * pitch, width);
+    const u8* last_luma_line = copy + (u64)(height - 1) * pitch;
+    for (u32 line = height; line < rows; ++line) {
+        std::memcpy(copy + (u64)line * pitch, last_luma_line, width);
     }
-    for (u32 y = height / 2; y < rows / 2; ++y) {
-        std::memcpy(chroma + (u64)y * chroma_pitch, chroma + (u64)(height / 2 - 1) * chroma_pitch, width);
+    const u8* last_chroma_line = chroma + (u64)(height / 2 - 1) * chroma_pitch;
+    for (u32 line = height / 2; line < rows / 2; ++line) {
+        std::memcpy(chroma + (u64)line * chroma_pitch, last_chroma_line, width);
     }
     // The GPU caches learn of the new frame explicitly (one write through the backing view, no
     // page faults per row). Invalidated before (any GPU copy of these pages goes back first)

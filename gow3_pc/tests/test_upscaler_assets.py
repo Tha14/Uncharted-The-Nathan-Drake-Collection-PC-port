@@ -3,10 +3,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-launcher = Path(__file__).resolve().parents[1] / 'launcher'
-if not (launcher / 'gow3_assets.py').is_file():
-    raise unittest.SkipTest("Packaged GOW3 upscaler asset helper is not included in this checkout")
-sys.path.insert(0, str(launcher))
+_LAUNCHER_DIR = Path(__file__).resolve().parents[1] / 'launcher'
+if not (_LAUNCHER_DIR / 'gow3_assets.py').is_file():  # packaged GOW3 builds only
+    raise unittest.SkipTest("This checkout has no packaged GOW3 upscaler asset helper")
+sys.path[:0] = [str(_LAUNCHER_DIR)]  # import the helper from there, ahead of everything else
 from gow3_assets import fsr411_problem
 
 

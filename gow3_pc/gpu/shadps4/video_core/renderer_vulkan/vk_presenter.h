@@ -154,20 +154,21 @@ private:
     std::atomic<u32> long_frame_waits{0};
     std::condition_variable_any frame_cv;
     std::vector<VAddr> vo_buffers_addr;
-
-    /// gow3: the save list's picture of the game (gow3_thumbnail.h): a game frame scaled down into
-    /// `image`, copied to the mapped `buffer` and read once that frame's present has finished.
-    struct Thumbnail {
-        vk::Image image{};
-        VmaAllocation image_allocation{};
-        vk::Buffer buffer{};
-        VmaAllocation buffer_allocation{};
-        void* mapped = nullptr;
-        vk::Fence pending{}; ///< present_done of the frame that copied it; null: nothing to read
-        bool failed = false; ///< not supported or not created: no pictures
-    } thumbnail;
-    void CaptureThumbnail(vk::CommandBuffer cmdbuf, const Frame* frame);
-    void ReadThumbnail();
+    /// gow3: save list thumbnails (gow3_thumbnail.h). A game frame is shrunk into `target`, that
+    /// image is copied into the host-mapped `readback` buffer, and the bytes are taken once the
+    /// frame's present fence has signalled.
+    struct SavePicture {
+        vk::Image target{};
+        VmaAllocation target_memory{};
+        vk::Buffer readback{};
+        VmaAllocation readback_memory{};
+        void* readback_ptr = nullptr;
+        vk::Fence in_flight{};    ///< present_done of the frame that holds a copy; null when idle
+        bool unavailable = false; ///< unsupported format or creation failed: no pictures at all
+    } save_picture;
+    bool CreateSavePictureTargets(vk::Format format);
+    void CopySavePicture(vk::CommandBuffer cmdbuf, const Frame* frame);
+    void CollectSavePicture();
 };
 
 } // namespace Vulkan

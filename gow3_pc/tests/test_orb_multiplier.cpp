@@ -8,8 +8,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
-#include <chrono>
-#include <fstream>
+#include <chrono>   // clock stamp that makes the temp ini name unique
+#include <fstream>  // writes the legacy-key ini
 #include "gow3_settings.h"
 #ifdef _WIN32
 #include <windows.h>
@@ -94,21 +94,21 @@ int main(int argc, char** argv) {
     assert(settings.red_orbs_supported);
     gow3_orbs_status(0);
     assert(!settings.red_orbs_supported);
-    auto config = std::filesystem::temp_directory_path() /
-        ("gow3-orb-multiplier-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".ini");
+    const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
+    const std::filesystem::path config =
+        std::filesystem::temp_directory_path() / ("gow3-orb-multiplier-" + std::to_string(stamp) + ".ini");
     assert(!std::filesystem::exists(config));
 #ifdef _WIN32
     _putenv_s("GOW3_CONFIG", config.string().c_str());
 #else
     setenv("GOW3_CONFIG", config.string().c_str(), 1);
 #endif
-    // Legacy GOW3 keys still load, but Uncharted's menu leaves them unchanged on disk.
-    {
-        std::ofstream out(config);
-        out << "red_orb_multiplier=0.125\ncheat_health=1\ncheat_item=1\n";
-    }
-    Gow3Settings::Load();
-    assert(settings.red_orb_multiplier == 0.125f && settings.cheats[0] && settings.cheats[2]);
+    // The old GOW3 keys are still read on load. Uncharted's menu has no use for them, so a save
+    // must write them back exactly as they were.
+    std::ofstream{config} << "red_orb_multiplier=0.125\n" "cheat_health=1\n" "cheat_item=1\n"; // closed here
+    Gow3Settings::Load();  // from the legacy ini
+    assert(settings.red_orb_multiplier == 0.125f);
+    assert(settings.cheats[0] && settings.cheats[2]);  // cheat_health, cheat_item
     Gow3Settings::Save();
     settings.red_orb_multiplier = 1;
     settings.cheats[0] = false;

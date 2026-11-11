@@ -5,7 +5,7 @@
 #include "gow3_overlay.h"
 #include "gow3_png.h"
 #include "gow3_settings.h"
-#include "gow3_thumbnail.h"
+#include "gow3_thumbnail.h" // save list pictures taken from game frames
 #include "gow3_trophies.h"
 #include "gow3_copy.h"
 #ifndef _WIN32
@@ -630,7 +630,7 @@ static int TestChoice() {
 }
 
 extern "C" int gow3gpu_choice_begin(const char* title, const char* const* items, const char* const* images,
-                                    int count, int focus, int deletable_from) {
+                                    int count, int focus, int first_deletable) {
     if (!g_window || count <= 0) return 0;
     if (const int pick = TestChoice(); pick >= 0) {
         g_test_choice = std::min(pick, count - 1);
@@ -645,11 +645,11 @@ extern "C" int gow3gpu_choice_begin(const char* title, const char* const* items,
             LOG_WARNING(Lib_SaveDataDialog, "save list: no picture from {}", images[i]);
         }
     }
-    if (title && std::strcmp(title, "Save game") == 0) {
-        Gow3Thumbnail::NoteSaveList();
-    }
+    // Opening the game's own save list starts the window in which saves take the pre-pause picture.
+    const bool is_save_list = title != nullptr && !std::strcmp(title, "Save game");
+    if (is_save_list) Gow3Thumbnail::SaveListOpened();
     Gow3Overlay::BeginChoice(title ? title : "", std::vector<std::string>(items, items + count),
-                             std::move(pictures), focus, deletable_from);
+                             std::move(pictures), focus, first_deletable);
     return 1;
 }
 

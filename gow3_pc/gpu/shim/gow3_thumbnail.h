@@ -1,23 +1,27 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// gow3: a small picture of the game for the save list. The presenter scales a game frame down
-// about once a second while the game plays (its camera hooks run: not in the pause menu or a
-// cutscene), before the overlay is drawn; a save then gets the last one as thumb.png.
-
-#pragma once
-
-#include <cstdint>
+// gow3: thumbnails for the save list. While the player is in control (the camera hooks are being
+// called, so neither the pause menu nor a cutscene is up), the presenter shrinks roughly one game
+// frame per second, before the overlay goes on top. Saves are given the latest one as thumb.png.
+#ifndef GOW3_SHIM_THUMBNAIL_H
+#define GOW3_SHIM_THUMBNAIL_H
 
 namespace Gow3Thumbnail {
 
-constexpr uint32_t Width = 456, Height = 256; // twice the save list's 228x128 picture
+/// Picture size: double the 228x128 the save list displays.
+inline constexpr unsigned Width = 456;
+inline constexpr unsigned Height = 256;
 
-/// Present thread: whether to capture this frame (a second since the last request, and the
-/// game's camera hooks ran in between).
-bool Wanted();
-/// Present thread: the captured picture, Width x Height RGBA8 rows top to bottom.
-void Store(const unsigned char* rgba);
-/// The game's save list ("Save game") was shown: the next save written within two minutes gets
-/// the picture from before the pause menu (gow3gpu_thumbnail_pause).
-void NoteSaveList();
+/// Present thread. True when this frame should be captured: a second or more has passed since
+/// the previous request and the camera hooks were called in the meantime.
+[[nodiscard]] bool Wanted();
 
-} // namespace Gow3Thumbnail
+/// Present thread. Takes a finished capture: Width x Height RGBA8 pixels, top row first.
+void Store(const unsigned char* pixels);
+
+/// The game opened its "Save game" list. A save written in the following two minutes is given
+/// the picture set aside when Options was pressed (gow3gpu_thumbnail_pause).
+void SaveListOpened();
+
+} // end of namespace Gow3Thumbnail
+
+#endif // GOW3_SHIM_THUMBNAIL_H

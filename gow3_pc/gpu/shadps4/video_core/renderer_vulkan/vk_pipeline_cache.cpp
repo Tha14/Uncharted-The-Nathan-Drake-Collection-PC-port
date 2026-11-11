@@ -1242,13 +1242,13 @@ bool PipelineCache::RefreshGraphicsKey(PipelineSelection& sel) {
         for (s32 cb = 0; cb < AmdGpu::NUM_COLOR_BUFFERS && !skip_cb_binding; ++cb) {
             bound += (regs.color_buffers[cb] && regs.color_target_mask.GetMask(cb)) ? 1 : 0;
         }
-        // Uncharted: its G-buffer passes draw one target with the scene depth and write the
-        // stencil (characters set bit 1); the rasterizer picks the character draws.
-        const bool uncharted_gbuffer = Shader::MotionVectors::stencil_gate && bound >= 1 &&
-                                       regs.depth_control.stencil_enable &&
-                                       regs.depth_control.depth_write_enable;
-        motion_possible = Shader::MotionVectors::positions_address != 0 &&
-                          (bound >= 5 || uncharted_gbuffer) &&
+        // Uncharted's G-buffer passes bind a single target, write scene depth and write
+        // stencil (bit 1 marks characters). Which draws are characters is left to the rasterizer.
+        const auto& depth_ctl = regs.depth_control;
+        const bool single_target_pass = Shader::MotionVectors::stencil_gate && bound != 0 &&
+                                        depth_ctl.stencil_enable && depth_ctl.depth_write_enable;
+        const bool gbuffer_pass = bound >= 5 || single_target_pass;
+        motion_possible = Shader::MotionVectors::positions_address != 0 && gbuffer_pass &&
                           !regs.color_buffers[Shader::MotionVectors::Output] &&
                           regs.depth_buffer.DepthValid() &&
                           regs.depth_buffer.NumSamples() == 1 && !regs.IsClipDisabled() &&
@@ -1280,9 +1280,10 @@ bool PipelineCache::RefreshGraphicsKey(PipelineSelection& sel) {
     }
     if (motion_possible) {
         const auto* vs = sel.infos[static_cast<u32>(Shader::SwStage::Vertex)];
-        if (vs && Shader::MotionVectors::stencil_gate) {
-            sel.motion = true; // Uncharted: per draw (the stencil value it writes)
-        } else if (vs) {
+        if (vs != nullptr && Shader::MotionVectors::stencil_gate) {
+            // Uncharted: the rasterizer settles this per draw from the stencil it writes.
+            sel.motion = true;
+        } else if (vs != nullptr) {
             // Shaders with a bone palette (motion_history.h). Small skeletons (weapons,
             // props) also include static world pieces: the rasterizer gives those
             // history only while their constants change.

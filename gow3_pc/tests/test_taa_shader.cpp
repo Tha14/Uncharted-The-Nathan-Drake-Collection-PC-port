@@ -15,11 +15,10 @@
 #include "video_core/host_shaders/taa_comp.h"
 #include "video_core/host_shaders/taa_sharpen_comp.h"
 #include <vk_mem_alloc.h>
-
-// Match the renderer's Vulkan-Hpp dispatcher layout before enabling test assertions.
-#undef NDEBUG
-#include <cassert>
-
+// The renderer headers are included first, under the build's NDEBUG, so the Vulkan-Hpp
+// dispatcher layout agrees with the renderer library; this test's asserts are enabled after.
+#undef NDEBUG  // asserts below must run even in release test builds
+#include <cassert> // re-read so assert() follows the new NDEBUG state
 int main(int argc, char** argv) {
     using namespace Vulkan;
     Instance instance(0, false);

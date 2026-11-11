@@ -1,166 +1,190 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-#include "gow3_thumbnail.h"
-#include "../gow3gpu.h"
+// gow3: keeps the newest in-play frame for the save list and writes it out as PNG files; see
+// gow3_thumbnail.h for when the presenter takes frames.
+#include "gow3_thumbnail.h" // Width, Height and the calls the presenter makes
+#include "../gow3gpu.h"     // gow3gpu_mouse_look_calls and the C exports defined below
 
-#include <chrono>
-#include <cstdio>
-#include <cstdlib>
-#include <mutex>
-#include <string>
-#include <thread>
-#include <vector>
+#include <miniz.h> // PNG encoding in memory
 
-#include <miniz.h>
+#include <chrono>  // steady clock time stamps
+#include <cstdio>  // PNG file output and the log line
+#include <cstdlib> // GOW3_SAVE_PICTURE
+#include <mutex>   // state shared between the present, game and writer threads
+#include <string>  // queued file names
+#include <thread>  // background PNG writer
+#include <vector>  // pixel buffers
 
-namespace Gow3Thumbnail {
-namespace {
+using SteadyClock = std::chrono::steady_clock;
 
-using Clock = std::chrono::steady_clock;
+namespace Gow3Thumbnail::Internal {
 
-std::mutex mutex;
-std::vector<unsigned char> picture; // RGB8, Width x Height; empty: none yet
-Clock::time_point picture_at{};     // when it was captured
-Clock::time_point last_request{}, playing_since{};
-unsigned last_calls = 0;
-// gow3 3 Nov 2026: saves written while the game was not in play (a chapter's first autosave comes
-// after its cutscene or loading, when the last picture still shows the end of the chapter before):
-// they get the first picture taken once play has gone on for a while.
-struct Pending {
-    std::string path;
-    Clock::time_point since;
+using Moment = SteadyClock::time_point;
+
+// A picture no older than this shows where the save was made.
+constexpr std::chrono::seconds RecentEnough{3};
+// After a break, play has to run this long (the fade-in is over) before its pictures count.
+constexpr std::chrono::seconds SettleTime{2};
+// A save still waiting after this long keeps the picture the game made for it.
+constexpr std::chrono::minutes WaitLimit{10};
+// How long after the save list opened a save takes the picture from before the pause menu.
+constexpr std::chrono::minutes SaveListWindow{2};
+// Saves that may wait for a picture at the same time.
+constexpr std::size_t MaxWaitingSaves = 16;
+
+// gow3 3 Nov 2026: a save written while the game was not in play. A chapter's first autosave, for
+// example, comes after its cutscene or loading screen, when the newest picture still shows the
+// end of the previous chapter; such saves get the first picture taken once play has settled.
+struct WaitingSave {
+    std::string file;
+    Moment queued;
 };
-std::vector<Pending> pending;
-// gow3 3 Nov 2026: the camera hooks keep running behind the pause menu, so pictures go on being taken
-// there. A save made from the save list (opened from that menu) gets the picture from the moment
-// Options was last pressed instead, before the menu was on screen.
-std::vector<unsigned char> before_pause;
-Clock::time_point save_list_at{};
 
-constexpr auto Fresh = std::chrono::seconds(3);       // a picture this recent shows the save's place
-constexpr auto Settled = std::chrono::seconds(2);     // play this long after a break (fade-in over)
-constexpr auto GiveUp = std::chrono::minutes(10);     // a waiting save keeps the game's picture
+struct Shared {
+    std::mutex lock;
+    std::vector<unsigned char> latest_rgb; // RGB8, Width x Height; empty until the first capture
+    Moment latest_time{};                  // when latest_rgb was captured
+    Moment play_resumed{};                 // when the camera hooks started running again
+    std::vector<WaitingSave> waiting;
+    // gow3 3 Nov 2026: the camera hooks go on running behind the pause menu, so captures continue
+    // there too. The picture held when Options was last pressed, from before the menu appeared, is
+    // what a save made through the save list (reached from that menu) receives.
+    std::vector<unsigned char> paused_rgb;
+    Moment save_list_time{};
+};
+Shared shared;
 
-bool WritePng(const std::string& path, const std::vector<unsigned char>& rgb) {
-    size_t size = 0;
-    void* png = tdefl_write_image_to_png_file_in_memory_ex(rgb.data(), int(Width), int(Height), 3, &size, 6,
-                                                           MZ_FALSE);
-    if (!png) {
-        return false;
+// Touched by the present thread only.
+struct Pacing {
+    Moment previous_request{};
+    unsigned hook_calls_seen = 0;
+};
+Pacing pacing;
+
+// gow3gpu_thumbnail_save results.
+constexpr int SaveFailed = 0, SaveWritten = 1, SaveDeferred = 2;
+
+bool EncodeAndWrite(const std::string& file, const std::vector<unsigned char>& rgb) {
+    std::size_t png_size = 0;
+    void* const encoded = tdefl_write_image_to_png_file_in_memory_ex(
+        rgb.data(), static_cast<int>(Width), static_cast<int>(Height), 3, &png_size, 6, MZ_FALSE);
+    if (encoded == nullptr) return false;
+    bool written = false;
+    if (FILE* out = std::fopen(file.c_str(), "wb")) {
+        written = std::fwrite(encoded, 1, png_size, out) == png_size;
+        std::fclose(out);
     }
-    FILE* f = std::fopen(path.c_str(), "wb");
-    const bool ok = f && std::fwrite(png, 1, size, f) == size;
-    if (f) {
-        std::fclose(f);
-    }
-    mz_free(png);
-    if (!ok) {
-        std::remove(path.c_str());
-    }
-    return ok;
+    mz_free(encoded);
+    if (!written) std::remove(file.c_str()); // no half-written PNG left behind
+    return written;
 }
 
-} // namespace
-
-bool Wanted() {
-    // GOW3_SAVE_PICTURE=0: saves keep the game's own picture.
-    static const bool enabled = [] {
-        const char* env = std::getenv("GOW3_SAVE_PICTURE");
-        return !(env && env[0] == '0');
-    }();
-    if (!enabled) {
-        return false;
-    }
-    const auto now = Clock::now();
-    if (now - last_request < std::chrono::seconds(1)) {
-        return false;
-    }
-    const unsigned calls = gow3gpu_mouse_look_calls();
-    if (calls == last_calls) {
-        return false;
-    }
-    last_calls = calls;
-    // A gap since the last request: play (the camera hooks) has just started again.
-    if (now - last_request > std::chrono::seconds(2)) {
-        std::scoped_lock lock{mutex};
-        playing_since = now;
-    }
-    last_request = now;
-    return true;
+// GOW3_SAVE_PICTURE=0 switches pictures off: saves keep the one the game made.
+bool PicturesEnabled() {
+    const char* value = std::getenv("GOW3_SAVE_PICTURE");
+    return value == nullptr || value[0] != '0';
 }
 
-void Store(const unsigned char* rgba) {
-    std::vector<unsigned char> rgb(size_t(Width) * Height * 3);
-    for (size_t i = 0, n = size_t(Width) * Height; i < n; ++i) {
-        rgb[i * 3 + 0] = rgba[i * 4 + 0];
-        rgb[i * 3 + 1] = rgba[i * 4 + 1];
-        rgb[i * 3 + 2] = rgba[i * 4 + 2];
+} // namespace Gow3Thumbnail::Internal
+
+bool Gow3Thumbnail::Wanted() {
+    using namespace Internal;
+    static const bool on = PicturesEnabled();
+    if (!on) return false;
+    const Moment now = SteadyClock::now();
+    const auto since_previous = now - pacing.previous_request;
+    if (since_previous < std::chrono::seconds(1)) return false;
+    const unsigned hook_calls = gow3gpu_mouse_look_calls();
+    const bool hooks_ran = hook_calls != pacing.hook_calls_seen;
+    if (hooks_ran) {
+        pacing.hook_calls_seen = hook_calls;
+        // Over two seconds without a request means the camera hooks have only just started again.
+        if (since_previous > std::chrono::seconds(2)) {
+            std::lock_guard guard{shared.lock};
+            shared.play_resumed = now;
+        }
+        pacing.previous_request = now;
     }
-    const auto now = Clock::now();
-    std::vector<std::string> due;
+    return hooks_ran;
+}
+
+void Gow3Thumbnail::Store(const unsigned char* pixels) {
+    using namespace Internal;
+    constexpr std::size_t pixel_count = std::size_t{Width} * Height;
+    std::vector<unsigned char> rgb(pixel_count * 3);
+    const unsigned char* in = pixels;
+    unsigned char* out = rgb.data();
+    for (std::size_t n = 0; n < pixel_count; ++n, in += 4, out += 3) {
+        out[0] = in[0];
+        out[1] = in[1];
+        out[2] = in[2];
+    }
+    const Moment now = SteadyClock::now();
+    std::vector<std::string> ready;
     {
-        std::scoped_lock lock{mutex};
-        picture = rgb;
-        picture_at = now;
-        if (!pending.empty() && now - playing_since >= Settled) {
-            for (const Pending& p : pending) {
-                if (now - p.since < GiveUp) {
-                    due.push_back(p.path);
-                }
+        std::lock_guard guard{shared.lock};
+        shared.latest_rgb = rgb;
+        shared.latest_time = now;
+        const bool settled = now - shared.play_resumed >= SettleTime;
+        if (settled && !shared.waiting.empty()) {
+            for (const WaitingSave& save : shared.waiting) {
+                if (now - save.queued < WaitLimit) ready.push_back(save.file);
             }
-            pending.clear();
+            shared.waiting.clear();
         }
     }
-    if (due.empty()) {
-        return;
-    }
-    // Off the present thread: encoding takes a few milliseconds.
-    std::thread([due = std::move(due), rgb = std::move(rgb)] {
-        for (const std::string& path : due) {
-            if (WritePng(path, rgb)) {
-                std::printf("GPU: save picture written once play went on (%s)\n", path.c_str());
+    if (ready.empty()) return;
+    // Encoding takes a few milliseconds, so it runs on a thread of its own, not the present one.
+    std::thread writer{[files = std::move(ready), image = std::move(rgb)] {
+        for (const std::string& file : files) {
+            if (EncodeAndWrite(file, image)) {
+                std::printf("GPU: save picture written once play went on (%s)\n",
+                            file.c_str());
             }
         }
-    }).detach();
+    }};
+    writer.detach();
 }
 
-} // namespace Gow3Thumbnail
+void Gow3Thumbnail::SaveListOpened() {
+    auto& state = Internal::shared;
+    std::lock_guard guard{state.lock};
+    state.save_list_time = SteadyClock::now();
+}
 
-extern "C" int gow3gpu_thumbnail_save(const char* path) {
-    using namespace Gow3Thumbnail;
-    if (!path || !*path) {
-        return 0;
-    }
-    std::vector<unsigned char> rgb;
+extern "C" int gow3gpu_thumbnail_save(const char* png_path) {
+    using namespace Gow3Thumbnail::Internal;
+    if (png_path == nullptr || png_path[0] == '\0') return SaveFailed;
+    std::vector<unsigned char> chosen_rgb;
     {
-        std::scoped_lock lock{mutex};
-        const auto now = Clock::now();
-        if (save_list_at != Clock::time_point{} && now - save_list_at < std::chrono::minutes(2) &&
-            !before_pause.empty()) {
-            // Kept for the two minutes: the game may write its profile save around the chosen one.
-            rgb = before_pause;
-        } else if (picture.empty() || now - picture_at > Fresh || now - playing_since < Settled) {
-            // Not in play now: the save waits for the next picture (one entry per save).
-            std::erase_if(pending, [&](const Pending& p) { return p.path == path; });
-            if (pending.size() < 16) {
-                pending.push_back({path, now});
-            }
-            return 2;
+        std::lock_guard guard{shared.lock};
+        const Moment now = SteadyClock::now();
+        const bool from_save_list = shared.save_list_time != Moment{} &&
+                                    now - shared.save_list_time < SaveListWindow &&
+                                    !shared.paused_rgb.empty();
+        if (from_save_list) {
+            // Used for the whole window: the game may write its profile save next to the chosen one.
+            chosen_rgb = shared.paused_rgb;
         } else {
-            rgb = picture;
+            const bool in_play = !shared.latest_rgb.empty() &&
+                                 now - shared.latest_time <= RecentEnough &&
+                                 now - shared.play_resumed >= SettleTime;
+            if (!in_play) {
+                // Queue the file for the next good picture, each file name at most once.
+                std::erase_if(shared.waiting,
+                              [png_path](const WaitingSave& save) { return save.file == png_path; });
+                if (shared.waiting.size() < MaxWaitingSaves) {
+                    shared.waiting.push_back(WaitingSave{png_path, now});
+                }
+                return SaveDeferred;
+            }
+            chosen_rgb = shared.latest_rgb;
         }
     }
-    return WritePng(path, rgb) ? 1 : 0;
+    return EncodeAndWrite(png_path, chosen_rgb) ? SaveWritten : SaveFailed;
 }
 
 extern "C" void gow3gpu_thumbnail_pause(void) {
-    using namespace Gow3Thumbnail;
-    std::scoped_lock lock{mutex};
-    before_pause = picture;
+    auto& state = Gow3Thumbnail::Internal::shared;
+    std::lock_guard guard{state.lock};
+    state.paused_rgb = state.latest_rgb;
 }
-
-namespace Gow3Thumbnail {
-void NoteSaveList() {
-    std::scoped_lock lock{mutex};
-    save_list_at = Clock::now();
-}
-} // namespace Gow3Thumbnail

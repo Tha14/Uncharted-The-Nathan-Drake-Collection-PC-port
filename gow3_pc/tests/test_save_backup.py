@@ -4,8 +4,9 @@ import unittest
 from pathlib import Path
 
 import paths  # noqa: F401  (puts scripts/ on sys.path)
-if not (paths.ROOT / 'scripts/save_backup.py').is_file():
-    raise unittest.SkipTest("GOW3 save backup helper is not included in this checkout")
+_HELPER = paths.ROOT / 'scripts' / 'save_backup.py'
+if not _HELPER.is_file():  # the helper ships only with the GOW3 tree
+    raise unittest.SkipTest("This checkout has no GOW3 save backup helper")
 import save_backup
 
 

@@ -7,8 +7,8 @@
 #include <xmmintrin.h>
 using namespace Libraries::Fiber;
 static thread_local void* test_context;
-// Unit-test stacks are ordinary host memory, with no GPU page tracking.
-void Gow3KeepWritable(const void*, uint64_t, bool) {}
+// Fiber stacks in this test come from plain host allocations; no GPU page tracker exists to notify.
+void Gow3KeepWritable(const void* /*addr*/, uint64_t /*size*/, bool /*writable*/) { /* nothing tracked */ }
 extern "C" void **runtime_thread_fiber_slot(void) { return &test_context; }
 extern "C" uintptr_t runtime_fiber_resolve(const char*);
 static thread_local OrbisFiber* a;

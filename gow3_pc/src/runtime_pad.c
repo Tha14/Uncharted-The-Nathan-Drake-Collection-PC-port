@@ -634,11 +634,12 @@ static void sample_host(PadData *d) {
     runtime_gamesettings_tick();
     publish_pad_prompts(g);
     int keyboard_used=0, gamepad_used=0;
-    /* SDL delivers gamepad events in the background too (window.cpp): the game takes them
-     * only while its window is in front, or always with its own controller (GOW3_PAD_INDEX,
-     * local co-op: two windows, one controller each). */
     const unsigned long long taps=__atomic_exchange_n(&pad_taps,0ull,__ATOMIC_RELAXED);
-    if (g && (pad_index() || gow3gpu_window_foreground())) {
+    /* window.cpp lets SDL pass gamepad events while the window is in the background, so the pad
+     * counts only while the game window is in front; a window given its own controller
+     * (GOW3_PAD_INDEX, local co-op with one controller per window) always reads it. */
+    const int pad_live=g && (pad_index() || gow3gpu_window_foreground());
+    if (pad_live) {
         /* Buttons and triggers through the map: L2/R2 take the strongest of their sources (a
          * trigger's travel, a button fully); any source past 30 of 255 presses its PS4 button. */
         uint8_t l2=0, r2=0;
@@ -835,6 +836,15 @@ static void replay_sample(PadData *d) {
     d->left_x=s->axes[0]; d->left_y=s->axes[1]; d->right_x=s->axes[2]; d->right_y=s->axes[3];
     d->l2=s->l2; d->r2=s->r2;
 }
+/* gow3 3 Nov 2026: the moment Options goes down, the save picture is frozen
+ * (gow3gpu_thumbnail_pause). The camera hooks go on running under the pause menu, so this is
+ * what gives a save made from that menu the picture from before Options was pressed. */
+static void freeze_picture_on_options(uint32_t buttons) {
+    static int was_down;
+    const int down=(buttons & BTN_OPTIONS) ? 1 : 0;
+    if (down && !was_down) gow3gpu_thumbnail_pause();
+    was_down=down;
+}
 /* After the menu or the text dialog closes, buttons still held (the Cross that accepted a
  * name) stay hidden until released: the game would take them as a new press. */
 static int hold_after_capture;
@@ -867,12 +877,7 @@ static void sample(PadData *d) {
         if (d->buttons) d->buttons=0;
         else hold_after_capture=0;
     }
-    /* gow3 3 Nov 2026: a save made from the pause menu gets the picture of the game from before
-     * Options was pressed (the camera hooks keep running behind that menu). */
-    static int options_held;
-    const int options=(d->buttons&BTN_OPTIONS)!=0;
-    if (options && !options_held) gow3gpu_thumbnail_pause();
-    options_held=options;
+    freeze_picture_on_options(d->buttons);
 }
 
 static ABI int32_t pad_init(void) { pthread_mutex_lock(&lock); initialized=1; pthread_mutex_unlock(&lock); return 0; }

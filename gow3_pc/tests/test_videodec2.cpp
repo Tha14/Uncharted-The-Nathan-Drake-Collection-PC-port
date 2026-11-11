@@ -7,10 +7,10 @@ extern "C" {
 #include <cstdio>
 #include <cstring>
 #include <array>
-#include "test_environment.h"
+#include "test_environment.h" // SetTestEnv
 using namespace Libraries::Videodec2;
 int main() {
-    SetTestEnv("GOW3_MOVIE_SIZE", nullptr);
+    SetTestEnv("GOW3_MOVIE_SIZE", nullptr);  // no display size: frames are not rescaled
     OrbisVideodec2ComputeMemoryInfo compute{};
     compute.this_size=sizeof(compute);
     assert(!sceVideodec2QueryComputeMemoryInfo(&compute) && compute.cpu_gpu_memory_size);

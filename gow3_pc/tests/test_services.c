@@ -4,18 +4,26 @@
 #include <assert.h>
 
 uintptr_t runtime_lookup(const RuntimeExport *table, size_t count, const char *nid) { (void)table; (void)count; (void)nid; return 0; }
-const char *runtime_symbol(const char *nid) { return nid; }
+const char *runtime_symbol(const char *nid) { return nid; /* no symbol table: a NID names itself */ }
 int gow3gpu_text_input_begin(const char *text, const char *prompt) { (void)text; (void)prompt; return 0; }
 int gow3gpu_text_input_poll(char *text, uint64_t size) { (void)text; (void)size; return 0; }
 int64_t runtime_file_open(const char *path, int flags, int mode) { (void)path; (void)flags; (void)mode; return -1; }
 int64_t runtime_file_read(int fd, void *buffer, uint64_t size) { (void)fd; (void)buffer; (void)size; return -1; }
 int64_t runtime_file_close(int fd) { (void)fd; return 0; }
 static int choice_next=-1;
-int gow3gpu_choice_begin(const char *title, const char *const *items, const char *const *images, int count, int focus, int deletable_from) { (void)title; (void)items; (void)images; (void)focus; (void)deletable_from; return count>0; }
+/* The fake picker opens whenever it is given at least one entry; choice_next is its answer. */
+int gow3gpu_choice_begin(const char *title, const char *const *items, const char *const *images, int count,
+                         int focus, int deletable_from) {
+    (void)title, (void)items, (void)images, (void)focus, (void)deletable_from;
+    return count > 0;
+}
+/* Poll answer for "delete list entry n" (the services code decodes it as entry = -3 - answer). */
+static int delete_choice(int entry) { return -3 - entry; }
 int gow3gpu_choice_poll(void) { return choice_next; }
 int runtime_savedata_param(int32_t user, const char *dir, void *param) { (void)user; (void)dir; (void)param; return -1; }
 int runtime_savedata_icon(int32_t user, const char *dir, char *out, size_t size) { (void)user; (void)dir; (void)out; (void)size; return -1; }
-int runtime_savedata_trash(int32_t user, const char *dir) { (void)user; (void)dir; return 0; }
+/* Trashing a save always succeeds; the dialog only has to drop it from its list. */
+int runtime_savedata_trash(int32_t user_id, const char *dir_name) { (void)user_id; (void)dir_name; return 0; }
 static int trophy_lists_shown, trophies_shown, trophy_last_shown=-1;
 void gow3gpu_trophy_list(const char *pack, int list, const uint32_t earned[4]) { (void)pack; (void)list; (void)earned; ++trophy_lists_shown; }
 void gow3gpu_trophy_earned(int id) { ++trophies_shown; trophy_last_shown=id; }
@@ -73,21 +81,27 @@ int main(void) {
     choice_next=-2;
     assert(save_status()==DIALOG_FINISHED && save_result(out)==0);
     memcpy(&value,out+4,4); assert(value==SAVE_RESULT_CANCELED);
-    /* Deleting SAVE0001 from the list (entry 1): the list shows again without it. */
-    assert(save_open(list)==0);
-    choice_next=-3-1;
-    assert(save_status()==DIALOG_RUNNING && save_dialog.dir_count==1 && !strcmp(save_dialog.dirs[0],"SAVE0002"));
-    choice_next=1;
-    assert(save_status()==DIALOG_FINISHED && save_result(out)==0 && !strcmp(chosen,"SAVE0002"));
+    /* Delete SAVE0001 (list entry 1). The dialog keeps running and lists only SAVE0002, which
+     * is then entry 1 and gets picked. */
+    assert(!save_open(list));
+    choice_next = delete_choice(1);
+    assert(save_status() == DIALOG_RUNNING);
+    assert(save_dialog.dir_count == 1 && strcmp(save_dialog.dirs[0], "SAVE0002") == 0);
+    choice_next = 1;  /* entries now: New save, SAVE0002 */
+    assert(save_status() == DIALOG_FINISHED && save_result(out) == 0);
+    assert(strcmp(chosen, "SAVE0002") == 0);
     assert(save_term()==0);
-    /* Save list text: cut at a whole UTF-8 character; Arabic presentation forms get '_' as spaces. */
-    char text[16];
-    save_text(text,sizeof(text),"\xef\xba\x8d\xef\xba\x8d\xef\xba\x8d\xef\xba\x8d\xef\xba\x8d\xef\xba\x8d",127);
-    assert(strlen(text)==15);
-    save_text(text,sizeof(text),"\xef\xba\x8d_\xef\xba\x8d\n",127);
-    assert(!strcmp(text,"\xef\xba\x8d \xef\xba\x8d"));
-    save_text(text,sizeof(text),"a_b",127);
-    assert(!strcmp(text,"a_b"));
+    /* List labels are only ever cut between whole UTF-8 characters. Where Arabic presentation
+     * forms are used, '_' stands for a space; in plain text it stays. */
+#define ALEF_FORM "\xef\xba\x8d" /* U+FE8D, an Arabic presentation form: 3 bytes in UTF-8 */
+    char label[16];
+    save_text(label, sizeof(label), ALEF_FORM ALEF_FORM ALEF_FORM ALEF_FORM ALEF_FORM ALEF_FORM, 127);
+    assert(strlen(label) == 5 * 3);  /* five whole characters fit in 15 bytes; the sixth is dropped */
+    save_text(label, sizeof(label), ALEF_FORM "_" ALEF_FORM "\n", 127);
+    assert(strcmp(label, ALEF_FORM " " ALEF_FORM) == 0);
+    save_text(label, sizeof(label), "a_b", 127);
+    assert(strcmp(label, "a_b") == 0);
+#undef ALEF_FORM
 
     /* PlayGo: installed, full speed, progress never divides by zero. */
     int32_t handle=0; uint64_t progress[2]; int32_t speed; uint16_t chunk=0;

@@ -89,7 +89,8 @@ get_fsr4() {
     # Native AA plus the upscaling models, picked by the render scale (1.5 Quality, 1.7 Balanced,
     # 2 Performance, beyond that Ultra Performance).
     local preset tier pass
-    for preset in native quality balanced performance ultraperf; do
+    local presets=(native quality balanced performance ultraperf)
+    for preset in "${presets[@]}"; do
         names+=("$prefix${preset}_initializers.bin" "$prefix${preset}_pre_weights.bin"
                 "$prefix${preset}_shader_manifest.json")
         for tier in 1080 2160; do
@@ -98,7 +99,7 @@ get_fsr4() {
                 names+=("$prefix${preset}_${tier}_pass$pass.spv")
             done
         done
-    done
+    done  # presets
     local name
     for name in "${names[@]}"; do
         download "$from/$name" "$into/$name"

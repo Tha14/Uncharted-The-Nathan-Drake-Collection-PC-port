@@ -261,13 +261,14 @@ if (WIN32)
     set_target_properties(content-test PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
     target_compile_options(content-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
     target_include_directories(content-test PRIVATE .. ../src)
-    add_executable(videodec2-test EXCLUDE_FROM_ALL ../tests/test_videodec2.cpp
-        ../tests/test_videodec2_stubs.cpp shim/gow3_movie.cpp
-        shim/videodec2/videodec2.cpp shim/videodec2/videodec2_impl.cpp)
+    # Movie decoder test: the real videodec2 shim on host buffers, guest hooks stubbed out.
+    add_executable(videodec2-test EXCLUDE_FROM_ALL
+        ../tests/test_videodec2.cpp ../tests/test_videodec2_stubs.cpp
+        shim/gow3_movie.cpp shim/videodec2/videodec2.cpp shim/videodec2/videodec2_impl.cpp)
     target_compile_options(videodec2-test PRIVATE -UNDEBUG)
-    target_compile_definitions(videodec2-test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
-    target_include_directories(videodec2-test PRIVATE shim shadps4)
-    target_link_libraries(videodec2-test PRIVATE PkgConfig::FFMPEG Boost::headers)
+    target_compile_definitions(videodec2-test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+    target_include_directories(videodec2-test PRIVATE shim shadps4)  # shim headers ahead of shadPS4's
+    target_link_libraries(videodec2-test PRIVATE PkgConfig::FFMPEG Boost::headers)  # FFmpeg decodes the frames
     add_executable(shared-handles-test EXCLUDE_FROM_ALL ../tests/test_shared_handles.cpp)
     target_compile_options(shared-handles-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
     target_link_libraries(shared-handles-test PRIVATE -pthread)
@@ -375,13 +376,11 @@ add_executable(scene-resolution-test EXCLUDE_FROM_ALL ../tests/test_scene_resolu
 target_include_directories(scene-resolution-test PRIVATE shim shadps4 third_party/gcn/include)
 # The test's Vulkan-Hpp inline methods have a different set of platform extensions
 # from vk_platform.cpp. Keep them local and use an explicit dispatcher in the test.
-target_compile_options(scene-resolution-test PRIVATE -fPIC)
 set_source_files_properties(../tests/test_scene_resolution.cpp PROPERTIES
     COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
 target_link_libraries(scene-resolution-test PRIVATE gow3gpu)
 add_executable(taa-shader-test EXCLUDE_FROM_ALL ../tests/test_taa_shader.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(taa-shader-test PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include)
-target_compile_options(taa-shader-test PRIVATE -fPIC)
 set_source_files_properties(../tests/test_taa_shader.cpp PROPERTIES
     COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
 target_link_libraries(taa-shader-test PRIVATE gow3gpu)
@@ -389,22 +388,26 @@ add_dependencies(taa-shader-test host_shaders)
 
 add_executable(camera-motion-test EXCLUDE_FROM_ALL ../tests/test_camera_motion.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(camera-motion-test PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include)
-target_compile_options(camera-motion-test PRIVATE -fPIC)
 target_link_libraries(camera-motion-test PRIVATE gow3gpu)
 add_dependencies(camera-motion-test host_shaders)
 
-# Vulkan-Hpp's dispatcher layout depends on NDEBUG. Match gow3gpu even in Debug
-# builds; tests enable their assertions after including the renderer headers.
-foreach(test pipeline-binary-cache-test pipeline-binary-initialization-test
-             motion-shader-test scene-resolution-test taa-shader-test camera-motion-test)
-    target_compile_definitions(${test} PRIVATE NDEBUG)
-    if (WIN32)
-        # The Windows renderer is static, so supply fault recovery in each test.
-        target_sources(${test} PRIVATE ../src/compat_win.c)
-        target_link_libraries(${test} PRIVATE onecore)
-    endif()
-endforeach()
-
+# Position-independent code for the three shader tests that carry their own Vulkan-Hpp inline
+# copies (see the note at scene-resolution-test).
+foreach(pic_test IN ITEMS scene-resolution-test taa-shader-test camera-motion-test)
+    target_compile_options(${pic_test} PRIVATE -fPIC)
+endforeach(pic_test)
+# NDEBUG changes how Vulkan-Hpp lays out its dispatcher, so these renderer tests are built with
+# NDEBUG like gow3gpu itself, in Debug configurations too. The test sources switch their
+# asserts back on after the renderer headers have been included.
+foreach(renderer_test IN ITEMS
+        pipeline-binary-cache-test pipeline-binary-initialization-test motion-shader-test
+        scene-resolution-test taa-shader-test camera-motion-test)
+    target_compile_definitions(${renderer_test} PRIVATE NDEBUG)
+    if(WIN32)  # gow3gpu is linked statically there, so each test brings its own fault recovery
+        target_sources(${renderer_test} PRIVATE ../src/compat_win.c)
+        target_link_libraries(${renderer_test} PRIVATE onecore)
+    endif(WIN32)
+endforeach(renderer_test)
 # gow3: FSR 4 benchmark outside the game (tools/fsr4_bench.cpp): ninja -C out/gpu fsr4-bench.
 add_executable(upscaler-support-test EXCLUDE_FROM_ALL ../tests/test_upscaler_support.cpp
     shim/gow3_settings.cpp)

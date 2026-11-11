@@ -326,32 +326,45 @@ static struct {
     void *user_data;
     char dirs[32][32];
     int dir_count, has_new, choosing;
-    const char *title;
+    const char *list_title; /* heading of the list (mode 1): "Save game", "Load game" or "Delete save" */
 } save_dialog;
-static char save_labels[33][768], save_icons[33][720];
-/* A param text field, at most `max` bytes, cut at a whole UTF-8 character (a cut inside one made the
- * list show U+FFFD and swallowed the line break after it). Arabic titles come in presentation forms
- * (U+FE70..U+FEFF, already in display order) with '_' for some spaces: those show as spaces. Trailing
- * line breaks go. */
-static void save_text(char *out, size_t size, const char *field, size_t max) {
-    size_t n=strnlen(field,max);
-    if (n>=size) n=size-1;
-    if (n<strnlen(field,max+1)) {
-        size_t start=n;
-        while (start>0 && ((unsigned char)field[start-1]&0xc0)==0x80) --start;
-        if (start>0) {
-            const unsigned char lead=(unsigned char)field[start-1];
-            const size_t need=lead>=0xf0 ? 4 : lead>=0xe0 ? 3 : lead>=0xc0 ? 2 : 1;
-            if (n-(start-1)<need) n=start-1;
-        }
+/* Where a cut at byte `cut` of text may fall without splitting a UTF-8 sequence: `cut` itself when
+ * the last character before it is complete, else the start of that character. */
+static size_t utf8_safe_cut(const char *text, size_t cut) {
+    size_t tail=cut;
+    while (tail>0 && ((unsigned char)text[tail-1]&0xc0)==0x80) --tail; /* skip 10xxxxxx bytes */
+    if (tail==0) return cut;
+    const size_t lead_at=tail-1;
+    const unsigned char lead=(unsigned char)text[lead_at];
+    size_t length=1;
+    if (lead>=0xf0) length=4;
+    else if (lead>=0xe0) length=3;
+    else if (lead>=0xc0) length=2;
+    return cut-lead_at>=length ? cut : lead_at;
+}
+/* Any EF B9..BB byte pair: a character in U+FE40..U+FEFF, the block of the Arabic presentation
+ * forms the games' Arabic save titles are written in. */
+static int has_presentation_forms(const char *text, size_t n) {
+    for (size_t i=1;i<n;++i) {
+        const unsigned char first=(unsigned char)text[i-1], second=(unsigned char)text[i];
+        if (first==0xef && second>=0xb9 && second<=0xbb) return 1;
     }
-    memcpy(out,field,n);
-    out[n]=0;
-    int arabic=0;
-    for (size_t i=0;i+1<n;++i)
-        if ((unsigned char)out[i]==0xef && (unsigned char)out[i+1]>=0xb9 && (unsigned char)out[i+1]<=0xbb) { arabic=1; break; }
-    if (arabic) for (size_t i=0;i<n;++i) if (out[i]=='_') out[i]=' ';
-    while (n && (out[n-1]=='\n' || out[n-1]=='\r' || out[n-1]==' ')) out[--n]=0;
+    return 0;
+}
+static int is_line_end_blank(char c) { return c=='\n' || c=='\r' || c==' '; }
+/* One text field of a save's param for the list, at most `limit` bytes and cut only between whole
+ * UTF-8 characters: a cut through a character showed U+FFFD and ate the line break that followed.
+ * Arabic titles (presentation forms, stored already in display order) use '_' for some spaces,
+ * so in those '_' becomes a space. Trailing newlines and spaces are dropped. */
+static void save_text(char *out, size_t out_size, const char *field, size_t limit) {
+    const size_t available=strnlen(field,limit+1); /* > limit: the field goes on past it */
+    size_t n=strnlen(field,limit);
+    if (out_size<=n) n=out_size-1;
+    if (n<available) n=utf8_safe_cut(field,n);
+    snprintf(out,out_size,"%.*s",(int)n,field); /* n < out_size: the n bytes and a terminator */
+    if (has_presentation_forms(out,n))
+        for (char *mark=strchr(out,'_'); mark; mark=strchr(mark+1,'_')) *mark=' ';
+    while (n>0 && is_line_end_blank(out[n-1])) out[--n]='\0';
 }
 static void save_label(char *out, size_t size, const char *dir) {
     unsigned char param[RUNTIME_SAVE_PARAM_SIZE];
@@ -364,39 +377,59 @@ static void save_label(char *out, size_t size, const char *dir) {
     localtime_r(&t,&tm);
 #endif
     char when[32]; strftime(when,sizeof(when),"%Y-%m-%d %H:%M",&tm);
-    /* Title, subtitle (chapter and progress), detail (play time, treasures) and date on their own
-     * lines, beside the save's picture. */
-    char title[128], subtitle[128], detail[320];
-    save_text(title,sizeof(title),(const char *)param,127);
-    save_text(subtitle,sizeof(subtitle),(const char *)param+128,127);
-    save_text(detail,sizeof(detail),(const char *)param+256,1023);
-    snprintf(out,size,"%s\n%s%s%s%s%s",title[0] ? title : dir,subtitle,subtitle[0] ? "\n" : "",detail,
-             detail[0] ? "\n" : "",when);
+    /* Shown next to the save's picture, one line each: the title (or the folder name), the subtitle
+     * (chapter and progress) and the detail (play time, treasures) when they are set, the date.
+     * Param fields: title @0 and subtitle @128 (128 bytes each), detail @256 (1024 bytes). */
+    const char *const fields=(const char *)param;
+    char title_line[128], subtitle_line[128], detail_line[320];
+    save_text(title_line,sizeof(title_line),fields,127);
+    save_text(subtitle_line,sizeof(subtitle_line),fields+128,127);
+    save_text(detail_line,sizeof(detail_line),fields+256,1023);
+    const char *const after_subtitle=subtitle_line[0] ? "\n" : "", *const after_detail=detail_line[0] ? "\n" : "";
+    snprintf(out,size,"%s\n%s%s%s%s%s",title_line[0] ? title_line : dir,subtitle_line,after_subtitle,detail_line,
+             after_detail,when);
 }
-/* Shows the list (New save first when offered, then the saves); the saves can be deleted from it.
- * Nothing to show or no window: the dialog ends cancelled. */
-static void save_list_show(int focus) {
-    const char *labels[33], *icons[33]; int n=0;
-    if (save_dialog.has_new) { snprintf(save_labels[n],sizeof(save_labels[n]),"New save"); labels[n]=save_labels[n]; icons[n]=NULL; ++n; }
-    for (int i=0;i<save_dialog.dir_count;++i) {
-        save_label(save_labels[n],sizeof(save_labels[n]),save_dialog.dirs[i]); labels[n]=save_labels[n];
-        icons[n]=runtime_savedata_icon(USER_ID,save_dialog.dirs[i],save_icons[n],sizeof(save_icons[n])) ? NULL : save_icons[n];
-        ++n;
+/* Opens (or reopens) the save list with entry `focus` selected: "New save" first when the game
+ * offers a new slot, then every save with its label and picture. Saves, not the new entry, can be
+ * deleted from it. With no entries, or no window to show them in, the dialog ends cancelled. */
+static void save_list_open(int focus) {
+    static char entry_text[33][768], entry_picture[33][720];
+    const char *texts[33], *pictures[33];
+    int count=0;
+    if (save_dialog.has_new) {
+        snprintf(entry_text[0],sizeof(entry_text[0]),"New save");
+        texts[0]=entry_text[0];
+        pictures[0]=NULL;
+        count=1;
     }
-    if (focus>=n) focus=n-1;
-    if (focus<0) focus=0;
-    const char *title=save_dialog.title;
-    if (!n || !gow3gpu_choice_begin(title,labels,icons,n,focus,save_dialog.dir_count ? save_dialog.has_new : -1)) {
-        printf("Runtime: SaveDataDialog list (%s): %s\n",title,n ? "no window, cancelled" : "no saves, cancelled");
-        save_dialog.choosing=0;
-        save_dialog.result=SAVE_RESULT_CANCELED;
-        save_dialog.dir_count=0;
-        dialogs[2].status=DIALOG_FINISHED; dialogs[2].button=0;
-        return;
+    for (int i=0;i<save_dialog.dir_count;++i,++count) {
+        const char *dir=save_dialog.dirs[i];
+        save_label(entry_text[count],sizeof(entry_text[count]),dir);
+        texts[count]=entry_text[count];
+        const int found=runtime_savedata_icon(USER_ID,dir,entry_picture[count],sizeof(entry_picture[count]))==0;
+        pictures[count]=found ? entry_picture[count] : NULL;
     }
-    printf("Runtime: SaveDataDialog list (%s): %d entries shown\n",title,n);
-    save_dialog.choosing=1;
-    dialogs[2].status=DIALOG_RUNNING;
+    /* `focus` kept inside 0..count-1 (0 for an empty list). */
+    const int selected=count==0 || focus<0 ? 0 : focus>=count ? count-1 : focus;
+    const char *heading=save_dialog.list_title;
+    const int deletable_from=save_dialog.dir_count ? save_dialog.has_new : -1; /* -1: nothing to delete */
+    const int shown=count>0 && gow3gpu_choice_begin(heading,texts,pictures,count,selected,deletable_from);
+    if (shown) printf("Runtime: SaveDataDialog list (%s): %d entries shown\n",heading,count);
+    else printf("Runtime: SaveDataDialog list (%s): %s\n",heading,count>0 ? "no window, cancelled" : "no saves, cancelled");
+    save_dialog.choosing=shown;
+    dialogs[2].status=shown ? DIALOG_RUNNING : DIALOG_FINISHED;
+    if (!shown) { save_dialog.result=SAVE_RESULT_CANCELED; save_dialog.dir_count=0; dialogs[2].button=0; }
+}
+/* The player deleted list entry `entry`. Once the save has been moved aside it also leaves dirs;
+ * the list then opens again on the same position (a failed delete leaves it as it was). */
+static void save_list_delete(int entry) {
+    const int index=entry-save_dialog.has_new;
+    if (index>=0 && index<save_dialog.dir_count && runtime_savedata_trash(USER_ID,save_dialog.dirs[index])==0) {
+        const size_t later=(size_t)(save_dialog.dir_count-index-1);
+        memmove(save_dialog.dirs[index],save_dialog.dirs[index+1],later*sizeof(save_dialog.dirs[0]));
+        save_dialog.dir_count-=1;
+    }
+    save_list_open(entry);
 }
 static ABI int32_t save_init(void) { return dialog_init(2); }
 static ABI int32_t save_open(const unsigned char *p) {
@@ -415,23 +448,16 @@ static ABI int32_t save_open(const unsigned char *p) {
     }
     if (save_dialog.mode!=SAVE_MODE_LIST) return dialog_open_mode(2,p,52,5);
     uint32_t type; memcpy(&type,p+56,4);
-    save_dialog.title=type==1 ? "Save game" : type==2 ? "Load game" : "Delete save";
-    save_list_show(0);
+    static const char *const headings[]={"Delete save","Save game","Load game"}; /* dispType 1 save, 2 load, else delete */
+    save_dialog.list_title=headings[type==1 || type==2 ? type : 0];
+    save_list_open(0); /* opens on the first entry */
     return 0;
 }
 static ABI int32_t save_status(void) {
     if (save_dialog.choosing) {
         int choice=gow3gpu_choice_poll();
-        if (choice<=-3) {
-            /* The player deleted a save from the list: it leaves the list, which shows again. */
-            const int entry=-3-choice, dir=entry-save_dialog.has_new;
-            if (dir>=0 && dir<save_dialog.dir_count && !runtime_savedata_trash(USER_ID,save_dialog.dirs[dir])) {
-                memmove(save_dialog.dirs[dir],save_dialog.dirs[dir+1],(size_t)(save_dialog.dir_count-dir-1)*32);
-                --save_dialog.dir_count;
-            }
-            save_list_show(entry);
-            return dialog_status(2);
-        }
+        const int deleted_entry=choice<=-3 ? -(choice+3) : -1; /* -3 - n: entry n deleted, list stays up */
+        if (deleted_entry>=0) { save_list_delete(deleted_entry); return dialog_status(2); }
         if (choice!=-1) {
             save_dialog.choosing=0;
             dialogs[2].status=DIALOG_FINISHED;

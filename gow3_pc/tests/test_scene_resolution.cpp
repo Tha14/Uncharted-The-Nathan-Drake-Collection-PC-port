@@ -11,11 +11,10 @@
 #include "video_core/renderer_vulkan/vk_scene_resolution.h"
 #include "video_core/texture_cache/blit_helper.h"
 #include <vk_mem_alloc.h>
-
-// Match the renderer's Vulkan-Hpp dispatcher layout before enabling test assertions.
-#undef NDEBUG
-#include <cassert>
-
+// Everything above sees the build's NDEBUG, keeping the Vulkan-Hpp dispatcher identical to the
+// one in the renderer library. Asserts are turned on only for the checks in this file.
+#undef NDEBUG  // asserts below must run even in release test builds
+#include <cassert> // re-read so assert() follows the new NDEBUG state
 int main() {
     using namespace Vulkan;
     Instance instance(0, false);

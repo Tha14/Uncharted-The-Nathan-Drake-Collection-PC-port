@@ -2557,7 +2557,9 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
         scheduler.PopPendingOperations();
     }
     const auto& regs = Regs();
-    const auto frame_start = [&] {
+    // Everything that happens when a new frame begins; called from the display pass below, or
+    // from the upscale when the game renders below the output size.
+    const auto begin_frame = [&]() {
         scene_started = false;
         camera_motion->OnDisplayPass(cb_descs[0].first);
         if (upscaler->OnFrameStart()) {
@@ -2572,22 +2574,26 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
         scene_debug_frame =
             scene_debug && TriggerPollDue(scene_debug_poll) && std::remove(scene_debug) == 0;
         scene_targets->debug = scene_debug_frame;
-    };
-    // gow3: the pass copying a finished frame to a display buffer; the previous draw's
-    // target is that frame. 19 Oct 2026, from Supermedo/uncharted_pc #261 (kj2223): Uncharted
-    // draws twice into the same display buffer per frame (484cdbf5, then 749bbec9; measured 2
-    // frame starts per shown frame): only the first starts a frame. The second reset the
-    // upscaler's history every frame (shimmer on every edge under TAA, FSR and DLAA) and
-    // skipped every other jitter phase. Toggle 1 << 59 brings the old behaviour back.
-    // Below the output size Uncharted's frames start at the upscale instead
-    // (TemporalUpscaler::OnComposite): its finished frame, the copy back and the HUD are
-    // several draws into the display buffer.
-    if (camera_motion->Enabled() && !upscaler->CompositeFrames() && regs.color_buffers[0] &&
-        FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address()) &&
-        (scene_started || regs.color_buffers[0].Address() != frame_display_address ||
-         Gow3Toggle::Disabled(Gow3Toggle::OneFrameStart))) {
-        frame_display_address = regs.color_buffers[0].Address();
-        frame_start();
+    }; // begin_frame
+    // gow3: a frame begins at the display pass, the draw that copies the finished frame into a
+    // display buffer (the target of the draw before it holds that frame). Uncharted performs
+    // two such copies into the same display buffer every frame (484cdbf5 followed by 749bbec9;
+    // two frame starts were measured per frame shown), so only the first one counts (19 Oct
+    // 2026, taken from Supermedo/uncharted_pc #261 by kj2223). Counting the second as well
+    // cleared the upscaler history every frame, making every edge shimmer under TAA, FSR and
+    // DLAA, and dropped every second jitter phase; toggle 1 << 59 restores that behaviour.
+    // When Uncharted renders below the output size, its finished frame, the copy back and the
+    // HUD all land in the display buffer as separate draws, so the frame begins at the upscale
+    // (TemporalUpscaler::OnComposite) instead.
+    const auto& display_cb = regs.color_buffers[0];
+    const bool display_pass = camera_motion->Enabled() && !upscaler->CompositeFrames() &&
+                              display_cb && FrameCapture::IsDisplayBuffer(display_cb.Address());
+    const bool starts_frame =
+        display_pass && (scene_started || display_cb.Address() != frame_display_address ||
+                         Gow3Toggle::Disabled(Gow3Toggle::OneFrameStart));
+    if (starts_frame) {
+        frame_display_address = display_cb.Address();
+        begin_frame();
     }
     // gow3: without camera motion (Uncharted) the GPU profiler marks frames at the display pass
     // too. Its results are read with a wait four frames later, so everything recorded so far is
@@ -2602,11 +2608,14 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     motion_geometry = 0;
 
     PrepareRenderState(pipeline);
-    if (upscaler->CompositeFrames() && fragment &&
-        upscaler->OnComposite(fragment->pgm_hash, cb_descs[0].first)) {
-        bind_prepared = nullptr; // as after a draw: later dispatches bind without its sharps
-        frame_start();           // the guest's copy is replaced by the upscale
-        return;
+    const bool upscaled_instead = upscaler->CompositeFrames() && fragment &&
+                                  upscaler->OnComposite(fragment->pgm_hash, cb_descs[0].first);
+    if (upscaled_instead) {
+        // The upscale stands in for the guest's copy. Like after a finished draw, dispatches
+        // recorded later bind without this draw's sharps.
+        bind_prepared = nullptr;
+        begin_frame();
+        return; // nothing of the guest's copy is recorded
     }
     if (upscaler->Enabled() && std::popcount(pipeline->GetGraphicsKey().mrt_mask) == 1) {
         const auto& viewport = Regs().viewports[0];
@@ -2664,33 +2673,36 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     push_data.xoffset *= target_scale[0];
     push_data.yscale *= target_scale[1];
     push_data.yoffset *= target_scale[1];
-    // Uncharted: the animated draws of its G-buffer passes are the skinned ones, whose vertex
-    // buffers the GPU wrote this session (the skinning compute; the level's vertices stay as
-    // loaded). Its shaders read vertices from buffers (no vertex inputs): the draw's identity
-    // across frames comes from those buffers' sizes and strides, not their addresses (skinned
-    // vertices can move between frames). (The stencil's character bit differs between the
-    // games: Uncharted 2 sets it on the whole level.)
-    bool character_draw = false;
-    if (motion_draw && Shader::MotionVectors::stencil_gate) {
-        const auto& vs = pipeline->GetStage(Shader::SwStage::Vertex);
-        u64 hash = 0x6a09e667f3bcc909ULL;
-        for (const auto& resource : vs.buffers) {
-            if (resource.IsSpecial()) continue;
-            const auto buffer = resource.GetSharp(vs);
-            if (!buffer.Valid()) continue;
-            hash = XXH3_64bits_withSeed(&buffer.num_records, sizeof(buffer.num_records),
-                                        hash ^ buffer.GetStride());
-            // Constant buffers (stride 16) are not vertices.
-            character_draw |= buffer.GetStride() != 16 &&
-                              buffer_cache.IsRangeGpuWrittenShared(buffer.base_address,
-                                                                    buffer.GetSize());
+    // Uncharted (stencil_gate): inside its G-buffer passes the animated draws are the skinned
+    // characters. Their vertex buffers were filled by the GPU's skinning compute at some point
+    // this session, whereas level geometry keeps the vertices it was loaded with. The shaders
+    // fetch vertices from buffers rather than vertex inputs, and skinned vertices can change
+    // address between frames, so a draw is recognised from frame to frame by the sizes and
+    // strides of its buffers. The game's own stencil character bit is not usable: it differs
+    // between the games, and Uncharted 2 marks the whole level with it.
+    bool skinned_draw = false;
+    if (Shader::MotionVectors::stencil_gate && motion_draw) {
+        const auto& vertex_stage = pipeline->GetStage(Shader::SwStage::Vertex);
+        u64 layout_hash = 0x6a09e667f3bcc909ULL;
+        for (const auto& slot : vertex_stage.buffers) {
+            if (slot.IsSpecial()) continue;
+            const auto sharp = slot.GetSharp(vertex_stage);
+            if (!sharp.Valid()) continue;
+            const u32 stride = sharp.GetStride();
+            layout_hash = XXH3_64bits_withSeed(&sharp.num_records, sizeof(sharp.num_records),
+                                               layout_hash ^ stride);
+            // A stride of 16 marks a constant buffer, which never holds vertices.
+            if (stride != 16 &&
+                buffer_cache.IsRangeGpuWrittenShared(sharp.base_address, sharp.GetSize())) {
+                skinned_draw = true;
+            }
         }
-        if (character_draw && !motion_geometry) {
-            motion_geometry = hash;
+        if (skinned_draw && motion_geometry == 0) {
+            motion_geometry = layout_hash;
         }
     }
-    if (motion_draw && motion_geometry &&
-        (!Shader::MotionVectors::stencil_gate || character_draw)) {
+    const bool passes_skin_gate = skinned_draw || !Shader::MotionVectors::stencil_gate;
+    if (motion_draw && motion_geometry != 0 && passes_skin_gate) {
         const auto& vs = pipeline->GetStage(Shader::SwStage::Vertex);
         const auto [base_vertex, first_instance] =
             GetDrawOffsets(regs, vs, pipeline->GetFetchShader());
@@ -2705,7 +2717,7 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
             const char* value = std::getenv("GOW3_OBJECT_MOTION_ALL");
             return value && value[0] == '1';
         }();
-        bool gated = !all_motion && !character_draw;
+        bool gated = !(all_motion || skinned_draw);
         u64 palette = 0;
         for (const auto& resource : vs.buffers) {
             if (resource.IsSpecial()) continue;

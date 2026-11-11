@@ -6,10 +6,10 @@ from pathlib import Path
 import tempfile
 import unittest
 
-module_path = ROOT / "launcher/gow3_vulkan.py"
-if not module_path.is_file():
-    raise unittest.SkipTest("Packaged GOW3 Vulkan launcher is not included in this checkout")
-spec = importlib.util.spec_from_file_location("gow3_vulkan", module_path)
+_launcher_script = ROOT / "launcher" / "gow3_vulkan.py"
+if not _launcher_script.is_file():  # only packaged GOW3 checkouts carry it
+    raise unittest.SkipTest("This checkout has no packaged GOW3 Vulkan launcher")
+spec = importlib.util.spec_from_file_location(name="gow3_vulkan", location=_launcher_script)
 vulkan = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(vulkan)
 

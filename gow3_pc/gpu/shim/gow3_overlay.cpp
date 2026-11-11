@@ -167,10 +167,13 @@ std::atomic<bool> choice_active{false};
 std::string choice_title;
 std::vector<std::string> choice_items;
 int choice_index = 0;
-std::atomic<int> choice_result{-1}; // -1 open, -2 cancelled, <= -3 delete -3 - index, else the chosen index
-// Entries from choice_deletable on can be deleted (Delete / Triangle, pressed twice: the first press
-// arms choice_delete_armed); -1: none.
-int choice_deletable = -1, choice_delete_armed = -1;
+// What PollChoice hands back: -1 while the list is open, -2 after a cancel, -3 - n once entry n
+// was deleted, otherwise the index the player picked.
+std::atomic<int> choice_result{-1};
+// Index of the first entry that may be deleted, -1 when none may. Deleting takes two presses of
+// Delete / Triangle on the same entry: the first stores it in choice_delete_pending.
+int choice_first_deletable = -1;
+int choice_delete_pending = -1;
 // Save pictures: decoded by BeginChoice, made textures on the present thread (null = none).
 // Closed lists' textures wait in choice_retired until the backend has destroyed them.
 std::vector<Gow3Png::Image> choice_pictures;
@@ -457,8 +460,8 @@ void ImageTab() {
     ImGui::SeparatorText("Scaling and sharpening");
     if (BeginRows("##scaling")) {
         CheckRow("Upscale with FSR 1", s.fsr1,
-                 "Upscales the game's image: before the HUD with the launcher's Upscaling (FSR 1), else a "
-                 "smaller image to the window.");
+                 "With the launcher's Upscaling (FSR 1) it scales the game's image up before the HUD is "
+                 "drawn; without it, it scales an image smaller than the window up to the window.");
         ImGui::BeginDisabled(rcas_blocked);
         CheckRow("Sharpening (RCAS)", s.rcas,
                  rcas_blocked && downscaling ? "No effect: the game's image is larger than the window."
@@ -492,13 +495,22 @@ void ImageTab() {
         InfoRow("Game image", text);
         std::snprintf(text, sizeof(text), "%d x %d", ww, wh);
         InfoRow("Window", text);
-        // The launcher's Upscaling draws the game below the output size (GOW3_RENDER_RES): FSR 1
-        // upscales it before the HUD (TemporalUpscaler::OnComposite) unless an upscaler runs.
-        const char* scaled = std::getenv("GOW3_RENDER_RES");
-        InfoRow("FSR 1", !s.fsr1 ? "off"
-                         : scaled && *scaled ? "upscales the game before the HUD"
-                         : upscaling ? "active"
-                                     : "no effect (image not smaller than window)");
+        // With the launcher's Upscaling the game renders below the output size (GOW3_RENDER_RES)
+        // and FSR 1 enlarges it ahead of the HUD (TemporalUpscaler::OnComposite), unless another
+        // upscaler is running.
+        const char* render_res = std::getenv("GOW3_RENDER_RES");
+        const bool below_output = render_res != nullptr && render_res[0] != '\0';
+        const char* fsr1_state = "off";
+        if (s.fsr1) {
+            if (below_output) {
+                fsr1_state = "upscales the game before the HUD";
+            } else if (upscaling) {
+                fsr1_state = "active";
+            } else {
+                fsr1_state = "no effect (image not smaller than window)";
+            }
+        }
+        InfoRow("FSR 1", fsr1_state);
         InfoRow("Sharpening", s.rcas_applied ? "applied" : "not applied");
         ImGui::EndTable();
     }
@@ -548,9 +560,12 @@ void OverlayTab() {
     ImGui::SeparatorText("What to show");
     if (ImGui::BeginTable("##overlay_items", 2, ImGuiTableFlags_SizingStretchProp)) {
         ImGui::TableNextColumn();
-        static const char* const names[] = {"FPS", "Frametime", "Upscaler", "GPU (use and temperature)",
-                                            "CPU (game use and temperature)", "RAM (game)",
-                                            "VRAM (used / available)"};
+        // Checkbox labels, one per overlay_items bit in bit order.
+        static const char* const names[] = {
+            "FPS", "Frametime", "Upscaler", "GPU (use and temperature)",
+            "CPU (game use and temperature)", "RAM (game)",
+            "VRAM (used / available)",
+        };
         for (unsigned item = 0; item < 7; ++item) {
             const unsigned bit = 1u << item;
             bool on = (s.overlay_items & bit) != 0;
@@ -1422,20 +1437,25 @@ void ChoiceBox() {
     const bool pictures = std::any_of(choice_textures.begin(), choice_textures.end(),
                                       [](ImTextureData* tex) { return tex != nullptr; });
     const ImVec2 picture_size(228.0f * base_scale, 128.0f * base_scale);
-    // gow3 3 Nov 2026: the entries scroll in a child of their own height (up to what fits), so the
-    // key help below stays on screen however many saves there are (it was cut off at the bottom).
-    const ImGuiStyle& style = ImGui::GetStyle();
-    float rows_height = 0.0f;
-    for (const std::string& item : choice_items) {
-        const float lines = float(1 + std::count(item.begin(), item.end(), '\n'));
-        rows_height += std::max(pictures ? picture_size.y : 0.0f, lines * ImGui::GetTextLineHeight()) +
-                       style.ItemSpacing.y;
+    // gow3 3 Nov 2026: the entries sit in a scrolling child as tall as they are, capped by the space
+    // left, so the key help underneath stays visible with any number of saves (it used to be cut
+    // off at the bottom of the screen).
+    const ImGuiStyle& look = ImGui::GetStyle();
+    const float shortest_row = pictures ? picture_size.y : 0.0f;
+    float list_height = 0.0f;
+    for (const std::string& entry : choice_items) {
+        const auto text_lines = 1 + std::count(entry.begin(), entry.end(), '\n');
+        const float text_height = float(text_lines) * ImGui::GetTextLineHeight();
+        list_height += std::max(shortest_row, text_height) + look.ItemSpacing.y;
     }
-    const float footer_height = ImGui::GetTextLineHeightWithSpacing() * 3.0f + style.ItemSpacing.y * 2.0f;
-    const float title_height = ImGui::GetCursorPosY();
-    const float room = viewport->WorkSize.y * 0.8f - title_height - footer_height - style.WindowPadding.y * 2.0f;
-    ImGui::BeginChild("##choice_rows", ImVec2(0.0f, std::max(picture_size.y, std::min(rows_height, room))),
-                      ImGuiChildFlags_AutoResizeX, ImGuiWindowFlags_NoScrollbar);
+    // Below the list: three lines of key help and two item gaps.
+    const float help_height = ImGui::GetTextLineHeightWithSpacing() * 3.0f + look.ItemSpacing.y * 2.0f;
+    const float above_list = ImGui::GetCursorPosY();
+    const float space_left =
+        viewport->WorkSize.y * 0.8f - above_list - help_height - look.WindowPadding.y * 2.0f;
+    const float list_box = std::max(picture_size.y, std::min(list_height, space_left));
+    ImGui::BeginChild("##choice_rows", ImVec2(0.0f, list_box), ImGuiChildFlags_AutoResizeX,
+                      ImGuiWindowFlags_NoScrollbar);
     for (int i = 0; i < int(choice_items.size()); ++i) {
         const bool selected = i == choice_index;
         ImGui::BeginGroup();
@@ -1466,16 +1486,26 @@ void ChoiceBox() {
             ImGui::SetScrollHereY();
         }
     }
-    ImGui::EndChild();
+    ImGui::EndChild(); // ##choice_rows
     ImGui::Separator();
     ImGui::TextDisabled("Up/Down or D-pad: choose   Enter or Cross (A): OK   Esc or Circle (B): cancel");
-    if (choice_delete_armed >= 0 && choice_delete_armed == choice_index) {
-        ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.35f, 1.0f),
-                           "Press Delete or Triangle (Y) AGAIN to delete this save (it goes to savedata-deleted)");
-    } else if (choice_deletable >= 0 && choice_index >= choice_deletable) {
-        ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.45f, 1.0f), "Delete or Triangle (Y): delete this save");
-    } else if (choice_deletable >= 0) {
-        ImGui::TextDisabled("Select a save, then Delete or Triangle (Y) to delete it");
+    // Delete hint for the highlighted entry, only on lists that allow deleting (a pending delete
+    // implies that). The texts carry no '%', so they double as their own format strings.
+    if (choice_first_deletable >= 0) {
+        const bool awaiting_second_press =
+            choice_delete_pending >= 0 && choice_delete_pending == choice_index;
+        if (awaiting_second_press) {
+            const ImVec4 warning_colour(1.0f, 0.45f, 0.35f, 1.0f);
+            ImGui::TextColored(warning_colour, "Press Delete or Triangle (Y) AGAIN to delete this save "
+                                               "(it goes to savedata-deleted)");
+        } else if (choice_index >= choice_first_deletable) {
+            const ImVec4 hint_colour(0.95f, 0.75f, 0.45f, 1.0f);
+            ImGui::TextColored(hint_colour, "Delete or Triangle (Y): "
+                                            "delete this save");
+        } else {
+            ImGui::TextDisabled("Select a save, then Delete or Triangle (Y) "
+                                "to delete it");
+        }
     }
     ImGui::End();
 }
@@ -1798,43 +1828,47 @@ void UpdateChoiceTextures() {
     choice_retiring = !choice_retired.empty();
 }
 
+// Shuts the save list after a delete: PollChoice gets `result`, and the list's textures are let go.
+void CloseChoiceList(int result) {
+    choice_result = result;
+    choice_active = false;
+    RetireChoiceTextures();
+}
+
 // The save list takes the keys and buttons that move and confirm; the rest stays with the game
 // (held neutral by CapturesInput).
 bool HandleChoiceEvent(const SDL_Event& event) {
     int move = 0, finish = 0; // finish: 1 accept, 2 cancel
-    bool erase = false;
+    bool delete_pressed = false; // Delete key or Triangle
     if (event.type == SDL_EVENT_KEY_DOWN) {
         const SDL_Keycode key = event.key.key;
         move = key == SDLK_UP || key == SDLK_W ? -1 : key == SDLK_DOWN || key == SDLK_S ? 1 : 0;
         finish = key == SDLK_RETURN || key == SDLK_KP_ENTER || key == SDLK_SPACE ? 1
                  : key == SDLK_ESCAPE || key == SDLK_BACKSPACE                   ? 2
                                                                                  : 0;
-        erase = key == SDLK_DELETE && !event.key.repeat;
+        delete_pressed = !event.key.repeat && key == SDLK_DELETE; // held-key repeats ignored
     } else if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
         const u8 button = event.gbutton.button;
         move = button == SDL_GAMEPAD_BUTTON_DPAD_UP ? -1 : button == SDL_GAMEPAD_BUTTON_DPAD_DOWN ? 1 : 0;
         finish = button == SDL_GAMEPAD_BUTTON_SOUTH ? 1 : button == SDL_GAMEPAD_BUTTON_EAST ? 2 : 0;
-        erase = button == SDL_GAMEPAD_BUTTON_NORTH;
+        delete_pressed = button == SDL_GAMEPAD_BUTTON_NORTH; // Triangle (Y)
     } else {
         return event.type == SDL_EVENT_KEY_UP || event.type == SDL_EVENT_GAMEPAD_BUTTON_UP;
     }
     const int count = int(choice_items.size());
-    if (move || finish) {
-        choice_delete_armed = -1;
-    }
+    // Moving or closing drops a delete that is waiting for its second press.
+    if (move != 0 || finish != 0) choice_delete_pending = -1;
     if (move && count) {
         choice_index = (choice_index + move + count) % count;
     }
-    if (erase && choice_deletable >= 0 && choice_index >= choice_deletable && choice_index < count) {
-        if (choice_delete_armed != choice_index) {
-            choice_delete_armed = choice_index;
-            return true;
-        }
-        choice_delete_armed = -1;
-        choice_result = -3 - choice_index;
-        choice_active = false;
-        RetireChoiceTextures();
-        return true;
+    const bool on_deletable_entry = choice_first_deletable >= 0 &&
+                                    choice_index >= choice_first_deletable && choice_index < count;
+    if (delete_pressed && on_deletable_entry) {
+        // The first press only marks the entry; a second press on that same entry deletes it.
+        const bool confirmed = choice_delete_pending == choice_index;
+        choice_delete_pending = confirmed ? -1 : choice_index;
+        if (confirmed) CloseChoiceList(-3 - choice_index);
+        return true; // the press is used up either way
     }
     if (finish) {
         choice_result = finish == 1 && count ? choice_index : -2;
@@ -2010,7 +2044,7 @@ bool CapturesInput() {
 }
 
 void BeginChoice(const std::string& title, const std::vector<std::string>& items,
-                 std::vector<Gow3Png::Image> pictures, int focus, int deletable_from) {
+                 std::vector<Gow3Png::Image> pictures, int focus, int first_deletable) {
     std::scoped_lock lock{imgui_mutex};
     RetireChoiceTextures();
     choice_pictures = std::move(pictures);
@@ -2018,8 +2052,9 @@ void BeginChoice(const std::string& title, const std::vector<std::string>& items
     choice_title = title;
     choice_items = items;
     choice_index = focus >= 0 && focus < int(items.size()) ? focus : 0;
-    choice_deletable = deletable_from >= 0 && deletable_from < int(items.size()) ? deletable_from : -1;
-    choice_delete_armed = -1;
+    const bool deletable_in_range = first_deletable >= 0 && first_deletable < int(items.size());
+    choice_first_deletable = deletable_in_range ? first_deletable : -1;
+    choice_delete_pending = -1; // nothing waits for a second Delete press
     choice_result = -1;
     choice_active = true;
 }

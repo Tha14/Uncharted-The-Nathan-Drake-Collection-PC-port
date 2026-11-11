@@ -27,6 +27,25 @@ struct FSRConstants {
 
 namespace Vulkan::HostPasses {
 
+namespace {
+
+// Puts an image into GENERAL for a compute storage write, dropping whatever it held before.
+vk::ImageMemoryBarrier2 FreshStorageTarget(vk::Image target,
+                                           const vk::ImageSubresourceRange& range) {
+    vk::ImageMemoryBarrier2 barrier{};
+    barrier.srcStageMask = vk::PipelineStageFlagBits2::eTopOfPipe;
+    barrier.srcAccessMask = vk::AccessFlagBits2::eNone;
+    barrier.dstStageMask = vk::PipelineStageFlagBits2::eComputeShader;
+    barrier.dstAccessMask = vk::AccessFlagBits2::eShaderStorageWrite;
+    barrier.oldLayout = vk::ImageLayout::eUndefined;
+    barrier.newLayout = vk::ImageLayout::eGeneral;
+    barrier.image = target;
+    barrier.subresourceRange = range;
+    return barrier;
+}
+
+} // namespace
+
 void FsrPass::Create(vk::Device device, VmaAllocator allocator, u32 num_images) {
     this->device = device;
     this->num_images = num_images;
@@ -132,7 +151,7 @@ void FsrPass::Create(vk::Device device, VmaAllocator allocator, u32 num_images) 
 
 vk::ImageView FsrPass::Render(vk::CommandBuffer cmdbuf, vk::ImageView input,
                               vk::Extent2D input_size, vk::Extent2D output_size, Settings settings,
-                              bool hdr, vk::Extent2D input_image_size) {
+                              bool hdr, vk::Extent2D source_extent) {
     // gow3: FSR 1 upscales when the window is larger; RCAS alone also runs at the same size.
     if (!Gow3Graphics::FsrPassRuns(settings.enable, settings.use_rcas, int(input_size.width),
                                    int(input_size.height), int(output_size.width),
@@ -189,15 +208,14 @@ vk::ImageView FsrPass::Render(vk::CommandBuffer cmdbuf, vk::ImageView input,
         .pImageMemoryBarriers = enter_barrier.data(),
     });
 
-    if (input_image_size.width == 0 || input_image_size.height == 0) {
-        input_image_size = input_size;
-    }
+    const bool source_known = source_extent.width != 0 && source_extent.height != 0;
+    const vk::Extent2D source = source_known ? source_extent : input_size;
     FSRConstants consts{};
     FsrEasuCon(reinterpret_cast<AU1*>(&consts.Const0), reinterpret_cast<AU1*>(&consts.Const1),
                reinterpret_cast<AU1*>(&consts.Const2), reinterpret_cast<AU1*>(&consts.Const3),
                static_cast<AF1>(input_size.width), static_cast<AF1>(input_size.height),
-               static_cast<AF1>(input_image_size.width), static_cast<AF1>(input_image_size.height),
-               (AF1)width, (AF1)height);
+               static_cast<AF1>(source.width), static_cast<AF1>(source.height),
+               static_cast<AF1>(width), static_cast<AF1>(height));
     consts.Sample[0] = hdr && !settings.use_rcas ? 1 : 0;
 
     if (settings.use_rcas) {
@@ -322,18 +340,12 @@ vk::ImageView FsrPass::Render(vk::CommandBuffer cmdbuf, vk::ImageView input,
         }
 
     } else {
-        // only easu (gow3: straight into the output image, which needs the general layout too)
-        const vk::ImageMemoryBarrier2 to_general{
-            .srcStageMask = vk::PipelineStageFlagBits2::eTopOfPipe,
-            .srcAccessMask = vk::AccessFlagBits2::eNone,
-            .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-            .dstAccessMask = vk::AccessFlagBits2::eShaderStorageWrite,
-            .oldLayout = vk::ImageLayout::eUndefined,
-            .newLayout = vk::ImageLayout::eGeneral,
-            .image = img.output_image,
-            .subresourceRange = simple_subresource,
-        };
-        cmdbuf.pipelineBarrier2({.imageMemoryBarrierCount = 1, .pImageMemoryBarriers = &to_general});
+        // gow3: with RCAS off, EASU writes the output image itself, so it needs GENERAL as well.
+        const auto easu_target = FreshStorageTarget(img.output_image, simple_subresource);
+        cmdbuf.pipelineBarrier2(vk::DependencyInfo{
+            .imageMemoryBarrierCount = 1u,
+            .pImageMemoryBarriers = &easu_target,
+        });
         std::array<vk::DescriptorImageInfo, 3> img_info{{
             {
                 .imageView = input,
@@ -398,7 +410,7 @@ vk::ImageView FsrPass::Render(vk::CommandBuffer cmdbuf, vk::ImageView input,
         cmdbuf.endDebugUtilsLabelEXT();
     }
 
-    last_output = img.output_image;
+    most_recent_output = img.output_image;
     return img.output_image_view.get();
 }
 

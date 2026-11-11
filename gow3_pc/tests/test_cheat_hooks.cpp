@@ -34,9 +34,10 @@ int main(int argc, char** argv) {
             assert(hook.offset + hook.length <= image.size());
             assert(gow3_cheat_signature_match(&hook, image.data() + hook.offset, image.size() - hook.offset));
         }
-        // These two control-flow hooks have separate execution tests in test_cheat_hook.cpp;
-        // the player-stat harness below only models float stores into the five stat fields.
-        if (hook.id == GOW3_CHEAT_VERY_HARD || hook.id == GOW3_CHEAT_DOUBLE_JUMPS) continue;
+        // Very Hard and Double Jumps change control flow rather than storing a stat float, and
+        // test_cheat_hook.cpp runs them separately. The harness below knows only the five stat stores.
+        const bool branch_hook = hook.id == GOW3_CHEAT_VERY_HARD || hook.id == GOW3_CHEAT_DOUBLE_JUMPS;
+        if (branch_hook) continue;
 #ifdef _WIN32
         auto* executable = static_cast<unsigned char*>(VirtualAlloc(nullptr, 4096, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
 #else
@@ -104,5 +105,6 @@ int main(int argc, char** argv) {
         munmap(executable, 4096);
 #endif
     }
-    std::puts("cheat-hooks-test: OK (stat hooks, live toggles, registers, flags, all signatures, non-player health)");
+    std::fputs("cheat-hooks-test: OK (stat hooks, live toggles, registers, flags, all signatures, non-player health)\n",
+               stdout);
 }

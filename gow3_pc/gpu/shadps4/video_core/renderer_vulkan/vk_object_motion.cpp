@@ -232,10 +232,11 @@ void ObjectMotion::Attach(RenderState& state, u32 width, u32 height) {
 vk::ImageView ObjectMotion::PrepareRead(vk::CommandBuffer cmdbuf, u32 width, u32 height,
                                         bool& valid) {
     EnsureImage(std::max(image_width, 1u), std::max(image_height, 1u));
-    // The scene fills the top left of targets that can be larger (Uncharted's aligned ones).
-    valid = written && width <= image_width && height <= image_height &&
-            (width == image_width || Shader::MotionVectors::stencil_gate) &&
-            (height == image_height || Shader::MotionVectors::stencil_gate);
+    // Uncharted renders into aligned targets that may be bigger than the scene, which then
+    // occupies their top-left corner; every other game has to match the size exactly.
+    const bool fits_inside = width <= image_width && height <= image_height;
+    const bool same_size = width == image_width && height == image_height;
+    valid = written && fits_inside && (same_size || Shader::MotionVectors::stencil_gate);
     const vk::ImageMemoryBarrier2 barrier{
         .srcStageMask = vk::PipelineStageFlagBits2::eAllCommands,
         .srcAccessMask = vk::AccessFlagBits2::eMemoryRead | vk::AccessFlagBits2::eMemoryWrite,

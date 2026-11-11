@@ -9,11 +9,10 @@
 #include "video_core/texture_cache/image.h"
 #include "video_core/host_shaders/camera_motion_comp.h"
 #include <vk_mem_alloc.h>
-
-// Match the renderer's Vulkan-Hpp dispatcher layout before enabling test assertions.
-#undef NDEBUG
-#include <cassert>
-
+// The renderer headers above were read with the build's own NDEBUG, so the Vulkan-Hpp
+// dispatcher matches the renderer objects. Only now are this file's assert() checks switched on.
+#undef NDEBUG  // asserts below must run even in release test builds
+#include <cassert> // re-read so assert() follows the new NDEBUG state
 int main() {
     Vulkan::Instance instance(0, false);
     static vk::detail::DynamicLoader loader;

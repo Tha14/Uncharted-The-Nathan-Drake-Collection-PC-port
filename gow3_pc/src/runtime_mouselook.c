@@ -1053,62 +1053,75 @@ static ABI void *u1_cover_camera_input(unsigned char *location, unsigned char *c
     return NULL;
 }
 
-/* The jeep's mounted gun (CameraControlRailVehicle, GitHub #250; the camera of the rail vehicle chases,
- * the gun fires where it looks). Its update (0x2a7530, vtable 0x92ebd0 + 0x98) calls the look step
- * 0x2a9690(camera, look, pad input): look + 4 the yaw and + 8 the pitch (radians), each turned by
- * -stick * rate * the game's camera speed (0xa4cb10) degrees past a dead zone (right x: rate tune[0x20],
- * dead zone tune[0x44]; right y: tune[0x1c], tune[0x40]; tune = *(camera + 0x1e8 + facing * 8), facing
- * camera + 0x204), with their own invert options (ints at 0x95ca28 left/right, 0x95ca2c up/down), then
- * kept inside tune[0x2c]..tune[0x30] (yaw) and tune[0x24]..tune[0x28] (pitch) degrees. The mouse turns
- * the yaw and pitch at the step's entry, the same angle per count as the other cameras (pitch through
- * the rates' ratio); the game's limits still apply after it. Not verified in game yet;
- * GOW3_MOUSE_LOOK_U1_RAIL=0: the mouse is the stick there again. */
-static int u1_rail_enabled(void) {
-    static int enabled = -1;
-    if (enabled < 0) {
-        const char *env = getenv("GOW3_MOUSE_LOOK_U1_RAIL");
-        enabled = u1_enabled() && !(env && env[0] == '0');
+/* Uncharted 1's jeep turret (GitHub #250): CameraControlRailVehicle, the camera of the chase vehicle,
+ * whose gun fires where the camera points. The camera's update 0x2a7530 (vtable 0x92ebd0, slot +0x98)
+ * calls the look step 0x2a9690 with (camera, look, pad input). That step keeps the yaw at look + 4 and
+ * the pitch at look + 8 (radians) and turns each by -stick * rate * camera speed (0xa4cb10) degrees
+ * once the stick is past a dead zone: right x with rate tune[0x20] and dead zone tune[0x44], right y
+ * with tune[0x1c] and tune[0x40], where tune = *(camera + 0x1e8 + facing * 8) and facing is the int
+ * at camera + 0x204. The turret has invert options of its own (ints at 0x95ca28 left/right, 0x95ca2c
+ * up/down). Afterwards the yaw is held to tune[0x2c]..tune[0x30] degrees and the pitch to
+ * tune[0x24]..tune[0x28]. The hook turns yaw and pitch on entry to the step by the same angle per
+ * count as every other camera, the pitch scaled by the ratio of the two rates, so the game's limits
+ * still apply afterwards. Reported noticeably better in game when it was added; not yet checked
+ * here. GOW3_MOUSE_LOOK_U1_RAIL=0 puts the mouse back on the emulated stick for this camera. */
+static int u1_rail_mouse_on(void) {
+    static int state = -1; /* -1: not decided yet */
+    if (state == -1) {
+        const char *setting = getenv("GOW3_MOUSE_LOOK_U1_RAIL");
+        state = u1_enabled() && (!setting || setting[0] != '0');
     }
-    return enabled;
+    return state;
+}
+/* The turret's pitch rate over its yaw rate (1 when either is unusable): a mouse count moves the
+ * pitch as much, relative to the yaw, as a full stick would. */
+static float u1_rail_pitch_ratio(const float *tune) {
+    const float yaw_rate = tune[0x20 / 4], pitch_rate = tune[0x1c / 4];
+    const int usable = isfinite(yaw_rate) && isfinite(pitch_rate) && yaw_rate > 1e-3f && pitch_rate > 0.0f;
+    return usable ? pitch_rate / yaw_rate : 1.0f;
+}
+/* GOW3_MOUSE_LOOK_DEBUG line for the turret, at most every 500 ms. */
+static void u1_rail_debug(unsigned facing, float yaw_deg, float pitch_deg, const float *tune) {
+    static uint64_t printed_at;
+    const uint64_t clock_ms = now_ms();
+    if (clock_ms - printed_at < 500) return;
+    printed_at = clock_ms;
+    const float yaw_rate = tune ? tune[0x20 / 4] : 0.0f, pitch_rate = tune ? tune[0x1c / 4] : 0.0f;
+    printf("U1 rail debug: facing %u, yaw %.1f, pitch %.1f, rates %g %g, mouse %s\n",
+           facing, yaw_deg, pitch_deg, yaw_rate, pitch_rate, u1_rail_mouse_on() ? "direct" : "stick (off)");
+    fflush(stdout);
 }
 static FrameTurn u1_rail_frame;
-static ABI void *u1_rail_look_input(unsigned char *camera, unsigned char *look, void *input) {
-    (void)input;
-    if (!camera || !look) return NULL;
-    float *yaw = (float *)(look + 4), *pitch = (float *)(look + 8);
-    const unsigned facing = *(const unsigned *)(camera + 0x204);
-    const float *tune = facing < 4 ? *(const float *const *)(camera + 0x1e8 + facing * 8) : NULL;
-    const float heading = *yaw * 57.29578f, pitch_in = *pitch * 57.29578f;
-    if (look_debug()) {
-        static uint64_t last;
-        const uint64_t now = now_ms();
-        if (now - last >= 500) {
-            last = now;
-            printf("U1 rail debug: facing %u, yaw %.1f, pitch %.1f, rates %g %g, mouse %s\n", facing, heading, pitch_in,
-                   tune ? tune[0x20 / 4] : 0.0f, tune ? tune[0x1c / 4] : 0.0f, u1_rail_enabled() ? "direct" : "stick (off)");
-            fflush(stdout);
-        }
-    }
-    if (!u1_rail_enabled() || !tune) {
-        mouse_trace("u1r", camera, 1, heading, pitch_in, 0.0f, 0.0f, 'o');
+/* Entry of the look step 0x2a9690(camera, look, pad input); the pad input is passed on unchanged. */
+static ABI void *u1_rail_look_input(unsigned char *camera, unsigned char *look, void *pad) {
+    (void)pad;
+    if (camera == NULL || look == NULL) return NULL;
+    float *const yaw = (float *)(look + 4);
+    float *const pitch = (float *)(look + 8);
+    const unsigned facing_index = *(const unsigned *)(camera + 0x204);
+    const float *tune = NULL;
+    if (facing_index < 4) tune = *(const float *const *)(camera + 0x1e8 + facing_index * 8);
+    const float yaw_deg = *yaw * 57.29578f, pitch_deg = *pitch * 57.29578f;
+    if (look_debug()) u1_rail_debug(facing_index, yaw_deg, pitch_deg, tune);
+    /* Trace codes: 'o' off or no tuning for this facing, 'u' angles outside what the step uses. */
+    char skipped = 0;
+    if (!u1_rail_mouse_on() || !tune) skipped = 'o';
+    else if (!isfinite(*yaw) || !isfinite(*pitch) || fabsf(*yaw) > 7.0f || fabsf(*pitch) > 3.2f) skipped = 'u';
+    if (skipped) {
+        mouse_trace("u1r", camera, 1, yaw_deg, pitch_deg, 0.0f, 0.0f, skipped);
         return NULL;
     }
-    if (!isfinite(*yaw) || !isfinite(*pitch) || fabsf(*yaw) > 7.0f || fabsf(*pitch) > 3.2f) {
-        mouse_trace("u1r", camera, 1, heading, pitch_in, 0.0f, 0.0f, 'u');
-        return NULL;
-    }
-    float dx = 0, dy = 0;
-    char mode = '-';
-    const int took = frame_take(&u1_rail_frame, camera, &dx, &dy, &mode);
-    mouse_trace("u1r", camera, 1, heading, pitch_in, dx, dy, mode);
-    if (!took || (dx == 0.0f && dy == 0.0f)) return NULL;
-    game_invert((const int *)(image + 0x95ca28), &dx, &dy);
-    const float per_count = look_scale();
-    const float yaw_rate = tune[0x20 / 4], pitch_rate = tune[0x1c / 4];
-    const float ratio = isfinite(yaw_rate) && isfinite(pitch_rate) && yaw_rate > 1e-3f && pitch_rate > 0.0f
-                            ? pitch_rate / yaw_rate : 1.0f;
-    if (dx != 0.0f) *yaw -= dx * per_count;
-    if (dy != 0.0f) *pitch -= dy * per_count * look_invert() * ratio;
+    float dx = 0.0f, dy = 0.0f;
+    char how = '-';
+    const int got = frame_take(&u1_rail_frame, camera, &dx, &dy, &how);
+    mouse_trace("u1r", camera, 1, yaw_deg, pitch_deg, dx, dy, how);
+    if (!got || (dx == 0.0f && dy == 0.0f)) return NULL;
+    const int *const turret_invert = (const int *)(image + 0x95ca28);
+    game_invert(turret_invert, &dx, &dy);
+    const float radians_per_count = look_scale();
+    const float pitch_ratio = u1_rail_pitch_ratio(tune);
+    if (dx != 0.0f) *yaw -= dx * radians_per_count;
+    if (dy != 0.0f) *pitch -= dy * radians_per_count * look_invert() * pitch_ratio;
     return NULL;
 }
 
@@ -1540,14 +1553,15 @@ static const MouseLookSite sites[] = {
       0x08, 0x03, 0x00, 0x00, 0x45, 0x89, 0xc4, 0x48},
      24,
      (void *)u1_aim_input},
-    /* The jeep's mounted gun (CameraControlRailVehicle's look step, #250). */
-    {"Uncharted 1 (rail vehicle gun)",
-     0x2a9690,
-     6, /* push rbp; mov rbp, rsp; push r15 */
-     {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54, 0x53, 0x50, 0x49, 0x89,
-      0xd7, 0x49, 0x89, 0xf4, 0x49, 0x89, 0xfe, 0x45},
-     24,
-     (void *)u1_rail_look_input},
+    /* GitHub #250: the jeep turret's look step (u1_rail_look_input). Its first 6 bytes, push rbp /
+     * mov rbp, rsp / push r15, are the ones moved to the stub; 24 bytes must match to install. */
+    {.game = "Uncharted 1 (rail vehicle gun)",
+     .offset = 0x2a9690,
+     .length = 6,
+     .expected = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54,
+                  0x53, 0x50, 0x49, 0x89, 0xd7, 0x49, 0x89, 0xf4, 0x49, 0x89, 0xfe, 0x45},
+     .expected_length = 24,
+     .handler = (void *)u1_rail_look_input},
 };
 
 const MouseLookSite *runtime_mouselook_sites(unsigned *count) {

@@ -77,12 +77,13 @@ class ModTests(unittest.TestCase):
 
     def test_mod_symlinks_rejected(self):
         a = self.mod('A')
-        try:
+        try:  # Windows only allows symlinks with Developer Mode or admin rights
             (a / 'dvdroot_ps4/escape').symlink_to(self.assets, target_is_directory=True)
-        except OSError as error:
-            if os.name == 'nt' and error.winerror == 1314:
-                self.skipTest('Creating symlinks requires Windows Developer Mode or elevation')
-            raise
+        except OSError as exc:
+            no_privilege = os.name == 'nt' and exc.winerror == 1314  # ERROR_PRIVILEGE_NOT_HELD
+            if not no_privilege:
+                raise  # any other failure is a real error
+            self.skipTest('Symlink creation needs Windows Developer Mode or an elevated process')
         with self.assertRaises(ValueError):
             mods.build_overlay(self.game, self.root / 'out', [('A', a)])
 

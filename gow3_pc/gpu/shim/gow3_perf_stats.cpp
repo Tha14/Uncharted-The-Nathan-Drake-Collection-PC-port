@@ -2,15 +2,15 @@
 #include "gow3_perf_stats.h"
 
 #include <atomic>
-#include <cctype>
+#include <cctype>  // std::tolower for the NVML device name match
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
-#include <cwchar>
+#include <cwchar>  // wcsstr on the PDH instance names
 #include <mutex>
-#include <string>
+#include <string>  // std::string / std::wstring members below
 #include <thread>
-#include <utility>
+#include <utility> // std::move
 #include <vector>
 #include "common/thread.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
@@ -39,9 +39,12 @@ bool PauseWhenHidden() {
     static const bool on = [] {
         const char* env = std::getenv("GOW3_PERF_SAMPLER_PAUSE");
         const bool pause = !(env && env[0] == '0');
-        std::printf("Overlay: CPU/RAM/GPU/VRAM and their temperatures sampled %s\n",
+        // Startup line naming the sampling cadence (temperatures included since 24 Oct 2026).
+#define GOW3_SAMPLER_LINE "Overlay: CPU/RAM/GPU/VRAM and their temperatures sampled %s\n"
+        std::printf(GOW3_SAMPLER_LINE,
                     pause ? "every second while shown (GOW3_PERF_SAMPLER_PAUSE=0: every 500 ms)"
                           : "every 500 ms (GOW3_PERF_SAMPLER_PAUSE=0)");
+#undef GOW3_SAMPLER_LINE
         return pause;
     }();
     return on;
@@ -138,182 +141,200 @@ private:
     std::vector<unsigned char> buffer;
 };
 
-// gow3 24 Oct 2026: the graphics card's temperature from NVIDIA's driver (nvml.dll ships with
-// every NVIDIA driver). Loaded by hand, so the build needs neither NVML headers nor its import
-// library; a machine without the DLL (AMD, Intel) simply shows the use without a temperature.
-// The device is picked by its name so a laptop's integrated GPU is not mistaken for the card.
-class GpuTemp {
-public:
-    explicit GpuTemp(std::string vulkan_name) : name(std::move(vulkan_name)) { TryLoad(); }
+// What the two temperature readers below return when they have nothing.
+constexpr float kNoReading = -1.0f;
 
-    float Celsius() {
-        // At start the driver may not answer yet: try again every 30 s.
-        if ((!lib || !handle) && NowMs() - last_try_ns > 30'000) {
-            TryLoad();
-        }
-        if (!lib || !handle || !get_temperature) {
-            return -1.0f;
-        }
-        unsigned value = 0;
-        if (get_temperature(handle, 0 /* NVML_TEMPERATURE_GPU */, &value) != 0) {
-            return -1.0f;
-        }
-        const float celsius = float(value);
-        return celsius >= -20.0f && celsius <= 150.0f ? celsius : -1.0f;
+// Graphics card temperature (gow3, 24 Oct 2026), read through NVML. Every NVIDIA driver installs
+// nvml.dll; it is opened at run time and its entry points are looked up by name, which keeps the
+// NVML SDK (headers, import library) out of the build. Where it is missing (AMD, Intel) the
+// counter just leaves the temperature out. With more than one NVIDIA device, the one whose name
+// matches the Vulkan device is read, so a hybrid laptop never reports its integrated chip.
+class NvmlTemperature {
+    // NVML entry points (every one returns nvmlReturn_t, 0 = success).
+    using InitProc = int (*)();
+    using DeviceCountProc = int (*)(unsigned*);
+    using DeviceAtProc = int (*)(unsigned, void**);
+    using DeviceNameProc = int (*)(void*, char*, unsigned);
+    using TemperatureProc = int (*)(void*, int, unsigned*);
+
+    std::string vk_device;
+    HMODULE dll = nullptr;
+    void* device = nullptr; ///< nvmlDevice_t of the card being read
+    int64_t attempt_ms = 0; ///< steady clock of the last Connect()
+    InitProc nvml_init = nullptr;
+    DeviceCountProc device_count = nullptr;
+    DeviceAtProc device_at = nullptr;
+    DeviceNameProc device_name_of = nullptr;
+    TemperatureProc temperature_of = nullptr;
+
+    static int64_t SteadyMs() {
+        return NowNs() / 1'000'000;
     }
 
-private:
-    using InitFn = int (*)();
-    using CountFn = int (*)(unsigned*);
-    using HandleFn = int (*)(unsigned, void**);
-    using NameFn = int (*)(void*, char*, unsigned);
-    using TempFn = int (*)(void*, int, unsigned*);
-
-    static int64_t NowMs() {
-        return std::chrono::duration_cast<std::chrono::milliseconds>(
-                   std::chrono::steady_clock::now().time_since_epoch())
-            .count();
+    /// Lower case, one byte at a time (std::tolower).
+    static std::string Folded(const std::string& text) {
+        std::string folded;
+        folded.reserve(text.size());
+        for (const unsigned char byte : text) {
+            folded.push_back(static_cast<char>(std::tolower(byte)));
+        }
+        return folded;
     }
 
-    static bool SameName(const char* from_driver, const std::string& from_vulkan) {
-        const auto lower = [](std::string text) {
-            for (char& c : text) {
-                c = char(std::tolower(static_cast<unsigned char>(c)));
-            }
-            return text;
-        };
-        const std::string a = lower(from_driver), b = lower(from_vulkan);
-        if (a.empty() || b.empty()) {
+    /// Case-blind: the two names are equal, or one of them contains the other.
+    static bool NamesMatch(const char* nvml_device, const std::string& vulkan_device) {
+        const std::string driver_side = Folded(nvml_device);
+        const std::string vulkan_side = Folded(vulkan_device);
+        return !driver_side.empty() && !vulkan_side.empty() &&
+               (driver_side.find(vulkan_side) != std::string::npos ||
+                vulkan_side.find(driver_side) != std::string::npos);
+    }
+
+    /// Looks `primary` up, then `fallback` when the newer export is absent.
+    template <typename Proc>
+    Proc Lookup(const char* primary, const char* fallback = nullptr) const {
+        FARPROC address = GetProcAddress(dll, primary);
+        if (!address && fallback) {
+            address = GetProcAddress(dll, fallback);
+        }
+        return reinterpret_cast<Proc>(address);
+    }
+
+    /// Opens nvml.dll and initialises NVML; false (the DLL released again) when that fails.
+    bool OpenLibrary() {
+        // From System32 only (the driver puts it there): a file of that name next to the
+        // game is never loaded (24 Oct 2026).
+        dll = LoadLibraryExW(L"nvml.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+        if (dll == nullptr) {
             return false;
         }
-        return a == b || a.find(b) != std::string::npos || b.find(a) != std::string::npos;
+        nvml_init = Lookup<InitProc>("nvmlInit_v2", "nvmlInit");
+        device_count = Lookup<DeviceCountProc>("nvmlDeviceGetCount_v2", "nvmlDeviceGetCount");
+        device_at = Lookup<DeviceAtProc>("nvmlDeviceGetHandleByIndex_v2", "nvmlDeviceGetHandleByIndex");
+        device_name_of = Lookup<DeviceNameProc>("nvmlDeviceGetName");
+        temperature_of = Lookup<TemperatureProc>("nvmlDeviceGetTemperature");
+        const bool usable = nvml_init && device_count && device_at && temperature_of;
+        if (usable && nvml_init() == 0) {
+            return true;
+        }
+        FreeLibrary(dll);
+        dll = nullptr;
+        return false;
     }
 
-    void TryLoad() {
-        last_try_ns = NowMs();
-        if (!lib) {
-            // From System32 only (the driver puts it there): a file of that name next to the
-            // game is never loaded (24 Oct 2026).
-            lib = LoadLibraryExW(L"nvml.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
-            if (!lib) {
-                return;
-            }
-            init = reinterpret_cast<InitFn>(GetProcAddress(lib, "nvmlInit_v2"));
-            if (!init) {
-                init = reinterpret_cast<InitFn>(GetProcAddress(lib, "nvmlInit"));
-            }
-            count = reinterpret_cast<CountFn>(GetProcAddress(lib, "nvmlDeviceGetCount_v2"));
-            if (!count) {
-                count = reinterpret_cast<CountFn>(GetProcAddress(lib, "nvmlDeviceGetCount"));
-            }
-            handle_by_index = reinterpret_cast<HandleFn>(
-                GetProcAddress(lib, "nvmlDeviceGetHandleByIndex_v2"));
-            if (!handle_by_index) {
-                handle_by_index = reinterpret_cast<HandleFn>(
-                    GetProcAddress(lib, "nvmlDeviceGetHandleByIndex"));
-            }
-            device_name = reinterpret_cast<NameFn>(GetProcAddress(lib, "nvmlDeviceGetName"));
-            get_temperature = reinterpret_cast<TempFn>(GetProcAddress(lib, "nvmlDeviceGetTemperature"));
-            if (!init || !count || !handle_by_index || !get_temperature || init() != 0) {
-                FreeLibrary(lib);
-                lib = nullptr;
-                return;
+    /// Index of the NVML device named like the Vulkan one; 0 when none matches.
+    unsigned PickDevice(unsigned devices) const {
+        for (unsigned index = 0; index < devices; ++index) {
+            void* probe = nullptr;
+            char label[96] = {};
+            const bool named = device_at(index, &probe) == 0 &&
+                               device_name_of(probe, label, sizeof(label)) == 0;
+            if (named && NamesMatch(label, vk_device)) {
+                return index;
             }
         }
+        return 0;
+    }
+
+    /// (Re)loads NVML when needed and picks the device to read.
+    void Connect() {
+        attempt_ms = SteadyMs();
         unsigned devices = 0;
-        if (count(&devices) != 0 || devices == 0) {
-            return;
+        if ((dll || OpenLibrary()) && device_count(&devices) == 0 && devices > 0) {
+            const unsigned index = (devices > 1 && device_name_of) ? PickDevice(devices) : 0u;
+            void* found = nullptr;
+            device = (device_at(index, &found) == 0) ? found : nullptr;
         }
-        unsigned chosen = 0;
-        if (devices > 1 && device_name) {
-            for (unsigned i = 0; i < devices; ++i) {
-                void* candidate = nullptr;
-                char candidate_name[96] = {};
-                if (handle_by_index(i, &candidate) == 0 &&
-                    device_name(candidate, candidate_name, sizeof(candidate_name)) == 0 &&
-                    SameName(candidate_name, name)) {
-                    chosen = i;
-                    break;
-                }
-            }
-        }
-        void* device = nullptr;
-        handle = handle_by_index(chosen, &device) == 0 ? device : nullptr;
     }
 
-    std::string name;
-    HMODULE lib = nullptr;
-    void* handle = nullptr;
-    int64_t last_try_ns = 0;
-    InitFn init = nullptr;
-    CountFn count = nullptr;
-    HandleFn handle_by_index = nullptr;
-    NameFn device_name = nullptr;
-    TempFn get_temperature = nullptr;
+public:
+    explicit NvmlTemperature(std::string vulkan_device) : vk_device(std::move(vulkan_device)) {
+        Connect();
+    }
+
+    /// Degrees Celsius, or kNoReading.
+    float Read() {
+        // Early in a session the driver may not respond yet; while unconnected, retry every 30 s.
+        const bool connected = dll && device;
+        if (!connected && SteadyMs() - attempt_ms > 30'000) {
+            Connect();
+        }
+        unsigned reading = 0;
+        constexpr int kGpuSensor = 0; // NVML_TEMPERATURE_GPU
+        const bool ok = dll && device && temperature_of &&
+                        temperature_of(device, kGpuSensor, &reading) == 0;
+        const float degrees = static_cast<float>(reading);
+        return (ok && degrees >= -20.0f && degrees <= 150.0f) ? degrees : kNoReading;
+    }
 };
 
-// gow3 24 Oct 2026: the processor's temperature from the ACPI thermal zone (Windows' "Thermal
-// Zone Information" counters; Kelvin, no administrator needed, present on most laptops and
-// desktops). It follows the processor's load but reads a few degrees away from its internal
-// sensor, which Windows exposes only to a kernel driver. No zone: no temperature.
-class CpuTemp {
+// Processor temperature (gow3, 24 Oct 2026) from the ACPI thermal zones that Windows publishes as
+// the "Thermal Zone Information" performance counters: Kelvin, readable without administrator
+// rights, available on most desktops and laptops. The zone tracks the processor's load but sits a
+// few degrees off the on-die sensor, which Windows only exposes to kernel drivers. A machine
+// without any zone gets no CPU temperature.
+class ThermalZoneTemperature {
+    PDH_HQUERY pdh = nullptr;
+    PDH_HCOUNTER zones = nullptr;
+    std::vector<unsigned char> storage;
+
+    /// Some firmware counts in tenths of a kelvin: anything over 1000 is scaled down.
+    static double AsKelvin(double raw) {
+        return raw > 1000.0 ? raw / 10.0 : raw;
+    }
+    /// 200..400 K (about -73..127 C); a value outside is not a real temperature.
+    static bool InRange(double kelvin) {
+        return kelvin >= 200.0 && kelvin <= 400.0;
+    }
+
 public:
-    CpuTemp() {
-        if (PdhOpenQueryW(nullptr, 0, &query) != ERROR_SUCCESS) {
-            query = nullptr;
-            return;
+    ThermalZoneTemperature() {
+        constexpr const wchar_t* kZones = L"\\Thermal Zone Information(*)\\Temperature";
+        PDH_HQUERY opened = nullptr;
+        if (PdhOpenQueryW(nullptr, 0, &opened) == ERROR_SUCCESS) {
+            if (PdhAddEnglishCounterW(opened, kZones, 0, &zones) == ERROR_SUCCESS) {
+                pdh = opened;
+                PdhCollectQueryData(pdh); // first sample; values come from the next collection
+            } else {
+                PdhCloseQuery(opened);
+            }
         }
-        if (PdhAddEnglishCounterW(query, L"\\Thermal Zone Information(*)\\Temperature", 0,
-                                  &counter) != ERROR_SUCCESS) {
-            PdhCloseQuery(query);
-            query = nullptr;
-            return;
-        }
-        PdhCollectQueryData(query);
     }
 
-    float Celsius() {
-        if (!query || PdhCollectQueryData(query) != ERROR_SUCCESS) {
-            return -1.0f;
+    /// The warmest plausible zone in degrees Celsius, or kNoReading.
+    float Read() {
+        if (pdh == nullptr || PdhCollectQueryData(pdh) != ERROR_SUCCESS) {
+            return kNoReading;
         }
-        DWORD size = 0, count = 0;
-        if (PdhGetFormattedCounterArrayW(counter, PDH_FMT_DOUBLE, &size, &count, nullptr) !=
-            PDH_MORE_DATA) {
-            return -1.0f;
+        DWORD bytes = 0, entries = 0;
+        const PDH_STATUS sized =
+            PdhGetFormattedCounterArrayW(zones, PDH_FMT_DOUBLE, &bytes, &entries, nullptr);
+        if (sized != PDH_MORE_DATA) {
+            return kNoReading;
         }
-        buffer.resize(size);
-        auto* items = reinterpret_cast<PDH_FMT_COUNTERVALUE_ITEM_W*>(buffer.data());
-        if (PdhGetFormattedCounterArrayW(counter, PDH_FMT_DOUBLE, &size, &count, items) !=
-            ERROR_SUCCESS) {
-            return -1.0f;
+        storage.resize(bytes);
+        auto* rows = reinterpret_cast<PDH_FMT_COUNTERVALUE_ITEM_W*>(storage.data());
+        const PDH_STATUS filled =
+            PdhGetFormattedCounterArrayW(zones, PDH_FMT_DOUBLE, &bytes, &entries, rows);
+        if (filled != ERROR_SUCCESS) {
+            return kNoReading;
         }
-        double hottest = 0.0;
-        for (DWORD i = 0; i < count; ++i) {
-            if (items[i].FmtValue.CStatus != PDH_CSTATUS_VALID_DATA) {
-                continue;
-            }
-            double kelvin = items[i].FmtValue.doubleValue;
-            if (kelvin > 1000.0) {
-                kelvin /= 10.0; // some firmware reports tenths of a kelvin
-            }
-            // 200-400 K is -73 to 127 C: outside it the counter is not a temperature.
-            if (kelvin >= 200.0 && kelvin <= 400.0 && kelvin > hottest) {
-                hottest = kelvin;
+        double warmest = 0.0;
+        for (DWORD row = 0; row < entries; ++row) {
+            const PDH_FMT_COUNTERVALUE& value = rows[row].FmtValue;
+            const double kelvin = AsKelvin(value.doubleValue);
+            if (value.CStatus == PDH_CSTATUS_VALID_DATA && InRange(kelvin) && kelvin > warmest) {
+                warmest = kelvin;
             }
         }
-        return hottest > 0.0 ? float(hottest - 273.15) : -1.0f;
+        return warmest > 0.0 ? static_cast<float>(warmest - 273.15) : kNoReading;
     }
-
-private:
-    PDH_HQUERY query = nullptr;
-    PDH_HCOUNTER counter = nullptr;
-    std::vector<unsigned char> buffer;
 };
 
 void Run(const Vulkan::Instance* instance) {
     GpuUsage gpu;
-    GpuTemp gpu_temp(std::string(instance->GetModelName()));
-    CpuTemp cpu_temp;
+    NvmlTemperature card_heat{std::string(instance->GetModelName())};
+    ThermalZoneTemperature cpu_heat;
     FILETIME created, ended, kernel, user, now;
     uint64_t last_process = 0, last_wall = 0;
     const unsigned cores = std::max(1u, std::thread::hardware_concurrency());
@@ -355,8 +376,8 @@ void Run(const Vulkan::Instance* instance) {
             s.vram_total_gb = double(instance->GetDeviceMemoryBudgetNow()) / GiB;
         }
         s.gpu_percent = gpu.Percent();
-        s.gpu_temp_c = gpu_temp.Celsius();
-        s.cpu_temp_c = cpu_temp.Celsius();
+        s.gpu_temp_c = card_heat.Read();
+        s.cpu_temp_c = cpu_heat.Read();
         {
             std::scoped_lock lock{mutex};
             latest = std::move(s);

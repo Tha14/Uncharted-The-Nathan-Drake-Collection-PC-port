@@ -1,5 +1,5 @@
-#include "test_environment.h"
 // Performance overlay text and settings (gow3_perf_stats.h, gow3_settings.cpp).
+#include "test_environment.h" // SetTestEnv
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -10,6 +10,8 @@
 #include "gow3_settings.h"
 
 namespace P = Gow3PerfStats;
+// Degree sign in UTF-8 followed by the unit, as the overlay prints temperatures.
+#define DEG_C "\xc2\xb0" "C"
 
 static std::string Read(const char* path) {
     std::ifstream in(path);
@@ -30,19 +32,21 @@ int main() {
     s.upscaler = "FSR 3.1";
     s.gpu_name = "RTX 4070";
     s.gpu_percent = 87.2f;
-    s.gpu_temp_c = 61.4f;
+    s.gpu_temp_c = 61.4f;  // printed as 61
     s.cpu_percent = 34.0f;
-    s.cpu_temp_c = 64.2f;
+    s.cpu_temp_c = 64.2f;  // printed as 64
     s.ram_used_gb = 6.12;
     s.ram_total_gb = 31.9;
     s.vram_used_gb = 5.4;
     s.vram_total_gb = 12.0;
     assert(P::Format(s, P::DefaultItems, true) == "238 FPS   4.2 ms   FSR 3.1");
-    // The card shows as "GPU" and its use carries the temperature (24 Oct 2026).
+    // Since 24 Oct 2026 the GPU line is labelled plain "GPU" (no card name), and each load
+    // figure is followed by its temperature.
     assert(P::Format(s, P::AllItems, false) ==
-           "238 FPS\n4.2 ms\nFSR 3.1\nGPU 87% 61\xc2\xb0" "C\nCPU 34% 64\xc2\xb0" "C\nRAM 6.1 GB\n"
-           "VRAM 5.4 / 12.0 GB");
-    assert(P::Format(s, P::Cpu | P::Vram, true) == "CPU 34% 64\xc2\xb0" "C   VRAM 5.4 / 12.0 GB");
+           "238 FPS\n" "4.2 ms\n" "FSR 3.1\n" "GPU 87% 61" DEG_C "\n" "CPU 34% 64" DEG_C "\n"
+           "RAM 6.1 GB\n" "VRAM 5.4 / 12.0 GB");
+    const std::string cpu_and_vram = P::Format(s, P::Cpu | P::Vram, true);
+    assert(cpu_and_vram == "CPU 34% 64" DEG_C "   VRAM 5.4 / 12.0 GB");
     assert(P::Format(s, 0, true).empty());
 
     P::Sample unknown;
@@ -51,10 +55,11 @@ int main() {
            "Native\nGPU n/a\nCPU n/a\nRAM n/a\nVRAM n/a");
     unknown.ram_used_gb = 2.0;
     assert(P::Format(unknown, P::Ram, true) == "RAM 2.0 GB");
-    // No sensor: the use alone, without a made-up temperature.
-    unknown.gpu_percent = 12.0f;
-    unknown.cpu_percent = 5.0f;
-    assert(P::Format(unknown, P::Gpu | P::Cpu, true) == "GPU 12%   CPU 5%");
+    // A load without a temperature sensor is shown on its own; no temperature is invented.
+    unknown.gpu_percent = 12.0f;  // temperatures keep their unset default
+    unknown.cpu_percent = 5.0f;   // likewise
+    const std::string loads_only = P::Format(unknown, P::Gpu | P::Cpu, true);
+    assert(loads_only == "GPU 12%   CPU 5%");
 
     const char* path = "perf-overlay-test.ini";
     {
@@ -63,7 +68,7 @@ int main() {
                "overlay_cpu=1\noverlay_ram=0\noverlay_vram=1\noverlay_scale=400\noverlay_corner=2\n"
                "overlay_opacity=-5\noverlay_layout=1\nmenu_tab=3\n";
     }
-    SetTestEnv("GOW3_CONFIG", path);
+    SetTestEnv("GOW3_CONFIG", path);  // Load() and Save() use the scratch ini
     auto& v = Gow3Settings::Get();
     assert(v.overlay_items == P::DefaultItems && v.overlay_scale == 100 && v.overlay_corner == 1);
     Gow3Settings::Load();

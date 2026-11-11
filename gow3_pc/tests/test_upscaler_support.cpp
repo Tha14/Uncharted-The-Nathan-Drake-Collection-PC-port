@@ -1,6 +1,6 @@
-#include "test_environment.h"
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Saved FSR 4 choices must be safe before the first rendered frame on older GPUs.
+#include "test_environment.h" // SetTestEnv
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -9,11 +9,11 @@
 
 int main() {
     using namespace Gow3Settings;
-    const char* path = "upscaler-support-test.ini";
-    SetTestEnv("GOW3_CONFIG", path);
-    SetTestEnv("GOW3_UPSCALER", nullptr);
-    SetTestEnv("GOW3_UPSCALE_PRESET", nullptr);
-    SetTestEnv("GOW3_RENDER_RES", nullptr);
+    constexpr const char* path = "upscaler-support-test.ini";
+    SetTestEnv("GOW3_CONFIG", path);  // settings file for Load()/Save()
+    // Clear every override so only the ini and the code under test decide.
+    for (const char* overridden : {"GOW3_UPSCALER", "GOW3_UPSCALE_PRESET", "GOW3_RENDER_RES"})
+        SetTestEnv(overridden, nullptr);
     auto& s = Get();
     s.upscaler = UpscalerTaa;
     s.preset = Performance;
@@ -56,7 +56,7 @@ int main() {
     s.upscaler = UpscalerFsr3;
     s.preset = Performance;
     assert(RenderPreset() == Performance && !ResolutionNeedsRestart());
-    SetTestEnv("GOW3_RENDER_RES", "1706x960");
+    SetTestEnv("GOW3_RENDER_RES", "1706x960");  // the size the guest patches were built for
     assert(RenderPreset() == Quality && ResolutionNeedsRestart());
     s.preset = Quality;
     assert(!ResolutionNeedsRestart());
@@ -71,9 +71,9 @@ int main() {
     s.output_res = (output + 1) % OutputCount;
     assert(ResolutionNeedsRestart());
     s.output_res = output;
-    SetTestEnv("GOW3_RENDER_RES", "");
+    SetTestEnv("GOW3_RENDER_RES", "");  // set but empty: no fixed size
     assert(!FixedRenderSession() && !ResolutionNeedsRestart());
-    SetTestEnv("GOW3_RENDER_RES", nullptr);
+    SetTestEnv("GOW3_RENDER_RES", nullptr);  // leave the environment clean
     std::remove(path);
     std::puts("Upscaler support: saved choices and FSR 3.1 fallback PASS");
 }

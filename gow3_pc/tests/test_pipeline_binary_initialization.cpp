@@ -81,10 +81,11 @@ void TestFallbacks() {
     assert(key_queries == 3 && key.keySize == 0);
 
     SetCache("");
-    assert(!Vulkan::InitializePipelineBinaryCache(device, true, key));
-    assert(key_queries == 3 && key.keySize == 0);
-
-    SetCache("1");
+    // Unset means the default, which is off: no key query happens, so the count stays at 3.
+    const bool on_when_unset = Vulkan::InitializePipelineBinaryCache(device, true, key);
+    assert(!on_when_unset && key_queries == 3);
+    assert(key.keySize == 0);
+    SetCache("1");  // explicitly on for the one path that succeeds
     key_size = VK_MAX_PIPELINE_BINARY_KEY_SIZE_KHR;
     assert(Vulkan::InitializePipelineBinaryCache(device, true, key));
     assert(key_queries == 4 && key.keySize == key_size && key.key[0] == 7);
