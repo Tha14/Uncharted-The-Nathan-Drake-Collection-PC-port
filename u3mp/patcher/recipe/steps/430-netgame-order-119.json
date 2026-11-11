@@ -1,0 +1,30 @@
+{
+ "id": "netgame-order-119",
+ "title": "Netgame table and playlists of overlay net.bin in PS3 1.19 order from the player's DATA2 net18.bin, so PC netgame indices equal PS3's (netgame-order/netgame_order.py)",
+ "kind": "script",
+ "job": "netgame-order",
+ "with_jobs": [
+  "dctools"
+ ],
+ "family": "overlay-r3/dc1",
+ "needs": [
+  "ps3_data2"
+ ],
+ "commands": [
+  [
+   "{{PYTHON}}",
+   "{{JOB}}/netgame_order.py",
+   "--apply"
+  ]
+ ],
+ "writes": [
+  "work/overlay-r3/u3data/build/main/dc1/ps4/net.bin",
+  "work/overlay-r3/u3data/build/main/dc1/ps4/modules.bin"
+ ],
+ "must_write": false,
+ "reference_check": false,
+ "status": "needs-converted-base",
+ "applied": "2026-11-11 (tested on a copy of an import)",
+ "notes": "Runs after every other net.bin step. The table becomes exactly net18.bin's (what an online / RPCN PS3 1.19 player loads; 271 netgames for net18 2026-11-07): PC entries of the same name are copied whole (PS4 sub-structures and earlier fixes kept) and get the converted PS3 scalar values (PS3 rules; Hardcore stays Hardcore), missing ones are converted like lab_reg.py, PC-only ones (old PS4-retail Hardcore, the 10 lab-custom-* TDM, old Lab Dodgeball, ...) are dropped. Playlists in PS3 order from net18 (PC content-pack word kept). A PS3 map the map list lacks (0x416ad15b lab-multi-35) gets an entry with +0x94 = 1 (not listed; no paks). DCEdit append-only; the net size word of modules.bin is found by module name. Idempotent: exits 0 when ng119.check finds no difference to net18. Logs net18's sha256; log and backups in work/backup-netgame-order. classic.py and apply_maps.py leave a table in this order alone when they run again. Indices 256..270 need the helper's u16 Custom Game index (helper, not this step). reference_check false: manifest.tsv predates the step.",
+ "recipe_version_added": "1.14.0"
+}

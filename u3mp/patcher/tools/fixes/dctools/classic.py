@@ -7,14 +7,20 @@ settings +0x64 0x63e35446 -> 0x1ad223b4, +0x6c 1 -> 0 (boosters on). Same size, 
 The 02:50 version (recovered/dctools/classic.py) lacked the +0x68/+0x6c lines; the 03:33 edit is in the
 transcript (main line 8002) and reproduces work/backup-skins/net.bin from work/backup-classic/net.bin.
 Recipe 1.1: works on the current net.bin (backup once to work/backup-classic); exits 0 with
-'already applied' when no Classic netgame is in the old form. Rerun after any net.bin rebuild."""
+'already applied' when no Classic netgame is in the old form. Rerun after any net.bin rebuild.
+Recipe 1.14: also exits 0 when the table is in PS3 1.19 order (step netgame-order-119, dctools/ng119.py): its
+Classic / Hardcore netgames carry the PS3 values (old-form Hardcore stays Hardcore), so nothing here applies."""
 import os, shutil, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import DC
 from dcedit import DCEdit
+import ng119
 ROOT = "{{PROJECT}}/"
 R = ROOT + "work/overlay-r3/u3data/build/main/dc1/ps4/"; BK = ROOT + "work/backup-classic/"
+NET18 = "{{PS3_DATA2}}/net18.bin"
 NET = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith('--') else R + "net.bin"
+if ng119.is_ps3_order(NET, NET18, DC):
+    print('already applied: the netgame table is in PS3 1.19 order (netgame-order-119), Classic values are PS3\'s'); sys.exit(0)
 a = DC(NET)
 q = a.bysid[0x3b9a067d][1]; ar = a.ptr(q + 8); N = a.u32(q)
 old = [ar + i * 0xd0 for i in range(N) if a.u32(ar + i * 0xd0 + 0xc) == 0x13 and a.u32(ar + i * 0xd0 + 0x2c) == 0x8cf8e1cc]

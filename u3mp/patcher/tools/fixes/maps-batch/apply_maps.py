@@ -10,6 +10,9 @@ Starts from the CURRENT overlay files (append-only). Originals go to work/backup
 Needs net18.bin (PS3 records). Stdlib only: lib/ holds copies of dc.py, dclib.py, common.py, dcedit.py, ndpak.py.
 Refuses to run twice. If net.bin is later rebuilt (lab_reg.py, classic.py, sk7.py start from their own backups),
 this result is lost: restore from backup or run this script again afterwards.
+Recipe 1.14: a table in PS3 1.19 order (step netgame-order-119, dctools/ng119.py) already has these netgames and
+playlists as on PS3: --dc-only exits 0 'already applied', and verify() checks it against net18.bin instead of the
+PC-order rules (<= 256 netgames, unique names, 24 Classic, Lab playlist 14).
 """
 import argparse, json, os, re, shutil, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -17,6 +20,10 @@ sys.path[0:0] = [os.path.join(HERE, 'lib'), os.path.join(HERE, '..', 'dctools')]
 from common import DC, sid
 from dcedit import DCEdit
 from ndpak import Pak
+try:
+    import ng119                    # dctools job (recipe 1.14); missing in the old lib/ layout
+except ImportError:
+    ng119 = None
 WORK = "{{PROJECT}}/work/"
 OVER = WORK + "overlay-r3/u3data/build/main/"
 RETAIL = "{{PS4}}/u3data/build/main/"
@@ -167,8 +174,14 @@ def exists(root, rel):
     return any(os.path.exists(d + rel) for d in (root, OVER, RETAIL))
 
 
+def ps3_order(net):
+    """the netgame table is in PS3 1.19 order (made by netgame-order-119): leave it alone"""
+    return ng119 is not None and ng119.is_ps3_order(net, NET18, DC)
+
+
 def verify(root, base=None, patched=()):
     err = []; net = root + 'dc1/ps4/net.bin'; c = DC(net); d = c.d
+    ps3 = ps3_order(net)
     size = struct.unpack_from('<Q', open(root + 'dc1/ps4/modules.bin', 'rb').read(), NET_SIZE_OFF)[0]
     if size != len(d): err.append('modules.bin net size %d != %d' % (size, len(d)))
     n = struct.unpack_from('<I', d, c.reloc)[0]
@@ -177,13 +190,18 @@ def verify(root, base=None, patched=()):
         t = c.ptr(p)
         if not 0 < t < c.reloc: err.append('pointer %x -> %x' % (p, t)); break
     _, ng, ag = table(c, NG); ids = [c.u32(ag + i * 0xd0) for i in range(ng)]
-    if ng > 256: err.append('netgames > 256')
-    if len(ids) != len(set(ids)): err.append('duplicate netgame ids')
     cl = [i for i in range(ng) if c.u32(ag + i * 0xd0 + 0xc) == 0x13]
-    if len(cl) != 24: err.append('classic count %d' % len(cl))
-    for i in cl:
-        g = ag + i * 0xd0
-        if (c.u32(g + 0x2c), c.u32(g + 0x64), c.u32(g + 0x68), c.u32(g + 0x6c)) != (0xd932420c, 0x1ad223b4, 1, 0): err.append('classic fields %08x' % c.u32(g))
+    if ps3:
+        # PS3 1.19 order: 271 netgames, a duplicate name (ba32a788), new- and old-form Classic, PS3 playlists
+        if os.path.isfile(NET18):
+            err += ['PS3 order: ' + x for x in ng119.check(c, DC(NET18))]
+    else:
+        if ng > 256: err.append('netgames > 256')
+        if len(ids) != len(set(ids)): err.append('duplicate netgame ids')
+        if len(cl) != 24: err.append('classic count %d' % len(cl))
+        for i in cl:
+            g = ag + i * 0xd0
+            if (c.u32(g + 0x2c), c.u32(g + 0x64), c.u32(g + 0x68), c.u32(g + 0x6c)) != (0xd932420c, 0x1ad223b4, 1, 0): err.append('classic fields %08x' % c.u32(g))
     for s, mp in LAB_MODES:
         if s not in ids or c.u32(ag + ids.index(s) * 0xd0 + 4) != mp: err.append('mode %08x' % s)
     _, np, ap = table(c, PL)
@@ -191,8 +209,8 @@ def verify(root, base=None, patched=()):
         m = ap + i * 0x68; l = c.ptr(m + 0x30)
         for k in range(c.u32(l)):
             if c.u32(c.ptr(l + 8) + k * 8) not in ids: err.append('playlist %08x -> unknown netgame' % c.u32(m))
-        if c.u32(m) == PL_CLASSIC and c.u32(l) != 24: err.append('Classic playlist %d' % c.u32(l))
-        if c.u32(m) == PL_LAB and c.u32(l) != 14: err.append('Lab playlist %d' % c.u32(l))
+        if not ps3 and c.u32(m) == PL_CLASSIC and c.u32(l) != 24: err.append('Classic playlist %d' % c.u32(l))
+        if not ps3 and c.u32(m) == PL_LAB and c.u32(l) != 14: err.append('Lab playlist %d' % c.u32(l))
     types = {}
     for s in ids: types.setdefault(c.u32(ag + ids.index(s) * 0xd0 + 0xc), []).append(s)
     print('netgames per type over the 32 custom-list slots:', {hex(k): len(v) for k, v in types.items() if len(v) > 32})
@@ -246,6 +264,8 @@ def main():
     if a.verify:
         sys.exit(0 if verify(root) else 1)
     # recipe 1.1: idempotent; --dc-only does the net.bin / modules.bin part alone
+    if a.dc_only and ps3_order(root + 'dc1/ps4/net.bin'):
+        print('already applied: the netgame table is in PS3 1.19 order (netgame-order-119)'); sys.exit(0)
     c = DC(root + 'dc1/ps4/net.bin'); _, n4, ar4 = table(c, NG)
     have_dc = any(c.u32(ar4 + i * 0xd0) == CLASSIC_NEW for i in range(n4))
     have_txt = 'level-name lab34-stage\r\n' in open(root + 'pak23_ps4.txt', 'rb').read().decode('latin1')

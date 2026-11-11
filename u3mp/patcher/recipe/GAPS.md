@@ -226,3 +226,24 @@ end to end (13 directly, air-multi-stage and cha-multi-stage after map-colors2),
 failures in this selection: wall-emblem (needs the rendered actor33 job of convert-actors-r3; verified separately on the recorded
 base: air-multi.pak -> backup-mapcolor state, ingame12 = overlay), shade-npc-paks (needs overlay-r2), excess-wall (air-multi-strip
 still equivalent). r3 run time 54 min with the machine at 100 % CPU.
+
+## netgame-order-119 (recipe 1.14.0, 2026-11-11)
+
+Step `netgame-order-119` (last in ORDER.txt) rebuilds the overlay net.bin netgame table and playlists in the order of
+the player's DATA2 `net18.bin`, so a PC netgame index is the PS3 index (crossplay with RPCS3 / PS3). Tested on a copy
+of an import (net18 2026-11-07, sha256 cea47307...): 247 -> 271 netgames (221 copied from the PC table with PS3
+values, 50 converted, 26 PC-only dropped incl. the 10 `lab-custom-*`), map 0x416ad15b lab-multi-35 added with +0x94 = 1,
+12 playlists; net.bin 828 836 -> 911 321 bytes; a second run prints "already applied"; the earlier net.bin steps rerun
+on the result change nothing. What stays open:
+
+* `manifest.tsv` predates the step: overlay-r3 `net.bin` and `modules.bin` no longer equal their reference hashes
+  (the step has `reference_check: false`). After the step `dc-recipes` therefore never finds those two files at the
+  reference state, so a later recipe update rebuilds them from the recipes and reruns the net.bin / modules.bin chain
+  (lab-registration .. coop-voice-all, then this step). Correct, a few seconds of DC work plus the steps those touch
+  (lab_reg rewrites pak23_ps4.txt, so registry-final reruns too). It already happens for players whose net18.bin is
+  not the reference version. Making the new files the reference would need a manifest per net18 version.
+* The result depends on net18.bin: the server updates it in place (net18-versions.json). With a new version the step
+  rebuilds from its own output (append-only, about +60 KB per rebuild; verified with the 10-27 copy).
+* Indices 256..270 (13 Shade Survival, Co-op Adventure Fort, Lab-37 TDM) exist only once the helper reads the Custom
+  Game record index as u16 (helper m004 and the PS4 natives that read the u8 lists; not a recipe matter).
+* LAN: a PS3 on LAN probably keeps patch-18's dc1/net.bin order (differs from net18 from index 94 on); not handled.

@@ -101,11 +101,17 @@ converted pak run once the conversion exists.
    `map-colors2`, `actor-materials`, `coop-desc-fix`, `excess-wall`, `hat-colour`, `airport-igc2`,
    `enemy-stall-option-defaults`, `emblem-cap3`, `coop-audit-option-defaults`, `shade-npc-paks`, `coop-voice-all`,
    `london-fade`, `airport-igc3`, `vram-gap` (* = dctools steps: restored 2026-11-05, verified sha256-identical from their backups with `tools/dcconv/verify_dctools_chain.py`; maps-batch is now `maps-batch-dc` + `maps-batch-files`, and `eula-menu-box` follows `rpcn-menu-page`)
+5. `registry-final` (pak23_ps4.txt of the four overlays, line provenance), then `netgame-order-119` (recipe 1.14.0,
+   `tools/fixes/netgame-order/netgame_order.py`, with_jobs dctools): the overlay net.bin netgame table and playlists
+   rebuilt in the order of the player's DATA2 `net18.bin` (exactly PS3's netgames: count, order, names, maps, types;
+   PS3 scalar values; PC-only netgames dropped; a PS3 map the PC lacks added with +0x94 = 1), modules.bin net size
+   word by module name. Last, after every other net.bin step; those steps exit 0 on a table in this order
+   (`dctools/ng119.py`: classic.py and apply_maps.py check it, the others' own guards already hold).
 
 Per-file order where several fixes touch one file (from the transcripts): `net.bin`: netfix -> lab_reg ->
-elim_pic -> classic -> skins -> apply_maps -> hair_key -> coop_desc_fix -> coop_vox (rerun `classic` after
-any net.bin rebuild). `modules.bin`: lab_reg -> elim_pic -> skins size table -> apply_maps -> mk_rpcn ->
-apply_vo -> coop_vox. `air-multi.pak`: air_emblem -> mapcolor -> mapcolor2 -> london. `air-multi-strip.pak`:
+elim_pic -> classic -> skins -> apply_maps -> hair_key -> coop_desc_fix -> coop_vox -> netgame_order (rerun
+`classic` after any net.bin rebuild; netgame_order last). `modules.bin`: lab_reg -> elim_pic -> skins size table ->
+apply_maps -> mk_rpcn -> apply_vo -> coop_vox -> netgame_order (net size word). `air-multi.pak`: air_emblem -> mapcolor -> mapcolor2 -> london. `air-multi-strip.pak`:
 excess -> london -> vram_gap. `facility-multi.pak`: collapse -> london. `ss-multiplayer/*.bin`: ssfix ->
 option_defaults -> option_defaults_2. `vox*.bin`: apply_vo -> coop_vox.
 
