@@ -419,6 +419,9 @@ def _tree_fp(folder):
     return _TREE_FP[folder]
 
 
+SHARED_FIX_MODULES = ('apply_skins.py', 'dc.py', 'ins.py', 'mp1.py', 'txt.py')   # sorted, as the old listdir order
+
+
 def step_fingerprint(s):
     """What a step runs: its step file and, for script steps, its fix job folder(s) and the shared helper modules of
     tools/fixes; for copy steps, its list.  A recorded step whose fingerprint differs runs again (an update)."""
@@ -426,9 +429,13 @@ def step_fingerprint(s):
     if s.get('kind') == 'script':
         for j in [s['job']] + list(s.get('with_jobs', [])):
             h.update(_tree_fp(os.path.join(TOOLS, 'fixes', j)).encode())
+        # the shared helper modules at the top of tools/fixes, by name: any other file there (a package's private
+        # tools/fixes/mk_rpcn.py until 0.10.84) must not count, or adding / removing it reruns every script step (it
+        # made the 0.10.84 update rerun the whole import). Same value as the old "every top-level .py" rule whenever
+        # only these files are there.
         fx = os.path.join(TOOLS, 'fixes')
-        for f in sorted(os.listdir(fx)) if os.path.isdir(fx) else []:
-            if f.endswith('.py') and os.path.isfile(os.path.join(fx, f)):
+        for f in SHARED_FIX_MODULES:
+            if os.path.isfile(os.path.join(fx, f)):
                 h.update(hashlib.sha256(open(os.path.join(fx, f), 'rb').read().replace(b'\r\n', b'\n')).digest())
     elif s.get('list'):
         p = os.path.join(LISTS, s['list'])
