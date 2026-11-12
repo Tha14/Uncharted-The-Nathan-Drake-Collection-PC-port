@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# tools/fetch_aa_files.sh [dlss] [fsr4] - downloads what DLAA and FSR 4 Native AA need (in-game menu
-# -> Image -> Anti-aliasing); neither is kept in this repository. Without arguments: both.
+# tools/fetch_aa_files.sh [dlss] - downloads what DLAA needs (in-game menu -> Image -> Anti-aliasing); it is not kept
+# in this repository.
 #
 #   dlss  NVIDIA's DLSS SDK 310.9.16 (github.com/NVIDIA/DLSS; its LICENSE.txt applies): the headers,
 #         nvsdk_ngx_s.lib and nvngx_dlss.dll go to downloads/dlss-sdk-310.9.16. Visual Studio's C++
 #         tools (2022 or 2026, any edition or the Build Tools) then build gow3_pc/gpu/dlss_bridge,
 #         and gow3_dlss.dll and nvngx_dlss.dll are put in gow3_pc/out next to the runtime (~63 MB).
-#   fsr4  the FSR 4 v07 INT8 models (from AMD's MIT-licensed FidelityFX source, as built by Q2RTX,
-#         github.com/FireBurn/Q2RTX) into gow3_pc/fsr4_shaders: native AA and the four upscaling
-#         presets, 1080 and 2160 tiers (~6 MB each).
+# The FSR 4 models are no longer fetched or shipped (2026-11-12): they were built by a third party from AMD source
+# that AMD published by mistake and withdrew, so their license is disputed. The runtime still uses them when a player
+# puts them in gow3_pc/fsr4_shaders; otherwise the menu leaves FSR 4 out.
 # A file that is already there is not downloaded again.
 set -euo pipefail
 cd -- "$(dirname -- "$0")/.."
-parts=${*:-dlss fsr4}
+parts=${*:-dlss}
 
 download() {   # download <url> <file>, by way of <file>.part so a broken download never counts
     local url=$1 file=$2
@@ -80,33 +80,5 @@ get_dlss() {
     echo "DLSS: gow3_pc/out/gow3_dlss.dll and nvngx_dlss.dll ($version)"
 }
 
-get_fsr4() {
-    local from=https://raw.githubusercontent.com/FireBurn/Q2RTX/ae8d628fae208813172446d1e49ed94150b04658/baseq2/fsr4_shaders
-    local into=gow3_pc/fsr4_shaders
-    local prefix=fsr4_model_v07_i8_
-    local names=(LICENSE-FSR4-v07.txt rcas.spv fsr4_rcas.spv spd_auto_exposure.spv "${prefix}native_pre.spv"
-                 "${prefix}native_post.spv")
-    # Native AA plus the upscaling models, picked by the render scale (1.5 Quality, 1.7 Balanced,
-    # 2 Performance, beyond that Ultra Performance).
-    local preset tier pass
-    local presets=(native quality balanced performance ultraperf)
-    for preset in "${presets[@]}"; do
-        names+=("$prefix${preset}_initializers.bin" "$prefix${preset}_pre_weights.bin"
-                "$prefix${preset}_shader_manifest.json")
-        for tier in 1080 2160; do
-            names+=("$prefix${preset}_${tier}_pre.spv" "$prefix${preset}_${tier}_post.spv")
-            for ((pass = 1; pass <= 12; pass++)); do
-                names+=("$prefix${preset}_${tier}_pass$pass.spv")
-            done
-        done
-    done  # presets
-    local name
-    for name in "${names[@]}"; do
-        download "$from/$name" "$into/$name"
-    done
-    echo "FSR 4: ${#names[@]} files in $into"
-}
-
 [[ $parts == *dlss* ]] && get_dlss
-[[ $parts == *fsr4* ]] && get_fsr4
 exit 0

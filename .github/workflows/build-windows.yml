@@ -77,7 +77,7 @@ jobs:
           export PKG_CONFIG_PATH=$small_ffmpeg_pc
           gow3_pc/build.sh
 
-      # DLAA (the DLSS SDK's files, the bridge built with the runner's MSVC) and the FSR 4 model: optional, the
+      # DLAA (the DLSS SDK's files, the bridge built with the runner's MSVC): optional, the
       # package then offers TAA and FSR 3.1 only.
       - name: Anti-aliasing files
         continue-on-error: true

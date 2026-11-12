@@ -1197,10 +1197,12 @@ bool act_advanced(const State &state, const std::string &id, const std::string &
 // ------------------------------------------------------------------------------------------------ tools
 
 // Attribution for the upscaling / anti-aliasing tech; the DLSS license requires the NVIDIA notice.
-const char *const CREDITS = "Credits: DLSS and DLAA are powered by NVIDIA DLSS technology; NVIDIA, RTX and DLSS are "
-                            "trademarks of NVIDIA Corporation. FSR 3.1 and FSR 4 are AMD FidelityFX Super "
-                            "Resolution, made by AMD. The camera motion data used for anti-aliasing follows "
-                            "SuperMedo's Uncharted port.";
+const char *const CREDITS = "An unofficial, non-commercial fan project, not affiliated with or endorsed by Sony Interactive "
+                            "Entertainment, Naughty Dog or Bluepoint Games. Uncharted is a trademark of Sony Interactive "
+                            "Entertainment LLC; PlayStation, PS3 and PS4 are trademarks of Sony Interactive Entertainment Inc. "
+                            "Credits: DLSS and DLAA are powered by NVIDIA DLSS technology; NVIDIA, RTX and DLSS are "
+                            "trademarks of NVIDIA Corporation. FSR 3.1 is AMD FidelityFX Super Resolution, made by AMD. The "
+                            "camera motion data used for anti-aliasing follows SuperMedo's Uncharted port.";
 
 // TOOLS' buttons: the launcher action each one runs (the Python side's calls(), by name), and its label
 struct ToolButton { const char *action, *label; };

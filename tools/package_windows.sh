@@ -5,7 +5,7 @@
 # What the package holds:
 #   Uncharted Launcher.exe   what players start (tools/windows_starter/starter.cpp)
 #   launcher-qt\             the launcher's window (Qt 6), launcher\native\ its core and the game starter
-#   gow3_pc\                 the game runtime with its DLLs, its scripts and the FSR 4 models
+#   gow3_pc\                 the game runtime with its DLLs and its scripts
 #   u2mp\, u3mp\             the multiplayer importers (Python scripts, tables, the helper builds, ffmpeg, objdump)
 #   python\                  the Python the importers run with (Pillow, numpy when installed)
 #   tools\                   the update installer and the base game's file list
@@ -249,7 +249,7 @@ python_for_imports() {
     echo "Python from $py_home"
 }
 
-aa_files() {   # DLAA and FSR 4, when tools/fetch_aa_files.sh fetched them (else the in-game menu leaves them out)
+aa_files() {   # DLAA, when tools/fetch_aa_files.sh fetched it (else the in-game menu leaves it out); FSR 4 models: never shipped
     if [[ -f gow3_pc/out/gow3_dlss.dll && -f gow3_pc/out/nvngx_dlss.dll ]]; then
         cp gow3_pc/out/gow3_dlss.dll gow3_pc/out/nvngx_dlss.dll "$out/gow3_pc/out/"
         local license=${NVIDIA_DLSS_LICENSE:-} f
@@ -260,12 +260,6 @@ aa_files() {   # DLAA and FSR 4, when tools/fetch_aa_files.sh fetched them (else
         mkdir -p "$lic/nvidia-dlss" "$lic/gow3-dlss-bridge"
         cp "$license" "$lic/nvidia-dlss/LICENSE.txt"
         cp gow3_pc/gpu/dlss_bridge/LICENSE.txt "$lic/gow3-dlss-bridge/"
-    fi
-    local fsr4=gow3_pc/fsr4_shaders
-    if [[ -f $fsr4/fsr4_model_v07_i8_native_1080_pre.spv ]]; then
-        mkdir -p "$out/$fsr4" "$lic/fsr4"
-        cp "$fsr4"/LICENSE-FSR4-v07.txt "$fsr4"/*.spv "$fsr4"/*.bin "$fsr4"/*.json "$out/$fsr4/"
-        cp "$fsr4"/LICENSE-FSR4-v07.txt "$lic/fsr4/"
     fi
 }
 

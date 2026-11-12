@@ -71,8 +71,7 @@ Credits
   (https://github.com/bc160201983/Uncharted-The-Nathan-Drake-Collection-PC-port).
 - DLAA uses NVIDIA DLSS technology (DLSS SDK 310.9.16). NVIDIA, RTX and DLSS are trademarks of
   NVIDIA Corporation. NVIDIA's license for nvngx_dlss.dll: licenses\nvidia-dlss\LICENSE.txt.
-- AMD FidelityFX Super Resolution (FSR 1, FSR 3.1, FSR 4) by AMD; the FSR 4 model as built by
-  Q2RTX from AMD's MIT-licensed source.
+- AMD FidelityFX Super Resolution (FSR 1, FSR 3.1) by AMD.
 - Camera motion for anti-aliasing in Uncharted follows SuperMedo's Uncharted port.
 - The runtime comes from the gow3_pc project and the shadPS4 video core.
 

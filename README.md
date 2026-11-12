@@ -130,8 +130,6 @@ follows [CONTRIBUTING.md](CONTRIBUTING.md) and is licensed under the GNU GPL v2 
   under NVIDIA's license, in `licenses/nvidia-dlss`) through the DLSS bridge adapted from
   [IFreemz/shadPS4-Bloodborne-DLSS-FSR](https://github.com/IFreemz/shadPS4-Bloodborne-DLSS-FSR) (MIT).
   NVIDIA, RTX and DLSS are trademarks of NVIDIA Corporation.
-- AMD FSR 4: the v07 INT8 model as built by [Q2RTX](https://github.com/FireBurn/Q2RTX) from AMD's
-  MIT-licensed FidelityFX SDK source.
 - Third-party code: FSR (AMD), imgui, magic_enum, miniz, xbyak, LibAtrac9, FFmpeg, SDL3,
   [Qt 6](https://www.qt.io) (LGPL v3, unmodified shared libraries), [Python](https://www.python.org)
   (PSF) with [Pillow](https://python-pillow.org) (HPND) and [NumPy](https://numpy.org) (BSD),

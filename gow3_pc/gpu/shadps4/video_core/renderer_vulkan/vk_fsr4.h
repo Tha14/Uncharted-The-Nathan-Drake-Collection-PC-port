@@ -4,7 +4,8 @@
 // motion vectors in render pixels (previous - current) and the jitter offset.
 //
 // The model is per preset (native, quality, balanced, performance, ultraperf) and per output
-// tier; its SPIR-V passes and weights come from tools/fetch_fsr4_assets.sh (GOW3_FSR4_DIR overrides
+// tier; its SPIR-V passes and weights are not shipped (2026-11-12, disputed license): a player who has them puts
+// them in fsr4_shaders (GOW3_FSR4_DIR overrides
 // the fsr4_shaders directory). A preset change rebuilds the model graph.
 
 #pragma once
@@ -23,7 +24,7 @@ class Fsr4Upscaler {
 public:
     Fsr4Upscaler(const Instance& instance, Scheduler& scheduler);
     ~Fsr4Upscaler();
-    /// gow3: the FSR 4 v07 native model (tools/fetch_fsr4_assets.sh) is installed; the menu
+    /// gow3: the FSR 4 v07 native model is installed (not shipped); the menu
     /// offers FSR 4 only then.
     static bool AssetsPresent();
 
