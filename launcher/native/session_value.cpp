@@ -2,8 +2,8 @@
 //
 // To talk to a session server the multiplayer helper needs 16 bytes that are part of the PS3 Uncharted 3 1.19
 // executable. No release of this project carries them. They are taken here, on the player's PC, from the player's own
-// decrypted EBOOT.elf, and kept as 32 hex digits in <user dir>\u3-session.key, which the helper reads when the game
-// starts. This file holds only where the bytes are in that EBOOT and their SHA-256, never the bytes.
+// decrypted EBOOT.elf, and kept as 32 hex digits in <user dir>\data\u3-session.key (the game's /data), which the helper
+// reads when the game starts. This file holds only where the bytes are in that EBOOT and their SHA-256, never the bytes.
 //
 // Players who set the multiplayer up with an earlier release and no longer have the EBOOT where the launcher knows it
 // still have the bytes on their PC: the multiplayer image that release linked for them contains them. So when no EBOOT
@@ -138,12 +138,14 @@ bool write_value(const std::wstring &file, const uint8_t *value) {
 
 extern "C" {
 
-// Makes sure <user_dir>\u3-session.key holds the value. `eboots`: paths of decrypted EBOOT.elf candidates, one per
-// line; `image`: the player's current multiplayer image (may be empty). Returns 1 the file was already right, 2 written
-// from an EBOOT, 3 written from the image, 0 the value was found nowhere, -1 it was found and the file can't be written.
-UN_API int un_u3_session_value(const wchar_t *user_dir, const wchar_t *eboots, const wchar_t *image) {
-    if (!user_dir || !*user_dir) return 0;
-    std::wstring file = user_dir;
+// Makes sure <data_dir>\u3-session.key holds the value (data_dir: the game's /data folder, created when missing).
+// `eboots`: paths of decrypted EBOOT.elf candidates, one per line; `image`: the player's current multiplayer image (may
+// be empty). Returns 1 the file was already right, 2 written from an EBOOT, 3 written from the image, 0 the value was
+// found nowhere, -1 it was found and the file can't be written.
+UN_API int un_u3_session_value(const wchar_t *data_dir, const wchar_t *eboots, const wchar_t *image) {
+    if (!data_dir || !*data_dir) return 0;
+    CreateDirectoryW(data_dir, nullptr);   // a player who never started the multiplayer has no data folder yet
+    std::wstring file = data_dir;
     if (file.back() != L'\\' && file.back() != L'/') file += L'\\';
     file += L"u3-session.key";
     if (file_has_it(file)) return 1;

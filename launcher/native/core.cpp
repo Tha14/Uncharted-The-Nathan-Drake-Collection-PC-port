@@ -42,7 +42,7 @@ UN_API int un_controls(const char *what, const char *in_json, char *out, int cap
 UN_API int un_gpu_recommendation(const wchar_t *logs, char *out, int cap);
 UN_API int un_gpu_query(const char *what, const char *name, int integrated, char *out, int cap);
 UN_API int un_play_env(const char *config_json, const wchar_t *user_dir, char *out, int cap);
-UN_API int un_u3_session_value(const wchar_t *user_dir, const wchar_t *eboots, const wchar_t *image);
+UN_API int un_u3_session_value(const wchar_t *data_dir, const wchar_t *eboots, const wchar_t *image);
 UN_API int un_play_start(const char *request_json, char *out, int cap);
 UN_API int un_play_poll(char *out, int cap);
 UN_API int un_play_stop(void);
@@ -1691,15 +1691,15 @@ const Value *game_by_exe(const std::string &exe) {
     return nullptr;
 }
 
-// The helper's session value (session_value.cpp): kept in the user folder, taken from the player's own EBOOT.elf, or
-// from the multiplayer image an earlier release linked on this PC. Called at start (before an update can replace that
-// image) and before every game start.
+// The helper's session value (session_value.cpp): kept in the game's data folder (<user dir>\data, the game's /data),
+// taken from the player's own EBOOT.elf, or from the multiplayer image an earlier release linked on this PC. Called at
+// start (before an update can replace that image) and before every game start.
 void u3_session_value() {
     const Value s = u3_state();
     const std::string eboots = text(g.config, "u3mp_ps3_elf") + "\n" + text(s, "ps3_elf") + "\n" +
                                join(join(join(u3_data(), "ps3-kept"), "elf"), "EBOOT.elf");
     const Value *image = s.get("image");
-    un_u3_session_value(wide(g.user_dir).c_str(), wide(eboots).c_str(),
+    un_u3_session_value(wide(join(g.user_dir, "data")).c_str(), wide(eboots).c_str(),
                         wide(image && image->is_object() ? text(*image, "path") : "").c_str());
 }
 
