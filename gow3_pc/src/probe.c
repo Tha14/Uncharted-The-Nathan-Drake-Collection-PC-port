@@ -8,6 +8,7 @@
 #include <inttypes.h>
 #include "runtime.h"
 #include "u2mp/u2mp.h"
+#include "u3fix/u3fix.h"
 #include "cpu_check.h"
 #include "orb_hook.h"
 #include "cheat_hook.h"
@@ -1183,73 +1184,6 @@ static void install_u3_anim_guard(Segment *segments, uint64_t count, uint64_t si
     if (install_jump(at, LENGTH, stub))
         printf("Uncharted 3: menu character animation guard at %#llx\n", (unsigned long long)at);
 }
-/* Uncharted 3 1.02, 12 Nov 2026: the particle renderer's job check (particle-renderer.cpp:719, image 0xeb9ca0,
- * AssertGameJobsNotRunning) asserts that the five particle job counters it is given (array of counter objects, value
- * at +0x20: SetupPreupdate first) are 0. On PS4 those jobs are always done by then. On a slower PC a SetupPreupdate job
- * was still running: the assertion trap is stepped over, the renderer marks its jobs finished and the next frame
- * starts new ones on top (1, then 2 jobs still running), and the game froze seconds later (a co-op host, 2026-11-11).
- * The check now first waits for those counters to reach 0, as the frame always had them on PS4 (at most 1 s, so a
- * job that never ends still leaves the game where it was before). Found by its bytes. */
-static uint64_t u3_pjobs_waits, u3_pjobs_timeouts;
-static ABI void u3_particle_jobs_wait(uint64_t **counters) {
-    if (!counters) return;
-    int busy = 0;
-    for (int i = 0; i < 5; i++)
-        if (counters[i] && __atomic_load_n(&counters[i][4], __ATOMIC_ACQUIRE)) busy = 1;   /* +0x20 */
-    if (!busy) return;
-#ifdef _WIN32
-    const ULONGLONG start = GetTickCount64();
-#endif
-    unsigned spins = 0, waited_ms = 0;
-    for (;;) {
-        busy = 0;
-        for (int i = 0; i < 5; i++)
-            if (counters[i] && __atomic_load_n(&counters[i][4], __ATOMIC_ACQUIRE)) busy = 1;
-        if (!busy) break;
-#ifdef _WIN32
-        waited_ms = (unsigned)(GetTickCount64() - start);
-        if (waited_ms >= 1000) break;
-        if (++spins < 200) SwitchToThread(); else Sleep(1);
-#else
-        if (++spins >= 20000) break;   /* about 1 s */
-        usleep(50);
-#endif
-    }
-    const uint64_t n = __atomic_add_fetch(&u3_pjobs_waits, 1, __ATOMIC_RELAXED);
-    if (busy) {
-        const uint64_t t = __atomic_add_fetch(&u3_pjobs_timeouts, 1, __ATOMIC_RELAXED);
-        if (t <= 5 || t % 100 == 0)
-            printf("Uncharted 3: particle jobs still running after 1 s at the renderer's check (time %llu); the game goes on\n",
-                   (unsigned long long)t);
-    } else if (n <= 5 || n % 500 == 0) {
-        printf("Uncharted 3: particle jobs still running at the renderer's check: waited %u ms for them (time %llu)\n",
-               waited_ms, (unsigned long long)n);
-    }
-}
-static void install_u3_particle_jobs_wait(Segment *segments, uint64_t count, uint64_t size) {
-    static const Gow3Signature site = {"55 48 89 e5 41 57 41 56 41 55 41 54 53 50 48 8b 07 48 8b 70 20 48 8b 47 08 4c 8b 68 20 "
-                                       "48 8b 47 10 4c 8b 60 20 48 8b 47 18 4c 8b 78 20 48 8b 47 20 4c 8b 70 20 48 85 f6", 0};
-    enum { PROLOGUE = 6 };   /* push rbp; mov rbp,rsp; push r15 */
-    const uint64_t at = gow3_signature_find(image, size, &site);
-    if (at == UINT64_MAX || !mapped(segments, count, at, PROLOGUE)) return;
-    unsigned char *stub = allocate_near_image(page_size);
-    if (!stub) return;
-    /* entry rsp = 8 mod 16: push rdi makes the call aligned; the handler (sysv) keeps rbx/rbp/r12-r15, the check's only
-     * input is rdi (restored); then the replaced prologue and back */
-    unsigned n = 0;
-    stub[n++] = 0x57;                                                         /* push rdi */
-    const uint64_t handler = (uint64_t)(uintptr_t)u3_particle_jobs_wait;
-    stub[n++] = 0x48; stub[n++] = 0xb8; memcpy(stub + n, &handler, 8); n += 8; /* mov rax, handler */
-    stub[n++] = 0xff; stub[n++] = 0xd0;                                       /* call rax */
-    stub[n++] = 0x5f;                                                         /* pop rdi */
-    memcpy(stub + n, image + at, PROLOGUE); n += PROLOGUE;                    /* the prologue */
-    stub[n++] = 0xff; stub[n++] = 0x25; memset(stub + n, 0, 4); n += 4;       /* jmp [rip] */
-    const uint64_t back = (uint64_t)(uintptr_t)(image + at + PROLOGUE);
-    memcpy(stub + n, &back, 8); n += 8;
-    protect(stub, page_size, 5);
-    if (install_jump(at, PROLOGUE, stub))
-        printf("Uncharted 3: particle job wait at the renderer's job check %#llx\n", (unsigned long long)at);
-}
 /* Damage dealt/taken and green/blue/gold orb multipliers (src/damage_hook.h, src/orb_hook.h):
  * the stubs read the menu's floats directly, so changes apply on the next hit or pickup. */
 static void install_stat_multipliers(Segment *segments, uint64_t count, uint64_t size) {
@@ -1639,7 +1573,7 @@ int main(int argc, char **argv) {
     if (gpu_enabled) install_mouse_look(segments, ns, size);
     install_u1_physics(segments, ns);
     install_u3_anim_guard(segments, ns, size);
-    install_u3_particle_jobs_wait(segments, ns, size);
+    u3fix_install(image, size);   /* src/u3fix (C++): Uncharted 3 fixes found by their bytes */
     runtime_gamesettings_set_image(image, size);
     if (gpu_enabled && game_hooks) {
         install_orb_multiplier(segments, ns, size);
