@@ -106,11 +106,14 @@ converted pak run once the conversion exists.
    pak23_ps4.txt; `levels-lab`, `levels-maps-batch` and `maps-batch-files` are retired, convert-actors skips the 48
    labsrc jobs, the DATA2 Lab psarcs are never read), `remove-rpcn-page` (1.16.0: no RPCN page in the game's menus;
    the launcher has the RPCN section), then `netgame-order-119` (recipe 1.14.0,
-   `tools/fixes/netgame-order/netgame_order.py`, with_jobs dctools): the overlay net.bin netgame table and playlists
+   `tools/fixes/netgame-order/netgame_order.cpp`, with_jobs dctools): the overlay net.bin netgame table and playlists
    rebuilt in the order of the player's DATA2 `net18.bin` (exactly PS3's netgames: count, order, names, maps, types;
    PS3 scalar values; PC-only netgames dropped; a PS3 map the PC lacks added with +0x94 = 1), modules.bin net size
    word by module name. Last, after every other net.bin step; those steps exit 0 on a table in this order
    (`dctools/ng119.py`: classic.py and apply_maps.py check it, the others' own guards already hold).
+   Since 2026-11-12 these three steps are C++: `u3fix.exe <step>` (sources `tools/fixes/dctools/u3fix.cpp`, `dc.cpp`
+   and the `.cpp` in each step's job folder), built into `u3mp/bin` by `tools/package_windows.sh`; the importer puts
+   `u3mp/bin` on PATH. Their output is byte-identical to the Python versions they replaced (recipe version unchanged: no player needs a rerun).
 
 Per-file order where several fixes touch one file (from the transcripts): `net.bin`: netfix -> lab_reg ->
 elim_pic -> classic -> skins -> apply_maps -> hair_key -> coop_desc_fix -> coop_vox -> netgame_order (rerun

@@ -1,6 +1,6 @@
 {
  "id": "remove-rpcn-page",
- "title": "No RPCN page in the game's menus: page 0x52504e01 taken out of menu.bin, modules.bin menu size updated (no-rpcn-menu/remove_rpcn_page.py)",
+ "title": "No RPCN page in the game's menus: page 0x52504e01 taken out of menu.bin, modules.bin menu size updated (u3fix.exe remove-rpcn-page, no-rpcn-menu/remove_rpcn_page.cpp)",
  "kind": "script",
  "job": "no-rpcn-menu",
  "with_jobs": [
@@ -10,9 +10,11 @@
  "needs": [],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/remove_rpcn_page.py",
-   "--apply"
+   "u3fix.exe",
+   "remove-rpcn-page",
+   "--apply",
+   "--project",
+   "{{PROJECT}}"
   ]
  ],
  "writes": [
@@ -24,5 +26,6 @@
  "status": "reproducible",
  "applied": "2026-11-11 (tested on a copy of an import's menu.bin / modules.bin)",
  "notes": "Owner's decision 2026-11-11: the launcher signs in and has the RPCN section, so the game shows no RPCN menu (helper v7.105 never offers L2 RPCN). Local builds added the page in an earlier step, which is gone; this step removes it from older imports (151 -> 150 pages, DCEdit append-only) and keeps modules.bin's menu size word equal to menu.bin. Idempotent: 'already applied' when the page is not there; backups in work/backup-no-rpcn-page.",
+ "cpp": "C++ since 2026-11-12, recipe version unchanged (u3fix.exe in u3mp/bin, built by tools/package_windows.sh; output byte-identical to the Python version it replaced, checked on saved imports 2026-11-12)",
  "recipe_version_added": "1.16.0"
 }
