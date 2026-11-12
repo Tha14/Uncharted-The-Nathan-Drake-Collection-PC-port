@@ -73,11 +73,12 @@ to reduce compatibility problems and regressions.
 State the launcher/build version and game update used for testing in your PR. When changing supported
 versions, check that the change does not regress existing supported behavior.
 
-## ⚙️ 5. Prefer C++ implementations
+## ⚙️ 5. C++ only, no new Python
 
-**C++ is our first choice wherever practical.** Prioritize implementing new features and components in C++
-when the project's architecture and dependencies allow it. If another language is needed, explain the
-reason in your PR so the maintainer can review the tradeoff.
+**New code is written in C++.** Pull requests that add Python files, or grow existing Python, are not accepted.
+The Python that is still in the repository is being replaced: if your change needs one of those tools, port the
+part you need to C++ and remove the Python. Short glue for CI and packaging stays shell or PowerShell. If you are
+using a coding agent, it reads the same rules from [AGENTS.md](AGENTS.md).
 
 ---
 
