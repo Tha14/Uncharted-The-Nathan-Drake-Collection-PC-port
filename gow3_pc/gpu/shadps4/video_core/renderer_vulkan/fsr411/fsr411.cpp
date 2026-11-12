@@ -2,7 +2,8 @@
 // gow3: FSR 4.1.1 replay on Vulkan (fsr411.h). The frame is the DLL's 29 dispatches: SPD auto
 // exposure, prepass, pass0_post, model passes 1..12 each followed by its _post pass (tensor border
 // clears), postpass, RCAS. The rules for group counts, the tensor size table and the constants
-// are the ones tools/fsr4cap/extract.py checks against the recorded D3D12 frames.
+// were checked against recorded D3D12 frames of the DLL. Its assets are not shipped and the capture tools that
+// extracted them were removed (2026-11-12): this path runs only with assets a player supplies.
 
 #include "fsr411.h"
 
@@ -421,7 +422,7 @@ struct Upscaler::Impl {
         std::vector<uint8_t> bytes;
         const std::string path = dir + "/" + set + "/" + kPasses[index] + ".spv";
         if (!ReadFile(path, bytes) || bytes.size() % 4) {
-            error = "missing " + path + " (tools/fsr4cap: capture and extract the FSR 4.1.1 assets)";
+            error = "missing " + path + " (the FSR 4.1.1 assets are not shipped)";
             return false;
         }
         std::vector<uint32_t> words(bytes.size() / 4);

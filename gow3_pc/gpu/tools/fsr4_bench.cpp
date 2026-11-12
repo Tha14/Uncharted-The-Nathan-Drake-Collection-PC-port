@@ -5,7 +5,7 @@
 //
 //   fsr4-bench [render WxH] [output WxH] [preset 0-4] [frames] [--stats] [--fsr411]
 // --fsr411: FSR 4.1.1 replay (fsr411.cpp, assets in GOW3_FSR411_DIR or fsr4_411) instead of v07;
-// its frames match tools/fsr4cap (jitter phase, reset on the first frame).
+// its frames follow the recorded D3D12 frames (jitter phase, reset on the first frame).
 //   defaults: 2260x1272 3840x2160 2 (balanced) 900
 // BENCH_NOISE=1: pseudo-random inputs (a fixed seed); BENCH_DUMP=<file>: the output after the
 // last frame, raw RGBA16F, for comparing shader variants.
@@ -519,7 +519,7 @@ int main(int argc, char** argv) {
         f.render_width = rw;
         f.render_height = rh;
         f.ultra_performance = preset >= 4;
-        f.jitter[0] = 0.25f * float((frame - 1) % 4) - 0.375f; // as fsr4cap
+        f.jitter[0] = 0.25f * float((frame - 1) % 4) - 0.375f; // as the recorded frames
         f.jitter[1] = 0.125f;
         f.sharpen = true;
         f.sharpness = 0.5f;
