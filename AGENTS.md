@@ -27,6 +27,15 @@ These rules apply to every change in this repository. They are the owner's decis
   in every case. If the simpler way would change or break any behaviour, keep the full behaviour and do not simplify.
   Check this with a test that runs the old and the new code on the same inputs.
 
+## Assets: PS4 first, PS3 only when PS4 has none
+
+- **Port an asset from the PS3 version only when the PS4 version has no such asset.** If PS4 already has it
+  anywhere (multiplayer or campaign), the import uses the PS4 asset: it usually has better textures, and not
+  bringing over a second copy keeps the import smaller.
+- Example: baseball-shirt Drake (red shirt Drake) is in PS4 as a campaign skin, so it is not ported from PS3; the
+  import uses the PS4 asset.
+- Before adding a PS3 asset to an import step, check PS4's data (campaign and multiplayer) for the same asset.
+
 ## Versions: keep ONLY the latest
 
 - **The repository holds only the latest version of anything versioned.** Never keep an older version next to a new

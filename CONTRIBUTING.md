@@ -80,6 +80,14 @@ The Python that is still in the repository is being replaced: if your change nee
 part you need to C++ and remove the Python. Short glue for CI and packaging stays shell or PowerShell. If you are
 using a coding agent, it reads the same rules from [AGENTS.md](AGENTS.md).
 
+## 🎨 6. Assets: PS4 first, PS3 only when PS4 has none
+
+**Port an asset from the PS3 version only when the PS4 version does not have it.** If PS4 already has the asset
+anywhere, multiplayer or campaign, the import uses the PS4 one: it usually has better textures, and not bringing
+over a second copy keeps the import smaller. For example, baseball-shirt Drake (red shirt Drake) is already in PS4
+as a campaign skin, so it is not ported from PS3. Before adding a PS3 asset to an import step, check PS4's data for
+the same asset.
+
 ---
 
 By contributing, you agree that your contribution is licensed under the **GNU GPL v2 or later**, like the
