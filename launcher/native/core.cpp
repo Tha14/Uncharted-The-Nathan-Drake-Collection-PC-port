@@ -1717,14 +1717,14 @@ void u3_env(std::vector<std::pair<std::string, Value>> &env) {
 // in the background before ("" none).
 void u2_env(std::vector<std::pair<std::string, Value>> &env, const std::string &overlay) {
     for (const char *k : {"UNCHARTED_U2MP_OVERLAY", "UNCHARTED_U2MP", "UNCHARTED_U2MP_NAME", "UNCHARTED_U2MP_JOIN",
-                          "UNCHARTED_U2MP_RELAY", "UNCHARTED_U2MP_ONLINE_DLL"})
+                          "UNCHARTED_U2MP_RELAY", "UNCHARTED_U2MP_ONLINE_DLL", "UNCHARTED_U2MP_ONLINE_EXE"})
         env.push_back({k, Value::null()});
     if (overlay.empty()) return;
     env.push_back({"UNCHARTED_U2MP_OVERLAY", Value::text(overlay + ";" + u2_dir())});
     env.push_back({"UNCHARTED_U2MP", Value::text("1")});
     env.push_back({"UNCHARTED_U2MP_NAME", Value::text("Drake")});
-    const std::string online_dll = join(join(g.u3mp_dir, "online"), "u2_online.dll");
-    if (is_file(online_dll)) env.push_back({"UNCHARTED_U2MP_ONLINE_DLL", Value::text(online_dll)});
+    const std::string online_exe = join(join(g.u3mp_dir, "online"), "u2_online.exe");   // Uncharted 2 online, a separate program
+    if (is_file(online_exe)) env.push_back({"UNCHARTED_U2MP_ONLINE_EXE", Value::text(online_exe)});
     online_env(env, "u2");
 }
 

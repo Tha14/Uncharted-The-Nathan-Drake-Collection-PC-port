@@ -504,7 +504,7 @@ bool start_transport() {
     gamenet::set_transport(&transport);
     voice::set_transport(&transport);
     for (auto &m : members) m = Member{};
-    if (net::Link *link = online::start()) {   // online (u2_online.dll): the party is hosted on the online link
+    if (net::Link *link = online::start()) {   // online (u2_online.exe): the party is hosted on the online link
         if (!transport.host_link(link)) return false;
         hosting = true;
         my_id = 1;

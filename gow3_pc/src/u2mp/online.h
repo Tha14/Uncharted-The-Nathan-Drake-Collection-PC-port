@@ -1,7 +1,7 @@
-// u2mp online: Uncharted 2 online play over the room service of u2_online.dll (u2_online_abi.h), the way the
-// PS3 game used NP Matching2 rooms and NP Signaling. online.cpp implements it; u2mp/docs/PORT-ONLINE.md
-// describes the flow. Every function here is a no-op (false / 0) while online is off: no DLL
-// (UNCHARTED_U2MP_ONLINE_DLL), no relay (UNCHARTED_U2MP_RELAY), or a LAN join address (UNCHARTED_U2MP_JOIN).
+// u2mp online: Uncharted 2 online play over the room service of u2_online.exe (u2_online_abi.h, through
+// online_link.cpp), the way the PS3 game used NP Matching2 rooms and NP Signaling. online.cpp implements it;
+// u2mp/docs/PORT-ONLINE.md describes the flow. Every function here is a no-op (false / 0) while online is
+// off: no online program (UNCHARTED_U2MP_ONLINE_EXE), no relay (UNCHARTED_U2MP_RELAY), or a LAN join address (UNCHARTED_U2MP_JOIN).
 // Then the session layer plays over LAN exactly as before.
 #pragma once
 #include <cstddef>
@@ -14,7 +14,7 @@
 namespace u2mp::online {
 
 // ---- called by the session layer (session.cpp) ----
-// Multiplayer was entered: loads the DLL and opens the link (once), and returns the link the transport
+// Multiplayer was entered: starts the online program and opens the link (once), and returns the link the transport
 // hosts the party on. NULL: online is off, use LAN.
 net::Link *start();
 // True while the session's transport runs over the online link.

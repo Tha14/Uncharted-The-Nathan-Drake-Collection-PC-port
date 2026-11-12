@@ -2,13 +2,14 @@
 // build (NPUA80698 1.10) did with NP Matching2, NP Signaling and NP Basic (u2mp/docs/PORT-MATCHMAKING.md;
 // this port: u2mp/docs/PORT-ONLINE.md).
 //
-// The room service is u2_online.dll (u2_online_abi.h, loaded at run time; it ships separately). The
-// launcher signs the player in and hands the session to the game through UNCHARTED_U2MP_RELAY; the DLL
-// path is UNCHARTED_U2MP_ONLINE_DLL. Without either, every function here is a no-op and the session layer
-// plays over LAN as before.
+// The room service is u2_online.exe, a separate program (it ships separately) that this runtime starts and
+// talks to over pipes: online_link.cpp, with the calls of u2_online_abi.h. The launcher signs the player in
+// and hands the session to the game through UNCHARTED_U2MP_RELAY; the program's path is
+// UNCHARTED_U2MP_ONLINE_EXE. Without either, every function here is a no-op and the session layer plays over
+// LAN as before.
 //
 // Model (the LAN session layer, session.cpp, stays the core): the transport (net::Transport, a star with
-// the party leader / match host in the middle) runs over the DLL's peer-to-peer socket instead of a UDP
+// the party leader / match host in the middle) runs over the program's peer-to-peer socket instead of a UDP
 // socket of its own (net::Link below). The room owner hosts the transport, the other members are its
 // clients. So everything that already works over LAN (roster, follow, matchmaking vote, game events,
 // voice) works unchanged online; this file only decides who hosts and connects the players:
@@ -46,6 +47,7 @@
 #include "cinema.h"
 #include "frontend3.h"
 #include "online.h"
+#include "online_link.h"
 #include "session_api.h"
 #include "u2_online_abi.h"
 #include "u2mp_internal.h"
@@ -109,9 +111,9 @@ double now() {
     return duration<double>(steady_clock::now().time_since_epoch()).count();
 }
 
-// ---- the DLL ----------------------------------------------------------------------------------
+// ---- the online program (online_link.cpp) -----------------------------------------------------
 struct Api {
-    HMODULE dll = nullptr;
+    bool on = false;   // the program runs
     u2o_abi_fn abi = nullptr;
     u2o_open_fn open = nullptr;
     u2o_state_fn state = nullptr;
@@ -144,59 +146,41 @@ struct Api {
     u2o_get_scores_fn get_scores = nullptr;
 } api;
 
-template <typename F> bool resolve(F &out, const char *name) {
-    out = reinterpret_cast<F>(reinterpret_cast<void *>(GetProcAddress(api.dll, name)));
-    if (!out) log("online: off (u2_online.dll has no %s): LAN only", name);
-    return out != nullptr;
-}
-
 bool load() {
     static int tried = 0;   // the environment is fixed for the process: decide once
-    if (tried) return api.dll != nullptr;
+    if (tried) return api.on;
     tried = 1;
     if (const char *join = std::getenv("UNCHARTED_U2MP_JOIN"); join && *join) {
         log("online: off (UNCHARTED_U2MP_JOIN is set: LAN join by address)");
         return false;
     }
     wchar_t path[1024];
-    const DWORD n = GetEnvironmentVariableW(L"UNCHARTED_U2MP_ONLINE_DLL", path, DWORD(sizeof path / sizeof *path));
+    const DWORD n = GetEnvironmentVariableW(L"UNCHARTED_U2MP_ONLINE_EXE", path, DWORD(sizeof path / sizeof *path));
     if (!n || n >= sizeof path / sizeof *path) {
-        log("online: off (UNCHARTED_U2MP_ONLINE_DLL not set: no online extension): LAN only");
+        log("online: off (UNCHARTED_U2MP_ONLINE_EXE not set: no online extension): LAN only");
         return false;
     }
     if (const char *relay = std::getenv("UNCHARTED_U2MP_RELAY"); !relay || !*relay) {
         log("online: off (UNCHARTED_U2MP_RELAY not set: not signed in to RPCN in the launcher): LAN only");
         return false;
     }
-    api.dll = LoadLibraryW(path);
-    if (!api.dll) {
-        log("online: off (u2_online.dll did not load, Windows error %lu): LAN only", (unsigned long)GetLastError());
+    std::string why;
+    if (!online_link::start(path, why)) {
+        log("online: off (%s): LAN only", why.c_str());
         return false;
     }
-    const bool ok = resolve(api.abi, "u2o_abi") && resolve(api.open, "u2o_open") && resolve(api.state, "u2o_state") &&
-                    resolve(api.poll, "u2o_poll") && resolve(api.close, "u2o_close") &&
-                    resolve(api.find_world, "u2o_find_world") && resolve(api.create_room, "u2o_create_room") &&
-                    resolve(api.join_room, "u2o_join_room") && resolve(api.leave_room, "u2o_leave_room") &&
-                    resolve(api.search_rooms, "u2o_search_rooms") &&
-                    resolve(api.set_room_external, "u2o_set_room_external") &&
-                    resolve(api.set_room_internal, "u2o_set_room_internal") &&
-                    resolve(api.set_member_internal, "u2o_set_member_internal") &&
-                    resolve(api.peer_address, "u2o_peer_address") && resolve(api.peer_connect, "u2o_peer_connect") &&
-                    resolve(api.peer_disconnect, "u2o_peer_disconnect") && resolve(api.peer_state, "u2o_peer_state") &&
-                    resolve(api.send, "u2o_send") && resolve(api.recv, "u2o_recv") &&
-                    resolve(api.identity, "u2o_identity") && resolve(api.friends, "u2o_friends") &&
-                    resolve(api.set_presence, "u2o_set_presence") && resolve(api.send_message, "u2o_send_message") &&
-                    resolve(api.set_owner_rank, "u2o_set_owner_rank") &&
-                    resolve(api.friend_requests, "u2o_friend_requests") && resolve(api.add_friend, "u2o_add_friend") &&
-                    resolve(api.remove_friend, "u2o_remove_friend") && resolve(api.record_score, "u2o_record_score") &&
-                    resolve(api.get_scores, "u2o_get_scores");
-    if (ok && api.abi() != U2O_ABI) log("online: off (u2_online.dll ABI %d, this build needs %d): LAN only", api.abi(), int(U2O_ABI));
-    if (!ok || api.abi() != U2O_ABI) {
-        FreeLibrary(api.dll);
-        api = Api{};
-        return false;
-    }
-    log("online: u2_online.dll loaded (ABI %d)", int(U2O_ABI));
+    namespace L = online_link;
+    api.abi = L::abi; api.open = L::open; api.state = L::state; api.poll = L::poll; api.close = L::close;
+    api.find_world = L::find_world; api.create_room = L::create_room; api.join_room = L::join_room;
+    api.leave_room = L::leave_room; api.search_rooms = L::search_rooms; api.set_room_external = L::set_room_external;
+    api.set_room_internal = L::set_room_internal; api.set_member_internal = L::set_member_internal;
+    api.peer_address = L::peer_address; api.peer_connect = L::peer_connect; api.peer_disconnect = L::peer_disconnect;
+    api.peer_state = L::peer_state; api.send = L::send; api.recv = L::recv; api.identity = L::identity;
+    api.friends = L::friends; api.set_presence = L::set_presence; api.send_message = L::send_message;
+    api.set_owner_rank = L::set_owner_rank; api.friend_requests = L::friend_requests; api.add_friend = L::add_friend;
+    api.remove_friend = L::remove_friend; api.record_score = L::record_score; api.get_scores = L::get_scores;
+    api.on = true;
+    log("online: u2_online.exe started (ABI %d)", int(U2O_ABI));
     return true;
 }
 
@@ -1415,7 +1399,7 @@ net::Link *start() {
 bool active() { return started; }
 
 void frame() {
-    if (!api.dll || !link_opened) return;
+    if (!api.on || !link_opened) return;
     const double t = now();
     char text[128] = {};
     const int32_t st = api.state(text, int(sizeof text));
@@ -1772,7 +1756,7 @@ bool promote(uint32_t net_id) {
 // ---- friends ------------------------------------------------------------------------------------
 // Rows: the friends (online first), then friend requests to us, then ours still waiting.
 int friend_count() {
-    if (!api.dll || link_state != U2O_READY) return 0;
+    if (!api.on || link_state != U2O_READY) return 0;
     return int(std::min<size_t>(friend_list.size() + requests_in.size() + requests_out.size(), 64));
 }
 
@@ -2002,7 +1986,7 @@ bool record_score(uint32_t board, int64_t score, const char *comment, const uint
     return id != 0;
 }
 
-bool linked() { return api.dll && link_state == U2O_READY; }
+bool linked() { return api.on && link_state == U2O_READY; }
 
 // ---- cinema files ------------------------------------------------------------------------------
 bool send_cinema(const std::string &npid) {
@@ -2029,7 +2013,7 @@ bool send_cinema(const std::string &npid) {
     m.blob = blob.data();
     m.blob_len = uint32_t(blob.size());
     const char *to[] = {npid.c_str()};
-    const uint64_t id = api.send_message(to, 1, &m);   // the DLL copies the attachment
+    const uint64_t id = api.send_message(to, 1, &m);   // the program copies the attachment
     log("online: cinema %s (%zu bytes) to %s (request %llu)", name.c_str(), file.size(), npid.c_str(), (unsigned long long)id);
     request(id, Pending{Req::Message, 0, 0, false, "cinema file"});
     notice(id ? "Cinema file sent to " + npid + "." : "The cinema file could not be sent.");

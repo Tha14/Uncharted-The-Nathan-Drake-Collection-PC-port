@@ -1,13 +1,14 @@
-// u2_online_abi.h - the C interface of u2_online.dll, Uncharted 2's online link (rooms, signaling, peer
-// datagrams). The DLL ships with the launcher's online extension; this runtime loads it with LoadLibrary
-// (online.cpp) and uses only what is declared here. Without the DLL, Uncharted 2 has LAN play only.
+// u2_online_abi.h - the calls of u2_online.exe, Uncharted 2's online link (rooms, signaling, peer
+// datagrams). The program ships with the launcher's online extension; this runtime starts it and makes these
+// calls over its pipes (online_link.cpp, u2_online_rpc.h), using only what is declared here. Without the
+// program, Uncharted 2 has LAN play only.
 //
 // Everything is asynchronous: a u2o_* request returns a request id (0 = refused: invalid parameters or no
 // link) and its result arrives later as an event from u2o_poll with the same id. Events also report the
 // room service's own news (members joining and leaving, room and member data changes, peer addresses).
 // Strings are UTF-8, NUL-ended. Event data stays valid until the next u2o_poll.
 //
-// Keep this file identical to the copy next to the DLL's source.
+// Keep this file identical to the copy next to the program's source.
 #pragma once
 #include <cstdint>
 

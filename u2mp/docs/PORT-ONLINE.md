@@ -2,12 +2,16 @@
 
 Online play for the PC port, built on the PS3 map in `PORT-MATCHMAKING.md` (section 6 is the plan this
 follows). The player signs in to RPCN in the launcher; the game reuses that session through a local
-relay. Rooms (party, custom game, join list) go through the room service of `u2_online.dll`; match
-traffic goes peer to peer through the DLL's NAT-punched UDP socket.
+relay. Rooms (party, custom game, join list) go through the room service of `u2_online.exe`, a separate
+program the runtime starts and calls over pipes (`online_link.cpp`, protocol `u2_online_rpc.h`); match
+traffic goes peer to peer through the program's NAT-punched UDP socket (each datagram crosses the pipe
+once each way; the program pushes received ones at once, about 25 us there and back on one PC).
 
-Code: `gow3_pc/src/u2mp/online.cpp` (+ `online.h`), with small hooks in `session.cpp`, `net.h/.cpp`,
+Code: `gow3_pc/src/u2mp/online.cpp` (+ `online.h`, `online_link.cpp`), with small hooks in `session.cpp`, `net.h/.cpp`,
 `menus.cpp`, `remaining.cpp`, `frontend2.cpp`, `progression.cpp`. The only interface to the room service
-is `u2_online_abi.h`. Nothing about the service's wire protocol is in this repository.
+is `u2_online_abi.h` (carried by `u2_online_rpc.h`). Nothing about the service's wire protocol is in this
+repository, and no code of the service runs in the runtime's process: if the program is missing, fails to start
+or ends, Uncharted 2 plays over LAN (or reports the link lost).
 
 Status: **built, not run on two PCs yet**. Friends / presence / invites / matchmaking / migration: section 5a. See "Untested / open" at the end.
 
@@ -17,7 +21,7 @@ Status: **built, not run on two PCs yet**. Friends / presence / invites / matchm
 
 | Variable | Set by | Meaning |
 |---|---|---|
-| `UNCHARTED_U2MP_ONLINE_DLL` | launcher, when the online extension is installed | full path of `u2_online.dll` |
+| `UNCHARTED_U2MP_ONLINE_EXE` | launcher, when the online extension is installed | full path of `u2_online.exe` |
 | `UNCHARTED_U2MP_RELAY` | launcher, when signed in | the local relay handed to `u2o_open` (never logged) |
 | `UNCHARTED_U2MP_NAME` | launcher | the online name (player name, room name, roster) |
 | `UNCHARTED_U2MP_NPID` | launcher | this player's NpId (skips ourselves in member lists, logs) |
@@ -107,7 +111,7 @@ All online lines start with `u2mp: online:`. In order of a test:
 
 | Step | Line(s) |
 |---|---|
-| DLL | `online: u2_online.dll loaded (ABI 1)` (or `online: off (...)` with the reason) |
+| program | `online: u2_online.exe started (ABI 2)` (or `online: off (...)` with the reason) |
 | link | `online: opening the link (communication id NPWR00462_00): u2o_open N`, `online: link connecting -> ready (<name>)` |
 | world | `online: looking for a world (request N)`, `online: world W on server S` |
 | entry | `online: Multiplayer entered online as <name> (NpId ...)`, `online: hosting a party on the online link as <name>` |
@@ -126,7 +130,7 @@ All online lines start with `u2mp: online:`. In order of a test:
 
 ## 5a. Friends, presence, invites, matchmaking, migration (ABI 2)
 
-`u2_online.dll` ABI 2 adds the player's identity, the RPCN friend list (from the launcher's Login reply plus the
+ABI 2 of `u2_online.exe` (then `u2_online.dll`) adds the player's identity, the RPCN friend list (from the launcher's Login reply plus the
 friend news it forwards), presence and messages. The launcher relay also replays friend presence changes to a
 game that links later.
 

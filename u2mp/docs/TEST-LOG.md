@@ -64,11 +64,11 @@ each needs a check in the next runs:
 ## Online (built 2026-11-09, not run yet): what to test
 
 Two PCs, this build on both, both signed in to RPCN in the launcher (online extension installed), so
-`UNCHARTED_U2MP_ONLINE_DLL` and `UNCHARTED_U2MP_RELAY` are set. Flow and every log line: `PORT-ONLINE.md`.
+`UNCHARTED_U2MP_ONLINE_EXE` (until 2026-11-12 `UNCHARTED_U2MP_ONLINE_DLL`) and `UNCHARTED_U2MP_RELAY` are set. Flow and every log line: `PORT-ONLINE.md`.
 
 | Step | PC A | PC B | boot.log proof |
 |---|---|---|---|
-| 1 | Multiplayer | Multiplayer | `online: u2_online.dll loaded`, `link connecting -> ready`, `world W on server S`, `created party room` (both) |
+| 1 | Multiplayer | Multiplayer | `online: u2_online.exe started`, `link connecting -> ready`, `world W on server S`, `created party room` (both) |
 | 2 | Custom Game, Start Match | - | `created custom game room <id>`, `Start Match goes on`, `net state 3 -> 10 -> 16`, `state 0x53 = 1` |
 | 3 | - | Invites -> list shows "A - Custom Game (1/10)" | `join list: N room(s) listed` |
 | 4 | - | select the row | B: `joined custom game room`, `peer ...: active, rtt`, `transport switch done`, `following the host into the match`; A: `peer in slot 1 joined`, `sending the follow` |

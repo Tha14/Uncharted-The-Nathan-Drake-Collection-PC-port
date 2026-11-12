@@ -78,7 +78,8 @@ Credits
 License
 GNU GPL v2 or later (LICENSE.txt); the source is at the address at the top. Not covered by the
 GPL and licensed separately: the online components in u3mp\patcher\online\ (uncharted_online.exe,
-a separate program the launcher starts in the background, and u2_online.dll) and the multiplayer helper
+a separate program the launcher starts in the background, and u2_online.exe, a separate program the
+game starts for Uncharted 2 online and talks to over pipes) and the multiplayer helper
 u3mp\patcher\build\<version>\profile-helper.bin, which are separate works by this fork's author.
 The bundled libraries' licenses are in licenses\ (THIRD-PARTY.txt lists every DLL package with its
 version, license and source; BearSSL is in licenses\bearssl).
