@@ -16,12 +16,16 @@ These rules apply to every change in this repository. They are the owner's decis
   They stay short; anything with real logic goes into C++.
 - If you think a task really needs Python, stop and ask the owner. Do not write it "for now".
 
-## Keep it simple
+## Keep it simple, but legal and exact
 
-- **Avoid overly complex implementations that can be simplified.** Choose the simplest design that does the job:
-  fewer moving parts, fewer special cases, no layers, options or abstractions nobody needs yet.
-- Before adding code, check whether existing code already does it, or whether a smaller change does the same.
-- When a change grows complicated, stop and look for a simpler way first; if none exists, say why in the commit.
+- **Prefer the simplest implementation that does the job**, with fewer moving parts, fewer special cases and no
+  layers, options or abstractions nobody needs yet. Before adding code, check whether existing code already does it.
+- **Always legal:** code that comes from the game (PS3 or PS4) is reimplemented from a description of what it does,
+  never rewritten 1:1 from the original code, so that no copyrighted code is reproduced. Do not copy constant tables
+  or values from the game into the source.
+- **Simple only when it is exact:** a simpler version is used only if it replicates 100% of what the original does,
+  in every case. If the simpler way would change or break any behaviour, keep the full behaviour and do not simplify.
+  Check this with a test that runs the old and the new code on the same inputs.
 
 ## Versions: keep ONLY the latest
 
