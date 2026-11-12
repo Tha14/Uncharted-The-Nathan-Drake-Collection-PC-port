@@ -706,7 +706,7 @@ json::Value play_questions(const json::Value &state) {
             list.items.push_back(question("update_files",
                 "Some files of the game update are missing or damaged:\n\n" + named + "\n\n" + update +
                     "\n\nWith these files broken, the games will probably not get past startup. Unpack the update "
-                    "once more, or install it with SETUP -> step 2 -> Install update from .pkg. Start the game anyway?"));
+                    "once more and choose it with SETUP -> step 2 -> Choose update folder. Start the game anyway?"));
         }
     }
 

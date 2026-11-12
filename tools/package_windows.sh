@@ -8,7 +8,7 @@
 #   gow3_pc\                 the game runtime with its DLLs, its scripts and the FSR 4 models
 #   u2mp\, u3mp\             the multiplayer importers (Python scripts, tables, the helper builds, ffmpeg, objdump)
 #   python\                  the Python the importers run with (Pillow, numpy when installed)
-#   tools\                   the update installer, PkgTool and the base game's file list
+#   tools\                   the update installer and the base game's file list
 #   licenses\                the licenses of everything bundled
 # Never any game file: each player points the launcher at their own copy.
 #
@@ -135,9 +135,6 @@ launcher_core() {   # the launcher's native code: its core, the game starter, th
     # files older launchers look for before they install an update; each one hands over to the native program
     cp launcher/uncharted_launcher.pyw launcher/updater.py "$out/launcher/"
     cp tools/apply_update.py tools/probe_uncharted.py tools/game_files_102.json.gz "$out/tools/"
-    # PkgTool (LibOrbisPkg, LGPL-3.0, unchanged) unpacks the player's own game and update packages
-    mkdir -p "$out/tools/pkgtool"
-    cp tools/pkgtool/PkgTool.exe tools/pkgtool/LibOrbisPkg.dll "$out/tools/pkgtool/"
     cp launcher/assets/uncharted.ico launcher/assets/icon.png "$out/launcher/assets/"
 }
 
@@ -284,15 +281,12 @@ licenses() {
         mkdir -p "$lic/opus"
         cp "$msys"/clang64/share/licenses/opus/* "$lic/opus/"
     fi
-    mkdir -p "$lic/bearssl" "$lic/ffmpeg" "$lic/liborbispkg"
+    mkdir -p "$lic/bearssl" "$lic/ffmpeg"
     cp tools/licenses/bearssl/LICENSE.txt tools/licenses/bearssl/SOURCE.txt "$lic/bearssl/"   # TLS of the online parts
     cp "$small_ffmpeg/../COPYING.LGPLv2.1" "$lic/ffmpeg/"
     printf '%s\n' "FFmpeg 8.1.1 (https://ffmpeg.org/releases/ffmpeg-8.1.1.tar.xz), LGPL 2.1 or later, unchanged; built by" \
         "tools/build_ffmpeg.sh in the port's source with only the decoders, formats and filters the port uses." \
         > "$lic/ffmpeg/SOURCE.txt"
-    cp tools/pkgtool/LICENSE.txt "$lic/liborbispkg/"
-    echo "PkgTool and LibOrbisPkg 0.2.231 by Maxton, unchanged; source: https://github.com/maxton/LibOrbisPkg" \
-        > "$lic/liborbispkg/SOURCE.txt"
     for f in "$py_home"/Lib/site-packages/pillow-*.dist-info/licenses/* "$py_home"/Lib/site-packages/pillow-*.dist-info/LICENSE*; do
         [[ -f $f ]] && { mkdir -p "$lic/pillow"; cp "$f" "$lic/pillow/"; }
     done

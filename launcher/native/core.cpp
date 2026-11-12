@@ -619,7 +619,7 @@ std::string update_text() {
     if (!version.empty() && version >= "01.02")
         return "The game folder is version " + version + " and already includes the update.";
     return "The game folder is version " + (version.empty() ? std::string("?") : version) +
-           ", and no update was found. To get the 1.02 fixes, add your update 1.02 folder or its .pkg in "
+           ", and no update was found. To get the 1.02 fixes, add your update 1.02 folder in "
            "step 2 on the Setup tab.";
 }
 // SETUP's first two steps: a game folder the starter accepts, and update 1.02 (a chosen or found update folder, or a
@@ -833,6 +833,59 @@ void u3_auto_update() {   // after a launcher update: an existing import brought
                   "the launcher update brought a new multiplayer " + std::string(pending == "image" ? "build" : "version"));
 }
 
+// The PS3 folders the import gets, Game of the Year disc first (2026-11-12). The import's scan (recipe_lib
+// Inputs.add_ps3_u3) takes the first folder of each kind and falls back to the GOTY disc's goty-dlc.psarc for the DLC
+// map packs only when no separately installed pack (dlc-map1..4.psarc) is found. When the player's folders hold a GOTY
+// disc with goty-dlc.psarc, its DLC is used: the import then gets the exact game folders found under the player's
+// folders (USRDIR level, as the import's scan names them: disc, update 1.19, game data) without the DLC map pack
+// folders, so it never reads them. Without a GOTY disc the player's folders go to the import unchanged, and the DLC map
+// packs (RPCS3's dev_hdd0/game) are still needed. Same scan as the import: 4 levels, the same folders skipped.
+namespace {
+bool ps3_has(const std::string &dir, std::initializer_list<const char *> rels) {
+    for (const char *r : rels)
+        if (exists(join(dir, r))) return true;
+    return false;
+}
+void ps3_scan(const std::string &dir, int depth, std::vector<std::string> &out) {
+    out.push_back(dir);
+    if (depth >= 4) return;
+    WIN32_FIND_DATAW fd;
+    HANDLE h = FindFirstFileW(wide(join(dir, "*")).c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return;
+    do {
+        if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || (fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) continue;
+        const std::string n = utf8(fd.cFileName);
+        std::string l = n;
+        for (auto &c : l) c = (char)tolower((unsigned char)c);
+        if (n == "." || n == ".." || l == "movie1" || l == "gallery1" || l == "cinema23" || l == "cinema5" || l == "users" ||
+            l == "http-cache")
+            continue;
+        ps3_scan(join(dir, n), depth + 1, out);
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+}
+}  // namespace
+
+std::vector<std::string> u3_import_folders(const std::vector<std::string> &roots) {
+    std::vector<std::string> keep;
+    bool goty = false;
+    for (const auto &root : roots) {
+        std::vector<std::string> dirs;
+        ps3_scan(root, 0, dirs);
+        for (const auto &d : dirs) {
+            std::string base = d.substr(d.find_last_of("\\/") + 1);
+            for (auto &c : base) c = (char)toupper((unsigned char)c);
+            if (base != "USRDIR" && !ps3_has(d, {"build/main", "dlc-patch18.psarc", "net18.bin"})) continue;
+            const bool disc = ps3_has(d, {"build/main/pak23.psarc", "build/main/actor33.psarc"});
+            const bool other = disc || ps3_has(d, {"dlc-patch18.psarc", "dlc-patch13.psarc", "net18.bin",
+                                                   "build/main/actor-parts-7.psarc"});
+            if (disc && exists(join(d, "goty-dlc.psarc"))) goty = true;
+            if (other && std::find(keep.begin(), keep.end(), d) == keep.end()) keep.push_back(d);
+        }
+    }
+    return goty ? keep : roots;
+}
+
 void u3_import(bool silent, bool image_only, const std::string &reason, const std::string &keep) {
     if (u3_running()) {
         if (!silent) tell("info", "The import is already running.");
@@ -865,7 +918,7 @@ void u3_import(bool silent, bool image_only, const std::string &reason, const st
                                         "--port", g.root};
         const std::string update = update_dir();
         if (!update.empty()) { cmd.push_back("--ps4-update"); cmd.push_back(update); }
-        for (auto &f : folders) { cmd.push_back("--ps3-u3"); cmd.push_back(f); }
+        for (auto &f : u3_import_folders(folders)) { cmd.push_back("--ps3-u3"); cmd.push_back(f); }   // GOTY disc first
         if (!text(g.config, "u3mp_ps3_u2").empty()) { cmd.push_back("--ps3-u2"); cmd.push_back(text(g.config, "u3mp_ps3_u2")); }
         if (!text(g.config, "u3mp_ps3_elf").empty()) { cmd.push_back("--ps3-elf"); cmd.push_back(text(g.config, "u3mp_ps3_elf")); }
         if (!u3_dns().empty()) { cmd.push_back("--dns"); cmd.push_back(u3_dns()); }
@@ -2050,8 +2103,8 @@ void call(const std::string &name, const Value *value) {
     else if (name == "game_shortcuts") make_shortcuts("games");
     else if (name == "add_to_steam") action("add_to_steam", Value::boolean(false));
     else if (name == "add_games_to_steam") action("add_to_steam", Value::boolean(true));
-    else if (name == "open_logs" || name == "open_saves" || name == "choose_game_dir" || name == "install_game_pkg" ||
-             name == "check_game_files" || name == "choose_update_folder" || name == "install_game_update" ||
+    else if (name == "open_logs" || name == "open_saves" || name == "choose_game_dir" ||
+             name == "check_game_files" || name == "choose_update_folder" ||
              name == "clear_cache")
         action(name);
     else if (name == "check_updates") { Value f = Value::object(); f.set("manual", Value::boolean(true)); update_op("check", f); }

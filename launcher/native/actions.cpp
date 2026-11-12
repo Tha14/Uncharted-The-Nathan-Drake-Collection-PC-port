@@ -5,7 +5,7 @@
 //
 //   un_action(request_json, out, cap)
 //     request: {"name": open_logs | open_saves | open_folder (value: the path) | clear_cache | choose_game_dir | choose_update_folder |
-//               install_game_update | install_game_pkg | check_game_files | add_to_steam, "value": the action's
+//               check_game_files | add_to_steam, "value": the action's
 //               argument (add_to_steam: one entry per game), "step": 0 to start, else the step the last answer said,
 //               "data": what the last answer said to keep, "answer": the dialog's answer (true / false, a path, "" for
 //               cancelled), "state": {"root", "user_dir", "game_dir", "game_running", "wine", "python", "script",
@@ -147,26 +147,6 @@ struct Work {
     }
 } g_work;
 
-void start_work(const char *what, const std::string &root, std::vector<std::string> args) {
-    if (g_work.thread.joinable()) g_work.thread.join();
-    g_work.running = true;
-    g_work.thread = std::thread([what, root, args]() {
-        auto r = game_update(what, root, args);
-        {
-            std::lock_guard<std::mutex> l(g_work.m);
-            g_work.status = r.first;
-            g_work.text = r.second;
-        }
-        g_work.running = false;
-    });
-}
-
-std::pair<int, std::string> work_result() {
-    if (g_work.thread.joinable()) g_work.thread.join();
-    std::lock_guard<std::mutex> l(g_work.m);
-    return {g_work.status, g_work.text};
-}
-
 // ------------------------------------------------------------------------------------------------ the answers
 
 struct Request {
@@ -195,9 +175,9 @@ Value dialog(const char *kind, const std::string &text, long long step, Value da
     return r;
 }
 
-// a file or folder dialog: filetypes [[name, pattern]]
+// a file or folder dialog (no file type filters: the PKG pickers that used them are gone)
 Value file_dialog(const char *kind, const std::string &title, const std::string &initialdir, long long step,
-                  Value data = Value::object(), bool packages = false) {
+                  Value data = Value::object()) {
     Value d = Value::object();
     d.set("kind", Value::text(kind));
     d.set("title", Value::text(title));
@@ -205,13 +185,6 @@ Value file_dialog(const char *kind, const std::string &title, const std::string 
     d.set("initialdir", Value::text(initialdir));
     Value types;
     types.kind = Value::Array;
-    if (packages)
-        for (auto &t : {std::make_pair("PS4 package", "*.pkg"), std::make_pair("All files", "*.*")}) {
-            Value pair;
-            pair.kind = Value::Array;
-            pair.items = {Value::text(t.first), Value::text(t.second)};
-            types.items.push_back(std::move(pair));
-        }
     d.set("filetypes", std::move(types));
     Value r = reply();
     r.set("dialog", std::move(d));
@@ -325,100 +298,6 @@ Value choose_update_folder(const Request &q) {
     return with(finally("info", "Update " + (version.empty() ? std::string("?") : version) + " will be used from now on:\n" +
                                     r.second),
                 "config", config_change({{"update_dir", Value::text(r.second)}}));
-}
-
-std::string install_error(const std::pair<int, std::string> &r, const char *what) {
-    if (r.first == 1) return r.second;
-    if (r.first == 3) return os_error(r.second);
-    return std::string("ValueError: ") + what;
-}
-
-Value install_game_update(const Request &q) {
-    if (q.step == 0) {
-        if (q.game_running) return finally("warning", "Please close the game first.");
-        if (!is_game_dir(q.game_dir)) return finally("warning", "Set the game folder first (Change game folder).");
-        return file_dialog("open", "Pick the update package (.pkg)", "", 1, Value::object(), true);
-    }
-    auto begin = [&](const std::string &pkg) {
-        start_work("install", q.root, {pkg, q.game_dir});
-        Value r = reply();
-        r.set("work", Value::boolean(true));
-        r.set("step", Value::integer(3));
-        r.set("data", Value::object());
-        r.set("progress", config_change({{"update", Value::text("Checking the update package...")}}));
-        return r;
-    };
-    if (q.step == 1) {
-        const std::string pkg = answered_path(q);
-        if (pkg.empty()) return done();
-        auto existing = game_update("existing_update", q.root, {q.game_dir});
-        if (existing.first == 0 && !existing.second.empty()) {
-            Value data = Value::object();
-            data.set("pkg", Value::text(pkg));
-            return dialog("yesno", "An update folder exists already:\n" + existing.second + "\n\nReplace it with this package?",
-                          2, std::move(data));
-        }
-        return begin(pkg);
-    }
-    if (q.step == 2) {
-        if (!answered_yes(q)) return done();
-        return begin(field(q.data, "pkg"));
-    }
-    if (q.step == 3) {
-        auto r = work_result();
-        Value out;
-        if (r.first == 0) {   // a fresh install wins: update_dir points at it even if another folder was picked earlier
-            out = finally("info", "The update is installed:\n" + r.second + "\n\nThe games pick it up when they "
-                                                                            "next start.");
-            out.set("config", config_change({{"update_dir", Value::text(r.second)}}));
-        } else {
-            out = finally("error", "Installing the update failed:\n" + install_error(r, "install"));
-        }
-        out.set("progress", config_change({{"update", Value::text("")}}));
-        return out;
-    }
-    return done();
-}
-
-Value install_game_pkg(const Request &q) {
-    if (q.step == 0) {
-        if (q.game_running) return finally("warning", "Please close the game first.");
-        return file_dialog("open", "Pick the game package (.pkg), not the update", "", 1, Value::object(), true);
-    }
-    if (q.step == 1) {
-        const std::string pkg = answered_path(q);
-        if (pkg.empty()) return done();
-        Value data = Value::object();
-        data.set("pkg", Value::text(pkg));
-        return file_dialog("directory", "Pick a folder for the game (it needs about 60 GB)", parent_of(pkg), 2, std::move(data));
-    }
-    if (q.step == 2) {
-        const std::string parent = answered_path(q);
-        if (parent.empty()) return done();
-        start_work("install_game", q.root, {field(q.data, "pkg"), parent});
-        Value r = reply();
-        r.set("work", Value::boolean(true));
-        r.set("step", Value::integer(3));
-        r.set("data", Value::object());
-        r.set("progress", config_change({{"game_dir", Value::text("Checking the game package first...")}}));
-        return r;
-    }
-    if (q.step == 3) {
-        auto r = work_result();
-        Value out;
-        if (r.first == 0) {
-            out = finally("info", "The game is installed:\n" + r.second + "\n\nThe launcher uses it as the game "
-                                                                          "folder from now on. Next step: add update "
-                                                                          "1.02 with GAME UPDATE -> Install from "
-                                                                          ".pkg.");
-            out.set("config", game_folder_change(q, r.second));
-        } else {
-            out = finally("error", "The game could not be installed:\n" + install_error(r, "install_game"));
-        }
-        out.set("progress", config_change({{"game_dir", Value::text("")}}));
-        return out;
-    }
-    return done();
 }
 
 std::vector<std::string> lines_of(const std::string &text) {   // str.splitlines()
@@ -550,8 +429,6 @@ Value run(const Request &q) {
     if (q.name == "clear_cache") return clear_cache(q);
     if (q.name == "choose_game_dir") return choose_game_dir(q);
     if (q.name == "choose_update_folder") return choose_update_folder(q);
-    if (q.name == "install_game_update") return install_game_update(q);
-    if (q.name == "install_game_pkg") return install_game_pkg(q);
     if (q.name == "check_game_files") return check_game_files(q);
     if (q.name == "add_to_steam") return add_to_steam(q);
     return done();

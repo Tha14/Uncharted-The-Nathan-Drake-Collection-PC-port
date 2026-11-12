@@ -76,8 +76,6 @@ Same as the port (see `gow3_pc/packaging/windows/README.md`):
 
 The GitHub Actions workflow (`.github/workflows/build-windows.yml`) is set to **manual runs only**
 here (Actions -> Build Windows -> Run workflow) so pushes do not burn private Actions minutes.
-`tools/pkgtool/PkgTool.exe` and its DLL are not included (no binaries); take them from a port
-release if you need the update installer.
 
 ## Knobs
 

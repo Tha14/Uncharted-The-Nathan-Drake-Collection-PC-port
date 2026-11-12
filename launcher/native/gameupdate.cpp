@@ -1,7 +1,7 @@
-// gameupdate.cpp (in uncharted_native.dll) installs the official game update and the game itself from PKG files the
-// player owns (Advanced -> GAME UPDATE, and "Install the game from .pkg"; #32). Nothing from the game comes with the
-// port: the code below only extracts what the player hands it, by running PkgTool (LibOrbisPkg, LGPL-3.0, found in
-// tools/pkgtool) as a separate process.
+// gameupdate.cpp (in uncharted_native.dll) checks the official game update the player extracted on their own and points
+// the launcher at it (SETUP step 2). Nothing from the game comes with the port. Installing the game or the update from
+// .pkg files was removed on 2026-11-12: those were decrypted ("fake") PKGs, which the launcher had to decrypt to extract;
+// the port takes only folders the player already has.
 //
 // Operations offered through un_game_update:
 //   check_update    lists what is wrong with an update's uroot as far as the port is concerned: absent files, and
@@ -11,10 +11,6 @@
 //                   and returns its uroot
 //   existing_update finds an update folder sitting beside the game (<game>-patch, -update, _patch or _update, case
 //                   ignored)
-//   install         extracts an update PKG beside the game as <game folder>-patch, replacing any older one there
-//   install_game    extracts the player's base game PKG into <folder>\<title id>; its uroot becomes the game folder
-// An extraction by PkgTool does not include the metadata entries stored in the PKG (param.sfo, playgo-chunk.dat and so
-// on). We write those into sce_sys ourselves because both the launcher and the update check rely on them.
 
 #include "native.h"
 #include "json.h"
@@ -94,11 +90,6 @@ std::wstring name_of(const std::wstring &p) {
     const size_t cut = s.find_last_of(L"\\:");
     return cut == std::wstring::npos ? s : s.substr(cut + 1);
 }
-std::wstring stem_of(const std::wstring &p) {
-    const std::wstring n = name_of(p);
-    const size_t dot = n.find_last_of(L'.');
-    return dot == std::wstring::npos || dot == 0 ? n : n.substr(0, dot);
-}
 
 DWORD attrs(const std::wstring &p) { return GetFileAttributesW(p.c_str()); }
 bool exists(const std::wstring &p) {   // follows links to their target
@@ -131,43 +122,6 @@ std::string shown(const std::wstring &p) {   // quoted and escaped like repr() o
     return "'" + o + "'";
 }
 
-void make_dirs(const std::wstring &p) {
-    if (is_dir(p)) return;
-    const std::wstring up = parent(p);
-    if (up != p) make_dirs(up);
-    if (!CreateDirectoryW(p.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)
-        throw OsError{win_error(GetLastError()) + ": " + shown(p)};
-}
-
-// Behaves like shutil.rmtree(ignore_errors=True); a link is deleted itself, its target is left alone
-void remove_tree(const std::wstring &p) {
-    const DWORD a = attrs(p);
-    if (a == INVALID_FILE_ATTRIBUTES) return;
-    if ((a & FILE_ATTRIBUTE_DIRECTORY) && !(a & FILE_ATTRIBUTE_REPARSE_POINT)) {
-        WIN32_FIND_DATAW fd;
-        HANDLE h = FindFirstFileW((p + L"\\*").c_str(), &fd);
-        if (h != INVALID_HANDLE_VALUE) {
-            do {
-                const std::wstring n = fd.cFileName;
-                if (n != L"." && n != L"..") remove_tree(p + L"\\" + n);
-            } while (FindNextFileW(h, &fd));
-            FindClose(h);
-        }
-    }
-    if (a & FILE_ATTRIBUTE_READONLY) SetFileAttributesW(p.c_str(), a & ~FILE_ATTRIBUTE_READONLY);
-    if (a & FILE_ATTRIBUTE_DIRECTORY) RemoveDirectoryW(p.c_str()); else DeleteFileW(p.c_str());
-}
-
-void rename(const std::wstring &from, const std::wstring &to) {
-    if (!MoveFileExW(from.c_str(), to.c_str(), 0)) throw OsError{win_error(GetLastError()) + ": " + shown(from) + " -> " + shown(to)};
-}
-
-unsigned long long free_space(const std::wstring &folder) {
-    ULARGE_INTEGER caller{}, total{}, free{};
-    if (!GetDiskFreeSpaceExW(folder.c_str(), &caller, &total, &free)) throw OsError{win_error(GetLastError()) + ": " + shown(folder)};
-    return free.QuadPart;
-}
-
 // Canonical, lower-cased form of a folder path (as Path.resolve would give), so two folders can be compared.
 std::wstring resolved(const std::wstring &p) {
     std::vector<wchar_t> buf(32768);
@@ -190,10 +144,6 @@ std::wstring resolved(const std::wstring &p) {
 
 std::mutex g_lock;
 std::string g_step;
-void log_step(const std::string &text) {
-    std::lock_guard<std::mutex> guard(g_lock);
-    g_step = text;
-}
 
 // ------------------------------------------------------------------------------------------------ param.sfo
 
@@ -259,154 +209,6 @@ Value sfo_values(const std::wstring &path) {
         }
     }
     return found;
-}
-
-// ------------------------------------------------------------------------------------------------ PkgTool
-
-std::wstring g_root;
-
-std::wstring tool_path() { return join(g_root, L"tools\\pkgtool\\PkgTool.exe"); }
-
-std::wstring quote(const std::wstring &arg) {   // one argument quoted by the rules subprocess.list2cmdline follows
-    std::wstring result, bs;
-    const bool q = arg.find(L' ') != std::wstring::npos || arg.find(L'\t') != std::wstring::npos || arg.empty();
-    if (q) result += L'"';
-    for (wchar_t c : arg) {
-        if (c == L'\\') bs += c;
-        else if (c == L'"') { result += std::wstring(bs.size() * 2, L'\\'); bs.clear(); result += L"\\\""; }
-        else { result += bs; bs.clear(); result += c; }
-    }
-    result += bs;
-    if (q) { result += bs; result += L'"'; }
-    return result;
-}
-
-std::string read_all(HANDLE pipe) {
-    std::string out;
-    char buf[1 << 14];
-    DWORD got = 0;
-    while (ReadFile(pipe, buf, sizeof buf, &got, nullptr) && got) out.append(buf, got);
-    return out;
-}
-
-// Turns raw tool output into what a Python text-mode read returns: decoded as UTF-8 with bad bytes replaced, and
-// every \r\n or lone \r changed to \n.
-std::string text_mode(const std::string &bytes) {
-    std::string s = utf8(widen(bytes)), o;
-    for (size_t i = 0; i < s.size(); ++i) {
-        if (s[i] == '\r') { o += '\n'; if (i + 1 < s.size() && s[i + 1] == '\n') ++i; }
-        else o += s[i];
-    }
-    return o;
-}
-std::vector<std::string> lines_of(const std::string &s) {
-    std::vector<std::string> lines;
-    size_t a = 0;
-    while (a < s.size()) {
-        size_t b = s.find('\n', a);
-        if (b == std::string::npos) b = s.size();
-        lines.push_back(s.substr(a, b - a));
-        a = b + 1;
-    }
-    return lines;
-}
-std::string strip(const std::string &s) {
-    size_t a = 0, b = s.size();
-    while (a < b && isspace((unsigned char)s[a])) ++a;
-    while (b > a && isspace((unsigned char)s[b - 1])) --b;
-    return s.substr(a, b - a);
-}
-
-// Runs PkgTool with the given arguments and returns what it printed. Any failure becomes an UpdateError that tells the
-// player what to do.
-std::string run_tool(const std::vector<std::wstring> &arguments) {
-    const std::wstring tool = tool_path();
-    if (!is_file(tool)) throw UpdateError{"PkgTool was not found (" + utf8(tool) + "). Install the port again."};
-    std::wstring cmd = quote(tool);
-    for (auto &a : arguments) cmd += L" " + quote(a);
-    SECURITY_ATTRIBUTES sa{sizeof sa, nullptr, TRUE};
-    HANDLE out_r, out_w, err_r, err_w;
-    CreatePipe(&out_r, &out_w, &sa, 0);
-    CreatePipe(&err_r, &err_w, &sa, 0);
-    SetHandleInformation(out_r, HANDLE_FLAG_INHERIT, 0);
-    SetHandleInformation(err_r, HANDLE_FLAG_INHERIT, 0);
-    HANDLE in = CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_EXISTING, 0, nullptr);
-    STARTUPINFOW si{};
-    si.cb = sizeof si;
-    si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdInput = in;
-    si.hStdOutput = out_w;
-    si.hStdError = err_w;
-    PROCESS_INFORMATION pi{};
-    std::vector<wchar_t> buf(cmd.begin(), cmd.end());
-    buf.push_back(0);
-    const BOOL ok = CreateProcessW(tool.c_str(), buf.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
-    const DWORD error = GetLastError();
-    CloseHandle(out_w);
-    CloseHandle(err_w);
-    if (in != INVALID_HANDLE_VALUE) CloseHandle(in);
-    if (!ok) {
-        CloseHandle(out_r);
-        CloseHandle(err_r);
-        throw UpdateError{"PkgTool failed to launch: " + win_error(error) + ". It requires the .NET Framework that comes with "
-                          "Windows 10/11."};
-    }
-    std::string err;
-    std::thread reader([&] { err = read_all(err_r); });
-    const std::string out = read_all(out_r);
-    reader.join();
-    WaitForSingleObject(pi.hProcess, INFINITE);
-    DWORD code = 1;
-    GetExitCodeProcess(pi.hProcess, &code);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-    CloseHandle(out_r);
-    CloseHandle(err_r);
-    const std::string stdout_text = text_mode(out), stderr_text = text_mode(err);
-    if (code != 0) {
-        const std::vector<std::string> detail = lines_of(strip(!stderr_text.empty() ? stderr_text : stdout_text));
-        throw UpdateError{"PkgTool failed to read this file" + (detail.empty() ? std::string(".") : ": " + detail.back())};
-    }
-    return stdout_text;
-}
-
-struct Entry {
-    std::string index;
-    long long size = 0;
-    bool encrypted = false;
-};
-
-bool all_of(const std::string &s, int (*test)(int)) {
-    if (s.empty()) return false;
-    for (unsigned char c : s) if (!test(c)) return false;
-    return true;
-}
-bool hex_token(const std::string &s) { return s.size() > 2 && s[0] == '0' && s[1] == 'x' && all_of(s.substr(2), isxdigit); }
-
-// Lists the PKG's entries through "PkgTool pkg_listentries" and keys them by name, keeping each one's index, size and
-// encrypted flag. Every row PkgTool prints has the columns offset, size, flags, index, an optional extra number, name.
-std::map<std::string, Entry> entries(const std::wstring &pkg) {
-    std::map<std::string, Entry> rows;
-    for (const std::string &raw : lines_of(run_tool({L"pkg_listentries", pkg}))) {
-        std::vector<std::string> t;
-        const std::string line = strip(raw);
-        for (size_t a = 0; a < line.size();) {
-            while (a < line.size() && isspace((unsigned char)line[a])) ++a;
-            size_t b = a;
-            while (b < line.size() && !isspace((unsigned char)line[b])) ++b;
-            if (b > a) t.push_back(line.substr(a, b - a));
-            a = b;
-        }
-        if (t.size() != 5 && t.size() != 6) continue;
-        if (!hex_token(t[0]) || !hex_token(t[1]) || t[2].size() != 8 || !all_of(t[2], isxdigit) || !all_of(t[3], isdigit)) continue;
-        if (t.size() == 6 && !all_of(t[4], isdigit)) continue;
-        Entry e;
-        e.index = t[3];
-        e.size = std::stoll(t[1].substr(2), nullptr, 16);
-        e.encrypted = (std::stoul(t[2], nullptr, 16) & 0x80000000u) != 0;
-        rows[t.back()] = e;
-    }
-    return rows;
 }
 
 // ------------------------------------------------------------------------------------------------ bin.psarc checks
@@ -556,51 +358,6 @@ std::wstring existing_update(const std::wstring &game) {
     return found;
 }
 
-// Scratch folder in %TEMP% that deletes itself when it goes out of scope (like tempfile.TemporaryDirectory).
-struct TempDir {
-    std::wstring path;
-    TempDir() {
-        wchar_t base[MAX_PATH + 1];
-        GetTempPathW(MAX_PATH + 1, base);
-        for (unsigned n = GetTickCount() ^ GetCurrentProcessId(); ; ++n) {
-            path = path_str(std::wstring(base) + L"tmpgu" + std::to_wstring(n));
-            if (CreateDirectoryW(path.c_str(), nullptr)) break;
-            if (GetLastError() != ERROR_ALREADY_EXISTS) throw OsError{win_error(GetLastError()) + ": " + shown(path)};
-        }
-    }
-    ~TempDir() { remove_tree(path); }
-};
-
-// Pulls PARAM_SFO out of the PKG with PkgTool and parses it; an encrypted entry ends in `encrypted_message`.
-Value pkg_sfo(const std::wstring &pkg, const std::map<std::string, Entry> &listing, const std::string &encrypted_message) {
-    auto it = listing.find("PARAM_SFO");
-    if (it->second.encrypted) throw UpdateError{encrypted_message};
-    TempDir temporary;
-    const std::wstring sfo = join(temporary.path, L"param.sfo");
-    run_tool({L"pkg_extractentry", pkg, widen(it->second.index), sfo});
-    return sfo_values(sfo);
-}
-
-// Confirms that `pkg` holds an update matching the game installed in `game`. Returns the update's param.sfo values and
-// fills `base` with the game's.
-Value inspect(const std::wstring &pkg, const std::wstring &game, Value &base) {
-    const auto listing = entries(pkg);
-    if (!listing.count("PARAM_SFO")) throw UpdateError{"This file has no param.sfo, so it is not a game update."};
-    Value update = pkg_sfo(pkg, listing, "This is an encrypted store PKG. The update is needed as a decrypted (fake) PKG.");
-    const std::wstring game_sfo = join(game, L"sce_sys\\param.sfo");
-    if (!is_file(game_sfo)) throw UpdateError{"Pick the game folder before this (the folder holding eboot.bin and sce_sys)."};
-    base = sfo_values(game_sfo);
-    const Value *category = update.get("CATEGORY");
-    if (!category || category->kind != Value::String || category->s != "gp")
-        throw UpdateError{"This PKG is no update; it holds '" + str_of(update.get("TITLE")) + "' (category " +
-                          str_of(category) + ")."};
-    const Value *a = update.get("TITLE_ID"), *b = base.get("TITLE_ID");
-    if (str_of(a) != str_of(b) || (a == nullptr) != (b == nullptr) || (a && b && a->kind != b->kind))
-        throw UpdateError{"This update belongs to " + str_of(a) + " while your game is " + str_of(b) +
-                          ". Get the update for your game's region."};
-    return update;
-}
-
 // Takes an update the player extracted on their own, wherever it is, and returns its uroot. The player may have picked
 // either the update's top folder or the uroot inside it.
 std::wstring check_folder(const std::wstring &folder_in, const std::wstring &game) {
@@ -633,125 +390,6 @@ std::wstring check_folder(const std::wstring &folder_in, const std::wstring &gam
     return root;
 }
 
-// PKG metadata entry names and the sce_sys file each one is written to.
-const std::pair<const char *, const wchar_t *> METADATA[] = {
-    {"PARAM_SFO", L"param.sfo"}, {"PLAYGO_CHUNK_DAT", L"playgo-chunk.dat"}, {"PLAYGO_CHUNK_SHA", L"playgo-chunk.sha"},
-    {"PLAYGO_MANIFEST_XML", L"playgo-manifest.xml"}, {"SHAREPARAM_JSON", L"shareparam.json"},
-    {"CHANGEINFO__CHANGEINFO_XML", L"changeinfo\\changeinfo.xml"}};
-
-void add_metadata(const std::wstring &pkg, const std::wstring &uroot, const std::map<std::string, Entry> &listing) {
-    for (auto &m : METADATA) {
-        auto it = listing.find(m.first);
-        if (it == listing.end() || it->second.encrypted) continue;
-        const std::wstring destination = join(join(uroot, L"sce_sys"), m.second);
-        make_dirs(parent(destination));
-        run_tool({L"pkg_extractentry", pkg, widen(it->second.index), destination});
-    }
-}
-
-std::string gigabytes(double bytes, int decimals) {
-    char b[64];
-    std::snprintf(b, sizeof b, decimals ? "%.1f" : "%.0f", bytes / 1073741824.0);
-    return b;
-}
-
-// Extracts the update PKG beside the game folder under the name <game folder>-patch and returns that copy's uroot.
-std::wstring install(const std::wstring &pkg_in, const std::wstring &game_in) {
-    const std::wstring pkg = path_str(pkg_in), game = path_str(game_in);
-    Value base;
-    const Value update = inspect(pkg, game, base);
-    const std::wstring title = title_folder(game), up = parent(title);
-    std::wstring target = existing_update(game);
-    if (target.empty()) target = join(up, name_of(title) + L"-patch");
-    const long long need = (long long)((double)file_size(pkg) * 2.3) + (1LL << 28);
-    const unsigned long long free = free_space(up);
-    if ((long long)free < need)
-        throw UpdateError{"That drive is short of free space: " + gigabytes((double)need, 1) + " GB required, " +
-                          gigabytes((double)free, 1) + " GB available."};
-    const std::wstring partial = join(up, name_of(title) + L"-patch.partial");
-    remove_tree(partial);
-    try {
-        log_step("Extracting update " + str_of(update.get("APP_VER")) + "...");
-        run_tool({L"pkg_extract", pkg, partial});
-        const std::wstring uroot = join(partial, L"uroot");
-        if (!is_dir(uroot)) throw UpdateError{"No game files came out of the PKG (it has no uroot folder)."};
-        log_step("Writing the update's metadata...");
-        add_metadata(pkg, uroot, entries(pkg));
-        const auto missing = check_update(uroot);
-        if (!missing.empty()) throw UpdateError{"Files of the update are missing or damaged: " + joined(missing)};
-        log_step("Moving it into place...");
-        std::wstring old;
-        if (exists(target) || attrs(target) != INVALID_FILE_ATTRIBUTES) {
-            old = target + L".old";
-            remove_tree(old);
-            rename(target, old);
-        }
-        try {
-            rename(partial, target);
-        } catch (...) {
-            if (!old.empty()) rename(old, target);   // put the previous update folder back untouched
-            throw;
-        }
-        if (!old.empty()) remove_tree(old);
-    } catch (...) {
-        remove_tree(partial);
-        throw;
-    }
-    return join(target, L"uroot");
-}
-
-const char *const BASE_REQUIRED[] = {"eboot.bin", "big2-ps4_Shipping.elf", "big3-ps4_Shipping.elf", "sce_sys/param.sfo",
-                                     "u1data", "u2data", "u3data"};
-
-// Extracts a base game PKG the player owns into a <parent>\<title id> folder. The result is that folder's uroot, which
-// the launcher then uses as the game folder.
-std::wstring install_game(const std::wstring &pkg_in, const std::wstring &parent_in) {
-    const std::wstring pkg = path_str(pkg_in), into = path_str(parent_in);
-    const auto listing = entries(pkg);
-    if (!listing.count("PARAM_SFO")) throw UpdateError{"This file has no param.sfo, so it is not a PS4 game package."};
-    const Value values = pkg_sfo(pkg, listing, "This is an encrypted store PKG. The game is needed as a decrypted (fake) PKG.");
-    const Value *category = values.get("CATEGORY");
-    if (category && str_of(category).compare(0, 2, "gp") == 0)
-        throw UpdateError{"This PKG holds a game update rather than the game itself. Once the game is installed, add it with "
-                          "GAME UPDATE -> Install from .pkg."};
-    const Value *id = values.get("TITLE_ID");
-    std::string title = id && id->truthy() ? str_of(id) : utf8(stem_of(pkg));
-    title = strip(title);
-    const std::wstring target = join(into, widen(title));
-    if (is_file(join(target, L"uroot\\eboot.bin")) || is_file(join(target, L"eboot.bin")))
-        throw UpdateError{"The game is already installed here:\n" + utf8(target) + "\n\nSelect it with Change game folder."};
-    const long long need = (long long)((double)file_size(pkg) * 1.45) + (1LL << 30);
-    const unsigned long long free = free_space(into);
-    if ((long long)free < need)
-        throw UpdateError{"That drive is short of free space: " + gigabytes((double)need, 0) + " GB required, " +
-                          gigabytes((double)free, 0) + " GB available."};
-    const std::wstring partial = join(into, widen(title) + L".partial");
-    remove_tree(partial);
-    try {
-        const Value *name = values.get("TITLE");
-        log_step("Extracting " + (name ? str_of(name) : std::string("the game")) + " (" + title + "), this takes a few minutes...");
-        run_tool({L"pkg_extract", pkg, partial});
-        const std::wstring uroot = join(partial, L"uroot");
-        if (!is_dir(uroot)) throw UpdateError{"No game files came out of the PKG (it has no uroot folder)."};
-        log_step("Writing the game's metadata...");
-        add_metadata(pkg, uroot, listing);
-        std::vector<std::string> missing;
-        for (const char *n : BASE_REQUIRED) {
-            std::wstring rel = widen(n);
-            std::replace(rel.begin(), rel.end(), L'/', L'\\');
-            if (!exists(join(uroot, rel))) missing.push_back(n);
-        }
-        if (!missing.empty())
-            throw UpdateError{"This PKG is damaged or holds something other than The Nathan Drake Collection: missing " + joined(missing)};
-        log_step("Moving it into place...");
-        rename(partial, target);
-    } catch (...) {
-        remove_tree(partial);
-        throw;
-    }
-    return join(target, L"uroot");
-}
-
 std::wstring arg_at(const Value &args, size_t i) {
     return i < args.items.size() && args.items[i].kind == Value::String ? widen(args.items[i].s) : L"";
 }
@@ -764,14 +402,12 @@ extern "C" {
 //   check_update [folder]          out = one problem per line
 //   check_folder [folder, game]    out = the update's uroot
 //   existing_update [game]         out = the folder found, or empty
-//   install [pkg, game]            out = the uroot that was installed
-//   install_game [pkg, folder]     out = the uroot that was installed
-// While the two install operations run, un_game_update_step reports their current step. `root` is the launcher's
-// folder, used to find tools\pkgtool. Returns 0 on success, 1 with a message meant for the player (UpdateError), 2 for
-// an unrecognised `what`, 3 with a file system error text (OSError).
+// `root` (the launcher's folder) is no longer used. Returns 0 on success, 1 with a message meant for the player
+// (UpdateError), 2 for an unrecognised `what` (also the removed install / install_game), 3 with a file system error text
+// (OSError).
 UN_API int un_game_update(const char *what, const wchar_t *root, const char *args_json, char *out, int cap) {
+    (void)root;
     const std::string w = what ? what : "";
-    g_root = path_str(root ? root : L".");
     Value args;
     if (!json::parse(args_json ? args_json : "[]", args)) return 2;
     try {
@@ -782,14 +418,6 @@ UN_API int un_game_update(const char *what, const wchar_t *root, const char *arg
         }
         if (w == "check_folder") return give(utf8(check_folder(arg_at(args, 0), path_str(arg_at(args, 1)))), out, cap);
         if (w == "existing_update") return give(utf8(existing_update(path_str(arg_at(args, 0)))), out, cap);
-        if (w == "install") {
-            log_step("");
-            return give(utf8(install(arg_at(args, 0), arg_at(args, 1))), out, cap);
-        }
-        if (w == "install_game") {
-            log_step("");
-            return give(utf8(install_game(arg_at(args, 0), arg_at(args, 1))), out, cap);
-        }
     } catch (const UpdateError &e) {
         int status = give(e.message, out, cap);
         return status < 0 ? status : 1;
@@ -800,7 +428,7 @@ UN_API int un_game_update(const char *what, const wchar_t *root, const char *arg
     return 2;
 }
 
-// Current step of an install in progress, e.g. "Extracting update 01.02...".
+// Step of a running operation (kept for the launcher's progress display; no operation reports steps any more).
 UN_API int un_game_update_step(char *out, int cap) {
     std::lock_guard<std::mutex> guard(g_lock);
     return give(g_step, out, cap);

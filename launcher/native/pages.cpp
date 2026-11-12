@@ -779,10 +779,8 @@ Value bold_label(const std::string &id, const std::string &text, const char *fg)
 
 // SETUP's game and update steps: TOOLS actions (their ids stay "native:tools:<action>", so act_tools runs them)
 struct SetupButton { const char *action, *label; };
-const SetupButton SETUP_GAME[] = {{"choose_game_dir", "Change game folder"}, {"install_game_pkg", "Install game from .pkg"},
-                                  {"check_game_files", "Check game files"}};
-const SetupButton SETUP_UPDATE[] = {{"choose_update_folder", "Choose update folder"},
-                                    {"install_game_update", "Install update from .pkg"}};
+const SetupButton SETUP_GAME[] = {{"choose_game_dir", "Change game folder"}, {"check_game_files", "Check game files"}};
+const SetupButton SETUP_UPDATE[] = {{"choose_update_folder", "Choose update folder"}};
 template <size_t N> Value setup_buttons(const std::string &key, const SetupButton (&list)[N]) {
     Value line = array();
     for (auto &b : list)
@@ -813,8 +811,8 @@ Value page_setup(const State &state) {
                                              "Collection, add update 1.02, then pick a quality level.",
                           MUTED, CARD, 10));
     items.push_back(row(p + "row:game", step(1, "1. Your game", game_done),
-                        "Your own dumped copy of the Collection: the folder that holds eboot.bin and sce_sys. Got only "
-                        "the game's .pkg? Install it from there. Check game files compares the folder with the retail "
+                        "Your own dumped copy of the Collection: the folder that holds eboot.bin and sce_sys. Check "
+                        "game files compares the folder with the retail "
                         "files.",
                         setup_buttons("game", SETUP_GAME)));
     for (const char *key : {"game_dir", "ini"})   // the game folder and the settings file
@@ -823,7 +821,7 @@ Value page_setup(const State &state) {
     items.push_back(separator());
     items.push_back(row(p + "row:update", step(2, "2. Update 1.02", update_done),
                         "The fixes in this port need the game's update 1.02: choose its unpacked folder from any "
-                        "place, or install it from its .pkg file. Skip this if your game folder already includes it.",
+                        "place. Skip this if your game folder already includes it.",
                         setup_buttons("update", SETUP_UPDATE)));
     if (const Value *t = state.tools.get("update"))
         if (!text_of(*t).empty()) items.push_back(label(p + "line:update", text_of(*t), DIM, CARD, 9));

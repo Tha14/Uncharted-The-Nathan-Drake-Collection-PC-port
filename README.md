@@ -60,7 +60,7 @@ Changes: [CHANGELOG.md](CHANGELOG.md) and the [release notes](../../releases).
 1. Download **Uncharted-windows.zip** from the latest [release](../../releases) and extract it anywhere.
 2. Start **Uncharted Launcher.exe**. On the first Play, pick your dumped `CUSA02344` game folder (the
    one holding `eboot.bin` and `sce_sys`).
-3. Recommended: game update **1.02**. Install it from its .pkg (**TOOLS -> Game update**), or extract it
+3. Recommended: game update **1.02**. Choose its extracted folder in **SETUP -> step 2**, or put it
    next to the game folder as `CUSA02344-patch`.
 4. Pick a game and a preset, then press **PLAY**. Each game's first start compiles shaders: expect a
    slow first load and some stutter.
@@ -135,7 +135,7 @@ follows [CONTRIBUTING.md](CONTRIBUTING.md) and is licensed under the GNU GPL v2 
 - Third-party code: FSR (AMD), imgui, magic_enum, miniz, xbyak, LibAtrac9, FFmpeg, SDL3,
   [Qt 6](https://www.qt.io) (LGPL v3, unmodified shared libraries), [Python](https://www.python.org)
   (PSF) with [Pillow](https://python-pillow.org) (HPND) and [NumPy](https://numpy.org) (BSD),
-  [Opus](https://opus-codec.org) (BSD) and liborbispkg (`licenses/liborbispkg`).
+  and [Opus](https://opus-codec.org) (BSD).
 - Uncharted 3 multiplayer restoration (`u3mp/`), including its pak tools: João Fidalgo. TLS by
   [BearSSL](https://bearssl.org) (MIT).
 - Map and character visual fixes by **33martyr** (Yeti mask, Outdoor Jacket, map lighting).
