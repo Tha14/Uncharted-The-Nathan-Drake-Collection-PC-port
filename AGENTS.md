@@ -16,6 +16,13 @@ These rules apply to every change in this repository. They are the owner's decis
   They stay short; anything with real logic goes into C++.
 - If you think a task really needs Python, stop and ask the owner. Do not write it "for now".
 
+## Keep it simple
+
+- **Avoid overly complex implementations that can be simplified.** Choose the simplest design that does the job:
+  fewer moving parts, fewer special cases, no layers, options or abstractions nobody needs yet.
+- Before adding code, check whether existing code already does it, or whether a smaller change does the same.
+- When a change grows complicated, stop and look for a simpler way first; if none exists, say why in the commit.
+
 ## Versions: keep ONLY the latest
 
 - **The repository holds only the latest version of anything versioned.** Never keep an older version next to a new
