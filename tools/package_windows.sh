@@ -36,6 +36,14 @@ need gow3_pc/out/gow3-probe.exe 'build the runtime first (gow3_pc/build.sh)'
 need "$small_ffmpeg/ffmpeg.exe" 'build the small FFmpeg first (tools/build_ffmpeg.sh)'
 export PATH="$PWD/$small_ffmpeg:$PATH"   # its DLLs carry FFmpeg's usual names: these are found before MSYS2's
 
+# Only the latest helper build may be committed (AGENTS.md): a new build replaces the old folder, it is never copied
+committed_builds=$(git ls-files u3mp/patcher/build | cut -d/ -f4 | sort -u)
+if (( $(grep -c . <<< "$committed_builds") > 1 )); then
+    echo "More than one helper build committed under u3mp/patcher/build:" $committed_builds >&2
+    echo "Keep only the latest: git rm -r the older folders (they stay in git history)." >&2
+    exit 1
+fi
+
 out=dist/stage/Uncharted-windows
 lic=$out/licenses
 rm -rf -- dist/stage

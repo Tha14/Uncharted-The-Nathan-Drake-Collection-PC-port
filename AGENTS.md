@@ -12,10 +12,20 @@ These rules apply to every change in this repository. They are the owner's decis
   port that tool (or the part you need) to C++ first, switch the callers to the C++ version, and then remove the
   Python file in its own commit.
 - **Never copy Python files** into new folders (for example a new helper build folder under `u3mp/patcher/build/`).
-  Only the current build folder is kept in the repository; older builds live in git history.
 - Scripts that only glue tools together are shell (`bash`) for CI and packaging, or PowerShell on Windows.
   They stay short; anything with real logic goes into C++.
 - If you think a task really needs Python, stop and ask the owner. Do not write it "for now".
+
+## Versions: keep ONLY the latest
+
+- **The repository holds only the latest version of anything versioned.** Never keep an older version next to a new
+  one: no `v7.109/` beside `v7.110/`, no `tool_v2.cpp` beside `tool.cpp`, no `old/`, `backup/` or `-copy` folders.
+  Older versions live in git history only.
+- **A new helper build replaces the previous one in the same commit:** `git mv u3mp/patcher/build/v<old>
+  u3mp/patcher/build/v<new>`, then update its files. `u3mp/patcher/build/` always contains exactly one folder.
+  `tools/package_windows.sh` stops when more than one is committed.
+- **Never copy files to make a new version.** Change the existing files. Shared code lives in one place and is used
+  from there, not duplicated per version.
 
 ## Where C++ goes
 
