@@ -88,6 +88,40 @@ over a second copy keeps the import smaller. For example, baseball-shirt Drake (
 as a campaign skin, so it is not ported from PS3. Before adding a PS3 asset to an import step, check PS4's data for
 the same asset.
 
+## 🧩 7. Helper source: working side by side
+
+The Uncharted 3 helper's source is in [`u3mp/helper-source/`](u3mp/helper-source/README.md). Several people port
+its code at the same time, so these rules keep pull requests from colliding:
+
+**Only the maintainer makes helper versions.**
+- Never change a helper version: no new or renamed `u3mp/patcher/build/v*` folder, no `build.json`, no version
+  number anywhere. The maintainer merges the open helper PRs, then makes **one** new helper version per batch.
+- Never commit a built helper or anything generated: not `profile-helper.bin`, not `tests/u3x_fixes_for_test.inc`,
+  and not the generated block at the end of `u3_lan_profiles.c` (from the line `u3x (C++): generated from
+  u3x_fixes.cpp` to the end of the file).
+
+**Write only in your own places.**
+- New C++ goes into `u3x_fixes.cpp` between `===== contributor section =====` and
+  `===== end of contributor section =====`, just above the end line. The maintainer adds code only at the end of
+  the file, so the two never touch the same lines.
+- New `u3x_` prototypes go into `u3_lan_profiles.c` between `contributor prototypes` and
+  `end of contributor prototypes`; new `U3H` exports and `_Static_assert` checks go between `contributor exports`
+  and `end of contributor exports`.
+- The C function you port keeps its name and place and becomes a one-line wrapper that calls your `u3x_` function,
+  so every other caller keeps working. That is the only place you edit outside your sections.
+- Never change the three lines right after each end marker.
+- Take only rows assigned to you (the current split lists who does what) so two people never port the same function.
+
+**Pull requests.**
+1. Sync your fork and start a branch from the latest `main` for each batch of rows.
+2. Port, then run the old-versus-new test (how: the [helper source README](u3mp/helper-source/README.md)). Add your
+   test as a new `tests/rewrite_test_bNN.inc` (take the next free number) with its `#include` and `batchNN();` call
+   in `rewrite_test.cpp`, and stub every new `u3h_` import in `tests/rewrite_test_b27.inc`.
+3. Open the PR with the rows you ported and the test result. The maintainer reviews, merges, builds, checks it in
+   the game and ships the next helper version with it.
+4. After a new helper version ships, update your branch from `main` (`git pull --rebase` on your branch) before you
+   continue. Your sections and wrappers carry over; only the generated block changes, and you never touch it.
+
 ---
 
 By contributing, you agree that your contribution is licensed under the **GNU GPL v2 or later**, like the

@@ -13,3 +13,7 @@ AGENTS.md, "Keep it simple, but legal and exact").
 Port assets from the PS3 only when PS4 has none: if PS4 has the asset anywhere (campaign included, e.g.
 baseball-shirt / red shirt Drake as a campaign skin), use PS4's, with its better textures and a smaller import
 (see AGENTS.md, "Assets: PS4 first").
+
+Helper source (`u3mp/helper-source/`): several people port it at once. Never make or rename a helper version, never
+touch the generated block at the end of `u3_lan_profiles.c`, and write only between the contributor markers (see
+AGENTS.md, "Helper source: several people at once", and CONTRIBUTING.md, section 7).
