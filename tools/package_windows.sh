@@ -89,9 +89,17 @@ u3_import() {   # Uncharted 3's importer, its recipe and tools, and the newest m
     cp -r u3mp/patcher "$out/u3mp/patcher"
     rm -rf "$out/u3mp/patcher/maintainer"   # the maintainers' own scripts
     drop_caches "$out/u3mp/patcher"
-    local builds=$out/u3mp/patcher/build newest d
-    newest=$(ls -d "$builds"/v*/ | xargs -n1 basename | sort -V | tail -1)   # the launcher only uses the newest
+    # The package carries the committed build and nothing else. The private files can be ahead of this commit (a newer
+    # helper pushed while a release builds): never let such a folder replace the committed one, and stop when the
+    # helper for the committed build is missing or is not the one its build.json names.
+    local builds=$out/u3mp/patcher/build newest=$committed_builds d want have
     for d in "$builds"/v*/; do [[ $(basename -- "$d") == "$newest" ]] || rm -rf -- "$d"; done
+    want=$(grep -o '"profile-helper.bin": *"[0-9a-f]*"' "$builds/$newest/build.json" | grep -o '[0-9a-f]\{64\}')
+    have=$(sha256sum "$builds/$newest/profile-helper.bin" 2>/dev/null | cut -c1-64)
+    if [[ -z $want || $want != "$have" ]]; then
+        echo "The helper of build $newest is missing or is not the one its build.json names (private files out of step?)" >&2
+        exit 1
+    fi
     echo "multiplayer helper build in the package: $newest"
     cp gow3_pc/LICENSE "$out/u3mp/patcher/LICENSE.txt"
     # the sound-bank encoder compiled (much faster than vagenc.py), kept only when it encodes exactly like the script
