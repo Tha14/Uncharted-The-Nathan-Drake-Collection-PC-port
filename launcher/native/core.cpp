@@ -42,6 +42,7 @@ UN_API int un_controls(const char *what, const char *in_json, char *out, int cap
 UN_API int un_gpu_recommendation(const wchar_t *logs, char *out, int cap);
 UN_API int un_gpu_query(const char *what, const char *name, int integrated, char *out, int cap);
 UN_API int un_play_env(const char *config_json, const wchar_t *user_dir, char *out, int cap);
+UN_API int un_u3_session_value(const wchar_t *user_dir, const wchar_t *eboots, const wchar_t *image);
 UN_API int un_play_start(const char *request_json, char *out, int cap);
 UN_API int un_play_poll(char *out, int cap);
 UN_API int un_play_stop(void);
@@ -1690,11 +1691,24 @@ const Value *game_by_exe(const std::string &exe) {
     return nullptr;
 }
 
+// The helper's session value (session_value.cpp): kept in the user folder, taken from the player's own EBOOT.elf, or
+// from the multiplayer image an earlier release linked on this PC. Called at start (before an update can replace that
+// image) and before every game start.
+void u3_session_value() {
+    const Value s = u3_state();
+    const std::string eboots = text(g.config, "u3mp_ps3_elf") + "\n" + text(s, "ps3_elf") + "\n" +
+                               join(join(join(u3_data(), "ps3-kept"), "elf"), "EBOOT.elf");
+    const Value *image = s.get("image");
+    un_u3_session_value(wide(g.user_dir).c_str(), wide(eboots).c_str(),
+                        wide(image && image->is_object() ? text(*image, "path") : "").c_str());
+}
+
 // the game's environment beyond the launcher's settings: Uncharted 3's multiplayer image and overlays
 void u3_env(std::vector<std::pair<std::string, Value>> &env) {
     for (const char *k : {"UNCHARTED_U3MP_IMAGE", "UNCHARTED_U3MP_IMAGE_SHA256", "UNCHARTED_U3MP_OVERLAYS", "UNCHARTED_U3MP_VERSION"})
         env.push_back({k, Value::null()});
     if (!u3_on()) return;
+    u3_session_value();
     const Value s = u3_state();
     if (u3_running() && !truthy(s.get("staging"))) return;   // the files are being made: Uncharted 3 starts without them
     if (!u3_ready(s).first) return;
@@ -2282,6 +2296,7 @@ void start(const std::string &root, const Value &args) {
     const Value steps = setup_steps();
     const bool set_up = truthy(steps.get("game")) && truthy(steps.get("update"));
     show_tab(known && set_up ? saved : "setup", false);
+    u3_session_value();
     online_open();
     every(150, []() { poll_game(); if (++g.poll_count % 7 == 0) follow_ini(); });
     every(200, []() { update_op("tick"); });
