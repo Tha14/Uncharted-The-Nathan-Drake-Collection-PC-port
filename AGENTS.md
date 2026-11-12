@@ -2,19 +2,30 @@
 
 These rules apply to every change in this repository. They are the owner's decision and are not up for discussion.
 
-## Language: C++ only. No Python.
+## Language: C++ above everything else
 
-- **Write all new code in C++** (C++20, built with clang through the existing `build.sh` / CMake setups).
-  Plain C is fine only where the surrounding code is already C (the game runtime, small native helpers).
-- **Never add a Python file** (`.py`, `.pyw`, `.pyi`, notebooks). Not for a feature, not for a fix, not for a
-  "quick" tool, a test, a build step, a one-off script or a CI step.
-- **Never extend existing Python.** Python that is still here is being replaced. When a change touches a Python tool,
-  port that tool (or the part you need) to C++ first, switch the callers to the C++ version, and then remove the
-  Python file in its own commit.
-- **Never copy Python files** into new folders (for example a new helper build folder under `u3mp/patcher/build/`).
-- Scripts that only glue tools together are shell (`bash`) for CI and packaging, or PowerShell on Windows.
-  They stay short; anything with real logic goes into C++.
-- If you think a task really needs Python, stop and ask the owner. Do not write it "for now".
+**C++ is the language of this project. Everything is written in C++.** Another language is used only where C++ is
+really impossible or clearly not practical, and that case is rare. "It is quicker", "the file is already C" or "it is
+just a small script" are not reasons.
+
+- **Write all new code in C++** (C++20, built with clang through the existing `build.sh` / CMake setups). This includes
+  tools, tests, build and import steps, one-off helpers and fixes.
+- **No new C.** Existing C (for example the Uncharted 3 helper's `u3_lan_profiles.c` and its `.inc` files) is being
+  ported to C++: when you change a C function, move it to C++ instead of growing the C. Do not add C files or C
+  functions.
+- **No Python, ever.** Never add a Python file (`.py`, `.pyw`, `.pyi`, notebooks): not for a feature, a fix, a "quick"
+  tool, a test, a build step, a one-off script or a CI step. Never extend existing Python: port the tool (or the part
+  you need) to C++, switch the callers, and remove the Python file in its own commit. Never copy Python files into new
+  folders (for example a new helper build folder under `u3mp/patcher/build/`).
+- **The only accepted exceptions,** because C++ cannot do the job or it would not be practical:
+  - third-party libraries kept as they are (for example BearSSL, `u3_bearssl.inc`);
+  - a few lines of assembly inside C++ where the game's calling convention or an instruction needs it (calls that
+    pass floats in x87 / xmm registers, `int 0x41`);
+  - QML for the launcher's Qt window layout (`launcher-qt/`), with all logic in C++;
+  - short shell (`bash`) for CI and packaging, PowerShell on Windows, CMake for builds: glue only, anything with real
+    logic goes into C++.
+- **If you think something really needs another language, stop and ask the owner** before writing it. Do not write it
+  "for now".
 
 ## Keep it simple, but legal and exact
 

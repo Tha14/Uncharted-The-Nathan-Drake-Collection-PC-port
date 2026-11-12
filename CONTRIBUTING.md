@@ -73,12 +73,20 @@ to reduce compatibility problems and regressions.
 State the launcher/build version and game update used for testing in your PR. When changing supported
 versions, check that the change does not regress existing supported behavior.
 
-## ⚙️ 5. C++ only, no new Python
+## ⚙️ 5. C++ above everything else
 
-**New code is written in C++.** Pull requests that add Python files, or grow existing Python, are not accepted.
-The Python that is still in the repository is being replaced: if your change needs one of those tools, port the
-part you need to C++ and remove the Python. Short glue for CI and packaging stays shell or PowerShell. If you are
-using a coding agent, it reads the same rules from [AGENTS.md](AGENTS.md).
+**Everything in this project is written in C++.** Another language is accepted only where C++ is really impossible or
+clearly not practical. Pull requests that add Python, add C, or grow existing Python or C are not accepted.
+
+- **New code:** C++ (C++20), for features, fixes, tools, tests and build or import steps.
+- **Existing C** (for example the helper's `u3_lan_profiles.c`) and **existing Python** are being replaced: if your
+  change touches them, port the part you need to C++ and remove the old code.
+- **The only exceptions:** third-party libraries kept as they are (BearSSL), a few lines of assembly inside C++ where
+  the game's calling convention needs it, QML for the launcher window's layout (logic in C++), and short shell /
+  PowerShell / CMake glue for CI, packaging and builds.
+- If you think something really needs another language, ask the maintainer first.
+
+If you are using a coding agent, it reads the same rules from [AGENTS.md](AGENTS.md).
 
 ## 🎨 6. Assets: PS4 first, PS3 only when PS4 has none
 

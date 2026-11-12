@@ -1,5 +1,10 @@
 @AGENTS.md
 
+C++ ABOVE EVERYTHING ELSE: write everything in C++. No new C, no Python, ever; existing C and Python get ported to C++
+when you touch them. Another language only where C++ is really impossible or clearly not practical (third-party
+libraries such as BearSSL, a few lines of assembly for the game's calling conventions, QML layout, short shell /
+PowerShell / CMake glue); if in doubt, ask the owner first (see AGENTS.md, "Language: C++ above everything else").
+
 Claude Code: the hook in `.claude/settings.json` refuses any write or edit of a Python file here.
 Do not work around it; write the change in C++ instead.
 
