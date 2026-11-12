@@ -313,8 +313,8 @@ void ConfigureUpscalerSupport(bool fsr4, bool fsr411) {
     const int requested = v.upscaler;
     if ((requested == UpscalerFsr4 && !v.fsr4_supported) ||
         (requested == UpscalerFsr411 && !v.fsr411_supported)) {
-        v.fsr4_problem = "GPU does not support the selected FSR 4 shaders; using FSR 3.1";
-        std::printf("Upscaler: %s unsupported on this GPU; falling back to FSR 3.1 before the first frame\n",
+        v.fsr4_problem = "FSR 4 is not available (its model files are not shipped, or the GPU lacks INT8 support); using FSR 3.1";
+        std::printf("Upscaler: %s not available (model files missing or GPU unsupported); falling back to FSR 3.1 before the first frame\n",
                     UpscalerName(requested));
         v.upscaler = UpscalerFsr3;
     }
