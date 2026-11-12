@@ -93,6 +93,23 @@ the same asset.
 The Uncharted 3 helper's source is in [`u3mp/helper-source/`](u3mp/helper-source/README.md). Several people port
 its code at the same time, so these rules keep pull requests from colliding:
 
+
+**In short, how a contributor works on the helper:**
+
+1. Click **Sync fork** on your fork of this repo (always before you start, and again after each new helper version).
+2. Edit only the files in `u3mp/helper-source/`.
+3. Open a **Pull Request**.
+4. The maintainer merges it, then builds and ships the next helper version.
+
+**How nobody gets in each other's way:**
+
+- **Never change a version number or build anything.** Only the maintainer does that, once per batch of rows.
+- **Write only in your own marked spots** (between the "contributor" marker lines, details below). The maintainer
+  writes only at the very end of `u3x_fixes.cpp`, so two people never change the same lines.
+- **Port only the rows assigned to you** in the current split file, so two people never work on the same function.
+
+The details:
+
 **Only the maintainer makes helper versions.**
 - Never change a helper version: no new or renamed `u3mp/patcher/build/v*` folder, no `build.json`, no version
   number anywhere. The maintainer merges the open helper PRs, then makes **one** new helper version per batch.

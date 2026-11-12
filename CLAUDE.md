@@ -14,6 +14,8 @@ Port assets from the PS3 only when PS4 has none: if PS4 has the asset anywhere (
 baseball-shirt / red shirt Drake as a campaign skin), use PS4's, with its better textures and a smaller import
 (see AGENTS.md, "Assets: PS4 first").
 
-Helper source (`u3mp/helper-source/`): several people port it at once. Never make or rename a helper version, never
-touch the generated block at the end of `u3_lan_profiles.c`, and write only between the contributor markers (see
-AGENTS.md, "Helper source: several people at once", and CONTRIBUTING.md, section 7).
+Helper source (`u3mp/helper-source/`), in short: a contributor syncs their fork, edits only that folder, and opens a
+pull request; the maintainer merges it, then builds and ships the next helper version. So: never make or rename a helper
+version, never touch the generated block at the end of `u3_lan_profiles.c`, write only between the contributor markers,
+and port only the rows assigned to you (see AGENTS.md, "Helper source: several people at once", and CONTRIBUTING.md,
+section 7).

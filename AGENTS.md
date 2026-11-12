@@ -55,8 +55,12 @@ These rules apply to every change in this repository. They are the owner's decis
 
 ## Helper source: several people at once
 
-The Uncharted 3 helper's source is `u3mp/helper-source/` (see CONTRIBUTING.md, section 7). Rules for agents working
-for a contributor:
+The Uncharted 3 helper's source is `u3mp/helper-source/` (see CONTRIBUTING.md, section 7).
+
+In short: the contributor syncs their fork, edits only `u3mp/helper-source/`, and opens a pull request; the
+maintainer merges it, builds and ships the next helper version. Nobody else changes a version number or builds. Each
+person writes only in their own marked spots and ports only the rows assigned to them, so changes never collide.
+When you work for a contributor:
 
 - **Never make a helper version.** No new or renamed `u3mp/patcher/build/v*` folder, no `build.json` change, no
   version number. Only the maintainer ships helper versions, once per batch, after merging the helper PRs.
