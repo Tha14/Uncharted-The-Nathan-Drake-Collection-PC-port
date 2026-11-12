@@ -264,7 +264,7 @@ static volatile uint32_t t27_s16[16];
 static uint32_t t27_h08[5][16];
 uint8_t *u3h_s16_char(uintptr_t, uint8_t *) { return nullptr; }
 volatile uint32_t *u3h_s16_diag(void) { return t27_s16; }
-uint32_t u3h_crc_sid(const char *) { return 0; }
+uint32_t u3h_crc_sid(const char *p) { uint32_t c = 0; for (; *p; p++) { c ^= (uint32_t)(uint8_t)*p << 24; for (int b = 0; b < 8; b++) c = (c & 0x80000000u) ? (c << 1) ^ 0x04C11DB7u : (c << 1); } return c; }
 void u3h_h01_tint(uintptr_t, uint8_t *, uint8_t *, int32_t) {}
 uint32_t *u3h_h08_state(int which) { return t27_h08[which]; }
 }
@@ -436,4 +436,17 @@ void u3h_j05_inc(int) {}
 void u3h_booster_icons(uintptr_t, void *, int32_t *, uint8_t *, uint32_t, uint32_t, int32_t, uint8_t *) {}
 int u3h_k46_op4(uintptr_t, void *, int32_t *, uint8_t *, uint32_t, uint32_t, int32_t, uint8_t *) { return 0; }
 void u3h_k49_booster(uintptr_t, void *, uint8_t *, uint32_t, uint32_t, int32_t, uint8_t *, int32_t) {}
+}
+extern "C" {
+void u3h_onp_be2le(uint8_t *, const uint8_t *) {}
+void u3h_pu_seal(uint8_t *) {}
+int u3h_pf_unseal(uint8_t *) { return 0; }
+const char *u3h_pu_key(int) { return ""; }
+uint64_t u3h_nl_connect(uint32_t, uint32_t) { return ~0ull; }
+int u3h_nl_sendall(uint64_t, const uint8_t *, int) { return 0; }
+int u3h_sock_recv(uint64_t, void *, int) { return 0; }
+void u3h_sock_close(uint64_t) {}
+char *u3h_pu_why(void) { static char w[48]; return w; }
+void *u3h_rc_mem(void) { return nullptr; }
+void u3h_s19_count(int, uint32_t) {}
 }

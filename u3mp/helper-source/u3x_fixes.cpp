@@ -12068,3 +12068,1030 @@ extern "C" U3X_FN int u3x_boosters_source(uintptr_t base, int32_t *ev, void *s) 
 // (keep these three lines unchanged: they separate the contributor section from the parts appended below)
 // (-)
 // (-)
+
+// ===== v7.193: third split, part 13 (the out-of-bounds grid) =====
+
+// v5.07: PS3's VIS_CHEAT reader (f_74615c / f_745b64). The killvis level's grid (item data at 0x1b3ae78, converted to
+// the PS4 layout: {type, min/max x,y,z, axis order +0x1c, scale +0x20, [type 2: origin +0x30], runs at H (0x40 type 2,
+// 0x30 type 1) {count, rows +8}, slice count H+8, slices H+0x10 {u16 n, u16 entries {repeat << 14 | row}}}; RLE rows:
+// first byte the value, then run lengths, the value flips after each run shorter than 255). A cell is out of bounds
+// when its byte is non-zero. A player whose 8 corners around (position + 1 m up) all sit in such cells, and who is not in
+// one of three character states, gets the 5 s kill timer (+0x848). ExtState oob (+0x2070): [0] checks, [1] grid,
+// [2] corners, [3] timers started, [4] no map gate, [5..7] test point, [8] state skips, [10] killvis sid, [13..15] the
+// U3MP_OOB_TEST cell; oob2 (+0x20b0): [0] its grid, [1] test ticks.
+namespace {
+U3X_FN uint32_t *oob() { return reinterpret_cast<uint32_t *>(u3h_ext() + 0x2070); }
+U3X_FN uint32_t *oob2() { return reinterpret_cast<uint32_t *>(u3h_ext() + 0x20b0); }
+U3X_FN uint32_t grid_header(const uint8_t *g) { return rd<uint32_t>(g, 0) == 2 ? 0x40u : 0x30u; }
+}  // namespace
+extern "C" U3X_FN int u3x_vis_ok(const void *p) {
+    const uintptr_t v = reinterpret_cast<uintptr_t>(p);
+    return v >= 0x10000u && v < (1ull << 47) && !(v & 1);
+}
+// floor and ceil cell of one axis: trunc((round((p - o) * s) / s + o - o) * s), single precision in PS3's order
+extern "C" U3X_FN void u3x_vis_axis(uint32_t p, uint32_t sc, uint32_t o, int64_t out[2]) {
+    int64_t lo, hi;
+    __asm__("movd %2,%%xmm0\n\tmovd %3,%%xmm3\n\tmovd %4,%%xmm4\n\t"
+            "subss %%xmm4,%%xmm0\n\tmulss %%xmm3,%%xmm0\n\t"
+            "roundss $9,%%xmm0,%%xmm1\n\troundss $10,%%xmm0,%%xmm2\n\t"
+            "divss %%xmm3,%%xmm1\n\taddss %%xmm4,%%xmm1\n\tsubss %%xmm4,%%xmm1\n\tmulss %%xmm3,%%xmm1\n\tcvttss2si %%xmm1,%0\n\t"
+            "divss %%xmm3,%%xmm2\n\taddss %%xmm4,%%xmm2\n\tsubss %%xmm4,%%xmm2\n\tmulss %%xmm3,%%xmm2\n\tcvttss2si %%xmm2,%1"
+            : "=&r"(lo), "=&r"(hi) : "r"(p), "r"(sc), "r"(o) : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "cc");
+    out[0] = lo;
+    out[1] = hi;
+}
+// one cell: 2 outside the grid, 1 inside and empty (or unreadable), 0 out of bounds
+extern "C" U3X_FN int u3x_vis_cell(const uint8_t *g, const int64_t c[3]) {
+    const uint32_t H = grid_header(g);
+    int64_t idx[3], dim[3];
+    for (int i = 0; i < 3; ++i) {
+        const int64_t mn = rd<int32_t>(g, 4 + 8 * i), mx = rd<int32_t>(g, 8 + 8 * i);
+        if (c[i] < mn || c[i] >= mx) return 2;
+        idx[i] = c[i] - mn;
+        dim[i] = mx - mn;
+    }
+    const uint32_t a0 = g[0x1c], a1 = g[0x1d], a2 = g[0x1e];
+    if (a0 > 2 || a1 > 2 || a2 > 2) return 2;
+    const uint8_t *runs = rd<const uint8_t *>(g, H);
+    const uint32_t slices = rd<uint32_t>(g, H + 8);
+    if (!u3x_vis_ok(runs) || static_cast<uint64_t>(idx[a2]) >= slices) return 2;
+    const uint8_t *sl = rd<const uint8_t *>(g, H + 0x10 + idx[a2] * 8);
+    if (!u3x_vis_ok(sl)) return 2;
+    const uint32_t rows = rd<uint32_t>(runs, 0), n = rd<uint16_t>(sl, 0);
+    const int64_t want = idx[a1], col = idx[a0];
+    int64_t r = 0;
+    for (uint32_t j = 0; j < n; ++j) {
+        const uint32_t e = rd<uint16_t>(sl, 2 + j * 2);
+        const int64_t rep = e >> 14;
+        if (want <= r + rep) {
+            if ((e & 0x3fffu) >= rows) return 1;
+            const uint8_t *row = rd<const uint8_t *>(runs, 8 + static_cast<uint64_t>(e & 0x3fffu) * 8);
+            if (!u3x_vis_ok(row)) return 1;
+            uint8_t v = row[0];
+            int64_t pos = 0;
+            for (int64_t k = 1; pos < dim[a0] && k <= dim[a0] * 2 + 2; ++k) {
+                const uint32_t len = row[k];
+                if (col < pos + len) return v == 0;
+                pos += len;
+                if (len != 255) v = static_cast<uint8_t>(~v);
+            }
+            return 1;   // a malformed row: PS3 read scratch memory; the cell counts as empty
+        }
+        r += rep + 1;
+    }
+    return 1;
+}
+// how many of the 8 corners around pos are out of bounds (0 without a grid of type 1 or 2)
+extern "C" U3X_FN int u3x_vis_cheat_corners(uintptr_t base, const uint32_t pos[3]) {
+    const uint8_t *g = at<const uint8_t *>(base + 0x1b3ae78);
+    oob()[1] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(g));
+    if (!u3x_vis_ok(g)) return 0;
+    const uint32_t t = rd<uint32_t>(g, 0);
+    if (t != 1 && t != 2) return 0;
+    int64_t c[3][2];
+    for (int i = 0; i < 3; ++i) u3x_vis_axis(pos[i], rd<uint32_t>(g, 0x20 + 4 * i), t == 2 ? rd<uint32_t>(g, 0x30 + 4 * i) : 0u, c[i]);
+    int n = 0;
+    for (int k = 0; k < 8; ++k) {
+        int64_t q[3];
+        q[0] = c[0][k & 1];
+        q[1] = c[1][(k >> 1) & 1];
+        q[2] = c[2][(k >> 2) & 1];
+        if (u3x_vis_cell(g, q) == 0) ++n;
+    }
+    return n;
+}
+// the object's world position (parent position + parent rotation applied to the local position) plus 1 m up
+extern "C" U3X_FN void u3x_vis_test_point(uint8_t *o, uint32_t out[3]) {
+    alignas(16) uint32_t r[4];
+    __asm__("movups 0xe0(%1),%%xmm1\n\tmovups 0xf0(%1),%%xmm2\n\t"
+            "movaps %%xmm1,%%xmm3\n\tshufps $0xc9,%%xmm3,%%xmm3\n\tmovaps %%xmm2,%%xmm4\n\tshufps $0xd2,%%xmm4,%%xmm4\n\tmulps %%xmm4,%%xmm3\n\t"
+            "movaps %%xmm1,%%xmm4\n\tshufps $0xd2,%%xmm4,%%xmm4\n\tmovaps %%xmm2,%%xmm5\n\tshufps $0xc9,%%xmm5,%%xmm5\n\tmulps %%xmm5,%%xmm4\n\t"
+            "subps %%xmm4,%%xmm3\n\taddps %%xmm3,%%xmm3\n\t"
+            "movaps %%xmm1,%%xmm4\n\tshufps $0xc9,%%xmm4,%%xmm4\n\tmovaps %%xmm3,%%xmm5\n\tshufps $0xd2,%%xmm5,%%xmm5\n\tmulps %%xmm5,%%xmm4\n\t"
+            "movaps %%xmm1,%%xmm5\n\tshufps $0xd2,%%xmm5,%%xmm5\n\tmovaps %%xmm3,%%xmm6\n\tshufps $0xc9,%%xmm6,%%xmm6\n\tmulps %%xmm6,%%xmm5\n\t"
+            "subps %%xmm5,%%xmm4\n\t"
+            "movaps %%xmm1,%%xmm5\n\tshufps $0xff,%%xmm5,%%xmm5\n\tmulps %%xmm3,%%xmm5\n\t"
+            "addps %%xmm5,%%xmm2\n\taddps %%xmm4,%%xmm2\n\tmovups 0xd0(%1),%%xmm0\n\taddps %%xmm2,%%xmm0\n\tmovaps %%xmm0,(%0)"
+            :: "r"(r), "r"(o) : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "memory");
+    out[0] = r[0];
+    out[2] = r[2];
+    out[1] = f_add(r[1], F_ONE);
+}
+// the process's current state id (obj +0x80 -> [0] -> +0x10 -> +0x18) is h
+extern "C" U3X_FN int u3x_obj_state_is(uint8_t *o, uint32_t h) {
+    const uint8_t *a = rd<const uint8_t *>(o, 0x80);
+    if (!u3x_vis_ok(a)) return 0;
+    const uint8_t *b = rd<const uint8_t *>(a, 0);
+    if (!u3x_vis_ok(b)) return 0;
+    const uint8_t *c = rd<const uint8_t *>(b, 0x10);
+    if (!u3x_vis_ok(c)) return 0;
+    return rd<uint32_t>(c, 0x18) == h;
+}
+// the map list (0xdec97a4) entry of the current net game's map
+extern "C" U3X_FN uint8_t *u3x_map_entry_cur(uintptr_t base, void *s) {
+    const uint8_t *ng = u3h_netgame(base, s);
+    if (!ng) return nullptr;
+    const int32_t *ml = reinterpret_cast<const int32_t *>(reinterpret_cast<void *(*)(uint32_t)>(state_native(s, 13))(0xdec97a4u));
+    if (!ml) return nullptr;
+    uint8_t *e = rd<uint8_t *>(ml, 8);
+    const uint32_t map = rd<uint32_t>(ng, 4);
+    for (int32_t i = 0; e && i < ml[0] && i < 128; ++i, e += 0x98)
+        if (rd<uint32_t>(e, 0) == map) return e;
+    return nullptr;
+}
+// U3MP_OOB_TEST: the first out-of-bounds cell of the grid (cell coordinates), scanning slices, rows and runs
+extern "C" U3X_FN int u3x_vis_find_kill(const uint8_t *g, int32_t c[3]) {
+    const uint32_t H = grid_header(g);
+    int32_t mn[3], dim[3];
+    for (int i = 0; i < 3; ++i) {
+        mn[i] = rd<int32_t>(g, 4 + 8 * i);
+        dim[i] = rd<int32_t>(g, 8 + 8 * i) - mn[i];
+        if (dim[i] <= 0) return 0;
+    }
+    const uint32_t a0 = g[0x1c], a1 = g[0x1d], a2 = g[0x1e];
+    if (a0 > 2 || a1 > 2 || a2 > 2) return 0;
+    const uint8_t *runs = rd<const uint8_t *>(g, H);
+    const uint32_t slices = rd<uint32_t>(g, H + 8);
+    if (!u3x_vis_ok(runs)) return 0;
+    const uint32_t rows = rd<uint32_t>(runs, 0);
+    for (uint32_t k = 0; k < slices && k < 4096; ++k) {
+        const uint8_t *sl = rd<const uint8_t *>(g, H + 0x10 + static_cast<uint64_t>(k) * 8);
+        if (!u3x_vis_ok(sl)) continue;
+        const uint32_t n = rd<uint16_t>(sl, 0);
+        int32_t r = 0;
+        for (uint32_t j = 0; j < n; ++j) {
+            const uint32_t e = rd<uint16_t>(sl, 2 + j * 2);
+            const int32_t rep = static_cast<int32_t>(e >> 14);
+            if ((e & 0x3fffu) < rows) {
+                const uint8_t *row = rd<const uint8_t *>(runs, 8 + static_cast<uint64_t>(e & 0x3fffu) * 8);
+                if (u3x_vis_ok(row)) {
+                    uint8_t v = row[0];
+                    int32_t pos = 0;
+                    for (int32_t q = 1; pos < dim[a0] && q <= dim[a0] * 2 + 2; ++q) {
+                        const uint32_t len = row[q];
+                        if (v && len) {
+                            int32_t idx[3];
+                            idx[a0] = pos;
+                            idx[a1] = r + rep / 2;
+                            idx[a2] = static_cast<int32_t>(k);
+                            for (int i = 0; i < 3; ++i) c[i] = idx[i] + mn[i];
+                            return 1;
+                        }
+                        pos += static_cast<int32_t>(len);
+                        if (len != 255) v = static_cast<uint8_t>(~v);
+                    }
+                }
+            }
+            r += rep + 1;
+        }
+    }
+    return 0;
+}
+// cell / scale + origin as float bits (the point whose 8 corners all fall in that cell)
+extern "C" U3X_FN uint32_t u3x_vis_cell_point(int32_t c, uint32_t sc, uint32_t o) { return f_add(f_div(f_from_int(c), sc), o); }
+// PS3 f_363ed4's out-of-bounds condition (with a Player): 1 when the map has a killvis level (the caller then skips its
+// debug trigger), 0 without one
+extern "C" U3X_FN int u3x_vis_oob_tick(uintptr_t base, void *s, uint8_t *p, uint8_t *pl, int32_t now, int test) {
+    int32_t &timer = *reinterpret_cast<int32_t *>(p + 0x848);
+    uint32_t *d = oob();
+    const uint8_t *me = u3x_map_entry_cur(base, s);
+    d[10] = me ? rd<uint32_t>(me, 0x40) : 0;
+    if (!me || !rd<uint32_t>(me, 0x40)) {
+        ++d[4];
+        return 0;
+    }
+    ++d[0];
+    uint32_t pos[3];
+    u3x_vis_test_point(pl, pos);
+    if (test) {   // U3MP_OOB_TEST: the test point moves into the grid's first out-of-bounds cell
+        const uint8_t *g = at<const uint8_t *>(base + 0x1b3ae78);
+        if (u3x_vis_ok(g) && (rd<uint32_t>(g, 0) == 1 || rd<uint32_t>(g, 0) == 2)) {
+            uint32_t *d2 = oob2();
+            ++d2[1];
+            if (d2[0] != static_cast<uint32_t>(reinterpret_cast<uintptr_t>(g))) {
+                d2[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(g));
+                d[13] = d[14] = d[15] = 0;
+            }
+            if (!d[13] && !d[14] && !d[15]) {
+                int32_t c[3];
+                if (u3x_vis_find_kill(g, c)) {
+                    d[13] = static_cast<uint32_t>(c[0]);
+                    d[14] = static_cast<uint32_t>(c[1]);
+                    d[15] = static_cast<uint32_t>(c[2]);
+                } else {
+                    d[13] = 0x80000000u;
+                }
+            }
+            if (d[13] != 0x80000000u) {
+                const uint32_t t = rd<uint32_t>(g, 0);
+                for (int i = 0; i < 3; ++i)
+                    pos[i] = u3x_vis_cell_point(static_cast<int32_t>(d[13 + i]), rd<uint32_t>(g, 0x20 + 4 * i), t == 2 ? rd<uint32_t>(g, 0x30 + 4 * i) : 0u);
+            }
+        }
+    }
+    d[5] = pos[0];
+    d[6] = pos[1];
+    d[7] = pos[2];
+    const int n = u3x_vis_cheat_corners(base, pos);
+    d[2] = static_cast<uint32_t>(n);
+    if (u3x_obj_state_is(pl, 0xb713a9fdu) || u3x_obj_state_is(pl, 0x50b12ba3u) || u3x_obj_state_is(pl, 0xc388fdabu)) {
+        ++d[8];
+        timer = 0;
+        return 1;
+    }
+    if (n == 8) {
+        if (timer <= 0) {
+            timer = now + 5 * 300;
+            ++d[3];
+        }
+    } else {
+        timer = 0;
+    }
+    return 1;
+}
+
+// ===== v7.194: third split, part 14 (the saved online profile upload) =====
+
+extern "C" {
+U3H_IMPORT void u3h_onp_be2le(uint8_t *d, const uint8_t *s);
+U3H_IMPORT void u3h_pu_seal(uint8_t *record);
+U3H_IMPORT int u3h_pf_unseal(uint8_t *record);
+U3H_IMPORT const char *u3h_pu_key(int secret);
+U3H_IMPORT uint64_t u3h_nl_connect(uint32_t ip, uint32_t port);
+U3H_IMPORT int u3h_nl_sendall(uint64_t f, const uint8_t *p, int n);
+U3H_IMPORT int u3h_sock_recv(uint64_t f, void *b, int n);
+U3H_IMPORT void u3h_sock_close(uint64_t f);
+U3H_IMPORT char *u3h_pu_why(void);
+U3H_IMPORT void *u3h_rc_mem(void);
+}
+
+// v7.64 pu01: PS3 f_364a80. After a save the game thread queues the record (pu_queue); the RPCN thread waits until no
+// further save came for 8 passes, then swaps it to big-endian, seals it (Blowfish + HMAC-SHA1 with the player's own EBOOT
+// keys), packs it with ND's LZ and checks the round trip, and PUTs it as /u3.final.prod/profiles/<online id>/profile.86
+// with an S3 signature, in PS3 libhttp's header order (3 tries 300 ms apart). Never before the sign-in's GET succeeded.
+// The upload host's address is the one the community DNS answered (ExtState room[9]).
+namespace {
+// RcMem fields (offsets checked against the C struct)
+enum : uint32_t {
+    ro_me = 125132, ro_pf_rec = 799792, ro_pf_state = 810072, ro_pu_rec = 810088, ro_pu_work = 820368, ro_pu_be = 830648,
+    ro_pu_chk = 840928, ro_pu_out = 851208, ro_pu_head = 859400, ro_pu_req = 875784, ro_pu_seq = 876424,
+    ro_pu_busy = 876428, ro_pu_done = 876432, ro_pu_seen = 876436, ro_pu_quiet = 876440, ro_pu_ok = 876444,
+    ro_pu_fail = 876448, ro_pu_skip = 876452, ro_pu_http = 876456, ro_pu_len = 876460
+};
+constexpr uint32_t pu_record_bytes = 0x2828, pu_record_version = 0x56;
+U3X_RO const char b64_digits[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+U3X_RO const char pu_days[] = "SunMonTueWedThuFriSat", month_abbr[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
+U3X_RO const char put_start[] = "PUT /u3.final.prod/profiles/", put_key[] = "/profile.86 HTTP/1.1\r\nHost: ",
+                  s3_host[] = "s3.amazonaws.com",
+                  put_head[] = "\r\nConnection: close\r\nUser-Agent: DNTG-HTTPC/1.1\r\nContent-Type: text/plain\r\nDate: ",
+                  put_auth[] = "\r\nAuthorization: AWS ", put_length[] = "\r\nContent-Length: ", put_end[] = "\r\n\r\n",
+                  sign_start[] = "PUT\n\ntext/plain\n", sign_path[] = "\n/u3.final.prod/profiles/", sign_key[] = "/profile.86",
+                  code_tag[] = "<Code>";
+U3X_FN uint8_t *pu_field(void *m, uint32_t off) { return static_cast<uint8_t *>(m) + off; }
+U3X_FN uint32_t &pu_word(void *m, uint32_t off) { return *reinterpret_cast<uint32_t *>(pu_field(m, off)); }
+U3X_FN uint32_t hash3(const uint8_t *p) { return (static_cast<uint32_t>(p[0] | p[1] << 8 | p[2] << 16) * 2654435761u) >> 20; }
+U3X_FN void copy_n(uint8_t *d, const uint8_t *s, uint32_t n) {
+    while (n--) *d++ = *s++;
+}
+// literal runs of up to 32 bytes: count - 1, then the bytes
+U3X_FN bool lz_literals(const uint8_t *s, uint32_t &ls, uint32_t to, uint8_t *d, uint32_t &o, uint32_t cap) {
+    while (ls < to) {
+        uint32_t k = to - ls;
+        if (k > 32) k = 32;
+        if (o + 1 + k > cap) return false;
+        d[o++] = static_cast<uint8_t>(k - 1);
+        copy_n(d + o, s + ls, k);
+        o += k;
+        ls += k;
+    }
+    return true;
+}
+// the record header PS3 writes in front: version 0x56, then 0x28 0x18
+U3X_FN void record_header(uint8_t *r) {
+    r[0] = r[1] = r[2] = 0;
+    r[3] = static_cast<uint8_t>(pu_record_version);
+    r[4] = r[5] = 0;
+    r[6] = 0x28;
+    r[7] = 0x18;
+}
+U3X_FN int pu_text(uint8_t *q, int n, const char *t) {
+    while (*t) q[n++] = static_cast<uint8_t>(*t++);
+    return n;
+}
+U3X_FN int append_two(char *o, int n, uint32_t v) {
+    o[n++] = static_cast<char>('0' + v / 10);
+    o[n++] = static_cast<char>('0' + v % 10);
+    return n;
+}
+// "Sun, 01 Jan 2026 12:00:00 +0000" (RFC 1123 in UTC, as PS3 libhttp)
+U3X_FN int pu_http_date(char *ds) {
+    uint16_t st[8];
+    for (uint16_t &v : st) v = 0;
+    u3h_utc(st);
+    int n = 0;
+    for (int i = 0; i < 3; ++i) ds[n++] = pu_days[(st[2] % 7) * 3 + i];
+    ds[n++] = ',';
+    ds[n++] = ' ';
+    n = append_two(ds, n, st[3]);
+    ds[n++] = ' ';
+    for (int i = 0; i < 3; ++i) ds[n++] = month_abbr[((st[1] + 11) % 12) * 3 + i];
+    ds[n++] = ' ';
+    const uint32_t y = st[0];
+    ds[n++] = static_cast<char>('0' + y / 1000 % 10);
+    ds[n++] = static_cast<char>('0' + y / 100 % 10);
+    n = append_two(ds, n, y % 100);
+    ds[n++] = ' ';
+    n = append_two(ds, n, st[4]);
+    ds[n++] = ':';
+    n = append_two(ds, n, st[5]);
+    ds[n++] = ':';
+    n = append_two(ds, n, st[6]);
+    ds[n++] = ' ';
+    ds[n++] = '+';
+    for (int i = 0; i < 4; ++i) ds[n++] = '0';
+    return n;
+}
+}  // namespace
+// ND LZ as PS3 f_7a593c reads it (c <= 0x1f: c + 1 literals; else length c >> 5 (7: + next byte) + 2 at offset
+// ((c & 0x1f) << 8 | next) + 1). Greedy: the hash candidate or the previous byte (runs), matches of 3..264 bytes within
+// 8192. The packed length, 0 when it does not fit.
+extern "C" U3X_FN uint32_t u3x_pu_lz(const uint8_t *s, uint32_t n, uint8_t *d, uint32_t cap, int32_t *head) {
+    for (int i = 0; i < 4096; ++i) head[i] = -1;
+    uint32_t i = 0, o = 0, ls = 0;
+    while (i < n) {
+        uint32_t best = 0, boff = 0;
+        if (i + 3 <= n) {
+            const uint32_t h = hash3(s + i);
+            for (int k = 0; k < 2; ++k) {
+                const int32_t c = k ? static_cast<int32_t>(i) - 1 : head[h];
+                if (c < 0 || static_cast<uint32_t>(c) >= i || i - static_cast<uint32_t>(c) > 8192u) continue;
+                uint32_t len = 0;
+                while (i + len < n && len < 264u && s[static_cast<uint32_t>(c) + len] == s[i + len]) ++len;
+                if (len > best) {
+                    best = len;
+                    boff = i - static_cast<uint32_t>(c);
+                }
+            }
+            head[h] = static_cast<int32_t>(i);
+        }
+        if (best < 3) {
+            ++i;
+            continue;
+        }
+        if (!lz_literals(s, ls, i, d, o, cap)) return 0;
+        const uint32_t l = best - 2, of = boff - 1;
+        if (o + 3 > cap) return 0;
+        if (l < 7) {
+            d[o++] = static_cast<uint8_t>((l << 5) | (of >> 8));
+        } else {
+            d[o++] = static_cast<uint8_t>(0xe0u | (of >> 8));
+            d[o++] = static_cast<uint8_t>(l - 7);
+        }
+        d[o++] = static_cast<uint8_t>(of);
+        for (uint32_t k = 1; k < best && i + k + 3 <= n; ++k) head[hash3(s + i + k)] = static_cast<int32_t>(i + k);
+        i += best;
+        ls = i;
+    }
+    if (!lz_literals(s, ls, n, d, o, cap)) return 0;
+    return o;
+}
+extern "C" U3X_FN int u3x_pu_b64(char *o, const uint8_t *p, int n) {
+    int k = 0;
+    for (int i = 0; i < n; i += 3) {
+        const uint32_t v = static_cast<uint32_t>(p[i]) << 16 | (i + 1 < n ? static_cast<uint32_t>(p[i + 1]) << 8 : 0) | (i + 2 < n ? p[i + 2] : 0);
+        o[k++] = b64_digits[v >> 18 & 63];
+        o[k++] = b64_digits[v >> 12 & 63];
+        o[k++] = i + 1 < n ? b64_digits[v >> 6 & 63] : '=';
+        o[k++] = i + 2 < n ? b64_digits[v & 63] : '=';
+    }
+    return k;
+}
+// the work record -> pu_out: big-endian, sealed, packed, then unpacked and unsealed again to check it. The packed
+// length, 0 = refused (the XP block +0x500 must survive the round trip).
+extern "C" U3X_FN uint32_t u3x_pu_pack(void *m) {
+    uint8_t *r = pu_field(m, ro_pu_be), *chk = pu_field(m, ro_pu_chk);
+    u3h_onp_be2le(r, pu_field(m, ro_pu_work));
+    record_header(r);
+    uint8_t plain[20];
+    copy_n(plain, r + 0x500, 20);
+    u3h_pu_seal(r);
+    const uint32_t n = u3x_pu_lz(r, pu_record_bytes, pu_field(m, ro_pu_out), 8096u, reinterpret_cast<int32_t *>(pu_field(m, ro_pu_head)));
+    if (!n) return 0;
+    if (u3x_lz_decode(pu_field(m, ro_pu_out), n, chk, pu_record_bytes) != pu_record_bytes) return 0;
+    for (uint32_t i = 0; i < pu_record_bytes; ++i)
+        if (chk[i] != r[i]) return 0;
+    if (!u3h_pf_unseal(chk)) return 0;
+    for (int i = 0; i < 20; ++i)
+        if (chk[0x500 + i] != plain[i]) return 0;
+    return n;
+}
+// one PUT (PS3 f_9403a8 -> 0x93da6c, S3 op 4): the HTTP status, 0 = no connection or no reply. What the server said
+// (<Code> of the body, else the status line's reason) goes to pu_why.
+extern "C" U3X_FN uint32_t u3x_pu_put1(void *m, uint32_t ip, uint32_t bl) {
+    const char *me = reinterpret_cast<const char *>(pu_field(m, ro_me));
+    char ds[40];
+    const int dl = pu_http_date(ds);
+    uint8_t sg[160];   // StringToSign: PUT, no MD5, type, date, /bucket/key
+    int sn = pu_text(sg, 0, sign_start);
+    for (int i = 0; i < dl; ++i) sg[sn++] = static_cast<uint8_t>(ds[i]);
+    sn = pu_text(sg, sn, sign_path);
+    for (int i = 0; me[i] && i < 16; ++i) sg[sn++] = static_cast<uint8_t>(me[i]);
+    sn = pu_text(sg, sn, sign_key);
+    uint8_t mac[20];
+    u3x_hmac_sha1(reinterpret_cast<const uint8_t *>(u3h_pu_key(1)), 40, sg, static_cast<uint32_t>(sn), mac);
+    char sig[32];
+    const int sl = u3x_pu_b64(sig, mac, 20);
+    const uint64_t f = u3h_nl_connect(ip, 80);
+    if (f == ~0ull) return 0;
+    uint8_t *q = pu_field(m, ro_pu_req);
+    int n = pu_text(q, 0, put_start);
+    for (int i = 0; me[i] && i < 16; ++i) q[n++] = static_cast<uint8_t>(me[i]);
+    n = pu_text(q, n, put_key);
+    n = pu_text(q, n, s3_host);
+    n = pu_text(q, n, put_head);
+    for (int i = 0; i < dl; ++i) q[n++] = static_cast<uint8_t>(ds[i]);
+    n = pu_text(q, n, put_auth);
+    n = pu_text(q, n, u3h_pu_key(0));
+    q[n++] = ':';
+    for (int i = 0; i < sl; ++i) q[n++] = static_cast<uint8_t>(sig[i]);
+    n = pu_text(q, n, put_length);
+    {
+        char dg[12];
+        int k = 0;
+        uint32_t v = bl;
+        do {
+            dg[k++] = static_cast<char>('0' + v % 10);
+            v /= 10;
+        } while (v);
+        while (k) q[n++] = static_cast<uint8_t>(dg[--k]);
+    }
+    n = pu_text(q, n, put_end);
+    if (!u3h_nl_sendall(f, q, n) || !u3h_nl_sendall(f, pu_field(m, ro_pu_out), static_cast<int>(bl))) {
+        u3h_sock_close(f);
+        return 0;
+    }
+    uint8_t r[1024];
+    uint32_t got = 0;
+    for (;;) {
+        const int k = u3h_sock_recv(f, r + got, static_cast<int>(sizeof(r) - 1 - got));
+        if (k <= 0) break;
+        got += static_cast<uint32_t>(k);
+        if (got >= sizeof(r) - 1) break;
+    }
+    u3h_sock_close(f);
+    uint32_t status = 0, i = 0;
+    while (i < got && r[i] != ' ') ++i;
+    ++i;
+    while (i < got && r[i] >= '0' && r[i] <= '9') status = status * 10 + static_cast<uint32_t>(r[i++] - '0');
+    char *why = u3h_pu_why();
+    uint32_t a = 0, k = 0;
+    for (uint32_t j = 0; j + 6 <= got; ++j) {
+        bool tag = true;
+        for (int t = 0; t < 6; ++t)
+            if (r[j + t] != static_cast<uint8_t>(code_tag[t])) tag = false;
+        if (tag) {
+            a = j + 6;
+            break;
+        }
+    }
+    if (!a) {
+        a = i;
+        while (a < got && r[a] == ' ') ++a;
+    }
+    for (; a < got && k < 40 && r[a] != '<' && r[a] != '\r' && r[a] != '\n'; ++a) {
+        const uint8_t c = r[a];
+        const bool safe = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == ' ' || c == '-' || c == '_' || c == '.';
+        why[k++] = static_cast<char>(safe ? c : '?');
+    }
+    why[k] = 0;
+    return status;
+}
+// RPCN thread, each idle pass (~250 ms)
+extern "C" U3X_FN void u3x_pu_tick(void *m) {
+    const uint32_t q = __atomic_load_n(&pu_word(m, ro_pu_seq), __ATOMIC_ACQUIRE);
+    if (q == pu_word(m, ro_pu_done)) return;
+    if (q != pu_word(m, ro_pu_seen)) {
+        pu_word(m, ro_pu_seen) = q;
+        pu_word(m, ro_pu_quiet) = 0;
+        return;
+    }
+    if (++pu_word(m, ro_pu_quiet) < 8 || __atomic_load_n(&pu_word(m, ro_pu_busy), __ATOMIC_ACQUIRE)) return;
+    const uint32_t ps = __atomic_load_n(&pu_word(m, ro_pf_state), __ATOMIC_ACQUIRE);
+    if (ps != 1u && ps != 2u) {   // the sign-in's GET did not succeed: never overwrite the server's record
+        pu_word(m, ro_pu_done) = q;
+        ++pu_word(m, ro_pu_skip);
+        return;
+    }
+    const uint32_t host = reinterpret_cast<uint32_t *>(u3h_ext() + 0xbc0)[9];
+    if (!pu_field(m, ro_me)[0] || !host) return;
+    copy_n(pu_field(m, ro_pu_work), pu_field(m, ro_pu_rec), pu_record_bytes);
+    if (__atomic_load_n(&pu_word(m, ro_pu_seq), __ATOMIC_ACQUIRE) != q || __atomic_load_n(&pu_word(m, ro_pu_busy), __ATOMIC_ACQUIRE)) return;
+    pu_word(m, ro_pu_done) = q;
+    const uint32_t n = u3x_pu_pack(m);
+    pu_word(m, ro_pu_len) = n;
+    if (!n) {
+        ++pu_word(m, ro_pu_skip);
+        return;
+    }
+    for (int k = 0; k < 3; ++k) {
+        if (k) u3h_sleep_ms(300);
+        const uint32_t st = u3x_pu_put1(m, reinterpret_cast<uint32_t *>(u3h_ext() + 0xbc0)[9], n);
+        pu_word(m, ro_pu_http) = st;
+        if (st == 200u || st == 204u) {   // the server holds this record now: the copy every MP entry loads follows it
+            ++pu_word(m, ro_pu_ok);
+            uint8_t *r = pu_field(m, ro_pu_be);
+            u3h_onp_be2le(r, pu_field(m, ro_pu_work));
+            record_header(r);
+            copy_n(pu_field(m, ro_pf_rec), r, pu_record_bytes);
+            return;
+        }
+    }
+    ++pu_word(m, ro_pu_fail);
+}
+// game thread (mp_publish): the newest saved record for the next upload
+extern "C" U3X_FN void u3x_pu_queue(const uint8_t *rec) {
+    void *m = u3h_rc_mem();
+    if (!m) return;
+    __atomic_store_n(&pu_word(m, ro_pu_busy), 1u, __ATOMIC_RELEASE);
+    copy_n(pu_field(m, ro_pu_rec), rec, pu_record_bytes);
+    __atomic_store_n(&pu_word(m, ro_pu_busy), 0u, __ATOMIC_RELEASE);
+    __atomic_add_fetch(&pu_word(m, ro_pu_seq), 1u, __ATOMIC_RELEASE);
+}
+
+// ===== v7.195: third split, part 15 (the death / spectate camera) =====
+
+// v5.09 / v4.93: the camera half of PS3 f_363ed4 (after the respawn half, u3x_respawn_tick). While the local player is
+// dead: fade to black while the round has not started, all players are not in yet, or a late join waits; then follow a
+// player (0x7868a0) or sit on the nearest fixed camera locator; right / left step through fixed cameras or followed
+// players. While following, the per-screen damage effect gets its full-health update (blood fades) and the follow camera
+// is re-aimed at the target's camera frame every frame. ExtState fcam (+0x20f0): [0] effect updates, [1] last flag,
+// [2] character aims, [3] player aims, [4] no frame, [5] debug camera on, [6] not a fixed camera, [7] fov, [8] other type.
+namespace {
+constexpr uintptr_t fixed_camera_type = 0x1ae95e0;
+constexpr uint32_t spoiler_select_page = 0xd3a938b7u, pad_step_right = 0x20u, pad_step_left = 0x80u;
+U3X_FN uint32_t *fcam() { return reinterpret_cast<uint32_t *>(u3h_ext() + 0x20f0); }
+U3X_FN bool handle_valid(const uint8_t *h) {
+    uint8_t *const *pp = rd<uint8_t *const *>(h, 0);
+    const uint32_t id = rd<uint32_t>(h, 8);
+    return pp && id && *pp && rd<uint32_t>(*pp, 0x7c) == id;
+}
+U3X_FN uint8_t *handle_target(const uint8_t *h) { return handle_valid(h) ? *rd<uint8_t *const *>(h, 0) : nullptr; }
+U3X_FN uint8_t *camera_manager(uintptr_t base, int32_t screen) {
+    return handle_target(reinterpret_cast<const uint8_t *>(base + 0x1d52b80) + static_cast<int64_t>(screen) * 0x10);
+}
+U3X_FN uint8_t *net_player_at(uintptr_t base, int i) {
+    return at<uint8_t>(base + 0x17d5c61) ? reinterpret_cast<uint8_t *>(base + 0x17cb060 + 0x390 + i * 0x9c0) : nullptr;
+}
+U3X_FN bool net_player_in_game(const uint8_t *q) { return q && q[0xe1] && !q[0x5e4]; }
+// (ax - bx)^2 + (az - bz)^2 as float bits, sign cleared
+U3X_FN uint32_t xz_distance2(const uint32_t *a, const uint32_t *b) {
+    const uint32_t dx = f_sub(a[0], b[0]), dz = f_sub(a[2], b[2]);
+    return f_add(f_mul(dx, dx), f_mul(dz, dz)) & 0x7fffffffu;
+}
+U3X_FN uint8_t follow_player(uintptr_t base, uint8_t *p, int dir, int first) {
+    return game_call<uint8_t>(base + 0x7868a0, p, dir, first);
+}
+}  // namespace
+// a bound frame's parent handle (+8, id +0x10) still names its object, as 0x7872cd..0x787308 checks it
+extern "C" U3X_FN int u3x_bf_handle_valid(uintptr_t base, const uint8_t *bf) {
+    uint8_t *const *h = rd<uint8_t *const *>(bf, 8);
+    const uint32_t id = rd<uint32_t>(bf, 0x10);
+    if (!h || !id) return 0;
+    const uint8_t *o = *h;
+    if (!o) return 0;
+    const uint32_t oid = rd<uint32_t>(o, 0x50);
+    if (oid != id && (id > 0xfffe || (oid & 0xffff) != id)) return 0;
+    const uintptr_t table = at<uintptr_t>(base + 0x16e2f30);
+    return rd<uint16_t>(o, 0x54) == static_cast<uint16_t>((reinterpret_cast<uintptr_t>(h) - table) >> 3);
+}
+// the screen's damage effect update (vt slot 5, 0xc1ccc0) with full health; the flag is "still hurt" as PS4's Player
+// update builds it (the hurt timer +0x9a0 running, effect 0x116b3043, or byte 0x17d7a50+0xb5)
+extern "C" U3X_FN void u3x_follow_fx(uintptr_t base, void *s, uint8_t *p) {
+    const int32_t sc = rd<int32_t>(p, 0x1e8);
+    if (sc < 0 || sc > 1) return;
+    uint8_t *o = at<uint8_t *>(base + 0x16fd020 + static_cast<uint64_t>(sc) * 8);
+    if (!o) return;
+    const uintptr_t *vt = rd<const uintptr_t *>(o, 0);
+    if (!vt || vt[0x28 / 8] != base + 0xc1ccc0) return;
+    if (!code_starts(base, 0xc1ccc0, usual_prologue)) return;
+    uint32_t flag = 1;
+    const uint8_t *clock = at<const uint8_t *>(base + 0x17c3580);
+    if (!clock || rd<int32_t>(p, 0x9a0) - rd<int32_t>(clock, 0xc) < 1)
+        flag = u3h_np_has_effect(s, p, 0x116b3043u) ? 1u : (at<uint8_t>(base + 0x17d7a50 + 0xb5) != 0);
+    u3x_call_float_arg(base + 0xc1ccc0, F_ONE, reinterpret_cast<uint64_t>(o), flag, 0, 0);
+    ++fcam()[0];
+    fcam()[1] = flag;
+}
+// aim the follow camera (a fixed camera at p+0x388) at q's camera frame: a NetCharacter's through 0x685b80, a Player's
+// screen camera locator (camera manager +0x4c0); fov starts at 75. A stale parent handle keeps the cached locator.
+extern "C" U3X_FN void u3x_follow_aim(uintptr_t base, void *, uint8_t *p, uint8_t *q) {
+    uint32_t *d = fcam();
+    uint8_t *ch = handle_target(q + 0x10);
+    if (!ch) {
+        ++d[4];
+        return;
+    }
+    alignas(16) uint32_t fr[24];   // a fresh bound frame
+    for (uint32_t &w : fr) w = 0;
+    fr[0] = fr[1] = 0x7fccccccu;
+    fr[15] = F_ONE;
+    fr[23] = F_ONE;
+    uint32_t fov = 0x42960000u;
+    const uint32_t type = rd<uint32_t>(ch, 0x30);
+    if (type == 0xf2c86c22u) {
+        if (!code_starts(base, 0x685b80, usual_prologue) || !game_call<uint8_t>(base + 0x685b80, ch + 0x400, static_cast<void *>(fr), static_cast<void *>(&fov))) {
+            ++d[4];
+            return;
+        }
+        ++d[2];
+    } else if (type == 0xa5a63e9bu) {
+        const uint8_t *cm = camera_manager(base, rd<int32_t>(q, 0x1e8));
+        if (!cm) {
+            ++d[4];
+            return;
+        }
+        for (int i = 0; i < 8; ++i) fr[16 + i] = rd<uint32_t>(cm, 0x4c0 + i * 4);
+        ++d[3];
+    } else {
+        ++d[8];   // PS3 aims at the identity frame then
+    }
+    if (at<uint8_t>(base + 0x17d7b10)) {
+        ++d[5];
+        return;
+    }
+    uint8_t *cam = handle_target(p + 0x388);
+    if (!cam) return;
+    if (rd<uintptr_t>(cam, 0xf0) != base + fixed_camera_type) {
+        ++d[6];
+        return;
+    }
+    if ((fr[2] || fr[3]) && !u3x_bf_handle_valid(base, reinterpret_cast<const uint8_t *>(fr))) {
+        fr[2] = fr[3] = 0;
+        fr[4] = 0;
+    }
+    uint32_t *cb = reinterpret_cast<uint32_t *>(cam + 0x230);
+    for (int i = 2; i < 24; ++i) cb[i] = fr[i];   // the header words stay
+    *reinterpret_cast<uint32_t *>(cam + 0x294) = fov;
+    d[7] = fov;
+}
+// following: keep aiming at the followed player while it may be followed (any team in Elimination or with the "all"
+// option, else the same team, or the co-op hunters' team 1), else pick the next player or fall back to the fixed camera
+extern "C" U3X_FN void u3x_follow_update(uintptr_t base, void *s, uint8_t *p) {
+    if (!p[0x381] || !handle_valid(p + 0x388)) return;
+    if (!code_starts(base, 0x7868a0, usual_prologue)) return;
+    u3x_follow_fx(base, s, p);
+    const bool any = u3h_netgame_type(base, s) == 10 || at<uint8_t>(base + 0x17cb060 + 0x34e);
+    const int32_t qi = rd<int32_t>(p, 0x37c);
+    uint8_t *q = (qi >= 0 && qi < 10) ? net_player_at(base, qi) : nullptr;
+    if (q && net_player_in_game(q) && u3h_np_alive(s, q) &&
+        (any || rd<int32_t>(q, 0x21c) == rd<int32_t>(p, 0x21c) || (u3h_net_coop_mode(base, s) && rd<int32_t>(p, 0x21c) == 1))) {
+        u3x_follow_aim(base, s, p, q);
+        return;
+    }
+    if (!follow_player(base, p, 1, 0)) {
+        p[0x381] = 0;
+        p[0x380] = 0;
+        u3h_cam_fixed(base, s, p, rd<int32_t>(p, 0x378));
+    }
+    ++ext_coop()[16];
+}
+extern "C" U3X_FN void u3x_camera_tick(uintptr_t base, void *s, uint8_t *p, int) {
+    uint8_t *mgr = reinterpret_cast<uint8_t *>(base + 0x17cb060);
+    const int32_t now = at<int32_t>(base + 0x17b4ca4), t344 = rd<int32_t>(p, 0x39c), team = rd<int32_t>(p, 0x21c);
+    const int coop = u3h_net_coop_mode(base, s);
+    bool late = u3h_net_late_joining(base) && (!coop || team != 1);
+    if (mgr[0x6a7c]) u3h_spawn_fade(base, s, p, 1);
+    if (late && !(ext_ec()[0] & 2) && u3h_netgame_type(base, s) == 10) late = false;   // 1.19: no late-join fade in Elimination
+    if (late) u3h_spawn_fade(base, s, p, 1);
+    if (code_starts(base, 0x746ab0, usual_prologue) && (!mgr[0x31e] || !game_call<uint8_t>(base + 0x746ab0, mgr))) {   // not all in yet
+        u3h_spawn_fade(base, s, p, 1);
+        ++reinterpret_cast<uint32_t *>(u3h_ext() + 0x2070)[12];
+    }
+    uint8_t *menu = u3x_screen_menu(base, rd<int32_t>(p, 0x1e8));
+    if (u3h_np_alive(s, p) || late || mgr[0x6a24]) {   // alive: the spoiler page closes
+        if (u3x_menu_page(menu) == spoiler_select_page) {
+            u3x_menu_back(base, menu, 0);
+            u3x_menu_close(base, menu);
+        }
+        return;
+    }
+    if ((!t344 || now - t344 > 0x5dc) && coop && team == 1 && u3x_coop_spectate(base, s, p, menu)) return;
+    if (!code_starts(base, 0x7868a0, usual_prologue)) return;
+    if (!camera_manager(base, rd<int32_t>(p, 0x1e8))) return;   // PS3 asserts without one (pre-load state)
+    const bool gone = now - t344 > 0x5dc || !handle_valid(p + 0x10);
+    if (!p[0x381]) {
+        bool following = false;
+        if (gone) {
+            if (follow_player(base, p, 1, 1)) {
+                p[0x380] = 0;
+                ++reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(s) + 0x3d78)[12];
+            }
+            following = p[0x381] != 0;
+        }
+        if (!following && handle_valid(p + 0x388)) following = true;
+        if (!following) {
+            if (!gone) return;
+            // someone else (not a co-op hunter) is alive, or only one player is in: the nearest fixed camera (XZ)
+            bool alive_other = false;
+            int count = 0;
+            for (int i = 0; i < 10; ++i) {
+                const uint8_t *q = net_player_at(base, i);
+                if (!net_player_in_game(q)) continue;
+                ++count;
+                if (!(coop && rd<int32_t>(q, 0x21c) == 1) && rd<int32_t>(q, 0x39c) <= rd<int32_t>(q, 0x3a0)) alive_other = true;
+            }
+            if (!alive_other && count != 1) return;
+            if (!code_starts(base, 0x73a4e0, usual_prologue) || !code_starts(base, 0x10e6f30, usual_prologue)) return;
+            game_call<void>(base + 0x73a4e0, mgr);
+            const int32_t n = rd<int32_t>(mgr, 0x6a20);
+            int32_t best = 0;
+            uint32_t best_d = 0x7f7fffffu;
+            for (int32_t i = 0; i < n && i < 0x41; ++i) {
+                alignas(16) uint32_t l[8];
+                uint8_t *e = rd<uint8_t *>(mgr, 0x6820 + i * 8);
+                if (!e) continue;
+                game_call<void>(base + 0x10e6f30, static_cast<void *>(l), e);
+                const uint32_t dd = xz_distance2(reinterpret_cast<const uint32_t *>(p), l);
+                if (dd < best_d) {
+                    best_d = dd;
+                    best = i;
+                }
+            }
+            if (u3h_cam_fixed(base, s, p, best)) {
+                p[0x381] = 0;
+                *reinterpret_cast<int32_t *>(p + 0x37c) = -1;
+                p[0x380] = 0;
+                if (uint8_t *o = handle_target(p + 0x10)) reinterpret_cast<void (*)(uint8_t *)>(state_native(s, 57))(o);
+            }
+            return;
+        }
+    }
+    const bool fol = p[0x381] != 0;   // following a player on arrival here
+    if (p[0x380] && now - rd<int32_t>(p, 0x384) >= 0x5dd) {
+        u3h_cam_fixed(base, s, p, rd<int32_t>(p, 0x378) + 1);
+    } else {
+        const uint8_t *m0 = at<const uint8_t *>(base + 0x16e3188);
+        if (m0 && rd<uint32_t>(m0, 8) == 0) {   // no menu up: right / left step the camera or the followed player
+            const uint32_t b = u3x_pad_pressed(base, rd<int32_t>(p, 0x1e8));
+            const bool r = (b & pad_step_right) != 0, l = (b & pad_step_left) != 0;
+            int dir = 0;
+            if (r && !fol) {
+                p[0x381] = 0;
+                p[0x380] = 0;
+                u3h_cam_fixed(base, s, p, rd<int32_t>(p, 0x378) + 1);
+                ++ext_coop()[14];
+            } else if (!l) {
+                if (r) dir = -1;
+            } else if (!fol) {
+                p[0x381] = 0;
+                p[0x380] = 0;
+                u3h_cam_fixed(base, s, p, rd<int32_t>(p, 0x378) - 1);
+                ++ext_coop()[14];
+            } else {
+                dir = 1;
+            }
+            if (dir) {
+                p[0x380] = 0;
+                if (follow_player(base, p, dir, 0)) p[0x381] = 1;
+                ++ext_coop()[15];
+            }
+        }
+    }
+    u3x_follow_update(base, s, p);
+}
+
+// ===== v7.196: third split, part 16 (the lobby's package want list: kits and taunts) =====
+
+extern "C" {
+U3H_IMPORT void u3h_s19_count(int what, uint32_t v);
+}
+
+// v4.69 / v4.95: PS3 f_411444 every frontend frame: the wanted kit models of both local players (PlayerCustomManager
+// 0x17f9938: names at +0xe00 + player * 0x58, 11 slots) go into its package list (+4 sids / +0xcc names of 64 bytes,
+// 50 entries), entries no current look or taunt slot owns are dropped first (U3MP_PKG_PRUNE, eb[2] bit 28), and the list is
+// requested (0x996db0) when it changed (or every 64 ticks while the lobby shows). Optional (ec[0] bit 4): the equipped
+// taunts' packages ("multi-celebrate-<name>": the 29 taunts 1.19 added, which PS4 has no table of). The DLC packs whose
+// content ships in the overlay are marked installed (U3MP_DLC_PACKS=0, state +0x20c0 bit 7, leaves them).
+// State +0x3e40: [0] ticks, [1] list changes, [2] requests, [3] used entries, [4..47] per-slot / first failing slot.
+// ExtState taunt (+0xb80): {index + 1, sid} for the three taunt slots, [8] added, [9] / [10] unknown taunt, [11] dropped
+// failing packs, [12..15] packs that failed to load.
+namespace {
+U3X_RO const char taunt_names[] =
+    "carlton\0fffuuuuu-\0arm-wave\0mj-1\0throat-slit\0mj-2\0haka\0heisman\0air-guitar\0facepalm\0take-a-bow\0"
+    "high-kick\0hillbilly-shuffle\0mic-drop\0school-fight\0come-at-me-bro\0backflip-squat\0jump-freeze\0"
+    "river-dance\0cossack-dance\0six-flags\0carlton-2\0bolt\0freddie\0dougie\0cabbage-patch\0cheerleader\0gangnam\0"
+    "top-model\0";
+U3X_RO const char taunt_prefix[] = "multi-celebrate-";
+U3X_RO const uint8_t dlc_packs[] = {19,  23,  24,  25,  26,  27,  28,  29,  30,  31,  32,  33,  34,  35,  36,  37,  38,  39,  40,
+                                    41,  42,  43,  44,  45,  46,  47,  48,  50,  70,  53,  54,  56,  57,  58,  59,  60,  72,  73,
+                                    74,  75,  76,  77,  78,  95,  97,  99,  20,  55,  66,  67,  90,  15,  79,  80,  104, 105, 106,
+                                    107, 108, 109, 111, 112, 113, 114, 115, 116, 117, 118, 119, 121, 122, 123, 124};
+constexpr uint32_t no_part_sid = 0xf114b39du;
+U3X_FN uint32_t *taunt_state() { return reinterpret_cast<uint32_t *>(u3h_ext() + 0xb80); }
+U3X_FN bool pointer_ok(const void *p) {
+    const uintptr_t v = reinterpret_cast<uintptr_t>(p);
+    return v >= 0x10000u && v < (1ull << 47);
+}
+U3X_FN uint32_t &list_sid(uint8_t *m, int i) { return *reinterpret_cast<uint32_t *>(m + 4 + i * 4); }
+U3X_FN char *list_name(uint8_t *m, int i) { return reinterpret_cast<char *>(m + 0xcc + i * 0x40); }
+U3X_FN void list_put(uint8_t *m, int i, const char *n, uint32_t sid) {
+    char *dst = list_name(m, i);
+    int j = 0;
+    for (; j < 63 && n[j]; ++j) dst[j] = n[j];
+    dst[j] = 0;
+    list_sid(m, i) = sid;
+}
+U3X_FN uint8_t *find_actor(uintptr_t afind, uintptr_t base, uint32_t sid) {
+    return reinterpret_cast<uint8_t *(*)(uintptr_t, uint32_t)>(afind)(base + 0x1afcf10, sid);
+}
+}  // namespace
+// the package name of taunt sid (one of the 29 newer taunts), 0 for none, the default taunt or a pack that failed
+extern "C" U3X_FN const char *u3x_pkg_taunt_name(uint32_t sid, char out[64]) {
+    uint32_t *ts = taunt_state();
+    if (!sid || sid == 0x0e69839du) return nullptr;
+    for (int i = 12; i < 16; ++i)
+        if (ts[i] == sid) return nullptr;
+    for (const char *t = taunt_names; *t;) {
+        int n = 0;
+        for (; taunt_prefix[n]; ++n) out[n] = taunt_prefix[n];
+        int k = 0;
+        for (; t[k] && n < 63; ++k) out[n++] = t[k];
+        out[n] = 0;
+        if (u3h_crc_sid(out) == sid) return out;
+        t += k + 1;
+    }
+    ++ts[9];
+    ts[10] = sid;
+    return nullptr;
+}
+// slot = {list index + 1, sid}: the entry this source owns, rewritten in place. 1 when the list changed.
+extern "C" U3X_FN int u3x_pkg_taunt_slot(uint8_t *m, uint32_t *slot, const char *n) {
+    const uint32_t sid = n ? u3h_crc_sid(n) : 0;
+    int own = -1;
+    if (slot[0] && slot[0] <= 50 && list_sid(m, static_cast<int>(slot[0]) - 1) == slot[1]) own = static_cast<int>(slot[0]) - 1;
+    if (own >= 0 && slot[1] == sid) return 0;
+    int i = 50, free = -1;
+    if (sid)
+        for (i = 0; i < 50; ++i) {
+            const uint32_t v = list_sid(m, i);
+            if (v == sid && i != own) break;
+            if (!v && free < 0) free = i;
+        }
+    int changed = 0;
+    if (own >= 0) {
+        list_sid(m, own) = 0;
+        list_name(m, own)[0] = 0;
+        changed = 1;
+        if (free < 0 || own < free) free = own;
+    }
+    slot[0] = slot[1] = 0;
+    if (!sid || i < 50 || free < 0) return changed;   // none, already listed by another source, or the list is full
+    list_put(m, free, n, sid);
+    slot[0] = static_cast<uint32_t>(free) + 1;
+    slot[1] = sid;
+    ++taunt_state()[8];
+    return 1;
+}
+extern "C" U3X_FN int u3x_pkg_taunt_tick(uintptr_t base, void *s, uint8_t *m) {
+    uint32_t *ts = taunt_state();
+    const uintptr_t afind = state_native(s, 50);
+    int changed = 0;
+    char nb[64];
+    if (!(ext_ec()[0] & 16)) {   // off (1.19's per-player taunt want covers it): release the slots
+        for (int k = 0; k < 3; ++k) changed |= u3x_pkg_taunt_slot(m, ts + k * 2, nullptr);
+        return changed;
+    }
+    if (afind)   // a pack that failed to load (state 0xc) would hold the scene's package wait: drop it for good
+        for (int k = 0; k < 3; ++k) {
+            uint32_t *sl = ts + k * 2;
+            if (!sl[1]) continue;
+            const uint8_t *a = find_actor(afind, base, sl[1]);
+            if (pointer_ok(a) && rd<uint32_t>(a, 0x30) == 12) {
+                int f = 12;
+                while (f < 15 && ts[f]) ++f;
+                ts[f] = sl[1];
+                ++ts[11];
+                changed |= u3x_pkg_taunt_slot(m, sl, nullptr);
+            }
+        }
+    const uint8_t *a = at<const uint8_t *>(base + 0x17dd610);
+    for (int p = 0; p < 2; ++p) {
+        const char *n = nullptr;
+        if (pointer_ok(a) && rd<uint32_t>(a, static_cast<uintptr_t>(p) * 0x7b00u + 0x7ae8) == 3)
+            n = u3x_pkg_taunt_name(rd<uint32_t>(a, static_cast<uintptr_t>(p) * 0x7b00u + 0x784), nb);
+        changed |= u3x_pkg_taunt_slot(m, ts + p * 2, n);
+    }
+    changed |= u3x_pkg_taunt_slot(m, ts + 4, nullptr);   // the old hovered-row slot, released
+    return changed;
+}
+extern "C" U3X_FN void u3x_loadout_tick(uintptr_t base, void *s) {
+    uint32_t *d = reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(s) + 0x3e40);
+    uint8_t *m = reinterpret_cast<uint8_t *>(base + 0x17f9938);
+    const uintptr_t req = state_native(s, 49), afind = state_native(s, 50);
+    if (!req) return;
+    at<uint8_t>(base + 0x1afcf0a) = 1;
+    if (at<int32_t>(base + 0x17cb3b0) == 0) {   // the saved rand seed, in case a spawn comes before NetInit
+        at<int32_t>(base + 0x17cb3b0) = -1;
+        ++ext_ec()[30];
+    }
+    if (!(state_switches(s) & 0x80))
+        for (uint8_t pack : dlc_packs) at<uint8_t>(base + 0x17c3a40 + pack) = 1;
+    ++d[0];
+    int changed = 0;
+    const bool lobby = m[0xf70] != 0;
+    if (lobby && !(ext_eb()[2] & 0x10000000u)) {   // drop entries no current look and no taunt slot owns
+        uint32_t cur[22];
+        int nc = 0;
+        for (int p = 0; p < 2; ++p)
+            for (int k = 0; k < 11; ++k) {
+                const char *n = rd<const char *>(m, 0xe00 + p * 0x58 + k * 8);
+                if (n && *n) {
+                    const uint32_t sid = u3h_crc_sid(n);
+                    if (sid != no_part_sid) cur[nc++] = sid;
+                }
+            }
+        const uint32_t *ts = taunt_state();
+        for (int i = 0; i < 50; ++i) {
+            const uint32_t v = list_sid(m, i);
+            if (!v) continue;
+            bool keep = false;
+            for (int c = 0; c < nc && !keep; ++c) keep = cur[c] == v;
+            for (int k = 0; k < 3 && !keep; ++k) keep = ts[k * 2] == static_cast<uint32_t>(i) + 1 && ts[k * 2 + 1] == v;
+            if (keep) continue;
+            list_sid(m, i) = 0;
+            list_name(m, i)[0] = 0;
+            changed = 1;
+            u3h_s19_count(0, 0);
+        }
+    }
+    if (lobby)   // the current parts in
+        for (int p = 0; p < 2; ++p)
+            for (int k = 0; k < 11; ++k) {
+                const char *n = rd<const char *>(m, 0xe00 + p * 0x58 + k * 8);
+                if (!n || !*n) continue;
+                const uint32_t sid = u3h_crc_sid(n);
+                if (sid == no_part_sid) continue;
+                int i, free = -1;
+                for (i = 0; i < 50; ++i) {
+                    const uint32_t v = list_sid(m, i);
+                    if (v == sid) break;
+                    if (!v && free < 0) free = i;
+                }
+                if (i < 50) continue;
+                if (free < 0) {   // the list is full: this part is never wanted
+                    u3h_s19_count(1, 0);
+                    continue;
+                }
+                list_put(m, free, n, sid);
+                changed = 1;
+            }
+    if (m[0xf70] && u3x_pkg_taunt_tick(base, s, m)) changed = 1;
+    uint32_t used = 0;
+    for (int i = 0; i < 50; ++i)
+        if (list_sid(m, i)) ++used;
+    d[3] = used;
+    u3h_s19_count(2, used);
+    // PS3 asks again only while +0xf70 is set; state +0x20c0 bit 1 (U3MP_KEEP_LOADOUT) also during the match
+    if (changed || (used && (d[0] & 63) == 0 && (m[0xf70] || (state_switches(s) & 2)))) {
+        if (changed) ++d[1];
+        reinterpret_cast<void (*)(uint8_t *)>(req)(m);
+        ++d[2];
+    }
+    if (afind)   // per player / slot {sid, level state | request statuses << 8 | request count << 24}
+        for (int p = 0; p < 2; ++p)
+            for (int k = 0; k < 11; ++k) {
+                uint32_t *e = d + 4 + (p * 11 + k) * 2;
+                const char *n = m[0xf70] ? rd<const char *>(m, 0xe00 + p * 0x58 + k * 8) : nullptr;
+                if (n && *n) e[0] = u3h_crc_sid(n);
+                const uint8_t *a = e[0] ? find_actor(afind, base, e[0]) : nullptr;
+                const uint32_t st = a ? rd<uint32_t>(a, 0x30) : 0xffu, cnt = a ? rd<uint32_t>(a, 0x78) : 0;
+                uint32_t rq = 0xffffu;
+                for (uint32_t q = 0; q < 2 && q < cnt; ++q) {
+                    const uint8_t *r = rd<const uint8_t *>(a, 0x80 + q * 8);
+                    const uint32_t v = r ? (rd<uint32_t>(r, 0x20) & 0xff) : 0xfe;
+                    rq = (rq & ~(0xffu << (q * 8))) | v << (q * 8);
+                }
+                e[1] = (st & 0xff) | (rq & 0xffff) << 8 | (cnt & 0xff) << 24;
+            }
+    if (afind)   // [44..47]: the first slot that failed to load
+        for (int i = 0; i < 20; ++i) {
+            const uint32_t *e = d + 4 + i * 2;
+            if ((e[1] & 0xff) != 12) continue;
+            const uint8_t *a = find_actor(afind, base, e[0]);
+            if (!a) break;
+            const uint32_t cnt = rd<uint32_t>(a, 0x78);
+            uint32_t lo = 0, hi = 0;
+            for (uint32_t q = 0; q < cnt && q < 16; ++q) {
+                const uint8_t *r = rd<const uint8_t *>(a, 0x80 + q * 8);
+                const uint32_t v = r ? (rd<uint32_t>(r, 0x20) & 0xf) : 0xf;
+                if (q < 8) lo |= v << (q * 4);
+                else hi |= v << ((q - 8) * 4);
+            }
+            const uint8_t *def = rd<const uint8_t *>(a, 0x110);
+            d[44] = e[0];
+            d[45] = lo;
+            d[46] = hi | (cnt << 24);
+            d[47] = def ? (0x80000000u | rd<uint16_t>(def, 0x14) | static_cast<uint32_t>(rd<uint16_t>(def, 0x18)) << 16) : 0;
+            break;
+        }
+}
