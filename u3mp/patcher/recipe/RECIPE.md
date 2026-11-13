@@ -88,6 +88,8 @@ converted pak run once the conversion exists.
 
 1. `copy-ps3-vtex1`, `copy-ps3-speech`, `copy-ps3-sfx`, `copy-ps4-retail` (byte copies, sha256-checked)
 2. `convert-levels-port`, `convert-levels-r2`, `convert-levels-r3`, `convert-actors-r3`, `convert-dc1`,
+   (recipe 1.17.0: the stage rows convert with the level fixes the old in-place batches made, see
+   `tools/fixes/pak23-levels/README.md`; the replay steps `lost-batches-r3` and `cloud-batches-r3` are retired)
    `convert-dc2-part-modules` (runnable since 1.10.0: `tools/fixes/part-emitters`, the recovered batch45/batch48
    particle converter); `convert-banks`, `convert-text1` (runnable since 1.1.0)
 3. `registry-pak23` (mkregistry)

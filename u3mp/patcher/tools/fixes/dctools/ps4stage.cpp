@@ -602,7 +602,7 @@ Bytes bc1_invert(const Bytes &blob) {
 }
 
 std::shared_ptr<Blob> convert_light_table(const Pak &p, AutoPages &P, const std::function<std::optional<std::vector<std::string>>(const std::vector<uint32_t> &)> &gobo,
-                                          std::shared_ptr<PakWItem> &item);
+                                          std::shared_ptr<PakWItem> &item, bool tunnel_probes = false);
 std::shared_ptr<Blob> water_blob(const Pak &p, const std::function<std::string(const std::string &)> &matkey);
 
 Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, const Bundle &bundle, const Options &opt, Uni &U, bool build) {
@@ -831,7 +831,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
             tiled = bc1_invert(tiled);
         }
         std::string role = tex_role_final(shrt).value_or("color");
-        if (opt.sky && role == "color") {   // retail keeps '-height' / '-inc' maps BC1 UNORM (linear)
+        if ((opt.sky || opt.fixes) && role == "color") {   // retail keeps '-height' / '-inc' maps BC1 UNORM (linear)
             const auto xr = xrole(shrt);
             if (xr == "height" || xr == "inc" || xr == "blend") role = "mask";
         }
@@ -987,8 +987,8 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
             mw.name = rec0.name;
             for (const MatBind &b : rec0.binds) {
                 TexP e = lightmap_entry(b.param);
-                // the sky converter: the spec-colour slots take the PS3 '-spec' map. As in the converter, this reads the
-                // spec maps and detail flag the last template material left behind.
+                // the sky converter only (a leak of its Python original, not one of the level fixes): the spec-colour slots of an
+                // exact material take the PS3 '-spec' maps and detail flag the last template material left behind.
                 if (opt.sky && !e && (b.param == "g_tNdFetchColor4Map" || b.param == "g_tNdFetchColor5Map" || b.param == "g_tNdFetchMask4Map")) {
                     if (!own_leak) throw Stop("NameError: name 'own' is not defined");
                     auto si = own_leak->find("spec3");
@@ -1017,10 +1017,10 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                     const std::string s3 = std::regex_replace(short_of(texs3.at(i).name), HASHTAIL, "");
                     auto r = tex_role_final(s3);
                     if (r == "spec") {
-                        if (opt.sky) add_own("spec3", s3);   // kept apart for the spec-colour slots
+                        if ((opt.sky || opt.fixes)) add_own("spec3", s3);   // kept apart for the spec-colour slots
                         r = "mask";
                     }
-                    if (opt.sky && r == "color")
+                    if ((opt.sky || opt.fixes) && r == "color")
                         if (auto xr = xrole(s3)) r = xr;   // '-height' / '-blend2' / '-inc' maps get their own role
                     if (r) add_own(*r, s3);
                 }
@@ -1035,7 +1035,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                 auto role = param_role(b.param);
                 if (role == "spec") role = "mask";
                 bool detail_layer = false;
-                if (opt.sky) {
+                if ((opt.sky || opt.fixes)) {
                     // a template colour layer multiplied by its Mask<n> texture: retail fills it with a '-detail' map
                     const std::string src = !b.shrt.empty() ? b.shrt : b.full;
                     if (std::regex_search(b.param, MASKN) && tex_role_final(std::regex_replace(short_of(src), HT2, "")) == "detail") {
@@ -1050,7 +1050,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                     auto bi = std::find_if(pe->bindmap.begin(), pe->bindmap.end(), [&](const auto &x) { return x.first == b.param; });
                     if (bi != pe->bindmap.end()) e = bi->second.empty() ? flat_texture(role, b.param) : texture_for_short(bi->second);
                 }
-                if (opt.sky && !e) {   // slots the role rules would leave on a black flat although the PS3 material has the texture
+                if ((opt.sky || opt.fixes) && !e) {   // slots the role rules would leave on a black flat although the PS3 material has the texture
                     std::optional<std::string> alt;
                     const auto *blend = own_get("blend");
                     if (b.param == "g_tNdFetchBlendMap" && used_role["blend"] >= (blend ? blend->size() : 0)) alt = "height";
@@ -1071,16 +1071,16 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                     e = texture_for_short(v[std::min(k, v.size() - 1)]);
                 }
                 if ((!e && (!role || *role == "env")) || (!e && has(b.param, "LightMap"))) e = texture_for_full(b.full, b.shrt);
-                if (!e) e = flat_texture(opt.sky && detail_layer ? std::optional<std::string>("white") : role, b.param);
+                if (!e) e = flat_texture((opt.sky || opt.fixes) && detail_layer ? std::optional<std::string>("white") : role, b.param);
                 mw.binds.push_back({b.param, b.shrt, b.full, e});
             }
-            if (opt.sky) own_leak = own;
+            if ((opt.sky || opt.fixes)) own_leak = own;
             const auto &feats = rec0.feats;
             auto has_feat = [&](const char *f) { return std::find(feats.begin(), feats.end(), f) != feats.end(); };
             // the sky converter: blend-map polarity (PS3 program (1 - map) vs a template without INVERT_BLEND_MAP: an
             // inverted copy of the blend texture), and a blend factor the PS3 program takes from one channel of another
             // texture (a grey BC1 of that channel) or from vertex colour only (softness 1000)
-            if (opt.sky && has_feat("BLEND_FACTOR_USE_BLEND_MAP_AND_VERTEX_COLOR") && !has_feat("BLEND_FACTOR_INVERT_BLEND_MAP") &&
+            if ((opt.sky || opt.fixes) && has_feat("BLEND_FACTOR_USE_BLEND_MAP_AND_VERTEX_COLOR") && !has_feat("BLEND_FACTOR_INVERT_BLEND_MAP") &&
                 fp::material_polarity(progs, n) == "inv")
                 for (auto &bd : mw.binds) {
                     if (bd.param != "g_tNdFetchBlendMap" || !bd.e) continue;
@@ -1092,7 +1092,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                                                           std::nullopt, true);
                     if (einv) bd.e = einv;
                 }
-            if (opt.sky && has_feat("BLEND_FACTOR_USE_BLEND_MAP_AND_VERTEX_COLOR"))
+            if ((opt.sky || opt.fixes) && has_feat("BLEND_FACTOR_USE_BLEND_MAP_AND_VERTEX_COLOR"))
                 for (auto &bd : mw.binds) {
                     if (bd.param != "g_tNdFetchBlendMap" || !bd.e || !has(bd.e->full, "generated/u3mp/flat-")) continue;
                     const auto bs = fp::blend_source(progs, n);
@@ -1144,7 +1144,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                 mp.vals = nv;
             }
         }
-        if (opt.sky) {
+        if ((opt.sky || opt.fixes)) {
             // a template that draws specular without a spec-map slot: the PS3 spec terms scaled by the PS3 mask mean
             const auto &feats = rec0.feats;
             bool slot = false;
@@ -1357,7 +1357,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                 const Ref bd = *I.blockdata;
                 tabs.push_back({bg::res(p, bd.first, bd.second + 8 * bi), bg::res(p, bd.first, bd.second + 8 * bi + 4)});
             }
-            blocks.push_back(decode_block3(p, pr.blocks[bi], tabs, opt.sky));
+            blocks.push_back(decode_block3(p, pr.blocks[bi], tabs, opt.sky || opt.fixes));
         }
         bool skinned = njoints > 0;
         for (const Block &b : blocks) skinned = skinned && b.has_skin;
@@ -1814,7 +1814,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
     // ---------------- small items
     auto li = blob("levelinfo");
     uint32_t liv = 0;   // the sky converter: LEVEL_INFO_1 is the PS3 u32 flags verbatim (retail = PS3)
-    if (opt.sky)
+    if ((opt.sky || opt.fixes))
         if (const auto lif = p.items_of("LEVEL_INFO_1"); !lif.empty()) liv = p.pu32(lif[0].page, lif[0].data_off());
     li->u32(liv);
     auto level_info = P.item("LEVEL_INFO_1", li);
@@ -1847,7 +1847,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
         return names;
     };
     std::shared_ptr<PakWItem> light;
-    convert_light_table(p, P, gobo, light);
+    convert_light_table(p, P, gobo, light, (opt.sky || opt.fixes) && stage == "ldn-train-multi-tunnel");
     // texture table
     std::vector<TexP> order = tex_order;
     std::stable_sort(order.begin(), order.end(), [](const TexP &a, const TexP &b) { return a->hash < b->hash; });
@@ -1863,7 +1863,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
     auto ttab = P.item("TEXTURE_TABLE", ttb);
     // background collision (PS3 ND mesh -> Havok 2011.3 hkpBvCompressedMeshShape)
     std::vector<std::shared_ptr<PakWItem>> colls;
-    for (const auto &cb : havok_bg_blobs(p, opt.sky)) colls.push_back(P.item("COLLISION_DATA_HAVOK_BG", cb));
+    for (const auto &cb : havok_bg_blobs(p, opt.sky || opt.fixes)) colls.push_back(P.item("COLLISION_DATA_HAVOK_BG", cb));
     // occlusion (VIS_INFO_1)
     std::shared_ptr<PakWItem> vis;
     if (!p.items_of("VIS_INFO_1").empty()) {
@@ -1922,7 +1922,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
 // after the header. Big-endian words; the word at +0x30 of records / lights / sun is 4 raw bytes. Blocks 16-aligned in
 // header order, 0xaa fill.
 std::shared_ptr<Blob> convert_light_table(const Pak &p, AutoPages &P, const std::function<std::optional<std::vector<std::string>>(const std::vector<uint32_t> &)> &gobo,
-                                          std::shared_ptr<PakWItem> &item) {
+                                          std::shared_ptr<PakWItem> &item, bool tunnel_probes) {
     const auto its = p.items_of("LIGHT_TABLE_1");
     if (its.empty()) return nullptr;   // sky levels: retail PS4 sky paks carry no LIGHT_TABLE_1 either
     const PakItem &it = its[0];
@@ -2002,6 +2002,10 @@ std::shared_ptr<Blob> convert_light_table(const Pak &p, AutoPages &P, const std:
     if (auto d = block(0x48)) parts[0x70] = words(head(*d, 16ull * u(0x24)));
     if (auto d = block(0x4c)) parts[0x78] = words(head(*d, 12ull * u(0x1c)));
     if (auto d = block(0x50)) parts[0x80] = sh(head(*d, 0x20ull * u(0x1c)));
+    // fixes, London tunnel (n014): the PS3 bake of probes 3 and 4 (the lower two of the column at (924, -794)) is 15..30x
+    // brighter than every other probe and lights the player white; they take probe 5's data (the same column, 14.5 m)
+    if (tunnel_probes && parts.count(0x80) && parts[0x80].size() >= 6 * 0x20)
+        for (int k : {3, 4}) std::copy(parts[0x80].begin() + 5 * 0x20, parts[0x80].begin() + 6 * 0x20, parts[0x80].begin() + k * 0x20);
     auto lb = blob("lighttable");
     lb->u32(nflags).u32(PAD32);
     if (nflags) lb->ptr(lb, 0xa0);
@@ -2345,7 +2349,7 @@ Bytes convert_two_pass(const fs::path &ps3, const std::string &lv, const Plan &p
 }  // namespace
 
 Bytes stage_convert(const fs::path &ps3, const Options &o) {
-    Plan plan = make_plan(ps3, o.res);
+    Plan plan = make_plan(ps3, o.res, o.fixes ? o.water_templates : fs::path());   // fixes: water templates scored (batch98)
     const std::string lv = plan.stage;
     fs::create_directories(o.plan_dir);
     {

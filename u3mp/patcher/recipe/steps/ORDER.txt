@@ -6,8 +6,6 @@ copy-ps4-retail
 convert-levels-port
 convert-levels-r2
 convert-levels-r3
-lost-batches-r3
-cloud-batches-r3
 actors-hk-tables
 convert-actors-r3
 convert-dc1

@@ -25,6 +25,9 @@ struct Options {
     fs::path res, pak_dir, texdict, plan_dir;
     bool mapbuild = false;                                     // 'mb' rows: paramfix + cubefix
     bool sky = false;                                          // the sky converter's version (paktools-sky)
+    bool fixes = false;   // the level fixes of the sky converter for a stage row: PS3 LEVEL_INFO, placeholder lightmap uvs,
+                          // degenerate collision triangles, detail / height / glow / tint slots, blend polarity and source, spec maps
+    fs::path water_templates;   // with fixes: the retail water.fx templates scored against the PS3 water materials
     const json::Value *gobo = nullptr;                         // {retail pak: {PS3 texture hash hex: PS4 short path}}
     std::shared_ptr<std::vector<BundleTex>> default_lightmaps;   // the two retail default lightmaps
 };

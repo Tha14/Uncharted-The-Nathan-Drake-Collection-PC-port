@@ -304,6 +304,8 @@ fs::path build(const Row &row, const std::map<std::pair<std::string, std::string
     o.texdict = texdict;
     o.plan_dir = g_tmp / "plans" / upath(row.at("overlay")) / upath(ver + opts_s);
     o.mapbuild = flags.count("mb") != 0;
+    o.fixes = true;   // the fixes the old cloud / lost batches made (cloud-batches-r3 / lost-batches-r3) are converter rules now
+    o.water_templates = upath(g_here + "/data/water_templates.json");
     o.default_lightmaps = default_lightmap_texels();
     // data/overrides/<overlay>/<name>.json: 'gobo' = gobo textures taken from another retail pak (co-op Syria)
     const fs::path ovf = upath(g_here + "/data/overrides/" + row.at("overlay") + "/" + row.at("name") + ".json");
