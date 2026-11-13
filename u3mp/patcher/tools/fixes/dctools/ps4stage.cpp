@@ -3,6 +3,7 @@
 
 #include "collision.hpp"
 #include "proc.hpp"
+#include "ps3fp.hpp"
 #include "ps4writer.hpp"
 #include "texcodec.hpp"
 #include "u3fix.hpp"
@@ -58,7 +59,28 @@ uint32_t f32b(double d) {
     const float f = float(d);
     uint32_t v;
     std::memcpy(&v, &f, 4);
-    return v;
+    return quiet(v);   // a NaN from a double is quiet in Python too
+}
+float as_float(uint32_t v) {
+    float f;
+    std::memcpy(&f, &v, 4);
+    return f;
+}
+double py_round5(double x) {   // Python round(x, 5): the decimal rounding of the exact value
+    if (!std::isfinite(x)) return x;
+    char b[512];
+    std::snprintf(b, sizeof b, "%.5f", x);
+    return std::strtod(b, nullptr);
+}
+// struct.pack of a value array with its first float replaced (the others come back as Python gives them)
+void set_first_float(Bytes &vals, double v) {
+    if (vals.size() < 4) throw Stop("IndexError: list assignment index out of range");
+    Bytes nv;
+    for (size_t j = 0; j + 4 <= vals.size(); j += 4) {
+        const uint32_t x = j == 0 ? f32b(v) : quiet(rd32le(vals, j));
+        for (int k = 0; k < 4; k++) nv.push_back(uint8_t(x >> (8 * k)));
+    }
+    vals = nv;
 }
 // numpy float64 -> float16 (round half to even, overflow to inf, NaN payload kept)
 uint16_t f16b(double v) {
@@ -177,7 +199,7 @@ const Mat *last_attr(const Block &b, int aid) {
     return r;
 }
 
-Block decode_block3(const Pak &p, const Ref &blk, const std::vector<std::pair<ORef, ORef>> &insts) {
+Block decode_block3(const Pak &p, const Ref &blk, const std::vector<std::pair<ORef, ORef>> &insts, bool sky) {
     const auto [pg, bo] = blk;
     Block out;
     const Ref cnt = bg::need(p, pg, bo + 0x24);
@@ -221,7 +243,17 @@ Block decode_block3(const Pak &p, const Ref &blk, const std::vector<std::pair<OR
                 const ORef r = stbl ? bg::res(p, stbl->first, stbl->second + 4 * k) : std::nullopt;
                 k++;
                 d[a.id] = to_ps4(a.id, attr_values(p, ifmt->first, ifmt->second, a, r, out.nv, iprec), out.nv);
-                if (a.id == 0x13 && r) lm = true;
+                if (a.id == 0x13 && r) {
+                    // the sky converter: a vertex-lit PS3 block still carries a placeholder lightmap-uv stream (every value
+                    // an integer: atlas corners); only real lightmap uvs flag the instance
+                    bool integ = false;
+                    if (sky) {
+                        const Mat &v13 = d[a.id];
+                        integ = !v13.v.empty();
+                        for (double x : v13.v) integ = integ && std::fabs(x - std::nearbyint(x)) < 1e-4;
+                    }
+                    if (!integ) lm = true;
+                }
             }
         }
         out.inst.push_back(std::move(d));
@@ -491,6 +523,84 @@ struct MatW {
     std::vector<B> binds;
 };
 
+// the sky converter's extra texture roles for names tex_role_final calls 'color': '-height', '-blend<n>', '-inc'
+std::optional<std::string> xrole(const std::string &shrt) {
+    std::string b = shrt;
+    for (char &c : b) c = char(std::tolower((unsigned char)c));
+    b = b.substr(b.rfind('/') == std::string::npos ? 0 : b.rfind('/') + 1);
+    static const std::regex COL(R"(-(color|diffuse|col)\.[a-z]+$)"), HEIGHT(R"(-height(?=[-._]))"), BLENDN(R"(-blend\d+(?=[-._]))"),
+        INC(R"(-(inc|incan|incand)(?=[-._]))");
+    if (std::regex_search(b, COL)) return std::nullopt;
+    if (std::regex_search(b, HEIGHT)) return std::string("height");
+    if (std::regex_search(b, BLENDN)) return std::string("blend");
+    if (std::regex_search(b, INC)) return std::string("inc");
+    return std::nullopt;
+}
+
+// invert a BC1 texel blob value-wise (v -> 1 - v), block by block: 4-colour blocks exactly (endpoints NOT and swapped,
+// indices XOR 1), 3-colour blocks re-fitted as a 4-colour block (transparent black has no inverse: white)
+Bytes bc1_invert(const Bytes &blob) {
+    Bytes out = blob;
+    auto d565 = [](uint32_t c, int p[3]) {
+        p[0] = int((c >> 11) & 31) * 255 / 31;
+        p[1] = int((c >> 5) & 63) * 255 / 63;
+        p[2] = int(c & 31) * 255 / 31;
+    };
+    auto e565 = [](const int c[3]) { return uint32_t(((c[0] * 31 + 127) / 255) << 11 | ((c[1] * 63 + 127) / 255) << 5 | ((c[2] * 31 + 127) / 255)); };
+    for (size_t o = 0; o + 8 <= blob.size(); o += 8) {
+        const uint32_t c0 = blob[o] | blob[o + 1] << 8, c1 = blob[o + 2] | blob[o + 3] << 8, ix = rd32le(blob, o + 4);
+        uint32_t n0, n1, ni;
+        if (c0 > c1) {
+            n0 = c1 ^ 0xffff;
+            n1 = c0 ^ 0xffff;
+            ni = ix ^ 0x55555555u;
+        } else {
+            int pal[4][3];
+            d565(c0, pal[0]);
+            d565(c1, pal[1]);
+            for (int j = 0; j < 3; j++) {
+                pal[2][j] = (pal[0][j] + pal[1][j]) / 2;
+                pal[3][j] = 0;
+            }
+            int px[16][3], lo[3] = {255, 255, 255}, hi[3] = {0, 0, 0};
+            for (int k = 0; k < 16; k++)
+                for (int j = 0; j < 3; j++) {
+                    px[k][j] = 255 - pal[(ix >> (2 * k)) & 3][j];
+                    lo[j] = std::min(lo[j], px[k][j]);
+                    hi[j] = std::max(hi[j], px[k][j]);
+                }
+            n0 = e565(hi);
+            n1 = e565(lo);
+            ni = 0;
+            if (n0 != n1) {
+                if (n0 < n1) std::swap(n0, n1);
+                int q[4][3];
+                d565(n0, q[0]);
+                d565(n1, q[1]);
+                for (int j = 0; j < 3; j++) {
+                    q[2][j] = (2 * q[0][j] + q[1][j]) / 3;
+                    q[3][j] = (q[0][j] + 2 * q[1][j]) / 3;
+                }
+                for (int k = 0; k < 16; k++) {
+                    int best = 0, bd = 0;
+                    for (int i = 0; i < 4; i++) {
+                        int d = 0;
+                        for (int j = 0; j < 3; j++) d += (px[k][j] - q[i][j]) * (px[k][j] - q[i][j]);
+                        if (i == 0 || d < bd) { bd = d; best = i; }
+                    }
+                    ni |= uint32_t(best) << (2 * k);
+                }
+            }
+        }
+        out[o] = uint8_t(n0);
+        out[o + 1] = uint8_t(n0 >> 8);
+        out[o + 2] = uint8_t(n1);
+        out[o + 3] = uint8_t(n1 >> 8);
+        set32(out, o + 4, ni);
+    }
+    return out;
+}
+
 std::shared_ptr<Blob> convert_light_table(const Pak &p, AutoPages &P, const std::function<std::optional<std::vector<std::string>>(const std::vector<uint32_t> &)> &gobo,
                                           std::shared_ptr<PakWItem> &item);
 std::shared_ptr<Blob> water_blob(const Pak &p, const std::function<std::string(const std::string &)> &matkey);
@@ -498,17 +608,41 @@ std::shared_ptr<Blob> water_blob(const Pak &p, const std::function<std::string(c
 Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, const Bundle &bundle, const Options &opt, Uni &U, bool build) {
     Resources R;
     R.bundle = &bundle;
-    for (const auto &[k, r] : bundle.mats) R.mats[k] = &r;
+    // the records by (pak, key) in first-seen order, the last record of a key winning (a dict)
+    std::vector<std::pair<std::pair<std::string, std::string>, const MatRec *>> mats_order;
+    for (const auto &[k, r] : bundle.mats) {
+        R.mats[k] = &r;
+        auto it = std::find_if(mats_order.begin(), mats_order.end(), [&](const auto &x) { return x.first == k; });
+        if (it == mats_order.end()) mats_order.push_back({k, &r});
+        else it->second = &r;
+    }
     for (const BundleTex &t : bundle.tex) R.add_tex({t.path, "", t.desc, t.texels, t.gtex}, true);
     // material lightmap slots of unlit props fall back to the retail default-lightmap0/1: always carry the two copies
     if (opt.default_lightmaps)
         for (const BundleTex &t : *opt.default_lightmaps) R.add_tex({t.path, "", t.desc, t.texels, std::nullopt}, false);
-    for (const auto &[k, r] : bundle.mats)
-        for (const auto &[full, e] : r.textures)
+    for (const auto &[k, r] : mats_order)
+        for (const auto &[full, e] : r->textures)
             if (e.has_desc) R.add_tex({e.path, "", e.desc, e.texels, e.gtex}, false);
-    for (const auto &[k, r] : bundle.mats)
-        for (const auto &[full, e] : r.textures)
+    for (const auto &[k, r] : mats_order)
+        for (const auto &[full, e] : r->textures)
             if (e.gtex && !e.gtex->empty()) R.gtex[full] = *e.gtex;
+    if (opt.sky && !plan.mats.empty()) {
+        // the sky converter: the GEOMETRY_1 texture entry of a shared retail texture comes from the donors this level's
+        // plan uses (first in plan order), then any donor except the engine default textures (those fall back to the
+        // neutral entry unless a used donor binds them)
+        std::vector<std::pair<std::string, std::string>> used;
+        for (const auto &[n, e] : plan.mats) {
+            const std::pair<std::string, std::string> k{e.pak, e.key};
+            if (R.mats.count(k) && std::find(used.begin(), used.end(), k) == used.end()) used.push_back(k);
+        }
+        std::map<std::string, Bytes> pinned;
+        for (const auto &k : used)
+            for (const auto &[full, e] : R.mats.at(k)->textures)
+                if (e.gtex && !e.gtex->empty() && !pinned.count(full)) pinned[full] = *e.gtex;
+        for (const auto &[full, g] : R.gtex)
+            if (!pinned.count(full) && full.find("/textures/default/") == std::string::npos) pinned[full] = g;
+        R.gtex = pinned;
+    }
     const auto dict = load_dict(opt.texdict);
 
     const std::vector<bg::Proto> C = bg::collection(p);
@@ -518,10 +652,11 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
     std::map<std::string, const bg::Material3 *> m3;
     for (const bg::Material3 &m : mats3) m3[m.name] = &m;
 
+    const std::vector<PakTexture> ps3_textures = p.textures();
     // PS3 textures by short path (the first of a short wins)
     std::vector<std::pair<std::string, PakTexture>> ps3tex;
     std::map<std::string, size_t> ps3tex_at;
-    for (const PakTexture &t : p.textures()) {
+    for (const PakTexture &t : ps3_textures) {
         const std::string s = short_of(t.path);
         if (!ps3tex_at.count(s)) {
             ps3tex_at[s] = ps3tex.size();
@@ -611,7 +746,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
     auto convert_ps3_cubemap = [&](const PakTexture &t, const Bytes &texels, std::string kind, int bpb, const std::string &path_ndb, uint32_t flag) -> TexP {
         std::optional<Bytes> out;
         if (kind == "A8R8G8B8") {
-            out = cube_texels_argb(t, texels, t.gcmRemapCtl & 0xffff);
+            out = cube_texels_argb(t, texels, t.gcmRemapCtl & 0xffff, opt.sky);
             kind = "DXT5";
         } else
             out = cube_texels(t, texels, bpb);
@@ -622,7 +757,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
         return add_texture_desc(path_ndb, d, *out, gtex_bytes(hsh, 0x100, fmt4 == 0x48 ? 4 : 5));
     };
     auto convert_ps3_texture = [&](const PakTexture &t, const std::string &path_ndb, const std::string &shrt, uint32_t flag,
-                                   std::optional<bool> srgb) -> TexP {
+                                   std::optional<bool> srgb, bool invert = false) -> TexP {
         const auto fmt3 = tc::ps3_format(t);
         if (!fmt3) return nullptr;
         std::string kind = fmt3->kind;
@@ -635,7 +770,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
             // uncompressed swizzled A8R8G8B8 (sky colour maps): deswizzle mip 0, rebuild the mip chain, encode BC3
             if (kind != "A8R8G8B8" || (w_ & (w_ - 1)) || (h_ & (h_ - 1))) return nullptr;
             const uint32_t rm = t.gcmRemapCtl & 0xffff;
-            const tc::Img img8 = tc::ps3_deswizzle_argb8(texels, w_, h_, rm ? rm : 0xaae4);
+            const tc::Img img8 = opt.sky ? tc::sky::ps3_deswizzle_argb8(texels, w_, h_, rm ? rm : 0xaae4) : tc::ps3_deswizzle_argb8(texels, w_, h_, rm ? rm : 0xaae4);
             std::vector<float> lv(img8.px.begin(), img8.px.end());
             uint32_t lw = w_, lh = h_;
             Bytes out;
@@ -646,7 +781,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                 q.h = lh;
                 q.px.resize(lv.size());
                 for (size_t i = 0; i < lv.size(); i++) q.px[i] = uint8_t(std::clamp(std::nearbyint(lv[i]), 0.0f, 255.0f));
-                const Bytes e = tc::encode_bc3(q);
+                const Bytes e = opt.sky ? tc::sky::encode_bc3(q) : tc::encode_bc3(q);
                 out.insert(out.end(), e.begin(), e.end());
                 n++;
                 if (std::min(lw, lh) < 8) break;
@@ -680,17 +815,26 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                 for (size_t i = 0; i < size_t(mw) * mh; i++) {
                     uint8_t *px = &img.px[i * 4];
                     const uint8_t argb[4] = {px[3], px[0], px[1], px[2]};
-                    tc::gcm_remap(argb, rm_, px);
+                    if (opt.sky) tc::sky::gcm_remap(argb, rm_, px);
+                    else tc::gcm_remap(argb, rm_, px);
                 }
-                const Bytes e2 = tc::encode_bc3(img);
+                const Bytes e2 = opt.sky ? tc::sky::encode_bc3(img) : tc::encode_bc3(img);
                 out.insert(out.end(), e2.begin(), e2.end());
             }
             texels = out;
             kind = "DXT5";
             bpb = 16;
         }
-        const Bytes tiled = tc::ps3_to_ps4_texels(texels, w_, h_, mips_, bpb);
-        const std::string role = tex_role_final(shrt).value_or("color");
+        Bytes tiled = tc::ps3_to_ps4_texels(texels, w_, h_, mips_, bpb);
+        if (invert) {   // the sky converter: a blend map of the opposite polarity (BC1 only)
+            if (kind != "DXT1") return nullptr;
+            tiled = bc1_invert(tiled);
+        }
+        std::string role = tex_role_final(shrt).value_or("color");
+        if (opt.sky && role == "color") {   // retail keeps '-height' / '-inc' maps BC1 UNORM (linear)
+            const auto xr = xrole(shrt);
+            if (xr == "height" || xr == "inc" || xr == "blend") role = "mask";
+        }
         const bool sr = srgb ? *srgb : (role == "color" || role == "spec" || role == "detail");
         uint32_t fmt4;
         if (kind == "DXT1") fmt4 = sr ? 0x48 : 0x47;
@@ -763,6 +907,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
         if (has(low, "normal") || role == "normal") { kind = "normal"; r_ = 128; g_ = 128; b_ = 255; srgb = false; }
         else if (role == "mask" || role == "spec" || role == "blend") { kind = "mask"; r_ = g_ = b_ = 0; srgb = false; }
         else if (role == "trans") { kind = "trans"; r_ = g_ = b_ = 255; srgb = false; }
+        else if (role == "white") { kind = "white"; r_ = g_ = b_ = 255; srgb = true; }   // the sky converter: neutral for a detail-multiply colour layer
         else if (role == "detail") { kind = "detail"; r_ = g_ = b_ = 128; srgb = false; }
         else { kind = "color"; r_ = g_ = b_ = 128; srgb = true; }
         if (auto it = flat_cache.find(kind); it != flat_cache.end()) return it->second;
@@ -822,6 +967,12 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
     for (const std::string &m : bg::water_materials(p))
         if (plan.get(m)) water_mats.push_back(m);
     for (const std::string &n : water_mats) add_name(n);
+    // the sky converter: the last template material's spec maps and detail flag (read by exact materials after it), the
+    // blend softness of vertex-colour-only blends, the PS3 fragment programs
+    std::optional<std::map<std::string, std::vector<std::string>>> own_leak;
+    std::optional<bool> detail_leak;
+    std::map<std::string, double> soft_override;
+    fp::Ps3Programs progs(p);
     std::map<std::string, MatW> matrec;
     for (const std::string &n : names3) {
         const PlanMat *pe = plan.get(n);
@@ -836,12 +987,26 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
             mw.name = rec0.name;
             for (const MatBind &b : rec0.binds) {
                 TexP e = lightmap_entry(b.param);
+                // the sky converter: the spec-colour slots take the PS3 '-spec' map. As in the converter, this reads the
+                // spec maps and detail flag the last template material left behind.
+                if (opt.sky && !e && (b.param == "g_tNdFetchColor4Map" || b.param == "g_tNdFetchColor5Map" || b.param == "g_tNdFetchMask4Map")) {
+                    if (!own_leak) throw Stop("NameError: name 'own' is not defined");
+                    auto si = own_leak->find("spec3");
+                    if (si != own_leak->end() && !si->second.empty()) {
+                        if (!detail_leak) throw Stop("NameError: name 'detail_layer' is not defined");
+                        if (!*detail_leak) e = texture_for_short(si->second[(b.param == "g_tNdFetchColor5Map" && si->second.size() > 1) ? 1 : 0]);
+                    }
+                }
                 if (!e) e = texture_for_full(b.full, b.shrt);
                 mw.binds.push_back({b.param, b.shrt, b.full, e});
             }
         } else {
             // template material re-bound to the PS3 material's textures (same role)
             std::map<std::string, std::vector<std::string>> own;
+            auto add_own = [&](const std::string &r, const std::string &s3) {
+                auto &v = own[r];
+                if (std::find(v.begin(), v.end(), s3) == v.end()) v.push_back(s3);
+            };
             if (auto mi = m3.find(n); mi != m3.end()) {
                 std::vector<uint32_t> idxs = mi->second->textures;
                 if (m3.size() == 1)   // single-material level (skies): every texture of the pak belongs to it
@@ -851,27 +1016,113 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                 for (uint32_t i : idxs) {
                     const std::string s3 = std::regex_replace(short_of(texs3.at(i).name), HASHTAIL, "");
                     auto r = tex_role_final(s3);
-                    if (r == "spec") r = "mask";
-                    if (r) {
-                        auto &v = own[*r];
-                        if (std::find(v.begin(), v.end(), s3) == v.end()) v.push_back(s3);
+                    if (r == "spec") {
+                        if (opt.sky) add_own("spec3", s3);   // kept apart for the spec-colour slots
+                        r = "mask";
                     }
+                    if (opt.sky && r == "color")
+                        if (auto xr = xrole(s3)) r = xr;   // '-height' / '-blend2' / '-inc' maps get their own role
+                    if (r) add_own(*r, s3);
                 }
             }
+            auto own_get = [&](const std::string &r) -> const std::vector<std::string> * {
+                auto it = own.find(r);
+                return it == own.end() || it->second.empty() ? nullptr : &it->second;
+            };
             std::map<std::string, size_t> used_role;
+            static const std::regex MASKN(R"(^g_tNdFetchMask\dMap$)"), TINTN(R"(^g_tNdFetchColorTintMask\dMap$)"), HT2(R"(/[0-9A-F]{16}(\.ndb)?$)");
             for (const MatBind &b : rec0.binds) {
                 auto role = param_role(b.param);
                 if (role == "spec") role = "mask";
+                bool detail_layer = false;
+                if (opt.sky) {
+                    // a template colour layer multiplied by its Mask<n> texture: retail fills it with a '-detail' map
+                    const std::string src = !b.shrt.empty() ? b.shrt : b.full;
+                    if (std::regex_search(b.param, MASKN) && tex_role_final(std::regex_replace(short_of(src), HT2, "")) == "detail") {
+                        role = "detail";
+                        detail_layer = true;
+                    }
+                    detail_leak = detail_layer;
+                }
                 TexP e = lightmap_entry(b.param);
-                if (!e && role && own.count(*role) && !own[*role].empty() && *role != "lightmap") {
+                // an explicit PS3 texture per template binding (the sky plans' bindmap; '' = a neutral flat texture)
+                if (!e && pe->has_bindmap) {
+                    auto bi = std::find_if(pe->bindmap.begin(), pe->bindmap.end(), [&](const auto &x) { return x.first == b.param; });
+                    if (bi != pe->bindmap.end()) e = bi->second.empty() ? flat_texture(role, b.param) : texture_for_short(bi->second);
+                }
+                if (opt.sky && !e) {   // slots the role rules would leave on a black flat although the PS3 material has the texture
+                    std::optional<std::string> alt;
+                    const auto *blend = own_get("blend");
+                    if (b.param == "g_tNdFetchBlendMap" && used_role["blend"] >= (blend ? blend->size() : 0)) alt = "height";
+                    else if (std::regex_search(b.param, TINTN) && !own_get("mask")) {
+                        size_t nbl = 0;
+                        for (const MatBind &x : rec0.binds) nbl += x.param == "g_tNdFetchBlendMap";
+                        if ((blend ? blend->size() : 0) > nbl) e = texture_for_short((*blend)[nbl]);
+                    } else if (b.param == "g_tNdFetchIncandescenceMaskMap" && own_get("inc"))
+                        alt = "inc";
+                    if (!e && alt && own_get(*alt) && used_role[*alt] < own_get(*alt)->size()) {
+                        const size_t k = used_role[*alt]++;
+                        e = texture_for_short((*own_get(*alt))[k]);
+                    }
+                }
+                if (!e && role && own_get(*role) && *role != "lightmap") {
                     const size_t k = used_role[*role]++;
-                    const auto &v = own[*role];
+                    const auto &v = *own_get(*role);
                     e = texture_for_short(v[std::min(k, v.size() - 1)]);
                 }
                 if ((!e && (!role || *role == "env")) || (!e && has(b.param, "LightMap"))) e = texture_for_full(b.full, b.shrt);
-                if (!e) e = flat_texture(role, b.param);
+                if (!e) e = flat_texture(opt.sky && detail_layer ? std::optional<std::string>("white") : role, b.param);
                 mw.binds.push_back({b.param, b.shrt, b.full, e});
             }
+            if (opt.sky) own_leak = own;
+            const auto &feats = rec0.feats;
+            auto has_feat = [&](const char *f) { return std::find(feats.begin(), feats.end(), f) != feats.end(); };
+            // the sky converter: blend-map polarity (PS3 program (1 - map) vs a template without INVERT_BLEND_MAP: an
+            // inverted copy of the blend texture), and a blend factor the PS3 program takes from one channel of another
+            // texture (a grey BC1 of that channel) or from vertex colour only (softness 1000)
+            if (opt.sky && has_feat("BLEND_FACTOR_USE_BLEND_MAP_AND_VERTEX_COLOR") && !has_feat("BLEND_FACTOR_INVERT_BLEND_MAP") &&
+                fp::material_polarity(progs, n) == "inv")
+                for (auto &bd : mw.binds) {
+                    if (bd.param != "g_tNdFetchBlendMap" || !bd.e) continue;
+                    const std::string s_ = std::regex_replace(short_of(bd.e->full), HT2, "");
+                    const PakTexture *t3_ = ps3tex_get(s_);
+                    if (!t3_ || has(s_, "generated/u3mp/flat-")) continue;
+                    const std::string sinv = ends_with(s_, ".tga") ? s_.substr(0, s_.size() - 4) + "-polinv.tga" : s_ + "-polinv";
+                    const TexP einv = convert_ps3_texture(*t3_, PS4_PREFIX + sinv + "/" + u3::fmt("%016llX", (unsigned long long)sidu(sinv)) + ".ndb", sinv, 3,
+                                                          std::nullopt, true);
+                    if (einv) bd.e = einv;
+                }
+            if (opt.sky && has_feat("BLEND_FACTOR_USE_BLEND_MAP_AND_VERTEX_COLOR"))
+                for (auto &bd : mw.binds) {
+                    if (bd.param != "g_tNdFetchBlendMap" || !bd.e || !has(bd.e->full, "generated/u3mp/flat-")) continue;
+                    const auto bs = fp::blend_source(progs, n);
+                    if (!bs) continue;
+                    if (bs->vc_only) {
+                        if (has_feat("BLEND_FACTOR_SOFTNESS")) soft_override[n] = 1000.0;
+                        continue;
+                    }
+                    std::vector<const PakTexture *> t3s;
+                    for (const PakTexture &t : ps3_textures)
+                        if (ends_with(t.path, "/" + bs->full)) t3s.push_back(&t);
+                    if (t3s.size() != 1) continue;
+                    const bool inv_ = (bs->pol == "inv") != has_feat("BLEND_FACTOR_INVERT_BLEND_MAP");
+                    static const std::regex HT3(R"(/[0-9A-F]{16}\.ndb$)");
+                    const std::string s0_ = std::regex_replace(bs->full, HT3, "");
+                    std::string stem = s0_.substr(s0_.rfind('/') == std::string::npos ? 0 : s0_.rfind('/') + 1);
+                    if (ends_with(stem, ".tga")) stem = stem.substr(0, stem.size() - 4);
+                    const std::string sb_ = "art/generated/u3mp/b104/" + stem + "-" + bs->chan + "blend" + (bs->gamma ? "-lin" : "") + (inv_ ? "-inv" : "") + ".tga";
+                    const std::string path_ = PS4_PREFIX + sb_ + "/" + u3::fmt("%016llX", (unsigned long long)sidu(sb_)) + ".ndb";
+                    TexP eb_;
+                    if (auto te = tex_entries.find(path_.substr(0, path_.size() - 4)); te != tex_entries.end()) eb_ = te->second;
+                    else {
+                        const auto dv = fp::derive_texels(p, *t3s[0], bs->chan, bs->gamma, inv_);
+                        if (!dv) continue;
+                        const auto &[tl_, w_, h_, mp_] = *dv;
+                        const uint32_t hsh_ = sidu(after_prefix(path_));
+                        eb_ = add_texture_desc(path_, desc_bytes(hsh_, 1, 0x47, 0x01000000, mp_, w_, h_, 3), tl_, gtex_bytes(hsh_, 0x400, 4));
+                    }
+                    bd.e = eb_;
+                }
             const size_t sl = n.rfind('/');
             if (sl == std::string::npos) throw Stop("IndexError: material name without a directory");
             const std::string k3 = n.substr(0, sl) + ":" + n.substr(sl + 1);
@@ -892,6 +1143,22 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                 }
                 mp.vals = nv;
             }
+        }
+        if (opt.sky) {
+            // a template that draws specular without a spec-map slot: the PS3 spec terms scaled by the PS3 mask mean
+            const auto &feats = rec0.feats;
+            bool slot = false;
+            for (const auto &bd : mw.binds) slot = slot || bd.param == "g_tNdFetchColor4Map" || bd.param == "g_tNdFetchMask4Map";
+            if (std::find(feats.begin(), feats.end(), "FINAL_COLOR_ADD_SPECULAR_LIGHT") != feats.end() && !slot) {
+                const auto sc = fp::mask_scale(progs, n);
+                if (sc && std::fabs(*sc - 1.0) > 1e-4)
+                    for (MatParam &mp : mw.rec.params)
+                        if (mp.name == "g_specularBrightness" || mp.name == "g_specularEnvironmentStrength" || mp.name == "g_specularSecondLobeBrightness")
+                            set_first_float(mp.vals, py_round5(double(as_float(rd32le(mp.vals, 0))) * *sc));
+            }
+            if (auto so = soft_override.find(n); so != soft_override.end())
+                for (MatParam &mp : mw.rec.params)
+                    if (mp.name == "g_blendSoftness_blendOffset_linearBlendOffset") set_first_float(mp.vals, so->second);
         }
         matrec[n] = std::move(mw);
     }
@@ -1090,7 +1357,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                 const Ref bd = *I.blockdata;
                 tabs.push_back({bg::res(p, bd.first, bd.second + 8 * bi), bg::res(p, bd.first, bd.second + 8 * bi + 4)});
             }
-            blocks.push_back(decode_block3(p, pr.blocks[bi], tabs));
+            blocks.push_back(decode_block3(p, pr.blocks[bi], tabs, opt.sky));
         }
         bool skinned = njoints > 0;
         for (const Block &b : blocks) skinned = skinned && b.has_skin;
@@ -1546,7 +1813,10 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
 
     // ---------------- small items
     auto li = blob("levelinfo");
-    li->u32(0);
+    uint32_t liv = 0;   // the sky converter: LEVEL_INFO_1 is the PS3 u32 flags verbatim (retail = PS3)
+    if (opt.sky)
+        if (const auto lif = p.items_of("LEVEL_INFO_1"); !lif.empty()) liv = p.pu32(lif[0].page, lif[0].data_off());
+    li->u32(liv);
     auto level_info = P.item("LEVEL_INFO_1", li);
     auto lp = blob("levelpats");
     lp->u64(0);
@@ -1593,7 +1863,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
     auto ttab = P.item("TEXTURE_TABLE", ttb);
     // background collision (PS3 ND mesh -> Havok 2011.3 hkpBvCompressedMeshShape)
     std::vector<std::shared_ptr<PakWItem>> colls;
-    for (const auto &cb : havok_bg_blobs(p)) colls.push_back(P.item("COLLISION_DATA_HAVOK_BG", cb));
+    for (const auto &cb : havok_bg_blobs(p, opt.sky)) colls.push_back(P.item("COLLISION_DATA_HAVOK_BG", cb));
     // occlusion (VIS_INFO_1)
     std::shared_ptr<PakWItem> vis;
     if (!p.items_of("VIS_INFO_1").empty()) {
@@ -1962,7 +2232,7 @@ std::optional<Bytes> cube_texels(const PakTexture &t3, const Bytes &data, int bp
     return out;
 }
 
-std::optional<Bytes> cube_texels_argb(const PakTexture &t3, const Bytes &data, uint32_t remap) {
+std::optional<Bytes> cube_texels_argb(const PakTexture &t3, const Bytes &data, uint32_t remap, bool sky) {
     const uint32_t w = t3.width, h = t3.height, mips = t3.mips;
     std::vector<uint64_t> sizes;
     for (uint32_t m = 0; m < mips; m++) sizes.push_back(uint64_t(std::max(1u, m < 32 ? w >> m : 0)) * std::max(1u, m < 32 ? h >> m : 0) * 4);
@@ -1979,7 +2249,7 @@ std::optional<Bytes> cube_texels_argb(const PakTexture &t3, const Bytes &data, u
         for (int k = 0; k < 6; k++) {
             const uint64_t a = k * stride + mo;
             const Bytes face_d(data.begin() + std::ptrdiff_t(std::min<uint64_t>(a, data.size())), data.begin() + std::ptrdiff_t(std::min<uint64_t>(a + sizes[m], data.size())));
-            const Bytes bc = tc::encode_bc3(tc::ps3_deswizzle_argb8(face_d, mw, mh, remap));
+            const Bytes bc = sky ? tc::sky::encode_bc3(tc::sky::ps3_deswizzle_argb8(face_d, mw, mh, remap)) : tc::encode_bc3(tc::ps3_deswizzle_argb8(face_d, mw, mh, remap));
             tiles.push_back(tc::tile_mip(bc.data(), bc.size(), bw, bh, 16));
         }
         for (int k = 0; k < 8; k++) out.insert(out.end(), tiles[std::min(k, 5)].begin(), tiles[std::min(k, 5)].end());
@@ -2055,6 +2325,25 @@ Bytes cubefix(Bytes d, const fs::path &ps3) {
 
 }  // namespace
 
+namespace {
+
+// ps4stage.convert: pass 1 measures the longest length of every uniform per-vertex value, pass 2 writes the pak
+Bytes convert_two_pass(const fs::path &ps3, const std::string &lv, const Plan &plan, const Bundle &bundle, const Options &o) {
+    const Pak p(ps3);
+    Uni U;
+    U.collecting = true;
+    convert_once(p, lv, plan, bundle, o, U, false);
+    U.plan = U.collect;
+    U.collecting = false;
+    U.bufs.clear();
+    U.seen.clear();
+    Bytes data = convert_once(p, lv, plan, bundle, o, U, true);
+    for (auto &[k, b] : U.bufs) b->relocs.clear();
+    return data;
+}
+
+}  // namespace
+
 Bytes stage_convert(const fs::path &ps3, const Options &o) {
     Plan plan = make_plan(ps3, o.res);
     const std::string lv = plan.stage;
@@ -2088,21 +2377,180 @@ Bytes stage_convert(const fs::path &ps3, const Options &o) {
             }
         }
     }
-    const Pak p(ps3);
-    Uni U;
-    U.collecting = true;
-    convert_once(p, lv, plan, bundle, o, U, false);   // pass 1: the longest length of every uniform per-vertex value
-    U.plan = U.collect;
-    U.collecting = false;
-    U.bufs.clear();
-    U.seen.clear();
-    Bytes data = convert_once(p, lv, plan, bundle, o, U, true);
-    for (auto &[k, b] : U.bufs) b->relocs.clear();
+    Bytes data = convert_two_pass(ps3, lv, plan, bundle, o);
     if (o.mapbuild) {
         data = paramfix(std::move(data), plan);
         data = cubefix(std::move(data), ps3);
     }
     return data;
+}
+
+}  // namespace u3::stage
+
+namespace u3::stage {
+namespace {
+
+// build_skies.py: the retail sky-clouds.fx templates and, per PS3 sky material, the template and the PS3 texture
+// (by the material's texture order) for each template binding
+const std::map<std::string, std::pair<std::string, std::string>> &sky_templates() {
+    static const std::map<std::string, std::pair<std::string, std::string>> T = {
+        {"SUN", {"sky-chateau-multi.pak", "levels/sky/-big3/sky-chateau-multi:default"}},
+        {"PLAIN", {"sky-highrise-multi.pak", "levels/sky/-big3/mp-coop/sky-highrise-multi:default"}},
+        {"UNDER", {"sky-grave-03-docks.pak", "levels/sky/-big3/sky-grave-03-docks-undersky:default"}},
+        {"DIG", {"sky-dig-coop.pak", "levels/sky/-big3/mp-coop/sky-dig-coop:default"}},
+        {"LW", {"sky-london-wide.pak", "levels/sky/-big3/sky-london-wide:default"}},
+        {"LWM", {"sky-london-wide.pak", "levels/sky/-big3/sky-london-wide-moon:default"}},
+        {"GR", {"sky-grave-03-docks.pak", "levels/sky/-big3/sky-grave-03-docks:default"}},
+        {"HC", {"sky-horse-chase.pak", "levels/sky/-big3/sky-horse-chase:default"}},
+        {"SYN", {"sky-syria.pak", "levels/sky/-big3/sky-syria-night:default"}}};
+    return T;
+}
+struct SkyMapEntry {
+    std::string lv, tail, t;
+    std::vector<std::pair<std::string, int>> bm;
+};
+const std::vector<SkyMapEntry> &sky_map() {
+    const std::string S = "g_tSkyColorMap", R = "g_tNdFetchSkyColorReflectionMap", CM = "g_tNdFetchCloudMaskMap", CM2 = "g_tNdFetchCloudMask2Map",
+                      CC = "g_tNdFetchCloudColorMap", CC2 = "g_tNdFetchCloudColor2Map", F = "g_tFadeMaskMap", FL = "g_tNdFetchFlowTextureMap",
+                      DM = "g_tNdDistortionMaskMap", MC = "g_tNdFetchMoonColorMap", MM = "g_tNdFetchMoonMaskMap", CYL = "g_tNdFetchCylinderCloudMaskMap",
+                      NOI = "g_tNdFetchUvNoiseColorMap";
+    const std::vector<std::pair<std::string, int>> LWB = {{S, 0}, {CM, 1}, {CM2, 2}, {F, 3}, {R, 4}}, SR = {{S, 0}, {R, 1}};
+    static const std::vector<SkyMapEntry> M = {
+        {"sky-air-multi", "sky-airport-multi", "SUN", SR},
+        {"sky-cave-multi-2", "sky-cave-multi", "LW", LWB},
+        {"sky-fort-coop-b", "sky-fort-coop-b", "SUN", SR},
+        {"sky-fort-multi", "sky-fort-multi", "DIG", {{S, 0}, {CC, 1}, {CM, 2}, {CC2, 1}, {CM2, 3}, {F, 4}, {R, 5}}},
+        {"sky-gompa-mp", "sky-gompa-multi-3", "LWM", {{S, 0}, {CM, 1}, {CM2, 2}, {F, 3}, {R, 4}, {MC, 5}, {MM, 6}}},
+        {"sky-gompa-mp", "sky-gompa-multi-moon", "LWM", {{S, 0}, {CM, 1}, {CM2, 2}, {F, 3}, {MC, 4}, {MM, 5}, {R, 6}}},
+        {"sky-grave-multi", "sky-grave-multi", "GR", {{S, 0}, {CM, 1}, {CM2, 2}, {F, 3}, {FL, 4}, {R, 5}}},
+        {"sky-grave-multi", "sky-grave-multi-undersky", "UNDER", SR},
+        {"sky-ldn-streets-multi", "sky-ldn-streets-multi", "LW", LWB},
+        {"sky-mon-coop-b", "sky-mon-coop-b", "SUN", SR},
+        {"sky-oasis-multi", "sky-oasis-multi", "HC", {{S, 0}, {CM, 1}, {CM2, 1}, {F, 2}, {FL, 3}, {DM, 4}, {R, 5}}},
+        {"sky-ruins-multi", "sky-ruins-multi", "PLAIN", SR},
+        {"sky-sham-multi", "sky-sham-multi", "LW", LWB},
+        {"sky-temple-multi", "sky-temple-multi", "SUN", SR},
+        {"sky-train-wreck-multi", "sky-train-wreck-multi", "LW", LWB},
+        {"sky-village-multi", "sky-village-multi-2", "LW", LWB},
+        {"sky-warzone-multi", "sky-warzone-multi", "LW", LWB},
+        {"sky-yemen-mp", "sky-yemen-multi", "DIG", {{S, 0}, {CC, 1}, {CM, 2}, {CC2, 1}, {CM2, 3}, {F, 4}, {R, 6}}},
+        {"sky-drydock", "sky-drydock-special", "GR", {{S, 0}, {CM, 1}, {CM2, 2}, {F, 3}, {FL, 4}, {R, 5}}},
+        {"sky-old-quarter", "sky-old-quarter", "SYN", {{CM, 0}, {CM2, 1}, {F, 2}, {CYL, 3}, {NOI, 4}, {R, 5}}}};
+    return M;
+}
+
+std::mutex g_sky_lock;
+std::map<std::string, std::shared_ptr<const Bundle>> g_sky_bundles;   // the one shared template bundle, per PS4 pak dir
+
+std::shared_ptr<const Bundle> sky_bundle(const fs::path &pak_dir) {
+    std::lock_guard<std::mutex> lock(g_sky_lock);
+    auto &b = g_sky_bundles[utf8(pak_dir)];
+    if (!b) {
+        std::vector<std::pair<std::string, std::string>> mats;
+        std::vector<std::string> techs;
+        for (const SkyMapEntry &e : sky_map()) {
+            const auto &t = sky_templates().at(e.t);
+            if (std::find(mats.begin(), mats.end(), t) == mats.end()) mats.push_back(t);
+            if (std::find(techs.begin(), techs.end(), t.first) == techs.end()) techs.push_back(t.first);
+        }
+        b = std::make_shared<const Bundle>(extract_req(pak_dir, mats, {}, techs));
+    }
+    return b;
+}
+
+std::vector<std::string> slash_parts(const std::string &s) {
+    std::vector<std::string> v;
+    size_t a = 0;
+    for (size_t k = 0;; k++)
+        if (k == s.size() || s[k] == '/') {
+            v.push_back(s.substr(a, k - a));
+            if (k == s.size()) break;
+            a = k + 1;
+        }
+    return v;
+}
+
+}  // namespace
+
+Bytes sky_convert(const fs::path &ps3, const std::string &lv, const Options &o, const fs::path &water_templates) {
+    Plan P = make_plan(ps3, o.res, water_templates);
+    {   // skyplan: the level's sky materials re-pointed to their template, a PS3 texture per binding
+        const Pak p(ps3);
+        std::vector<bg::Material3> m3;
+        std::vector<bg::Texture3> t3;
+        bg::read_materials(p, m3, t3);
+        static const std::regex HT(R"(/[0-9A-F]{16}\.ndb(\.error)?$)");
+        for (const SkyMapEntry &e : sky_map()) {
+            if (e.lv != lv) continue;
+            const bg::Material3 *m = nullptr;
+            for (const auto &x : m3) {
+                const std::vector<std::string> parts = slash_parts(x.name);
+                if (parts.size() < 2) throw Stop("IndexError: list index out of range");
+                if (parts[parts.size() - 2] == e.tail) {
+                    m = &x;
+                    break;
+                }
+            }
+            if (!m) throw Stop("IndexError: no sky material " + e.tail);
+            std::vector<std::string> sh;
+            for (uint32_t i : m->textures) sh.push_back(std::regex_replace(short_of(t3.at(i).name), HT, ""));
+            auto pi = std::find_if(P.mats.begin(), P.mats.end(), [&](const auto &x) { return x.first == m->name; });
+            if (pi == P.mats.end()) throw Stop("KeyError: " + m->name);
+            PlanMat &pe = pi->second;
+            const auto &t = sky_templates().at(e.t);
+            pe.key = t.second;
+            pe.pak = t.first;
+            pe.exact = false;
+            pe.has_bindmap = true;
+            pe.bindmap.clear();
+            for (const auto &[b, i] : e.bm)
+                if (size_t(i) < sh.size()) {
+                    auto bi = std::find_if(pe.bindmap.begin(), pe.bindmap.end(), [&](const auto &x) { return x.first == b; });
+                    if (bi == pe.bindmap.end()) pe.bindmap.push_back({b, sh[size_t(i)]});
+                    else bi->second = sh[size_t(i)];
+                }
+        }
+    }
+    fs::create_directories(o.plan_dir);
+    write_text(o.plan_dir / upath(lv + ".plan.json"), plan_json(P));
+    // the ONE shared sky bundle (all templates), plus the level's other materials from their retail paks
+    Bundle B = *sky_bundle(o.pak_dir);
+    std::vector<std::pair<std::string, std::string>> need;
+    std::set<std::string> paks;
+    for (const auto &[n, e] : P.mats)
+        if (!e.has_bindmap) {
+            need.push_back({e.pak, e.key});
+            paks.insert(e.pak);
+        }
+    if (!need.empty()) {
+        Bundle X = extract_req(o.pak_dir, need, {}, std::vector<std::string>(paks.begin(), paks.end()));
+        if (lv == "sky-drydock") {
+            // its exact materials were taken from the release pak itself, so their technique table is that pak's:
+            // techs(the sky template donor) + the material pak's own; the EFFECT string indices re-indexed to it
+            const std::vector<std::string> D = pak_techs(o.pak_dir / "ldn-atwood-station.pak");
+            for (auto &[k, rec] : X.mats) {
+                const std::vector<std::string> src = X.techs.at(k.first);
+                std::vector<std::string> T = D;
+                for (const std::string &s : src)
+                    if (std::find(D.begin(), D.end(), s) == D.end()) T.push_back(s);
+                std::map<uint32_t, uint32_t> mp;
+                for (size_t i = 0; i < src.size(); i++) mp[uint32_t(i)] = uint32_t(std::find(T.begin(), T.end(), src[i]) - T.begin());
+                if (rec.fx.empty()) throw Stop("IndexError: no effect closure");
+                std::map<uint64_t, std::optional<int64_t>> ptrs;
+                for (const auto &pp : rec.fx[0].ptrs) ptrs[pp.pos] = pp.target == 0 ? std::optional<int64_t>(pp.off) : std::nullopt;
+                rec.fx[0].data = remap(rec.fx[0].data, ptrs, mp);
+                X.techs[k.first] = T;
+            }
+        }
+        for (const auto &[k, v] : X.techs) B.techs[k] = v;
+        for (auto &m : X.mats) B.mats.push_back(std::move(m));
+        for (auto &t : X.tex) B.tex.push_back(std::move(t));
+    }
+    Options so = o;
+    so.sky = true;
+    so.mapbuild = false;
+    Bytes data = convert_two_pass(ps3, lv, P, B, so);
+    return paramfix(std::move(data), P);
 }
 
 }  // namespace u3::stage

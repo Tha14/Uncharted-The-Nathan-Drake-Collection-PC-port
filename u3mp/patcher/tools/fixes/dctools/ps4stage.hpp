@@ -24,14 +24,20 @@ namespace u3::stage {
 struct Options {
     fs::path res, pak_dir, texdict, plan_dir;
     bool mapbuild = false;                                     // 'mb' rows: paramfix + cubefix
+    bool sky = false;                                          // the sky converter's version (paktools-sky)
     const json::Value *gobo = nullptr;                         // {retail pak: {PS3 texture hash hex: PS4 short path}}
     std::shared_ptr<std::vector<BundleTex>> default_lightmaps;   // the two retail default lightmaps
 };
 Bytes stage_convert(const fs::path &ps3, const Options &o);
+// the sky rows (lib/build_skies.py with paktools-sky): the plan's sky materials re-pointed to retail sky-clouds.fx
+// templates with one PS3 texture per binding, one shared bundle of those templates, the level's other materials from
+// their retail paks; the sky converter, then paramfix. o.res, o.pak_dir, o.texdict, o.plan_dir as for the stage rows;
+// water_templates = pak23-levels/data/water_templates.json (the retail water.fx templates the sky planner scores)
+Bytes sky_convert(const fs::path &ps3, const std::string &level, const Options &o, const fs::path &water_templates);
 
 // the cube texels of a PS3 cube map in the retail PS4 layout (mip-major, 8 slots per mip, PS4 tiled); none when the
 // PS3 data is short
 std::optional<Bytes> cube_texels(const PakTexture &t3, const Bytes &data, int bpb);
-std::optional<Bytes> cube_texels_argb(const PakTexture &t3, const Bytes &data, uint32_t remap);
+std::optional<Bytes> cube_texels_argb(const PakTexture &t3, const Bytes &data, uint32_t remap, bool sky = false);
 
 }  // namespace u3::stage

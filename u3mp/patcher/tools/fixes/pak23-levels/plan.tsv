@@ -1,5 +1,5 @@
-# pak23-levels plan: one row per overlay level pak, built with the latest converter (f525859, C++ in dctools;
-# sky rows: paktools-sky). sha256 = what the latest converter makes from the player's own PS3 / PS4 files (recorded
+# pak23-levels plan: one row per overlay level pak, built with the latest converter (C++ in dctools: f525859;
+# sky rows: the sky converter). sha256 = what the latest converter makes from the player's own PS3 / PS4 files (recorded
 # 2026-11-13). opts: mb = the map-build fix passes (paramfix + cubefix). Driver: u3fix.exe levels (levels.cpp).
 family	overlay	name	method	version	opts	archive	src	sha256	status	ref_sha256	note
 port	overlay-port	air-multi-stage	stage	f525859	-	pak23	air-multi-stage	be470aa2634d1f6861d50c42649ce4fba9918dd79c9363add6863d80c4158529	identical	be470aa2634d1f6861d50c42649ce4fba9918dd79c9363add6863d80c4158529	-

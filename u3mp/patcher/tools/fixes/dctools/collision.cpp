@@ -235,7 +235,7 @@ double round5(double x) { return std::nearbyint(x * 100000.0) / 100000.0; }
 // local fixups (source offset, destination offset).
 Bytes build_bvcm(const std::vector<std::array<V3, 3>> &tris, const std::vector<uint32_t> &weld, const std::vector<uint32_t> &uidx,
                  const std::vector<uint32_t> &userpal, const std::vector<uint32_t> &filterpal, const Bytes &header,
-                 const std::vector<uint32_t> &fidx, std::vector<std::pair<uint32_t, uint32_t>> &loc) {
+                 const std::vector<uint32_t> &fidx, std::vector<std::pair<uint32_t, uint32_t>> &loc, bool sky) {
     const size_t N = tris.size();
     // sections: spatial split into <= 127 triangles / <= 255 unique vertices (vertices merged on 5 decimals)
     std::vector<V3> cent(N);
@@ -402,6 +402,18 @@ Bytes build_bvcm(const std::vector<std::array<V3, 3>> &tris, const std::vector<u
         for (size_t t : ids) {
             size_t a[3];
             for (int k = 0; k < 3; k++) a[k] = lidx.at(tv[t][k]);
+            if (sky) {
+                // Havok reads a primitive with index0 == index1, or index1 == index2 == index3, as CUSTOM (an assert in game):
+                // a degenerate triangle (a,a,c) is written (a,c,a), (a,b,b) as (b,b,a)
+                if (a[0] == a[1]) {
+                    if (a[2] != a[0]) a[1] = a[2], a[2] = a[0];
+                    else a[1] = a[0] == 0 ? 1 : 0, a[2] = a[0];
+                }
+                if (a[1] == a[2]) {
+                    if (a[0] != a[1]) { const size_t x = a[0]; a[0] = a[1]; a[1] = a[2]; a[2] = x; }
+                    else a[1] = a[0] == 0 ? 1 : 0, a[2] = a[0];
+                }
+            }
             if (a[0] > 255 || a[1] > 255 || a[2] > 255) throw Stop("ValueError: bytes must be in range(0, 256)");
             prims.push_back({uint8_t(a[0]), uint8_t(a[1]), uint8_t(a[2]), uint8_t(a[2])});
             F3 mn, mx;
@@ -629,7 +641,7 @@ uint32_t collision_filter(uint32_t flags) {
     return f;
 }
 
-std::shared_ptr<Blob> havok_bg_blob(const Pak &p, size_t index) {
+std::shared_ptr<Blob> havok_bg_blob(const Pak &p, size_t index, bool sky) {
     const std::optional<Ps3Coll> c = ps3_collision(p, index);
     if (!c || !c->has_mesh || c->tris.empty()) return nullptr;
     const auto &mats = c->mats;
@@ -647,7 +659,7 @@ std::shared_ptr<Blob> havok_bg_blob(const Pak &p, size_t index) {
     });
     for (uint32_t f : filt) fidx.push_back(uint32_t(std::find(fpal.begin(), fpal.end(), f) - fpal.begin()));
     std::vector<std::pair<uint32_t, uint32_t>> loc;
-    const Bytes data = build_bvcm(c->tris, c->weld, uidx, flags_used, fpal, Bytes(SHAPE_HDR, SHAPE_HDR + 0x30), fidx, loc);
+    const Bytes data = build_bvcm(c->tris, c->weld, uidx, flags_used, fpal, Bytes(SHAPE_HDR, SHAPE_HDR + 0x30), fidx, loc, sky);
     const Bytes pf = packfile(data, loc);
     auto B = std::make_shared<Blob>("havokbg");
     B->u32(c->version).u32(0xaaaaaaaa).u64(0).u64(0);   // +08/+10: PS3 +04/+08 (zero)
@@ -689,11 +701,11 @@ std::shared_ptr<Blob> havok_bg_blob(const Pak &p, size_t index) {
 
 }  // namespace
 
-std::vector<std::shared_ptr<Blob>> havok_bg_blobs(const Pak &p) {
+std::vector<std::shared_ptr<Blob>> havok_bg_blobs(const Pak &p, bool sky) {
     std::vector<std::shared_ptr<Blob>> out;
     const size_t n = p.items_of("COLLISION_DATA_HAVOK_BG").size();
     for (size_t k = 0; k < n; k++)
-        if (auto b = havok_bg_blob(p, k)) out.push_back(b);
+        if (auto b = havok_bg_blob(p, k, sky)) out.push_back(b);
     return out;
 }
 

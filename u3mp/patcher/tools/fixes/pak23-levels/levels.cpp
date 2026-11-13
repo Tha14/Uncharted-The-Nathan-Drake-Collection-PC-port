@@ -1,8 +1,7 @@
 // Recipe steps convert-levels-port / -r2 / -r3: the converted level paks of overlay-port / -r2 / -r3, rebuilt row by
-// row from plan.tsv with the current converter (f525859, in C++ in dctools/; the sky rows: paktools-sky, the only sky
-// converter).
-//   u3fix levels <family> --project P --job J --paktools D --ps4 D --ps3-disc D --ps3-update D --ps3-data2 D
-//                --ps3-dlcmaps D --python EXE [--apply] [--only REGEX] [--strict] [--jobs N] [--keep-work]
+// row from plan.tsv with the current converter (f525859, and the sky converter for the sky rows), all C++ in dctools/.
+//   u3fix levels <family> --project P --job J --ps4 D --ps3-disc D --ps3-update D --ps3-data2 D --ps3-dlcmaps D
+//                [--apply] [--only REGEX] [--strict] [--jobs N] [--keep-work]
 //
 // A plan row names the level, its method, options, the PS3 source (archive + pak) and the sha256 the result must have.
 // A file already equal to that sha256 is skipped. A row that is not 'identical' never replaces an existing file, except a
@@ -13,8 +12,8 @@
 // per row (a GOTY disc stands in for the DLC map packs); both caches are dropped when the PS3 inputs change.
 // In C++: empty (dctools/ps4writer.cpp), ingame (dctools/ps4ingame.cpp), vischeat, windoff, hud (dctools/texcodec.cpp),
 // stage (dctools/ps4stage.cpp with the survey of the retail paks in scratch/pak23-levels-work/res; data/overrides/
-// <overlay>/<name>.json: gobo). The sky rows still run lib/build_skies.py in the paktools-sky converter tree
-// (scratch/pak23-levels-work/pt-sky, assembled with a size manifest).
+// <overlay>/<name>.json: gobo), sky (dctools/ps4stage.cpp sky_convert: the sky converter's version with its plan,
+// shared template bundle and paramfix; data/water_templates.json).
 // Replaces levels.py for these families (the retired lab and maps-batch families are not supported).
 #include "u3fix.hpp"
 #include "proc.hpp"
@@ -39,9 +38,8 @@
 namespace u3 {
 namespace {
 
-std::string g_here, g_project, g_paktools, g_ps4, g_disc, g_update, g_data2, g_dlcmaps, g_python;
+std::string g_here, g_project, g_ps4, g_disc, g_update, g_data2, g_dlcmaps;
 fs::path g_tmp;   // <project>/scratch/pak23-levels-work
-std::mutex g_pt_lock;
 std::set<std::string> g_anim;   // animated actor names for the ingame converter (made once, before the workers)
 
 
@@ -72,14 +70,6 @@ std::vector<Row> plan_rows() {
 std::string version_of(const Row &r) { return r.at("version") == "sky" ? "sky" : "f525859"; }   // the current converter only
 fs::path ps4main() { return upath(g_ps4) / "u3data" / "build" / "main"; }
 
-fs::path anim_list() {   // data/ps4_anim_actors.json: retail actor33 paks with an ANIM item
-    const fs::path out = g_tmp / "ps4_anim_actors.json";
-    if (!fs::exists(out)) {
-        fs::create_directories(g_tmp);
-        run({g_python, g_here + "/lib/anim_actors.py", g_paktools, P(ps4main() / "actor33" / "ps4"), P(out)});
-    }
-    return out;
-}
 // the two retail default lightmap textures (from the player's PS4 copy), which the stage converter always carries
 std::shared_ptr<std::vector<stage::BundleTex>> default_lightmap_texels() {
     static std::mutex lock;
@@ -88,90 +78,6 @@ std::shared_ptr<std::vector<stage::BundleTex>> default_lightmap_texels() {
     if (!v) v = std::make_shared<std::vector<stage::BundleTex>>(stage::default_lightmaps(ps4main() / "pak23" / "ps4"));
     return v;
 }
-// the same for the sky converter tree (its stage/default_lightmaps.json, as make_default_lightmaps.py wrote it: the
-// VRAM placement words +0x08 / +0x38 as recorded in the converted map the copies were taken from)
-fs::path default_lightmaps() {
-    const fs::path out = g_tmp / "default_lightmaps.json";
-    if (!fs::exists(out)) {
-        fs::create_directories(g_tmp);
-        static const uint32_t place[2][2] = {{0x0b7000, 0x3700}, {0x0b8800, 0x3870}};
-        std::string s = "{\"mats\": [], \"tex\": [";
-        const auto &t = *default_lightmap_texels();
-        for (size_t i = 0; i < t.size(); i++) {
-            Bytes d = t[i].desc;
-            for (int k = 0; k < 4; k++) d.at(8 + k) = uint8_t(place[i][0] >> (8 * k));
-            d.at(0x38) = uint8_t(place[i][1]);
-            d.at(0x39) = uint8_t(place[i][1] >> 8);
-            auto hex = [](const Bytes &b) {
-                static const char *H = "0123456789abcdef";
-                std::string o;
-                for (uint8_t c : b) { o += H[c >> 4]; o += H[c & 15]; }
-                return o;
-            };
-            s += std::string(i ? ", " : "") + "{\"pak\": \"" + t[i].pak + "\", \"path\": \"" + t[i].path + "\", \"desc\": \"" + hex(d) +
-                 "\", \"texels\": \"" + hex(t[i].texels) + "\"}";
-        }
-        s += "], \"techs\": {}}";
-        write_file_replace(out, Bytes(s.begin(), s.end()));
-    }
-    return out;
-}
-
-// the files of a converter tree: relative path -> source (later roots override earlier ones)
-std::map<std::string, fs::path> pt_sources(const std::string &ver) {
-    const std::vector<fs::path> roots = {upath(g_here + "/paktools-" + ver)};   // only the sky converter is still a tree
-    std::map<std::string, fs::path> m;
-    for (const fs::path &r : roots) {
-        if (!fs::is_directory(r)) continue;
-        for (auto it = fs::recursive_directory_iterator(r); it != fs::recursive_directory_iterator(); ++it) {
-            const std::string n = utf8(it->path().filename());
-            if (it->is_directory()) {
-                if (n == "__pycache__") it.disable_recursion_pending();
-                continue;
-            }
-            if (n == "OVERLAY_ON" || (n.size() > 4 && n.compare(n.size() - 4, 4, ".pyc") == 0)) continue;
-            m[utf8(fs::relative(it->path(), r))] = it->path();
-        }
-    }
-    m["data/conv_anim_actors.json"] = upath(g_here + "/data/conv_anim_actors.json");
-    m["data/ps4_anim_actors.json"] = anim_list();
-    auto st = m.find("stage/ps4stage.py");
-    if (st != m.end() && text_file(st->second).find("default_lightmaps.json") != std::string::npos) m["stage/default_lightmaps.json"] = default_lightmaps();
-    return m;
-}
-
-fs::path paktools(const std::string &ver) {
-    const fs::path dst = g_tmp / ("pt-" + ver);
-    std::lock_guard<std::mutex> lock(g_pt_lock);
-    const auto files = pt_sources(ver);
-    std::string want = "paktools-tree v2\n";
-    for (const auto &[r, s] : files) want += std::to_string(fs::file_size(s)) + "\t" + r + "\n";
-    const fs::path stamp = dst / ".ready";
-    if (fs::exists(stamp) && text_file(stamp) == want) {
-        bool ok = true;
-        for (const auto &[r, s] : files)
-            if (!fs::is_regular_file(dst / upath(r)) || fs::file_size(dst / upath(r)) != fs::file_size(s)) { ok = false; break; }
-        if (ok) return dst;
-    }
-    const fs::path tmp = dst.string() + ".tmp-" + std::to_string(GetCurrentProcessId());
-    fs::remove_all(tmp);
-    for (const auto &[r, s] : files) {
-        fs::create_directories((tmp / upath(r)).parent_path());
-        fs::copy_file(s, tmp / upath(r), fs::copy_options::overwrite_existing);
-    }
-    fs::create_directories(tmp / "data");
-    for (const char *f : {"hk2010_ps3.json", "hk2011_ps4.json"}) write_text(tmp / "data" / f, "{}\n");   // FG collision tables: empty
-    write_text(tmp / ".ready", want);
-    if (fs::is_directory(dst)) {
-        const fs::path old = dst.string() + ".old-" + std::to_string(GetCurrentProcessId());
-        fs::rename(dst, old);
-        std::error_code ec;
-        fs::remove_all(old, ec);
-    }
-    fs::rename(tmp, dst);
-    return dst;
-}
-
 fs::path res_dir() {   // the mkplan survey of the retail PS4 pak23
     const fs::path d = g_tmp / "res";
     if (!fs::exists(d / "ps4tex.tsv")) stage::make_res(d, ps4main() / "pak23" / "ps4");   // C++ (dctools/stageplan.cpp)
@@ -360,13 +266,25 @@ fs::path build(const Row &row, const std::map<std::pair<std::string, std::string
         write_file_replace(op, windoff_convert(pak4 / upath(row.at("src") + ".pak"), items));
         return op;
     }
-    if (m == "sky") {
+    if (m == "sky") {   // C++ (dctools/ps4stage.cpp sky_convert, the sky converter's version)
         ps3_source(row, idx);
-        const fs::path sd = g_tmp / "sky" / upath(row.at("overlay")) / upath(row.at("name"));
-        std::error_code ec;
-        fs::remove_all(sd, ec);
-        run({g_python, g_here + "/lib/build_skies.py", P(paktools(ver)), P(g_tmp / "ps3"), P(pak4), P(res_dir()), P(sd), row.at("name")}, {{"U3_TEXDICT", P(texdict)}});
-        fs::copy_file(sd / upath(row.at("name") + ".pak"), op, fs::copy_options::overwrite_existing);
+        // the PS3 sky pak: the first extract in archive priority (build_skies.py's order)
+        const std::string &lv = row.at("name");
+        fs::path sp;
+        for (const char *a : {"dlc-patch18", "dlc-patch13", "dlc-map1", "dlc-map2", "dlc-map3", "dlc-map4", "goty-patch", "goty-dlc", "pak23"})
+            if (fs::exists(g_tmp / "ps3" / a / upath(lv + ".pak"))) {
+                sp = g_tmp / "ps3" / a / upath(lv + ".pak");
+                break;
+            }
+        if (sp.empty() && fs::exists(g_tmp / "ps3" / upath(lv + ".pak"))) sp = g_tmp / "ps3" / upath(lv + ".pak");
+        if (sp.empty()) throw Stop("PS3 source " + lv + " not found");
+        stage::Options o;
+        o.res = res_dir();
+        o.pak_dir = pak4;
+        o.texdict = texdict;
+        o.plan_dir = g_tmp / "sky" / upath(row.at("overlay")) / upath(lv) / "work";
+        o.default_lightmaps = default_lightmap_texels();
+        write_file_replace(op, stage::sky_convert(sp, lv, o, upath(g_here + "/data/water_templates.json")));
         return op;
     }
     if (m == "vischeat") {   // C++ (dctools/vischeat.cpp)
@@ -447,10 +365,10 @@ int levels(const std::vector<std::string> &argv) {
         else throw Stop("unexpected argument " + argv[i]);
     }
     const Args a(opts, {"--apply", "--strict", "--keep-work"},
-                 {"--project", "--job", "--paktools", "--ps4", "--ps3-disc", "--ps3-update", "--ps3-data2", "--ps3-dlcmaps", "--python", "--only", "--jobs"});
+                 {"--project", "--job", "--ps4", "--ps3-disc", "--ps3-update", "--ps3-data2", "--ps3-dlcmaps", "--only", "--jobs"});
     if (family.empty()) throw Stop("missing family");
     if (family != "port" && family != "r2" && family != "r3") throw Stop("family " + family + " is not supported (lab and maps-batch are retired)");
-    g_project = a.need("--project"); g_here = a.need("--job"); g_paktools = a.need("--paktools"); g_ps4 = a.need("--ps4"); g_python = a.need("--python");
+    g_project = a.need("--project"); g_here = a.need("--job"); g_ps4 = a.need("--ps4");
     g_disc = a.get("--ps3-disc", ""); g_update = a.get("--ps3-update", ""); g_data2 = a.get("--ps3-data2", ""); g_dlcmaps = a.get("--ps3-dlcmaps", "");
     g_tmp = upath(g_project) / "scratch" / "pak23-levels-work";
     const fs::path work = upath(g_project) / "work";
@@ -514,15 +432,11 @@ int levels(const std::vector<std::string> &argv) {
     }
     for (const Row &r : todo)
         if (r.at("method") == "stage" || r.at("method") == "sky") { res_dir(); break; }
-    std::set<std::string> vers;
-    for (const Row &r : todo)
-        if (r.at("method") == "sky") vers.insert(version_of(r));   // the one method that still runs a converter script
     for (const Row &r : todo)
         if (r.at("method") == "ingame") {
             g_anim = anim_actor_names(ps4main() / "actor33" / "ps4", upath(g_here + "/data/conv_anim_actors.json"));
             break;
         }
-    for (const std::string &v : vers) paktools(v);   // every converter tree before the workers
     std::vector<std::string> result(todo.size()), error(todo.size());
     std::atomic<size_t> next{0};
     std::vector<std::thread> pool;

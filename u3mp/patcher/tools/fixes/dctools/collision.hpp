@@ -17,6 +17,7 @@
 namespace u3 {
 
 // one PS4 item blob per PS3 COLLISION_DATA_HAVOK_BG item that has a mesh, in PS3 order
-std::vector<std::shared_ptr<Blob>> havok_bg_blobs(const Pak &p);
+// sky: the sky converter's version, which rotates degenerate triangles so no primitive reads as a Havok CUSTOM one
+std::vector<std::shared_ptr<Blob>> havok_bg_blobs(const Pak &p, bool sky = false);
 
 }  // namespace u3

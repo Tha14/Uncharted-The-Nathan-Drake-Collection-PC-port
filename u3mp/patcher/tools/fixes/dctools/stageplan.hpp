@@ -33,6 +33,8 @@ struct PlanMat {
     bg::Params ps3params;
     std::vector<std::string> roles, cls;
     bool has_roles = false;
+    bool has_bindmap = false;                                      // the sky converter: an explicit PS3 texture per binding
+    std::vector<std::pair<std::string, std::string>> bindmap;     // template param -> PS3 short path ('' = a flat texture)
 };
 struct Plan {
     std::string stage;
@@ -40,7 +42,8 @@ struct Plan {
     std::vector<std::pair<std::string, std::string>> req_mats, req_tex;
     const PlanMat *get(const std::string &n) const;
 };
-Plan make_plan(const fs::path &ps3, const fs::path &res);
+// water_templates: the sky converter's retail water.fx templates (water_templates.json); empty = the old water rule
+Plan make_plan(const fs::path &ps3, const fs::path &res, const fs::path &water_templates = {});
 std::string plan_json(const Plan &p);   // json.dump(plan, indent=1)
 
 // the device bundle: retail material records with their EFFECT closures, and texture descriptors + texels
@@ -94,6 +97,10 @@ struct Bundle {
     std::vector<std::pair<std::string, std::string>> gobo_tex;   // PS3 texture hash (hex) -> PS4 short path
 };
 Bundle extract(const fs::path &pak_dir, const Plan &plan);
+// fxextract with explicit requests (techs: the paks whose technique tables come first; mats may repeat)
+Bundle extract_req(const fs::path &pak_dir, const std::vector<std::pair<std::string, std::string>> &mats,
+                   const std::vector<std::pair<std::string, std::string>> &tex, const std::vector<std::string> &techs);
+std::vector<std::string> pak_techs(const fs::path &pak);   // a retail pak's EFFECT technique string table
 // the two retail default lightmap textures (default-lightmap0/1, from grave-02-hollowhulk-front-low)
 std::vector<BundleTex> default_lightmaps(const fs::path &pak_dir);
 

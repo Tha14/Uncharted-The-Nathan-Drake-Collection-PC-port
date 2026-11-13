@@ -52,3 +52,14 @@ Bytes encode_bc3(const Img &img);
 
 }  // namespace tc
 }  // namespace u3
+
+namespace u3::tc::sky {
+
+// the sky converter's versions (paktools-sky/texcodec.py): remap ops other than 2 give 0 or 255, the swizzle
+// interleaves x/y bits up to the smaller dimension (then the larger one's bits), and its own simple BC3 fit
+// (565 endpoints rounded from the colour box, palette from the decoded endpoints, rounded alpha endpoints)
+void gcm_remap(const uint8_t argb[4], uint32_t remap, uint8_t rgba[4]);
+Img ps3_deswizzle_argb8(const Bytes &data, uint32_t w, uint32_t h, uint32_t remap = 0xaae4);
+Bytes encode_bc3(const Img &img);
+
+}  // namespace u3::tc::sky

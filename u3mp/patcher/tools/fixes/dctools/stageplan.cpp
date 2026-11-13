@@ -562,6 +562,49 @@ int v2_v23(const M3 &m, const FeatSet &f) {
     return pen;
 }
 
+// waterscore.py: a retail water.fx template against a PS3 water material: constant names (packed names split),
+// texture roles (diffuse colour, diffuse mask, foam, env cube, shadow map), a water program
+std::set<std::string> split_names(const std::vector<std::string> &names) {
+    static const std::regex PART("^[a-z][A-Z0-9]");
+    std::set<std::string> out;
+    for (const std::string &k : names) {
+        std::vector<std::string> parts;
+        if (starts_with(k, "g_")) parts = split(k.substr(2), '_');
+        bool all = parts.size() > 1;
+        for (const std::string &s : parts) all = all && std::regex_search(s, PART);
+        if (all)
+            for (const std::string &s : parts) out.insert("g_" + s);
+        else
+            out.insert(k);
+    }
+    return out;
+}
+
+int water_score(const std::vector<std::string> &p3names, const std::vector<std::string> &texnames, const std::vector<std::string> &tparams,
+                const std::set<std::string> &tbinds, const std::vector<std::string> &tfeats) {
+    const std::set<std::string> P = split_names(p3names), T = split_names(tparams);
+    int both = 0;
+    for (const std::string &x : P) both += int(T.count(x));
+    int s = 2 * both - int(T.size() - both) - int(P.size() - both);
+    static const std::regex DIFF(R"(-(color|diffuse|col)\.)"), DMASK(R"(-(mask|trans\w*|alpha)\.)");
+    bool ti[5] = {false, false, false, false, false};   // diff, dmask, foam, env, shadow
+    for (const std::string &n0 : texnames) {
+        if (has(n0, "missingtexture")) continue;
+        const std::string n = lower(n0);
+        ti[2] = ti[2] || has(n, "foam");
+        ti[0] = ti[0] || (std::regex_search(n, DIFF) && !has(n, "foam"));
+        ti[1] = ti[1] || (std::regex_search(n, DMASK) && !has(n, "foam") && !has(n, "default-mask") && !has(n, "shadow"));
+        ti[3] = ti[3] || ends_with(n, ".dds");
+        ti[4] = ti[4] || has(n, "shadow");
+    }
+    const std::set<std::string> f(tfeats.begin(), tfeats.end());
+    const bool tt[5] = {tbinds.count("g_tDiffuseColorMap") != 0, tbinds.count("g_tNdFetchDiffuseMaskMap") != 0, f.count("ND_FOAM") != 0,
+                        f.count("ND_SPECULAR_ENVMAP") != 0, f.count("ND_WATER_TEXTURE_SHADOWS") != 0};
+    const int wt[5] = {8, 5, 4, 3, 2};
+    for (int k = 0; k < 5; k++) s += ti[k] == tt[k] ? wt[k] : -wt[k];
+    if (!f.count("ND_WATER_REFRACTIONS")) s -= 100;   // not a water surface program
+    return s;
+}
 }  // namespace
 
 const PlanMat *Plan::get(const std::string &n) const {
@@ -570,7 +613,8 @@ const PlanMat *Plan::get(const std::string &n) const {
     return nullptr;
 }
 
-Plan make_plan(const fs::path &ps3path, const fs::path &res) {
+Plan make_plan(const fs::path &ps3path, const fs::path &res, const fs::path &water_templates) {
+    std::optional<json::Value> wtpl;
     static const std::regex FOLIAGE("plant|leaf|leaves|vine|card(?!board)|grass|moss|brom|bush|fern|ivy|palm-frond|frond|shrub|weed|reed|"
                                     "flower|hedge|branch|twig|canopy|willow|banyan");
     static const std::regex GROUNDISH("floor|tile|ground|terrain|road|path|stone|rock|brick|wall|concrete|dirt|sand|mud|plaster|"
@@ -670,7 +714,67 @@ Plan make_plan(const fs::path &ps3path, const fs::path &res) {
             std::optional<WB> wbest;
             const std::vector<std::string> nc = [&] { auto v = split(n, '/'); v.pop_back(); return v; }();
             const std::string nv = n.substr(n.rfind('/') + 1);
-            for (const SKey &k : S->keys)
+            if (!water_templates.empty() && fs::exists(water_templates)) {
+                // the sky converter: score every retail water.fx template against the PS3 material (waterscore.py)
+                if (!wtpl) wtpl = read_json(water_templates);
+                std::vector<std::string> tx3;
+                if (auto mi3 = m3.find(n); mi3 != m3.end())
+                    for (uint32_t i : mi3->second->textures) {
+                        if (i >= texs3.size()) continue;
+                        static const std::regex HT(R"(/[0-9A-F]{16}\.ndb.*$)");
+                        const std::string s = std::regex_replace(texs3[i].name, HT, "");
+                        tx3.push_back(s.substr(s.rfind('/') == std::string::npos ? 0 : s.rfind('/') + 1));
+                    }
+                std::vector<std::pair<std::string, const SEnt *>> cands;   // template key -> its smallest retail pak
+                for (const SKey &k : S->keys)
+                    for (const SEnt &c : k.ents) {
+                        if (exclude.count(c.pak) || !c.m->water || !wtpl->get(bg::utf8_of(k.k))) continue;
+                        auto ci = std::find_if(cands.begin(), cands.end(), [&](const auto &x) { return x.first == k.k; });
+                        if (ci == cands.end()) cands.push_back({k.k, &c});
+                        else if (c.size < ci->second->size) ci->second = &c;
+                    }
+                std::map<std::string, uint64_t> psz;
+                for (const auto &[k, c] : cands) psz[c->pak] = c->size;
+                if (!cands.empty()) {
+                    std::vector<std::string> p3names;
+                    for (const auto &[k, v] : p3_of(n)) p3names.push_back(k);
+                    const std::string *bestk = nullptr;
+                    std::tuple<int, int, int, int64_t, std::string> bestkey;
+                    std::set<std::string> tb(tx3.begin(), tx3.end());
+                    for (const auto &[k, c] : cands) {
+                        const json::Value &t = *wtpl->get(bg::utf8_of(k));
+                        std::vector<std::string> tparams, tfeats;
+                        std::set<std::string> tbinds, tbn;
+                        if (const json::Value *v = t.get("params"))
+                            for (const json::Value &x : v->items) tparams.push_back(latin1_of(x.s));
+                        if (const json::Value *v = t.get("feats"))
+                            for (const json::Value &x : v->items) tfeats.push_back(latin1_of(x.s));
+                        if (const json::Value *v = t.get("binds"))
+                            for (const json::Value &x : v->items) {
+                                tbinds.insert(latin1_of(x.items.at(0).s));
+                                const std::string s1 = latin1_of(x.items.at(1).s);
+                                tbn.insert(s1.substr(s1.rfind('/') == std::string::npos ? 0 : s1.rfind('/') + 1));
+                            }
+                        const int s = water_score(p3names, tx3, tparams, tbinds, tfeats);
+                        int tov = 0;
+                        for (const std::string &x : tb) tov += int(tbn.count(x));
+                        const std::vector<std::string> kc = split(split(k, ':')[0], '/');
+                        int common = 0;
+                        for (size_t i = 0; i < std::min(nc.size(), kc.size()) && nc[i] == kc[i]; i++) common++;
+                        auto pi = psz.find(c->pak);
+                        const auto key = std::make_tuple(s, tov, common, -int64_t(pi == psz.end() ? 0 : pi->second), k);
+                        if (!bestk || key > bestkey) {
+                            bestk = &k;
+                            bestkey = key;
+                        }
+                    }
+                    const SEnt *c = std::find_if(cands.begin(), cands.end(), [&](const auto &x) { return x.first == *bestk; })->second;
+                    const SKey *sk = &S->keys[S->key_at.at(*bestk)];
+                    wbest = WB{0, false, 0, sk, c};
+                }
+            }
+            if (!wbest)
+                for (const SKey &k : S->keys)
                 for (const SEnt &c : k.ents) {
                     if (exclude.count(c.pak) || !c.m->water) continue;
                     int common = 0;
@@ -833,16 +937,18 @@ std::string plan_json(const Plan &pl) {
         m.set("key", text(e.key));
         m.set("pak", text(e.pak));
         m.set("exact", Value::boolean(e.exact));
-        m.set("name", text(e.name));
-        Value b = arr();
-        for (const auto &x : e.binds) {
-            Value pr = arr();
-            pr.items.push_back(text(x.first));
-            pr.items.push_back(text(x.second));
-            b.items.push_back(pr);
+        if (!e.has_bindmap) {   // the sky converter's re-pointed entries drop name, binds, roles and cls
+            m.set("name", text(e.name));
+            Value b = arr();
+            for (const auto &x : e.binds) {
+                Value pr = arr();
+                pr.items.push_back(text(x.first));
+                pr.items.push_back(text(x.second));
+                b.items.push_back(pr);
+            }
+            m.set("binds", b);
         }
-        m.set("binds", b);
-        if (e.has_roles) {
+        if (e.has_roles && !e.has_bindmap) {
             Value r = arr(), c = arr();
             for (const auto &x : e.roles) r.items.push_back(text(x));
             for (const auto &x : e.cls) c.items.push_back(text(x));
@@ -861,6 +967,11 @@ std::string plan_json(const Plan &pl) {
             pp.set(bg::utf8_of(k), a);
         }
         m.set("ps3params", pp);
+        if (e.has_bindmap) {
+            Value bm = Value::object();
+            for (const auto &[k, v] : e.bindmap) bm.set(bg::utf8_of(k), text(v));
+            m.set("bindmap", bm);
+        }
         mats.fields.push_back({bg::utf8_of(n), m});
     }
     root.set("mats", mats);
@@ -1047,6 +1158,15 @@ std::optional<MatRec> material(XPak &x, const std::string &key) {
 }  // namespace
 
 Bundle extract(const fs::path &D, const Plan &plan) {
+    std::set<std::string> tp;
+    for (const auto &[pk, key] : plan.req_mats) tp.insert(pk);
+    return extract_req(D, plan.req_mats, plan.req_tex, std::vector<std::string>(tp.begin(), tp.end()));
+}
+
+std::vector<std::string> pak_techs(const fs::path &pak) { return techs(Pak(pak)); }
+
+Bundle extract_req(const fs::path &D, const std::vector<std::pair<std::string, std::string>> &req_mats,
+                   const std::vector<std::pair<std::string, std::string>> &req_tex, const std::vector<std::string> &req_techs) {
     Bundle out;
     std::map<std::string, XPak> cache;
     auto P = [&](const std::string &fn) -> XPak & {
@@ -1060,17 +1180,15 @@ Bundle extract(const fs::path &D, const Plan &plan) {
         }
         return cache.at(fn);
     };
-    std::set<std::string> tp;
-    for (const auto &[pk, key] : plan.req_mats) tp.insert(pk);
-    for (const std::string &fn : tp) out.techs[fn] = techs(*P(fn).q);
-    for (const auto &[fn, key] : plan.req_mats) {
+    for (const std::string &fn : req_techs) out.techs[fn] = techs(*P(fn).q);
+    for (const auto &[fn, key] : req_mats) {
         XPak &x = P(fn);
         std::optional<MatRec> r = material(x, key);
         if (!r) throw Stop("bundle errors: no material " + key + " in " + fn);
         out.mats.push_back({{fn, key}, std::move(*r)});
         if (!out.techs.count(fn)) out.techs[fn] = techs(*x.q);
     }
-    for (const auto &[fn, path] : plan.req_tex) {
+    for (const auto &[fn, path] : req_tex) {
         try {
             XPak &x = P(fn);
             if (!x.has_tex2) {

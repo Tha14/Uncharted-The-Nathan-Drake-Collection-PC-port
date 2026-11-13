@@ -326,3 +326,122 @@ Bytes encode_bc3(const Img &img) {
 }
 
 }  // namespace u3::tc
+
+namespace u3::tc::sky {
+
+void gcm_remap(const uint8_t argb[4], uint32_t remap, uint8_t rgba[4]) {
+    const int order[4] = {1, 2, 3, 0};   // out R, G, B, A
+    for (int i = 0; i < 4; i++) {
+        const int k = order[i];
+        const uint32_t sel = (remap >> (2 * k)) & 3, op = (remap >> (8 + 2 * k)) & 3;
+        rgba[i] = op == 2 ? argb[sel] : op == 1 ? 255 : 0;
+    }
+}
+
+Img ps3_deswizzle_argb8(const Bytes &data, uint32_t w, uint32_t h, uint32_t remap) {
+    const size_t n = size_t(w) * h;
+    const size_t have = std::min(data.size(), n * 4) / 4;
+    auto bitlen = [](uint32_t v) { int b = 0; while (v) { b++; v >>= 1; } return b; };
+    const int lw = bitlen(w) - 1, lh = bitlen(h) - 1, m = std::min(lw, lh);
+    Img img;
+    img.w = w;
+    img.h = h;
+    img.px.resize(n * 4);
+    for (uint32_t y = 0; y < h; y++)
+        for (uint32_t x = 0; x < w; x++) {
+            uint64_t idx = 0;
+            for (int b = 0; b < m; b++) idx |= uint64_t((x >> b) & 1) << (2 * b) | uint64_t((y >> b) & 1) << (2 * b + 1);
+            if (lw > lh) idx |= uint64_t(x >> m) << (2 * m);
+            else if (lh > lw) idx |= uint64_t(y >> m) << (2 * m);
+            if (idx >= have) throw Stop("IndexError: swizzled texel outside the texture");
+            gcm_remap(&data[idx * 4], remap, img.at(x, y));
+        }
+    return img;
+}
+
+Bytes encode_bc3(const Img &img) {
+    const uint32_t bw = (img.w + 3) / 4, bh = (img.h + 3) / 4;
+    Bytes out(size_t(bw) * bh * 16);
+    auto q565 = [](const float c[3]) {
+        const float s[3] = {31.f, 63.f, 31.f};
+        uint32_t q[3];
+        for (int k = 0; k < 3; k++) q[k] = uint32_t(std::min(std::max(std::nearbyint(c[k] * s[k] / 255.f), 0.f), s[k]));
+        return (q[0] << 11) | (q[1] << 5) | q[2];
+    };
+    auto dq565 = [](uint32_t v, float p[3]) {
+        p[0] = float(double(((v >> 11) & 31) * 255) / 31.0);
+        p[1] = float(double(((v >> 5) & 63) * 255) / 63.0);
+        p[2] = float(double((v & 31) * 255) / 31.0);
+    };
+    for (uint32_t by = 0; by < bh; by++)
+        for (uint32_t bx = 0; bx < bw; bx++) {
+            float f[16][4];
+            for (int i = 0; i < 16; i++) {
+                const uint32_t x = bx * 4 + (i & 3), y = by * 4 + (i >> 2);
+                for (int k = 0; k < 4; k++) f[i][k] = x < img.w && y < img.h ? float(img.at(x, y)[k]) : 0.f;
+            }
+            float lo[3], hi[3];
+            for (int k = 0; k < 3; k++) {
+                lo[k] = hi[k] = f[0][k];
+                for (int i = 1; i < 16; i++) {
+                    lo[k] = std::min(lo[k], f[i][k]);
+                    hi[k] = std::max(hi[k], f[i][k]);
+                }
+            }
+            uint32_t c0 = q565(hi), c1 = q565(lo);
+            if (c0 < c1) std::swap(c0, c1);
+            float pal[4][3];
+            dq565(c0, pal[0]);
+            dq565(c1, pal[1]);
+            for (int k = 0; k < 3; k++) {
+                pal[2][k] = (2.f * pal[0][k] + pal[1][k]) / 3.f;
+                pal[3][k] = (pal[0][k] + 2.f * pal[1][k]) / 3.f;
+            }
+            uint32_t cbits = 0;
+            if (c0 != c1)
+                for (int i = 0; i < 16; i++) {
+                    int best = 0;
+                    float bd = 0;
+                    for (int j = 0; j < 4; j++) {
+                        float d = 0;
+                        for (int k = 0; k < 3; k++) {
+                            const float e = f[i][k] - pal[j][k];
+                            d = d + e * e;
+                        }
+                        if (j == 0 || d < bd) { bd = d; best = j; }
+                    }
+                    cbits |= uint32_t(best) << (2 * i);
+                }
+            float a0 = f[0][3], a1 = f[0][3];
+            for (int i = 1; i < 16; i++) {
+                a0 = std::max(a0, f[i][3]);
+                a1 = std::min(a1, f[i][3]);
+            }
+            const int32_t a0i = int32_t(std::nearbyint(a0)), a1i = int32_t(std::nearbyint(a1));
+            float apal[8] = {float(a0i), float(a1i)};
+            for (int k = 1; k < 7; k++) apal[1 + k] = float(double((7 - k) * a0i + k * a1i) / 7.0);
+            uint64_t abits = 0;
+            if (a0i != a1i)
+                for (int i = 0; i < 16; i++) {
+                    int best = 0;
+                    float bd = 0;
+                    for (int j = 0; j < 8; j++) {
+                        const float d = std::fabs(f[i][3] - apal[j]);
+                        if (j == 0 || d < bd) { bd = d; best = j; }
+                    }
+                    abits |= uint64_t(best) << (3 * i);
+                }
+            uint8_t *o = &out[(size_t(by) * bw + bx) * 16];
+            o[0] = uint8_t(a0i);
+            o[1] = uint8_t(a1i);
+            for (int j = 0; j < 6; j++) o[2 + j] = uint8_t(abits >> (8 * j));
+            o[8] = uint8_t(c0);
+            o[9] = uint8_t(c0 >> 8);
+            o[10] = uint8_t(c1);
+            o[11] = uint8_t(c1 >> 8);
+            for (int j = 0; j < 4; j++) o[12 + j] = uint8_t(cbits >> (8 * j));
+        }
+    return out;
+}
+
+}  // namespace u3::tc::sky
