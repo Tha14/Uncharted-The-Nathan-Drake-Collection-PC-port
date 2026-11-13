@@ -18,6 +18,7 @@
 #include "u3fix.hpp"
 #include "proc.hpp"
 #include "psarc.hpp"
+#include "ps4ingame.hpp"
 #include "ps4writer.hpp"
 
 #include <algorithm>
@@ -35,6 +36,7 @@ namespace {
 std::string g_here, g_project, g_paktools, g_ps4, g_disc, g_update, g_data2, g_dlcmaps, g_python;
 fs::path g_tmp;   // <project>/scratch/pak23-levels-work
 std::mutex g_pt_lock;
+std::set<std::string> g_anim;   // animated actor names for the ingame converter (made once, before the workers)
 
 
 using Row = std::map<std::string, std::string>;
@@ -304,6 +306,10 @@ fs::path build(const Row &row, const std::map<std::pair<std::string, std::string
         fs::copy_file(sd / upath(row.at("name") + ".pak"), op, fs::copy_options::overwrite_existing);
         return op;
     }
+    if (m == "ingame") {   // C++ (dctools/ps4ingame.cpp)
+        write_file_replace(op, ps4ingame_convert(ps3_source(row, idx), g_anim));
+        return op;
+    }
     if (m != "stage" && m != "ingame" && m != "vischeat") throw Stop("method " + m + " is not supported");
     const fs::path pt = paktools(ver);
     Env env = {{"PYTHONPATH", P(pt) + ";" + P(pt / "stage")}, {"U3_TEXDICT", P(texdict)}};
@@ -449,7 +455,12 @@ int levels(const std::vector<std::string> &argv) {
         if (r.at("method") == "stage" || r.at("method") == "sky") { res_dir(); break; }
     std::set<std::string> vers;
     for (const Row &r : todo)
-        if (r.at("method") != "empty") vers.insert(version_of(r));   // the methods that still run a converter script
+        if (r.at("method") != "empty" && r.at("method") != "ingame") vers.insert(version_of(r));   // the methods that still run a converter script
+    for (const Row &r : todo)
+        if (r.at("method") == "ingame") {
+            g_anim = anim_actor_names(ps4main() / "actor33" / "ps4", upath(g_here + "/data/conv_anim_actors.json"));
+            break;
+        }
     for (const std::string &v : vers) paktools(v);   // every converter tree before the workers
     std::vector<std::string> result(todo.size()), error(todo.size());
     std::atomic<size_t> next{0};
