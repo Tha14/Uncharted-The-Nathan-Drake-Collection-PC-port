@@ -5,10 +5,14 @@
 //           pointer slot gets its bit in the rebuilt bitmap (one bit per 8-byte word, LSB first).
 // Same rules as the dctools Python reader and editor that the older steps still use.
 #pragma once
+#include <algorithm>   // newer libc++ no longer brings these in through other headers (the CI build failed on it)
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <functional>
 #include <map>
+#include <mutex>
+#include <numeric>
 #include <optional>
 #include <set>
 #include <stdexcept>
