@@ -30,11 +30,8 @@ borneo-grass-leaf
 coop-voice-fort
 hair-key
 eula-pages
-map-colors2
 actor-materials
 coop-desc-fix
-orange-wall
-excess-wall
 hat-colour
 outdoor-jacket
 airport-igc2

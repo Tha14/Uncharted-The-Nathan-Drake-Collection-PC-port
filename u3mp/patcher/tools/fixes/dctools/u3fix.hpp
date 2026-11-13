@@ -3,6 +3,8 @@
 #include "dc.hpp"
 #include "json.h"   // launcher/native/json.h: JSON values, parse, Python-style quoting
 
+#include <optional>
+
 namespace u3 {
 
 fs::path upath(const std::string &utf8_path);
@@ -41,8 +43,6 @@ int remove_rpcn_page(const std::vector<std::string> &argv);   // tools/fixes/no-
 int netgame_order(const std::vector<std::string> &argv);      // tools/fixes/netgame-order/netgame_order.cpp
 int emblem_cap3(const std::vector<std::string> &argv);        // tools/fixes/wall-emblem-test/emblem_cap3.cpp
 int eula_box(const std::vector<std::string> &argv);           // tools/fixes/dctools/eula_box.cpp
-int orange_wall(const std::vector<std::string> &argv);        // tools/fixes/orange-wall/apply_orange.cpp
-int excess_wall(const std::vector<std::string> &argv);        // tools/fixes/excess-wall/apply_excess.cpp
 int enemy_stall(const std::vector<std::string> &argv);        // tools/fixes/enemy-stall/apply_ss_option_defaults.cpp
 int coop_desc(const std::vector<std::string> &argv);          // tools/fixes/coop-chars/apply_coop_desc_fix.cpp
 int vram_gap(const std::vector<std::string> &argv);           // tools/fixes/coop-tab/fix_vram_gap.cpp
@@ -82,7 +82,8 @@ int grass_leaf(const std::vector<std::string> &argv);            // tools/fixes/
 int london_fade(const std::vector<std::string> &argv);           // tools/fixes/london/apply_london.cpp
 int map_lighting(const std::vector<std::string> &argv);          // tools/fixes/map-lighting/apply_map_lighting.cpp
 int map_colors(const std::vector<std::string> &argv);            // tools/fixes/map-colors/apply_mapcolor.cpp
-int map_colors2(const std::vector<std::string> &argv);           // tools/fixes/map-colors2/apply_mapcolor2.cpp
+// the level converter pass map-colors2 (tools/fixes/map-colors2/apply_mapcolor2.cpp): the fixed pak, or none
+std::optional<Bytes> map_colors2_pass(const Bytes &ps4, const std::string &pak, const Bytes &ps3, std::vector<std::vector<std::string>> *log);
 int pakinfo(const std::vector<std::string> &argv);            // dctools/ndpak.cpp: a pak's summary (as ndpak.py prints it)
 
 }  // namespace u3

@@ -118,7 +118,7 @@ u3_import() {   # Uncharted 3's importer, its recipe and tools, and the newest m
     clang++ -std=c++20 -O2 -municode -static -s -Wl,--gc-sections -Wl,--no-insert-timestamp -I"$fx/dctools" -Ilauncher/native \
         "$fx/dctools/u3fix.cpp" "$fx/dctools/dc.cpp" "$fx/dctools/eula_box.cpp" "$fx/no-lab/remove_lab.cpp" \
         "$fx/no-rpcn-menu/remove_rpcn_page.cpp" "$fx/netgame-order/netgame_order.cpp" "$fx/wall-emblem-test/emblem_cap3.cpp" \
-        "$fx/orange-wall/apply_orange.cpp" "$fx/excess-wall/apply_excess.cpp" "$fx/enemy-stall/apply_ss_option_defaults.cpp" \
+        "$fx/enemy-stall/apply_ss_option_defaults.cpp" \
         "$fx/coop-chars/apply_coop_desc_fix.cpp" "$fx/coop-tab/fix_vram_gap.cpp" "$fx/airport-igc3/airport_igc3.cpp" \
         "$fx/dctools/psarc.cpp" "$fx/text1-merge/merge_text1.cpp" "$fx/coop-audit/apply_option_defaults_2.cpp" \
         "$fx/registry/run_mkregistry.cpp" "$fx/pak23-registry/apply_registry.cpp" "$fx/hat-chloe/apply_hair_key.cpp" \

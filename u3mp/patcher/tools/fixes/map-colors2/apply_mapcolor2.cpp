@@ -1,9 +1,8 @@
-// Recipe step map-colors2: PS3 normal-map blends, gloss and stripes on the overlay-r3 level paks, using effects already in
-// each pak. Replaces mk_p3idx.py, survey_ov.py, detect.py, apply_mapcolor2.py and their helpers (lib.py mats4, p3prog.py,
-// sm.py, fxin.py, tools/fp.py, tools/bc1inv.py).
-//  * survey: the materials of every overlay-r3 level pak (no ingame12): name, shader, hash, features, constants, bindings;
-//  * detect: for each prime-shader material with a PS3 twin (the PS3 pak from pak23.psarc, goty-dlc, dlc-patch13,
-//    dlc-patch18; the last archive that has it), the PS3 main-pass fragment program says where the blend factor comes
+// Level converter pass map-colors2 (pak23-levels: every stage and sky row): PS3 normal-map blends, gloss and stripes on a
+// converted level pak, using effects already in the pak. (Until recipe 1.19.0 the step map-colors2 ran this on 8 overlay
+// paks after the conversion, locked to an older converter's bytes; now every level gets it as it is built.)
+//  * survey: the converted pak's materials: name, shader, hash, features, constants, bindings;
+//  * detect: for each prime-shader material with a twin in the PS3 level pak (the row's PS3 source), the PS3 main-pass fragment program says where the blend factor comes
 //    from (the term t + M / (2s + 0.01) traced back to a texture channel), which texture units it reads and which
 //    textures the PS4 conversion dropped;
 //  * plan, per material:
@@ -15,10 +14,6 @@
 //             effect of the same polarity, the overlay bound (appended from PS3 when the pak lacks it) with a white
 //             tint mask;
 //  * build: the retail pages are kept, new textures, tables, constants and bindings go to one new page;
-//  * the lightmap-flag fix of map-colors (its manifest offsets) must still hold in the result, else the pak is skipped.
-//   u3fix map-colors2 --project P --job J --ps3-disc D --ps3-update U [--apply | --revert] [--out DIR] [--concrete-stripes]
-// Dry run by default (built in memory). --apply backs up to work/backup-mapcolor2 and writes the overlay, with
-// backup-mapcolor2/manifest.json; J/plan-result.json(.concrete) records the plan either way.
 #include "ndpak.hpp"
 #include "ps3bg.hpp"
 #include "ps3fp.hpp"
@@ -584,9 +579,8 @@ struct Built {
     std::vector<std::vector<std::string>> log;
 };
 
-Built build(const std::string &OV, const std::string &pak, const std::vector<Job> &rows, const Pak &p3) {
+Built build(const Bytes &raw, const std::string &pak, const std::vector<Job> &rows, const Pak &p3) {
     Built res;
-    const Bytes raw = read_file(upath(OV + pak));
     const Pak q(raw, pak);
     const std::vector<Mat4> M = mats4(q);
     std::map<std::string, const Mat4 *> byn;
@@ -916,157 +910,44 @@ Built build(const std::string &OV, const std::string &pak, const std::vector<Job
     return res;
 }
 
-// the lightmap-flag fix of map-colors (its manifest) still holds in the result
-bool lm_locked(const std::string &W, const std::string &OV, const std::string &pak, const Bytes &data) {
-    const fs::path mf = upath(W + "backup-mapcolor/manifest.json");
-    if (!fs::exists(mf)) throw Stop("FileNotFoundError: " + utf8(mf));
-    const json::Value man = read_json(mf);
-    const json::Value *e = nullptr;
-    for (const auto &[k, v] : man.fields)
-        if (k == pak) e = &v;
-    if (!e) return true;
-    const Pak o(read_file(upath(OV + pak)), pak), n(data, pak);
-    for (const auto &[k, v] : e->fields) {
-        if (k != "edits") continue;
-        for (const json::Value &ed : v.items) {
-            uint64_t off = 0;
-            for (const auto &[kk, vv] : ed.fields)
-                if (kk == "off") off = uint64_t(vv.i);
-            bool found = false;
-            for (uint32_t pi = 0; pi < o.pages.size() && pi < n.pages.size(); pi++) {
-                const uint64_t po = o.pbase(pi), ps = o.pages[pi].size, po2 = n.pbase(pi);
-                if (po <= off && off < po + ps) {
-                    found = true;
-                    if (std::memcmp(&o.d.at(off), &n.d.at(po2 + off - po), 4) != 0 || (rd32le(n.d, po2 + off - po) & 0x100)) return false;
-                    break;
-                }
-            }
-            if (!found) throw Stop("ValueError: " + std::to_string(off));
-        }
-    }
-    return true;
-}
-
-std::string crlf(const std::string &s) {
-    std::string o;
-    for (char c : s) o += c == 10 ? std::string{char(13), char(10)} : std::string(1, c);
-    return o;
-}
-
 }  // namespace
 
-int map_colors2(const std::vector<std::string> &argv) {
-    const Args a(argv, {"--apply", "--revert", "--concrete-stripes"}, {"--project", "--job", "--ps3-disc", "--ps3-update", "--out"});
-    const bool apply = a.has("--apply"), conc = a.has("--concrete-stripes");
-    const std::string W = a.need("--project") + "/work/", OV = W + "overlay-r3/u3data/build/main/pak23/ps4/", BK = W + "backup-mapcolor2/";
-    const std::string out = a.get("--out", "");
-    if ((apply || a.has("--revert")) && game_running()) throw Stop("game running: stop it first");
-    if (a.has("--revert")) {
-        for (const auto &e : fs::directory_iterator(upath(BK))) {
-            const std::string f = utf8(e.path().filename());
-            if (!ends(f, ".pak")) continue;
-            copy2(e.path(), upath(OV + f));
-            std::printf("restored %s\n", f.c_str());
-        }
-        return 0;
+// The converter pass (pak23-levels: every stage and sky row): the PS3 normal-map blends, gloss and stripes of one
+// converted level pak, from the PS3 level pak it was converted from. Nothing to change (or a pak without materials or
+// a PS3 twin the survey can read): none.
+std::optional<Bytes> map_colors2_pass(const Bytes &ps4, const std::string &pak, const Bytes &ps3, std::vector<std::vector<std::string>> *log) {
+    std::vector<Mat4> mats;
+    std::map<std::string, Facts> F;
+    try {
+        mats = mats4(Pak(ps4, pak));
+        if (mats.empty()) return std::nullopt;
+        F = facts(Pak(ps3, pak));
+    } catch (const std::exception &) {
+        return std::nullopt;
     }
-    // the PS3 paks: pak23.psarc, goty-dlc, dlc-patch13, dlc-patch18; the last one that has a name wins
-    const std::string D = a.need("--ps3-disc"), U = a.need("--ps3-update");
-    std::vector<std::unique_ptr<Psarc>> arcs;
-    std::map<std::string, std::pair<size_t, size_t>> idx;   // basename -> (archive, entry)
-    for (const std::string &f : {D + "/build/main/pak23.psarc", D + "/goty-dlc.psarc", U + "/dlc-patch13.psarc", U + "/dlc-patch18.psarc"}) {
-        arcs.push_back(std::make_unique<Psarc>(upath(f)));
-        for (size_t i = 0; i < arcs.back()->names.size(); i++) idx[last_part(arcs.back()->names[i])] = {arcs.size() - 1, i + 1};
+    std::vector<Row> rows;
+    std::vector<Job> jobs;
+    try {
+        rows = rows_of(pak, mats, F);
+        for (const Row &r : rows)
+            for (Job j : plan(std::vector<Row>{r}, mats, false)) {
+                j.row = &r;
+                jobs.push_back(j);
+            }
+    } catch (const std::exception &e) {
+        if (log) log->push_back({"error", pak, e.what()});
+        return std::nullopt;
     }
-    // survey + detect
-    std::vector<std::string> names;
-    for (const auto &e : fs::directory_iterator(upath(OV))) names.push_back(utf8(e.path().filename()));
-    std::sort(names.begin(), names.end());
-    std::map<std::string, std::vector<Mat4>> O;
-    std::vector<Row> R;
-    for (const std::string &fn : names) {
-        if (!ends(fn, ".pak") || ends(fn, "-ingame12.pak")) continue;
-        std::vector<Mat4> mats;
-        try {
-            mats = mats4(Pak(read_file(upath(OV + fn)), fn));
-        } catch (const std::exception &) {
-            continue;   // the survey records an error for it: no materials
-        }
-        if (mats.empty() || !idx.count(fn)) {
-            O[fn] = std::move(mats);
-            continue;
-        }
-        const auto [ai, ei] = idx[fn];
-        std::map<std::string, Facts> F;
-        try {
-            F = facts(Pak(arcs[ai]->read(ei), fn));
-        } catch (const std::exception &e) {
-            std::printf("ERR %s %.100s\n", fn.c_str(), e.what());
-            O[fn] = std::move(mats);
-            continue;
-        }
-        const auto rows = rows_of(fn, mats, F);
-        R.insert(R.end(), rows.begin(), rows.end());
-        O[fn] = std::move(mats);
+    if (jobs.empty()) return std::nullopt;
+    try {
+        const Pak p3(ps3, pak);
+        Built b = build(ps4, pak, jobs, p3);
+        if (log) log->insert(log->end(), b.log.begin(), b.log.end());
+        return b.data;
+    } catch (const std::exception &e) {   // a pak the pass cannot read stays as the converter made it
+        if (log) log->push_back({"error", pak, e.what()});
+        return std::nullopt;
     }
-    // plan, per pak in name order
-    std::map<std::string, std::vector<Job>> by;
-    for (const Row &r : R) {
-        const auto jobs = plan(std::vector<Row>{r}, O[r.pak], conc);
-        for (Job j : jobs) {
-            j.row = &r;
-            by[r.pak].push_back(j);
-        }
-    }
-    json::Value res = json::Value::object();
-    for (const auto &[pak, rows] : by) {
-        const auto [ai, ei] = idx.at(pak);
-        const Pak p3(arcs[ai]->read(ei), pak);
-        Built b = build(OV, pak, rows, p3);
-        for (const auto &l : b.log) {
-            std::string s = pak;
-            for (const auto &x : l) s += " " + x;
-            std::printf("%s\n", s.c_str());
-        }
-        if (!b.data) continue;
-        if (!lm_locked(W, OV, pak, *b.data)) {
-            std::printf("%s SKIP: lightmap-flag lock fails (base pak differs from the recorded state)\n", pak.c_str());
-            continue;
-        }
-        const Bytes orig = read_file(upath(OV + pak));
-        json::Value e = json::Value::object();
-        e.fields.push_back({"md5_before", json::Value::text(md5_hex(orig))});
-        e.fields.push_back({"md5_after", json::Value::text(md5_hex(*b.data))});
-        json::Value ed;
-        ed.kind = json::Value::Array;
-        for (const auto &l : b.log) {
-            if (l[0] == "skip") continue;
-            json::Value x;
-            x.kind = json::Value::Array;
-            for (const auto &s : l) x.items.push_back(json::Value::text(s));
-            ed.items.push_back(x);
-        }
-        e.fields.push_back({"edits", ed});
-        const long long grew = (long long)b.data->size() - (long long)orig.size();
-        e.fields.push_back({"grew", json::Value::integer(grew)});
-        res.fields.push_back({pak, e});
-        std::printf("%s OK +%lld bytes\n", pak.c_str(), grew);
-        std::fflush(stdout);
-        if (!out.empty()) {
-            fs::create_directories(upath(out));
-            write_file_replace(upath(out) / upath(pak), *b.data);
-        }
-        if (apply) {
-            fs::create_directories(upath(BK));
-            copy2(upath(OV + pak), upath(BK + pak));
-            write_file_replace(upath(OV + pak), *b.data);
-        }
-    }
-    const std::string js = crlf(json_dump_indent1(res));
-    write_file_replace(upath(a.need("--job") + "/plan-result.json" + (conc ? ".concrete" : "")), Bytes(js.begin(), js.end()));
-    if (apply) write_file_replace(upath(BK + "manifest.json"), Bytes(js.begin(), js.end()));
-    std::printf("%s\n", apply ? "APPLIED" : "DRY RUN: overlay not written");
-    return 0;
 }
 
 }  // namespace u3

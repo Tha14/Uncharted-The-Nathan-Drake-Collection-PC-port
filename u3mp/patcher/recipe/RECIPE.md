@@ -93,14 +93,18 @@ converted pak run once the conversion exists.
    `tools/fixes/pak23-levels/README.md`; the replay steps `lost-batches-r3` and `cloud-batches-r3` are retired;
    1.18.0: a Game of the Year disc without the DLC map packs gives `gompa-multi-shade-npc-ingame12` from goty-dlc.psarc,
    whose build plan.tsv accepts as `goty_sha256` in the row's note: before, a fresh GOTY-only import failed
-   `convert-levels-port` on it)
+   `convert-levels-port` on it; 1.19.0: every stage and sky row gets the map-colors2 pass as it is built, so PS3
+   normal-map blends, gloss and stripes reach every level that needs them, not only the 8 paks the old `map-colors2`
+   step was locked to; that step is retired; the Airstrip steps `orange-wall` and `excess-wall`, which edited
+   air-multi-strip.pak by byte offset in an older converter's output and fail on the latest one, are retired too: the
+   Airstrip strip level (the take-off cutscene scenery) is to be fixed in the converter)
    `convert-dc2-part-modules` (runnable since 1.10.0: `tools/fixes/part-emitters`, the recovered batch45/batch48
    particle converter); `convert-banks`, `convert-text1` (runnable since 1.1.0)
 3. `registry-pak23` (mkregistry)
 4. session fixes in application order: `facility-collapse`, `lab-registration`*, `elim-pic`*,
    `classic-netgames`*, `skins-net-names`*, `maps-batch`*, `rpcn-menu-page`*, `skin-textures`, `wall-emblem`,
    `borneo-water-jitter`, `map-colors-lightmap`, `borneo-grass-leaf`, `coop-voice-fort`, `hair-key`*, `eula-pages`,
-   `map-colors2`, `actor-materials`, `coop-desc-fix`, `excess-wall`, `hat-colour`, `airport-igc2`,
+   `actor-materials`, `coop-desc-fix`, `hat-colour`, `airport-igc2`,
    `enemy-stall-option-defaults`, `emblem-cap3`, `coop-audit-option-defaults`, `shade-npc-paks`, `coop-voice-all`,
    `london-fade`, `airport-igc3`, `map-lighting`, `vram-gap`, `hud-mod-mips` (recipe 1.18.0: the weapon mod icons of the in-match HUD keep their two largest mip levels, as sharp as on PS3) (* = dctools steps: restored 2026-11-05, verified sha256-identical from their backups with `tools/dcconv/verify_dctools_chain.py`; maps-batch is now `maps-batch-dc` + `maps-batch-files`, and `eula-menu-box` follows `rpcn-menu-page`)
 5. `registry-final` (pak23_ps4.txt of the four overlays, line provenance), `remove-lab` (recipe 1.15.0: no Lab maps on

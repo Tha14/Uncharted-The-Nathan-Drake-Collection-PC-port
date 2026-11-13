@@ -6,8 +6,6 @@
 //     netgame-order     --project P --net18 F [--apply | --verify] [...]      (tools/fixes/netgame-order)
 //     emblem-cap3       --project P [--apply]                                 (tools/fixes/wall-emblem-test)
 //     eula-box          --project P [--apply]                                 (tools/fixes/dctools)
-//     orange-wall       --project P --plan F [--apply] [--restore]            (tools/fixes/orange-wall)
-//     excess-wall       --project P --job D [--only-wall] [--add ID ...] [--apply] [--restore]   (tools/fixes/excess-wall)
 //     enemy-stall       --project P [--apply | --restore] [--only-tag-on-enter]  (tools/fixes/enemy-stall)
 //     coop-desc         --project P [--apply]                                 (tools/fixes/coop-chars)
 //     vram-gap          --project P [--apply] [--restore] [--dir D]           (tools/fixes/coop-tab)
@@ -248,8 +246,6 @@ int wmain(int argc, wchar_t **argv) {
         if (step == "netgame-order") return u3::netgame_order(a);
         if (step == "emblem-cap3") return u3::emblem_cap3(a);
         if (step == "eula-box") return u3::eula_box(a);
-        if (step == "orange-wall") return u3::orange_wall(a);
-        if (step == "excess-wall") return u3::excess_wall(a);
         if (step == "enemy-stall") return u3::enemy_stall(a);
         if (step == "coop-desc") return u3::coop_desc(a);
         if (step == "vram-gap") return u3::vram_gap(a);
@@ -287,7 +283,6 @@ int wmain(int argc, wchar_t **argv) {
         if (step == "london-fade") return u3::london_fade(a);
         if (step == "map-lighting") return u3::map_lighting(a);
         if (step == "map-colors") return u3::map_colors(a);
-        if (step == "map-colors2") return u3::map_colors2(a);
         if (step == "hud-mod-mips") return u3::hud_mod_mips(a);
         if (step == "pakinfo") return u3::pakinfo(a);
         std::fprintf(stderr, "usage: u3fix <step> [options] (the steps: see u3fix.cpp)\n");

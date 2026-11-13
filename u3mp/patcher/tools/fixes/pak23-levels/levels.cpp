@@ -205,6 +205,13 @@ fs::path ps3_source(const Row &row, const std::map<std::pair<std::string, std::s
     return p;
 }
 
+// the converter pass map-colors2 on a built stage or sky pak (PS3 normal-map blends, gloss, stripes); the pak as built
+// when the pass finds nothing to do
+Bytes with_map_colors2(Bytes built, const std::string &name, const Bytes &ps3) {
+    if (auto fixed = map_colors2_pass(built, name + ".pak", ps3, nullptr)) return std::move(*fixed);
+    return built;
+}
+
 // overlay-r3 hud.pak: the PS4 game kept small copies of two HUD textures (gun-galil-trans, the distress font); their
 // full-size PS3 DXT1 texels are tiled 1:1 as PS4 BC1 and appended to the VRAM in this order. Only the two VRAM_DESC
 // records (VRAM offset, size, format 0x47, mips, width, height, flag 3) and the header VRAM size change.
@@ -295,7 +302,7 @@ fs::path build(const Row &row, const std::map<std::pair<std::string, std::string
         o.texdict = texdict;
         o.plan_dir = g_tmp / "sky" / upath(row.at("overlay")) / upath(lv) / "work";
         o.default_lightmaps = default_lightmap_texels();
-        write_file_replace(op, stage::sky_convert(sp, lv, o, upath(g_here + "/data/water_templates.json")));
+        write_file_replace(op, with_map_colors2(stage::sky_convert(sp, lv, o, upath(g_here + "/data/water_templates.json")), row.at("name"), read_file(sp)));
         return op;
     }
     if (m == "vischeat") {   // C++ (dctools/vischeat.cpp)
@@ -323,7 +330,8 @@ fs::path build(const Row &row, const std::map<std::pair<std::string, std::string
     json::Value ov;
     if (fs::exists(ovf)) ov = read_json(ovf);
     if (const json::Value *g = ov.get("gobo"); g && g->truthy()) o.gobo = g;
-    write_file_replace(op, stage::stage_convert(ps3_source(row, idx), o));
+    const fs::path ps3 = ps3_source(row, idx);
+    write_file_replace(op, with_map_colors2(stage::stage_convert(ps3, o), row.at("name"), read_file(ps3)));
     return op;
 }
 
