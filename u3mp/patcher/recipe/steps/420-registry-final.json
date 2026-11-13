@@ -1,8 +1,11 @@
 {
  "id": "registry-final",
- "title": "pak23_ps4.txt of the four overlays, final 2026-11-03 state, from line provenance recipes (pak23-registry/apply_registry.py)",
+ "title": "pak23_ps4.txt of the four overlays, final 2026-11-03 state, from line provenance recipes (u3fix.exe registry-final, pak23-registry/apply_registry.cpp)",
  "kind": "script",
  "job": "pak23-registry",
+ "with_jobs": [
+  "dctools"
+ ],
  "family": "pak23_ps4.txt",
  "needs": [
   "ps4",
@@ -10,9 +13,23 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_registry.py",
-   "--apply"
+   "u3fix.exe",
+   "registry-final",
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}",
+   "--ps4",
+   "{{PS4}}",
+   "--ps3-update",
+   "{{PS3_UPDATE}}",
+   "--ps3-dlcmaps",
+   "{{PS3_DLCMAPS}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
+   "--ps3-data2",
+   "{{PS3_DATA2}}"
   ]
  ],
  "writes": [

@@ -1,15 +1,22 @@
 {
  "id": "orange-wall",
- "title": "Airstrip: the duplicate control tower collapsed in air-multi-strip.pak (4275 triangles a,b,c -> a,a,a; orange-wall/apply_orange.py)",
+ "title": "Airstrip: the duplicate control tower collapsed in air-multi-strip.pak (4275 triangles a,b,c -> a,a,a; u3fix.exe orange-wall, orange-wall/apply_orange.cpp)",
  "kind": "script",
  "job": "orange-wall",
+ "with_jobs": [
+  "dctools"
+ ],
  "family": "overlay-r3/pak23",
  "needs": [],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_orange.py",
-   "--apply"
+   "u3fix.exe",
+   "orange-wall",
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--plan",
+   "{{JOB}}/orange-plan.json"
   ]
  ],
  "writes": [

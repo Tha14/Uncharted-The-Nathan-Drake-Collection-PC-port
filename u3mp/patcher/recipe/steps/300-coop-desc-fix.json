@@ -1,15 +1,20 @@
 {
  "id": "coop-desc-fix",
- "title": "8 co-op hero descriptors in net.bin (coop-chars/apply_coop_desc_fix.py)",
+ "title": "8 co-op hero descriptors in net.bin (u3fix.exe coop-desc, coop-chars/apply_coop_desc_fix.cpp)",
  "kind": "script",
  "job": "coop-chars",
+ "with_jobs": [
+  "dctools"
+ ],
  "family": "overlay-r3/dc1",
  "needs": [],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_coop_desc_fix.py",
-   "--apply"
+   "u3fix.exe",
+   "coop-desc",
+   "--apply",
+   "--project",
+   "{{PROJECT}}"
   ]
  ],
  "writes": [

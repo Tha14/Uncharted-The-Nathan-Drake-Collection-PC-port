@@ -1,8 +1,11 @@
 {
  "id": "registry-pak23",
- "title": "pak23_ps4.txt of all four overlays (retail registry + PS4-format definitions of the ported PS3 levels)",
+ "title": "pak23_ps4.txt of all four overlays (retail registry + PS4-format definitions of the ported PS3 levels; u3fix.exe registry-levels, registry/run_mkregistry.cpp)",
  "kind": "script",
  "job": "registry",
+ "with_jobs": [
+  "dctools"
+ ],
  "family": "pak23_ps4.txt",
  "needs": [
   "ps4",
@@ -10,8 +13,18 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/run_mkregistry.py",
+   "u3fix.exe",
+   "registry-levels",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}",
+   "--ps4",
+   "{{PS4}}",
+   "--ps3-update",
+   "{{PS3_UPDATE}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
    "overlay-mp",
    "overlay-port",
    "overlay-r2",

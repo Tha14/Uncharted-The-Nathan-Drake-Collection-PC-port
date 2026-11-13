@@ -1,15 +1,17 @@
 {
  "id": "eula-menu-box",
- "title": "Six EULA box values 100 -> 200 in menu.bin (dctools/eula_box.py; inline edit of 2026-11-01 22:21)",
+ "title": "Six EULA box values 100 -> 200 in menu.bin (u3fix.exe eula-box, dctools/eula_box.cpp; inline edit of 2026-11-01 22:21)",
  "kind": "script",
  "job": "dctools",
  "family": "overlay-r3/dc1",
  "needs": [],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/eula_box.py",
-   "--apply"
+   "u3fix.exe",
+   "eula-box",
+   "--apply",
+   "--project",
+   "{{PROJECT}}"
   ]
  ],
  "writes": [

@@ -1,6 +1,6 @@
 {
  "id": "hair-key",
- "title": "Hair kind/key entries in net.bin (hat-chloe/apply_hair_key.py)",
+ "title": "Hair kind/key entries in net.bin (u3fix.exe hair-key, hat-chloe/apply_hair_key.cpp)",
  "kind": "script",
  "job": "hat-chloe",
  "with_jobs": [
@@ -10,9 +10,11 @@
  "needs": [],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_hair_key.py",
-   "--apply"
+   "u3fix.exe",
+   "hair-key",
+   "--apply",
+   "--project",
+   "{{PROJECT}}"
   ]
  ],
  "writes": [

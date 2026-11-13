@@ -1,8 +1,11 @@
 {
  "id": "coop-audit-option-defaults",
- "title": "Same defect in 15 more ss-* scripts (coop-audit/apply_option_defaults_2.py)",
+ "title": "Same defect in 15 more ss-* scripts (u3fix.exe coop-audit, coop-audit/apply_option_defaults_2.cpp)",
  "kind": "script",
  "job": "coop-audit",
+ "with_jobs": [
+  "dctools"
+ ],
  "family": "overlay-r3/dc1/ss-multiplayer",
  "needs": [
   "ps3_disc",
@@ -10,9 +13,19 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_option_defaults_2.py",
-   "--apply"
+   "u3fix.exe",
+   "coop-audit",
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
+   "--ps3-update",
+   "{{PS3_UPDATE}}",
+   "--ps3-data2",
+   "{{PS3_DATA2}}",
+   "--job",
+   "{{JOB}}"
   ]
  ],
  "writes": [

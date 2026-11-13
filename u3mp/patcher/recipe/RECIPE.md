@@ -114,6 +114,16 @@ converted pak run once the conversion exists.
    Since 2026-11-12 these three steps are C++: `u3fix.exe <step>` (sources `tools/fixes/dctools/u3fix.cpp`, `dc.cpp`
    and the `.cpp` in each step's job folder), built into `u3mp/bin` by `tools/package_windows.sh`; the importer puts
    `u3mp/bin` on PATH. Their output is byte-identical to the Python versions they replaced (recipe version unchanged: no player needs a rerun).
+   Since 2026-11-13 these steps are C++ too, each `u3fix.exe <name>` with its .cpp in the step's job folder: emblem-cap3,
+   eula-menu-box (eula-box), orange-wall, excess-wall, enemy-stall-option-defaults (enemy-stall), coop-desc-fix
+   (coop-desc), vram-gap, airport-igc3 (igc3-retargets + igc3-install), convert-text1 (text1-merge),
+   coop-audit-option-defaults (coop-audit), registry-pak23 (registry-levels), registry-final, hair-key. Shared code:
+   `dctools/psarc.cpp` (PSARC archives, the PS3 DC index) and `launcher/native/json.h` / `inflate.h`. Each was run
+   against its Python on copies of a saved import: the same printed lines and byte-identical files. Differences, all
+   on error or rerun paths: a step that finds a problem stops before writing anything (the scripts had sometimes
+   written part); orange-wall and excess-wall count as applied on a rerun when their own backup is the plan's input
+   (later steps rebuild the pak, so the scripts failed there); an LZMA block in a PSARC stops with a message (the
+   scripts tried lzma; Uncharted 3 archives use zlib).
 
 Per-file order where several fixes touch one file (from the transcripts): `net.bin`: netfix -> lab_reg ->
 elim_pic -> classic -> skins -> apply_maps -> hair_key -> coop_desc_fix -> coop_vox -> netgame_order (rerun

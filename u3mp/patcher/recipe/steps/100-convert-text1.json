@@ -1,8 +1,11 @@
 {
  "id": "convert-text1",
- "title": "overlay-r3: 66 text banks 2..23.{common,networking,subtitles} = PS4 core.psarc text + PS3 MP strings (text1-merge/merge_text1.py)",
+ "title": "overlay-r3: 66 text banks 2..23.{common,networking,subtitles} = PS4 core.psarc text + PS3 MP strings (u3fix.exe text1-merge, text1-merge/merge_text1.cpp)",
  "kind": "script",
  "job": "text1-merge",
+ "with_jobs": [
+  "dctools"
+ ],
  "family": "overlay-r3/text1",
  "needs": [
   "ps4",
@@ -10,9 +13,15 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/merge_text1.py",
-   "--apply"
+   "u3fix.exe",
+   "text1-merge",
+   "--apply",
+   "--ps4",
+   "{{PS4}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
+   "--project",
+   "{{PROJECT}}"
   ]
  ],
  "writes": [

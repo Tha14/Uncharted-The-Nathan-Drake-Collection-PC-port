@@ -1,15 +1,20 @@
 {
  "id": "emblem-cap3",
- "title": "7 Airstrip emblem paks: cbuffer capacity 2 -> 3 (wall-emblem-test/set_cap3.py)",
+ "title": "7 Airstrip emblem paks: cbuffer capacity 2 -> 3 (u3fix.exe emblem-cap3, wall-emblem-test/emblem_cap3.cpp)",
  "kind": "script",
  "job": "wall-emblem-test",
+ "with_jobs": [
+  "dctools"
+ ],
  "family": "overlay-r3/actor33",
  "needs": [],
- "cwd": "{{OUT}}",
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/set_cap3.py"
+   "u3fix.exe",
+   "emblem-cap3",
+   "--apply",
+   "--project",
+   "{{PROJECT}}"
   ]
  ],
  "writes": [
@@ -17,7 +22,7 @@
  ],
  "status": "needs-converted-base",
  "applied": "2026-11-02 02:01",
- "notes": "idempotent: a value of 3 counts as already applied; the emblem-test value 2 and a fresh mkemblem_v2 build value 8 are both raised to 3; missing paks are reported and skipped. With wall-emblem-actors: 8/8 reference hashes (2026-11-05).",
+ "notes": "idempotent: a value of 3 counts as already applied; the emblem-test value 2 and a fresh mkemblem_v2 build value 8 are both raised to 3; missing paks are reported and skipped. With wall-emblem-actors: 8/8 reference hashes (2026-11-05). C++ since 2026-11-13 (was set_cap3.py): same files and printed lines; any other value stops the step with nothing written.",
  "recipe_version_added": "1.0.0",
  "must_write": false
 }

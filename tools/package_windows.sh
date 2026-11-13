@@ -111,12 +111,17 @@ u3_import() {   # Uncharted 3's importer, its recipe and tools, and the newest m
         rm -f "$enc/vagenc.dll"
         echo "Note: no compiled sound-bank encoder; the import uses vagenc.py" >&2
     fi
-    # u3fix.exe: the recipe steps written in C++ (remove-lab, remove-rpcn-page, netgame-order); the steps run it from
+    # u3fix.exe: the recipe steps written in C++ (the list is in tools/fixes/dctools/u3fix.cpp); the steps run it from
     # u3mp/bin, which the importer puts on PATH. Static, no DLL of ours. Without it those steps fail: stop here.
     local fx=u3mp/patcher/tools/fixes
-    clang++ -std=c++20 -O2 -municode -static -s -Wl,--gc-sections -Wl,--no-insert-timestamp -I"$fx/dctools" \
-        "$fx/dctools/u3fix.cpp" "$fx/dctools/dc.cpp" "$fx/no-lab/remove_lab.cpp" "$fx/no-rpcn-menu/remove_rpcn_page.cpp" \
-        "$fx/netgame-order/netgame_order.cpp" -o "$out/u3mp/bin/u3fix.exe"
+    clang++ -std=c++20 -O2 -municode -static -s -Wl,--gc-sections -Wl,--no-insert-timestamp -I"$fx/dctools" -Ilauncher/native \
+        "$fx/dctools/u3fix.cpp" "$fx/dctools/dc.cpp" "$fx/dctools/eula_box.cpp" "$fx/no-lab/remove_lab.cpp" \
+        "$fx/no-rpcn-menu/remove_rpcn_page.cpp" "$fx/netgame-order/netgame_order.cpp" "$fx/wall-emblem-test/emblem_cap3.cpp" \
+        "$fx/orange-wall/apply_orange.cpp" "$fx/excess-wall/apply_excess.cpp" "$fx/enemy-stall/apply_ss_option_defaults.cpp" \
+        "$fx/coop-chars/apply_coop_desc_fix.cpp" "$fx/coop-tab/fix_vram_gap.cpp" "$fx/airport-igc3/airport_igc3.cpp" \
+        "$fx/dctools/psarc.cpp" "$fx/text1-merge/merge_text1.cpp" "$fx/coop-audit/apply_option_defaults_2.cpp" \
+        "$fx/registry/run_mkregistry.cpp" "$fx/pak23-registry/apply_registry.cpp" "$fx/hat-chloe/apply_hair_key.cpp" \
+        -o "$out/u3mp/bin/u3fix.exe"
     # ffmpeg (the EULA pages, sound banks with MP3 samples) and, when installed, GNU objdump (the characters' Havok
     # tables; mingw-w64-ucrt-x86_64-binutils: without it the import skips that step)
     local dll

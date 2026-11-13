@@ -1,18 +1,23 @@
 {
  "id": "excess-wall",
- "title": "Airstrip duplicate tower / excess wall collapse in air-multi-strip.pak (excess-wall/apply_excess.py --only-wall)",
+ "title": "Airstrip duplicate tower / excess wall collapse in air-multi-strip.pak (u3fix.exe excess-wall --only-wall, excess-wall/apply_excess.cpp)",
  "kind": "script",
  "job": "excess-wall",
- "family": "overlay-r3/pak23",
- "needs": [
-  "python:numpy"
+ "with_jobs": [
+  "dctools"
  ],
+ "family": "overlay-r3/pak23",
+ "needs": [],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_excess.py",
+   "u3fix.exe",
+   "excess-wall",
    "--only-wall",
-   "--apply"
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}"
   ]
  ],
  "writes": [
@@ -20,6 +25,6 @@
  ],
  "status": "needs-converted-base",
  "applied": "2026-11-02 00:11",
- "notes": "needs numpy.",
+ "notes": "C++ since 2026-11-13 (was apply_excess.py, which needed numpy); a rerun on a finished import counts the step as done when its backup is the plan input.",
  "recipe_version_added": "1.0.0"
 }

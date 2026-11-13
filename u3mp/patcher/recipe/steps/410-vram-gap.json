@@ -1,15 +1,20 @@
 {
  "id": "vram-gap",
- "title": "Remove the 8 pad bytes before VRAM in 17 rebuilt paks (coop-tab/fix_vram_gap.py)",
+ "title": "Remove the 8 pad bytes before VRAM in 17 rebuilt paks (u3fix.exe vram-gap, coop-tab/fix_vram_gap.cpp)",
  "kind": "script",
  "job": "coop-tab",
+ "with_jobs": [
+  "dctools"
+ ],
  "family": "overlay-r3/pak23",
  "needs": [],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/fix_vram_gap.py",
-   "--apply"
+   "u3fix.exe",
+   "vram-gap",
+   "--apply",
+   "--project",
+   "{{PROJECT}}"
   ]
  ],
  "writes": [

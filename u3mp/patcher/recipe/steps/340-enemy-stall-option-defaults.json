@@ -1,15 +1,20 @@
 {
  "id": "enemy-stall-option-defaults",
- "title": "Lost option-default slots in 9 ss-multiplayer scripts (enemy-stall/apply_ss_option_defaults.py)",
+ "title": "Lost option-default slots in 9 ss-multiplayer scripts (u3fix.exe enemy-stall, enemy-stall/apply_ss_option_defaults.cpp)",
  "kind": "script",
  "job": "enemy-stall",
+ "with_jobs": [
+  "dctools"
+ ],
  "family": "overlay-r3/dc1/ss-multiplayer",
  "needs": [],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_ss_option_defaults.py",
-   "--apply"
+   "u3fix.exe",
+   "enemy-stall",
+   "--apply",
+   "--project",
+   "{{PROJECT}}"
   ]
  ],
  "writes": [

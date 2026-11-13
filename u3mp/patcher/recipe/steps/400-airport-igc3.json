@@ -1,21 +1,32 @@
 {
  "id": "airport-igc3",
- "title": "skel-retargets.bin: npc-normal-base proto retarget enabled (airport-igc3/make_retargets.py + apply_igc3.py)",
+ "title": "skel-retargets.bin: npc-normal-base proto retarget enabled (u3fix.exe igc3-retargets + igc3-install, airport-igc3/airport_igc3.cpp)",
  "kind": "script",
  "job": "airport-igc3",
+ "with_jobs": [
+  "dctools"
+ ],
  "family": "overlay-r3/dc1",
  "needs": [
   "ps4"
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/make_retargets.py"
+   "u3fix.exe",
+   "igc3-retargets",
+   "--ps4",
+   "{{PS4}}",
+   "--job",
+   "{{JOB}}"
   ],
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_igc3.py",
-   "--apply"
+   "u3fix.exe",
+   "igc3-install",
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}"
   ]
  ],
  "writes": [
