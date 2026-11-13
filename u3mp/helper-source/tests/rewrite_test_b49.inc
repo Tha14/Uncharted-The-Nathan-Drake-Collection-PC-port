@@ -12,17 +12,20 @@ static int t49_show(void *m, uint32_t page, int, int) {
     t49_show_arg = reinterpret_cast<uintptr_t>(m);
     return page == 0x453470ddu ? 1 : 0;
 }
-extern "C" uint32_t *u3h_pt_state(void) { return t49_pt; }
-extern "C" uint32_t *u3h_cg_t0_ptr(void) { return &t49_cg_t0; }
-extern "C" void u3h_start_calls_inc(void *) { ++t49_start_calls; }
-extern "C" void u3h_probe_pad2_inc(void *) { ++t49_pad2; }
+extern "C" uint32_t *u3h_pt_state(void) { rd_log("pt_state"); return t49_pt; }
+extern "C" uint32_t *u3h_cg_t0_ptr(void) { rd_log("cg_t0"); return &t49_cg_t0; }
+extern "C" void u3h_start_calls_inc(void *) { rd_log("start_calls"); ++t49_start_calls; }
+extern "C" void u3h_probe_pad2_inc(void *) { rd_log("pad2"); ++t49_pad2; }
+static int32_t rd_limit_most = 10, rd_limit_fewest = 1;
+static int rd_onb_start = 0, rd_m03_start = 0;
 extern "C" void u3h_ng_limits(int32_t type, int32_t *mx, int32_t *mn) {
+    if (rd_on) { rd_log("ng_limits", static_cast<uint32_t>(type)); *mx = rd_limit_most; *mn = rd_limit_fewest; return; }
     *mx = type == 16 ? 1 : 10;
     *mn = 1;
 }
-extern "C" int u3h_onb_startmatch(uintptr_t, void *) { return 0; }
-extern "C" int u3h_m03_startmatch(uintptr_t, void *) { return 0; }
-extern "C" void u3h_cg_commit_selection(uintptr_t, void *) {}
+extern "C" int u3h_onb_startmatch(uintptr_t, void *) { rd_log("onb_start"); return rd_on ? rd_onb_start : 0; }
+extern "C" int u3h_m03_startmatch(uintptr_t, void *) { rd_log("m03_start"); return rd_on ? rd_m03_start : 0; }
+extern "C" void u3h_cg_commit_selection(uintptr_t, void *) { rd_log("commit"); }
 
 static uint8_t *t49_ev(uintptr_t base) { return reinterpret_cast<uint8_t *>(base + 0x17bd080u); }
 

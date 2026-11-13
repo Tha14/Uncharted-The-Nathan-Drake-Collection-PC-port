@@ -4,10 +4,16 @@ static uint8_t *t42_by_id_value;
 
 extern "C" {
 uint8_t *u3h_np_by_id(uintptr_t, uint32_t id) { return id == 0x1234u ? t42_by_id_value : nullptr; }
-uint32_t u3h_np_code(uint8_t *np) { return np ? 0xabcdu : 0; }
-void u3h_weapons_fill(uintptr_t, uint8_t *, uint8_t *) {}
-uint32_t u3h_anim_pack_full(uintptr_t, uint8_t *, uint8_t *, uint8_t *, uint8_t **, int32_t, int32_t) { return 0; }
-int32_t u3h_net_now(uintptr_t) { return 0; }
+static bool rd_np_code_memory = false;   // differential tests: the code is the word at np+4
+uint32_t u3h_np_code(uint8_t *np) { if (rd_np_code_memory) { rd_log("np_code"); return np ? *reinterpret_cast<uint32_t *>(np + 4) : 0; } return np ? 0xabcdu : 0; }
+void u3h_weapons_fill(uintptr_t, uint8_t *msg, uint8_t *) { rd_log("weapons_fill", msg ? msg[0x1dc] : 0); }
+uint32_t u3h_anim_pack_full(uintptr_t, uint8_t *, uint8_t *bs, uint8_t *, uint8_t **, int32_t a, int32_t b) {
+    rd_log("pack", *(uint32_t *)(bs + 0xc), (uint64_t)a << 8 | (uint64_t)b);
+    if (rd_pack_err) *u3h_repl_error() = 1;
+    return rd_pack_bits;
+}
+static int32_t rd_net_now = 0;
+int32_t u3h_net_now(uintptr_t) { return rd_net_now; }
 }
 
 static int old_has_eff(uint8_t *c, uint32_t sid) {
@@ -34,10 +40,24 @@ static uint8_t *t42_ret_1234(uint8_t *) { return (uint8_t *)(uintptr_t)0x1234; }
 static uint8_t t42_t[0xa00];
 static uint8_t *t42_ret_t(uint8_t *) { return t42_t; }
 
+// the game's on-screen value (0x689d20, SysV, a float in xmm0): 0.0, so the player is not "on"
+__attribute__((sysv_abi)) static float t42_booster(uint64_t, uint64_t, uint64_t, uint64_t) { return 0.0f; }
+
 static void batch42() {
-    alignas(16) static uint8_t mem[0x400000];
-    const uintptr_t base = (uintptr_t)mem - 0x17c0000u;
-    std::memset(mem, 0, sizeof mem);
+    // an executable image from the game function at 0x689d20 to the data at 0x17c0000..0x1bc0000
+    static uint8_t *image = static_cast<uint8_t *>(test_exec_alloc(0x1bc0000));
+    uint8_t *const mem = image + 0x17c0000;
+    const uintptr_t base = reinterpret_cast<uintptr_t>(image);
+    std::memset(mem, 0, 0x400000);
+    {
+        uint8_t *p = image + 0x689d20;
+        const uint64_t a = reinterpret_cast<uint64_t>(&t42_booster);
+        p[0] = 0x48;
+        p[1] = 0xb8;
+        std::memcpy(p + 2, &a, 8);
+        p[10] = 0xff;
+        p[11] = 0xe0;
+    }
 
     alignas(8) uint8_t hc[0x100] = {}, hr[0x20] = {};
     uint8_t *q = hr;

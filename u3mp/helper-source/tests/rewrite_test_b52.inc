@@ -27,10 +27,10 @@ static void batch52() {
     u3x_onb_member_link(reinterpret_cast<uintptr_t>(t52_base), ss, "nobody");
     u3x_onb_peer_begin(reinterpret_cast<uintptr_t>(t52_base), ss);
 
-    O19Be be = {};
+    rw::OnlineBackend be = {};
     be.base = reinterpret_cast<uintptr_t>(t52_base);
-    be.bind[0] = ss;
-    be.rxlen = 160;
+    be.bound[0] = ss;
+    be.received = 160;
     *reinterpret_cast<uint32_t *>(be.rx) = 305;
     *reinterpret_cast<uint32_t *>(be.rx + 8) = 1;
     *reinterpret_cast<uint16_t *>(be.rx + 26) = 0;
@@ -41,7 +41,7 @@ static void batch52() {
     CHECK(*reinterpret_cast<uint64_t *>(ss + 0x18) == 0);
     CHECK(ss[0xb8] == 1 && ss[0xa1] == 1 && *reinterpret_cast<uint32_t *>(ss + 0x20c) == 3);
 
-    be.rxlen = 16;
+    be.received = 16;
     *reinterpret_cast<uint32_t *>(be.rx) = 310;
     *reinterpret_cast<uint32_t *>(be.rx + 8) = 1;
     *reinterpret_cast<uint32_t *>(be.rx + 12) = 0;
@@ -53,6 +53,6 @@ static void batch52() {
     void **vt = u3h_onb_vt();
     CHECK(vt[0] != nullptr && vt[17] != nullptr && vt[1] != nullptr);
 
-    be.rxlen = 0;
+    be.received = 0;
     CHECK(u3x_onb_s1(&be) == 0);
 }

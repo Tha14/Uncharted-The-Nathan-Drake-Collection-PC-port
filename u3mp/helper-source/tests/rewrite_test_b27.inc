@@ -2,13 +2,13 @@
 // let the test link; the other checks keep running unchanged.
 static uint8_t t27_ext[0x6000];
 extern "C" {
-int u3h_show(uintptr_t, void *, uint32_t, int) { return 1; }
+int u3h_show(uintptr_t, void *, uint32_t page, int silent) { rd_log("show", page, static_cast<uint32_t>(silent)); return 1; }
 static uint32_t t27_show_dialog_calls;
-void u3h_show_dialog(uintptr_t, void *, uint32_t, uint32_t, uint32_t, int32_t, uint32_t, uint32_t) { ++t27_show_dialog_calls; }
+void u3h_show_dialog(uintptr_t, void *, uint32_t body, uint32_t title, uint32_t action, int32_t buttons, uint32_t a, uint32_t b) { rd_log("dialog", static_cast<uint64_t>(body) << 32 | title, static_cast<uint64_t>(action) << 32 | static_cast<uint32_t>(buttons) ^ a ^ b); ++t27_show_dialog_calls; }
 void u3h_lan_chosen(void) {}
 int u3h_offline_find(uintptr_t, void *) { return 0; }
 void u3h_onm_state(uintptr_t, uint32_t) {}
-void u3h_fj_note(const char *, const uint8_t *, const char *, int32_t) {}
+void u3h_fj_note(const char *a, const uint8_t *id, const char *b, int32_t v) { rd_log("fj_note", rd_text(a) ^ rd_text(b) * 3, rd_bytes(id, 0x14) ^ static_cast<uint32_t>(v)); }
 uint8_t *u3h_ext(void) { return t27_ext; }
 int u3h_party_send(uintptr_t, uint32_t, const void *, uint32_t) { return 0; }
 uint8_t *u3h_nmh(uintptr_t) { return t27_ext; }
@@ -22,7 +22,7 @@ void u3h_fi_send(uintptr_t) {}
 int32_t u3h_fi_selected(void) { return -1; }
 void u3h_fi_select(int32_t) {}
 void u3h_fi_delete(uintptr_t, int32_t) {}
-int32_t u3h_mq_send(uintptr_t, const uint8_t *, uint32_t, const void *, uint32_t) { return 0; }
+int32_t u3h_mq_send(uintptr_t, const uint8_t *to, uint32_t type, const void *data, uint32_t length) { rd_log("mq_send", static_cast<uint64_t>(type) << 32 | length, rd_bytes(to, 0x14) ^ rd_bytes(data, length) * 3); return 0; }
 void u3h_join_reset(void) {}
 void u3h_join_waiting(uintptr_t) {}
 void u3h_wait_popup(uintptr_t, uint32_t, uintptr_t) {}
@@ -43,8 +43,17 @@ void u3h_report_popup(uintptr_t, void *) {}
 void u3h_report_pick(uintptr_t, void *, uint32_t) {}
 void u3h_view_stats(uintptr_t, void *) {}
 void u3h_lan_delete_profile(uintptr_t, void *, uint32_t) {}
-const char *u3h_text(uintptr_t, void *, uint32_t) { return ""; }
-int u3h_publish(uintptr_t, void *, uint8_t *) { return 0; }
+const char *u3h_text(uintptr_t, void *, uint32_t id) {
+    if (!rd_on) return "";
+    rd_log("text", id);
+    static char pool[64][96];
+    char *t = pool[id % 64];   // the same text id gives the same pointer
+    std::snprintf(t, sizeof pool[0], "t%08x", id);
+    for (int k = 9; k < rd_text_len && k < 95; ++k) t[k] = static_cast<char>('a' + k % 26);
+    t[rd_text_len > 9 && rd_text_len < 95 ? rd_text_len : 9] = 0;
+    return t;
+}
+int u3h_publish(uintptr_t, void *, uint8_t *p) { rd_log("publish", p ? 1 : 0); return 0; }
 }
 extern "C" {
 int u3h_mp_write(uintptr_t, void *, uint32_t, const uint8_t *) { return 0; }
@@ -54,16 +63,16 @@ int u3h_online_profile(void) { return 0; }
 static uint32_t t27_m03[10];
 uint32_t *u3h_m03(void) { return t27_m03; }
 volatile uint32_t *u3h_m03_diag(void) { return t27_m03; }
-void u3h_hud_alias_names(uintptr_t, void *) {}
-void u3h_stage_tick(uintptr_t, void *) {}
-void u3h_loadout_tick(uintptr_t, void *) {}
-void u3h_rank_icon(uintptr_t, void *, int32_t *) {}
+void u3h_hud_alias_names(uintptr_t, void *) { rd_log("alias_names"); }
+void u3h_stage_tick(uintptr_t, void *) { rd_log("stage_tick"); }
+void u3h_loadout_tick(uintptr_t, void *) { rd_log("loadout_tick"); }
+void u3h_rank_icon(uintptr_t, void *, int32_t *ev) { rd_log("rank_icon", static_cast<uint32_t>(ev[6])); }
 uint32_t u3h_team_colour(uintptr_t, int32_t) { return 0; }
 }
 extern "C" {
 int32_t u3h_cm_get(uintptr_t, const char *) { return -1; }
 int32_t u3h_cm_release(uintptr_t, int32_t) { return 0; }
-int32_t u3h_msg_send(uintptr_t, const uint8_t *, uint32_t, const void *, uint32_t) { return -1; }
+int32_t u3h_msg_send(uintptr_t, const uint8_t *id, uint32_t type, const void *, uint32_t n) { rd_log("msg_send", id ? id[0] : 0, (uint64_t)type << 16 | n); return -1; }
 int u3h_gate_closed(uintptr_t, int32_t *) { return 1; }
 uint8_t *u3h_cin_state(uintptr_t) { return t27_ext; }
 char *u3h_cin_path(char *o, int, const char *, const char *) { o[0] = 0; return o; }
@@ -74,7 +83,7 @@ int u3h_cin_game(uintptr_t, void *, int16_t *, uint8_t *) { return 0; }
 extern "C" {
 uint8_t u3h_spot_flag(uintptr_t, uint8_t *) { return 0; }
 int u3h_onb_mode(void) { return 0; }
-uint32_t u3h_active_page(uintptr_t) { return 0; }
+uint32_t u3h_active_page(uintptr_t) { return rd_active_page; }
 static volatile uint32_t t27_w10[4];
 volatile uint32_t *u3h_w10_diag(void) { return t27_w10; }
 uint64_t u3h_game_call(void *) { return 0; }
@@ -82,11 +91,11 @@ uint64_t u3h_game_call(void *) { return 0; }
 extern "C" {
 void u3h_decode(void *, uint8_t *, uint8_t *, int32_t, int32_t) {}
 int32_t u3h_pick_snapshot(uintptr_t, uint8_t *, uint32_t *) { return -1; }
-uint64_t u3h_call_f32(uintptr_t, uint32_t, uint64_t, uint64_t, uint64_t, uint64_t) { return 0; }
+uint64_t u3h_call_f32(uintptr_t f, uint32_t, uint64_t, uint64_t, uint64_t a, uint64_t) { rd_log("call_f32", f, a); return rd_call_f32_ret; }
 uint32_t u3h_anim_pack(uintptr_t, uint8_t *, uint8_t *, uint8_t *, uint8_t **) { return 0; }
 static uint32_t t27_err, t27_ew[4];
 uint32_t *u3h_repl_error(void) { return &t27_err; }
-void u3h_repl_loop(uintptr_t, uint8_t *, uint8_t **, uint8_t *, uint32_t) {}
+void u3h_repl_loop(uintptr_t, uint8_t *pl, uint8_t **, uint8_t *, uint32_t bits) { rd_log("repl_loop", (uintptr_t)pl, bits); }
 uint8_t *u3h_emb_team_player(uintptr_t, int32_t) { return nullptr; }
 int u3h_emb_is_record(uint64_t) { return 0; }
 uint32_t *u3h_emb_wall_diag(void) { return t27_ew; }
@@ -133,7 +142,7 @@ int u3h_resolve(const char *, uint32_t *) { return -1; }
 uint32_t u3h_parse_ipv4(const char *) { return 0; }
 int u3h_hello(void *, uint64_t, const char *) { return -1; }
 int u3h_xchg(void *, uint64_t, const uint8_t *, uint32_t, uint8_t *, uint32_t) { return -1; }
-void u3h_so_note(const char *, const char *, int32_t, const char *) {}
+void u3h_so_note(const char *a, const char *b, int32_t v, const char *c) { rd_log("note", rd_text(a) ^ static_cast<uint32_t>(v), rd_text(b) ^ rd_text(c) * 3); }
 void u3h_pf_fetch(void *, uint32_t) {}
 void u3h_pf_note(void *, const char *) {}
 }
@@ -152,12 +161,16 @@ void u3h_net_pick(void) {}
 }
 extern "C" {
 static uint32_t t27_fr_tab_value;
-uint32_t u3h_fr_tab(uintptr_t, void *) { return t27_fr_tab_value; }
+uint32_t u3h_fr_tab(uintptr_t, void *) { rd_log("fr_tab"); return t27_fr_tab_value; }
 void u3h_fi_mark_seen(uintptr_t, void *) {}
 void u3h_fi_refresh(uintptr_t, void *, int) {}
 static int (*t27_strcmp_fn)(const void *, const void *);
-uint8_t *u3h_fr_ent(uintptr_t, uint32_t) { return t27_ext; }
-int u3h_fr_strcmp(uintptr_t, const void *a, const void *b) { return t27_strcmp_fn ? t27_strcmp_fn(a, b) : 1; }
+static uint8_t *rd_friends = nullptr;
+uint8_t *u3h_fr_ent(uintptr_t, uint32_t k) { if (rd_on && rd_friends) { rd_log("fr_ent", k); return rd_friends + k * 0x20; } return t27_ext; }
+int u3h_fr_strcmp(uintptr_t, const void *a, const void *b) {
+    if (rd_on) return std::strcmp(static_cast<const char *>(a), static_cast<const char *>(b));
+    return t27_strcmp_fn ? t27_strcmp_fn(a, b) : 1;
+}
 void u3h_fr_icon22(int32_t *, int32_t) {}
 int32_t u3h_fr_state_icon(uintptr_t, uint8_t *) { return 0; }
 static char t27_buf[0x100];
@@ -200,7 +213,7 @@ void u3h_preview_mods(uintptr_t, uint32_t) {}
 }
 extern "C" {
 static uint32_t t27_t009[16];
-uint32_t u3h_sincos(uint32_t, uint32_t) { return 0; }
+uint32_t u3h_sincos(uint32_t x, uint32_t cosine) { if (!rd_on) return 0; rd_log("sincos", x, cosine); return (x * 2654435761u) & 0x3f7fffffu; }   // a float in [0, 1) for the differential tests
 void u3h_ring_colour(uint32_t *) {}
 uint32_t *u3h_t009_diag(void) { return t27_t009; }
 }
@@ -210,7 +223,14 @@ uint8_t *u3h_netgame_entry(uintptr_t, void *) { return nullptr; }
 int u3h_coop(uintptr_t, void *) { return 0; }
 uint32_t *u3h_scene_was(void) { return &t27_was; }
 uint8_t *u3h_cm_entry(uintptr_t, int i) { return t27_ext + i * 0x220; }
-uint32_t u3h_members(uint8_t *, uint8_t **) { return 0; }
+static uint8_t *rd_members[10];
+static uint32_t rd_members_n = 0;
+uint32_t u3h_members(uint8_t *, uint8_t **out) {
+    rd_log("members");
+    if (!rd_on) return 0;
+    for (uint32_t i = 0; i < rd_members_n; ++i) out[i] = rd_members[i];
+    return rd_members_n;
+}
 int u3h_link_timeout(uintptr_t, uint8_t *) { return 0; }
 void u3h_sync_request(uintptr_t) {}
 }
@@ -228,16 +248,29 @@ void u3h_fr_sort(uint8_t *, int64_t) {}
 void u3h_fr_strncpy(char *, const char *, uint32_t) {}
 static uint32_t t27_fr_key_value;
 static uint8_t *t27_lg_profile_ptr, *t27_lg_rec_ptr;
-uint32_t u3h_fr_key(uintptr_t) { return t27_fr_key_value; }
+uint32_t u3h_fr_key(uintptr_t) { rd_log("fr_key"); return t27_fr_key_value; }
 uint8_t *u3h_lg_profile(uintptr_t, uint32_t) { return t27_lg_profile_ptr; }
-uint8_t *u3h_lg_rec(uintptr_t, void *, uint8_t *) { return t27_lg_rec_ptr; }
+uint8_t *u3h_lg_rec(uintptr_t, void *, uint8_t *) { rd_log("lg_rec"); return t27_lg_rec_ptr; }
 int u3h_match_end_time(uintptr_t, void *, int64_t *) { return 0; }
 }
 extern "C" {
-uint32_t u3h_kr_statw(uintptr_t, uint32_t) { return 0; }
-void u3h_kr_stat(uintptr_t, void *, uint32_t, uint32_t, uint8_t *) {}
-uint8_t *u3h_kr_prec(uint8_t *, uint8_t *) { return t27_ext; }
-uint8_t *u3h_kr_np_by_id(uintptr_t, uint32_t) { return nullptr; }
+uint32_t u3h_kr_statw(uintptr_t, uint32_t w) { rd_log("kr_statw", w); return 0; }
+static uint8_t *rd_kr_nps = nullptr;   // rd29: the net players (0x9c0 each) and their score records (0x80 each)
+static uint8_t *rd_kr_recs = nullptr;
+static int rd_kr_30feec = 0;
+static int32_t rd_kr_mode_type = -1;
+static uint64_t rd_np_index(const uint8_t *np) { return np && rd_kr_nps ? static_cast<uint64_t>((np - rd_kr_nps) / 0x9c0) : 0xff; }
+void u3h_kr_stat(uintptr_t, void *, uint32_t id, uint32_t amount, uint8_t *np) { rd_log("kr_stat", id, static_cast<uint64_t>(amount) << 8 | rd_np_index(np)); }
+uint8_t *u3h_kr_prec(uint8_t *, uint8_t *np) {
+    if (!rd_on || !rd_kr_recs) return t27_ext;
+    rd_log("kr_prec", rd_np_index(np));
+    return np ? rd_kr_recs + rd_np_index(np) * 0x80 : rd_kr_recs + 10 * 0x80;
+}
+uint8_t *u3h_kr_np_by_id(uintptr_t, uint32_t id) {
+    if (!rd_on || !rd_kr_nps) return nullptr;
+    rd_log("kr_np", id);
+    return id >= 0x40 && id < 0x4a ? rd_kr_nps + (id - 0x40) * 0x9c0 : nullptr;
+}
 }
 extern "C" {
 uint8_t *u3h_np119(void) { return t27_ext; }
@@ -269,7 +302,8 @@ static volatile uint32_t t27_s16[16];
 static uint32_t t27_h08[5][16];
 uint8_t *u3h_s16_char(uintptr_t, uint8_t *) { return nullptr; }
 volatile uint32_t *u3h_s16_diag(void) { return t27_s16; }
-int u3h_mp_code_is(uintptr_t, uint32_t, const char *) { return 0; }
+static int rd_code_is = 0;   // differential tests: the answer while rd_on
+int u3h_mp_code_is(uintptr_t, uint32_t off, const char *hex) { rd_log("code_is", off, rd_text(hex)); return rd_on ? rd_code_is : 0; }
 static volatile uint32_t t27_i03_d[8];
 volatile uint32_t *u3h_i03_d(void) { return t27_i03_d; }
 uint32_t u3h_crc_sid(const char *p) { uint32_t c = 0; for (; *p; p++) { c ^= (uint32_t)(uint8_t)*p << 24; for (int b = 0; b < 8; b++) c = (c & 0x80000000u) ? (c << 1) ^ 0x04C11DB7u : (c << 1); } return c; }
@@ -295,15 +329,16 @@ uint32_t u3h_h13_mode(void) { return 0; }
 uint32_t *u3h_w03_diag(void) { return t27_w03; }
 }
 extern "C" {
-int32_t u3h_kr_mode_type(uintptr_t) { return -1; }
-int u3h_kr_30feec(uintptr_t) { return 0; }
+int32_t u3h_kr_mode_type(uintptr_t) { rd_log("kr_mode_type"); return rd_on ? rd_kr_mode_type : -1; }
+int u3h_kr_30feec(uintptr_t) { rd_log("kr_30feec"); return rd_on ? rd_kr_30feec : 0; }
 }
 extern "C" {
 int u3h_cam_fixed(uintptr_t, void *, uint8_t *, int32_t) { return 0; }
 }
 extern "C" {
 void *u3h_lnb_setup(uintptr_t, void *) { return nullptr; }
-void *u3h_lnb_object(uintptr_t) { return nullptr; }
+static void *rd_lnb_object = nullptr;
+void *u3h_lnb_object(uintptr_t) { rd_log("lnb_object"); return rd_on ? rd_lnb_object : nullptr; }
 int32_t u3h_gt_open(uintptr_t) { return 0; }
 void u3h_gt_close(uintptr_t) {}
 void u3h_cm_init_lan(uintptr_t) {}
@@ -317,7 +352,8 @@ int u3h_stage_unwant(uintptr_t, uint32_t) { return 0; }
 }
 extern "C" {
 int32_t u3h_tab_find(uint8_t *, uint32_t) { return -1; }
-uint8_t *u3h_find_art_group_name(uintptr_t, const char *) { return nullptr; }
+static uint8_t *rd_art_group = nullptr;
+uint8_t *u3h_find_art_group_name(uintptr_t, const char *name) { rd_log("art_group", name ? static_cast<uint8_t>(name[0]) : 0); return rd_on ? rd_art_group : nullptr; }
 }
 extern "C" {
 void u3h_mp_quit(uintptr_t, void *) {}
@@ -337,7 +373,10 @@ int u3h_onb_shell_route(uintptr_t) { return 0; }
 int u3h_online_config(void *) { return 0; }
 int u3h_online_cfg_ok(void) { return 0; }
 int32_t u3h_online_status(void) { return 0; }
-int u3h_smn_up(void) { return 0; }
+static int rd_smn_up = 0, rd_ol_up_value = 1;
+static const uint8_t *rd_smn_feed = nullptr;   // bytes the session socket delivers (rd_smn_feed_n)
+static uint32_t rd_smn_feed_n = 0;
+int u3h_smn_up(void) { rd_log("smn_up"); return rd_on ? rd_smn_up : 0; }
 int u3h_rc_signing_in(void) { return 0; }
 int u3h_offline_ok(void) { return 0; }
 void u3h_go_offline(void) {}
@@ -372,7 +411,7 @@ uint8_t *u3h_emb_records(uint8_t **flag) { *flag = &t27_flag; return t27_er; }
 }
 extern "C" {
 static volatile uint32_t t27_bc[2];
-void u3h_gt_stamp(uintptr_t, uint8_t *, int) {}
+void u3h_gt_stamp(uintptr_t base, uint8_t *sub, int off) { rd_log("gt_stamp", reinterpret_cast<uintptr_t>(sub) - base, static_cast<uint32_t>(off)); }
 void u3h_gt_free(uintptr_t, void *) {}
 volatile uint32_t *u3h_bc_state(int which) { return &t27_bc[which]; }
 }
@@ -385,7 +424,7 @@ int u3h_spawn_locator(uintptr_t, void *, uint8_t *, void *, uint32_t, uint32_t) 
 void u3h_spawn_region_request(uintptr_t, void *, uint8_t *, uint32_t) {}
 int u3h_spawn_levels_ready(uintptr_t, void *, uint32_t) { return 0; }
 static int32_t t27_netgame_type_value;
-int32_t u3h_netgame_type(uintptr_t, void *) { return t27_netgame_type_value; }
+int32_t u3h_netgame_type(uintptr_t, void *) { rd_log("ng_type"); return t27_netgame_type_value; }
 int u3h_vis_oob_tick(uintptr_t, void *, uint8_t *, uint8_t *, int32_t, int) { return 0; }
 void u3h_camera_tick(uintptr_t, void *, uint8_t *, int) {}
 }
@@ -401,7 +440,8 @@ int u3h_onm_players(uintptr_t, int32_t *, void *, const char *) { return 0; }
 int u3h_i01_party(uintptr_t, int32_t *, void *, const char *) { return 0; }
 }
 extern "C" {
-void *u3h_onb_mgr(uintptr_t) { return nullptr; }
+static void *rd_onb_mgr = nullptr;
+void *u3h_onb_mgr(uintptr_t) { rd_log("onb_mgr"); return rd_on ? rd_onb_mgr : nullptr; }
 void u3h_net_shutdown_parts(uintptr_t, void *) {}
 void u3h_multi_all(uintptr_t, void *, int) {}
 int u3h_stage_logout_hold(uintptr_t, void *, const char *) { return 0; }
@@ -435,7 +475,7 @@ void *u3h_emb_ralloc(uint32_t) { return nullptr; }
 uint32_t u3h_h16q16(uint32_t) { return 0; }
 }
 extern "C" {
-uint32_t u3h_current_tab(uintptr_t, void *) { return 0; }
+uint32_t u3h_current_tab(uintptr_t, void *) { rd_log("current_tab"); return rd_current_tab; }
 }
 extern "C" {
 uint8_t *u3h_stream_root(uintptr_t, uint8_t *, uint32_t *) { return nullptr; }
@@ -469,7 +509,11 @@ void u3h_rp_render_vars(uintptr_t, uint8_t *) {}
 void u3h_rp_cam_target(uintptr_t, uint8_t *) {}
 }
 extern "C" {
-const char *u3h_fmt(void *, const char *, int64_t, const char *, const char *, const char *) { return ""; }
+const char *u3h_fmt(void *, const char *f, int64_t a0, const char *, const char *, const char *) {
+    if (!rd_on) return "";
+    rd_log("fmt", f ? static_cast<uint64_t>(f[1]) << 32 | static_cast<uint8_t>(f[2]) : 0, static_cast<uint64_t>(a0));
+    return "formatted";
+}
 void u3h_k49_kickback(uintptr_t, void *, uint32_t, int, int32_t) {}
 }
 extern "C" {
@@ -513,19 +557,40 @@ uint64_t *u3h_onb_pj(void) { return t41_pj; }
 void **u3h_onb_vt(void) { return t41_vt; }
 int u3h_smn_send(const void *, uint32_t) { return -1; }
 void u3h_smn_attach(int) {}
-int32_t u3h_smn_pull(uint8_t *, uint32_t *, uint32_t) { return -1; }
-uint32_t u3h_smn_len(const uint8_t *, uint32_t) { return 0; }
-uint32_t u3h_smn_swap(uint8_t *, uint32_t) { return 0; }
-void u3h_smn_got(const uint8_t *, uint32_t) {}
-void u3h_smn_unknown(const uint8_t *, uint32_t) {}
-int u3h_onb_pl_np(uintptr_t, uint8_t *, const char *) { return 0; }
-int u3h_ol_up(void) { return 1; }
+int32_t u3h_smn_pull(uint8_t *rx, uint32_t *len, uint32_t cap) {
+    rd_log("smn_pull", *len, cap);
+    if (!rd_on) return -1;
+    for (uint32_t i = 0; i < rd_smn_feed_n && *len < cap; ++i) rx[(*len)++] = rd_smn_feed[i];
+    return 0;
+}
+// the framed size of a message (as the session wire would say): its room-message size; 999 unknown, 998 too big
+static uint32_t rd_message_size(const uint8_t *m) {
+    const uint32_t t = *reinterpret_cast<const uint32_t *>(m);
+    switch (t) {
+    case 305: return 160 + *reinterpret_cast<const uint16_t *>(m + 26) * 104u;
+    case 306: return 120 + (m[7] & 8);   // sometimes framed larger than the message
+    case 308: return 24;
+    case 310: return 16 + *reinterpret_cast<const uint32_t *>(m + 12) * 56u;
+    case 315: return 80;
+    case 324: return 144;
+    case 999: return 0;
+    case 998: return 0x2000;
+    case 997: return 0x1000;   // exactly the receive buffer
+    default: return 16;
+    }
+}
+uint32_t u3h_smn_len(const uint8_t *m, uint32_t n) { rd_log("smn_len", n); return rd_on ? rd_message_size(m) : 0; }
+uint32_t u3h_smn_swap(uint8_t *m, uint32_t len) { rd_log("smn_swap", len); return rd_on ? *reinterpret_cast<uint32_t *>(m) ^ 0x1000u : 0; }
+void u3h_smn_got(const uint8_t *, uint32_t id) { rd_log("smn_got", id); }
+void u3h_smn_unknown(const uint8_t *, uint32_t n) { rd_log("smn_unknown", n); }
+int u3h_onb_pl_np(uintptr_t base, uint8_t *e, const char *name) { rd_log("pl_np", reinterpret_cast<uintptr_t>(e) - base, rd_text(name)); return 0; }
+int u3h_ol_up(void) { rd_log("ol_up"); return rd_on ? rd_ol_up_value : 1; }
 int u3h_ol_frame(uint32_t type, const void *m, uint32_t n) { t41_type = type; t41_len = n; memcpy(t41_frame, m, n); t41_frames++; return 1; }
-void u3h_fw_line(const char *, uint32_t, int, const char *, int32_t) {}
+void u3h_fw_line(const char *a, uint32_t hex, int digits, const char *b, int32_t v) { rd_log("fw_line", rd_text(a) ^ rd_text(b) * 3, static_cast<uint64_t>(hex) << 32 ^ static_cast<uint32_t>(digits) << 16 ^ static_cast<uint32_t>(v)); }
 const char *u3h_fw_sess(uintptr_t, uint8_t *) { return "other"; }
 uint32_t u3h_fw_game_ra(uintptr_t, uintptr_t, uintptr_t) { return 0; }
 int32_t u3h_fw_host_link(uintptr_t) { return -1; }
-void u3h_cg_log(const char *, int32_t) {}
+void u3h_cg_log(const char *t, int32_t v) { rd_log("cg_log", std::strlen(t) << 16 | static_cast<uint8_t>(t[0]) << 8 | static_cast<uint8_t>(t[std::strlen(t) - 2]), static_cast<uint32_t>(v)); }
 void *u3h_fl_state(void) { return nullptr; }
 void u3h_ng_stamp(uintptr_t, void *, uint8_t *) {}
 void u3h_lnb_marks(uint8_t *a, uint8_t *b, uint8_t *c, uint64_t *d) { *a = *b = *c = 0; *d = 0; }

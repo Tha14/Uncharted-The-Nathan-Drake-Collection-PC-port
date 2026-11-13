@@ -2,7 +2,7 @@
 static uint8_t t50_base[0x1b30000];
 static uint8_t t50_pad[0x200], t50_el[0x2500], t50_hud[0x2500];
 static int t50_draws;
-extern "C" int u3h_k26_draw(uintptr_t, void *, void *) { ++t50_draws; return 0; }
+extern "C" int u3h_k26_draw(uintptr_t, void *el, void *frame) { rd_log("k26_draw", reinterpret_cast<uintptr_t>(el) & 0xffff, reinterpret_cast<uintptr_t>(frame)); ++t50_draws; return 0; }
 
 static void batch50() {
     CHECK(u3x_k29_eok(reinterpret_cast<void *>(0x10000)) == 1);

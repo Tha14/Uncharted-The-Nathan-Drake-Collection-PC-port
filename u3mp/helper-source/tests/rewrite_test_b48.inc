@@ -21,10 +21,11 @@ static void *t48_lookup(uint32_t id) {
     return nullptr;
 }
 extern "C" uint8_t *u3x_sym_table(void *, uint32_t);
-extern "C" int u3h_n06_on(void) { return t48_n06; }
-extern "C" void u3h_n06_mapimg(uintptr_t, void *, int32_t *, uint8_t *) {}
-extern "C" void u3h_h11_tag(int32_t *) {}
-extern "C" int u3h_n08_vq(uintptr_t, int32_t *) { return 0; }
+extern "C" int u3h_n06_on(void) { rd_log("n06_on"); return t48_n06; }
+static uint8_t *rd_map_base = nullptr;
+extern "C" void u3h_n06_mapimg(uintptr_t, void *, int32_t *ev, uint8_t *map) { rd_log("n06_mapimg", map ? static_cast<uint64_t>(map - rd_map_base) : ~0ull); if (rd_on) ev[3] = 0x77; }
+extern "C" void u3h_h11_tag(int32_t *ev) { rd_log("h11_tag"); if (rd_on) ev[13] = 0x55; }
+extern "C" int u3h_n08_vq(uintptr_t, int32_t *ev) { rd_log("n08_vq", static_cast<uint32_t>(ev[0x13])); if (rd_on) ev[14] = 0x33; return 0; }
 
 static void o48_retag(uint8_t *page) {
     if (*reinterpret_cast<uint32_t *>(page + 8) != 0xe35f0f1au) return;

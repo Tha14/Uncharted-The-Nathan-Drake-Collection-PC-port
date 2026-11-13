@@ -16,19 +16,27 @@ static uint8_t t47_diag_seen;
 
 extern "C" void *u3h_fi_state(void) { return &t47_state; }
 extern "C" int32_t u3h_inv_send(uintptr_t, const uint8_t *target, const uint8_t *blob48) {
+    rd_log("inv_send", target ? target[0] : 0, blob48 ? *(const uint64_t *)(blob48 + 0x28) ^ *(const uint32_t *)blob48 : 0);
     ++t47_inv_calls;
     std::memcpy(t47_inv_target, target, 0x24);
     std::memcpy(t47_inv_blob, blob48, 0x30);
     return t47_inv_result;
 }
-extern "C" int32_t u3h_inv_list(uintptr_t, const uint8_t *, uint8_t *, uint32_t) { ++t47_inv_calls; return t47_inv_result; }
+extern "C" int32_t u3h_inv_list(uintptr_t, const uint8_t *me, uint8_t *, uint32_t max) { ++t47_inv_calls; rd_log("inv_list", me ? me[0] : 0, max); return t47_inv_result; }
 extern "C" int32_t u3h_inv_delete(uintptr_t, const uint8_t *, const uint8_t *blob48) {
+    rd_log("inv_delete", blob48 ? *(const uint64_t *)(blob48 + 0x28) : 0);
     ++t47_inv_calls;
     std::memcpy(t47_inv_blob, blob48, 0x30);
     return t47_inv_result;
 }
-extern "C" int32_t u3h_inv_poll(uintptr_t, int32_t) { return t47_poll_result; }
-extern "C" void u3h_so_inv_diag(uintptr_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint8_t *, uint32_t) {
+static int32_t rd_poll_answer[4];
+extern "C" int32_t u3h_inv_poll(uintptr_t, int32_t ticket) {
+    if (!rd_on) return t47_poll_result;
+    rd_log("inv_poll", static_cast<uint32_t>(ticket));
+    return rd_poll_answer[ticket & 3];
+}
+extern "C" void u3h_so_inv_diag(uintptr_t, uint32_t rows, uint32_t kept, uint32_t w1, uint32_t w2, uint32_t w3, uint32_t wf, uint32_t bad, const uint8_t *first, uint32_t fw) {
+    rd_log("inv_diag", (uint64_t)rows << 48 | (uint64_t)kept << 32 | w1 << 24 | w2 << 16 | w3 << 8 | wf, (uint64_t)bad << 32 | fw << 16 | (first ? first[0x28] : 0xffff));
     t47_diag_seen = 1;
 }
 

@@ -10,7 +10,50 @@
 #define U3X_BSS [[gnu::used]]
 #include "u3x_fixes_for_test.inc"
 
+// executable test memory for stubs placed at game addresses (Windows and Linux; stubs that read arguments must follow
+// the host's calling convention: the second argument is rdx on Windows, rsi on Linux)
+#if defined(_WIN32)
+extern "C" __declspec(dllimport) int __stdcall VirtualProtect(void *, size_t, unsigned long, unsigned long *);
+extern "C" __declspec(dllimport) void *__stdcall VirtualAlloc(void *, size_t, unsigned long, unsigned long);
+static bool test_make_exec(void *p, size_t n) { unsigned long old; return VirtualProtect(p, n, 0x40, &old) != 0; }
+extern "C" __declspec(dllimport) int __stdcall VirtualFree(void *, size_t, unsigned long);
+static void *test_exec_alloc(size_t n) { return VirtualAlloc(nullptr, n, 0x3000, 0x40); }
+static void test_exec_free(void *p, size_t) { VirtualFree(p, 0, 0x8000); }
+#else
+#include <sys/mman.h>
+static bool test_make_exec(void *p, size_t n) { return mprotect(p, n, PROT_READ | PROT_WRITE | PROT_EXEC) == 0; }
+static void *test_exec_alloc(size_t n) {
+    void *m = mmap(nullptr, n, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    return m == MAP_FAILED ? nullptr : m;
+}
+static void test_exec_free(void *p, size_t n) { munmap(p, n); }
+#endif
+
 static int fails = 0;
+// the differential tests (rewrite_test_rd*.inc): stubs append what the code under test called, in order
+#include <string>
+static bool rd_on = false;
+static std::vector<std::string> rd_calls;
+static void rd_log(const char *what, uint64_t a = 0, uint64_t b = 0) {
+    if (!rd_on) return;
+    char t[96];
+    std::snprintf(t, sizeof t, "%s %llx %llx", what, (unsigned long long)a, (unsigned long long)b);
+    rd_calls.push_back(t);
+}
+// texts and byte blocks by content (each side has its own copies of constant texts)
+static uint64_t rd_bytes(const void *p, size_t n) {
+    if (!p) return 0;
+    uint64_t h = 0xcbf29ce484222325ull;
+    for (size_t i = 0; i < n; ++i) h = (h ^ static_cast<const uint8_t *>(p)[i]) * 0x100000001b3ull;
+    return h;
+}
+static uint64_t rd_text(const char *t) { return t ? rd_bytes(t, std::strlen(t)) ^ std::strlen(t) : 0; }
+static uint64_t rd_call_f32_ret = 0;
+static uint32_t rd_pack_bits = 0, rd_pack_err = 0;
+static uint32_t rd_active_page = 0;
+static uint32_t rd_current_tab = 0;
+static int rd_gate_closed = 0;
+static int rd_text_len = 9;
 #define CHECK(c) do { if (!(c)) { std::printf("FAIL line %d: %s\n", __LINE__, #c); fails++; } } while (0)
 
 // ---- old code (v7.112), reduced to the logic under test
@@ -98,7 +141,7 @@ static void old_skins(uint8_t *l) {
 #include "rewrite_test_b55.inc"
 #include "rewrite_test_b56.inc"
 
-int main() {
+static void earlier_tests() {
     // match defaults: same bytes from a filled buffer
     std::vector<uint8_t> a(0x7000, 0xab), b(0x7000, 0xab);
     old_match_defaults(a.data()); u3x_match_defaults(b.data());
@@ -190,6 +233,10 @@ int main() {
     batch54();
     batch55();
     batch56();
+}
+
+int main() {
+    earlier_tests();
     batch28b();
     std::printf("%s (%d failures)\n", fails ? "FAILED" : "all equal", fails);
     return fails ? 1 : 0;

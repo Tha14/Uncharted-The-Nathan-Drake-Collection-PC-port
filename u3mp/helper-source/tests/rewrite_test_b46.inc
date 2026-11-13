@@ -16,8 +16,15 @@ static char t46_name[] = "net-medals/assistant";
 static void *t46_lookup(uint32_t id) { return id == 0x980d6543u ? t46_tab : nullptr; }
 static void *t46_page_lookup(uint32_t id) { return id == 0xf1514340u ? static_cast<void *>(&t46_page_ptr) : nullptr; }
 
-extern "C" char *u3h_fmt_int(char *o, char *end, int64_t, int32_t) { if (o < end) *o++ = '7'; return o; }
-extern "C" int u3h_native_gate_closed(uintptr_t, int32_t *) { return 0; }
+extern "C" char *u3h_fmt_int(char *o, char *end, int64_t v, int32_t commas) {
+    if (!rd_on) { if (o < end) *o++ = '7'; return o; }
+    rd_log("fmt_int", static_cast<uint64_t>(v), static_cast<uint32_t>(commas));
+    char t[24];
+    const int n = std::snprintf(t, sizeof t, "%lld", static_cast<long long>(v));
+    for (int k = 0; k < n && o < end; ++k) *o++ = t[k];
+    return o;
+}
+extern "C" int u3h_native_gate_closed(uintptr_t, int32_t *) { if (rd_on) rd_log("gate"); return rd_on ? rd_gate_closed : 0; }
 
 static void *t46_vtex(uintptr_t, const char *) { return reinterpret_cast<void *>(static_cast<uintptr_t>(0x12345678)); }
 static void *o46_medal_list(void *s) { return static_cast<uint8_t *>(s) + 0x2800; }
