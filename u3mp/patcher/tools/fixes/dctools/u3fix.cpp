@@ -270,6 +270,7 @@ int wmain(int argc, wchar_t **argv) {
         if (step == "part-modules") return u3::part_modules(a);
         if (step == "actors-hk") return u3::actors_hk(a);
         if (step == "coop-vo") return u3::coop_vo(a);
+        if (step == "coop-voice2") return u3::coop_voice2(a);
         if (step == "pakinfo") return u3::pakinfo(a);
         std::fprintf(stderr, "usage: u3fix <step> [options] (the steps: see u3fix.cpp)\n");
         return 2;

@@ -62,6 +62,7 @@ int sound_banks(const std::vector<std::string> &argv);         // tools/fixes/so
 int part_modules(const std::vector<std::string> &argv);        // tools/fixes/part-emitters/build_part_modules.cpp
 int actors_hk(const std::vector<std::string> &argv);           // tools/fixes/actor33/actors_hk.cpp
 int coop_vo(const std::vector<std::string> &argv);             // tools/fixes/coop-vo/apply_vo.cpp
+int coop_voice2(const std::vector<std::string> &argv);         // tools/fixes/coop-voice2/apply_coop_vox.cpp
 int pakinfo(const std::vector<std::string> &argv);            // dctools/ndpak.cpp: a pak's summary (as ndpak.py prints it)
 
 }  // namespace u3

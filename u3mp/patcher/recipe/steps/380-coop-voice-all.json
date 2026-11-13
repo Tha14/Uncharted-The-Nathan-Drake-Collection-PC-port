@@ -1,6 +1,6 @@
 {
  "id": "coop-voice-all",
- "title": "Co-op voice for all adventures: vox.bin, vox-igc.bin, vox-mp.bin, net.bin (coop-voice2/apply_coop_vox.py)",
+ "title": "Co-op voice for all adventures: vox.bin, vox-igc.bin, vox-mp.bin, net.bin (u3fix.exe coop-voice2, coop-voice2/apply_coop_vox.cpp)",
  "kind": "script",
  "job": "coop-voice2",
  "family": "overlay-r3/dc1",
@@ -10,9 +10,15 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_coop_vox.py",
-   "--apply"
+   "u3fix.exe",
+   "coop-voice2",
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}",
+   "--ps4",
+   "{{PS4}}"
   ]
  ],
  "writes": [
@@ -21,5 +27,6 @@
  ],
  "status": "needs-converted-base",
  "applied": "2026-11-02 02:47",
+ "notes": "Since 2026-11-13 C++ (u3fix.exe coop-voice2 = apply_coop_vox.py). On the reference vox.bin (which dc-recipes rebuilds) the step is a byte-exact no-op; from the retail vox.bin it adds the same 464 entries to the same size, the reference differing only in 42 bytes of old entries that an earlier session edited.",
  "recipe_version_added": "1.0.0"
 }
