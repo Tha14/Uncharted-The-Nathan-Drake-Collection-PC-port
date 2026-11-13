@@ -9,7 +9,7 @@ version and no recorded per-level choice is kept (owner's decision: all assets w
 |---|---|
 | `plan.tsv` | one row per level pak: method, options (`mb` = map-build fix passes), PS3 source archive / pak, sha256 of the latest converter's build |
 | `levels.cpp` | the driver: skip a file already at its sha256, build the rest, install only a matching build, back up a replaced file to `work/backup-pak23-levels/` |
-| `lib/` | the converter entry scripts the driver still starts (convert_one, empty_level, hud_textures, windoff, build_skies, anim_actors, mkres) |
+| `lib/` | the converter entry scripts the driver still starts (convert_one, hud_textures, windoff, build_skies, anim_actors, mkres) |
 | `data/conv_anim_actors.json` | actor names the converter treats as animated |
 | `data/overrides/overlay-r3/coop-syria-area1.json`, `-area2.json` | `gobo`: the projector-light gobo textures taken from the retail PS4 syria paks |
 | `paktools-f525859/`, `paktools-sky/` | the latest converter's files on top of `tools/paktools`, and the sky converter |

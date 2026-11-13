@@ -18,6 +18,7 @@
 #include "u3fix.hpp"
 #include "proc.hpp"
 #include "psarc.hpp"
+#include "ps4writer.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -276,8 +277,12 @@ fs::path build(const Row &row, const std::map<std::pair<std::string, std::string
             else flags.insert(x);
         }
     const fs::path pak4 = ps4main() / "pak23" / "ps4", texdict = ps4main() / "texturedict1" / "ps4" / "TextureDictionaries.csv";
-    if (m == "empty") {
-        run({g_python, g_here + "/lib/empty_level.py", P(op)}, {{"PYTHONPATH", P(paktools(ver))}});
+    if (m == "empty") {   // the 248-byte empty level: a login page with an empty login and VRAM table, nothing else
+        PakWriter w;
+        make_login_and_vram_page(w, w.page(), {}, {});
+        const Bytes d = w.build();
+        if (d.size() != 248) throw Stop(fmt("AssertionError: %zu", d.size()));
+        write_file_replace(op, d);
         return op;
     }
     if (m == "hud") {
@@ -443,7 +448,8 @@ int levels(const std::vector<std::string> &argv) {
     for (const Row &r : todo)
         if (r.at("method") == "stage" || r.at("method") == "sky") { res_dir(); break; }
     std::set<std::string> vers;
-    for (const Row &r : todo) vers.insert(version_of(r));
+    for (const Row &r : todo)
+        if (r.at("method") != "empty") vers.insert(version_of(r));   // the methods that still run a converter script
     for (const std::string &v : vers) paktools(v);   // every converter tree before the workers
     std::vector<std::string> result(todo.size()), error(todo.size());
     std::atomic<size_t> next{0};
