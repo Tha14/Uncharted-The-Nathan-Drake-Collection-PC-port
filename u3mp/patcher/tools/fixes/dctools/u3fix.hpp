@@ -66,6 +66,8 @@ int coop_voice2(const std::vector<std::string> &argv);         // tools/fixes/co
 int elim_pic(const std::vector<std::string> &argv);            // tools/fixes/dctools/net_edits.cpp
 int classic(const std::vector<std::string> &argv);             // tools/fixes/dctools/net_edits.cpp
 int skins_net_names(const std::vector<std::string> &argv);     // tools/fixes/dctools/net_edits.cpp
+int shade_npc(const std::vector<std::string> &argv);           // tools/fixes/coop-audit/apply_shade_npc_paks.cpp
+int facility_collapse(const std::vector<std::string> &argv);   // tools/fixes/inline/facility_collapse.cpp
 int pakinfo(const std::vector<std::string> &argv);            // dctools/ndpak.cpp: a pak's summary (as ndpak.py prints it)
 
 }  // namespace u3

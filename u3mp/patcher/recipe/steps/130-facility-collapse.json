@@ -9,9 +9,11 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/facility_collapse.py",
-   "--apply"
+   "u3fix.exe",
+   "facility-collapse",
+   "--apply",
+   "--project",
+   "{{PROJECT}}"
   ]
  ],
  "ok_codes": [

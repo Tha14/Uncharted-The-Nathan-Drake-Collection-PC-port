@@ -1,15 +1,17 @@
 {
  "id": "shade-npc-paks",
- "title": "Shade Arena 43-spawner pak copied over 5 maps in overlay-r2 / overlay-port (coop-audit/apply_shade_npc_paks.py)",
+ "title": "Shade Arena 43-spawner pak copied over 5 maps in overlay-r2 / overlay-port (u3fix.exe shade-npc, coop-audit/apply_shade_npc_paks.cpp)",
  "kind": "script",
  "job": "coop-audit",
  "family": "overlay-r2 + overlay-port/pak23",
  "needs": [],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_shade_npc_paks.py",
-   "--apply"
+   "u3fix.exe",
+   "shade-npc",
+   "--apply",
+   "--project",
+   "{{PROJECT}}"
   ]
  ],
  "writes": [
