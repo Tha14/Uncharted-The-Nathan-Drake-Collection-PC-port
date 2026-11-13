@@ -1,6 +1,6 @@
 {
  "id": "convert-dc1",
- "title": "overlay-r3/r2: PS3 1.19 DC modules converted to PS4 DC (tools/dcconv/dcconv.py via dcconv/convert_dc1.py): ss-multiplayer scripts + .dci, ai-*, destruction, player-settings, render-settings",
+ "title": "overlay-r3/r2: PS3 1.19 DC modules converted to PS4 DC (u3fix.exe convert-dc1, dctools/dcconv.cpp): ss-multiplayer scripts + .dci, ai-*, destruction, player-settings, render-settings",
  "kind": "script",
  "job": "dcconv",
  "family": "overlay-r3/dc1",
@@ -12,9 +12,23 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/convert_dc1.py",
-   "--apply"
+   "u3fix.exe",
+   "convert-dc1",
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}",
+   "--schema",
+   "{{PAKTOOLS}}/../dcconv/schema-oldconv.json",
+   "--ps4",
+   "{{PS4}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
+   "--ps3-update",
+   "{{PS3_UPDATE}}",
+   "--ps3-data2",
+   "{{PS3_DATA2}}"
   ]
  ],
  "writes": [
@@ -27,7 +41,7 @@
  ],
  "status": "partial",
  "log_lines": 20,
- "notes": "152 whole-file conversions (list dcconv/dc1-convert.tsv). The converter learns the object layouts from the 2026-10-27 cloud conversions (tools/dcconv/schema-oldconv.json, shipped, structure only) and from the user's own PS3 disc / PS4 Collection DC pairs (learned once, ~10 min, cached in work/_dcconv). Verified 2026-11-05: 72 of the 152 reproduce the cloud conversion sha256-identical (69 ss-multiplayer + 3 render-settings); the step writes only those; dc-recipes rebuilds the other 80 exactly. Files that already exist are left alone (later fixes patch some in place). The rest of overlay-r3 dc1 (net.bin, menu.bin, modules.bin, medals, looks, scenes, vox*, weapon-*, net-always-loaded, ss-coop-adv-fort, skel-retargets) are retail PS4 modules merged with PS3 data by cloud scripts that are lost: not whole-file conversions, not covered here.",
+ "notes": "152 whole-file conversions (list dcconv/dc1-convert.tsv). The converter learns the object layouts from the 2026-10-27 cloud conversions (tools/dcconv/schema-oldconv.json, shipped, structure only) and from the user's own PS3 disc / PS4 Collection DC pairs (learned once, ~10 min, cached in work/_dcconv). Verified 2026-11-05: 72 of the 152 reproduce the cloud conversion sha256-identical (69 ss-multiplayer + 3 render-settings); the step writes only those; dc-recipes rebuilds the other 80 exactly. Files that already exist are left alone (later fixes patch some in place). The rest of overlay-r3 dc1 (net.bin, menu.bin, modules.bin, medals, looks, scenes, vox*, weapon-*, net-always-loaded, ss-coop-adv-fort, skel-retargets) are retail PS4 modules merged with PS3 data by cloud scripts that are lost: not whole-file conversions, not covered here. Since 2026-11-13 C++ (u3fix.exe convert-dc1 = dcconv.py + convert_dc1.py): the learned retail schema equals the Python one (14 s instead of ~10 min; hdrtab order aside, which Python randomizes), 72/72 identical, no Python.",
  "recipe_version_added": "1.0.0",
  "recipe_version_changed": "1.2.0"
 }

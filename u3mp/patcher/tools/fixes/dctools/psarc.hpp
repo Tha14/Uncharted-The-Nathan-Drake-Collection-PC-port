@@ -37,6 +37,11 @@ public:
     Ps3Index(const std::string &disc, const std::string &update, const std::string &data2);
     // the module at a PS4 relative path ('dc1/ps4/net.bin'), newest layer first or the given layer; nullopt if none
     std::optional<Bytes> read(const std::string &rel, const std::string &layer = "");
+    std::vector<std::string> names() const {   // every PS4 relative path, sorted
+        std::vector<std::string> v;
+        for (const auto &[k, l] : map) v.push_back(k);
+        return v;
+    }
 
 private:
     struct Layer {

@@ -264,6 +264,7 @@ int wmain(int argc, wchar_t **argv) {
         if (step == "actors") return u3::actors(a);
         if (step == "rebuild-am") return u3::rebuild_am(a);
         if (step == "install-am") return u3::install_am(a);
+        if (step == "convert-dc1") return u3::convert_dc1(a);
         if (step == "pakinfo") return u3::pakinfo(a);
         std::fprintf(stderr, "usage: u3fix <step> [options] (the steps: see u3fix.cpp)\n");
         return 2;
