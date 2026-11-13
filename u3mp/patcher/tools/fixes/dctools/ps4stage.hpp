@@ -39,5 +39,8 @@ Bytes sky_convert(const fs::path &ps3, const std::string &level, const Options &
 // PS3 data is short
 std::optional<Bytes> cube_texels(const PakTexture &t3, const Bytes &data, int bpb);
 std::optional<Bytes> cube_texels_argb(const PakTexture &t3, const Bytes &data, uint32_t remap, bool sky = false);
+// cubefix.fix: retail-template descs with cube texels get type 2; every resident type-1 desc whose short path is a PS3
+// cube map gets retail-layout cube texels (appended to the VRAM)
+Bytes cubefix_pak(const Bytes &d, const fs::path &ps3);
 
 }  // namespace u3::stage

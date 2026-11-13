@@ -107,3 +107,28 @@ std::vector<std::string> water_materials(const Pak &p);
 
 }  // namespace bg
 }  // namespace u3
+
+namespace u3::bg {
+
+// foreground (actor) geometry blocks (ps3geom.decode_block): attributes up to the first word that is no attribute id,
+// 0x0N values v*2/(2^bits-1) - 1 without the 1-bit sign rule; the skin of a skinned block (errors propagate)
+struct FgBlock {
+    uint32_t nverts = 0;
+    std::map<std::string, Mat> attr;   // pos, normal, tangent, uv0, uv1, uv2, color0, color1, attr<id>
+    std::vector<std::array<uint32_t, 3>> tris;
+    bool has_skin = false;
+    std::vector<Influence> skin;
+    const Mat *get(const std::string &k) const {
+        auto it = attr.find(k);
+        return it == attr.end() ? nullptr : &it->second;
+    }
+};
+FgBlock decode_fg_block(const Pak &p, uint32_t page, uint64_t blk, bool skin = true);
+struct FgProto {
+    std::string name;
+    Ref proto;
+    std::vector<Ref> blocks;
+};
+std::vector<FgProto> fg_prototypes(const Pak &p);   // FOREGROUND_SECTION_2 name -> prototype + blocks (a later name replaces)
+
+}  // namespace u3::bg

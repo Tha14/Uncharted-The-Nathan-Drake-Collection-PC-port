@@ -1,6 +1,6 @@
 // Recipe step convert-actors-r3: the converted actor paks (actor33/ps4) of overlay-port / -r2 / -r3 / -mp and
-// overlay-mp's net.pak, rebuilt from the player's PS3 + PS4 files with the current converter (toolsets/f525859).
-//   u3fix actors --project P --job J --ps4 D --ps3-disc D --ps3-update D --ps3-data2 D --python EXE
+// overlay-mp's net.pak, rebuilt from the player's PS3 + PS4 files with the current converter.
+//   u3fix actors --project P --job J --ps4 D --ps3-disc D --ps3-update D --ps3-data2 D
 //                [--apply] [--overlays port,r2,r3,mp] [--only name,...] [--allow-equivalent] [--jobs N]
 //
 // jobs.tsv: overlay, name, sha256, status, method, toolset (ignored: the current converter always), PS3 source, retail
@@ -8,13 +8,16 @@
 // never replaces an existing file (a later step owns it); other statuses need --allow-equivalent. A build whose sha256
 // differs from an identical / base row is reported (DIFF) and not installed. Replaced files are backed up once to
 // work/backup-actor33/. Lab rows (no Lab maps on PC) and rows hidden by a higher overlay are not built.
-// anim rows: C++ (dctools/anim.cpp). ps4actor / rename rows run in persistent worker.py processes (one per thread),
-// wpnmods / convert_net as their
-// scripts; PS3 sources and the animstream extract come from the player's archives (dctools/psarc.cpp).
-// Replaces build_actors.py (same rules and messages; the converter version column is no longer used).
+// Methods, all C++: ps4actor and rename (dctools/ps4actor.cpp), anim (anim.cpp), wpnmods and convert_net (ps4mats.cpp);
+// own-skeleton props with collision need the Havok tables of step actors-hk-tables (TMP/hk). PS3 sources and the
+// animstream extract come from the player's archives (dctools/psarc.cpp).
 #include "proc.hpp"
 #include "psarc.hpp"
 #include "anim.hpp"
+#include "hkconvert.hpp"
+#include "ps4actor.hpp"
+#include "ps4mats.hpp"
+#include "ps4stage.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -27,10 +30,9 @@
 namespace u3 {
 namespace {
 
-std::string a_here, a_ps4, a_disc, a_update, a_data2, a_python;
+std::string a_here, a_ps4, a_disc, a_update, a_data2;
 fs::path a_tmp;
 std::mutex a_extract_lock;
-const char *const TOOLSET = "f525859";   // the current converter
 
 std::string ret() { return a_ps4 + "/u3data/build/main/actor33/ps4"; }
 
@@ -152,109 +154,92 @@ std::vector<std::string> post_list(const std::string &post) {
     return v;
 }
 
-json::Value text_list(const std::vector<std::string> &v) {
-    json::Value a;
-    a.kind = json::Value::Array;
-    for (const std::string &s : v) a.items.push_back(json::Value::text(s));
-    return a;
-}
-
-struct ThreadWorker {
-    std::unique_ptr<Worker> w;
-};
-
-fs::path build(const Job &r, ThreadWorker &tw) {
+fs::path build(const Job &r) {
     const fs::path out = a_tmp / "out" / upath(r.at("overlay")) / upath(r.at("name"));
     fs::create_directories(out.parent_path());
-    const std::string tools = a_here + "/toolsets/" + TOOLSET;
     const std::string &m = r.at("method");
-    if (m == "wpnmods" || m == "convert_net") {
-        const Env env = {{"PYTHONPATH", win_path(tools) + ";" + win_path(tools + "/stage")}, {"PAKTOOLS", win_path(tools)}};
-        if (m == "wpnmods") {
-            const std::string &t = r.at("template");
-            const size_t b1 = t.find('|'), b2 = t.find('|', b1 + 1);
-            if (b1 == std::string::npos || b2 == std::string::npos) throw Stop("ValueError: wpnmods template needs 3 fields");
-            const std::string skin_src = t.substr(b1 + 1, b2 - b1 - 1), skins = t.substr(b2 + 1);
-            std::vector<std::string> cmd = {a_python, tools + "/wpnmods.py", P(upath(ret()) / upath(r.at("name"))), P(extract(r.at("source"), r.at("name"))),
-                                            P(out) + ".w", "--src", skin_src, "--max-tex", r.at("cap"), "--stream-flags", "2"};
-            size_t a = 0;
-            for (size_t k = 0; k <= skins.size(); k++)
-                if (k == skins.size() || skins[k] == ',') { cmd.push_back(skins.substr(a, k - a)); a = k + 1; }
-            run(cmd, env);
-            if (r.at("post").find("cb3fix") != std::string::npos) {
-                run({a_python, tools + "/stage/cb3fix.py", P(out) + ".w", P(out)}, env);
-                fs::remove(P(out) + ".w");
-            } else {
-                fs::rename(upath(P(out) + ".w"), out);
-            }
-        } else {
-            const fs::path p3 = extract("pak23:", "net.pak");
-            run({a_python, tools + "/convert_net.py", P(p3), P(out), "--ref", a_ps4 + "/u3data/build/main/pak23/ps4/menu.pak"}, env);
-        }
+    if (m == "wpnmods") {   // template: '<retail pak>|<retail sibling skin>|<skin,...>'
+        const std::string &t = r.at("template");
+        const size_t b1 = t.find('|'), b2 = t.find('|', b1 + 1);
+        if (b1 == std::string::npos || b2 == std::string::npos) throw Stop("ValueError: wpnmods template needs 3 fields");
+        std::vector<std::string> skins;
+        const std::string sk = t.substr(b2 + 1);
+        size_t a = 0;
+        for (size_t k = 0; k <= sk.size(); k++)
+            if (k == sk.size() || sk[k] == ',') { skins.push_back(sk.substr(a, k - a)); a = k + 1; }
+        Bytes d = mats::wpnmods(upath(ret()) / upath(r.at("name")), extract(r.at("source"), r.at("name")), t.substr(b1 + 1, b2 - b1 - 1), skins,
+                                std::stoi(r.at("cap")), 2);
+        if (r.at("post").find("cb3fix") != std::string::npos) d = actor::cb3fix(d);
+        write_file_replace(out, d);
+        return out;
+    }
+    if (m == "convert_net") {
+        write_file_replace(out, mats::convert_net(extract("pak23:", "net.pak"), upath(a_ps4 + "/u3data/build/main/pak23/ps4/menu.pak")));
         return out;
     }
     if (m != "ps4actor" && m != "anim" && m != "rename") throw Stop("method " + m + " is not supported");
-    json::Value job = json::Value::object();
     const std::string &source = r.at("source");
     const size_t slash = source.find('/');
     const std::string src = source.substr(0, slash), other = slash == std::string::npos ? "" : source.substr(slash + 1);
-    job.set("ps3", json::Value::text(source != "-" ? P(extract(src, other.empty() ? r.at("name") : other)) : ""));
-    job.set("out", json::Value::text(P(out)));
-    if (m == "anim") {   // C++ (dctools/anim.cpp)
+    const fs::path ps3 = source != "-" ? extract(src, other.empty() ? r.at("name") : other) : fs::path();
+    Bytes d;
+    if (m == "anim") {   // dctools/anim.cpp
         std::vector<fs::path> dirs;
         if (r.at("mode").find("stm") != std::string::npos) dirs.push_back(stm_dir());
-        write_file_replace(out, anim::convert_pak(upath(job.get("ps3")->s), dirs));
-        return out;
-    } else if (m == "rename") {
-        job.set("rename", text_list({r.at("template"), r.at("name").substr(0, r.at("name").size() - 4)}));
-        job.set("tmpl", json::Value::text(P(upath(ret()) / upath(r.at("template") + ".pak"))));
-        job.set("post", text_list(post_list(r.at("post"))));
-    } else {
-        json::Value kw;
+        d = anim::convert_pak(ps3, dirs);
+    } else if (m == "rename") {   // a retail PS4 actor under the MP name
+        d = actor::rename(upath(ret()) / upath(r.at("template") + ".pak"), r.at("template"), r.at("name").substr(0, r.at("name").size() - 4));
+    } else {   // dctools/ps4actor.cpp
+        actor::Kw kw;
+        actor::Options o;
+        json::Value kwj;
         Env env;
-        if (!mode_of(r.at("mode"), kw, env)) throw Stop("KeyError: '" + r.at("mode") + "'");
-        if (std::stoi(r.at("cap"))) kw.set("max_tex", json::Value::integer(std::stoi(r.at("cap"))));
+        if (!mode_of(r.at("mode"), kwj, env)) throw Stop("KeyError: '" + r.at("mode") + "'");
+        kw.stream_flags = int(kwj.get("stream_flags")->i);
+        kw.mat_by_file = kwj.get("mat_by_file") != nullptr;
+        kw.match_streams = kwj.get("match_streams") != nullptr;
+        kw.graft = kwj.get("graft") != nullptr;
+        kw.own_skel = kwj.get("own_skel") != nullptr;
+        kw.max_tex = std::stoi(r.at("cap"));
         const std::string &es = r.at("env");
         if (es != "" && es != "-" && es != "{}") {
             json::Value e;
             if (!json::parse(es, e)) throw Stop("bad env json for " + r.at("name"));
-            for (const auto &[k, v] : e.fields) {
-                std::string val = env_text(v);
-                if (k == "PS4ACTOR_DONORS") {   // retail donor paks by name
-                    std::string j;
-                    size_t a = 0;
-                    for (size_t q = 0; q <= val.size(); q++)
-                        if (q == val.size() || val[q] == ':') {
-                            j += (j.empty() ? "" : ":") + P(upath(ret()) / upath(val.substr(a, q - a) + ".pak"));
-                            a = q + 1;
-                        }
-                    val = j;
-                } else if (k == "PS4ACTOR_SKEL3") {   // '<source>/<name>.pak': the PS3 pak whose skeleton a LOD pak uses
-                    const size_t s = val.find('/');
-                    val = P(extract(val.substr(0, s), val.substr(s + 1)));
-                }
-                env[k] = val;
-            }
+            for (const auto &[k, v] : e.fields) env[k] = env_text(v);
         }
-        if (env.count("_rename")) { kw.set("rename", json::Value::text(env["_rename"])); env.erase("_rename"); }
-        if (env.count("_skel")) { kw.set("skel_tmpl", json::Value::text(P(upath(ret()) / upath(env["_skel"] + ".pak")))); env.erase("_skel"); }
-        job.set("tmpl", json::Value::text(P(template_pak(r.at("template"), r.at("post").find("|solo") != std::string::npos))));
-        job.set("kw", kw);
-        json::Value ev = json::Value::object();
-        for (const auto &[k, v] : env) ev.set(k, json::Value::text(v));
-        job.set("env", ev);
-        job.set("post", text_list(post_list(r.at("post"))));
+        for (const auto &[k, val] : env) {
+            if (k == "PS4ACTOR_DONORS") {   // retail donor paks by name
+                size_t a = 0;
+                for (size_t q = 0; q <= val.size(); q++)
+                    if (q == val.size() || val[q] == ':') {
+                        if (q > a) o.donors.push_back(upath(ret()) / upath(val.substr(a, q - a) + ".pak"));
+                        a = q + 1;
+                    }
+            } else if (k == "PS4ACTOR_SKEL3") {   // '<source>/<name>.pak': the PS3 pak whose skeleton a LOD pak uses
+                const size_t s = val.find('/');
+                o.skel3 = extract(val.substr(0, s), val.substr(s + 1));
+            } else if (k == "PS4ACTOR_SB_EXACT") o.sb_exact = val == "1";
+            else if (k == "PS4ACTOR_SB_DROP") o.sb_drop = val == "1";
+            else if (k == "PS4ACTOR_FILL_STREAMS") o.fill_streams = val == "1";
+            else if (k == "PS4ACTOR_SPREAD_MATS") o.spread_mats = val == "1";
+            else if (k == "PS4ACTOR_NO_TMPL_TEX") o.no_tmpl_tex = val == "1";
+            else if (k == "PS4ACTOR_CB3_MIN") o.cb3_min = std::stoi(val);
+            else if (k == "PS4ACTOR_DROP_MAT") o.drop_mat = val;
+            else if (k == "_rename") kw.rename = val;
+            else if (k == "_skel") kw.skel_tmpl = upath(ret()) / upath(val + ".pak");
+            else throw Stop("unknown actor setting " + k);
+        }
+        d = actor::convert(ps3, template_pak(r.at("template"), r.at("post").find("|solo") != std::string::npos), kw, o);
     }
-    std::string line, answer;
-    dump_compact(line, job);
-    if (!tw.w) tw.w = std::make_unique<Worker>(std::vector<std::string>{a_python, a_here + "/worker.py", tools}, Env{{"PYTHONPATH", ""}});
-    if (!tw.w->request(line, answer)) {   // the worker died: a new one for the next job
-        tw.w.reset();
-        throw Stop("worker died");
+    // post passes: cubefix (PS3 cube maps on retail-copied descs), cb3fix (prototype scope-3 cbuffer capacity),
+    // flatfix (the generated flat-color texture sRGB), cubetype (retail cube descs type 2)
+    for (const std::string &p : post_list(r.at("post"))) {
+        if (p == "cubefix") d = stage::cubefix_pak(d, ps3);
+        else if (p == "cb3fix") d = actor::cb3fix(d);
+        else if (p == "flatfix" || p == "cubetype") d = actor::vdesc_fix(d, p);
+        else throw Stop("unknown post pass " + p);
     }
-    json::Value res;
-    if (!json::parse(answer, res)) throw Stop("worker answer: " + answer.substr(0, 200));
-    if (const json::Value *err = res.get("err"); err && err->truthy()) throw Stop(err->s);
+    write_file_replace(out, d);
     return out;
 }
 
@@ -296,9 +281,9 @@ void sig_walk(const fs::path &top, const fs::path &dp, std::vector<std::string> 
 
 int actors(const std::vector<std::string> &argv) {
     const Args a(argv, {"--apply", "--allow-equivalent"},
-                 {"--project", "--job", "--ps4", "--ps3-disc", "--ps3-update", "--ps3-data2", "--python", "--overlays", "--only", "--jobs"});
+                 {"--project", "--job", "--ps4", "--ps3-disc", "--ps3-update", "--ps3-data2", "--overlays", "--only", "--jobs"});
     const std::string project = a.need("--project");
-    a_here = a.need("--job"); a_ps4 = a.need("--ps4"); a_python = a.need("--python");
+    a_here = a.need("--job"); a_ps4 = a.need("--ps4");
     a_disc = a.get("--ps3-disc", ""); a_update = a.get("--ps3-update", ""); a_data2 = a.get("--ps3-data2", "");
     a_tmp = upath(project) / "scratch" / "actor33-work";
     const fs::path work = upath(project) / "work";
@@ -369,17 +354,9 @@ int actors(const std::vector<std::string> &argv) {
         if (n0 != rows.size()) std::printf("%zu jobs skipped (hidden by a higher overlay, the game never loads them)\n", n0 - rows.size());
     }
     std::fflush(stdout);
-    // Havok reflection tables (step actors-hk-tables keeps them in TMP/hk)
-    {
-        const fs::path td = upath(a_here + "/toolsets/" + TOOLSET);
-        if (fs::exists(td / "hkconvert.py")) {
-            fs::create_directories(td / "data");
-            for (const char *k : {"hk2010_ps3.json", "hk2011_ps4.json"}) {
-                if (fs::exists(a_tmp / "hk" / k)) fs::copy_file(a_tmp / "hk" / k, td / "data" / k, fs::copy_options::overwrite_existing);
-                else if (!fs::exists(td / "data" / k)) write_text(td / "data" / k, "{}");   // stub: own-skeleton props with collision fail
-            }
-        }
-    }
+    // Havok reflection tables (step actors-hk-tables keeps them in TMP/hk): own-skeleton props with collision need them
+    if (fs::exists(a_tmp / "hk" / "hk2010_ps3.json") && fs::exists(a_tmp / "hk" / "hk2011_ps4.json"))
+        hk::load_tables(a_tmp / "hk" / "hk2010_ps3.json", a_tmp / "hk" / "hk2011_ps4.json");
     const auto t0 = std::chrono::steady_clock::now();
     int same = 0, installed = 0, built_diff = 0, fail = 0, skipped = 0;
     struct Todo {
@@ -405,22 +382,20 @@ int actors(const std::vector<std::string> &argv) {
         if (t.r.at("method") == "anim" && t.r.at("mode").find("stm") != std::string::npos) stm = true;
     if (stm) stm_dir();
     {
-        ThreadWorker none;
         for (size_t i = 0; i < todo.size(); i++) {
             const std::string &m = todo[i].r.at("method");
             if (m != "wpnmods" && m != "convert_net") continue;
-            try { out[i] = utf8(build(todo[i].r, none)); } catch (const std::exception &e) { err[i] = std::string(e.what()).substr(0, 200); }
+            try { out[i] = utf8(build(todo[i].r)); } catch (const std::exception &e) { err[i] = std::string(e.what()).substr(0, 200); }
         }
     }
     std::atomic<size_t> next{0};
     std::vector<std::thread> pool;
     for (int w = 0; w < std::max(1, std::min<int>(jobs, int(todo.size()))); w++)
         pool.emplace_back([&] {
-            ThreadWorker tw;
             for (size_t i; (i = next++) < todo.size();) {
                 const std::string &m = todo[i].r.at("method");
                 if (m == "wpnmods" || m == "convert_net") continue;
-                try { out[i] = utf8(build(todo[i].r, tw)); } catch (const std::exception &e) { err[i] = std::string(e.what()).substr(0, 200); }
+                try { out[i] = utf8(build(todo[i].r)); } catch (const std::exception &e) { err[i] = std::string(e.what()).substr(0, 200); }
             }
         });
     for (auto &t : pool) t.join();

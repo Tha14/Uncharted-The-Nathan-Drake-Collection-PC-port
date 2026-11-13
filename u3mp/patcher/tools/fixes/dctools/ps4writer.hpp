@@ -70,6 +70,10 @@ struct PakWItem {
     size_t off = 0;   // item header offset in its page
     bool listed = true;
     std::optional<std::pair<size_t, size_t>> phase;   // (modulo, required data offset % modulo)
+    // a login target that is an item inside a RawSpan (an effect span copied from a retail pak): the span and the
+    // item's offset in it (page and off then follow the span)
+    std::shared_ptr<struct RawSpan> span_ref;
+    size_t span_pos = 0;
     size_t data_off() const { return off + 0x20; }
 };
 
@@ -132,6 +136,7 @@ public:
     std::shared_ptr<PakWItem> vram_table_item;
     uint16_t flags = 0;
     std::optional<std::pair<size_t, size_t>> login_page, vram_table_loc;   // set by the caller when the tables are in a RawPage
+    std::shared_ptr<Blob> vram_table_blob;   // or: the VRAM desc table is this blob appended to a RawPage (found after layout)
     std::vector<Page::Fix> fixups;
 
     Page &page();

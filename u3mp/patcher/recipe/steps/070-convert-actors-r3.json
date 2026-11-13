@@ -11,8 +11,7 @@
   "ps4",
   "ps3_disc",
   "ps3_update",
-  "ps3_data2",
-  "python:numpy"
+  "ps3_data2"
  ],
  "commands": [
   [
@@ -30,9 +29,7 @@
    "--ps3-update",
    "{{PS3_UPDATE}}",
    "--ps3-data2",
-   "{{PS3_DATA2}}",
-   "--python",
-   "{{PYTHON}}"
+   "{{PS3_DATA2}}"
   ]
  ],
  "writes": [
@@ -42,6 +39,6 @@
  "must_write": false,
  "status": "reproducible",
  "applied": "2026-10-26 .. 10-30 (cloud: mpbatch/assetbatch/lightbatch -> ps4actor, anim.py, wpnmods.py, convert_net.py), 2026-11-01 (Lab boxes, maps-batch build_paks)",
- "notes": "jobs.tsv = one row per overlay pak (converter toolset, PS3 source, retail template, mode, texture cap, env, post passes), found 2026-11-05 by reconverting every pak and comparing sha256 (scratch/actor-rebuild/search.py). Only byte-identical builds are installed (status identical/base); since 2026-11-06 every actor33 file of overlay-port / -r2 / -mp and every non-session overlay-r3 file has a row (GAPS.md section actor33). Toolsets: toolsets/SOURCES.txt. Needs actors-hk-tables for own-skeleton props.",
+ "notes": "jobs.tsv = one row per overlay pak (converter toolset, PS3 source, retail template, mode, texture cap, env, post passes), found 2026-11-05 by reconverting every pak and comparing sha256 (scratch/actor-rebuild/search.py). Only byte-identical builds are installed (status identical/base); since 2026-11-06 every actor33 file of overlay-port / -r2 / -mp and every non-session overlay-r3 file has a row (GAPS.md section actor33). Toolsets: toolsets/SOURCES.txt. Needs actors-hk-tables for own-skeleton props. Since 2026-11-13 every method is C++ (dctools/ps4actor.cpp, anim.cpp, ps4mats.cpp, fgcoll / hkconvert / skel.cpp), byte-identical to the Python toolset on all 1044 rows; no Python needed.",
  "recipe_version_added": "1.0.0"
 }

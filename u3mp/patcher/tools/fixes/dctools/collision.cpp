@@ -37,6 +37,8 @@ uint32_t qbits(float f) {   // a float32 as struct.pack gives it after a double 
     return ((v & 0x7f800000u) == 0x7f800000u && (v & 0x7fffffu)) ? v | 0x400000u : v;
 }
 
+void decode_mesh(const Pak &p, uint32_t mpg, uint64_t mo, Ps3Coll &c);
+
 std::optional<Ps3Coll> ps3_collision(const Pak &p, size_t index) {
     const auto items = p.items_of("COLLISION_DATA_HAVOK_BG");
     if (items.size() <= index) return std::nullopt;
@@ -54,7 +56,12 @@ std::optional<Ps3Coll> ps3_collision(const Pak &p, size_t index) {
     const ORef r = bg::res(p, pg, b + 0x40);
     if (!r) return c;
     c.has_mesh = true;
-    const auto [mpg, mo] = *r;
+    decode_mesh(p, r->first, r->second, c);
+    return c;
+}
+
+// a PS3 ND collision mesh (the BG item +0x40, an FG prototype record +0x24) at page / offset
+void decode_mesh(const Pak &p, uint32_t mpg, uint64_t mo, Ps3Coll &c) {
     const uint64_t MB = p.pbase(mpg) + mo;
     for (int k = 0; k < 6; k++) bg::bef32(p, MB + 4 * k);
     const uint32_t nchunk = be32(p.d, MB + 0x1c), nmat = be32(p.d, MB + 0x24);
@@ -112,7 +119,6 @@ std::optional<Ps3Coll> ps3_collision(const Pak &p, size_t index) {
         std::memcpy(&f, &bits, 4);
         c.mats.push_back({f, fl});
     }
-    return c;
 }
 
 // ------------------------------------------------------------------------------------------------ hkcdStaticMeshTree
@@ -641,9 +647,9 @@ uint32_t collision_filter(uint32_t flags) {
     return f;
 }
 
-std::shared_ptr<Blob> havok_bg_blob(const Pak &p, size_t index, bool sky) {
-    const std::optional<Ps3Coll> c = ps3_collision(p, index);
-    if (!c || !c->has_mesh || c->tris.empty()) return nullptr;
+// collision.build_from_ps3: the packfile of a decoded mesh
+Bytes build_from_ps3(const Ps3Coll &c0, bool sky) {
+    const Ps3Coll *c = &c0;
     const auto &mats = c->mats;
     std::vector<uint32_t> flags_used, uidx, filt, fpal, fidx;
     for (uint32_t m : c->mat) {
@@ -660,7 +666,14 @@ std::shared_ptr<Blob> havok_bg_blob(const Pak &p, size_t index, bool sky) {
     for (uint32_t f : filt) fidx.push_back(uint32_t(std::find(fpal.begin(), fpal.end(), f) - fpal.begin()));
     std::vector<std::pair<uint32_t, uint32_t>> loc;
     const Bytes data = build_bvcm(c->tris, c->weld, uidx, flags_used, fpal, Bytes(SHAPE_HDR, SHAPE_HDR + 0x30), fidx, loc, sky);
-    const Bytes pf = packfile(data, loc);
+    return packfile(data, loc);
+}
+
+std::shared_ptr<Blob> havok_bg_blob(const Pak &p, size_t index, bool sky) {
+    const std::optional<Ps3Coll> c = ps3_collision(p, index);
+    if (!c || !c->has_mesh || c->tris.empty()) return nullptr;
+    const auto &mats = c->mats;
+    const Bytes pf = build_from_ps3(*c, sky);
     auto B = std::make_shared<Blob>("havokbg");
     B->u32(c->version).u32(0xaaaaaaaa).u64(0).u64(0);   // +08/+10: PS3 +04/+08 (zero)
     B->u32(c->count);                                   // +18
@@ -707,6 +720,17 @@ std::vector<std::shared_ptr<Blob>> havok_bg_blobs(const Pak &p, bool sky) {
     for (size_t k = 0; k < n; k++)
         if (auto b = havok_bg_blob(p, k, sky)) out.push_back(b);
     return out;
+}
+
+}  // namespace u3
+
+namespace u3 {
+
+FgMesh fg_mesh(const Pak &p, uint32_t pg, uint64_t off) {
+    Ps3Coll c;
+    decode_mesh(p, pg, off, c);
+    if (c.tris.empty()) throw Stop("ValueError: empty FG collision mesh");
+    return {build_from_ps3(c, false), c.mats};
 }
 
 }  // namespace u3

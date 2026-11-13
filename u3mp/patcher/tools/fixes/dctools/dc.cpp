@@ -4,7 +4,9 @@
 #include <array>
 #include <cstdarg>
 #include <cstdio>
+#include <chrono>
 #include <fstream>
+#include <thread>
 
 namespace u3 {
 
@@ -42,7 +44,14 @@ void write_file_replace(const fs::path &p, const Bytes &data) {
         f.write(reinterpret_cast<const char *>(data.data()), static_cast<std::streamsize>(data.size()));
         if (!f) throw Stop("cannot write " + utf8(tmp));
     }
-    fs::rename(tmp, p);
+    // another process (a virus scanner, the search indexer) may hold the old file for a moment: retry for up to 2 s
+    for (int k = 0;; k++) {
+        std::error_code ec;
+        fs::rename(tmp, p, ec);
+        if (!ec) return;
+        if (k == 100) fs::rename(tmp, p);   // throws with the error
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
 }
 
 void copy_once(const fs::path &src, const fs::path &dst) {

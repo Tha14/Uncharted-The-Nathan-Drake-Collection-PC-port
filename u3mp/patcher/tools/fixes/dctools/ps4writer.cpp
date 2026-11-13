@@ -196,14 +196,20 @@ Bytes PakWriter::build() {
     for (auto &p : pages) layout(*p);
     if (login_item) {
         for (size_t i = 0; i < login_targets.size(); i++) {
-            put32(login_item->page->bytes, login_item->data_off() + 8 + 8 * i, uint32_t(login_targets[i]->page->index));
-            put32(login_item->page->bytes, login_item->data_off() + 12 + 8 * i, uint32_t(login_targets[i]->off));
+            const PakWItem &t = *login_targets[i];
+            const size_t tp = t.span_ref ? t.span_ref->page->index : t.page->index, to = t.span_ref ? t.span_ref->off + t.span_pos : t.off;
+            put32(login_item->page->bytes, login_item->data_off() + 8 + 8 * i, uint32_t(tp));
+            put32(login_item->page->bytes, login_item->data_off() + 12 + 8 * i, uint32_t(to));
         }
         login_page = std::make_pair(login_item->page->index, login_item->off);
         if (vram_table_item) vram_table_loc = std::make_pair(vram_table_item->page->index, vram_table_item->off);
         else vram_table_loc.reset();
     } else if (!login_page) {
         throw Stop("AssertionError: no login table");
+    }
+    if (vram_table_blob) {
+        const auto [vpg, voff] = all_abs().at(key(vram_table_blob.get()));
+        vram_table_loc = std::make_pair(vpg->index, voff);
     }
     const auto abs = all_abs();
     auto locate = [&](const std::shared_ptr<PtrTarget> &t) {

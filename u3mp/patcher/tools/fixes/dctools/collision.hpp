@@ -20,4 +20,11 @@ namespace u3 {
 // sky: the sky converter's version, which rotates degenerate triangles so no primitive reads as a Havok CUSTOM one
 std::vector<std::shared_ptr<Blob>> havok_bg_blobs(const Pak &p, bool sky = false);
 
+// an FG prototype's ND collision mesh (decode_mesh + build_from_ps3): the packfile and the materials (friction, flags)
+struct FgMesh {
+    Bytes pf;
+    std::vector<std::pair<float, uint32_t>> mats;
+};
+FgMesh fg_mesh(const Pak &p, uint32_t pg, uint64_t off);
+
 }  // namespace u3

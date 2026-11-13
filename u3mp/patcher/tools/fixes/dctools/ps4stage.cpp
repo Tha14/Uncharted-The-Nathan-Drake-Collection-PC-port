@@ -2554,3 +2554,9 @@ Bytes sky_convert(const fs::path &ps3, const std::string &lv, const Options &o, 
 }
 
 }  // namespace u3::stage
+
+namespace u3::stage {
+
+Bytes cubefix_pak(const Bytes &d, const fs::path &ps3) { return cubefix(d, ps3); }
+
+}  // namespace u3::stage

@@ -694,3 +694,109 @@ std::vector<std::string> water_materials(const Pak &p) {
 }
 
 }  // namespace u3::bg
+
+namespace u3::bg {
+
+FgBlock decode_fg_block(const Pak &p, uint32_t page, uint64_t blk, bool skin) {
+    const uint64_t b = p.pbase(page);
+    FgBlock res;
+    const uint64_t cnt = need(p, page, blk + 0x24).second;
+    const uint32_t nv = p.pu32(page, cnt);
+    res.nverts = nv;
+    const uint64_t fmt = need(p, page, blk + 0x28).second, st = need(p, page, blk).second;
+    std::vector<Attr> attrs;
+    uint64_t o = fmt + 8;
+    while (true) {
+        Attr a;
+        a.id = u8(p, b + o);
+        a.fmt = u8(p, b + o + 1);
+        a.off = be16(p, b + o + 2);
+        if (a.id == 0 || o >= fmt + 8 + 8 * 8) break;
+        if (b + o + 8 > p.d.size()) throw Stop("IndexError: vertex format past the end");
+        for (int k = 0; k < 4; k++) a.w[k] = p.d[b + o + 4 + k];
+        attrs.push_back(a);
+        o += 8;
+        const uint8_t nxt = u8(p, b + o);   // the parameters begin where no attribute id follows
+        if (!((nxt >= 1 && nxt <= 8) || (nxt >= 0x10 && nxt <= 0x14))) break;
+    }
+    static const std::map<int, std::string> NAMES = {{1, "pos"}, {2, "normal"}, {3, "tangent"}, {0x11, "uv0"}, {0x12, "uv1"}, {0x13, "uv2"}, {4, "color0"}, {5, "color1"}};
+    for (size_t ai = 0; ai < attrs.size(); ai++) {
+        const Attr &a = attrs[ai];
+        const int n = a.n();
+        if (n > 4) throw Stop("IndexError: vertex attribute with more than 4 components");
+        std::vector<int> w(a.w, a.w + n);
+        if (!p.is_ptr(page, uint32_t(st + 8 * ai))) break;
+        const uint64_t data = need(p, page, st + 8 * ai).second;
+        int sw = 0;
+        for (int x : w) sw += x;
+        const uint64_t s = std::min<uint64_t>(b + data, p.d.size()), e = std::min<uint64_t>(std::max(s, b + data + (uint64_t(nv) * sw + 7) / 8), p.d.size());
+        // ps3geom._bits_be on the slice (a too short slice: a negative shift count)
+        std::vector<uint64_t> V(size_t(nv) * size_t(n), 0);
+        if (uint64_t(nv) * uint64_t(sw) > (e - s) * 8) throw Stop("ValueError: negative shift count");
+        uint64_t pos = 0;
+        for (uint32_t i = 0; i < nv; i++)
+            for (int c = 0; c < n; c++) {
+                if (w[c] > 63) throw Stop("OverflowError: vertex field wider than 63 bits");
+                uint64_t v = 0;
+                for (int k = 0; k < w[c]; k++, pos++) v = v << 1 | ((p.d[s + (pos >> 3)] >> (7 - (pos & 7))) & 1);
+                V[size_t(i) * size_t(n) + size_t(c)] = v;
+            }
+        Mat val(nv, size_t(n));
+        const int kind = a.fmt & 0xf0;
+        if (kind == 0x40 || kind == 0x60) {
+            double A[4], B[4], I[4] = {};
+            for (int c = 0; c < n; c++) {
+                A[c] = double(bef32(p, b + fmt + a.off + 4 * c));
+                B[c] = double(bef32(p, b + fmt + a.off + 4 * (n + c)));
+                if (kind == 0x60) I[c] = double(be32(p.d, b + fmt + a.off + 8 * n + 4 * c));
+            }
+            for (uint32_t i = 0; i < nv; i++)
+                for (int c = 0; c < n; c++) {
+                    const double v = double(int64_t(V[size_t(i) * size_t(n) + size_t(c)]));
+                    val.at(i, size_t(c)) = kind == 0x40 ? A[c] * (1.0 + v * 0x1p-21) + B[c] : A[c] * (1.0 + (4.0 * v + I[c]) * 0x1p-23) + B[c];
+                }
+        } else if (kind == 0x00) {
+            for (int c = 0; c < n; c++) {
+                const double div = double(std::max<int64_t>(int64_t((1ull << w[c]) - 1), 1));
+                for (uint32_t i = 0; i < nv; i++) val.at(i, size_t(c)) = double(int64_t(V[size_t(i) * size_t(n) + size_t(c)])) * 2.0 / div - 1.0;
+            }
+        } else
+            throw Stop(u3::fmt("ValueError: attr fmt %#x", a.fmt));
+        auto nm = NAMES.find(a.id);
+        res.attr[nm != NAMES.end() ? nm->second : u3::fmt("attr%x", a.id)] = std::move(val);
+    }
+    const uint64_t ii = need(p, page, blk + 4).second;
+    const uint32_t ntris = be16(p, b + ii), isz = be16(p, b + ii + 4);
+    be16(p, b + ii + 6);
+    const uint64_t idat = need(p, page, ii + 8).second;
+    const uint64_t s0 = std::min<uint64_t>(b + idat, p.d.size()), e0 = std::min<uint64_t>(b + idat + isz, p.d.size());
+    res.tris = decode_indices(p.d.data() + s0, e0 > s0 ? e0 - s0 : 0, ntris);
+    if (skin && p.is_ptr(page, uint32_t(blk + 0xc))) {
+        res.skin = decode_skin(p, page, need(p, page, blk + 0xc).second, nv);
+        res.has_skin = true;
+    }
+    return res;
+}
+
+std::vector<FgProto> fg_prototypes(const Pak &p) {
+    std::vector<FgProto> out;
+    for (const PakItem &it : p.items_of("FOREGROUND_SECTION_2")) {
+        const Ref pr = need(p, it.page, it.data_off());
+        const uint32_t nsub = p.u16(p.pbase(pr.first) + pr.second + 6);
+        const Ref t = need(p, pr.first, pr.second + 0x14);
+        FgProto x;
+        x.name = it.name;
+        x.proto = pr;
+        for (uint32_t k = 0; k < nsub; k++)
+            if (const ORef r = res(p, t.first, t.second + 4ull * k)) x.blocks.push_back(*r);
+        auto e = std::find_if(out.begin(), out.end(), [&](const FgProto &y) { return y.name == x.name; });
+        if (e == out.end()) out.push_back(std::move(x));
+        else {   // dict assignment: the later value at the first position
+            e->proto = x.proto;
+            e->blocks = x.blocks;
+        }
+    }
+    return out;
+}
+
+}  // namespace u3::bg
