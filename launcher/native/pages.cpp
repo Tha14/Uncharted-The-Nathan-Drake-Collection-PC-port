@@ -1852,6 +1852,39 @@ Value buttons_box(const std::string &p, const std::string &key, std::initializer
     return box(p + "buttons:" + key, "h", std::move(line));
 }
 
+// a framed text box as a row's control (the online section's field look); typing sends "entry" actions with its text
+Value entry_well(const std::string &p, const std::string &key, const std::string &v) {
+    Value e = Value::object();
+    e.set("t", Value::text("entry"));
+    e.set("id", Value::text(p + "field:" + key));
+    e.set("v", Value::text(v));
+    e.set("secret", Value::boolean(false));
+    e = packed_fill(std::move(e), "top", "x");
+    e.set("expand", Value::boolean(true));
+    Value items = array();
+    items.items.push_back(std::move(e));
+    return box(p + "well:" + key, "v", std::move(items));
+}
+std::string strip_spaces(const std::string &s) {
+    const size_t a = s.find_first_not_of(" \t\r\n");
+    if (a == std::string::npos) return "";
+    return s.substr(a, s.find_last_not_of(" \t\r\n") - a + 1);
+}
+bool looks_ipv4(const std::string &s) {   // four numbers 0..255 with dots
+    int parts = 0;
+    size_t i = 0;
+    while (i <= s.size()) {
+        size_t j = i;
+        while (j < s.size() && s[j] >= '0' && s[j] <= '9') j++;
+        if (j == i || j - i > 3 || std::stoi(s.substr(i, j - i)) > 255) return false;
+        parts++;
+        if (j == s.size()) break;
+        if (s[j] != '.') return false;
+        i = j + 1;
+    }
+    return parts == 4;
+}
+
 // the Import box: IMPORT (RE-IMPORT / UPDATE once there was one), Cancel while it runs, the log, the current step
 Value import_box(const std::string &p, const Value &mp, bool again) {
     Value line = array();
@@ -1900,13 +1933,26 @@ Value page_u3mp(const State &state) {
     setup.push_back(row(p + "row:ps3_u3", "1. Add your PS3 Uncharted 3 folders",
                         "Add two folders.\n"
                         "\xe2\x80\xa2 The game: your Game of the Year disc dump's PS3_GAME/USRDIR (it holds build/main/pak23.psarc).\n"
-                        "\xe2\x80\xa2 RPCS3's dev_hdd0/game: it holds update 1.19 (e.g. BCES01670), the game data the game "
-                        "writes when it first goes online (BCES01670DATA2: start Uncharted 3 in RPCS3 once and enter "
-                        "multiplayer) and the four DLC map packs.",
+                        "\xe2\x80\xa2 RPCS3's dev_hdd0/game: it holds update 1.19 (e.g. BCES01670) and the four DLC map packs. "
+                        "With the DNS of step 1b that is all it needs: the game data the game downloads when it goes "
+                        "online (BCES01670DATA2) is downloaded by the import.",
                         buttons_box(p, "ps3_u3", {{"add", "Add folder"}, {"clear", "Clear"}})));
     const Value *folders = state.config.get("u3mp_ps3_u3");
     const std::string folder_text = folders && !folders->items.empty() ? joined(folders, (size_t)-1, "\n") : "None chosen yet.";
     setup.push_back(label(p + "line:ps3_u3", folder_text, DIM, CARD, 9));
+    // 1b: the community server DNS (config u3mp_dns, the same setting as the DNS box of RPCN online play)
+    const std::string dns = config_set(state, "u3mp_dns");
+    setup.push_back(row(p + "row:dns", "1b. Enter the community server DNS",
+                        "Its IPv4 address (the same box as under RPCN online play). The import then downloads the game "
+                        "data Uncharted 3 downloads when it goes online, so you need not go online in RPCS3 first.",
+                        entry_well(p, "dns", dns)));
+    const std::string dns_clean = strip_spaces(dns);
+    setup.push_back(label(p + "line:dns",
+                          dns_clean.empty() ? "Not set: the game data (BCES01670DATA2) must then be in RPCS3's dev_hdd0/game "
+                                              "(start Uncharted 3 in RPCS3 once and enter multiplayer)."
+                          : looks_ipv4(dns_clean) ? "Set: the import downloads the game data when your folders don't have it."
+                                                  : "Not an IPv4 address (four numbers with dots, e.g. 10.0.0.1).",
+                          DIM, CARD, 9));
     setup.push_back(row(p + "row:ps3_elf", "2. Choose the decrypted EBOOT (update 1.19)",
                         "Required: the decrypted EBOOT.elf of your own copy of the game.",
                         buttons_box(p, "ps3_elf", {{"choose", "Choose file"}, {"clear", "Clear"}})));
@@ -2080,6 +2126,10 @@ bool act_mp(const char *page, const std::vector<std::string> &buttons, const std
         changes.call = Value::object();
         changes.call.set("name", Value::text(name));
         return true;
+    }
+    if (key == "field:dns" && prefix == "u3mp_") {   // step 1b: every edit is saved (the online section follows it)
+        if (kind == "entry") changes.config.set("u3mp_dns", Value::text(value.kind == Value::String ? value.s : ""));
+        return kind == "entry" || kind == "enter";
     }
     if (kind == "toggle" && key == "keep_ps3" && prefix == "u3mp_") {
         changes.call = Value::object();

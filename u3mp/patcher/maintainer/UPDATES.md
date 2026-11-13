@@ -15,8 +15,8 @@ changed.
    * **image**: `build/v*/build.json` names a new helper build. The import reruns with `--image-only` (it
      relinks the multiplayer image from the retail eboot and takes seconds).
    * **recipe**: `recipe/CONTENT_ID` (the fingerprint of recipe/ + tools/) differs from the `recipe_id` the last
-     import recorded. The import runs again on the same data folder. `rebuild_overlays.py` reruns only the steps
-     whose own fingerprint (`recipe_lib.step_fingerprint`: step file, fix job folder, list) changed, plus the
+     import recorded. The import (`u3import.exe`) runs again on the same data folder. The recipe reruns only the steps
+     whose own fingerprint (importer/recipe.cpp `step_fingerprint`: step file, fix job folder, list) changed, plus the
      steps whose recorded output files those reruns changed. Every other step is "already applied".
    * While an update runs, Play asks whether to wait or to start Uncharted 3 without multiplayer: the import
      rewrites overlay files, so the game must not read them at the same time.
@@ -25,12 +25,14 @@ changed.
 
 ## What the maintainer does
 
-* **Converter or recipe change** (PKG Converter): make the change and verify it there, then
-  `python u3mp/patcher/maintainer/sync_recipe.py "<...>/PKG Converter"`. This copies the recipe and tools and
-  writes `recipe/CONTENT_ID`. Bump `recipe/VERSION` when steps change, because the status line shows it.
-  Never edit the copies under `u3mp/patcher/recipe|tools` by hand: CONTENT_ID would then be stale.
-* **New multiplayer helper build**: `python u3mp/patcher/maintainer/make_release.py --version X.YZ ...` into
-  `u3mp/patcher/build/vX.YZ/`. The launcher picks the highest version, and the players' image is relinked.
+* **Converter or recipe change**: make the change in `u3mp/patcher/recipe|tools` (C++ for any code: a u3fix
+  command, see `recipe/ADDING-A-FIX.md`) and test it with `u3import.exe --recipe ... --only <id>`. Bump
+  `recipe/VERSION` when steps change, because the status line shows it. `recipe/CONTENT_ID` is written by the
+  release build (the private files' apply.cpp: `u3import --recipe-fingerprint` gives the same value).
+* **New multiplayer helper build**: `scratch/u3x-tools/ship_helper.sh` (maintainer tooling, not in this
+  repository) moves `u3mp/patcher/build/vX.YZ` along and makes the build's `link.json`
+  (`maintainer-tools/link-delta`): the linked image as copies from the menu shell plus the helper build's own bytes,
+  shipped through the private files. The launcher picks the highest version, and the players' image is relinked.
 * **Emulator / launcher change**: this works as in the upstream port. Merge `upstream/main`
   (bc160201983) when BilalReloaded publishes a new version, so players get the port's fixes through this
   repository's releases.

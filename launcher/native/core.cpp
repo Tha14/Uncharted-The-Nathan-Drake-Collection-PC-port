@@ -740,9 +740,13 @@ std::pair<bool, std::string> u3_ready(const Value &s) {
     return {true, ""};
 }
 
-std::string u3_shipped_id() {   // the shipped recipe's fingerprint (u3mp_version.py), worked out once
+// the Uncharted 3 import (u3mp/patcher/importer, C++): u3mp/bin/u3import.exe of the package
+std::string u3import_exe() { return join(join(join(g.root, "u3mp"), "bin"), "u3import.exe"); }
+
+std::string u3_shipped_id() {   // the shipped recipe's fingerprint (recipe/CONTENT_ID, else computed), worked out once
     if (!g.u3_shipped_known) {
-        g.u3_shipped = python_print(g.u3mp_dir, "import u3mp_version; print(u3mp_version.shipped_id(sys.argv[1]))");
+        auto r = run({u3import_exe(), "--shipped-id"}, 120000, g.u3mp_dir);
+        g.u3_shipped = r.first == 0 ? strip(r.second) : "";
         g.u3_shipped_known = true;
     }
     return g.u3_shipped;
@@ -915,8 +919,7 @@ void u3_import(bool silent, bool image_only, const std::string &reason, const st
         return;
     }
     auto start = [silent, image_only, reason, keep, game, folders, data]() {
-        std::vector<std::string> cmd = {python_exe(), "-u", join(g.u3mp_dir, "u3mp_import.py"), "--ps4", game, "--data", data,
-                                        "--port", g.root};
+        std::vector<std::string> cmd = {u3import_exe(), "--ps4", game, "--data", data, "--port", g.root};
         const std::string update = update_dir();
         if (!update.empty()) { cmd.push_back("--ps4-update"); cmd.push_back(update); }
         for (auto &f : u3_import_folders(folders)) { cmd.push_back("--ps3-u3"); cmd.push_back(f); }   // GOTY disc first
@@ -956,7 +959,7 @@ void u3_import(bool silent, bool image_only, const std::string &reason, const st
 
 // Automatic updates: a newer launcher goes first (updates.cpp asks with "stop_staged_imports"). An Uncharted 3 import
 // update builds in its own copy (<data>/recipe-next, state "staging") while the current files stay as they are, so it
-// is stopped and marked; the importer then deletes that copy (u3mp_import.py) and the new launcher runs the update again.
+// is stopped and marked; the importer then deletes that copy (u3import.exe) and the new launcher runs the update again.
 // A first import, or an update made in place (too little disk space), writes the import itself: it is left to finish.
 void u3_stop_staged() {
     if (!u3_running()) return;
@@ -989,7 +992,7 @@ void u3_cancel() {
     });
 }
 
-void u3_keep_ps3(bool on) {   // keep only the PS3 files updates need (ps3keep.py does the work)
+void u3_keep_ps3(bool on) {   // keep only the PS3 files updates need (u3import.exe --keep-ps3-only / --keep-ps3-off does the work)
     const Value s = u3_state();
     const Value *kept_v = s.get("ps3_kept");
     const bool kept = kept_v && truthy(kept_v->get("complete"));
@@ -1043,8 +1046,8 @@ void u3_poll() {
             g.u3.total = num(ev.get("total"));
             g.u3.step = "Step " + std::to_string((long long)num(ev.get("step"))) + "/" + std::to_string((long long)num(ev.get("total"))) +
                         ": " + text(ev, "title").substr(0, 90);
-        } else if (phase == "ps3keep") {
-            g.u3.step = text(ev, "note");
+        } else if (phase == "ps3keep" || (phase == "data2" && !text(ev, "note").empty())) {
+            g.u3.step = text(ev, "note");   // data2: the game-data download through the community server DNS
         } else if (phase == "done") {
             g.u3.n = g.u3.total;
             const std::string status = text(ev, "status");
@@ -1289,6 +1292,8 @@ Value online_host() {
     Value h = Value::object();
     h.set("game_alive", Value::boolean(g.playing));
     h.set("game", Value::text(game_key()));
+    // the "Set up multiplayer" DNS box is the same setting as the online section's: a change there reaches it here
+    h.set("dns", Value::text(text(g.config, "u3mp_dns")));
     return h;
 }
 void online_apply(const Value &r) {

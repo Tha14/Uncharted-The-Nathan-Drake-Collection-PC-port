@@ -1,0 +1,29 @@
+{
+ "id": "hud-mod-mips",
+ "title": "Weapon mod icons sharp in the in-match HUD: overlay-mp net.pak mod icons keep only their two largest mip levels (u3fix.exe hud-mod-mips, hud-mod-mips/limit_mod_mips.cpp)",
+ "kind": "script",
+ "job": "hud-mod-mips",
+ "with_jobs": [
+  "dctools"
+ ],
+ "family": "overlay-mp/pak23 net.pak",
+ "needs": [],
+ "commands": [
+  [
+   "u3fix.exe",
+   "hud-mod-mips",
+   "--apply",
+   "--project",
+   "{{PROJECT}}"
+  ]
+ ],
+ "writes": [
+  "work/overlay-mp/u3data/build/main/pak23/ps4/net.pak"
+ ],
+ "must_write": false,
+ "reference_check": false,
+ "status": "reproducible",
+ "applied": "2026-11-09",
+ "notes": "The HUD showed the clip size / reload / damage icons at mip level ~2.5 (PS3 ~1.6); the sampler changes of helper v7.92-v7.95 did not reach that draw. VRAM_DESC mip count 8 -> 2 for 8 icons; texels unchanged. Newer than manifest.tsv (reference_check false: the reference net.pak is the state before it).",
+ "recipe_version_added": "1.18.0"
+}

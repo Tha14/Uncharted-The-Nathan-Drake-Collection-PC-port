@@ -21,32 +21,33 @@ On this PC: PS4 `D:/2. PS Games/PS4/Uncharted - The Nathan Drake Collection [CUS
 ## Running it
 
 ```
-cd "PKG Converter/recipe"
-python rebuild_overlays.py --ps4 "<PS4 folder>" --ps3-u3 "<U3 disc folder>" --ps3-u3 "<RPCS3 dev_hdd0/game>" \
-                           --ps3-u2 "<U2 folder>" --out "<output folder>" [--speech-langs all] [--continue-on-error]
-python verify_output.py "<output folder>"          # compares with manifest.tsv, per family
-python rebuild_overlays.py --list                   # the step table
+u3mp/bin/u3import.exe --recipe --ps4 "<PS4 folder>" --ps3-u3 "<U3 disc folder>" --ps3-u3 "<RPCS3 dev_hdd0/game>" \
+                      --out "<output folder>" [--allow-missing-u2] [--speech-langs all] [--continue-on-error]
+u3mp/bin/u3import.exe --verify-output "<output folder>"   # compares with manifest.tsv, per family
+u3mp/bin/u3import.exe --recipe --list                     # the step table
 ```
 
-Output: `<out>/work/overlay-*` (the overlays), `<out>/work/backup-*` (what the fix scripts replaced),
-`<out>/scratch/<job>` (rendered scripts), `<out>/_recipe/state.json` + `log.txt`. Re-running on the
+The driver is C++ (`u3mp/patcher/importer`: `recipe.cpp`, the former `rebuild_overlays.py` / `recipe_lib.py`); the
+launcher's import (`u3import.exe` without `--recipe`) runs the same recipe after the multiplayer image. Every script
+step runs `u3fix.exe` (next to `u3import.exe`); no step needs Python.
+
+Output: `<out>/work/overlay-*` (the overlays), `<out>/work/backup-*` (what the fix steps replaced),
+`<out>/scratch/<job>` (rendered job folders), `<out>/_recipe/state.json` + `log.txt`. Re-running on the
 same `--out` skips steps whose recorded outputs are unchanged and steps whose files already equal
-the reference manifest, so updates are incremental. Python 3.11+; numpy (and Pillow, ffmpeg) for
-the steps that say so (`--list`, `needs`).
+the reference manifest, so updates are incremental. ffmpeg for the steps that say so (`--list`, `needs`).
 
 Hidden files (1.8.0): the game loads the overlays first-wins (r3, r2, port, mp), so a level or actor pak of a
 lower overlay with the same path as one in a higher overlay is never read. 740 manifest files are hidden that way
-(r2 pak23 179, port pak23 85, port actor33 452, r2 actor33 24; `recipe_lib.shadowed_files()`). The driver writes
-them to `<out>/_recipe/shadowed.tsv` and passes it as `RECIPE_SHADOWED`; `levels.py` and `build_actors.py` skip
+(r2 pak23 179, port pak23 85, port actor33 452, r2 actor33 24; recipe.cpp). The driver writes
+them to `<out>/_recipe/shadowed.tsv` and passes it as `RECIPE_SHADOWED`; the level and actor builders (u3fix levels / actors) skip
 them (a hidden pak that a visible `copy` row needs is still built), the manifest-state check ignores them, and
-`verify_output.py` counts them as `hidden` instead of `missing` and gives the match rate over the files the game
+`u3import --verify-output` counts them as `hidden` instead of `missing` and gives the match rate over the files the game
 loads. `--all-files` builds them as well (only for comparing every file with the manifest). No later step reads or
 patches a hidden pak (checked 2026-11-06: the only writers of those paths are the two builders).
-Worker processes: `--jobs N`, default logical cores - 2 (`RECIPE_JOBS` for levels.py, build_actors.py,
-convert_banks.py). The sound-bank encoder uses `sound-banks/native/vagenc.dll` (the original vagenc.c compiled,
-byte-identical to vagenc.py, ~30x faster) when it loads, else the Python port.
+Worker processes: `--jobs N`, default logical cores - 2 (`RECIPE_JOBS` for the u3fix level, actor and sound-bank
+steps).
 The level converter (stage, ingame, vischeat, empty, hud, windoff) is C++ in `tools/fixes/dctools` (u3fix.exe levels);
-only the sky rows still run the Python sky converter.
+the sky rows too (dctools/ps4stage.cpp sky_convert).
 
 ## Files in this folder
 
@@ -56,7 +57,7 @@ only the sky rows still run the Python sky converter.
 | `provenance.tsv` | per file: class and source (`provenance.py`, from the hash tables below) |
 | `lists/*.tsv` | copy lists of the copy steps (destination, archive, entry, size, sha256); `levels-*.txt`, `hat-colour-only.txt` name lists |
 | `steps/ORDER.txt`, `steps/NNN-<id>.json` | the step registry (see `ADDING-A-FIX.md`); `make_steps.py` regenerates the initial set |
-| `rebuild_overlays.py`, `recipe_lib.py`, `verify_output.py`, `gather_tools.py` | driver, library, verifier, tool collector |
+| `gather_tools.py` | tool collector (the driver and the verifier are C++: `../importer`, `u3import --recipe` / `--verify-output`) |
 | `GAPS.md` | what cannot be regenerated and why |
 | `retail-ps4-hashes.tsv`, `retail-ps4-psarc-entries.tsv`, `retail-ps4-u2data-sound.tsv`, `ps3-hashes/*.tsv`, `backup-hashes-*.tsv`, `transfer-hashes.tsv`, `stage-assets-hashes.tsv` | hash tables used for the provenance (names and hashes only, no data; `hash_tree.py`, `psarc_hash.py`) |
 | `transcript-mining/` | how the session transcripts were mined for every overlay write (`SUMMARY.md`, `overlay-writes.tsv`, `inline-writes/`) |
@@ -89,7 +90,10 @@ converted pak run once the conversion exists.
 1. `copy-ps3-vtex1`, `copy-ps3-speech`, `copy-ps3-sfx`, `copy-ps4-retail` (byte copies, sha256-checked)
 2. `convert-levels-port`, `convert-levels-r2`, `convert-levels-r3`, `convert-actors-r3`, `convert-dc1`,
    (recipe 1.17.0: the stage rows convert with the level fixes the old in-place batches made, see
-   `tools/fixes/pak23-levels/README.md`; the replay steps `lost-batches-r3` and `cloud-batches-r3` are retired)
+   `tools/fixes/pak23-levels/README.md`; the replay steps `lost-batches-r3` and `cloud-batches-r3` are retired;
+   1.18.0: a Game of the Year disc without the DLC map packs gives `gompa-multi-shade-npc-ingame12` from goty-dlc.psarc,
+   whose build plan.tsv accepts as `goty_sha256` in the row's note: before, a fresh GOTY-only import failed
+   `convert-levels-port` on it)
    `convert-dc2-part-modules` (runnable since 1.10.0: `tools/fixes/part-emitters`, the recovered batch45/batch48
    particle converter); `convert-banks`, `convert-text1` (runnable since 1.1.0)
 3. `registry-pak23` (mkregistry)
@@ -98,7 +102,7 @@ converted pak run once the conversion exists.
    `borneo-water-jitter`, `map-colors-lightmap`, `borneo-grass-leaf`, `coop-voice-fort`, `hair-key`*, `eula-pages`,
    `map-colors2`, `actor-materials`, `coop-desc-fix`, `excess-wall`, `hat-colour`, `airport-igc2`,
    `enemy-stall-option-defaults`, `emblem-cap3`, `coop-audit-option-defaults`, `shade-npc-paks`, `coop-voice-all`,
-   `london-fade`, `airport-igc3`, `vram-gap` (* = dctools steps: restored 2026-11-05, verified sha256-identical from their backups with `tools/dcconv/verify_dctools_chain.py`; maps-batch is now `maps-batch-dc` + `maps-batch-files`, and `eula-menu-box` follows `rpcn-menu-page`)
+   `london-fade`, `airport-igc3`, `map-lighting`, `vram-gap`, `hud-mod-mips` (recipe 1.18.0: the weapon mod icons of the in-match HUD keep their two largest mip levels, as sharp as on PS3) (* = dctools steps: restored 2026-11-05, verified sha256-identical from their backups with `tools/dcconv/verify_dctools_chain.py`; maps-batch is now `maps-batch-dc` + `maps-batch-files`, and `eula-menu-box` follows `rpcn-menu-page`)
 5. `registry-final` (pak23_ps4.txt of the four overlays, line provenance), `remove-lab` (recipe 1.15.0: no Lab maps on
    PC; deletes the Lab level / actor paks and Lab map pictures older imports have and strips the Lab blocks of
    pak23_ps4.txt; `levels-lab`, `levels-maps-batch` and `maps-batch-files` are retired, convert-actors skips the 48

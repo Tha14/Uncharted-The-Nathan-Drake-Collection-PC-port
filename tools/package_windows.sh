@@ -94,8 +94,9 @@ u3_import() {   # Uncharted 3's importer, its recipe and tools, and the newest m
     # helper for the committed build is missing or is not the one its build.json names.
     local builds=$out/u3mp/patcher/build newest=$committed_builds d want have
     for d in "$builds"/v*/; do [[ $(basename -- "$d") == "$newest" ]] || rm -rf -- "$d"; done
-    want=$(grep -o '"profile-helper.bin": *"[0-9a-f]*"' "$builds/$newest/build.json" | grep -o '[0-9a-f]\{64\}')
-    have=$(sha256sum "$builds/$newest/profile-helper.bin" 2>/dev/null | cut -c1-64)
+    # the helper's link (link.json: its bytes and where they go in the menu shell, made by the helper build)
+    want=$(grep -o '"link.json": *"[0-9a-f]*"' "$builds/$newest/build.json" | grep -o '[0-9a-f]\{64\}')
+    have=$(sha256sum "$builds/$newest/link.json" 2>/dev/null | cut -c1-64)
     if [[ -z $want || $want != "$have" ]]; then
         echo "The helper of build $newest is missing or is not the one its build.json names (private files out of step?)" >&2
         exit 1
@@ -129,8 +130,15 @@ u3_import() {   # Uncharted 3's importer, its recipe and tools, and the newest m
         "$fx/dctools/dcconv.cpp" "$fx/dcconv/convert_dc1.cpp" "$fx/dcconv/apply_recipes.cpp" "$fx/sound-banks/convert_banks.cpp" \
         "$fx/part-emitters/build_part_modules.cpp" "$fx/actor33/actors_hk.cpp" "$fx/coop-vo/apply_vo.cpp" \
         "$fx/coop-voice2/apply_coop_vox.cpp" "$fx/dctools/net_edits.cpp" \
-        "$fx/coop-audit/apply_shade_npc_paks.cpp" "$fx/inline/facility_collapse.cpp" "$fx/eula-batch/make_eula.cpp" "$fx/wall-emblem/make_emblem.cpp" "$fx/outdoor-jacket/apply_outdoor_jacket.cpp" "$fx/dctools/lab_reg.cpp" "$fx/borneo/borneo_fixes.cpp" "$fx/london/apply_london.cpp" "$fx/map-lighting/apply_map_lighting.cpp" "$fx/map-colors/apply_mapcolor.cpp" "$fx/map-colors2/apply_mapcolor2.cpp" \
+        "$fx/coop-audit/apply_shade_npc_paks.cpp" "$fx/inline/facility_collapse.cpp" "$fx/eula-batch/make_eula.cpp" "$fx/wall-emblem/make_emblem.cpp" "$fx/outdoor-jacket/apply_outdoor_jacket.cpp" "$fx/dctools/lab_reg.cpp" "$fx/borneo/borneo_fixes.cpp" "$fx/london/apply_london.cpp" "$fx/map-lighting/apply_map_lighting.cpp" "$fx/map-colors/apply_mapcolor.cpp" "$fx/map-colors2/apply_mapcolor2.cpp" "$fx/hud-mod-mips/limit_mod_mips.cpp" \
         -o "$out/u3mp/bin/u3fix.exe"
+    # u3import.exe: the import the launcher runs (u3mp/patcher/importer: the image, the recipe driver, staged updates);
+    # it links the launcher's own prepare / module link code for the base image
+    local im=u3mp/patcher/importer
+    clang++ -std=c++20 -O2 -municode -static -s -Wl,--gc-sections -Wl,--no-insert-timestamp -I"$im" -I"$fx/dctools" -Ilauncher/native \
+        "$im/u3import.cpp" "$im/recipe.cpp" "$im/mpimage.cpp" "$im/ps3keep.cpp" "$im/common.cpp" "$fx/dctools/psarc.cpp" "$fx/dctools/dc.cpp" \
+        launcher/native/prepare.cpp launcher/native/link.cpp launcher/native/system.cpp \
+        -lbcrypt -lshell32 -lole32 -luuid -ladvapi32 -o "$out/u3mp/bin/u3import.exe"
     # ffmpeg (the EULA pages, sound banks with MP3 samples) and, when installed, GNU objdump (the characters' Havok
     # tables; mingw-w64-ucrt-x86_64-binutils: without it the import skips that step)
     local dll

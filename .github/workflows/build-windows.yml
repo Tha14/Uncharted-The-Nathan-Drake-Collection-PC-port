@@ -87,8 +87,8 @@ jobs:
 
       # The private package files (another repository, two secrets): a release needs them, other builds go on
       # without them.
+      # Its apply.cpp (C++) puts them in and writes recipe/CONTENT_ID.
       - name: Private package files
-        shell: bash
         env:
           EXTRA_REPO: ${{ secrets.PACKAGE_EXTRA_REPO }}
           EXTRA_TOKEN: ${{ secrets.PACKAGE_EXTRA_TOKEN }}
@@ -98,10 +98,12 @@ jobs:
             echo "no private package files: building without them"
             exit 0
           fi
-          files="$RUNNER_TEMP/private-files"
+          files="$(cygpath -u "$RUNNER_TEMP")/private-files"
           git clone -q --depth 1 "https://x-access-token:${EXTRA_TOKEN}@github.com/${EXTRA_REPO}.git" "$files" > /dev/null 2>&1 ||
             { echo "::error::the private package files could not be fetched"; exit 1; }
-          python "$files/apply.py" "$GITHUB_WORKSPACE"
+          clang++ -std=c++20 -O2 -municode -static "$files/apply.cpp" -lbcrypt -o "$files/apply.exe" > /dev/null 2>&1 ||
+            { echo "::error::the private package files' apply program did not build"; exit 1; }
+          "$files/apply.exe" "$(cygpath -w "$GITHUB_WORKSPACE")"
           rm -rf "$files"
 
       - name: Package

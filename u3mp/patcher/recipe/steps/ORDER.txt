@@ -47,6 +47,7 @@ london-fade
 airport-igc3
 map-lighting
 vram-gap
+hud-mod-mips
 registry-final
 remove-lab
 remove-rpcn-page

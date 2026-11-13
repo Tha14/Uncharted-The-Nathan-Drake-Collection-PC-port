@@ -12,10 +12,6 @@
   "U3MP_ONLINE_MM": "1"
  },
  "files": {
-  "profile-helper.bin": "512066fc16f5691b760d65cecf2b07cd927765689fc7d7fa763f071f48cce54b",
-  "u3_pool_init.bin": "108879278e0e477fcdb010584151a020119723696f7f03815a42664a62279821",
-  "build_u3_profile_probe.py": "891202172c753f00c1ab4afd124972b651c811889231f9ca84cd4bad1134e5b4",
-  "build_u3_pool_blob.py": "ec60dbf1221aec46b36180724a217a86b3e7b7d1e220f05e88f3fad97dd0445a",
-  "build_u3_bootstrap_probe.py": "94f3123030ad4a4f60930efc0fa3c72c5631d8b616237abbca3d3f1e9db72346"
+  "link.json": "e5019a25bc9453639b9f2913afd9d9c69552d95122be19d57686e5dfc4efcad3"
  }
 }

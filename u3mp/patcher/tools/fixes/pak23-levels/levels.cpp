@@ -42,8 +42,19 @@ std::string g_here, g_project, g_ps4, g_disc, g_update, g_data2, g_dlcmaps;
 fs::path g_tmp;   // <project>/scratch/pak23-levels-work
 std::set<std::string> g_anim;   // animated actor names for the ingame converter (made once, before the workers)
 
-
 using Row = std::map<std::string, std::string>;
+
+// The plan's sha256, or the one its note names as 'goty_sha256=<sha>': a Game of the Year disc without the DLC map packs
+// gives the DLC levels from goty-dlc.psarc, and a few of those sources differ from dlc-map1..4.psarc
+// (gompa-multi-shade-npc-ingame12: the GOTY copy already has the 43 spawners the shade-npc-paks step adds; that step
+// accepts it as it is)
+bool plan_sha(const Row &r, const std::string &h) {
+    if (h == r.at("sha256")) return true;
+    auto n = r.find("note");
+    if (n == r.end()) return false;
+    const size_t k = n->second.find("goty_sha256=");
+    return k != std::string::npos && n->second.compare(k + 12, 64, h) == 0 && h.size() == 64;
+}
 
 std::vector<Row> plan_rows() {
     std::vector<Row> rows;
@@ -411,7 +422,7 @@ int levels(const std::vector<std::string> &argv) {
         r["dst"] = utf8(dst);
         const bool exists = fs::exists(dst);
         const std::string h = exists ? sha_file(dst) : "";
-        if (exists && h == r.at("sha256")) { done++; continue; }
+        if (exists && plan_sha(r, h)) { done++; continue; }
         auto rf = ref.find({r.at("overlay"), r.at("name")});
         if (r.at("status") == "base" && !strict && exists && rf != ref.end() && h != rf->second) {
             r["replace"] = "1";   // an earlier import's build of an older plan row: build it again so the later steps apply
@@ -470,7 +481,7 @@ int levels(const std::vector<std::string> &argv) {
             continue;
         }
         const std::string h = sha_file(upath(result[i]));
-        const bool same = h == r.at("sha256");
+        const bool same = plan_sha(r, h);
         if (!same && r.at("status") == "identical") {
             std::printf("MISMATCH %s/%s: built %s, plan %s (not installed)\n", r.at("overlay").c_str(), r.at("name").c_str(), h.substr(0, 12).c_str(), r.at("sha256").substr(0, 12).c_str());
             bad++;

@@ -288,6 +288,7 @@ int wmain(int argc, wchar_t **argv) {
         if (step == "map-lighting") return u3::map_lighting(a);
         if (step == "map-colors") return u3::map_colors(a);
         if (step == "map-colors2") return u3::map_colors2(a);
+        if (step == "hud-mod-mips") return u3::hud_mod_mips(a);
         if (step == "pakinfo") return u3::pakinfo(a);
         std::fprintf(stderr, "usage: u3fix <step> [options] (the steps: see u3fix.cpp)\n");
         return 2;
