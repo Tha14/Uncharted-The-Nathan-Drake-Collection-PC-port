@@ -497,6 +497,8 @@ Bytes convert(const Bytes &d, const std::string &ff) {
     return out;
 }
 
+}  // namespace
+
 std::string find_ffmpeg(const std::string &arg) {
     std::vector<std::string> c = {arg};
     if (const char *e = std::getenv("RECIPE_FFMPEG")) c.push_back(e);
@@ -517,7 +519,6 @@ std::string find_ffmpeg(const std::string &arg) {
     return "";
 }
 
-}  // namespace
 
 int sound_banks(const std::vector<std::string> &argv) {
     const Args a(argv, {"--force", "--apply"}, {"--project", "--job", "--ps3-disc", "--ps3-update", "--out", "--backup", "--only", "--ffmpeg", "--jobs"});

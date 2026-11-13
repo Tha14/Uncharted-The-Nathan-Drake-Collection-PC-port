@@ -68,6 +68,8 @@ int classic(const std::vector<std::string> &argv);             // tools/fixes/dc
 int skins_net_names(const std::vector<std::string> &argv);     // tools/fixes/dctools/net_edits.cpp
 int shade_npc(const std::vector<std::string> &argv);           // tools/fixes/coop-audit/apply_shade_npc_paks.cpp
 int facility_collapse(const std::vector<std::string> &argv);   // tools/fixes/inline/facility_collapse.cpp
+std::string find_ffmpeg(const std::string &arg);         // --ffmpeg, RECIPE_FFMPEG, msys2, PATH (sound-banks/convert_banks.cpp)
+int eula_pages(const std::vector<std::string> &argv);          // tools/fixes/eula-batch/make_eula.cpp
 int pakinfo(const std::vector<std::string> &argv);            // dctools/ndpak.cpp: a pak's summary (as ndpak.py prints it)
 
 }  // namespace u3
