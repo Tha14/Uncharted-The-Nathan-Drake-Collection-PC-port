@@ -60,6 +60,8 @@ bool is_ps3_order(const Dc &c, const std::string &net18) {
 
 }  // namespace
 
+bool net_is_ps3_order(const Dc &c, const std::string &net18) { return is_ps3_order(c, net18); }
+
 int elim_pic(const std::vector<std::string> &argv) {
     const Args a(argv, {}, {"--project", "--ps3-data2"});
     const std::string R = a.need("--project") + "/work/", D = dir_of(a.need("--project")), BK = R + "backup-elim-pic/";

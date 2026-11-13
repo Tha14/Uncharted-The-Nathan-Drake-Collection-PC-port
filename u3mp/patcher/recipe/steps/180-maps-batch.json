@@ -1,20 +1,20 @@
 {
  "id": "maps-batch-dc",
- "title": "Lab maps 34/34b/37 modes + 24th Classic map (Drydock): net.bin + modules.bin part (maps-batch/apply_maps.py --dc-only)",
+ "title": "Lab maps 34/34b/37 modes + 24th Classic map (Drydock): net.bin + modules.bin part (u3fix maps-batch-dc, dctools/lab_reg.cpp)",
  "kind": "script",
  "job": "maps-batch",
- "with_jobs": [
-  "dctools"
- ],
  "family": "overlay-r3/dc1",
  "needs": [
   "ps3_data2"
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_maps.py",
-   "--dc-only"
+   "u3fix.exe",
+   "maps-batch-dc",
+   "--project",
+   "{{PROJECT}}",
+   "--ps3-data2",
+   "{{PS3_DATA2}}"
   ]
  ],
  "writes": [
@@ -23,6 +23,6 @@
  ],
  "status": "needs-converted-base",
  "applied": "2026-11-01 14:52",
- "notes": "Idempotent (exits 0 when netgame ebdaa7b7 is in net.bin). Verified 2026-11-05: backup-maps -> overlay net.bin.bak-hairkey (= post apply_maps) sha256-identical, modules.bin net size word 828836. The 55 paks and pak23_ps4.txt are the separate step maps-batch-files.",
+ "notes": "C++ since 2026-11-13 (u3fix maps-batch-dc replaces apply_maps.py --dc-only; the retired maps-batch-files part was not ported). Exits 0 when the netgame table is in PS3 1.19 order. Before: idempotent (exits 0 when netgame ebdaa7b7 is in net.bin). Verified 2026-11-05: backup-maps -> overlay net.bin.bak-hairkey (= post apply_maps) sha256-identical, modules.bin net size word 828836. The 55 paks and pak23_ps4.txt are the separate step maps-batch-files.",
  "recipe_version_added": "1.2.0"
 }

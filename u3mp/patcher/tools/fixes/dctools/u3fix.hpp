@@ -73,6 +73,9 @@ int eula_pages(const std::vector<std::string> &argv);          // tools/fixes/eu
 int wall_emblem(const std::vector<std::string> &argv);           // tools/fixes/wall-emblem/make_emblem.cpp
 int wall_emblem_actors(const std::vector<std::string> &argv);    // tools/fixes/wall-emblem/make_emblem.cpp
 int outdoor_jacket(const std::vector<std::string> &argv);        // tools/fixes/outdoor-jacket/apply_outdoor_jacket.cpp
+int lab_registration(const std::vector<std::string> &argv);      // tools/fixes/dctools/lab_reg.cpp
+bool net_is_ps3_order(const Dc &net, const std::string &net18);   // dctools/net_edits.cpp: netgame table in PS3 1.19 order
+int maps_batch_dc(const std::vector<std::string> &argv);         // tools/fixes/dctools/lab_reg.cpp
 int pakinfo(const std::vector<std::string> &argv);            // dctools/ndpak.cpp: a pak's summary (as ndpak.py prints it)
 
 }  // namespace u3
