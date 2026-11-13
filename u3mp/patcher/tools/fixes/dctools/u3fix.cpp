@@ -271,6 +271,9 @@ int wmain(int argc, wchar_t **argv) {
         if (step == "actors-hk") return u3::actors_hk(a);
         if (step == "coop-vo") return u3::coop_vo(a);
         if (step == "coop-voice2") return u3::coop_voice2(a);
+        if (step == "elim-pic") return u3::elim_pic(a);
+        if (step == "classic") return u3::classic(a);
+        if (step == "skins-net-names") return u3::skins_net_names(a);
         if (step == "pakinfo") return u3::pakinfo(a);
         std::fprintf(stderr, "usage: u3fix <step> [options] (the steps: see u3fix.cpp)\n");
         return 2;

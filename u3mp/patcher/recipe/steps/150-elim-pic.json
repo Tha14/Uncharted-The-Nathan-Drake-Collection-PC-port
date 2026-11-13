@@ -1,6 +1,6 @@
 {
  "id": "elim-pic",
- "title": "Elimination mode picture in net.bin / modules.bin (dctools/elim_pic.py)",
+ "title": "Elimination mode picture in net.bin / modules.bin (u3fix.exe elim-pic, dctools/net_edits.cpp)",
  "kind": "script",
  "job": "dctools",
  "family": "overlay-r3/dc1",
@@ -9,8 +9,12 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/elim_pic.py"
+   "u3fix.exe",
+   "elim-pic",
+   "--project",
+   "{{PROJECT}}",
+   "--ps3-data2",
+   "{{PS3_DATA2}}"
   ]
  ],
  "writes": [

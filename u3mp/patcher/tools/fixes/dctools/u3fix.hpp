@@ -63,6 +63,9 @@ int part_modules(const std::vector<std::string> &argv);        // tools/fixes/pa
 int actors_hk(const std::vector<std::string> &argv);           // tools/fixes/actor33/actors_hk.cpp
 int coop_vo(const std::vector<std::string> &argv);             // tools/fixes/coop-vo/apply_vo.cpp
 int coop_voice2(const std::vector<std::string> &argv);         // tools/fixes/coop-voice2/apply_coop_vox.cpp
+int elim_pic(const std::vector<std::string> &argv);            // tools/fixes/dctools/net_edits.cpp
+int classic(const std::vector<std::string> &argv);             // tools/fixes/dctools/net_edits.cpp
+int skins_net_names(const std::vector<std::string> &argv);     // tools/fixes/dctools/net_edits.cpp
 int pakinfo(const std::vector<std::string> &argv);            // dctools/ndpak.cpp: a pak's summary (as ndpak.py prints it)
 
 }  // namespace u3

@@ -1,14 +1,18 @@
 {
  "id": "classic-netgames",
- "title": "Classic netgames: +0x68 flag copy, old loadout/settings, boosters on for the 23 type-0x13 games (dctools/classic.py; rerun after any net.bin rebuild)",
+ "title": "Classic netgames: +0x68 flag copy, old loadout/settings, boosters on for the 23 type-0x13 games (u3fix.exe classic, dctools/net_edits.cpp; rerun after any net.bin rebuild)",
  "kind": "script",
  "job": "dctools",
  "family": "overlay-r3/dc1",
  "needs": [],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/classic.py"
+   "u3fix.exe",
+   "classic",
+   "--project",
+   "{{PROJECT}}",
+   "--ps3-data2",
+   "{{PS3_DATA2}}"
   ]
  ],
  "writes": [

@@ -1,15 +1,17 @@
 {
  "id": "skins-net-names",
- "title": "Weapon skins: full material names in net.bin / weapon-art.bin + modules.bin size table (dctools/skins_net_names.py = inline sk7 + 014 of 2026-11-01 13:37)",
+ "title": "Weapon skins: full material names in net.bin / weapon-art.bin + modules.bin size table (u3fix.exe skins-net-names, dctools/net_edits.cpp = skins_net_names.py, inline sk7 + 014 of 2026-11-01 13:37)",
  "kind": "script",
  "job": "dctools",
  "family": "overlay-r3/dc1",
  "needs": [],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/skins_net_names.py",
-   "--apply"
+   "u3fix.exe",
+   "skins-net-names",
+   "--apply",
+   "--project",
+   "{{PROJECT}}"
   ]
  ],
  "writes": [
