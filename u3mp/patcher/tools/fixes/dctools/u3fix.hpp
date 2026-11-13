@@ -76,6 +76,8 @@ int outdoor_jacket(const std::vector<std::string> &argv);        // tools/fixes/
 int lab_registration(const std::vector<std::string> &argv);      // tools/fixes/dctools/lab_reg.cpp
 bool net_is_ps3_order(const Dc &net, const std::string &net18);   // dctools/net_edits.cpp: netgame table in PS3 1.19 order
 int maps_batch_dc(const std::vector<std::string> &argv);         // tools/fixes/dctools/lab_reg.cpp
+int water_jitter(const std::vector<std::string> &argv);          // tools/fixes/borneo/borneo_fixes.cpp
+int grass_leaf(const std::vector<std::string> &argv);            // tools/fixes/borneo/borneo_fixes.cpp
 int pakinfo(const std::vector<std::string> &argv);            // dctools/ndpak.cpp: a pak's summary (as ndpak.py prints it)
 
 }  // namespace u3

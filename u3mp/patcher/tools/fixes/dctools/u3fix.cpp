@@ -282,6 +282,8 @@ int wmain(int argc, wchar_t **argv) {
         if (step == "outdoor-jacket") return u3::outdoor_jacket(a);
         if (step == "lab-registration") return u3::lab_registration(a);
         if (step == "maps-batch-dc") return u3::maps_batch_dc(a);
+        if (step == "water-jitter") return u3::water_jitter(a);
+        if (step == "grass-leaf") return u3::grass_leaf(a);
         if (step == "pakinfo") return u3::pakinfo(a);
         std::fprintf(stderr, "usage: u3fix <step> [options] (the steps: see u3fix.cpp)\n");
         return 2;

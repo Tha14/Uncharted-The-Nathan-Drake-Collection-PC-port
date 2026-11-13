@@ -1,6 +1,6 @@
 {
  "id": "borneo-water-jitter",
- "title": "Borneo co-op water material fix (borneo/fix_water_jitter.py --only \"^dig-coop\")",
+ "title": "Borneo co-op water material fix (u3fix water-jitter --only \"^dig-coop\", borneo/borneo_fixes.cpp)",
  "kind": "script",
  "job": "borneo",
  "family": "overlay-r3/pak23",
@@ -10,11 +10,17 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/fix_water_jitter.py",
+   "u3fix.exe",
+   "water-jitter",
    "--only",
    "^dig-coop",
-   "--apply"
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
+   "--ps3-data2",
+   "{{PS3_DATA2}}"
   ]
  ],
  "writes": [
@@ -22,5 +28,6 @@
  ],
  "status": "needs-converted-base",
  "applied": "2026-11-01 20:26",
- "recipe_version_added": "1.0.0"
+ "recipe_version_added": "1.0.0",
+ "notes": "C++ since 2026-11-13 (u3fix water-jitter replaces fix_water_jitter.py; the PS3 constants come from the C++ material parameter reader). Verified on the real import's 7 .bak-jitter paks: the same 24 floats, all 7 results byte-identical."
 }
