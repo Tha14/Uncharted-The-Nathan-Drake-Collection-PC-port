@@ -1,8 +1,11 @@
 {
  "id": "convert-levels-r3",
- "title": "overlay-r3: cloud-converted level paks (third pass + h017 worlds, 2026-10-27..30) rebuilt per plan.tsv (pak23-levels/levels.py r3)",
+ "title": "overlay-r3: cloud-converted level paks (third pass + h017 worlds, 2026-10-27..30) rebuilt per plan.tsv (u3fix.exe levels r3, pak23-levels/levels.cpp; the latest converter)",
  "kind": "script",
  "job": "pak23-levels",
+ "with_jobs": [
+  "dctools"
+ ],
  "family": "overlay-r3/pak23",
  "needs": [
   "ps4",
@@ -14,10 +17,28 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/levels.py",
+   "u3fix.exe",
+   "levels",
    "r3",
-   "--apply"
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}",
+   "--paktools",
+   "{{PAKTOOLS}}",
+   "--ps4",
+   "{{PS4}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
+   "--ps3-update",
+   "{{PS3_UPDATE}}",
+   "--ps3-data2",
+   "{{PS3_DATA2}}",
+   "--ps3-dlcmaps",
+   "{{PS3_DLCMAPS}}",
+   "--python",
+   "{{PYTHON}}"
   ]
  ],
  "writes": [

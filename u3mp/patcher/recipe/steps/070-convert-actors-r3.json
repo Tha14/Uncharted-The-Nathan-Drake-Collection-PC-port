@@ -1,8 +1,11 @@
 {
  "id": "convert-actors-r3",
- "title": "Converted actor paks of overlay-port / -r2 / -r3 / -mp + overlay-mp net.pak, rebuilt with the recovered converter versions and parameters (actor33/build_actors.py, jobs.tsv)",
+ "title": "Converted actor paks of overlay-port / -r2 / -r3 / -mp + overlay-mp net.pak, rebuilt with the latest converter (u3fix.exe actors, actor33/build_actors.cpp, jobs.tsv)",
  "kind": "script",
  "job": "actor33",
+ "with_jobs": [
+  "dctools"
+ ],
  "family": "overlay-*/actor33 + overlay-mp/pak23 net.pak",
  "needs": [
   "ps4",
@@ -13,9 +16,23 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/build_actors.py",
-   "--apply"
+   "u3fix.exe",
+   "actors",
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}",
+   "--ps4",
+   "{{PS4}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
+   "--ps3-update",
+   "{{PS3_UPDATE}}",
+   "--ps3-data2",
+   "{{PS3_DATA2}}",
+   "--python",
+   "{{PYTHON}}"
   ]
  ],
  "writes": [

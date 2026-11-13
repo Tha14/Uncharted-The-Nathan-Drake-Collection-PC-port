@@ -1,8 +1,0 @@
-{
- "templates": {
-  "levels/sky/-big3/mp-coop/sky-train-wreck-multi/default": [
-   "sky-london-wide.pak",
-   "levels/sky/-big3/sky-london-wide:default,b160efc5-3915-4a4c-a367-eeec84137bd1,sky-clouds.fx"
-  ]
- }
-}

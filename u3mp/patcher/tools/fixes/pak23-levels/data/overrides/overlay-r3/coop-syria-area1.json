@@ -1,14 +1,8 @@
 {
- "templates": {
-  "levels/syria/liftdoor/syria-liftdoor-wood-01/default": [
-   "ldn-train-stage.pak",
-   "levels/london-underground/walls/concrete/ug-foundation-concrete:default,3f193ffd-d8c1-4175-b145-c6582f65fea8,prime-shader.fx"
-  ]
- },
- "gobo": {
-  "syria-area1.pak": {
-   "732ba36e": "art/levels/light-library/gobos/ARRI-FRESNEL-COOL-KELVIN.tga",
-   "e34111dc": "art/levels/light-library/gobos/ARRI-FRESNEL-COOL-KELVIN_02.tga"
-  }
- }
+    "gobo":  {
+                 "syria-area1.pak":  {
+                                         "732ba36e":  "art/levels/light-library/gobos/ARRI-FRESNEL-COOL-KELVIN.tga",
+                                         "e34111dc":  "art/levels/light-library/gobos/ARRI-FRESNEL-COOL-KELVIN_02.tga"
+                                     }
+             }
 }

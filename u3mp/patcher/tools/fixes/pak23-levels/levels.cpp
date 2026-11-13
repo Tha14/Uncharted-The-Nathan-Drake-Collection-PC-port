@@ -16,6 +16,7 @@
 // (lib/convert_one.py, with data/overrides/<overlay>/<name>.json choices), empty, hud, windoff, sky.
 // Replaces levels.py for these families (the retired lab and maps-batch families are not supported).
 #include "u3fix.hpp"
+#include "proc.hpp"
 #include "psarc.hpp"
 
 #include <algorithm>
@@ -34,149 +35,6 @@ std::string g_here, g_project, g_paktools, g_ps4, g_disc, g_update, g_data2, g_d
 fs::path g_tmp;   // <project>/scratch/pak23-levels-work
 std::mutex g_pt_lock;
 
-std::wstring wide(const std::string &s) {
-    if (s.empty()) return L"";
-    int n = MultiByteToWideChar(CP_UTF8, 0, s.data(), int(s.size()), nullptr, 0);
-    std::wstring w(size_t(n), L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, s.data(), int(s.size()), w.data(), n);
-    return w;
-}
-std::string P(const fs::path &p) { return win_path(utf8(p)); }
-
-// subprocess.list2cmdline
-std::wstring quote_arg(const std::wstring &a) {
-    if (!a.empty() && a.find_first_of(L" \t\"") == std::wstring::npos) return a;
-    std::wstring o = L"\"";
-    size_t bs = 0;
-    for (wchar_t c : a) {
-        if (c == L'\\') { bs++; continue; }
-        if (c == L'"') { o.append(bs * 2 + 1, L'\\'); o += c; bs = 0; continue; }
-        o.append(bs, L'\\');
-        bs = 0;
-        o += c;
-    }
-    o.append(bs * 2, L'\\');
-    return o + L"\"";
-}
-
-using Env = std::map<std::string, std::string>;   // overrides on top of this process's environment
-
-// a child process; RuntimeError text as levels.py's run() on a non-zero exit
-std::string run(const std::vector<std::string> &cmd, const Env &env = {}, const std::string &cwd = "") {
-    std::wstring line;
-    for (const std::string &a : cmd) line += (line.empty() ? L"" : L" ") + quote_arg(wide(a));
-    std::vector<std::pair<std::wstring, std::wstring>> vars;   // this process's environment with the overrides
-    if (wchar_t *blk = GetEnvironmentStringsW()) {
-        for (const wchar_t *p = blk; *p; p += wcslen(p) + 1) {
-            std::wstring kv = p;
-            const size_t eq = kv.find(L'=', 1);
-            if (eq != std::wstring::npos) vars.push_back({kv.substr(0, eq), kv.substr(eq + 1)});
-        }
-        FreeEnvironmentStringsW(blk);
-    }
-    auto up = [](std::wstring s) { for (wchar_t &c : s) c = towupper(c); return s; };
-    for (const auto &[k, v] : env) {
-        const std::wstring wk = wide(k);
-        bool set = false;
-        for (auto &kv : vars)
-            if (up(kv.first) == up(wk)) { kv.second = wide(v); set = true; }
-        if (!set) vars.push_back({wk, wide(v)});
-    }
-    std::sort(vars.begin(), vars.end(), [&](const auto &x, const auto &y) { return up(x.first) < up(y.first); });
-    std::wstring block;
-    for (const auto &[k, v] : vars) block += k + L"=" + v + L'\0';
-    block += L'\0';
-    SECURITY_ATTRIBUTES sa{sizeof sa, nullptr, TRUE};
-    HANDLE out_r, out_w, err_r, err_w;
-    CreatePipe(&out_r, &out_w, &sa, 0);
-    CreatePipe(&err_r, &err_w, &sa, 0);
-    SetHandleInformation(out_r, HANDLE_FLAG_INHERIT, 0);
-    SetHandleInformation(err_r, HANDLE_FLAG_INHERIT, 0);
-    STARTUPINFOW si{};
-    si.cb = sizeof si;
-    si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-    si.hStdOutput = out_w;
-    si.hStdError = err_w;
-    PROCESS_INFORMATION pi{};
-    const std::wstring wcwd = wide(cwd);
-    if (!CreateProcessW(nullptr, line.data(), nullptr, nullptr, TRUE, CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW, block.data(),
-                        cwd.empty() ? nullptr : wcwd.c_str(), &si, &pi)) {
-        CloseHandle(out_r); CloseHandle(out_w); CloseHandle(err_r); CloseHandle(err_w);
-        throw Stop("cannot start " + cmd[0]);
-    }
-    CloseHandle(out_w);
-    CloseHandle(err_w);
-    std::string out, err;
-    auto pump = [](HANDLE h, std::string *s) {
-        char buf[65536];
-        DWORD n;
-        while (ReadFile(h, buf, sizeof buf, &n, nullptr) && n) s->append(buf, n);
-    };
-    std::thread te(pump, err_r, &err);
-    pump(out_r, &out);
-    te.join();
-    WaitForSingleObject(pi.hProcess, INFINITE);
-    DWORD code = 1;
-    GetExitCodeProcess(pi.hProcess, &code);
-    CloseHandle(pi.hProcess); CloseHandle(pi.hThread); CloseHandle(out_r); CloseHandle(err_r);
-    for (std::string *s : {&out, &err})   // text mode
-        for (size_t k; (k = s->find("\r\n")) != std::string::npos;) s->replace(k, 2, "\n");
-    if (code) {
-        const std::string script = cmd.size() > 1 ? cmd[1].substr(cmd[1].find_last_of("/\\") == std::string::npos ? 0 : cmd[1].find_last_of("/\\") + 1) : cmd[0];
-        throw Stop(fmt("%s failed (%lu): %s %s", script.c_str(), (unsigned long)code, out.substr(out.size() > 800 ? out.size() - 800 : 0).c_str(),
-                       err.substr(err.size() > 1500 ? err.size() - 1500 : 0).c_str()));
-    }
-    return out;
-}
-
-std::string text_file(const fs::path &p) {   // read in text mode
-    const Bytes b = read_file(p);
-    std::string s(b.begin(), b.end());
-    for (size_t k; (k = s.find("\r\n")) != std::string::npos;) s.replace(k, 2, "\n");
-    return s;
-}
-void write_text(const fs::path &p, const std::string &s) {   // written in text mode: CRLF
-    Bytes b;
-    for (char c : s) {
-        if (c == '\n') b.push_back('\r');
-        b.push_back(uint8_t(c));
-    }
-    write_file_replace(p, b);
-}
-std::string sha_file(const fs::path &p) { return sha256_hex(read_file(p)); }
-
-// json.dump(v, f): one line, ', ' and ': ' separators
-void dump_compact(std::string &o, const json::Value &v) {
-    switch (v.kind) {
-    case json::Value::Null: o += "null"; break;
-    case json::Value::Bool: o += v.b ? "true" : "false"; break;
-    case json::Value::Int: o += std::to_string(v.i); break;
-    case json::Value::Float: o += json::real(v.f); break;
-    case json::Value::String: json::quote(o, v.s); break;
-    case json::Value::Array:
-        o += "[";
-        for (size_t k = 0; k < v.items.size(); ++k) { if (k) o += ", "; dump_compact(o, v.items[k]); }
-        o += "]";
-        break;
-    case json::Value::Object:
-        o += "{";
-        for (size_t k = 0; k < v.fields.size(); ++k) {
-            if (k) o += ", ";
-            json::quote(o, v.fields[k].first);
-            o += ": ";
-            dump_compact(o, v.fields[k].second);
-        }
-        o += "}";
-        break;
-    }
-}
-std::string env_text(const json::Value &v) {   // an environment value from the overrides file
-    if (v.kind == json::Value::String) return v.s;
-    std::string o;
-    dump_compact(o, v);
-    return o;
-}
 
 using Row = std::map<std::string, std::string>;
 
@@ -445,40 +303,24 @@ fs::path build(const Row &row, const std::map<std::pair<std::string, std::string
     const fs::path pt = paktools(ver);
     Env env = {{"PYTHONPATH", P(pt) + ";" + P(pt / "stage")}, {"U3_TEXDICT", P(texdict)}};
     for (const auto &[k, v] : opts) env[k] = v;
+    // data/overrides/<overlay>/<name>.json: 'gobo' = gobo textures taken from another retail pak (co-op Syria)
     const fs::path ovf = upath(g_here + "/data/overrides/" + row.at("overlay") + "/" + row.at("name") + ".json");
-    json::Value o;
-    const bool has_ov = fs::exists(ovf);
-    if (has_ov) {   // template choices / constants / caps recovered from the installed pak
-        o = read_json(ovf);
-        const fs::path od2 = g_tmp / "overrides" / upath(row.at("overlay"));
-        fs::create_directories(od2);
-        for (const auto &[k, e] : std::vector<std::pair<std::string, std::string>>{{"templates", "U3_MKPLAN_OVERRIDE"}, {"params", "U3_MKPLAN_PARAMS"}, {"texsrc", "U3_MKPLAN_TEXSRC"}, {"gobo", "U3_GOBO"}}) {
-            const json::Value *v = o.get(k);
-            if (!v || !v->truthy()) continue;
+    json::Value ov;
+    if (fs::exists(ovf)) ov = read_json(ovf);
+    if (const json::Value *g = ov.get("gobo"); g && g->truthy()) {
+            const fs::path od2 = g_tmp / "overrides" / upath(row.at("overlay"));
+            fs::create_directories(od2);
             std::string s;
-            dump_compact(s, *v);
-            const fs::path f = od2 / upath(row.at("name") + "." + k + ".json");
+            dump_compact(s, *g);
+            const fs::path f = od2 / upath(row.at("name") + ".gobo.json");
             write_text(f, s);
-            env[e] = P(f);
+            env["U3_GOBO"] = P(f);
         }
-        if (const json::Value *e = o.get("env"))
-            for (const auto &[k, v] : e->fields) env[k] = env_text(v);
-    }
     const fs::path sp = ps3_source(row, idx);
     std::vector<std::string> cmd = {g_python, g_here + "/lib/convert_one.py", P(pt), m, P(sp), P(op), m == "stage" ? P(res_dir()) : "-", P(pak4),
                                     P(g_tmp / "plans" / upath(row.at("overlay")) / upath(ver + opts_s))};
     if (flags.count("mb")) cmd.push_back("--mapbuild");
     run(cmd, env);
-    if (has_ov)
-        if (const json::Value *bts = o.get("bytes"); bts && bts->truthy()) {   // residual converter-decision bytes, checked first
-            Bytes d = read_file(op);
-            for (const auto &[k, on] : bts->fields) {
-                const size_t at = size_t(std::stoull(k));
-                if (at >= d.size() || d[at] != on.items.at(0).i) throw Stop(fmt("byte %s is %d, expected %lld", k.c_str(), at < d.size() ? d[at] : -1, (long long)on.items.at(0).i));
-                d[at] = uint8_t(on.items.at(1).i);
-            }
-            write_file_replace(op, d);
-        }
     return op;
 }
 
