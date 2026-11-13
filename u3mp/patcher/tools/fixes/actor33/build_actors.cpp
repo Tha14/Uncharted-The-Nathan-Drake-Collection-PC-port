@@ -34,6 +34,11 @@ std::string a_here, a_ps4, a_disc, a_update, a_data2;
 fs::path a_tmp;
 std::mutex a_extract_lock;
 
+// Paks still converted with the pre-2026-11-13 PS3 vertex decoder, which stopped at attribute 0x15 (the blend factor)
+// and so also lost the normal / tangent after it. The Hunter jacket: the outdoor-jacket step rebuilds that basis and
+// pins its inputs (repair_hunter_jacket.py SOURCE_SHA256 / DONOR_SHA256), so its chain stays byte-identical.
+const std::set<std::string> LEGACY_ATTR15 = {"mp-kit-hunter-torso-jacket-a.pak"};
+
 std::string ret() { return a_ps4 + "/u3data/build/main/actor33/ps4"; }
 
 // PS3 sources: source key -> archive
@@ -229,6 +234,7 @@ fs::path build(const Job &r) {
             else if (k == "_skel") kw.skel_tmpl = upath(ret()) / upath(val + ".pak");
             else throw Stop("unknown actor setting " + k);
         }
+        o.stop_at_blend = LEGACY_ATTR15.count(r.at("name")) != 0;
         d = actor::convert(ps3, template_pak(r.at("template"), r.at("post").find("|solo") != std::string::npos), kw, o);
     }
     // post passes: cubefix (PS3 cube maps on retail-copied descs), cb3fix (prototype scope-3 cbuffer capacity),
@@ -484,10 +490,8 @@ int rebuild_am(const std::vector<std::string> &argv) {
             rows.push_back({c[0], c[1], c[2], c[3], c[4], c.size() > 5 ? c[5] : ""});
         }
     }
-    // the Yeti mask's teeth lost their normals / tangents on PS3: rebuilt for this source only
-    static const std::map<std::string, std::pair<std::string, std::map<std::pair<uint32_t, size_t>, std::string>>> BASIS = {
-        {"mp-kit-shared-monster-mask",
-         {"c72c2bf95e216c58a8749876089ddaffb905859f744c9ab7c7d79fdf1ee29fc9", {{{187, 202}, "lod0 teeth"}, {{144, 137}, "lod1 teeth"}, {{94, 90}, "lod2 teeth"}}}}};
+    // (the Yeti mask's teeth are no longer rebuilt here: their normals / tangents were never lost on PS3, the decoder
+    // stopped at vertex attribute 0x15 before them; since 2026-11-13 it reads them)
     auto newest = [](const std::string &name) {   // the newest PS3 archive with the pak
         for (const char *src : {"data2-parts", "dlc-patch18", "dlc-patch13", "disc"}) {
             try {
@@ -509,11 +513,7 @@ int rebuild_am(const std::vector<std::string> &argv) {
             actor::Options o;
             o.am = true;
             o.mat_choice = actor::am_choice(p3, tpl, kind != "am", kind == "igc2" || (kind == "hats" && r.opts.find("no-overlay-filter") == std::string::npos));
-            if (kind == "hats")
-                if (auto it = BASIS.find(r.name); it != BASIS.end()) {
-                    if (sha_file(p3) != it->second.first) throw Stop("ValueError: unexpected Yeti mask PS3 source SHA-256: " + sha_file(p3));
-                    o.basis_targets = it->second.second;
-                }
+            o.stop_at_blend = LEGACY_ATTR15.count(r.name + ".pak") != 0;
             d = actor::cb3fix(stage::cubefix_pak(actor::convert(p3, tpl, kw, o), p3));
         }
         fs::create_directories(outd);
@@ -583,7 +583,7 @@ int install_am(const std::vector<std::string> &argv) {
     };
     if (kind == "igc2") {
         const fs::path bak = work / "backup-igc2";
-        const std::vector<std::pair<std::string, std::string>> files = {{"mp-hero-flynn-coop.pak", "686e426036295d94699f8566f44fdd423bcbe9a1d14ce48b7ddc1757692bc0f6"}};
+        const std::vector<std::pair<std::string, std::string>> files = {{"mp-hero-flynn-coop.pak", "06fecdabbafe63de33a0ced618c6c7f1bb228cd1ecf4e37db85bc1cdff345163"}};
         for (const auto &[n, want] : files) {
             const fs::path s = src / n, d = dst / n, b = bak / n;
             if (a.has("--restore")) {

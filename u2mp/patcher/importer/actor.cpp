@@ -313,7 +313,9 @@ void convert_actor_pak(const fs::path &ps3_path, const fs::path &tmpl_path, cons
         if (!info) throw Stop("IndexError: list index out of range");
         const std::vector<std::string> mnames = block_materials(s, pr);
         std::vector<bg::FgBlock> blocks;
-        for (const Ref &b : info->blocks) blocks.push_back(bg::decode_fg_block(src, b.first, b.second));
+        // stop_at_blend: the pre-2026-11-13 decoding (stops at PS3 vertex attribute 0x15, the blend factor). Uncharted 3
+        // actors read it since then; U2 keeps the old output until it is checked against U2 PS3 data
+        for (const Ref &b : info->blocks) blocks.push_back(bg::decode_fg_block(src, b.first, b.second, true, true));
         std::vector<Sub> subs;
         for (size_t bi = 0; bi < blocks.size() && bi < mnames.size(); bi++) {   // zip
             bg::FgBlock &blk = blocks[bi];
