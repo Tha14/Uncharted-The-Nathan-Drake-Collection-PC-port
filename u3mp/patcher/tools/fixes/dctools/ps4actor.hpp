@@ -62,4 +62,68 @@ std::map<std::string, std::string> am_choice(const fs::path &ps3, const fs::path
 // kept modulo 0x1000), and those items in page order
 std::pair<std::shared_ptr<struct RawSpan>, std::vector<PakItem>> extract_effect_span(const Pak &ref);
 
+
+// ---- pieces shared with the other actor builders (wall-emblem/make_emblem.cpp)
+inline constexpr uint32_t PAD32 = 0xaaaaaaaa;
+inline constexpr size_t PAGE_LIMIT = 0x180000;   // (a margin: tables filled after item() grow past the estimate)
+inline const std::string PS4_COOK_PREFIX = "d:/dev/CP9/Data/U3/CookData/ND/build/texture2/";
+
+// a template material of a PS4 pak's GEOMETRY_1 (name, shader, features, constants, texture bindings)
+struct TMat {
+    std::string name, shader, hash;
+    std::vector<std::string> feats;
+    struct Param {
+        std::string name;
+        uint32_t cnt;
+        Bytes vals;
+    };
+    std::vector<Param> params;
+    struct Bind {
+        std::string pname, shrt, full;
+    };
+    std::vector<Bind> binds;
+    uint32_t x3, tail;
+};
+std::vector<TMat> tmpl_materials(const Pak &q);
+
+// BC1 texels (PS3 linear order, all mips) of a constant colour, and the mip count
+std::pair<Bytes, uint32_t> bc1_flat(uint32_t w, uint32_t h, const uint32_t rgb[3]);
+// numpy float64 -> float16 (round half to even, overflow to inf, NaN payload kept)
+uint16_t f16b(double v);
+// template item data as a Blob; its pointers must stay inside the item
+std::shared_ptr<Blob> copy_item_blob(const Pak &T, const PakItem &it);
+
+// a Page.item / span look-alike that starts a new page when the current one fills up; the effect span is pinned to
+// the template's page-0 offset, so page 0 may not get a longer entry table than the room before it
+struct AutoPages {
+    PakWriter &w;
+    Page *cur;
+    size_t size = 0x200;
+    std::optional<size_t> max_entries;
+    size_t nent = 0, limit;
+    AutoPages(PakWriter &w_, std::optional<size_t> me, size_t lim = PAGE_LIMIT) : w(w_), cur(&w_.page()), max_entries(me), limit(lim) {}
+    void new_page() {
+        cur = &w.page();
+        size = 0x200;
+        max_entries.reset();
+        nent = 0;
+    }
+    void room(size_t n, size_t ne) {
+        if (size + n > limit && size > 0x200) new_page();
+        if (max_entries && nent + ne > *max_entries) new_page();
+        size += n;
+        nent += ne;
+    }
+    std::shared_ptr<PakWItem> item(const std::string &type, const std::shared_ptr<Blob> &data = nullptr, const std::string &name = "", bool listed = true) {
+        size_t est = (data ? data->size() : 0) + 0x40 + type.size() + name.size();
+        if (!data || data->size() < 0x100) est += 0x400;   // items filled in later (tables) stay small
+        room((est + 15) & ~size_t(15), listed ? 1 : 0);
+        return cur->item(type, data, name, listed);
+    }
+    void span(const std::shared_ptr<RawSpan> &s) {
+        room(s->data.size() + 0x1000, s->entries.size());
+        cur->span(s);
+    }
+};
+
 }  // namespace u3::actor

@@ -11,6 +11,7 @@
 #include "u3fix.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <functional>
 
 namespace u3 {
@@ -51,7 +52,7 @@ uint32_t f32bits(uint32_t bits) {
 
 class Conv {
 public:
-    explicit Conv(const Pak &p, const std::set<std::string> &anim) : p(p), anim(anim) {
+    Conv(const Pak &p, const std::set<std::string> &anim, const std::vector<ExtraSpawner> &extra) : p(p), anim(anim), extra(extra) {
         std::map<uint32_t, std::set<uint64_t>> pt;
         for (const auto &[k, tp] : p.ptrmap) pt[tp].insert(p.pptr(k.first, k.second));
         for (const PakItem &it : p.items) {
@@ -64,6 +65,7 @@ public:
     }
     const Pak &p;
     const std::set<std::string> &anim;
+    const std::vector<ExtraSpawner> &extra;
     std::map<Addr, BlobP> memo;
     std::vector<BlobP> blocks;
     std::map<uint32_t, std::vector<uint64_t>> cuts;
@@ -215,11 +217,60 @@ public:
         for (uint32_t k = 0; k < n; k++) sp.push_back(spawner(need(ptr(need(arr, "spawners"), 4ull * k), "spawner")));
         root->u64(0);
         auto ab = fresh(arr, "sp[]");
+        if (extra.empty()) {
+            for (const auto &b : sp) ab->ptr(b);
+            root->ptr(ab).u32(n).u32(PADW);
+            auto sb = fresh(srt, "sorted");
+            for (uint32_t k = 0; k < n2; k++) sb->u32(u32(need(srt, "sorted"), 8ull * k)).u32(PADW).ptr(spawner(need(ptr(*srt, 8ull * k + 4), "sorted spawner")));
+            root->ptr(sb).u32(n2).u32(PADW);
+            return;
+        }
+        // with added spawners: the converted sorted table first, then each addition's blocks (names, tags, spawner),
+        // the spawner array with the additions at the end, the sorted table re-sorted by string id
+        std::vector<std::pair<uint32_t, BlobP>> srtd;
+        for (uint32_t k = 0; k < n2; k++) srtd.push_back({u32(need(srt, "sorted"), 8ull * k), spawner(need(ptr(*srt, 8ull * k + 4), "sorted spawner"))});
+        for (const ExtraSpawner &x : extra) {
+            // tags: 11 integer tags 0 and the string-id tag 0xe07cb817 = 0x39bad0f3, in key order
+            static const uint32_t ZERO[] = {0x560619f3, 0x56da20e1, 0x65c281d4, 0x66c6d3fe, 0x78812e7e, 0x871aab05,
+                                            0x97587862, 0xa88f1ca6, 0xbaa50d5b, 0xc867d993, 0xc87fbb93};
+            std::vector<std::tuple<uint32_t, uint32_t, uint32_t>> ents;   // key, type, value
+            for (uint32_t k : ZERO) ents.push_back({k, 1, 0});
+            ents.push_back({0xe07cb817, 13, 0x39bad0f3});
+            std::sort(ents.begin(), ents.end());
+            auto nm = fresh(std::nullopt, "str");
+            nm->cstr(x.name);
+            auto at = fresh(std::nullopt, "str");
+            at->cstr(x.art);
+            auto tt = fresh(std::nullopt, "tagtab");
+            for (const auto &[k, ty, val] : ents) {
+                auto vb = fresh(std::nullopt, "tagval");
+                auto db = fresh(std::nullopt, "tagdata");
+                db->u32(val);
+                vb->u16(ty).u16(4).u32(PADW).ptr(db);
+                tt->u32(k).u32(PADW).ptr(vb);
+            }
+            auto tg = fresh(std::nullopt, "tags");
+            tg->ptr(tt).u32(uint32_t(ents.size())).u32(PADW);
+            auto b = fresh(std::nullopt, "spawner");
+            for (double c : x.center) {   // position (w 0), rotation quaternion (0, 0, 0, 1)
+                const float f = float(c);
+                uint32_t v;
+                std::memcpy(&v, &f, 4);
+                b->u32(v);
+            }
+            b->u32(0).u32(0).u32(0).u32(0).u32(0x3f800000);
+            const uint32_t id = sid(x.name);
+            b->ptr(nm).u32(id).u32(PADW).u64(0).u64(0);
+            b->u32(0x2db62a42).u32(PADW).ptr(at).u32(0).u32(PADW).ptr(root).u64(0).ptr(tg).u64(0).u64(0).u64(0);
+            sp.push_back(b);
+            srtd.push_back({id, b});
+        }
         for (const auto &b : sp) ab->ptr(b);
-        root->ptr(ab).u32(n).u32(PADW);
+        root->ptr(ab).u32(uint32_t(sp.size())).u32(PADW);
+        std::stable_sort(srtd.begin(), srtd.end(), [](const auto &l, const auto &r) { return l.first < r.first; });
         auto sb = fresh(srt, "sorted");
-        for (uint32_t k = 0; k < n2; k++) sb->u32(u32(need(srt, "sorted"), 8ull * k)).u32(PADW).ptr(spawner(need(ptr(*srt, 8ull * k + 4), "sorted spawner")));
-        root->ptr(sb).u32(n2).u32(PADW);
+        for (const auto &[k, b] : srtd) sb->u32(k).u32(PADW).ptr(b);
+        root->ptr(sb).u32(uint32_t(srtd.size())).u32(PADW);
     }
 
     BlobP spawner(const Addr &a) {
@@ -719,10 +770,13 @@ std::set<std::string> anim_actor_names(const fs::path &retail_actor33, const fs:
     return s;
 }
 
-Bytes ps4ingame_convert(const fs::path &src, const std::set<std::string> &anim_arts) {
-    const Pak p(src);
+Bytes ps4ingame_convert(const fs::path &src, const std::set<std::string> &anim_arts, const std::vector<ExtraSpawner> &extra) {
+    return ps4ingame_convert(Pak(src), anim_arts, extra);
+}
+
+Bytes ps4ingame_convert(const Pak &p, const std::set<std::string> &anim_arts, const std::vector<ExtraSpawner> &extra) {
     if (!p.ps3) throw Stop("AssertionError: not a PS3 pak");
-    Conv c(p, anim_arts);
+    Conv c(p, anim_arts, extra);
     PakWriter w;
     Page &page = w.page();
     const std::vector<std::string> order = {"TAG_INT", "SPLINE_TABLE", "FEATURE_DB_2", "NAV_MESH_1", "LEVEL_INFO_1", "LEVEL_OFFSET_1", "SPAWNER_GROUP", "REGION_TREE"};
@@ -737,7 +791,7 @@ Bytes ps4ingame_convert(const fs::path &src, const std::set<std::string> &anim_a
         std::vector<BlobP> blocks;
     };
     std::map<std::string, Made> items;
-    std::vector<std::tuple<std::string, PakItem, BlobP>> extra;
+    std::vector<std::tuple<std::string, PakItem, BlobP>> other;
     for (const std::string &t : conv_order)
         for (const PakItem &it : p.items_of(t)) {
             auto root = std::make_shared<Blob>(t);
@@ -760,13 +814,13 @@ Bytes ps4ingame_convert(const fs::path &src, const std::set<std::string> &anim_a
             } else if (t == "SPAWNER_GROUP") c.spawner_group(it, root);
             else if (t == "REGION_TREE") c.region_tree(it, root);
             else if (t == "NAV_MESH_1") {
-                extra.push_back({t, it, nav_blob(p, it)});
+                other.push_back({t, it, nav_blob(p, it)});
                 continue;
             } else if (t == "FEATURE_DB_2") {
                 FW fw;
                 w_tr3(fw, read_tr3(c, a));
                 fw.pad(8, 0);
-                extra.push_back({t, it, fw.b});
+                other.push_back({t, it, fw.b});
                 continue;
             }
             items[t] = {it, root, c.blocks};
@@ -774,7 +828,7 @@ Bytes ps4ingame_convert(const fs::path &src, const std::set<std::string> &anim_a
     // blocks shared between items (spawners referenced by regions) are embedded once, in the item that made them
     std::set<const Blob *> done;
     std::vector<std::shared_ptr<PakWItem>> made;
-    for (const auto &[t, it, blob] : extra) made.push_back(page.item(t, blob, utf8_of(it.name)));
+    for (const auto &[t, it, blob] : other) made.push_back(page.item(t, blob, utf8_of(it.name)));
     for (const std::string &t : order) {
         auto f = items.find(t);
         if (f == items.end()) continue;

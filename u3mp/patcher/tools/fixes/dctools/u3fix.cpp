@@ -277,6 +277,8 @@ int wmain(int argc, wchar_t **argv) {
         if (step == "shade-npc") return u3::shade_npc(a);
         if (step == "facility-collapse") return u3::facility_collapse(a);
         if (step == "eula-pages") return u3::eula_pages(a);
+        if (step == "wall-emblem") return u3::wall_emblem(a);
+        if (step == "wall-emblem-actors") return u3::wall_emblem_actors(a);
         if (step == "pakinfo") return u3::pakinfo(a);
         std::fprintf(stderr, "usage: u3fix <step> [options] (the steps: see u3fix.cpp)\n");
         return 2;

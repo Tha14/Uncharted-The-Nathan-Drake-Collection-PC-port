@@ -70,6 +70,8 @@ int shade_npc(const std::vector<std::string> &argv);           // tools/fixes/co
 int facility_collapse(const std::vector<std::string> &argv);   // tools/fixes/inline/facility_collapse.cpp
 std::string find_ffmpeg(const std::string &arg);         // --ffmpeg, RECIPE_FFMPEG, msys2, PATH (sound-banks/convert_banks.cpp)
 int eula_pages(const std::vector<std::string> &argv);          // tools/fixes/eula-batch/make_eula.cpp
+int wall_emblem(const std::vector<std::string> &argv);           // tools/fixes/wall-emblem/make_emblem.cpp
+int wall_emblem_actors(const std::vector<std::string> &argv);    // tools/fixes/wall-emblem/make_emblem.cpp
 int pakinfo(const std::vector<std::string> &argv);            // dctools/ndpak.cpp: a pak's summary (as ndpak.py prints it)
 
 }  // namespace u3

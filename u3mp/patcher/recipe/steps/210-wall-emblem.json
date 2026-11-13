@@ -1,34 +1,30 @@
 {
  "id": "wall-emblem",
- "title": "Airstrip wall emblems as separate actors: 7 air-multi-emblem-*.pak, air-multi.pak, air-multi-ingame12.pak, pak23_ps4.txt (wall-emblem/apply_air_emblem.py)",
+ "title": "Airstrip wall emblems as separate actors: 7 air-multi-emblem-*.pak, air-multi.pak, air-multi-ingame12.pak, pak23_ps4.txt (u3fix wall-emblem, wall-emblem/make_emblem.cpp)",
  "kind": "script",
  "job": "wall-emblem",
  "family": "overlay-r3/actor33 + pak23",
  "needs": [
   "ps3_disc",
   "ps3_update",
-  "ps4",
-  "python:numpy"
+  "ps4"
  ],
  "with_jobs": [
-  "actor33",
   "pak23-levels"
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/prep_p3.py"
-  ],
-  [
-   "{{PYTHON}}",
-   "{{JOB}}/mkemblem.py",
-   "{{PROJECT}}/work/overlay-r3/u3data/build/main",
-   "{{PS4}}/u3data/build/main/actor33/ps4"
-  ],
-  [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_air_emblem.py",
-   "--apply"
+   "u3fix.exe",
+   "wall-emblem",
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}",
+   "--ps4",
+   "{{PS4}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}"
   ]
  ],
  "writes": [
@@ -39,7 +35,7 @@
  ],
  "status": "needs-converted-base",
  "applied": "2026-11-01 17:46 / 22:21",
- "notes": "mkemblem.py here is the first version (17:41; its actors = D:/u3-backups/backup-wall-emblem/actor33-v1, byte-identical 2026-11-05 with toolset 4c36373). The installed actors are the 22:01 second version: step wall-emblem-actors. Full mkemblem.py stops in ps4ingame (navmesh header 0x1b0) on the disc air-multi-ingame12.pak, so the pak23 part of this step still needs the original out/pak23 (pak23 family). 1.7.0: prep_p3.py extracts the PS3 air-multi(-ingame12).pak from the disc pak23.psarc into ./p3 and creates ./out (mkemblem.py read them from the cloud scratch). mkemblem.py imports the rendered actor33 toolset 4c36373 ({{SCRATCH}}/actor33, rendered by convert-actors-r3 / actors-hk-tables), so those steps must have run in the same output folder. 1.13.1: with_jobs renders actor33 (toolset 4c36373) and pak23-levels next to it, and lib.py builds the f525859 tree through levels.paktools() when missing: an update that reruns only this step (the converting steps already applied) found neither and failed (ImportError copy_item_blob, 10 Nov 2026).",
+ "notes": "C++ since 2026-11-13 (u3fix wall-emblem replaces prep_p3.py, mkemblem.py and apply_air_emblem.py; the second-version actor build of mkemblem_v2.py is the only one): the PS3 air-multi(-ingame12).pak are read from the disc pak23.psarc, the actors, the ingame12 with the 8 spawners and the hidden patches are built from the current overlay air-multi.pak in the same run, so the old base-md5 lock is gone; the overlay state decides what is left (missing actor paks, ingame12 not the rebuild, patches not hidden, no registry lines). Checked on the 11-01 inputs (backup-wall-emblem): the 8 actors equal the recorded v2 sha256 (with emblem-cap3: the reference ones), ingame12 and air-multi.pak equal the Python build byte for byte; on the latest converter's air-multi.pak the boards are unchanged and the other walls follow its colour maps. Before: mkemblem.py here was the first version (17:41; its actors = D:/u3-backups/backup-wall-emblem/actor33-v1, byte-identical 2026-11-05 with toolset 4c36373). The installed actors are the 22:01 second version: step wall-emblem-actors. Full mkemblem.py stops in ps4ingame (navmesh header 0x1b0) on the disc air-multi-ingame12.pak, so the pak23 part of this step still needs the original out/pak23 (pak23 family). 1.7.0: prep_p3.py extracts the PS3 air-multi(-ingame12).pak from the disc pak23.psarc into ./p3 and creates ./out (mkemblem.py read them from the cloud scratch). mkemblem.py imports the rendered actor33 toolset 4c36373 ({{SCRATCH}}/actor33, rendered by convert-actors-r3 / actors-hk-tables), so those steps must have run in the same output folder. 1.13.1: with_jobs renders actor33 (toolset 4c36373) and pak23-levels next to it, and lib.py builds the f525859 tree through levels.paktools() when missing: an update that reruns only this step (the converting steps already applied) found neither and failed (ImportError copy_item_blob, 10 Nov 2026).",
  "recipe_version_added": "1.0.0",
  "recipe_version_changed": "1.13.1"
 }

@@ -23,9 +23,6 @@
 namespace u3::actor {
 namespace {
 
-const uint32_t PAD32 = 0xaaaaaaaa;
-const size_t PAGE_LIMIT = 0x180000;   // (a margin: tables filled after item() grow past the estimate)
-const std::string PS4_COOK_PREFIX = "d:/dev/CP9/Data/U3/CookData/ND/build/texture2/";
 const std::string PS3_COOK_MARK = "texture1/";
 
 uint32_t quiet(uint32_t v) { return ((v & 0x7f800000u) == 0x7f800000u && (v & 0x7fffffu)) ? v | 0x400000u : v; }
@@ -35,7 +32,6 @@ uint32_t f32b(double d) {
     std::memcpy(&v, &f, 4);
     return quiet(v);
 }
-uint16_t f16b(double v);   // numpy float64 -> float16 (below)
 
 std::string u8(const std::string &latin1) { return bg::utf8_of(latin1); }
 uint32_t sidu(const std::string &latin1) { return sid(u8(latin1)); }
@@ -126,22 +122,9 @@ Artgroup ps3_artgroup(const Pak &p) {
     return a;
 }
 
+}  // namespace
+
 // ------------------------------------------------------------------------------------------------ the PS4 template
-struct TMat {
-    std::string name, shader, hash;
-    std::vector<std::string> feats;
-    struct Param {
-        std::string name;
-        uint32_t cnt;
-        Bytes vals;
-    };
-    std::vector<Param> params;
-    struct Bind {
-        std::string pname, shrt, full;
-    };
-    std::vector<Bind> binds;
-    uint32_t x3, tail;
-};
 std::vector<TMat> tmpl_materials(const Pak &q) {
     const auto gs = q.items_of("GEOMETRY_1");
     if (gs.empty()) throw Stop("IndexError: no GEOMETRY_1");
@@ -186,6 +169,8 @@ std::vector<TMat> tmpl_materials(const Pak &q) {
     }
     return out;
 }
+
+namespace {
 
 struct FgInfo {
     uint32_t skel, hier, njoints;
@@ -509,6 +494,8 @@ std::vector<const TMat *> am_pool(const std::vector<TMat> &tmats, const std::str
     return out;
 }
 
+}  // namespace
+
 // BC1 texels (PS3 linear order, all mips) of a constant colour
 std::pair<Bytes, uint32_t> bc1_flat(uint32_t w, uint32_t h, const uint32_t rgb[3]) {
     const uint32_t c = ((rgb[0] >> 3) << 11) | ((rgb[1] >> 2) << 5) | (rgb[2] >> 3);
@@ -529,40 +516,7 @@ std::pair<Bytes, uint32_t> bc1_flat(uint32_t w, uint32_t h, const uint32_t rgb[3
     return {out, mips};
 }
 
-// a Page.item / span look-alike that starts a new page when the current one fills up; the effect span is pinned to
-// the template's page-0 offset, so page 0 may not get a longer entry table than the room before it
-struct AutoPages {
-    PakWriter &w;
-    Page *cur;
-    size_t size = 0x200;
-    std::optional<size_t> max_entries;
-    size_t nent = 0, limit;
-    AutoPages(PakWriter &w_, std::optional<size_t> me, size_t lim = PAGE_LIMIT) : w(w_), cur(&w_.page()), max_entries(me), limit(lim) {}
-    void new_page() {
-        cur = &w.page();
-        size = 0x200;
-        max_entries.reset();
-        nent = 0;
-    }
-    void room(size_t n, size_t ne) {
-        if (size + n > limit && size > 0x200) new_page();
-        if (max_entries && nent + ne > *max_entries) new_page();
-        size += n;
-        nent += ne;
-    }
-    std::shared_ptr<PakWItem> item(const std::string &type, const std::shared_ptr<Blob> &data = nullptr, const std::string &name = "", bool listed = true) {
-        size_t est = (data ? data->size() : 0) + 0x40 + type.size() + name.size();
-        if (!data || data->size() < 0x100) est += 0x400;   // items filled in later (tables) stay small
-        room((est + 15) & ~size_t(15), listed ? 1 : 0);
-        return cur->item(type, data, name, listed);
-    }
-    void span(const std::shared_ptr<RawSpan> &s) {
-        room(s->data.size() + 0x1000, s->entries.size());
-        cur->span(s);
-    }
-};
 
-}  // namespace
 
 // EFFECT_TABLE and every item it reaches (EFFECTs, RAW_DATA), as one RawSpan (convert_net.extract_effect_span)
 std::pair<std::shared_ptr<RawSpan>, std::vector<PakItem>> extract_effect_span(const Pak &ref) {
@@ -635,7 +589,6 @@ std::pair<std::shared_ptr<RawSpan>, std::vector<PakItem>> extract_effect_span(co
     return {span, span_items};
 }
 
-namespace {
 
 // template item data as a Blob; its pointers must stay inside the item (JOINT_HIERARCHY / ANIM / collision of props)
 std::shared_ptr<Blob> copy_item_blob(const Pak &T, const PakItem &it) {
@@ -664,10 +617,8 @@ std::shared_ptr<Blob> copy_item_blob(const Pak &T, const PakItem &it) {
     return b;
 }
 
-}  // namespace
 
 // numpy float64 -> float16 (round half to even, overflow to inf, NaN payload kept)
-namespace {
 uint16_t f16b(double v) {
     uint64_t d;
     std::memcpy(&d, &v, 8);
@@ -697,6 +648,8 @@ uint16_t f16b(double v) {
     if ((d_sig & 0x000007ffffffffffull) != 0x0000020000000000ull) d_sig += 0x0000020000000000ull;
     return uint16_t(h_sgn + h_exp + uint16_t(d_sig >> 42));
 }
+
+namespace {
 
 struct TexE {
     uint32_t hash = 0, fmt = 0;
