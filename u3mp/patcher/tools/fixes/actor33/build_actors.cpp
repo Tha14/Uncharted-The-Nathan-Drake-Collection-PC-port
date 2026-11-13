@@ -8,11 +8,13 @@
 // never replaces an existing file (a later step owns it); other statuses need --allow-equivalent. A build whose sha256
 // differs from an identical / base row is reported (DIFF) and not installed. Replaced files are backed up once to
 // work/backup-actor33/. Lab rows (no Lab maps on PC) and rows hidden by a higher overlay are not built.
-// ps4actor / anim / rename rows run in persistent worker.py processes (one per thread), wpnmods / convert_net as their
+// anim rows: C++ (dctools/anim.cpp). ps4actor / rename rows run in persistent worker.py processes (one per thread),
+// wpnmods / convert_net as their
 // scripts; PS3 sources and the animstream extract come from the player's archives (dctools/psarc.cpp).
 // Replaces build_actors.py (same rules and messages; the converter version column is no longer used).
 #include "proc.hpp"
 #include "psarc.hpp"
+#include "anim.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -198,11 +200,11 @@ fs::path build(const Job &r, ThreadWorker &tw) {
     const std::string src = source.substr(0, slash), other = slash == std::string::npos ? "" : source.substr(slash + 1);
     job.set("ps3", json::Value::text(source != "-" ? P(extract(src, other.empty() ? r.at("name") : other)) : ""));
     job.set("out", json::Value::text(P(out)));
-    if (m == "anim") {
-        json::Value a;
-        a.kind = json::Value::Array;
-        if (r.at("mode").find("stm") != std::string::npos) a.items.push_back(json::Value::text(P(stm_dir())));
-        job.set("anim", a);
+    if (m == "anim") {   // C++ (dctools/anim.cpp)
+        std::vector<fs::path> dirs;
+        if (r.at("mode").find("stm") != std::string::npos) dirs.push_back(stm_dir());
+        write_file_replace(out, anim::convert_pak(upath(job.get("ps3")->s), dirs));
+        return out;
     } else if (m == "rename") {
         job.set("rename", text_list({r.at("template"), r.at("name").substr(0, r.at("name").size() - 4)}));
         job.set("tmpl", json::Value::text(P(upath(ret()) / upath(r.at("template") + ".pak"))));
