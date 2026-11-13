@@ -1,6 +1,6 @@
 {
  "id": "coop-voice-fort",
- "title": "Fort co-op voice: vox-mp.bin +84 entries, modules.bin, 83 speech streams (coop-vo/apply_vo.py)",
+ "title": "Fort co-op voice: vox-mp.bin +84 entries, modules.bin, 83 speech streams (u3fix.exe coop-vo, coop-vo/apply_vo.cpp)",
  "kind": "script",
  "job": "coop-vo",
  "family": "overlay-r3/dc1 + streams",
@@ -11,9 +11,19 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_vo.py",
-   "--apply"
+   "u3fix.exe",
+   "coop-vo",
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}",
+   "--ps4",
+   "{{PS4}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
+   "--ps3-update",
+   "{{PS3_UPDATE}}"
   ]
  ],
  "writes": [
@@ -23,5 +33,6 @@
  ],
  "status": "needs-converted-base",
  "applied": "2026-11-01 21:29",
+ "notes": "Since 2026-11-13 C++ (u3fix.exe coop-vo = apply_vo.py): the build equals the reference vox-mp.bin byte for byte and the 80 copied streams equal a real overlay. apply_vo.py's check compared the first 8 bytes of every old entry raw and so failed on entries that start with a pointer (87b03989), which moves with the data; the C++ check expects the moved pointer.",
  "recipe_version_added": "1.0.0"
 }

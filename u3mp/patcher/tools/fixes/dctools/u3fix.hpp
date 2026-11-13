@@ -61,6 +61,7 @@ int dc_recipes(const std::vector<std::string> &argv);          // tools/fixes/dc
 int sound_banks(const std::vector<std::string> &argv);         // tools/fixes/sound-banks/convert_banks.cpp
 int part_modules(const std::vector<std::string> &argv);        // tools/fixes/part-emitters/build_part_modules.cpp
 int actors_hk(const std::vector<std::string> &argv);           // tools/fixes/actor33/actors_hk.cpp
+int coop_vo(const std::vector<std::string> &argv);             // tools/fixes/coop-vo/apply_vo.cpp
 int pakinfo(const std::vector<std::string> &argv);            // dctools/ndpak.cpp: a pak's summary (as ndpak.py prints it)
 
 }  // namespace u3
