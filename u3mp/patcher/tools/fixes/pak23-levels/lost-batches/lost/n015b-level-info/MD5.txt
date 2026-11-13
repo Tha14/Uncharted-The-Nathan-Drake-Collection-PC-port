@@ -1,5 +1,0 @@
-abbe61c28dd1b7c87627cf04f1d00edc  build/main/pak23/ps4/coop-airport-3a.pak
-b476567b087f0ad696509e58f891ebf7  build/main/pak23/ps4/coop-syria-entrance.pak
-b88a3a7d38a5d950e813290b415d5ab5  build/main/pak23/ps4/coop-syria-turret2.pak
-03d9ca4a5af46caf5d79c3bce4dc0931  build/main/pak23/ps4/ldn-train-multi-lit.pak
-9210c325b96db5c251cb5cf28f071a68  build/main/pak23/ps4/syria-multi.pak

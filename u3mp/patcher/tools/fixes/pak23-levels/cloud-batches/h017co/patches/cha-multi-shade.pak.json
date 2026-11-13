@@ -1,1 +1,0 @@
-{"pak": "cha-multi-shade.pak", "items": [[0, 32643, 2], [1, 18542, 0]], "variants": [{"md5_before": "4299b1ba3be86d4d9d64beb157d99a8d", "md5_after": "b5392ae887827972d1d97cd314b1db7a", "size": 61864664, "writes": [[46649120, "1d1d1c1d"], [46649148, "1c1c1f1c"]], "base": "overlay-r3 (v6.47 state)"}]}

@@ -1,3 +1,0 @@
-pak	overlay	md5_before(PC 2026-10-29 23:30)	md5_after	size_after	change
-museum-multi.pak	overlay-r3	9fd5549cf26df7ba524d9b6723d23d59	7a7c20e84188f9e0e854ef37a4972e08	88617296	batch92 shadow-only 428 + batch96 hide 428 + batch94 fade 64 protos (appends 1 page)
-museum-multi-stage.pak	overlay-r3	b8d02b5338b55f8128bafcf4ea198761	6710d822419e8bdd2a32590abc5aa14d	43237464	batch92 shadow-only 3 + batch96 hide 3
