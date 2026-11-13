@@ -83,10 +83,10 @@ V3 cross(const V3 &a, const V3 &b) {   // a1*b2 - a2*b1, ... (each product round
     const double x0 = a[1] * b[2], y0 = a[2] * b[1], x1 = a[2] * b[0], y1 = a[0] * b[2], x2 = a[0] * b[1], y2 = a[1] * b[0];
     return {x0 - y0, x1 - y1, x2 - y2};
 }
-// a sum of 3 as the reference's reduction made it: the first, plus the sum of the other two
+// a sum of 3 as the reference's reduction made it: 0 + a + b + c, in order
 double sum3(double a, double b, double c) {
-    const double r = b + c;
-    return a + r;
+    const double r = a + b;
+    return r + c;
 }
 double norm3(const V3 &v) {
     const double a = v[0] * v[0], b = v[1] * v[1], c = v[2] * v[2];

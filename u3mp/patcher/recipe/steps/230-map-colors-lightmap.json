@@ -1,18 +1,19 @@
 {
  "id": "map-colors-lightmap",
- "title": "Lightmap-flag fix on 14 level paks (Airstrip black floor; map-colors/apply_mapcolor.py)",
+ "title": "Lightmap-flag fix on 14 level paks (Airstrip black floor; u3fix map-colors, map-colors/apply_mapcolor.cpp)",
  "kind": "script",
  "job": "map-colors",
  "family": "overlay-r3/pak23",
  "needs": [
-  "ps4",
-  "python:numpy"
+  "ps4"
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_mapcolor.py",
-   "--apply"
+   "u3fix.exe",
+   "map-colors",
+   "--apply",
+   "--project",
+   "{{PROJECT}}"
   ]
  ],
  "writes": [
@@ -21,6 +22,6 @@
  "status": "reproducible",
  "applied": "2026-11-01 21:29 (backup-mapcolor)",
  "recipe_version_added": "1.0.0",
- "notes": "lib.py functions streams/indices/protos/insts/isubs/load_tex/s2l/bc5 restored 2026-11-05 from the transcript (agent a346383c, 2026-11-01 20:07-20:15); paktools now from {{PAKTOOLS}}. Verified on the 14 pre-fix paks of D:/u3-backups/backup-mapcolor: same 41 edits and all 14 output md5 equal to the recorded md5_after. Needs numpy (tested with numpy 2.5.4).",
+ "notes": "C++ since 2026-11-13 (u3fix map-colors replaces apply_mapcolor.py and lib.py; the areas in the manifest follow numpy's float64 summation: 0 plus a pairwise sum, norms ((x^2 + y^2) + z^2), positions by fused multiply-add as its BLAS did). Verified on the real import's backup-mapcolor: the 5 paks its manifest still describes give the recorded md5_after and backup-mapcolor/manifest.json comes out byte-identical. Before: lib.py functions streams/indices/protos/insts/isubs/load_tex/s2l/bc5 restored 2026-11-05 from the transcript (agent a346383c, 2026-11-01 20:07-20:15); verified on the 14 pre-fix paks of D:/u3-backups/backup-mapcolor: same 41 edits and all 14 output md5 equal to the recorded md5_after.",
  "recipe_version_changed": "1.1.0"
 }

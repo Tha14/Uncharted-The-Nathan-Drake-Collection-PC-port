@@ -286,6 +286,7 @@ int wmain(int argc, wchar_t **argv) {
         if (step == "grass-leaf") return u3::grass_leaf(a);
         if (step == "london-fade") return u3::london_fade(a);
         if (step == "map-lighting") return u3::map_lighting(a);
+        if (step == "map-colors") return u3::map_colors(a);
         if (step == "pakinfo") return u3::pakinfo(a);
         std::fprintf(stderr, "usage: u3fix <step> [options] (the steps: see u3fix.cpp)\n");
         return 2;
