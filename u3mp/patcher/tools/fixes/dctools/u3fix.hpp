@@ -59,6 +59,7 @@ int install_am(const std::vector<std::string> &argv);          // tools/fixes/ac
 int convert_dc1(const std::vector<std::string> &argv);         // tools/fixes/dcconv/convert_dc1.cpp
 int dc_recipes(const std::vector<std::string> &argv);          // tools/fixes/dcconv/apply_recipes.cpp
 int sound_banks(const std::vector<std::string> &argv);         // tools/fixes/sound-banks/convert_banks.cpp
+int part_modules(const std::vector<std::string> &argv);        // tools/fixes/part-emitters/build_part_modules.cpp
 int pakinfo(const std::vector<std::string> &argv);            // dctools/ndpak.cpp: a pak's summary (as ndpak.py prints it)
 
 }  // namespace u3

@@ -1,6 +1,6 @@
 {
  "id": "convert-dc2-part-modules",
- "title": "overlay-r3: 3 dc2 particle modules (part-cave/gompa/shambhala-multi.bin): batch45 gompa water effects grafted from retail PS4 modules + batch48 PS3 1.19 emitters converted to PS4 (part-emitters/build_part_modules.py)",
+ "title": "overlay-r3: 3 dc2 particle modules (part-cave/gompa/shambhala-multi.bin): batch45 gompa water effects grafted from retail PS4 modules + batch48 PS3 1.19 emitters converted to PS4 (u3fix.exe part-modules, part-emitters/build_part_modules.cpp)",
  "kind": "script",
  "job": "part-emitters",
  "family": "overlay-r3/dc2",
@@ -11,9 +11,19 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/build_part_modules.py",
-   "--apply"
+   "u3fix.exe",
+   "part-modules",
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}",
+   "--ps4",
+   "{{PS4}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
+   "--ps3-update",
+   "{{PS3_UPDATE}}"
   ]
  ],
  "writes": [
@@ -25,7 +35,7 @@
  "status": "reproducible",
  "log_lines": 12,
  "applied": "2026-10-27 23:05 (stage-assets batch45-gompa-waterfx + batch48-119-emitters)",
- "notes": "The recovered batch45/batch48 cloud tools (graft44, emitconv + rootconv/ptconv/bcconv/donormap, build48), made to read bytes. Inputs: the PS3 1.19 dc1 part modules (dlc-patch18.psarc of the update; disc build/main/bin.psarc for the MP modules the patch does not have, found with tools/dcconv/ps3src.py) and the retail PS4 dc2/part-module files. 1) batch45: 31 Sanctuary water effects grafted from 6 retail PS4 MP modules into retail part-gompa-multi (md5 c77a9e0c). 2) The s11 struct samples the emitter converter needs are learned from the 33 PS3/PS4 MP module pairs. 3) batch48: 22 PS3 1.19 emitters converted to the PS4 format and appended to retail cave / shambhala and to the batch45 gompa; 7 effect groups re-pointed to their 1.19 lists. All 3 outputs are md5-checked (cave 9c9d7dad, gompa e9c4ea75, shambhala 3e843674); on a mismatch nothing is written and the step fails. part-ruins-multi is not built (the reference never installed it). dc-recipes (earlier in ORDER) also reproduces these 3 files from copy recipes; when it has, this step finds them at the reference state and does nothing. Verified 2026-11-07 on D: from the real game inputs (rebuild_overlays --only convert-dc2-part-modules).",
+ "notes": "The recovered batch45/batch48 cloud tools (graft44, emitconv + rootconv/ptconv/bcconv/donormap, build48), made to read bytes. Inputs: the PS3 1.19 dc1 part modules (dlc-patch18.psarc of the update; disc build/main/bin.psarc for the MP modules the patch does not have, found with tools/dcconv/ps3src.py) and the retail PS4 dc2/part-module files. 1) batch45: 31 Sanctuary water effects grafted from 6 retail PS4 MP modules into retail part-gompa-multi (md5 c77a9e0c). 2) The s11 struct samples the emitter converter needs are learned from the 33 PS3/PS4 MP module pairs. 3) batch48: 22 PS3 1.19 emitters converted to the PS4 format and appended to retail cave / shambhala and to the batch45 gompa; 7 effect groups re-pointed to their 1.19 lists. All 3 outputs are md5-checked (cave 9c9d7dad, gompa e9c4ea75, shambhala 3e843674); on a mismatch nothing is written and the step fails. part-ruins-multi is not built (the reference never installed it). dc-recipes (earlier in ORDER) also reproduces these 3 files from copy recipes; when it has, this step finds them at the reference state and does nothing. Verified 2026-11-07 on D: from the real game inputs (rebuild_overlays --only convert-dc2-part-modules). Since 2026-11-13 C++ (u3fix.exe part-modules = build_part_modules.py and the batch45 / batch48 tools): 3/3 md5 OK in 0.4 s, no Python.",
  "recipe_version_added": "1.0.0",
  "recipe_version_changed": "1.10.0"
 }
