@@ -277,37 +277,42 @@ void sig_walk(const fs::path &top, const fs::path &dp, std::vector<std::string> 
     for (const fs::path &d : dirs) sig_walk(top, d, sig);
 }
 
+// the inputs of actors / rebuild-am; the PS3 extracts are dropped when the PS3 inputs changed. Returns the thread count.
+int setup(const Args &a) {
+    const std::string project = a.need("--project");
+    a_here = a.need("--job"); a_ps4 = a.need("--ps4");
+    a_disc = a.get("--ps3-disc", ""); a_update = a.get("--ps3-update", ""); a_data2 = a.get("--ps3-data2", "");
+    a_tmp = upath(project) / "scratch" / "actor33-work";
+    std::vector<std::string> sig;
+    for (const std::string &f : {a_disc, a_update, a_data2}) {
+        sig.push_back(f);
+        if (!f.empty() && fs::is_directory(upath(f))) sig_walk(upath(f), upath(f), sig);
+    }
+    std::string s;
+    for (size_t i = 0; i < sig.size(); i++) s += (i ? "\n" : "") + sig[i];
+    const std::string h = sha256_hex(Bytes(s.begin(), s.end()));
+    const fs::path stamp = a_tmp / ".ps3-inputs";
+    if (!fs::exists(stamp) || py_rstrip(text_file(stamp)) != h) {
+        std::error_code ec;
+        fs::remove_all(a_tmp / "ps3", ec);
+        fs::remove_all(a_tmp / "labsrc", ec);
+        fs::create_directories(a_tmp);
+        write_text(stamp, h);
+    }
+    // Havok reflection tables (step actors-hk-tables keeps them in TMP/hk): own-skeleton props with collision need them
+    if (fs::exists(a_tmp / "hk" / "hk2010_ps3.json") && fs::exists(a_tmp / "hk" / "hk2011_ps4.json"))
+        hk::load_tables(a_tmp / "hk" / "hk2010_ps3.json", a_tmp / "hk" / "hk2011_ps4.json");
+    const char *rj = std::getenv("RECIPE_JOBS");
+    return a.val.count("--jobs") ? std::stoi(a.get("--jobs", "1")) : (rj && *rj ? std::atoi(rj) : int(std::max(1u, std::thread::hardware_concurrency())));
+}
+
 }  // namespace
 
 int actors(const std::vector<std::string> &argv) {
     const Args a(argv, {"--apply", "--allow-equivalent"},
                  {"--project", "--job", "--ps4", "--ps3-disc", "--ps3-update", "--ps3-data2", "--overlays", "--only", "--jobs"});
-    const std::string project = a.need("--project");
-    a_here = a.need("--job"); a_ps4 = a.need("--ps4");
-    a_disc = a.get("--ps3-disc", ""); a_update = a.get("--ps3-update", ""); a_data2 = a.get("--ps3-data2", "");
-    a_tmp = upath(project) / "scratch" / "actor33-work";
-    const fs::path work = upath(project) / "work";
-    const char *rj = std::getenv("RECIPE_JOBS");
-    const int jobs = a.val.count("--jobs") ? std::stoi(a.get("--jobs", "1")) : (rj && *rj ? std::atoi(rj) : int(std::max(1u, std::thread::hardware_concurrency())));
-    // the PS3 extracts are dropped when the PS3 inputs changed
-    {
-        std::vector<std::string> sig;
-        for (const std::string &f : {a_disc, a_update, a_data2}) {
-            sig.push_back(f);
-            if (!f.empty() && fs::is_directory(upath(f))) sig_walk(upath(f), upath(f), sig);
-        }
-        std::string s;
-        for (size_t i = 0; i < sig.size(); i++) s += (i ? "\n" : "") + sig[i];
-        const std::string h = sha256_hex(Bytes(s.begin(), s.end()));
-        const fs::path stamp = a_tmp / ".ps3-inputs";
-        if (!fs::exists(stamp) || py_rstrip(text_file(stamp)) != h) {
-            std::error_code ec;
-            fs::remove_all(a_tmp / "ps3", ec);
-            fs::remove_all(a_tmp / "labsrc", ec);
-            fs::create_directories(a_tmp);
-            write_text(stamp, h);
-        }
-    }
+    const int jobs = setup(a);
+    const fs::path work = upath(a.need("--project")) / "work";
     static const std::map<std::string, std::string> OVL = {{"port", "overlay-port"}, {"r2", "overlay-r2"}, {"r3", "overlay-r3"}, {"mp", "overlay-mp"}};
     std::set<std::string> ovs, only;
     {
@@ -354,9 +359,6 @@ int actors(const std::vector<std::string> &argv) {
         if (n0 != rows.size()) std::printf("%zu jobs skipped (hidden by a higher overlay, the game never loads them)\n", n0 - rows.size());
     }
     std::fflush(stdout);
-    // Havok reflection tables (step actors-hk-tables keeps them in TMP/hk): own-skeleton props with collision need them
-    if (fs::exists(a_tmp / "hk" / "hk2010_ps3.json") && fs::exists(a_tmp / "hk" / "hk2011_ps4.json"))
-        hk::load_tables(a_tmp / "hk" / "hk2010_ps3.json", a_tmp / "hk" / "hk2011_ps4.json");
     const auto t0 = std::chrono::steady_clock::now();
     int same = 0, installed = 0, built_diff = 0, fail = 0, skipped = 0;
     struct Todo {
@@ -432,6 +434,254 @@ int actors(const std::vector<std::string> &argv) {
     std::printf("actor33: same %d, installed %d, built_diff %d, fail %d, skipped %d, %.0f s%s\n", same, installed, built_diff, fail, skipped, secs,
                 a.has("--apply") ? "" : " (dry run)");
     return fail || built_diff ? 1 : 0;
+}
+
+
+// Recipe steps actor-materials / hat-colour / airport-igc2: the character paks rebuilt with the actor-materials rules
+// from the recorded jobs (no template search, no gates against the current overlay), each checked against its recorded
+// sha256 (replaces rebuild_am.py with build.py / hat-colour and airport-igc2 build_hat.py / mkretail).
+//   u3fix rebuild-am am|hats|igc2 --project P --job J --ps4 D --ps3-disc D --ps3-update D --ps3-data2 D [--only a,b] [--jobs N]
+// jobs-am.tsv / jobs-hats.tsv / jobs-igc2.tsv: name, PS3 source (informational: the newest PS3 archive that has the pak
+// wins), template, texture cap, sha256, [options: no-overlay-filter]. Output: <project>/scratch/actor-materials/out,
+// hat-colour/out or airport-igc2/out (<name>.pak), which the steps' apply scripts install. A pak already at its recorded
+// hash is not rebuilt. am rows with the source 'retail' are the template renamed. Exit 1 if any pak differs.
+int rebuild_am(const std::vector<std::string> &argv) {
+    if (argv.empty() || (argv[0] != "am" && argv[0] != "hats" && argv[0] != "igc2")) throw Stop("usage: u3fix rebuild-am am|hats|igc2 --project P ...");
+    const std::string kind = argv[0];
+    const Args a(std::vector<std::string>(argv.begin() + 1, argv.end()), {}, {"--project", "--job", "--ps4", "--ps3-disc", "--ps3-update", "--ps3-data2", "--only", "--jobs"});
+    const int jobs = setup(a);
+    const std::string folder = kind == "am" ? "actor-materials" : kind == "hats" ? "hat-colour" : "airport-igc2";
+    const fs::path outd = upath(a.need("--project")) / "scratch" / upath(folder) / "out";
+    std::set<std::string> only;
+    {
+        const std::string on = a.get("--only", "");
+        size_t b = 0;
+        for (size_t k = 0; k <= on.size(); k++)
+            if (k == on.size() || on[k] == ',') {
+                if (k > b) only.insert(on.substr(b, k - b));
+                b = k + 1;
+            }
+    }
+    struct Row {
+        std::string name, src, tmpl, cap, sha, opts;
+    };
+    std::vector<Row> rows;
+    {
+        const std::string t = text_file(upath(a_here + "/jobs-" + kind + ".tsv"));
+        size_t b = 0;
+        for (size_t k = 0; k <= t.size(); k++) {
+            if (k < t.size() && t[k] != '\n') continue;
+            std::string l = t.substr(b, k - b);
+            b = k + 1;
+            if (!l.empty() && l.back() == '\r') l.pop_back();
+            if (py_split(l).empty() || l[0] == '#') continue;
+            std::vector<std::string> c;
+            size_t s = 0;
+            for (size_t j = 0; j <= l.size(); j++)
+                if (j == l.size() || l[j] == '\t') { c.push_back(l.substr(s, j - s)); s = j + 1; }
+            if (c.size() < 5) throw Stop("jobs-" + kind + ".tsv: short row " + l);
+            if (!only.empty() && !only.count(c[0])) continue;
+            rows.push_back({c[0], c[1], c[2], c[3], c[4], c.size() > 5 ? c[5] : ""});
+        }
+    }
+    // the Yeti mask's teeth lost their normals / tangents on PS3: rebuilt for this source only
+    static const std::map<std::string, std::pair<std::string, std::map<std::pair<uint32_t, size_t>, std::string>>> BASIS = {
+        {"mp-kit-shared-monster-mask",
+         {"c72c2bf95e216c58a8749876089ddaffb905859f744c9ab7c7d79fdf1ee29fc9", {{{187, 202}, "lod0 teeth"}, {{144, 137}, "lod1 teeth"}, {{94, 90}, "lod2 teeth"}}}}};
+    auto newest = [](const std::string &name) {   // the newest PS3 archive with the pak
+        for (const char *src : {"data2-parts", "dlc-patch18", "dlc-patch13", "disc"}) {
+            try {
+                return extract(src, name + ".pak");
+            } catch (const Stop &) {
+            }
+        }
+        throw Stop("no PS3 source for " + name);
+    };
+    auto build_one = [&](const Row &r) {
+        const fs::path dst = outd / upath(r.name + ".pak");
+        Bytes d;
+        if (kind == "am" && r.src == "retail") {   // the retail template renamed (mkretail)
+            d = actor::cb3fix(actor::rename(upath(ret()) / upath(r.tmpl + ".pak"), r.tmpl, r.name));
+        } else {
+            const fs::path p3 = newest(r.name), tpl = upath(ret()) / upath(r.tmpl + ".pak");
+            actor::Kw kw;
+            kw.max_tex = std::stoi(r.cap);
+            actor::Options o;
+            o.am = true;
+            o.mat_choice = actor::am_choice(p3, tpl, kind != "am", kind == "igc2" || (kind == "hats" && r.opts.find("no-overlay-filter") == std::string::npos));
+            if (kind == "hats")
+                if (auto it = BASIS.find(r.name); it != BASIS.end()) {
+                    if (sha_file(p3) != it->second.first) throw Stop("ValueError: unexpected Yeti mask PS3 source SHA-256: " + sha_file(p3));
+                    o.basis_targets = it->second.second;
+                }
+            d = actor::cb3fix(stage::cubefix_pak(actor::convert(p3, tpl, kw, o), p3));
+        }
+        fs::create_directories(outd);
+        write_file_replace(dst, d);
+    };
+    const auto t0 = std::chrono::steady_clock::now();
+    std::vector<int> state(rows.size(), 0);   // 0 already at the hash, 1 built OK, 2 differs, 3 failed
+    std::vector<std::string> msg(rows.size());
+    std::atomic<size_t> next{0};
+    std::vector<std::thread> pool;
+    for (int w = 0; w < std::max(1, std::min<int>(jobs, int(rows.size()))); w++)
+        pool.emplace_back([&] {
+            for (size_t i; (i = next++) < rows.size();) {
+                const Row &r = rows[i];
+                const fs::path dst = outd / upath(r.name + ".pak");
+                if (fs::exists(dst) && sha_file(dst) == r.sha) continue;
+                try {
+                    build_one(r);
+                    const std::string got = sha_file(dst);
+                    state[i] = got == r.sha ? 1 : 2;
+                    msg[i] = got == r.sha ? "" : got.substr(0, 16) + " != " + r.sha.substr(0, 16);
+                } catch (const std::exception &e) {
+                    state[i] = 3;
+                    msg[i] = std::string(e.what()).substr(0, 300);
+                }
+            }
+        });
+    for (auto &t : pool) t.join();
+    int n_ok = 0, n_built = 0, bad = 0;
+    for (size_t i = 0; i < rows.size(); i++) {
+        const Row &r = rows[i];
+        if (state[i] == 0) { n_ok++; continue; }
+        n_built++;
+        if (state[i] == 3) std::printf("FAIL %s %s\n", r.name.c_str(), msg[i].c_str());
+        else std::printf("%s %s <- %s cap %s %s\n", state[i] == 1 ? "OK  " : "DIFF", r.name.c_str(), r.tmpl.c_str(), r.cap.c_str(), msg[i].c_str());
+        if (state[i] != 1) bad++;
+    }
+    std::printf("%s: %d already at the recorded hash, %d rebuilt, %d differ, %.0f s\n", kind.c_str(), n_ok, n_built, bad,
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
+    return bad ? 1 : 0;
+}
+
+
+// Install the rebuilt paks of rebuild-am into overlay-r3 (replaces actor-materials/apply_actor_materials.py,
+// hat-colour/apply_hat_colour.py and airport-igc2/apply_igc2.py; same messages and backups).
+//   u3fix install-am am|hats|igc2 --project P [--work DIR] [--only a,b (hats)] [--apply | --restore]
+// am / hats: the paks of <scratch>/<job>/manifest.json (out/ must hold them at those hashes); the first apply backs up
+// the overlay-r3 copies to work/backup-actor-materials or backup-hat-colour and records in state.json whether each
+// existed; --restore puts them back and removes the ones that did not. igc2: mp-hero-flynn-coop.pak, backed up once to
+// work/backup-igc2. Without --apply / --restore: a dry run.
+int install_am(const std::vector<std::string> &argv) {
+    if (argv.empty() || (argv[0] != "am" && argv[0] != "hats" && argv[0] != "igc2")) throw Stop("usage: u3fix install-am am|hats|igc2 --project P ...");
+    const std::string kind = argv[0];
+    const Args a(std::vector<std::string>(argv.begin() + 1, argv.end()), {"--apply", "--restore"}, {"--project", "--work", "--only"});
+    const std::string folder = kind == "am" ? "actor-materials" : kind == "hats" ? "hat-colour" : "airport-igc2";
+    const fs::path here = upath(a.need("--project")) / "scratch" / upath(folder), src = here / "out";
+    const fs::path work = a.val.count("--work") ? upath(a.get("--work", "")) : upath(a.need("--project")) / "work";
+    const fs::path dst = work / "overlay-r3" / "u3data" / "build" / "main" / "actor33" / "ps4";
+    auto fail = [](const std::string &m) {
+        std::fprintf(stderr, "%s\n", m.c_str());
+        return 1;
+    };
+    auto size_of = [](const fs::path &p) { return (unsigned long long)fs::file_size(p); };
+    auto put = [](const fs::path &from, const fs::path &to) {   // shutil.copy2 and the hash check after it
+        copy2(from, to);
+        if (sha_file(to) != sha_file(from)) throw Stop("AssertionError: copy of " + utf8(from));
+    };
+    if (kind == "igc2") {
+        const fs::path bak = work / "backup-igc2";
+        const std::vector<std::pair<std::string, std::string>> files = {{"mp-hero-flynn-coop.pak", "686e426036295d94699f8566f44fdd423bcbe9a1d14ce48b7ddc1757692bc0f6"}};
+        for (const auto &[n, want] : files) {
+            const fs::path s = src / n, d = dst / n, b = bak / n;
+            if (a.has("--restore")) {
+                if (!fs::exists(b)) return fail("no backup " + win_path(utf8(b)));
+                std::printf("%s restore %s over %s\n", n.c_str(), sha_file(b).substr(0, 16).c_str(), sha_file(d).substr(0, 16).c_str());
+                put(b, d);
+                continue;
+            }
+            if (sha_file(s) != want) return fail("source hash mismatch " + win_path(utf8(s)));
+            std::printf("%s current %s %llu -> new %s %llu\n", n.c_str(), sha_file(d).substr(0, 16).c_str(), size_of(d), want.substr(0, 16).c_str(), size_of(s));
+            if (!a.has("--apply")) {
+                std::printf("  dry run: no change\n");
+                continue;
+            }
+            fs::create_directories(bak);
+            if (!fs::exists(b)) {
+                copy2(d, b);
+                std::printf("  backup %s\n", win_path(utf8(b)).c_str());
+            }
+            put(s, d);
+            std::printf("  installed\n");
+        }
+        return 0;
+    }
+    if (a.has("--apply") && a.has("--restore")) return fail("use --apply or --restore, not both");
+    const fs::path bak = work / (kind == "am" ? "backup-actor-materials" : "backup-hat-colour"), state = bak / "state.json";
+    if (!fs::is_directory(dst)) return fail("missing " + win_path(utf8(dst)));
+    std::vector<std::pair<std::string, std::string>> man;
+    for (const auto &[k, v] : read_json(here / "manifest.json").fields) man.push_back({k, v.s});
+    if (kind == "hats" && a.val.count("--only")) {
+        std::set<std::string> only;
+        const std::string on = a.get("--only", "");
+        size_t b = 0;
+        for (size_t k = 0; k <= on.size(); k++)
+            if (k == on.size() || on[k] == ',') {
+                std::string x = py_rstrip(on.substr(b, k - b));
+                x.erase(0, std::min(x.size(), x.find_first_not_of(" \t\r\n\f\v")));   // str.strip()
+                if (!x.empty()) only.insert(x + ".pak");
+                b = k + 1;
+            }
+        if (!only.empty()) {
+            man.erase(std::remove_if(man.begin(), man.end(), [&](const auto &m) { return !only.count(m.first); }), man.end());
+            if (man.empty()) return fail("--only names nothing in manifest.json");
+        }
+    }
+    auto man_hash = [&](const std::string &n) -> const std::string * {
+        for (const auto &m : man)
+            if (m.first == n) return &m.second;
+        return nullptr;
+    };
+    std::vector<std::pair<std::string, bool>> st;   // state.json: pak -> overlay-r3 had it before
+    if (fs::exists(state))
+        for (const auto &[k, v] : read_json(state).fields) st.push_back({k, v.truthy()});
+    if (a.has("--restore")) {
+        if (!fs::exists(state)) return fail("nothing to restore: no " + win_path(utf8(state)));
+        for (const auto &[n, had] : st) {
+            const std::string *mh = man_hash(n);
+            if (kind == "hats" && !mh) continue;
+            const fs::path d = dst / n, b = bak / n;
+            if (had) {
+                if (!fs::exists(b)) return fail("missing backup " + win_path(utf8(b)));
+                put(b, d);
+                std::printf("%s restored\n", n.c_str());
+            } else if (fs::exists(d)) {
+                if (!mh) throw Stop("KeyError: " + n);
+                if (sha_file(d) != *mh) {
+                    std::printf("%s NOT removed: overlay-r3 copy is not the one this script installed\n", n.c_str());
+                    continue;
+                }
+                fs::remove(d);
+                std::printf("%s removed from overlay-r3 (it was not there before)\n", n.c_str());
+            }
+        }
+        std::printf("restore done; backups kept in %s\n", win_path(utf8(bak)).c_str());
+        return 0;
+    }
+    auto write_state = [&] {   // json.dump(indent=0), text mode
+        std::string t = "{";
+        for (size_t i = 0; i < st.size(); i++) t += std::string(i ? ",\n" : "\n") + "\"" + st[i].first + "\": " + (st[i].second ? "true" : "false");
+        t += st.empty() ? "}" : "\n}";
+        write_text(state, t);
+    };
+    for (const auto &[n, h] : man) {
+        const fs::path s = src / n, d = dst / n, b = bak / n;
+        if (!fs::exists(s) || sha_file(s) != h) return fail("out/ pak missing or changed since manifest: " + n);
+        const std::string cur = fs::exists(d) ? sha_file(d).substr(0, 16) : kind == "am" ? "not in overlay-r3" : "not in overlay-r3 (overlay-port copy is used now)";
+        std::printf("%s: %s -> %s (%llu bytes)\n", n.c_str(), cur.c_str(), h.substr(0, 16).c_str(), size_of(s));
+        if (!a.has("--apply")) continue;
+        fs::create_directories(bak);
+        if (std::find_if(st.begin(), st.end(), [&](const auto &x) { return x.first == n; }) == st.end()) {   // the first apply records the original
+            st.push_back({n, fs::exists(d)});
+            if (st.back().second) copy2(d, b);
+            write_state();
+        }
+        put(s, d);
+    }
+    std::printf("%s\n", a.has("--apply") ? "installed" : "dry run: no change");
+    return 0;
 }
 
 }  // namespace u3

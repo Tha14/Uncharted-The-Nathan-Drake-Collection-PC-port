@@ -54,6 +54,8 @@ int registry_final(const std::vector<std::string> &argv);     // tools/fixes/pak
 int hair_key(const std::vector<std::string> &argv);           // tools/fixes/hat-chloe/apply_hair_key.cpp
 int levels(const std::vector<std::string> &argv);             // tools/fixes/pak23-levels/levels.cpp
 int actors(const std::vector<std::string> &argv);             // tools/fixes/actor33/build_actors.cpp
+int rebuild_am(const std::vector<std::string> &argv);          // tools/fixes/actor33/build_actors.cpp
+int install_am(const std::vector<std::string> &argv);          // tools/fixes/actor33/build_actors.cpp
 int pakinfo(const std::vector<std::string> &argv);            // dctools/ndpak.cpp: a pak's summary (as ndpak.py prints it)
 
 }  // namespace u3

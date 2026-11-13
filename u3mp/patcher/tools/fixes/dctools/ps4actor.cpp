@@ -11,6 +11,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <mutex>
 #include <regex>
 #include <set>
@@ -190,7 +191,8 @@ struct FgInfo {
     uint32_t skel, hier, njoints;
     Bytes names;
 };
-FgInfo tmpl_fg_info(const Pak &q) {
+// am: the joint count is read from the page the submesh array is on (the newer rules read GEOMETRY_1's page)
+FgInfo tmpl_fg_info(const Pak &q, bool am = false) {
     const auto fs_ = q.items_of("FOREGROUND_SECTION_2");
     if (fs_.empty()) throw Stop("IndexError: no FOREGROUND_SECTION_2");
     const uint32_t pg = fs_[0].page;
@@ -204,8 +206,8 @@ FgInfo tmpl_fg_info(const Pak &q) {
     f.names = Bytes(q.d.begin() + std::ptrdiff_t(std::min<uint64_t>(a, q.d.size())), q.d.begin() + std::ptrdiff_t(std::min<uint64_t>(a + jitem.size, q.d.size())));
     const auto gs = q.items_of("GEOMETRY_1");
     if (gs.empty()) throw Stop("IndexError: no GEOMETRY_1");
-    const uint64_t sm = bg::need(q, gs[0].page, gs[0].data_off() + 0x10).second;
-    f.njoints = q.pu32(gs[0].page, sm + 0x58);
+    const Ref sm = bg::need(q, gs[0].page, gs[0].data_off() + 0x10);
+    f.njoints = q.pu32(am ? sm.first : gs[0].page, sm.second + 0x58);
     return f;
 }
 
@@ -261,7 +263,8 @@ std::shared_ptr<std::map<std::string, std::string>> retail_names(const fs::path 
 }
 
 // ------------------------------------------------------------------------------------------------ helpers
-const std::vector<std::pair<std::string, std::vector<std::string>>> &tex_kinds() {   // (name suffix, the bindings that take it)
+// (name suffix, the bindings that take it), in matching order; am: the older list (hair alpha first, no hair shift)
+const std::vector<std::pair<std::string, std::vector<std::string>>> &tex_kinds(bool am = false) {
     static const std::vector<std::pair<std::string, std::vector<std::string>>> K = {
         {"-detail-normal", {"g_tNdFetchDetail3Map", "g_tNdFetchDetail1Map", "g_tNdFetchDetail2Map"}},
         {"-spec-mask", {"g_tNdFetchMask4Map"}},
@@ -270,13 +273,240 @@ const std::vector<std::pair<std::string, std::vector<std::string>>> &tex_kinds()
         {"-color", {"g_tNdFetchColor1Map", "g_tNdFetchColor2Map"}},
         {"-shift", {"g_tNdFetchNoiseMap"}},     // hair anisotropic shift
         {"-trans", {"g_tNdFetchHairAlphaMap"}}};   // hair alpha (often missing on PS3: see donors)
-    return K;
+    static const std::vector<std::pair<std::string, std::vector<std::string>>> KA = {
+        {"-trans", {"g_tNdFetchHairAlphaMap"}},
+        {"-detail-normal", {"g_tNdFetchDetail3Map", "g_tNdFetchDetail1Map", "g_tNdFetchDetail2Map"}},
+        {"-spec-mask", {"g_tNdFetchMask4Map"}},
+        {"-tint-mask", {"g_tNdFetchColorTintMask1Map"}},
+        {"-normal", {"g_tNdFetchNormal1Map", "g_tNdFetchNormal2Map"}},
+        {"-color", {"g_tNdFetchColor1Map", "g_tNdFetchColor2Map"}}};
+    return am ? KA : K;
 }
-std::optional<std::string> tex_kind(const std::string &shrt) {
+// am also knows the eye / teeth naming x_c / x_clr (colour) and x_n / x_nmt (normal)
+std::optional<std::string> tex_kind(const std::string &shrt, bool am = false) {
     const std::string base = before(before(shrt, ".tga"), ".dds");
-    for (const auto &[suf, ps] : tex_kinds())
+    for (const auto &[suf, ps] : tex_kinds(am))
         if (ends_with(base, suf) || has(base, suf + "-")) return suf;
+    if (am && (ends_with(base, "_c") || ends_with(base, "_clr"))) return "-color";
+    if (am && (ends_with(base, "_n") || ends_with(base, "_nmt"))) return "-normal";
     return std::nullopt;
+}
+
+
+std::string rsplit1_last(const std::string &s) {   // s.rsplit('/', 1)[-1]
+    const size_t k = s.rfind('/');
+    return k == std::string::npos ? s : s.substr(k + 1);
+}
+
+// ------------------------------------------------------------------------------------------------ am helpers
+// The PS3 MATERIAL_TABLE_1 as the actor-materials rules read it: every pointer followed to its own page, up to six
+// binding groups per material (group 0 is the material's own), groups of more than 32 bindings skipped, each texture
+// once and missing textures left out.
+struct AmTable {
+    std::vector<std::pair<std::string, std::vector<uint32_t>>> mats;   // name, texture indices
+    std::vector<std::pair<uint32_t, std::string>> texs;                 // hash, name
+};
+AmTable am_read_materials(const Pak &p) {
+    AmTable t;
+    const auto mts = p.items_of("MATERIAL_TABLE_1");
+    if (mts.empty()) return t;
+    const uint32_t pg = mts[0].page;
+    const uint64_t b = mts[0].data_off();
+    if (p.pu32(pg, b) != 0x79) throw Stop("ValueError: version");
+    const uint32_t ntex = p.pu32(pg, b + 4), nmat = p.pu32(pg, b + 0xc);
+    const Ref th = bg::need(p, pg, b + 0x18), ma = bg::need(p, pg, b + 0x20), na = bg::need(p, pg, b + 0x30);
+    for (uint32_t i = 0; i < ntex; i++) {
+        const Ref r = bg::need(p, na.first, na.second + 4ull * i);
+        t.texs.push_back({p.pu32(th.first, th.second + 4ull * i), p.pstr(r.first, r.second)});
+    }
+    for (uint32_t i = 0; i < nmat; i++) {
+        const Ref a = bg::need(p, ma.first, ma.second + 4ull * i);
+        const Ref n = bg::need(p, a.first, a.second);
+        std::pair<std::string, std::vector<uint32_t>> rec{p.pstr(n.first, n.second), {}};
+        p.pu32(a.first, a.second + 0x18);
+        p.pu32(a.first, a.second + 0xc);
+        if (const ORef r = bg::res(p, a.first, a.second + 0x10)) {
+            std::set<uint32_t> seen;
+            for (uint32_t slot = 0; slot < 6; slot++) {
+                const ORef node = bg::res(p, r->first, r->second + 4ull * slot);
+                if (!node) continue;
+                const ORef bb = bg::res(p, node->first, node->second + 0x10);
+                if (!bb) continue;
+                const uint32_t nb = p.pu32(bb->first, bb->second + 4);
+                if (nb > 32) continue;
+                for (uint32_t k = 0; k < nb; k++) {
+                    const ORef rr = bg::res(p, bb->first, bb->second + 0x50 + 0x10ull * k);
+                    if (!rr || rr->first != th.first || rr->second < th.second || rr->second >= th.second + 4ull * ntex) continue;
+                    const uint32_t ti = uint32_t((rr->second - th.second) / 4);
+                    if (!seen.count(ti) && !has(t.texs[ti].second, "missingtexture")) {
+                        seen.insert(ti);
+                        rec.second.push_back(ti);
+                    }
+                }
+            }
+        }
+        t.mats.push_back(std::move(rec));
+    }
+    return t;
+}
+// material name -> the hashes of its textures (a repeated name: the last)
+std::map<std::string, std::set<uint32_t>> am_material_textures(const Pak &p) {
+    const AmTable t = am_read_materials(p);
+    std::map<std::string, std::set<uint32_t>> out;
+    for (const auto &[name, idx] : t.mats) {
+        std::set<uint32_t> h;
+        for (uint32_t i : idx) h.insert(t.texs[i].first);
+        out[name] = h;
+    }
+    return out;
+}
+
+// float16 bits -> double
+double h2d(uint16_t h) {
+    const int e = (h >> 10) & 0x1f, m = h & 0x3ff;
+    double v;
+    if (e == 0) v = std::ldexp(double(m), -24);
+    else if (e == 31) v = m ? std::numeric_limits<double>::quiet_NaN() : std::numeric_limits<double>::infinity();
+    else v = std::ldexp(double(m | 0x400), e - 25);
+    return (h & 0x8000) ? -v : v;
+}
+
+// A block that lost its normals and tangents (the Yeti mask teeth): area-weighted triangle normals and UV-derived
+// tangents from the float32 positions, float16 UVs and the triangles, no welding; unreferenced vertices get a unit
+// frame; degenerate input stops the build. The result goes through float16 like the converted streams.
+void rebuild_basis(bg::FgBlock &b, const std::map<std::pair<uint32_t, size_t>, std::string> &targets, std::set<std::pair<uint32_t, size_t>> &seen) {
+    const bool no_n = !b.get("normal"), no_t = !b.get("tangent");
+    if (no_n != no_t) throw Stop("ValueError: only one of the normal / tangent streams is missing");
+    if (!no_n) return;
+    const std::pair<uint32_t, size_t> sig{b.nverts, b.tris.size()};
+    if (!targets.count(sig)) throw Stop(u3::fmt("ValueError: unexpected mesh without a basis (%u, %zu)", sig.first, sig.second));
+    const Mat *pos = b.get("pos"), *uv0 = b.get("uv0");
+    if (!pos || !uv0) throw Stop("KeyError: 'uv0'");
+    const size_t nv = b.nverts;
+    if (!nv || pos->rows != nv || uv0->rows != nv || b.tris.empty()) throw Stop("ValueError: invalid position / UV / triangle buffer");
+    std::vector<std::array<double, 3>> P(nv);
+    std::vector<std::array<double, 2>> U(nv);
+    for (size_t i = 0; i < nv; i++) {
+        for (int k = 0; k < 3; k++) P[i][k] = double(float(pos->at(i, k)));
+        for (int k = 0; k < 2; k++) U[i][k] = h2d(f16b(uv0->at(i, k)));
+        for (int k = 0; k < 3; k++)
+            if (!std::isfinite(P[i][k])) throw Stop("ValueError: non-finite position");
+        for (int k = 0; k < 2; k++)
+            if (!std::isfinite(U[i][k])) throw Stop("ValueError: non-finite UV");
+    }
+    std::vector<char> referenced(nv, 0);
+    for (const auto &tr : b.tris)
+        for (uint32_t v : tr) {
+            if (v > 0xffff || v >= nv) throw Stop("ValueError: invalid triangle index");
+            referenced[v] = 1;
+        }
+    using V3 = std::array<double, 3>;
+    auto cross = [](const V3 &a, const V3 &c) { return V3{a[1] * c[2] - a[2] * c[1], a[2] * c[0] - a[0] * c[2], a[0] * c[1] - a[1] * c[0]}; };
+    auto dot = [](const V3 &a, const V3 &c) { return (a[0] * c[0] + a[1] * c[1]) + a[2] * c[2]; };
+    std::vector<V3> n(nv, V3{0, 0, 0}), t(nv, V3{0, 0, 0}), bt(nv, V3{0, 0, 0});
+    struct Tri {
+        std::array<uint32_t, 3> v;
+        V3 face, tan, bit;
+        double area;
+    };
+    std::vector<Tri> good;
+    for (const auto &tr : b.tris) {
+        V3 e1, e2;
+        for (int k = 0; k < 3; k++) e1[k] = P[tr[1]][k] - P[tr[0]][k], e2[k] = P[tr[2]][k] - P[tr[0]][k];
+        const V3 face = cross(e1, e2);
+        const double area = std::sqrt(dot(face, face));
+        if (!(area > 1e-12)) continue;
+        const double d1[2] = {U[tr[1]][0] - U[tr[0]][0], U[tr[1]][1] - U[tr[0]][1]}, d2[2] = {U[tr[2]][0] - U[tr[0]][0], U[tr[2]][1] - U[tr[0]][1]};
+        const double det = d1[0] * d2[1] - d1[1] * d2[0];
+        if (!(std::fabs(det) > 1e-12)) throw Stop("ValueError: degenerate UV triangle");
+        Tri x{tr, face, {}, {}, area};
+        for (int k = 0; k < 3; k++) {
+            x.tan[k] = (e1[k] * d2[1] - e2[k] * d1[1]) / det;
+            x.bit[k] = (e2[k] * d1[0] - e1[k] * d2[0]) / det;
+        }
+        good.push_back(x);
+    }
+    for (const Tri &x : good)   // np.add.at: triangle by triangle, vertex by vertex
+        for (uint32_t v : x.v)
+            for (int k = 0; k < 3; k++) n[v][k] += x.face[k];
+    for (const Tri &x : good)
+        for (uint32_t v : x.v)
+            for (int k = 0; k < 3; k++) t[v][k] += x.tan[k] * x.area;
+    for (const Tri &x : good)
+        for (uint32_t v : x.v)
+            for (int k = 0; k < 3; k++) bt[v][k] += x.bit[k] * x.area;
+    for (size_t i = 0; i < nv; i++)
+        if (!referenced[i]) n[i] = {0, 0, 1}, t[i] = {1, 0, 0}, bt[i] = {0, 1, 0};
+    for (int pass = 0; pass < 2; pass++) {
+        std::vector<V3> &vals = pass ? t : n;
+        for (size_t i = 0; i < nv; i++) {
+            if (pass) {
+                const double d = dot(n[i], t[i]);
+                for (int k = 0; k < 3; k++) t[i][k] -= n[i][k] * d;
+            }
+            const double len = std::sqrt(dot(vals[i], vals[i]));
+            if (!std::isfinite(len) || !(len > 1e-12)) throw Stop("ValueError: degenerate basis or vertex without nondegenerate triangles");
+            for (int k = 0; k < 3; k++) vals[i][k] /= len;
+        }
+    }
+    Mat nm(nv, 3), tm(nv, 4);
+    for (size_t i = 0; i < nv; i++) {
+        const double hand = dot(cross(n[i], t[i]), bt[i]);
+        if (!std::isfinite(hand) || !(std::fabs(hand) > 1e-12)) throw Stop("ValueError: ambiguous tangent handedness");
+        for (int k = 0; k < 3; k++) {
+            nm.at(i, k) = h2d(f16b(n[i][k]));
+            tm.at(i, k) = h2d(f16b(t[i][k]));
+        }
+        tm.at(i, 3) = hand < 0 ? -1.0 : 1.0;
+    }
+    b.attr["normal"] = nm;
+    b.attr["tangent"] = tm;
+    seen.insert(sig);
+}
+
+// the actor-materials choice of a template material for a PS3 material without an exact match: by role (eyes,
+// mouth, hair, skin of head / arms, cloth) and then the most texture kinds in common, fewest missing
+const std::vector<std::pair<std::string, std::regex>> &am_special() {
+    static const std::vector<std::pair<std::string, std::regex>> R = {
+        {"eyelashes", std::regex("eyelash")}, {"brows", std::regex("brows")}, {"eyeoverlay", std::regex("eyeoverlay")},
+        {"eyes", std::regex("(^|[/:-])eyes?([/:-]|$)")}, {"mouth", std::regex("mouth|teeth|tongue")}, {"hair", std::regex("hair")}};
+    return R;
+}
+const std::vector<std::pair<std::string, std::regex>> &am_skin() {
+    static const std::vector<std::pair<std::string, std::regex>> R = {{"head", std::regex("head|neck|face")}, {"arms", std::regex("arms|hands?|skin")}};
+    return R;
+}
+std::string am_role(const std::string &name) {
+    const std::string low = lower(name);
+    if (has(low, "goggles")) return "cloth";
+    for (const auto &[r, x] : am_special())
+        if (std::regex_search(low, x)) return r;
+    const size_t c = low.rfind("characters/");
+    const std::string tail = c == std::string::npos ? low : low.substr(c + 11);
+    for (const auto &[r, x] : am_skin())
+        if (std::regex_search(tail, x)) return r;
+    return "cloth";
+}
+std::vector<const TMat *> am_pool(const std::vector<TMat> &tmats, const std::string &r) {
+    std::vector<const TMat *> main, out;
+    for (const TMat &m : tmats)
+        if (!has(m.name, "shadowblocker")) main.push_back(&m);
+    for (const auto &[sr, x] : am_special())
+        if (sr == r) {
+            for (const TMat *m : main)
+                if (std::regex_search(lower(before(m->name, ",")), x)) out.push_back(m);
+            return out;
+        }
+    bool skin = false;
+    for (const auto &[sr, x] : am_skin()) skin = skin || sr == r;
+    if (skin) {
+        for (const TMat *m : main)
+            if (am_role(before(m->name, ",")) == r) out.push_back(m);
+        if (!out.empty()) return out;
+    }
+    for (const TMat *m : main)
+        if (am_role(before(m->name, ",")) == "cloth") out.push_back(m);
+    return out;
 }
 
 // BC1 texels (PS3 linear order, all mips) of a constant colour
@@ -306,8 +536,8 @@ struct AutoPages {
     Page *cur;
     size_t size = 0x200;
     std::optional<size_t> max_entries;
-    size_t nent = 0;
-    AutoPages(PakWriter &w_, std::optional<size_t> me) : w(w_), cur(&w_.page()), max_entries(me) {}
+    size_t nent = 0, limit;
+    AutoPages(PakWriter &w_, std::optional<size_t> me, size_t lim = PAGE_LIMIT) : w(w_), cur(&w_.page()), max_entries(me), limit(lim) {}
     void new_page() {
         cur = &w.page();
         size = 0x200;
@@ -315,7 +545,7 @@ struct AutoPages {
         nent = 0;
     }
     void room(size_t n, size_t ne) {
-        if (size + n > PAGE_LIMIT && size > 0x200) new_page();
+        if (size + n > limit && size > 0x200) new_page();
         if (max_entries && nent + ne > *max_entries) new_page();
         size += n;
         nent += ne;
@@ -515,8 +745,9 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
             }
         }
     cb3_cap = std::max<uint32_t>(cb3_cap, uint32_t(opt.cb3_min));
-    const auto rnames = retail_names(fs::absolute(tmpl_path).parent_path());
-    FgInfo fi = kw.skel_tmpl ? tmpl_fg_info(Pak(*kw.skel_tmpl)) : tmpl_fg_info(T);
+    if (opt.am) cb3_cap = 2, cb4_cap = 1;   // am: the fixed retail-style 2 / 1 (cb3fix raises them afterwards)
+    const auto rnames = opt.am ? std::make_shared<std::map<std::string, std::string>>() : retail_names(fs::absolute(tmpl_path).parent_path());
+    FgInfo fi = kw.skel_tmpl ? tmpl_fg_info(Pak(*kw.skel_tmpl)) : tmpl_fg_info(T, opt.am);
     uint32_t skel_sid = fi.skel, hier_id = fi.hier, njoints = fi.njoints;
     Bytes joint_names = fi.names;
     const auto tstreams = kw.match_streams ? template_streams(T) : std::map<std::string, std::vector<std::tuple<uint32_t, uint32_t, Bytes>>>{};
@@ -600,6 +831,7 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
     };
     std::vector<std::vector<Sub>> proto_out;
     std::vector<std::string> used_mats;
+    std::set<std::pair<uint32_t, size_t>> basis_seen;   // am: the rebuilt blocks (vertices, triangles)
     for (size_t pi = 0; pi < proto_list.size(); pi++) {
         const ORef &pr = proto_list[pi];
         const bg::FgProto *info = nullptr;
@@ -609,6 +841,8 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
         const std::vector<std::string> mnames = ps3_block_materials(src, *pr);
         std::vector<bg::FgBlock> blocks;
         for (const Ref &b : info->blocks) blocks.push_back(bg::decode_fg_block(src, b.first, b.second));
+        if (!opt.basis_targets.empty())
+            for (bg::FgBlock &b : blocks) rebuild_basis(b, opt.basis_targets, basis_seen);
         std::vector<Sub> subs;
         for (size_t bi = 0; bi < std::min(blocks.size(), mnames.size()); bi++) {   // consecutive blocks of one material merge
             if (!subs.empty() && subs.back().mat == mnames[bi]) subs.back().blocks.push_back(std::move(blocks[bi]));
@@ -628,16 +862,24 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
             if (std::find(used_mats.begin(), used_mats.end(), s.mat) == used_mats.end()) used_mats.push_back(s.mat);
         proto_out.push_back(std::move(subs));
     }
+    if (!opt.basis_targets.empty()) {
+        std::set<std::pair<uint32_t, size_t>> want;
+        for (const auto &[k, v] : opt.basis_targets) want.insert(k);
+        if (basis_seen != want) throw Stop("ValueError: basis repair coverage differs");
+    }
 
     // ---------------- textures
     const std::vector<PakTexture> texs = src.textures();
     PakWriter w;
     auto [span, span_items] = extract_effect_span(T);
-    AutoPages p0(w, std::max<int64_t>(1, (int64_t(span_items[0].off) - 0x14) / 16));
     // the effects first, at the template's exact page offset: EFFECT data holds page-relative offsets that are no fixups
-    span->modulo = uint64_t(1) << 40;
-    span->phase = span_items[0].off;
-    p0.span(span);
+    // (am: no entry cap, the older page limit, the span after the texture table at the template's offset modulo 0x1000)
+    AutoPages p0(w, opt.am ? std::nullopt : std::optional<size_t>(std::max<int64_t>(1, (int64_t(span_items[0].off) - 0x14) / 16)), opt.am ? 0x1c0000 : PAGE_LIMIT);
+    if (!opt.am) {
+        span->modulo = uint64_t(1) << 40;
+        span->phase = span_items[0].off;
+        p0.span(span);
+    }
     Bytes vram;
     std::vector<TexP> tex_entries;
     auto add_texture = [&](const std::string &shrt, uint32_t hash_, uint32_t fmt4, uint32_t w_, uint32_t h_, uint32_t mips, const Bytes &tiled,
@@ -662,7 +904,7 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
         e->shrt = shrt;
         e->full = full4;
         e->fmt = fmt4;
-        e->kind = tex_kind(shrt);
+        e->kind = tex_kind(shrt, opt.am);
         tex_entries.push_back(e);
         return e;
     };
@@ -677,7 +919,8 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
         Bytes texels = src.vram_bytes(t.vramOffset, t.vramSize);
         uint32_t tw = t.width, th = t.height, tm = t.mips;
         // PS4 kit parts keep only small resident mips: a PS3 texture is fully resident, so drop its top mips to max_tex
-        while (kw.max_tex && std::max(tw, th) > uint32_t(kw.max_tex) && tm > 1) {
+        // (am: 2D textures only)
+        while (kw.max_tex && (!opt.am || t.type == 1) && std::max(tw, th) > uint32_t(kw.max_tex) && tm > 1) {
             const auto [bw, bh] = tc::blocks(tw, th, true);
             texels.erase(texels.begin(), texels.begin() + std::ptrdiff_t(std::min<uint64_t>(uint64_t(bw) * bh * f3->bpb, texels.size())));
             tw = std::max(1u, tw >> 1);
@@ -686,7 +929,7 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
         }
         Ps3Tex x;
         x.tiled = tc::ps3_to_ps4_texels(texels, tw, th, tm, f3->bpb);
-        x.kind = tex_kind(shrt);
+        x.kind = tex_kind(shrt, opt.am);
         const bool col = x.kind == "-color";
         if (f3->kind == "DXT1") x.fmt4 = col ? 0x48 : 0x47;
         else if (f3->kind == "DXT5") x.fmt4 = col ? 0x4e : 0x4d;
@@ -712,11 +955,12 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
         static const std::map<std::string, std::array<uint32_t, 3>> RGB = {
             {"-spec-mask", {40, 40, 40}}, {"-normal", {128, 128, 255}}, {"-color", {128, 128, 128}}, {"-tint-mask", {0, 0, 0}}, {"-detail-normal", {128, 128, 255}}};
         auto rgb = RGB.find(kind);
-        if (rgb == RGB.end()) throw Stop("KeyError: '" + kind + "'");
-        const auto [lin, mips] = bc1_flat(64, 64, rgb->second.data());
+        static const std::array<uint32_t, 3> WHITE = {255, 255, 255};   // am: the hair alpha
+        if (rgb == RGB.end() && !(opt.am && kind == "-trans")) throw Stop("KeyError: '" + kind + "'");
+        const auto [lin, mips] = bc1_flat(64, 64, rgb == RGB.end() ? WHITE.data() : rgb->second.data());
         const Bytes tiled = tc::ps3_to_ps4_texels(lin, 64, 64, mips, 8);
         const std::string shrt = "art/generated/u3mp/flat" + kind + ".tga/" + u3::fmt("%016llX", (unsigned long long)sidu(kind)) + ".ndb";
-        TexP e = add_texture(shrt, sidu(shrt), 0x47, 64, 64, mips, tiled, std::nullopt, std::nullopt);
+        TexP e = add_texture(shrt, sidu(shrt), opt.am && kind == "-color" ? 0x48 : 0x47, 64, 64, mips, tiled, std::nullopt, std::nullopt);   // am: colour sRGB
         flat_cache[kind] = e;
         return e;
     };
@@ -775,11 +1019,20 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
     auto ttab = p0.item("TEXTURE_TABLE");   // filled after the materials
 
     // ---------------- materials (template copies, re-bound)
+    // am: the PS3 material table's own textures per material (by hash)
+    const std::map<std::string, std::set<uint32_t>> mattex = opt.am ? am_material_textures(src) : std::map<std::string, std::set<uint32_t>>{};
+    auto has_mattex = [&](const std::string &mn) { auto it = mattex.find(mn); return it != mattex.end() && !it->second.empty(); };
     auto pick_template = [&](const std::string &mname) -> const TMat * {
         const std::string key = ps4key(mname);
         for (const TMat &m : tmats)
             if (before(m.name, ",") == key) return &m;
         if (has(mname, "shadowblocker") && !sb_tmpl.empty()) return sb_tmpl[0];
+        if (opt.am)
+            if (auto c = opt.mat_choice.find(mname); c != opt.mat_choice.end()) {
+                for (const TMat &m : tmats)
+                    if (has(m.name, c->second)) return &m;
+                throw Stop("IndexError: list index out of range");
+            }
         if (kw.mat_by_file)
             for (const TMat *m : main_tmpl)
                 if (before(m->name, ":") == rsplit1_head(mname)) return m;
@@ -801,9 +1054,25 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
         if (main_tmpl.empty()) throw Stop("IndexError: list index out of range");
         return main_tmpl[0];
     };
-    auto textures_for = [&](const std::string &mname) {   // the PS3 textures of a material (name heuristics)
-        const std::string stem = [&] { const std::string h = rsplit1_head(mname); const size_t k = h.rfind('/'); return k == std::string::npos ? h : h.substr(k + 1); }();
+    auto textures_for = [&](const std::string &mname) {   // the PS3 textures of a material
         std::vector<Ps3Tex *> own;
+        if (opt.am)
+            if (auto mt = mattex.find(mname); mt != mattex.end()) {
+                // am: the material table's own textures plus their siblings (x-color -> x-normal, x-spec-mask)
+                for (Ps3Tex &e : ps3tex)
+                    if (mt->second.count(e.hash)) own.push_back(&e);
+                if (!own.empty()) {
+                    auto base_of = [](const Ps3Tex &e) { return rsplit1_last(before(before(e.shrt, ".tga"), *e.kind)); };
+                    std::set<std::string> bases;
+                    for (const Ps3Tex *e : own)
+                        if (e->kind) bases.insert(base_of(*e));
+                    for (Ps3Tex &e : ps3tex)
+                        if (std::find(own.begin(), own.end(), &e) == own.end() && e.kind && bases.count(base_of(e))) own.push_back(&e);
+                    return own;
+                }
+            }
+        // name heuristics
+        const std::string stem = rsplit1_last(rsplit1_head(mname));
         for (Ps3Tex &e : ps3tex)
             if (has(e.shrt, stem)) own.push_back(&e);
         if (own.empty()) {
@@ -831,9 +1100,11 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
         }
         return own;
     };
-    // one material per template material, in the template's order (the copied effects belong to them by position)
+    // one material per template material, in the template's order (the copied effects belong to them by position);
+    // am: one material per PS3 material
     std::map<std::string, size_t> slot_of;
-    for (const std::string &mn : used_mats) slot_of[mn] = size_t(pick_template(mn) - tmats.data());
+    if (!opt.am)
+        for (const std::string &mn : used_mats) slot_of[mn] = size_t(pick_template(mn) - tmats.data());
     if (opt.spread_mats) {
         // PS3 materials that fell back onto a slot another PS3 material uses get a free (non-shadowblocker) slot
         std::set<size_t> taken, usedslots;
@@ -863,7 +1134,7 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
         std::vector<MBind> binds;
         for (const auto &b : tm.binds) {
             std::vector<std::string> want;
-            for (const auto &[suf, ps] : tex_kinds())
+            for (const auto &[suf, ps] : tex_kinds(opt.am))
                 if (std::find(ps.begin(), ps.end(), b.pname) != ps.end()) want.push_back(suf);
             BindTex e;
             if (exact || !mn) {   // the same material on PS4 (or a template material no PS3 mesh uses): its texture
@@ -890,7 +1161,8 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
                 }
                 if (c) e.lazy = c;
                 else {
-                    e.e = de;
+                    // am: a material with known PS3 textures does not borrow another character's map for a kind it lacks
+                    e.e = opt.am && mn && has_mattex(*mn) ? flat_texture(want[0]) : de;
                     if (!e.e) e.e = tmpl_texture(b.full, nullptr, nullptr, false);
                     if (!e.e) e.e = flat_texture(want[0]);
                 }
@@ -904,9 +1176,17 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
         std::string name;
         const TMat *tm;
         std::vector<MBind> binds;
+        std::string ps3;   // am: the PS3 material
     };
     std::vector<MatRec> mat_recs;
-    for (size_t ti = 0; ti < tmats.size(); ti++) {
+    if (opt.am)
+        for (const std::string &mn : used_mats) {
+            const TMat &tm = *pick_template(mn);
+            std::vector<MBind> binds = binds_for(mn, tm);
+            const std::string name = ps4key(mn) + "," + u3::fmt("00000000-0000-0000-0000-%012x", sidu(mn)) + "," + tm.shader;
+            mat_recs.push_back({ren(name), &tm, std::move(binds), mn});
+        }
+    for (size_t ti = 0; ti < (opt.am ? 0 : tmats.size()); ti++) {
         const TMat &tm = tmats[ti];
         std::vector<std::string> users;
         for (const std::string &mn : used_mats)
@@ -930,8 +1210,14 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
             const std::string hx = md5_hex(Bytes(k8.begin(), k8.end()));
             ps4name = up + "," + hx.substr(0, 8) + "-" + hx.substr(8, 4) + "-" + hx.substr(12, 4) + "-" + hx.substr(16, 4) + "-" + hx.substr(20, 12) + "," + tm.shader;
         }
-        mat_recs.push_back({ps4name, &tm, std::move(binds)});
+        mat_recs.push_back({ps4name, &tm, std::move(binds), ""});
     }
+    auto rec_of = [&](const std::string &mat) -> const MatRec & {   // the material record of a PS3 material
+        if (!opt.am) return mat_recs[slot_of[mat]];
+        for (const MatRec &m : mat_recs)
+            if (m.ps3 == mat) return m;
+        throw Stop("IndexError: list index out of range");
+    };
 
     // the texture table body (all textures)
     std::vector<TexP> order = tex_entries;
@@ -948,6 +1234,7 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
         tb->ptr(tb, 0x20);
         for (const TexP &e : order) tb->ptr(e->desc->data);
     }
+    if (opt.am) p0.span(span);   // am: the effects here
 
     // ---------------- geometry buffers
     auto strs = std::make_shared<Blob>("geostrings");
@@ -965,7 +1252,7 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
     auto fmtb = std::make_shared<Blob>("vtxfmt");
     static const uint8_t FMT[5][4] = {{0, 0, 0x0c, 0x06}, {1, 0, 0x04, 0x22}, {2, 0, 0x08, 0x0a}, {3, 0, 0x08, 0x0a}, {4, 0, 0x08, 0x0a}};
     std::map<uint32_t, size_t> fmt_off;
-    for (uint32_t slot = 0; slot < 5; slot++) {
+    for (uint32_t slot = 0; slot < (opt.am ? 4u : 5u); slot++) {   // am: no vertex colour format
         fmt_off[slot] = fmtb->size();
         fmtb->raw(Bytes(FMT[slot], FMT[slot] + 4));
     }
@@ -1053,7 +1340,7 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
                 const Mat uv = cat("uv0");
                 f16row(uv, uv.cols, d);
                 streams.push_back({1, 4, d});
-            } else if (opt.fill_streams && !sbm)
+            } else if (opt.fill_streams && !opt.am && !sbm)
                 streams.push_back({1, 4, Bytes(nv * 4, 0)});
             if (all_have("normal")) {
                 const Mat n = cat("normal");
@@ -1065,7 +1352,7 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
                 Bytes d;
                 f16row(n4, n4.cols, d);
                 streams.push_back({2, 8, d});
-            } else if (opt.fill_streams && !sbm)
+            } else if (opt.fill_streams && !opt.am && !sbm)
                 streams.push_back({2, 8, tile({0, 0, 1, 1})});
             if (all_have("tangent")) {
                 Mat tg = cat("tangent");
@@ -1080,10 +1367,10 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
                 Bytes d;
                 f16row(tg, tg.cols, d);
                 streams.push_back({3, 8, d});
-            } else if (opt.fill_streams && !sbm)
+            } else if (opt.fill_streams && !opt.am && !sbm)
                 streams.push_back({3, 8, tile({1, 0, 0, 1})});
             if (kw.match_streams) {
-                auto ws = tstreams.find(mat_recs[slot_of[s.mat]].tm->name);
+                auto ws = tstreams.find(rec_of(s.mat).tm->name);
                 if (ws != tstreams.end() && !ws->second.empty()) {
                     std::vector<std::pair<uint32_t, St>> have;
                     for (const St &x : streams) {
@@ -1154,7 +1441,7 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
                 skb->u32(0).u32(uint32_t(skin_total)).ptr(sk_c).ptr(sk_o).ptr(sk_j).ptr(sk_w);
                 sk_item = p0.item("RAW_DATA", skb);
             }
-            const MatRec &mrec = mat_recs[slot_of[s.mat]];
+            const MatRec &mrec = rec_of(s.mat);
             const std::string sname = art + ".Prototype" + std::to_string(pi) + ".Submesh" + std::to_string(s.first);
             prr.subnames.push_back(sname);
             const bool last_lod = pi == proto_out.size() - 1;
@@ -1698,6 +1985,72 @@ Bytes rename(const fs::path &ps4, const std::string &old_name, const std::string
     w.vram_table_loc = std::make_pair(size_t(p.h[9]), size_t(p.h[10]));
     w.vram = Bytes(p.d.begin() + p.vram_base, p.d.end());
     return w.build();
+}
+
+
+// ------------------------------------------------------------------------------------------------ am material choice
+std::map<std::string, std::string> am_choice(const fs::path &ps3, const fs::path &tmpl, bool tint, bool overlay) {
+    const Pak p(ps3), tq(tmpl);
+    const std::vector<TMat> tm = tmpl_materials(tq);
+    std::set<std::string> used;
+    for (const bg::FgProto &v : bg::fg_prototypes(p))
+        for (const std::string &m : ps3_block_materials(p, v.proto)) used.insert(m);
+    const AmTable t = am_read_materials(p);
+    std::map<std::string, std::set<std::string>> kinds;   // PS3 material -> the kinds of its textures (a repeated name: the last)
+    for (const auto &[name, idx] : t.mats) {
+        std::set<std::string> ks;
+        for (uint32_t i : idx) {
+            const std::string &tn = t.texs[i].second;
+            const size_t a = tn.rfind("art/");
+            if (auto k = tex_kind(a == std::string::npos ? tn : tn.substr(a + 4), true)) ks.insert(*k);
+        }
+        kinds[name] = ks;
+    }
+    std::set<std::string> keys;
+    for (const TMat &m : tm) keys.insert(before(m.name, ","));
+    auto kinds_of_binds = [](const TMat &m) {
+        std::set<std::string> s;
+        for (const auto &b : m.binds)
+            for (const auto &[suf, ps] : tex_kinds(true))
+                if (std::find(ps.begin(), ps.end(), b.pname) != ps.end()) s.insert(suf);
+        return s;
+    };
+    auto feat = [](const TMat &m, const std::string &f) { return std::find(m.feats.begin(), m.feats.end(), f) != m.feats.end(); };
+    std::map<std::string, std::string> choice;
+    for (const std::string &mn : used) {   // sorted
+        if (has(mn, "shadowblocker") || keys.count(ps4key(mn))) continue;
+        std::vector<const TMat *> c = am_pool(tm, am_role(mn));
+        if (c.empty()) c = am_pool(tm, "cloth");
+        const std::set<std::string> ks = kinds.count(mn) ? kinds[mn] : std::set<std::string>{};
+        std::vector<const TMat *> c2 = c;
+        if (tint) {   // the tint mask decides: a PS3 material with one gets a template that reads it, one without does not
+            const bool want = ks.count("-tint-mask") != 0;
+            std::vector<const TMat *> f;
+            for (const TMat *m : c)
+                if (feat(*m, "COLOR_1_APPLY_INSTANCE_TINT") == want) f.push_back(m);
+            if (!f.empty()) c2 = f;
+        }
+        if (overlay) {   // overlay / UV_3 variants need a second UV set the converted mesh does not have
+            std::vector<const TMat *> f;
+            for (const TMat *m : c2) {
+                bool ov = false;
+                for (const std::string &x : m->feats) ov = ov || has(x, "OVERLAY") || has(x, "UV_3");
+                if (!ov) f.push_back(m);
+            }
+            if (!f.empty()) c2 = f;
+        }
+        if (c2.empty()) throw Stop("ValueError: max() arg is an empty sequence");
+        const TMat *best = nullptr;
+        long best_score = 0;
+        for (const TMat *m : c2) {
+            const std::set<std::string> kb = kinds_of_binds(*m);
+            long common = 0, extra = 0;
+            for (const std::string &k : kb) (ks.count(k) ? common : extra)++;
+            if (!best || common - extra > best_score) best = m, best_score = common - extra;
+        }
+        choice[mn] = best->name;
+    }
+    return choice;
 }
 
 }  // namespace u3::actor

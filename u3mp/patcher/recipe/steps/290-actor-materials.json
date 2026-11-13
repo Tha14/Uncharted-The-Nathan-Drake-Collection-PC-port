@@ -1,24 +1,38 @@
 {
  "id": "actor-materials",
- "title": "37 character paks rebuilt with retail material templates (actor33/rebuild_am.py am = build.py --one / mkretail rename per recorded job, actor-materials/apply_actor_materials.py)",
+ "title": "37 character paks rebuilt with retail material templates (u3fix.exe rebuild-am am / install-am am, actor33/build_actors.cpp, jobs-am.tsv)",
  "kind": "script",
  "job": "actor33",
  "family": "overlay-r3/actor33",
  "needs": [
   "ps3_disc",
   "ps3_update",
-  "ps4",
-  "python:numpy"
+  "ps4"
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/rebuild_am.py",
-   "am"
+   "u3fix.exe",
+   "rebuild-am",
+   "am",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}",
+   "--ps4",
+   "{{PS4}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
+   "--ps3-update",
+   "{{PS3_UPDATE}}",
+   "--ps3-data2",
+   "{{PS3_DATA2}}"
   ],
   [
-   "{{PYTHON}}",
-   "{{SCRATCH}}/actor-materials/apply_actor_materials.py",
+   "u3fix.exe",
+   "install-am",
+   "am",
+   "--project",
+   "{{PROJECT}}",
    "--apply",
    "--work",
    "{{PROJECT}}/work"
@@ -29,7 +43,7 @@
  ],
  "status": "reproducible",
  "applied": "2026-11-02 00:11",
- "notes": "jobs-am.tsv = template, cap and PS3 source the session search (build.py, build2.py gates, mkretail.py) picked for each of the 37 paks; rebuilt deterministically with no gate against the current overlay. 37/37 byte-identical to actor-materials/manifest.json (2026-11-05, 27 s). hat-colour and airport-igc2 replace some of them afterwards.",
+ "notes": "jobs-am.tsv = template, cap and PS3 source the session search (build.py, build2.py gates, mkretail.py) picked for each of the 37 paks; rebuilt deterministically with no gate against the current overlay. 37/37 byte-identical to actor-materials/manifest.json (2026-11-05, 27 s). hat-colour and airport-igc2 replace some of them afterwards. Since 2026-11-13 C++ (dctools/ps4actor.cpp with Options::am, the material choice am_choice; install-am = apply_actor_materials.py): 37/37 byte-identical, no Python.",
  "recipe_version_added": "1.0.0",
  "with_jobs": [
   "actor-materials"

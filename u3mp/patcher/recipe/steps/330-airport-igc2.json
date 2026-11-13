@@ -1,6 +1,6 @@
 {
  "id": "airport-igc2",
- "title": "Airport IGC Flynn co-op character rebuilt (actor33/rebuild_am.py igc2 = airport-igc2/build_hat.py hero-london cap 128, apply_igc2.py)",
+ "title": "Airport IGC Flynn co-op character rebuilt (u3fix.exe rebuild-am igc2 = the actor-materials rules on hero-london, cap 128; install-am igc2)",
  "kind": "script",
  "job": "actor33",
  "family": "overlay-r3/actor33",
@@ -10,13 +10,28 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/rebuild_am.py",
-   "igc2"
+   "u3fix.exe",
+   "rebuild-am",
+   "igc2",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}",
+   "--ps4",
+   "{{PS4}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
+   "--ps3-update",
+   "{{PS3_UPDATE}}",
+   "--ps3-data2",
+   "{{PS3_DATA2}}"
   ],
   [
-   "{{PYTHON}}",
-   "{{SCRATCH}}/airport-igc2/apply_igc2.py",
+   "u3fix.exe",
+   "install-am",
+   "igc2",
+   "--project",
+   "{{PROJECT}}",
    "--apply"
   ]
  ],
@@ -25,7 +40,7 @@
  ],
  "status": "reproducible",
  "applied": "2026-11-02 01:04",
- "notes": "Byte-identical to the overlay (686e4260..., 2026-11-05). Lazarevic co-op is the actor-materials build.",
+ "notes": "Byte-identical to the overlay (686e4260..., 2026-11-05). Lazarevic co-op is the actor-materials build. Since 2026-11-13 C++ (u3fix.exe rebuild-am / install-am igc2), byte-identical, no Python.",
  "recipe_version_added": "1.0.0",
  "with_jobs": [
   "actor-materials",

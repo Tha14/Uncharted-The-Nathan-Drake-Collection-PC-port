@@ -7,18 +7,32 @@
  "needs": [
   "ps3_disc",
   "ps3_update",
-  "ps4",
-  "python:numpy"
+  "ps4"
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/rebuild_am.py",
-   "hats"
+   "u3fix.exe",
+   "rebuild-am",
+   "hats",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}",
+   "--ps4",
+   "{{PS4}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
+   "--ps3-update",
+   "{{PS3_UPDATE}}",
+   "--ps3-data2",
+   "{{PS3_DATA2}}"
   ],
   [
-   "{{PYTHON}}",
-   "{{SCRATCH}}/hat-colour/apply_hat_colour.py",
+   "u3fix.exe",
+   "install-am",
+   "hats",
+   "--project",
+   "{{PROJECT}}",
    "--only",
    "@{{SCRATCH}}/hat-colour/safe_only.txt",
    "--apply",
@@ -31,7 +45,7 @@
  ],
  "status": "reproducible",
  "applied": "2026-11-02 01:04",
- "notes": "jobs-hats.tsv = template/cap of batch.json per pak; mp-hero-ramses-jak-goggles was built before build_hat got its OVERLAY/UV_3 template filter (option no-overlay-filter = HAT_NO_OVERLAY_FILTER=1). 249/249 byte-identical to hat-colour/manifest.json (2026-11-05, 152 s). Installed: safe_only.txt (229 = work/backup-hat-colour/state.json; the earlier lists/hat-colour-only.txt held only the 81 that had a backup copy). Yeti mask: reconstruct missing normals/tangents for its three teeth LODs from unchanged PS3 positions, UVs, and triangles; the main mask mesh, skin weights, and texture VRAM stay unchanged. Launcher overlay pak SHA-256: a76d11fdacc554c22d36d47799c9d543cc8a4ac1de565e2f61ac0763ed915ea4.",
+ "notes": "jobs-hats.tsv = template/cap of batch.json per pak; mp-hero-ramses-jak-goggles was built before build_hat got its OVERLAY/UV_3 template filter (option no-overlay-filter = HAT_NO_OVERLAY_FILTER=1). 249/249 byte-identical to hat-colour/manifest.json (2026-11-05, 152 s). Installed: safe_only.txt (229 = work/backup-hat-colour/state.json; the earlier lists/hat-colour-only.txt held only the 81 that had a backup copy). Yeti mask: reconstruct missing normals/tangents for its three teeth LODs from unchanged PS3 positions, UVs, and triangles; the main mask mesh, skin weights, and texture VRAM stay unchanged. Launcher overlay pak SHA-256: a76d11fdacc554c22d36d47799c9d543cc8a4ac1de565e2f61ac0763ed915ea4. Since 2026-11-13 C++ (u3fix.exe rebuild-am hats / install-am hats; the teeth repair is rebuild_basis in dctools/ps4actor.cpp): 249/249 byte-identical, no Python.",
  "recipe_version_added": "1.0.0",
  "with_jobs": [
   "actor-materials",

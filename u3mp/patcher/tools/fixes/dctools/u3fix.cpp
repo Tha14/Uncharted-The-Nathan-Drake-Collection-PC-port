@@ -18,8 +18,10 @@
 //     registry-levels   --project P --job J --ps4 D --ps3-update D --ps3-disc D overlay ...   (tools/fixes/registry)
 //     registry-final    --project P --job J --ps4 D --ps3-update D --ps3-dlcmaps D --ps3-disc D --ps3-data2 D [--apply] [overlay ...]   (tools/fixes/pak23-registry)
 //     hair-key          --project P [--also-hair-kind] [--apply] [net.bin]  (tools/fixes/hat-chloe)
-//     levels            <port|r2|r3> --project P --job J --paktools D --ps4 D --ps3-* D --python EXE [--apply] [--only RE] [--strict] [--jobs N] [--keep-work]   (tools/fixes/pak23-levels)
-//     actors            --project P --job J --ps4 D --ps3-disc D --ps3-update D --ps3-data2 D --python EXE [--apply] [--overlays ...] [--only ...] [--allow-equivalent] [--jobs N]   (tools/fixes/actor33)
+//     levels            <port|r2|r3> --project P --job J --ps4 D --ps3-* D [--apply] [--only RE] [--strict] [--jobs N] [--keep-work]   (tools/fixes/pak23-levels)
+//     actors            --project P --job J --ps4 D --ps3-disc D --ps3-update D --ps3-data2 D [--apply] [--overlays ...] [--only ...] [--allow-equivalent] [--jobs N]   (tools/fixes/actor33)
+//     rebuild-am        <am|hats|igc2> --project P --job J --ps4 D --ps3-disc D --ps3-update D --ps3-data2 D [--only a,b] [--jobs N]   (tools/fixes/actor33)
+//     install-am        <am|hats|igc2> --project P [--work DIR] [--only a,b] [--apply | --restore]   (tools/fixes/actor33)
 //     pakinfo           PAK ... [--textures] [--noitems]             (dctools/ndpak.cpp, a maintainer check)
 //
 // The package builds it into u3mp/bin (tools/package_windows.sh), which the importer puts on PATH; a recipe step runs
@@ -260,6 +262,8 @@ int wmain(int argc, wchar_t **argv) {
         if (step == "hair-key") return u3::hair_key(a);
         if (step == "levels") return u3::levels(a);
         if (step == "actors") return u3::actors(a);
+        if (step == "rebuild-am") return u3::rebuild_am(a);
+        if (step == "install-am") return u3::install_am(a);
         if (step == "pakinfo") return u3::pakinfo(a);
         std::fprintf(stderr, "usage: u3fix <step> [options] (the steps: see u3fix.cpp)\n");
         return 2;
