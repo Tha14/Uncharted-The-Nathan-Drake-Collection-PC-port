@@ -57,6 +57,7 @@ int actors(const std::vector<std::string> &argv);             // tools/fixes/act
 int rebuild_am(const std::vector<std::string> &argv);          // tools/fixes/actor33/build_actors.cpp
 int install_am(const std::vector<std::string> &argv);          // tools/fixes/actor33/build_actors.cpp
 int convert_dc1(const std::vector<std::string> &argv);         // tools/fixes/dcconv/convert_dc1.cpp
+int dc_recipes(const std::vector<std::string> &argv);          // tools/fixes/dcconv/apply_recipes.cpp
 int pakinfo(const std::vector<std::string> &argv);            // dctools/ndpak.cpp: a pak's summary (as ndpak.py prints it)
 
 }  // namespace u3

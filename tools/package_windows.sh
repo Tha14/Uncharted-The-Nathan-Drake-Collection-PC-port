@@ -126,7 +126,7 @@ u3_import() {   # Uncharted 3's importer, its recipe and tools, and the newest m
         "$fx/dctools/texcodec.cpp" "$fx/dctools/ps3bg.cpp" "$fx/dctools/stageplan.cpp" "$fx/dctools/ps4stage.cpp" \
         "$fx/dctools/collision.cpp" "$fx/dctools/visinfo.cpp" "$fx/dctools/ps3fp.cpp" "$fx/dctools/anim.cpp" \
         "$fx/dctools/skel.cpp" "$fx/dctools/hkconvert.cpp" "$fx/dctools/fgcoll.cpp" "$fx/dctools/ps4actor.cpp" "$fx/dctools/ps4mats.cpp" \
-        "$fx/dctools/dcconv.cpp" "$fx/dcconv/convert_dc1.cpp" \
+        "$fx/dctools/dcconv.cpp" "$fx/dcconv/convert_dc1.cpp" "$fx/dcconv/apply_recipes.cpp" \
         -o "$out/u3mp/bin/u3fix.exe"
     # ffmpeg (the EULA pages, sound banks with MP3 samples) and, when installed, GNU objdump (the characters' Havok
     # tables; mingw-w64-ucrt-x86_64-binutils: without it the import skips that step)
