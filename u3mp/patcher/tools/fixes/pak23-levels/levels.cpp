@@ -11,14 +11,15 @@
 // work/backup-pak23-levels/<overlay>/. Rows hidden by a higher overlay ($RECIPE_SHADOWED) are not built.
 // The PS3 sources: ps3idx.tsv (every pak23 level pak of the player's PS3 archives, in source priority) and one extract
 // per row (a GOTY disc stands in for the DLC map packs); both caches are dropped when the PS3 inputs change.
-// The converter tree (scratch/pak23-levels-work/pt-<version>) is assembled from its sources with a size manifest. Methods
-// not in C++ yet run their converter script in that tree as levels.py did: stage / ingame / vischeat
-// (lib/convert_one.py, with data/overrides/<overlay>/<name>.json choices), empty, hud, windoff, sky.
+// In C++: empty (dctools/ps4writer.cpp), ingame (dctools/ps4ingame.cpp), vischeat (dctools/vischeat.cpp). The methods
+// not in C++ yet run their converter script in the converter tree (scratch/pak23-levels-work/pt-<version>, assembled
+// with a size manifest): stage (lib/convert_one.py; data/overrides/<overlay>/<name>.json: gobo), hud, windoff, sky.
 // Replaces levels.py for these families (the retired lab and maps-batch families are not supported).
 #include "u3fix.hpp"
 #include "proc.hpp"
 #include "psarc.hpp"
 #include "ps4ingame.hpp"
+#include "vischeat.hpp"
 #include "ps4writer.hpp"
 
 #include <algorithm>
@@ -306,6 +307,10 @@ fs::path build(const Row &row, const std::map<std::pair<std::string, std::string
         fs::copy_file(sd / upath(row.at("name") + ".pak"), op, fs::copy_options::overwrite_existing);
         return op;
     }
+    if (m == "vischeat") {   // C++ (dctools/vischeat.cpp)
+        write_file_replace(op, vischeat_convert(ps3_source(row, idx)));
+        return op;
+    }
     if (m == "ingame") {   // C++ (dctools/ps4ingame.cpp)
         write_file_replace(op, ps4ingame_convert(ps3_source(row, idx), g_anim));
         return op;
@@ -455,7 +460,7 @@ int levels(const std::vector<std::string> &argv) {
         if (r.at("method") == "stage" || r.at("method") == "sky") { res_dir(); break; }
     std::set<std::string> vers;
     for (const Row &r : todo)
-        if (r.at("method") != "empty" && r.at("method") != "ingame") vers.insert(version_of(r));   // the methods that still run a converter script
+        if (r.at("method") != "empty" && r.at("method") != "ingame" && r.at("method") != "vischeat") vers.insert(version_of(r));   // the methods that still run a converter script
     for (const Row &r : todo)
         if (r.at("method") == "ingame") {
             g_anim = anim_actor_names(ps4main() / "actor33" / "ps4", upath(g_here + "/data/conv_anim_actors.json"));
