@@ -13095,3 +13095,4474 @@ extern "C" U3X_FN void u3x_loadout_tick(uintptr_t base, void *s) {
             break;
         }
 }
+
+// ===== v7.197: fourth split, part 1 (the anim state decoder) =====
+
+// c009: 1.19 0x3869cc. The anim bitstream of a player state message drives one of the visitors (u3x_v_*): a header
+// (wide ids, an optional 13-bit id, the bound frame, with flags bit 0 also a camera frame, fov byte and aim point), the
+// anim list (n ids of 12 or 32 bits and their art group types, 7 = a 32-bit art group sid), then commands of 2 bits:
+// 0 / 1 blend of the two newest (0 with an 8-bit weight), 2 anim, 3 with a 3-bit sub command (0 sub, 1 end, 2 marker,
+// 3 bind, 4 copy, 5 marker anim). An anim's phase is 4, 8 or 16 bits by its frame count (16 for wide ids); a streamed
+// anim (+0x24 bit 2) takes the stream's root and phase (0xfd4c60). PS3 traps become Visitor.error: 1 read past the end,
+// 2 blend without two anims, 3 no art group, 4 no anim, 5 sub past the depth, 11 index past the list, 12 empty.
+// ec[101] the bits read.
+extern "C" U3X_FN void u3x_decode_anim(void *v_, uint8_t *bits, uint32_t nbytes, uint32_t flags, uint8_t **tabs, int32_t a4, int32_t a5,
+                                       int32_t a6, int32_t a7) {
+    Visitor &v = *static_cast<Visitor *>(v_);
+    const uintptr_t base = v.base;
+    u3x_v_begin(v_);
+    v.v1 = a4;
+    v.v2 = a5;
+    if (!nbytes) {   // a sender without anim bits (PS4 / older helpers); PS3 never sends one
+        u3x_v_error(v_, 12);
+        return;
+    }
+    BitReader r;
+    u3x_bits_init(&r, bits, nbytes);
+    const bool wide = u3x_bits_read(&r, 1) != 0;
+    v.v60 = u3x_bits_read(&r, 1) ? u3x_bits_read(&r, 13) : 0;
+    u3x_bits_frame(base, &r, v.frame);
+    if (flags & 1) {   // camera frame, fov byte, aim point: read past
+        alignas(16) uint8_t tf[0x60];
+        alignas(16) uint8_t tv[0x10];
+        u3x_frame_fresh(tf);
+        u3x_bits_frame(base, &r, tf);
+        u3x_bits_read(&r, 8);
+        u3x_bits_vector(base, &r, tv);
+    }
+    const uint32_t n = u3x_bits_read(&r, 5);
+    const bool direct = u3x_bits_read(&r, 1) != 0;   // the anims come in list order
+    uint32_t ids[32], types[32];
+    for (uint32_t i = 0; i < n; ++i) ids[i] = u3x_bits_read(&r, wide ? 32 : 12);
+    if (u3x_bits_read(&r, 1)) {   // one type for all
+        uint32_t t = u3x_bits_read(&r, 3);
+        if (t == 7) t = u3x_bits_read(&r, 32);
+        for (uint32_t i = 0; i < n; ++i) types[i] = t;
+    } else {
+        for (uint32_t i = 0; i < n; ++i) {
+            types[i] = u3x_bits_read(&r, 3);
+            if (types[i] == 7) types[i] = u3x_bits_read(&r, 32);
+        }
+    }
+    const uint32_t index_bits = n <= 2 ? 1 : n <= 4 ? 2 : n <= 8 ? 3 : n <= 16 ? 4 : n <= 32 ? 5 : 0;
+    uint32_t sub = 6, code = u3x_bits_read(&r, 2);
+    if (code == 3) sub = u3x_bits_read(&r, 3);
+    uint32_t ix = 0, dep = 0;
+    while (!v.abort && sub != 1) {
+        if (r.err) {
+            u3x_v_error(v_, 1);
+            break;
+        }
+        if (v.error) break;
+        if (code == 2 || (code == 3 && sub == 5)) {   // anim / marker anim
+            if (!direct) ix = u3x_bits_read(&r, index_bits);
+            if (ix >= n) {
+                u3x_v_error(v_, 11);
+                break;
+            }
+            const uint32_t t = types[ix], id = ids[ix];
+            uint8_t *group = t < 7 ? tabs[t] : u3x_art_group_sid(base, t);
+            if (!group) {
+                u3x_v_error(v_, 3);
+                break;
+            }
+            uint8_t *an;
+            if (id == 0xfff) an = tabs[0] ? u3x_anim_by_index(tabs[0], a6) : nullptr;
+            else if (!wide) an = u3x_anim_by_index(group, static_cast<int32_t>(id));
+            else an = u3x_anim_by_sid(group, id);
+            if (!an || !rd<uint8_t *>(an, 0x28)) {
+                u3x_v_error(v_, 4);
+                break;
+            }
+            uint32_t ph;
+            if (!wide) {   // 4, 8 or 16 bits of phase by the frame count
+                const uint32_t fr = u3x_v_frames(an);
+                if (fr <= 8) ph = f_mul(f_from_int(static_cast<int32_t>(u3x_bits_read(&r, 4))), 0x3d888889u);
+                else if (fr <= 64) ph = f_mul(f_from_int(static_cast<int32_t>(u3x_bits_read(&r, 8))), 0x3b808081u);
+                else ph = f_mul(f_from_int(static_cast<int32_t>(u3x_bits_read(&r, 16))), 0x37800080u);
+            } else {
+                ph = f_mul(f_from_int(static_cast<int32_t>(u3x_bits_read(&r, 16))), 0x37800080u);
+            }
+            if (rd<uint32_t>(an, 0x24) & 4) {   // a streamed anim
+                const uint32_t id4 = rd<uint32_t>(an, 0x18);
+                const uint8_t *rec = u3x_stream_record(base, id4);
+                if (rec) {
+                    ph = rd<uint32_t>(rec, 0x20);
+                    an = game_call<uint8_t *>(base + 0xfd4c60, an, id4, &ph);
+                } else {
+                    ph = 0;
+                    an = nullptr;
+                }
+            }
+            if (r.err) {
+                u3x_v_error(v_, 1);
+                break;
+            }
+            ++ix;
+            if (code == 2) u3x_v_anim(v_, ph, an, dep);
+            else u3x_v_mark(v_, ph, an, dep, a7);
+            ++dep;
+        } else if (code < 2) {   // blend
+            if (dep < 2) {
+                u3x_v_error(v_, 2);
+                break;
+            }
+            const bool b1 = u3x_bits_read(&r, 1) != 0;
+            const uint32_t a = b1 ? dep - 1 : dep - 2, b = b1 ? dep - 2 : dep - 1;
+            uint32_t c;
+            bool lower;
+            if (u3x_bits_read(&r, 1) != 0) {
+                c = a;
+                lower = a < b;
+            } else {
+                c = b;
+                lower = b < a;
+            }
+            if (lower) --dep;
+            const uint32_t m = u3x_bits_read(&r, 2), mode = m == 1 ? 2 : (m == 2 ? 6 : 1);
+            const uint32_t w = code == 0 ? f_mul(f_from_int(static_cast<int32_t>(u3x_bits_read(&r, 8))), 0x3b808081u) : F_ONE;
+            if (r.err) {
+                u3x_v_error(v_, 1);
+                break;
+            }
+            u3x_v_blend(v_, w, a, b, c, mode);
+        } else if (code == 3 && sub < 6) {   // sub commands
+            if (sub == 0) {
+                const uint32_t d = u3x_bits_read(&r, 2);
+                if (dep - 1 < d) {
+                    u3x_v_error(v_, 5);
+                    break;
+                }
+                u3x_v_sub0(v_, dep - d - 1);
+            } else if (sub == 2) {
+                u3x_v_sub2(v_);
+            } else if (sub == 3) {
+                u3x_v_sub3(v_, dep);
+                ++dep;
+            } else if (sub == 4) {
+                --dep;
+                u3x_v_sub4(v_);
+            }
+        }
+        code = u3x_bits_read(&r, 2);
+        if (code == 3) sub = u3x_bits_read(&r, 3);
+    }
+    if (r.err && !v.error) u3x_v_error(v_, 1);
+    ext_ec()[101] = r.pos;
+}
+
+// ===== v7.198: fourth split, part 2 (the custom game's Advanced Settings) =====
+
+extern "C" {
+U3H_IMPORT void u3h_cs_tick(uintptr_t base, void *s);
+U3H_IMPORT uint8_t *u3h_custom_map(uintptr_t base, void *s, int32_t *gametype);
+}
+
+// v5.45: 1.19's Advanced Settings (PAGE_LOBBY's button, datasource tag 0x4c414f38, and PAGE_CUSTOMRULES2's rows
+// 0x4c414fe7..ef). The custom-game values 1.19 keeps at NetGameManager +0x5544 live in ExtState adv (+0x31f0):
+// {selection + 1, respawn time f32, health multiplier f32, weapon mode, toggles (f1: bit 1 buddy spawn, bit 0 sprint;
+// f2: bit 7 kickbacks, 6 grenade rethrow, 5 boosters), game type, weapon mode count, counters (calls low 16, sets high)}.
+// Defaults as 1.19's net game select: the net game's respawn time (+0x20), health 1.0, weapon mode 0, all toggles on;
+// re-applied whenever the custom game selection (0x17d167c) changes. Rows are empty outside custom-game mode or for
+// a party guest; titles hide for the game types that do not use them. U3MP_ADV=0 (fsw[0] bit 0) answers none of them.
+namespace {
+struct AdvRules {
+    uint32_t sel1, respawn, health, weapon;
+    uint8_t f1, f2, pad[2];
+    uint32_t gt, count, stats;
+};
+static_assert(sizeof(AdvRules) == 32);
+U3X_RO const char adv_value_tag[] = "[A]", adv_empty[] = "";
+U3X_FN AdvRules &adv_rules() { return *reinterpret_cast<AdvRules *>(u3h_ext() + 0x31f0); }
+U3X_FN bool adv_off() { return reinterpret_cast<const uint32_t *>(u3h_ext() + 0x3a70)[0] & 1; }
+U3X_FN void adv_count_set(AdvRules &a) { a.stats += 0x10000; }
+}  // namespace
+extern "C" U3X_FN void u3x_adv_defaults(uintptr_t base, void *s, int32_t gt) {
+    AdvRules &a = adv_rules();
+    const int32_t sel = at<int16_t>(base + 0x17d167c);
+    if (a.sel1 == static_cast<uint32_t>(sel + 1)) return;
+    const uint8_t *ng = dc_table(s, 0x3b9a067du);
+    uint32_t respawn = f_from_int(10);
+    if (ng && sel >= 0 && static_cast<uint32_t>(sel) < rd<uint32_t>(ng, 0)) respawn = rd<uint32_t>(rd<const uint8_t *>(ng, 8), static_cast<uintptr_t>(sel) * 0xd0 + 0x20);
+    a.respawn = respawn;
+    a.health = F_ONE;
+    a.weapon = 0;
+    a.f1 = 3;
+    a.f2 = 0xe0;
+    a.gt = static_cast<uint32_t>(gt);
+    a.sel1 = static_cast<uint32_t>(sel + 1);
+}
+// t with "[A]" replaced by v
+extern "C" U3X_FN void u3x_adv_subst(char *o, char *end, const char *t, int64_t v) {
+    while (*t && o < end) {
+        if (t[0] == adv_value_tag[0] && t[1] == adv_value_tag[1] && t[2] == adv_value_tag[2]) {
+            o = append_number(o, end, v, false);
+            t += 3;
+        } else {
+            *o++ = *t++;
+        }
+    }
+    *o = 0;
+}
+// every frame: the co-op stage log, then the defaults on a selection change in custom-game mode
+extern "C" U3X_FN void u3x_adv_tick(uintptr_t base, void *s) {
+    u3h_cs_tick(base, s);
+    if (adv_off()) return;
+    if (at<uint32_t>(base + 0x17d603c) != 2 || !dc_table(s, 0x3b9a067du)) return;
+    u3x_adv_defaults(base, s, static_cast<int32_t>(adv_rules().gt));
+}
+extern "C" U3X_FN int u3x_adv_source(uintptr_t base, int32_t *ev, void *s) {
+    const uint8_t *source = rd<const uint8_t *>(ev, 0x98);
+    if (!source) return 0;
+    const uint32_t tag = rd<uint32_t>(source, 0x1c);
+    if ((tag >> 8) != 0x4c414fu) return 0;
+    const uint32_t en = tag & 255;
+    if (en != 0x38 && (en < 0xe7 || en > 0xef || en == 0xeb)) return 0;
+    if (adv_off()) return 0;
+    AdvRules &a = adv_rules();
+    a.stats = (a.stats & 0xffff0000u) | ((a.stats + 1) & 0xffffu);
+    const int op = ev[0];
+    if (u3x_party_guest(reinterpret_cast<const uint8_t *>(base + 0x17dc298)) && tag == 0x4c414f38u) {   // a guest gets no button
+        if (op == 1) set_row_text(ev, adv_empty);
+        else if (op == 8) ev[1] = 0;
+        return 1;
+    }
+    const bool custom = at<uint32_t>(base + 0x17d603c) == 2;
+    int32_t gt = -1;
+    if (custom) u3h_custom_map(base, s, &gt);
+    if (custom) u3x_adv_defaults(base, s, gt);
+    const char *title = u3h_text(base, s, rd<uint32_t>(source, 8));
+    if (en == 0x38) {   // the button: not in co-op (types 4, 8, 9, 11, 13, 16, 17, 18)
+        if (!custom) {
+            set_row_text(ev, adv_empty);
+            ev[1] = 0;
+            return 1;
+        }
+        const uint32_t ct = static_cast<uint32_t>(gt) - 4u;
+        const bool coop = ct < 15 && ((0x72b1u >> ct) & 1);
+        if (op == 1) set_row_text(ev, coop ? adv_empty : title);
+        else if (op == 8) ev[1] = 1;
+        return 1;
+    }
+    if ((en == 0xe7 || en == 0xe9) && !custom) {
+        set_row_text(ev, adv_empty);
+        ev[1] = 0;
+        return 1;
+    }
+    int bit = -1;
+    uint8_t *fb = nullptr;
+    switch (en) {
+    case 0xe8: fb = &a.f1; bit = 1; break;
+    case 0xea: fb = &a.f1; bit = 0; break;
+    case 0xed: fb = &a.f2; bit = 7; break;
+    case 0xee: fb = &a.f2; bit = 6; break;
+    case 0xef: fb = &a.f2; bit = 5; break;
+    }
+    if (op == 1) {   // respawn hides for type 10, buddy for 10 / 14, kickbacks and boosters for 19
+        const bool hide = (en == 0xe7 && gt == 10) || (en == 0xe8 && (gt == 10 || gt == 14)) || ((en == 0xed || en == 0xef) && gt == 19);
+        set_row_text(ev, hide ? adv_empty : title);
+        return 1;
+    }
+    if (op == 8) {   // editable: the LAN host leads its party
+        ev[1] = 1;
+        return 1;
+    }
+    char *buf = static_cast<char *>(s) + 0x2c80, *bend = buf + 120;
+    if (fb) {   // on / off rows
+        if (op == 5) {
+            ev[1] = (*fb >> bit) & 1;
+        } else if (op == 6) {
+            ev[1] = 1;
+        } else if (op == 10) {
+            if (ev[1] == 1) *fb |= static_cast<uint8_t>(1u << bit);
+            else *fb &= static_cast<uint8_t>(~(1u << bit));
+            adv_count_set(a);
+        } else if (op == 2 && ev[0x15] == 0) {
+            set_row_text(ev, u3h_text(base, s, ev[1] == 1 ? 0xd1831446u : 0x32066ec9u));
+        }
+        return 1;
+    }
+    if (en == 0xe7) {   // respawn: index * 2 + 3 seconds, 29 entries
+        if (op == 5) {
+            ev[1] = (f_to_int(a.respawn) - 3) / 2;
+        } else if (op == 6) {
+            ev[1] = 28;
+        } else if (op == 10) {
+            a.respawn = f_from_int(ev[1] * 2 + 3);
+            adv_count_set(a);
+        } else if (op == 2 && ev[0x15] == 0) {
+            u3x_adv_subst(buf, bend, u3h_text(base, s, 0x61275961u), ev[1] * 2 + 3);
+            set_row_text(ev, buf);
+        }
+        return 1;
+    }
+    if (en == 0xe9) {   // health 20..400 %, stored as (v + 0.3) * 0.01
+        if (op == 5) {
+            ev[1] = (f_to_int(f_mul(a.health, 0x42c80000u)) - 10) / 20;
+        } else if (op == 6) {
+            ev[1] = 19;
+        } else if (op == 10) {
+            a.health = f_mul(f_add(f_from_int(ev[1] * 20 + 20), 0x3e99999au), 0x3c23d70au);
+            adv_count_set(a);
+        } else if (op == 2 && ev[0x15] == 0) {
+            char *o = append_number(buf, bend, ev[1] * 20 + 20, false);
+            *o = 0;
+            set_row_text(ev, buf);
+        }
+        return 1;
+    }
+    if (en == 0xec) {   // weapon mode: DC 0x2982116f {count, {value, text id}}
+        const uint8_t *t = dc_table(s, 0x2982116fu);
+        if (!t) return 1;
+        const uint32_t n = rd<uint32_t>(t, 0);
+        const uint32_t *e = rd<const uint32_t *>(t, 8);
+        a.count = n;
+        if (!e) return 1;
+        if (op == 5) {
+            ev[1] = 0;
+            for (uint32_t i = 0; i < n; ++i)
+                if (e[i * 2] == a.weapon) ev[1] = static_cast<int32_t>(i);
+        } else if (op == 6) {
+            ev[1] = static_cast<int32_t>(n) - 1;
+        } else if (op == 10) {
+            if (static_cast<uint32_t>(ev[1]) < n) {
+                a.weapon = e[ev[1] * 2];
+                adv_count_set(a);
+            }
+        } else if (op == 2 && ev[0x15] == 0) {
+            if (static_cast<uint32_t>(ev[1]) < n) set_row_text(ev, u3h_text(base, s, e[ev[1] * 2 + 1]));
+        }
+        return 1;
+    }
+    return 1;
+}
+
+// ===== v7.199: fourth split, part 3 (the hat stat lines) =====
+
+// x097 / x102: 1.19 f_217000's stat lines on PAGE_HATS (0x211019f2): up to two "+n% <stat>" lines (stat table DC
+// 0x53ed596a {stat, ..., name +0x24}; per-hat pairs from DC 0xb8a3581b) joined under the slot 4 text with the game's
+// line break, then their stat icons drawn left of the lines (0x640ac0 measure / build, 0x63d6f0 draw), placed by
+// measuring the text up to each line.
+namespace {
+U3X_RO const char hs_plus_space[] = "+ ", hs_plus[] = "+", hs_minus[] = "-", hs_space[] = " ", hs_percent[] = "% ",
+                  hs_break[] = "\\", hs_indent[] = "      ", hs_one[] = "A", hs_indented_one[] = "      A";
+U3X_BSS char hs_text_buf[384];
+U3X_BSS uint32_t hs_line_start[2];
+U3X_BSS uint32_t hs_icon[2][2];
+U3X_BSS int32_t hs_lines;
+U3X_BSS int32_t hs_has_top;
+constexpr uint32_t hs_line_height = 0x41c00000u, hs_icon_size = 0x41c00000u;   // 24.0 each
+}  // namespace
+// PPC fctiwz: NaN -> 0x80000000, out of range saturates, else truncation
+extern "C" U3X_FN uint32_t u3x_ppc_ctiwz(uint32_t f) {
+    const uint32_t e = (f >> 23) & 0xff;
+    if (e == 0xff && (f & 0x7fffff)) return 0x80000000u;
+    if (e >= 0x9e) return (f >> 31) ? 0x80000000u : 0x7fffffffu;
+    return static_cast<uint32_t>(f_to_int(f));
+}
+// one stat line "+n% name" (m = the multiplier), 0 for an unknown stat
+extern "C" U3X_FN int u3x_hs_text(uintptr_t base, void *s, uint32_t stat, uint32_t m, char *b, uint32_t cap) {
+    const uint8_t *t = dc_table(s, 0x53ed596au);
+    if (!t) return 0;
+    const int32_t n = rd<int32_t>(t, 0);
+    const uint8_t *e = rd<const uint8_t *>(t, 8), *hit = nullptr;
+    if (!e || n <= 0 || n > 512) return 0;
+    for (int32_t i = 0; i < n; ++i)
+        if (rd<uint32_t>(e, static_cast<uintptr_t>(i) * 0x28) == stat) hit = e + static_cast<uintptr_t>(i) * 0x28;
+    if (!hit) return 0;
+    const char *name = u3h_text(base, s, rd<uint32_t>(hit, 0x24));
+    if (!name) return 0;
+    char *o = b, *end = b + cap - 1;
+    if (stat == 0x974e6226u || stat == 0xd0ab3f8bu) {   // flag stats: "+ name"
+        o = append_chars(o, end, hs_plus_space);
+    } else if (stat == 0x2df81dfeu || stat == 0x93a5a7c2u || stat == 0xbe693215u) {   // counts: "+n name"
+        o = append_chars(o, end, hs_plus);
+        o = append_number(o, end, static_cast<int32_t>(u3x_ppc_ctiwz(m)), false);
+        o = append_chars(o, end, hs_space);
+    } else {   // percentages; three stats are stored inverted
+        if (stat == 0x7da763c9u || stat == 0x2d57beb9u || stat == 0x8b73121au) m = f_div(F_ONE, m);
+        const bool lower = f_less(m, F_ONE);
+        o = append_chars(o, end, lower ? hs_minus : hs_plus);
+        o = append_number(o, end, static_cast<int32_t>(u3x_ppc_ctiwz(f_mul(lower ? f_sub(F_ONE, m) : f_sub(m, F_ONE), 0x42c80000u))), false);
+        o = append_chars(o, end, hs_percent);
+    }
+    o = append_chars(o, end, name);
+    *o = 0;
+    return 1;
+}
+// kind 249 (0x61a402, r15 = regs[13] = the slot 4 text): the stat lines of the hat in row regs[3] joined to it
+extern "C" U3X_FN void u3x_hs_save(uintptr_t base, void *s, uint64_t *regs) {
+    if (u3h_active_page(base) != 0x211019f2u) return;
+    const int32_t row = static_cast<int32_t>(regs[3]);
+    const uint32_t cnt = at<uint32_t>(base + 0x1b6a7c0);
+    if (row < 0 || static_cast<uint32_t>(row) >= cnt || cnt > 96) return;
+    const uint32_t idx = at<uint32_t>(base + 0x2208000 + static_cast<uintptr_t>(row) * 4);
+    const uint8_t *lt = at<const uint8_t *>(base + 0x1b6a7c8);
+    if (!lt || idx >= rd<uint32_t>(lt, 0)) return;
+    const uint8_t *lr = rd<const uint8_t *>(lt, 8);
+    if (!lr) return;
+    const uint32_t id = rd<uint32_t>(lr, static_cast<uintptr_t>(idx) * 0x38);
+    const uint8_t *t = dc_table(s, 0xb8a3581bu);
+    if (!t) return;
+    const int32_t n = rd<int32_t>(t, 0);
+    const uint8_t *rows = rd<const uint8_t *>(t, 8);
+    if (!rows || n <= 0 || n > 4096) return;
+    const char *src = reinterpret_cast<const char *>(regs[13]);
+    char *o = hs_text_buf, *end = hs_text_buf + sizeof(hs_text_buf) - 1;
+    int line = 0;
+    if (src && *src) o = append_chars(o, end, src);
+    for (int32_t r = 0; r < n; ++r) {
+        const uint8_t *w = rows + static_cast<uintptr_t>(r) * 16;
+        if (rd<uint32_t>(w, 0) != id) continue;
+        const int32_t c = rd<int32_t>(w, 4);
+        const uint8_t *pp = rd<const uint8_t *>(w, 8);
+        if (!pp) continue;
+        for (int32_t k = 0; k < c && line < 2; ++k) {
+            char b[96];
+            const uint32_t stat = rd<uint32_t>(pp, static_cast<uintptr_t>(k) * 8), m = rd<uint32_t>(pp, static_cast<uintptr_t>(k) * 8 + 4);
+            if (!u3x_hs_text(base, s, stat, m, b, 96)) continue;
+            if (o != hs_text_buf) o = append_chars(o, end, hs_break);   // the game text's line break
+            hs_line_start[line] = static_cast<uint32_t>(o - hs_text_buf);
+            o = append_chars(o, end, hs_indent);
+            o = append_chars(o, end, b);
+            hs_icon[line][0] = stat;
+            hs_icon[line][1] = m;
+            ++line;
+        }
+    }
+    *o = 0;
+    if (line) {
+        regs[13] = reinterpret_cast<uint64_t>(hs_text_buf);
+        hs_lines = line;
+        hs_has_top = (src && *src) ? 1 : 0;
+    }
+}
+// the size of text t at scale sc in a w x h box (0x640ac0), flag 1 = the full height
+extern "C" U3X_FN void u3x_hs_meas(uintptr_t base, uint32_t sc, const char *t, uint32_t w, uint32_t h, uint32_t fl, uint32_t *ow, uint32_t *oh) {
+    alignas(16) uint32_t item[12];
+    alignas(16) uint32_t sz[2];
+    alignas(16) uint32_t z[4];
+    alignas(16) uint8_t layout[0x80];
+    for (uint32_t &v : item) v = 0;
+    sz[0] = w;
+    sz[1] = h;
+    for (uint32_t &v : z) v = 0;
+    item[0] = 1;
+    item[4] = fl;
+    item[7] = 0xffffffffu;
+    item[9] = 0xffffffffu;
+    item[10] = F_ONE;
+    u3x_call8(base + 0x640ac0, sc, reinterpret_cast<uint64_t>(layout), reinterpret_cast<uint64_t>(item), reinterpret_cast<uint64_t>(t),
+              reinterpret_cast<uint64_t>(sz), reinterpret_cast<uint64_t>(z), 0xffffffffu, 0, 0);
+    *ow = rd<uint32_t>(layout, 0x3c);
+    *oh = rd<uint32_t>(layout, 0x40);
+}
+// kind 250 (0x61a638): the stat icons left of the lines (rbp = regs[14], r13 = regs[2])
+extern "C" U3X_FN void u3x_hs_draw(uintptr_t base, void *s, uint64_t *regs) {
+    const int n = hs_lines;
+    hs_lines = 0;
+    if (n <= 0) return;
+    uint8_t *rbp = reinterpret_cast<uint8_t *>(regs[14]), *r13 = reinterpret_cast<uint8_t *>(regs[2]);
+    const uint32_t *rt = reinterpret_cast<const uint32_t *>(rbp - 0x180), *ts = reinterpret_cast<const uint32_t *>(rbp - 0xa8);
+    alignas(16) uint32_t st[10];
+    for (int k = 0; k < 10; ++k) st[k] = reinterpret_cast<const uint32_t *>(rbp - 0x58)[k];
+    st[1] = st[2] = st[3] = F_ONE;
+    st[5] = 0;
+    const uint32_t sc = f_mul(f_add(f_mul(f_mul(f_mul(ts[6], ts[7]), ts[4]), 0x3d4ccccdu), F_ONE), ts[0]);
+    uint32_t w0, lh, w1, d;
+    u3x_hs_meas(base, sc, hs_one, rt[2], rt[3], 1, &d, &lh);
+    u3x_hs_meas(base, sc, hs_one, rt[2], rt[3], 0, &w0, &d);
+    u3x_hs_meas(base, sc, hs_indented_one, rt[2], rt[3], 0, &w1, &d);
+    uint32_t indent = f_sub(w1, w0);
+    if (f_less(lh, 0x41000000u) || f_less(0x42800000u, lh)) lh = hs_line_height;
+    if (f_less(indent, 0x40800000u) || f_less(0x42800000u, indent)) indent = hs_icon_size;
+    const uint32_t ic = f_less(f_sub(indent, 0x40000000u), lh) ? f_sub(indent, 0x40000000u) : lh;
+    const uint32_t x = f_add(rt[0], f_mul(f_sub(indent, ic), 0x3f000000u));
+    for (int i = 0; i < n; ++i) {
+        uint8_t *v = u3x_stat_icon(base, s, hs_icon[i][0], hs_icon[i][1]);
+        if (!v) continue;
+        char pre[390];
+        const uint32_t c = hs_line_start[i];
+        if (c > sizeof(pre) - 2) continue;
+        for (uint32_t k = 0; k < c; ++k) pre[k] = hs_text_buf[k];
+        pre[c] = 'A';
+        pre[c + 1] = 0;
+        uint32_t hp;
+        u3x_hs_meas(base, sc, pre, rt[2], rt[3], 1, &d, &hp);
+        const uint32_t y = f_add(f_add(rt[1], f_sub(hp, lh)), f_mul(f_sub(lh, ic), 0x3f000000u));
+        alignas(16) uint32_t item[12];
+        for (uint32_t &w : item) w = 0;
+        item[0] = 2;
+        *reinterpret_cast<uint8_t **>(item + 2) = v;
+        item[7] = 0xffffffffu;
+        item[9] = 0xffffffffu;
+        item[10] = F_ONE;
+        alignas(16) uint32_t rc[4];
+        alignas(16) uint32_t sz[2];
+        alignas(16) uint32_t z[4];
+        rc[0] = x;
+        rc[1] = y;
+        rc[2] = rc[3] = ic;
+        sz[0] = sz[1] = ic;
+        for (uint32_t &w : z) w = 0;
+        u3x_call8(base + 0x640ac0, st[0], reinterpret_cast<uint64_t>(rbp - 0x118), reinterpret_cast<uint64_t>(item), 0,
+                  reinterpret_cast<uint64_t>(sz), reinterpret_cast<uint64_t>(z), 0xffffffffu, 0, 0);
+        u3x_call8(base + 0x63d6f0, 0, rd<uint64_t>(r13, 0), rd<uint64_t>(rbp - 0x198, 0), reinterpret_cast<uint64_t>(st),
+                  reinterpret_cast<uint64_t>(rbp - 0x118), reinterpret_cast<uint64_t>(rc), 0, 0, 0xffffffffu);
+    }
+}
+
+// ===== v7.200: fourth split, part 4 (the film camera's HUD helpers) =====
+
+// b003: the integer HUD pieces of the film's followed-player camera (1.19 f_99479c / f_65e280 / f_65e0c4 as PS4 inlines
+// them). The rest of that camera (death look, scope view, follow / fixed camera) does native float maths in the C part
+// and stays there. HUD of screen 0 at 0x1805fa0.
+// flag f: HUD flags +8 |= f; each element of the list (+0x40, count +0x38) with +8 == f is shown (+0xc = 1) and, unless it
+// already was, stamped with the game time (game +0x94)
+extern "C" U3X_FN void u3x_rp_hud_flag(uintptr_t base, uint32_t f) {
+    uint8_t *h = reinterpret_cast<uint8_t *>(base + 0x1805fa0);
+    *reinterpret_cast<uint32_t *>(h + 8) |= f;
+    uint32_t n = rd<uint32_t>(h, 0x38);
+    uint8_t *const *e = reinterpret_cast<uint8_t *const *>(h + 0x40);
+    for (; n; --n, ++e) {
+        uint8_t *p = *e;
+        if (!p || rd<uint32_t>(p, 8) != f) continue;
+        *reinterpret_cast<uint32_t *>(p + 0xc) = 1;
+        if (rd<uint32_t>(p, 0x10) != 1) *reinterpret_cast<int32_t *>(p + 0x18) = rd<int32_t>(at<const uint8_t *>(base + 0x1b24b98), 0x94);
+    }
+}
+// the HUD fade object (+0x220): {+4 i, +8 byte, +0xc a, +0x10 b, +0x14 c}
+extern "C" U3X_FN void u3x_rp_hud_fade(uintptr_t base, uint32_t a, uint32_t b, uint32_t c, uint32_t i, uint8_t by) {
+    uint8_t *f = at<uint8_t *>(base + 0x1805fa0 + 0x220);
+    *reinterpret_cast<uint32_t *>(f + 0x14) = c;
+    *reinterpret_cast<uint32_t *>(f + 4) = i;
+    f[8] = by;
+    *reinterpret_cast<uint32_t *>(f + 0xc) = a;
+    *reinterpret_cast<uint32_t *>(f + 0x10) = b;
+}
+// the HUD shows weapon w (its id +0x6ec) through 0xc4a480
+extern "C" U3X_FN void u3x_rp_hud_weapon(uintptr_t base, const uint8_t *w) { game_call<void>(base + 0xc4a480, base + 0x1805fa0, rd<uint32_t>(w, 0x6ec)); }
+
+// ===== v7.201: fourth split, part 5 (the film player's accessors and script overrides) =====
+
+extern "C" {
+}
+
+// b003: the small pieces the film player uses, as PS4 inlines them. Handles {ptr, id} (object id +0x7c); net player
+// trackers 0x17cb3f0 + i * 0x9c0 while multiplayer is active; the is-a registry 0x1b3efd8 (257 buckets, entry hash +0x10,
+// bit +0x14; type bits at the object's type info +0x20); pad 0's pressed buttons; script variable overrides keyed by an
+// owner (0x12284e0 adds one, 0x1228b80 releases it). Calls with float arguments go through the C part's u3h_rp_fcall:
+// r[0] fn, r[1..6] rdi..r9, r[7..10] xmm0..3, r[11..12] stack, returns rax.
+extern "C" U3X_FN void u3x_rp_assert(uintptr_t base, uintptr_t a, uintptr_t b, uintptr_t c, uint32_t line) {
+    const uintptr_t h = at<uintptr_t>(base + 0x1bf27b8);
+    if (h) reinterpret_cast<void (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uint32_t, int)>(h)(base + a, base + b, base + c, base + 0x13ac250, line, 0);
+    __asm__ volatile("int $0x41");
+}
+extern "C" U3X_FN uint8_t *u3x_rp_h(const uint8_t *h) {
+    uint8_t *const *pp = rd<uint8_t *const *>(h, 0);
+    const uint32_t id = rd<uint32_t>(h, 8);
+    return (pp && id && *pp && rd<uint32_t>(*pp, 0x7c) == id) ? *pp : nullptr;
+}
+// the screen 0 camera manager (PS4 asserts "pMgr != NULL" without one)
+extern "C" U3X_FN uint8_t *u3x_rp_cammgr(uintptr_t base) {
+    uint8_t *m = u3x_rp_h(reinterpret_cast<const uint8_t *>(base + 0x1d52b80));
+    if (!m) u3x_rp_assert(base, 0x149e6ab, 0x149e5b7, 0x14aae33, 0x143);
+    return m;
+}
+extern "C" U3X_FN uint8_t *u3x_rp_trk(uintptr_t base, uint32_t i) {
+    return at<uint8_t>(base + 0x17d5c61) ? reinterpret_cast<uint8_t *>(base + 0x17cb3f0 + static_cast<uintptr_t>(i) * 0x9c0) : nullptr;
+}
+extern "C" U3X_FN int u3x_rp_trk_live(uint8_t *t) { return u3x_rp_h(t + 0x10) || u3x_rp_h(t + 0x20); }
+extern "C" U3X_FN int u3x_rp_dead(const uint8_t *t) { return rd<int32_t>(t, 0x3a0) < rd<int32_t>(t, 0x39c); }
+// the tracker's network id: low 12 bits (+0x800 when +0x1ec is set and they are non-zero) + the high part << 12
+extern "C" U3X_FN uint32_t u3x_rp_trk_id(const uint8_t *tr) {
+    const uint32_t lo = rd<uint32_t>(tr, 0x1e4) & 0xfffu;
+    return ((tr[0x1ec] && lo) ? lo + 0x800 : lo) + (rd<uint32_t>(tr, 0x1e8) << 12);
+}
+// the tracker with that id among the 10 (no net game check, as PS3)
+extern "C" U3X_FN uint8_t *u3x_rp_trk_by_id(uintptr_t base, uint32_t id) {
+    if (!id) return nullptr;
+    uint8_t *t = at<uint8_t *>(base + 0x16e2f50) + 0x390;
+    for (int i = 0; i < 10; ++i, t += 0x9c0)
+        if (u3x_rp_trk_id(t) == id) return t;
+    return nullptr;
+}
+extern "C" U3X_FN int u3x_rp_isa(uintptr_t base, uint8_t *obj, uint32_t hash) {
+    uint8_t *reg = reinterpret_cast<uint8_t *>(base + 0x1b3efd8);
+    if (!reg[0]) return 0;
+    uint8_t *head = reg + 8 + static_cast<uintptr_t>(hash % 257u) * 16;
+    for (uint8_t *e = rd<uint8_t *>(head, 0); e != head; e = rd<uint8_t *>(e, 0)) {
+        if (rd<uint32_t>(e, 0x10) != hash) continue;
+        const uint32_t b = rd<uint32_t>(e, 0x14);
+        const uint8_t *ti = rd<const uint8_t *>(obj, 0x38);
+        return static_cast<int>((rd<uint64_t>(ti, static_cast<uintptr_t>(b >> 6) * 8 + 0x20) >> (b & 63)) & 1);
+    }
+    return 0;
+}
+extern "C" U3X_FN uint32_t *u3x_rp_pad(uintptr_t base) { return reinterpret_cast<uint32_t *>(at<uint8_t *>(base + 0x16e2fa0) + 0x7e0 + 0x94); }
+extern "C" U3X_FN int u3x_rp_enter_cross(uintptr_t base) { return rd<uint8_t>(at<const uint8_t *>(base + 0x1b24b80), 0x39b4) != 0; }
+extern "C" U3X_FN int u3x_rp_menu_up(uintptr_t base) {
+    const uint8_t *m = reinterpret_cast<const uint8_t *>(base + 0x17bd080);
+    return rd<uint32_t>(m, 8) && rd<uint32_t>(m, 0xc) == 1;
+}
+// send message msg to target without arguments (0x1197380)
+extern "C" U3X_FN void u3x_rp_send(uintptr_t base, uint32_t msg, uint8_t *target) {
+    uint64_t a[4][3], ret[4], r[14];
+    for (auto &row : a)
+        for (uint64_t &w : row) w = 0;
+    for (uint64_t &w : ret) w = 0;
+    for (uint64_t &w : r) w = 0;
+    r[0] = base + 0x1197380;
+    r[1] = reinterpret_cast<uint64_t>(ret);
+    r[3] = msg;
+    r[4] = reinterpret_cast<uint64_t>(target);
+    r[5] = reinterpret_cast<uint64_t>(a[0]);
+    r[6] = reinterpret_cast<uint64_t>(a[1]);
+    r[11] = reinterpret_cast<uint64_t>(a[2]);
+    r[12] = reinterpret_cast<uint64_t>(a[3]);
+    u3h_rp_fcall(r);
+}
+extern "C" U3X_FN uint8_t *u3x_rp_self(uint8_t *own) { return u3x_rp_h(own + 0x70); }
+// an override of addr for the owner, blended over t, held for frames + 1 frames (+0x49 bit 1)
+extern "C" U3X_FN void u3x_ovr_blend(uintptr_t base, uint32_t t, uint8_t *addr, const void *val, int32_t frames, uint8_t *owner) {
+    if (!owner) return;
+    uint64_t r[14];
+    for (uint64_t &w : r) w = 0;
+    r[0] = base + 0x12284e0;
+    r[7] = t;
+    r[2] = reinterpret_cast<uint64_t>(addr);
+    r[3] = reinterpret_cast<uint64_t>(val);
+    r[4] = 4;
+    r[5] = base + 0x1228b20;
+    r[6] = base + 0x1228b30;
+    r[11] = reinterpret_cast<uint64_t>(owner);
+    uint8_t *o = reinterpret_cast<uint8_t *>(u3h_rp_fcall(r));
+    if (o) {
+        *reinterpret_cast<int32_t *>(o + 0x28) = frames + 1;
+        o[0x49] |= 2;
+    }
+}
+extern "C" U3X_FN void u3x_ovr_release(uintptr_t base, uint8_t *addr, uint8_t *owner) { game_call<void>(base + 0x1228b80, 0u, addr, owner); }
+// the scale override (hash 0x309861e2, weight 1.0, +0x49 bit 3)
+extern "C" U3X_FN void u3x_ovr_scale(uintptr_t base, uint8_t *addr, const void *val) {
+    uint64_t r[14];
+    for (uint64_t &w : r) w = 0;
+    r[0] = base + 0x12284e0;
+    r[7] = F_ONE;
+    r[1] = 0x309861e2u;
+    r[2] = reinterpret_cast<uint64_t>(addr);
+    r[3] = reinterpret_cast<uint64_t>(val);
+    r[4] = 4;
+    r[5] = base + 0x1228b20;
+    r[6] = base + 0x1228ca0;
+    uint8_t *o = reinterpret_cast<uint8_t *>(u3h_rp_fcall(r));
+    if (o) {
+        *reinterpret_cast<int32_t *>(o + 0x28) = 0;
+        o[0x49] |= 8;
+    }
+}
+// a one-byte override for frames + 1 frames, timed game +0x94 + 9 + time
+extern "C" U3X_FN void u3x_ovr_byte(uintptr_t base, uint32_t hash, uint8_t *addr, const uint8_t *val, int32_t frames, int32_t time) {
+    uint64_t r[14];
+    for (uint64_t &w : r) w = 0;
+    r[0] = base + 0x12284e0;
+    r[7] = F_ONE;
+    r[1] = hash;
+    r[2] = reinterpret_cast<uint64_t>(addr);
+    r[3] = reinterpret_cast<uint64_t>(val);
+    r[4] = 1;
+    r[5] = base + 0x12284c0;
+    r[6] = base + 0x12284d0;
+    uint8_t *o = reinterpret_cast<uint8_t *>(u3h_rp_fcall(r));
+    if (o) {
+        o[0x49] = static_cast<uint8_t>((o[0x49] & 0xdb) | 4);
+        *reinterpret_cast<int32_t *>(o + 0x28) = frames + 1;
+        *reinterpret_cast<int32_t *>(o + 0x10) = rd<int32_t>(at<const uint8_t *>(base + 0x1b24b98), 0x94) + 9 + time;
+    }
+}
+extern "C" U3X_FN uint8_t *u3x_rp_rs(uintptr_t base) { return at<uint8_t *>(base + 0x16e2fb8); }
+
+// ===== v7.202: fourth split, part 6 (the treasure lists) =====
+
+// LIST_TREASURES (0xd4, PS3 f_340bd0) on PAGE_NET_TREASURE_SETS (0xda577fac) and the treasure list page 0xecfa738a, and
+// the treasure items list (0xd5, PS4's own 0x759ba0 fed with our filtered list). Sets: DC 0xf1f296cb {count, 0xc: id,
+// name +4, group +8}; treasures: DC 0xb114fe00 (0x68 each: name +0, description +0x18, set +0x2c, map +0x34, game type
+// +0x38, difficulty +0x3c); owned = profile byte +0xacc + index. The list state (state +0x3a00): set indices, treasure
+// indices, row, chosen set. x066: the "found in" line; x069: the treasure rows sit at the bottom, with room for 4.
+namespace {
+struct TreasureState {
+    uint8_t sets[256];
+    uint32_t nsets;
+    uint16_t items[256];
+    uint32_t nitems;
+    int32_t row;
+    uint32_t set_id;
+};
+static_assert(sizeof(TreasureState) == 784);
+U3X_RO const char tr_slash[] = "/", tr_empty[] = "", tr_text1[] = "[TEXT", tr_none[] = "";
+U3X_FN TreasureState &treasures(void *s) { return *reinterpret_cast<TreasureState *>(static_cast<uint8_t *>(s) + 0x3a00); }
+U3X_FN bool owned(const uint8_t *pr, uint32_t i) { return pr && i < 0x400 && pr[0xacc + i]; }
+U3X_FN const char *set_name_of(uintptr_t base, void *s, uint32_t set_id) {   // the set's name, 0 when not found
+    const char *name = nullptr;
+    const uint8_t *t = dc_table(s, 0xf1f296cbu);
+    if (!t) return nullptr;
+    const uint32_t n = rd<uint32_t>(t, 0);
+    const uint8_t *e = rd<const uint8_t *>(t, 8);
+    for (uint32_t i = 0; e && i < n; ++i)
+        if (rd<uint32_t>(e, i * 0xc) == set_id) name = u3h_text(base, s, rd<uint32_t>(e, i * 0xc + 4));
+    return name;
+}
+}  // namespace
+// a DC symbol's data (the state's lookup)
+extern "C" U3X_FN uint8_t *u3x_sym_table(void *s, uint32_t id) { return dc_table(s, id); }
+// the sets of group g (PS3 f_32c734)
+extern "C" U3X_FN void u3x_treasure_build_sets(void *s, int32_t group) {
+    TreasureState &ts = treasures(s);
+    const uint8_t *t = dc_table(s, 0xf1f296cbu);
+    ts.nsets = 0;
+    if (!t) return;
+    const uint32_t n = rd<uint32_t>(t, 0);
+    const uint8_t *e = rd<const uint8_t *>(t, 8);
+    for (uint32_t i = 0; e && i < n && ts.nsets < 256; ++i)
+        if (rd<int32_t>(e, i * 0xc + 8) == group) ts.sets[ts.nsets++] = static_cast<uint8_t>(i);
+}
+// the treasures of set id (PS3 f_32c624)
+extern "C" U3X_FN void u3x_treasure_build_items(void *s, uint32_t set) {
+    TreasureState &ts = treasures(s);
+    const uint8_t *t = dc_table(s, 0xb114fe00u);
+    ts.nitems = 0;
+    if (!t) return;
+    const uint32_t n = rd<uint32_t>(t, 0);
+    const uint8_t *e = rd<const uint8_t *>(t, 8);
+    for (uint32_t i = 0; e && i < n && ts.nitems < 256; ++i)
+        if (rd<uint32_t>(e, static_cast<uintptr_t>(i) * 0x68 + 0x2c) == set) ts.items[ts.nitems++] = static_cast<uint16_t>(i);
+}
+extern "C" U3X_FN uint8_t *u3x_treasure_set_entry(void *s, int32_t row) {
+    const TreasureState &ts = treasures(s);
+    uint8_t *t = dc_table(s, 0xf1f296cbu);
+    if (!t || row < 0 || static_cast<uint32_t>(row) >= ts.nsets || ts.sets[row] >= rd<uint32_t>(t, 0)) return nullptr;
+    return rd<uint8_t *>(t, 8) + static_cast<uintptr_t>(ts.sets[row]) * 0xc;
+}
+extern "C" U3X_FN uint8_t *u3x_treasure_entry(void *s, uint32_t idx) {
+    uint8_t *t = dc_table(s, 0xb114fe00u);
+    if (!t || idx >= rd<uint32_t>(t, 0)) return nullptr;
+    return rd<uint8_t *>(t, 8) + static_cast<uintptr_t>(idx) * 0x68;
+}
+// the current tab of PAGE_NET_TREASURE_SETS (tab table DC 0xf1514340, LAN or online entry)
+extern "C" U3X_FN uint8_t *u3x_treasure_tab(uintptr_t base, void *s) {
+    const uint8_t *t = dc_table(s, 0xf1514340u);
+    if (!t) return nullptr;
+    const uint32_t n = rd<uint32_t>(t, 0);
+    const uint8_t *e = rd<const uint8_t *>(t, 8);
+    for (uint32_t i = 0; e && i < n; ++i, e += 0x20)
+        if (rd<uint32_t>(e, 0) == 0xda577facu && rd<uint32_t>(e, 4) == at<uint8_t>(base + 0x17d5c60)) {
+            uint8_t *tabs = rd<uint8_t *>(e, 0x10);
+            const int32_t cur = rd<int32_t>(e, 0x18);
+            return (tabs && cur >= 0) ? tabs + static_cast<uintptr_t>(cur) * 0xc : nullptr;
+        }
+    return nullptr;
+}
+// t with [TEXT], [TEXT2], [TEXT3] replaced by a, b, c
+extern "C" U3X_FN void u3x_x66_subst(char *o, char *end, const char *t, const char *a, const char *b, const char *c) {
+    while (*t && o < end) {
+        bool tag = true;
+        for (int k = 0; k < 5; ++k)
+            if (t[k] != tr_text1[k]) tag = false;
+        if (tag) {
+            const char *v = t[5] == ']' ? a : t[5] == '2' ? b : c;
+            o = append_chars(o, end, v);
+            t += t[5] == ']' ? 6 : 7;
+        } else {
+            *o++ = *t++;
+        }
+    }
+    *o = 0;
+}
+// x066: where the first treasure of the set is found: "<rule> on <map> (<difficulty>)", Siege, or a game type
+extern "C" U3X_FN void u3x_x66_found(uintptr_t base, int32_t *ev, void *s) {
+    const TreasureState &ts = treasures(s);
+    if (!ts.nitems) return;
+    const uint8_t *e = u3x_treasure_entry(s, ts.items[0]);
+    if (!e) return;
+    const uint32_t map_id = rd<uint32_t>(e, 0x34);
+    const int32_t gt = rd<int32_t>(e, 0x38), diff = rd<int32_t>(e, 0x3c);
+    const uint8_t *mt = dc_table(s, 0x0dec97a4u), *rt = dc_table(s, 0xf985c7b6u), *map = nullptr, *rule = nullptr;
+    if (mt) {
+        const uint32_t n = rd<uint32_t>(mt, 0);
+        const uint8_t *m = rd<const uint8_t *>(mt, 8);
+        for (uint32_t i = 0; m && i < n; ++i)
+            if (rd<uint32_t>(m, static_cast<uintptr_t>(i) * 0x98) == map_id) {
+                map = m + static_cast<uintptr_t>(i) * 0x98;
+                break;
+            }
+    }
+    if (rt && gt >= 0 && gt < rd<int32_t>(rt, 0)) rule = rd<const uint8_t *>(rt, 8) + static_cast<uintptr_t>(gt) * 0x58;
+    char *const buf = static_cast<char *>(s) + 0x2b00, *end = buf + 230;
+    if (map) {
+        const uint32_t d = (diff == 1 || diff == 2) ? 0x14956c33u : (diff == 3 || diff == 4) ? 0x87d40e88u : 0;
+        char ta[64], tb[64];
+        char *q = append_chars(ta, ta + 63, rule ? u3h_text(base, s, rd<uint32_t>(rule, 0)) : tr_none);
+        *q = 0;
+        q = append_chars(tb, tb + 63, u3h_text(base, s, rd<uint32_t>(map, 4)));
+        *q = 0;
+        u3x_x66_subst(buf, end, u3h_text(base, s, 0xdcdd1012u), ta, tb, d ? u3h_text(base, s, d) : tr_none);
+    } else if (gt == 21) {
+        set_row_text(ev, u3h_text(base, s, 0x35561665u));
+        return;
+    } else {
+        const uint32_t id = gt == 20 ? 0xd5fc28f0u : ((gt == 17 || gt == 18) && rule) ? rd<uint32_t>(rule, 0) : 0x85a5bbbeu;
+        u3x_x66_subst(buf, end, u3h_text(base, s, 0x2b3ffa5bu), u3h_text(base, s, id), tr_none, tr_none);
+    }
+    set_row_text(ev, buf);
+}
+extern "C" U3X_FN int u3x_treasures_source(uintptr_t base, int32_t *ev, void *s) {
+    const uint8_t *source = rd<const uint8_t *>(ev, 0x98);
+    if (!source || rd<uint32_t>(source, 0x1c) != 0x4c414ed4u) return 0;
+    if (u3h_gate_closed(base, ev)) return 1;
+    *reinterpret_cast<uintptr_t *>(static_cast<uint8_t *>(s) + 760) = base;
+    TreasureState &ts = treasures(s);
+    if (!dc_table(s, 0xf1f296cbu) || !dc_table(s, 0xb114fe00u)) {
+        if (ev[0] == 6) ev[1] = -1;
+        return 1;
+    }
+    const uint8_t *pr = player_profile(base);
+    int32_t row = ev[1];
+    uint8_t *se;
+    if (ev[0x24] == 1 && !(ext_ea()[0] & 8)) {   // the treasure list page asks for its title: the chosen set's name
+        if (ev[0] == 1)
+            if (const char *name = set_name_of(base, s, ts.set_id)) set_row_text(ev, name);
+        return 1;
+    }
+    switch (ev[0]) {
+    case 2: {
+        const uint32_t sub = static_cast<uint32_t>(ev[0x15]);
+        if (sub == 0) {
+            if ((se = u3x_treasure_set_entry(s, row))) set_row_text(ev, u3h_text(base, s, rd<uint32_t>(se, 4)));
+        } else if (sub == 1) {   // owned / total of the set
+            if (!(se = u3x_treasure_set_entry(s, row))) break;
+            const uint8_t *t = dc_table(s, 0xb114fe00u);
+            const uint32_t n = rd<uint32_t>(t, 0);
+            uint32_t own = 0, total = 0;
+            const uint8_t *e = rd<const uint8_t *>(t, 8);
+            for (uint32_t i = 0; e && i < n; ++i)
+                if (rd<uint32_t>(e, static_cast<uintptr_t>(i) * 0x68 + 0x2c) == rd<uint32_t>(se, 0)) {
+                    ++total;
+                    if (owned(pr, i)) ++own;
+                }
+            char *const buf = static_cast<char *>(s) + 0x2c80, *end = buf + 60;
+            char *o = append_number(buf, end, own, false);
+            o = append_chars(o, end, tr_slash);
+            o = append_number(o, end, total, false);
+            *o = 0;
+            set_row_text(ev, buf);
+        } else if (sub == 4) {
+            u3x_x66_found(base, ev, s);
+        } else if (sub == 0x843d4adu || sub == 0x0a56c0abu) {   // name / description, rows at the bottom
+            if (ts.nitems < 4) row -= 4 - static_cast<int32_t>(ts.nitems);
+            if (row < 0) {
+                set_row_text(ev, tr_empty);
+                break;
+            }
+            if (static_cast<uint32_t>(row) >= ts.nitems) break;
+            const uint8_t *e = u3x_treasure_entry(s, ts.items[row]);
+            if (e) set_row_text(ev, u3h_text(base, s, rd<uint32_t>(e, sub == 0x843d4adu ? 0 : 0x18)));
+        }
+        break;
+    }
+    case 4:
+        if (static_cast<uint32_t>(ev[0x14]) == 0xf5a294f3u) {
+            const uint8_t *tab = u3x_treasure_tab(base, s);
+            if (tab && u3h_icon_index(base, rd<uint32_t>(tab, 4)) >= 0) u3h_set_icon(base, ev, rd<uint32_t>(tab, 4));
+        } else if (static_cast<uint32_t>(ev[0x14]) == 0x21981e34u) {   // the owned check
+            if (ts.nitems < 4) row -= 4 - static_cast<int32_t>(ts.nitems);
+            if (row >= 0 && static_cast<uint32_t>(row) < ts.nitems && owned(pr, ts.items[row]) && u3h_icon_index(base, 0x08208d0au) >= 0)
+                u3h_set_icon(base, ev, 0x08208d0au);
+        }
+        break;
+    case 5: ev[1] = ts.row; break;
+    case 6: ev[1] = static_cast<int32_t>(ts.nsets) - 1; break;
+    case 9: {   // the sets of the current tab, then the treasures of the highlighted set
+        const uint8_t *tab = u3x_treasure_tab(base, s);
+        if (!tab) break;
+        const uint32_t id = rd<uint32_t>(tab, 0);
+        u3x_treasure_build_sets(s, id == 0x49d4b22du ? 2 : id == 0x5baab3cdu ? 3 : 1);
+        if ((se = u3x_treasure_set_entry(s, ts.row))) u3x_treasure_build_items(s, rd<uint32_t>(se, 0));
+        else ts.nitems = 0;
+        break;
+    }
+    case 10: ts.row = row; break;
+    case 11:
+        if (static_cast<uint32_t>(ev[0x13]) == 0xbcf5ea24u) ev[14] = ts.nitems && ts.nitems < 4 ? 4 : static_cast<int32_t>(ts.nitems);
+        break;
+    case 0x14:
+        if (ev[0x16] == 1) ev[0xf] = -1;
+        break;
+    case 0x16:
+        if ((se = u3x_treasure_set_entry(s, ev[0x17]))) {
+            ts.set_id = rd<uint32_t>(se, 0);
+            u3x_treasure_build_items(s, ts.set_id);
+            if (state_show_page(s)) u3h_show(base, s, 0xecfa738au, 0);
+        }
+        break;
+    }
+    return 1;
+}
+// 0xd5: PS4's own list (0x759ba0) on our filtered treasures; op 1 is the chosen set's name, op 9 refills the list
+extern "C" U3X_FN int u3x_treasure_items_source(uintptr_t base, int32_t *ev, void *s) {
+    const uint8_t *source = rd<const uint8_t *>(ev, 0x98);
+    if (!source || rd<uint32_t>(source, 0x1c) != 0x4c414ed5u) return 0;
+    if (u3h_gate_closed(base, ev)) return 1;
+    TreasureState &ts = treasures(s);
+    uint8_t *t = dc_table(s, 0xb114fe00u);
+    if (ev[0] == 1) {
+        set_row_text(ev, tr_empty);
+        if (ev[0x24] != 1) return 1;
+        if (dc_table(s, 0xf1f296cbu))
+            if (const char *name = set_name_of(base, s, ts.set_id)) set_row_text(ev, name);
+        return 1;
+    }
+    if (ev[0] == 9) {
+        if (!t) return 1;
+        u3x_treasure_build_items(s, ts.set_id);
+        at<uint8_t *>(base + 0x1b6aa38) = t;
+        uint16_t *o = reinterpret_cast<uint16_t *>(base + 0x1b6aa40);
+        for (uint32_t i = 0; i < ts.nitems; ++i) o[i] = ts.items[i];
+        at<uint32_t>(base + 0x1b6ac40) = ts.nitems;
+        return 1;
+    }
+    game_call<void>(base + 0x759ba0, ev);
+    return 1;
+}
+// the treasure sets list starts at its first row again
+extern "C" U3X_FN void u3x_treasure_first_row(void *s) { treasures(s).row = 0; }
+
+// ===== v7.203: fourth split, part 7 (the film player's update) =====
+
+extern "C" {
+U3H_IMPORT void u3h_rp_cam_mode12(uintptr_t base, uint8_t *st, uint8_t *own);
+U3H_IMPORT void u3h_rp_render_vars(uintptr_t base, uint8_t *own);
+U3H_IMPORT void u3h_rp_cam_target(uintptr_t base, uint8_t *own);
+}
+
+// b003: PS3 1.19 f_279d6c (RePlaying::Update), called by the value stub in place of PS4's (which then returns). The
+// film writer is CIN_W (0x17c3ba8), the re-record reader CIN_R (0x17c5cf8); the owner (state +8) holds the camera handle
+// +0x1a0, the followed player +0x1b8, HUD toggles +0x1bc / +0x1bd, the screenshot state +0x1b4 and the bookmarks
+// (+0x1f8, 0x30 each, count +0x6a8). Its float steps are written as in the C part (x87: this part is built without SSE too).
+namespace {
+constexpr uintptr_t cin_writer = 0x17c3ba8, cin_reader = 0x17c5cf8;
+constexpr uint32_t pb_up = 0x10u, pb_down = 0x40u, pb_tri = 0x1000u, pb_cross = 0x4000u, pb_square = 0x8000u, pb_circle = 0x2000u, pb_r2 = 0x200u;
+U3X_FN int32_t &rp_mode(uintptr_t base) { return at<int32_t>(base + 0x17c5a10); }
+U3X_FN uint8_t &rp_pcur(uintptr_t base) { return at<uint8_t>(base + 0x17c3570); }
+U3X_FN uint8_t &rp_preq(uintptr_t base) { return at<uint8_t>(base + 0x17c3571); }
+U3X_FN uint8_t &rp_p3(uintptr_t base) { return at<uint8_t>(base + 0x17c3572); }
+U3X_FN uint32_t &rp_speed(uintptr_t base) { return at<uint32_t>(base + 0x16e716c); }
+U3X_FN uint8_t rp_mpeg(uintptr_t base) { return at<uint8_t>(base + 0x17c5b70); }
+U3X_FN uint8_t rp_b2c(uintptr_t base) { return at<uint8_t>(base + 0x17d1d10); }
+U3X_FN uint8_t rp_b2d(uintptr_t base) { return at<uint8_t>(base + 0x17d1d11); }
+U3X_FN uint8_t *rp_clock(uintptr_t base) { return at<uint8_t *>(base + 0x17c3580); }
+U3X_FN uint8_t *rp_bookmark(uint8_t *own, int32_t i) { return own + 0x1f8 + static_cast<uintptr_t>(i) * 0x30; }
+// x87 float helpers (this part is built without SSE, like the C): constants load from an immediate so nothing lands in
+// .rodata.cst4
+[[gnu::always_inline]] inline float x87_const(uint32_t u) {
+    float r;
+    __asm__("flds %1" : "=t"(r) : "m"(u));
+    return r;
+}
+[[gnu::always_inline]] inline float x87_float(uint32_t u) {
+    float r;
+    __builtin_memcpy(&r, &u, 4);
+    return r;
+}
+[[gnu::always_inline]] inline uint32_t x87_bits(float f) {
+    uint32_t u;
+    __builtin_memcpy(&u, &f, 4);
+    return u;
+}
+U3X_FN void call_slot(uint8_t *obj, uint32_t byte_offset) { reinterpret_cast<void (*)(uint8_t *)>(rd<uintptr_t *>(obj, 0)[byte_offset / 8])(obj); }
+// pad k's rumble off (an override of its byte +0x1d0 for 2 frames)
+U3X_FN void rp_rumble_off(uintptr_t base, int k) {
+    const uint8_t zero = 0;
+    u3x_ovr_byte(base, 0x35b0e776u, at<uint8_t *>(base + 0x1b24b98) + 0x7e0 + static_cast<uintptr_t>(k) * 0x1d8 + 0x1d0, &zero, 2, 0x1e);
+}
+// the screenshot request: PS4 has no photo utility, so every step takes PS3's error branch
+U3X_FN int rp_screenshot_step(uintptr_t base, uint8_t *st, uint8_t *own) {
+    const bool photo_cb = false;   // set only by the cellPhotoUtility callbacks
+    own[0x1bc] = 0;
+    rp_p3(base) = 1;
+    rp_preq(base) = 1;
+    uint32_t z = 0;
+    u3x_ovr_scale(base, reinterpret_cast<uint8_t *>(base + 0x17b4b1c), &z);   // clocks 1 and 0 stop
+    u3x_ovr_scale(base, reinterpret_cast<uint8_t *>(base + 0x17b4adc), &z);
+    int32_t &ss = *reinterpret_cast<int32_t *>(own + 0x1b4);
+    switch (ss) {
+    case 0: ss = 1; break;
+    case 1: ss = 10; break;
+    case 10:
+    case 12:
+    case 14:
+        own[0x1b2] = 0;
+        ++ss;
+        break;
+    case 11:
+    case 13:
+        if (photo_cb) ++ss;
+        break;
+    case 15:
+        if (photo_cb) {
+            own[0x1bc] = 1;
+            own[0x1b2] = 0;
+            rp_p3(base) = st[0x20];
+            rp_preq(base) = st[0x20];
+        }
+        break;
+    default: break;
+    }
+    *u3x_rp_pad(base) = 0;
+    return 1;
+}
+// the next followed player: step dir through the 10 trackers to a live one; another target drops the camera
+U3X_FN void rp_cycle_player(uintptr_t base, uint8_t *own, int32_t dir, const uint8_t *cur) {
+    for (int k = 0; k < 10; ++k) {
+        int32_t &sel = *reinterpret_cast<int32_t *>(own + 0x1b8);
+        const int32_t v = sel + dir;
+        sel = v;
+        if (v < 0) sel = v + 10;
+        const uint32_t i = static_cast<uint32_t>(sel) % 10u;
+        uint8_t *p = u3x_rp_trk(base, i);
+        if (!u3x_rp_trk_live(p)) continue;
+        if (p != cur) {
+            if (uint8_t *c = u3x_rp_h(own + 0x1a0)) {
+                uint32_t a = 0;
+                reinterpret_cast<void (*)(uint8_t *, uint32_t *, int)>(rd<uintptr_t *>(c, 0)[0x160 / 8])(c, &a, 2);
+            }
+            *reinterpret_cast<uint64_t *>(own + 0x1a0) = 0;
+            *reinterpret_cast<uint32_t *>(own + 0x1a8) = 0;
+        }
+        sel = static_cast<int32_t>(i);
+        break;
+    }
+}
+}  // namespace
+extern "C" U3X_FN int u3x_rp_update(uintptr_t base, uint8_t *st) {
+    uint8_t *own = rd<uint8_t *>(st, 8);
+    uint8_t *W = reinterpret_cast<uint8_t *>(base + cin_writer);
+    uint32_t *hud = reinterpret_cast<uint32_t *>(base + 0x1805fa8);
+    ++ext_eb()[40];
+    if (static_cast<uint32_t>(rp_mode(base) - 1) < 2u) u3h_rp_cam_mode12(base, st, own);
+    u3h_rp_render_vars(base, own);
+    if (own[0x1b2]) return rp_screenshot_step(base, st, own);
+    game_call<void>(base + 0x7230f0, base + 0x17cb060, own, 0);
+    const bool menu = u3x_rp_menu_up(base) != 0;
+    const uint32_t pad = *u3x_rp_pad(base);
+    *hud |= 0x70000u;
+    if (!menu && !rp_mpeg(base)) {   // O / X (by the enter button) toggles the HUD, square the controls help
+        if (pad & (u3x_rp_enter_cross(base) ? pb_circle : pb_cross)) own[0x1bd] ^= 1;
+        if (pad & pb_square) own[0x1bc] ^= 1;
+    } else if (own[0x1bf] == 0) {
+        u3x_render_defaults(base);
+        own[0x1bf] = 1;
+    }
+    if (own[0x1bd] == 0) *hud &= 0xfff8d7ffu;
+    else *hud |= 0x72800u;
+    if (own[0x1bc] == 0 || rp_mpeg(base)) {
+        *hud &= 0xfff7ffffu;
+        if (!menu && !rp_mpeg(base)) {
+            if (pad & (u3x_rp_enter_cross(base) ? pb_cross : pb_circle)) u3x_rp_send(base, rp_preq(base) ? 0x953b8f2au : 0x43348860u, u3x_rp_self(own));   // play / pause
+            if (pad & pb_tri) {   // camera mode
+                uint32_t m;
+                if (rp_mode(base) == 0) m = 0x887c7d6eu;
+                else if (rp_mode(base) == 2 && !rp_b2d(base)) m = 0x806c9824u;
+                else m = 0xff502160u;
+                u3x_rp_send(base, m, u3x_rp_self(own));
+            }
+        }
+    } else {
+        *hud |= 0x80000u;
+    }
+    if (rp_mode(base) == 1 && rp_b2d(base)) u3x_rp_send(base, 0xff502160u, u3x_rp_self(own));
+    if (own[0x1b0] && !rp_b2c(base)) {   // following a player: up / down cycle it
+        int32_t dir = 0;
+        if (!menu && !rp_mpeg(base)) dir = (pad & pb_down) ? -1 : ((pad & pb_up) ? 1 : 0);
+        const uint8_t *cur = u3x_rp_trk(base, rd<uint32_t>(own, 0x1b8));
+        const bool ok = cur && cur[0xe1] && !cur[0x5e4];
+        if (!ok) dir = 1;
+        if (!ok || dir) rp_cycle_player(base, own, dir, cur);
+    }
+    game_call<void>(base + 0x6a28c0, base + cin_writer);   // the per-frame stream updates
+    game_call<void>(base + 0x6a28c0, base + cin_reader);
+    if (at<uint64_t>(base + 0x17b4a68) == 0) game_call<void>(base + 0x1019550, u3x_rp_cammgr(base));
+    {   // play speed: the world clocks run at it (B2C caps it at 1.0, B2D at 3.0)
+        const float sp = x87_float(rp_speed(base));
+        const int32_t t = static_cast<int32_t>(sp * x87_const(0x41a00000u));   // * 20
+        *reinterpret_cast<int32_t *>(at<uint8_t *>(base + 0x1b377d8) + 0x90) = t + 20;
+        float v = sp;
+        if (rp_b2c(base)) v = (1.0f - sp >= 0.0f) ? sp : 1.0f;   // PPC fsel: NaN selects 1.0
+        if (rp_b2d(base) && v > x87_const(0x40400000u)) {   // > 3.0
+            rp_speed(base) = x87_bits(x87_const(0x40400000u));
+            v = x87_const(0x40400000u);
+        }
+        uint32_t vb = x87_bits(v);
+        u3x_ovr_scale(base, reinterpret_cast<uint8_t *>(base + 0x17b4b1c), &vb);
+        u3x_ovr_scale(base, reinterpret_cast<uint8_t *>(base + 0x17b4adc), &vb);
+    }
+    if (at<uint64_t>(base + 0x17b4a68) == 0 && !menu) {
+        rp_rumble_off(base, 2);
+        rp_rumble_off(base, 0);
+        if (rp_preq(base)) {
+            if (own[0x1b1]) {
+                rp_preq(base) = 0;
+                rp_p3(base) = 1;
+                own[0x1b1] = 0;
+            }
+            if (rp_preq(base) && (pad & pb_r2)) {
+                rp_preq(base) = 0;
+                rp_p3(base) = 1;
+            }
+        }
+    } else {
+        rp_preq(base) = 1;
+        rp_p3(base) = 1;
+    }
+    if (rp_pcur(base) != rp_preq(base)) {   // pause state changed
+        const uint8_t v = rp_preq(base);
+        at<uint8_t>(base + 0x17b4a5d) = v;
+        for (int k = 0; k < 2; ++k) {
+            uint16_t &c = at<uint16_t>(base + 0x17b4af4 + static_cast<uintptr_t>(k == 0 ? 1 : 0) * 0x40);
+            if (v) ++c;
+            else c = c ? static_cast<uint16_t>(c - 1) : 0;
+        }
+        game_call<void>(base + 0x560280, static_cast<uintptr_t>(0), static_cast<int>(v));
+        rp_pcur(base) = v;
+    }
+    {   // past the film's end: the clock goes to its start + duration
+        const int32_t elapsed = game_call<int32_t>(base + 0x6a2700, base + cin_writer), dur = rd<int32_t>(W, 0x158);
+        if (dur < elapsed) {
+            const int32_t t = rd<int32_t>(W, 0x1dbc) + static_cast<int32_t>(static_cast<float>(dur) * x87_const(0x43960000u));   // * 300
+            u3x_clock_reset(rp_clock(base), rd<uint32_t>(at<const uint8_t *>(base + 0x1b24b98), 0x20), t);
+        }
+    }
+    const int32_t now = rd<int32_t>(rp_clock(base), 0xc);
+    {
+        uint32_t heap = 0x14;
+        game_call<void>(base + 0xda1590, &heap, base + 0x13ac250, static_cast<uint64_t>(0), base + 0x13ac250);
+    }
+    uint8_t *rdr = reinterpret_cast<uint8_t *>(base + 0x17c3838), *rr = reinterpret_cast<uint8_t *>(base + 0x17c3850);
+    for (;;) {   // the film's events up to now (and their copy into a re-recording)
+        const uint32_t pos = rd<uint32_t>(rdr, 8);
+        const int32_t t = static_cast<int32_t>(u3x_stream_read(base, rdr, 32));
+        if (t == 0) {
+            if (rp_mpeg(base)) {
+                call_slot(own, 0x1d8);
+            } else {
+                *reinterpret_cast<uint32_t *>(rdr + 8) = pos;
+                rp_preq(base) = 1;
+                rp_p3(base) = 1;
+                game_call<void>(base + 0x6a3130, base + cin_reader);
+            }
+            break;
+        }
+        if (t > now) {
+            *reinterpret_cast<uint32_t *>(rdr + 8) = pos;
+            break;
+        }
+        const uint8_t ty = static_cast<uint8_t>(u3x_stream_read(base, rdr, 8));
+        uint8_t *ev = game_call<uint8_t *>(base + 0x6c2b50, static_cast<uint32_t>(ty));
+        reinterpret_cast<void (*)(uint8_t *, uint8_t *)>(rd<uintptr_t *>(ev, 0)[2])(ev, rdr);   // read
+        reinterpret_cast<void (*)(uint8_t *, int)>(rd<uintptr_t *>(ev, 0)[4])(ev, 0);           // apply
+        if (at<uint32_t>(base + cin_reader + 8)) {   // re-recording
+            if (((rd<uint32_t>(rr, 8) + 7) >> 3 & 0x1fffffffu) > 0x1fc00u) {
+                game_call<void>(base + 0xda18b0);
+                ++ext_eb()[41];
+                return 1;
+            }
+            u3x_stream_write(base, rr, static_cast<uint32_t>(t), 32);
+            u3x_stream_write(base, rr, ev[8], 8);
+            reinterpret_cast<void (*)(uint8_t *, uint8_t *)>(rd<uintptr_t *>(ev, 0)[3])(ev, rr);   // write
+        }
+        if (--ev[0xa] == 0) reinterpret_cast<void (*)(uint8_t *)>(rd<uintptr_t *>(ev, 0)[1])(ev);
+    }
+    if (!rp_b2c(base) && now - rd<int32_t>(own, 0x6ac) > 3000) {   // a bookmark every 10 s; past 24 keep every other one
+        int32_t &count = *reinterpret_cast<int32_t *>(own + 0x6a8);
+        if (count > 24) {
+            count = 12;
+            for (int k = 0; k < 6; ++k) u3x_bookmark_move(rp_bookmark(own, k), rp_bookmark(own, 2 * k));
+            for (int j = 6; j < count; ++j) u3x_bookmark_move(rp_bookmark(own, j), rp_bookmark(own, j + 7));
+            for (int j = count; j <= 24; ++j) {
+                uint8_t *b = rp_bookmark(own, j);
+                *reinterpret_cast<uint32_t *>(b + 0x10) = 0;
+                *reinterpret_cast<uint32_t *>(b + 8) = 0;
+                *reinterpret_cast<uint32_t *>(b + 0x18) = 0;
+                *reinterpret_cast<uint32_t *>(b + 0x1c) = 0;
+                *reinterpret_cast<uint64_t *>(b + 0x28) = 0;
+            }
+        }
+        *reinterpret_cast<int32_t *>(own + 0x6b0) = count;
+        u3x_bookmark_create(base, rp_bookmark(own, count), rd<int32_t>(rp_clock(base), 0xc));
+        ++count;
+        *reinterpret_cast<int32_t *>(W + 0x1fc4) = count;
+        *reinterpret_cast<int32_t *>(own + 0x6ac) = now;
+        ++ext_eb()[42];
+    }
+    at<int32_t>(base + 0x17c5a34) = -1;   // the followed player index of the writer
+    if (!rp_b2c(base)) {
+        u3h_rp_cam_target(base, own);
+    } else {   // no camera
+        uint64_t type = base + 0x1ae95e0, arg = 0;
+        game_call<uint8_t *>(base + 0x101b530, u3x_rp_cammgr(base), static_cast<void *>(&type), static_cast<void *>(&arg), static_cast<void *>(nullptr));
+        *reinterpret_cast<uint32_t *>(own + 0x198) = F_ONE;
+    }
+    if (own[0x1be]) {
+        rp_preq(base) = 1;
+        rp_p3(base) = 1;
+        own[0x1be] = 0;
+    }
+    if (at<uint8_t>(base + 0x16e7170)) {
+        call_slot(own, 0x1d8);
+    } else if (own[0x1c8] && rd<int32_t>(rp_clock(base), 0xc) - rd<int32_t>(own, 0x1c4) > 750) {
+        *reinterpret_cast<uint32_t *>(own + 0x19c) = F_ONE;
+        *reinterpret_cast<uint32_t *>(own + 0x198) = F_ONE;
+        call_slot(own, 0x1c0);
+    } else {
+        const int32_t t = rd<int32_t>(own, 0x6b4);
+        if (static_cast<float>(t) * x87_const(0x3b5a740eu) > 0.0f && t <= rd<int32_t>(at<const uint8_t *>(base + 0x1b24b98), 0x114)) call_slot(own, 0x1c8);
+    }
+    game_call<void>(base + 0x125c770, st);   // the base update
+    game_call<void>(base + 0xda18b0);
+    return 1;
+}
+
+// ===== v7.204: fourth split, part 8 (the medal sub-checks) =====
+
+extern "C" {
+U3H_IMPORT void u3h_kr_stat(uintptr_t base, void *s, uint32_t id, uint32_t amount, uint8_t *np);
+U3H_IMPORT uint8_t *u3h_kr_prec(uint8_t *S, uint8_t *np);
+}
+
+// v5.16: the medal checks PS3 runs after a kill (0x379xxx..0x381xxx). They walk the score keeper's kill records
+// (S +0xe0 count, records of 0x28 from +0xe4, newest first) and report stat events (u3h_kr_stat). The tuning values come
+// from DC symbols (0x47efb8e4 chain window, 0xee602459 grenade window, 0x42b7081b long range, 0xa84641cc all enemies,
+// 0xdd9356ec streak). info: the kill message {time, ..., killer pos +0x10, victim pos +0x20, killer id +0x30, victim id
+// +0x34, weapon +0x38, flags +0x60}. Float maths through the SSE helpers, as in the C part.
+namespace {
+constexpr uint32_t med_1_300 = 0x3b5a740eu, med_1_16 = 0x3d800000u;
+[[gnu::always_inline]] inline bool f_less_equal(uint32_t a, uint32_t b) {   // a <= b as floats (false when either is NaN)
+    int r;
+    __asm__("movd %1,%%xmm0\n\tmovd %2,%%xmm1\n\txorl %0,%0\n\tucomiss %%xmm0,%%xmm1\n\tsetae %b0" : "=&r"(r) : "r"(a), "r"(b) : "xmm0", "xmm1", "cc");
+    return r != 0;
+}
+U3X_FN uint8_t *med_ng(uintptr_t base) { return reinterpret_cast<uint8_t *>(base + 0x17cb060); }
+U3X_FN uint32_t med_pid(const uint8_t *np) { return u3x_net_player_id(np); }
+U3X_FN uint8_t *med_np_at(uintptr_t base, uint32_t i) {
+    if (!at<uint8_t>(base + 0x17d5c61) || i > 9) return nullptr;
+    return med_ng(base) + 0x390 + static_cast<uint64_t>(i) * 0x9c0;
+}
+U3X_FN uint32_t med_np_count(uintptr_t base) {
+    uint32_t c = 0;
+    for (int i = 0; i < 10; ++i) c += u3x_net_player_in_game(med_ng(base) + 0x390 + static_cast<uint64_t>(i) * 0x9c0) != 0;
+    return c;
+}
+U3X_FN int med_np_index(uintptr_t base, uint32_t id) {
+    if (!id) return -1;
+    for (int i = 0; i < 10; ++i)
+        if (med_pid(med_ng(base) + 0x390 + static_cast<uint64_t>(i) * 0x9c0) == id) return i;
+    return -1;
+}
+U3X_FN int32_t med_team(const uint8_t *np) { return rd<int32_t>(np, 0x21c); }
+U3X_FN int32_t med_mode_type(uintptr_t base) {   // the current mode entry's type (0x721050), -1 without one
+    const uint8_t *m = game_call<uint8_t *>(base + 0x721050, med_ng(base));
+    return m ? rd<int32_t>(m, 0xc) : -1;
+}
+U3X_FN bool med_friendly(uintptr_t base, const uint8_t *a, const uint8_t *b) {   // same player, or same team (never in type 0xe)
+    if (a == b) return true;
+    if (med_mode_type(base) == 0xe) return false;
+    return a && b && med_team(a) == med_team(b);
+}
+U3X_FN void *med_dc(uintptr_t base, uint32_t id) {
+    const uint64_t *p = game_call<uint64_t *>(base + 0x11f2bf0, id);
+    return p ? reinterpret_cast<void *>(*p) : nullptr;
+}
+U3X_FN const uint32_t *med_weapon_list(uintptr_t base) { return static_cast<const uint32_t *>(med_dc(base, 0x9e354807u)); }
+U3X_FN uint32_t med_stat_weapon(uintptr_t base, uint32_t idx) {
+    return u3x_weapon_for_stat(reinterpret_cast<const uint32_t *>(base + 0x13a6170), idx < 0x13 ? nullptr : med_weapon_list(base), idx);
+}
+U3X_FN uint32_t med_stat_index(uintptr_t base, uint32_t sid) {
+    return u3x_weapon_stat_number(reinterpret_cast<const uint32_t *>(base + 0x13a6170), med_weapon_list(base), sid);
+}
+U3X_FN bool med_enemy(const KillRecord *r) { return r->killer_team != r->victim_team; }
+U3X_FN uint32_t med_seconds(int32_t t) { return f_mul(f_from_int(t), med_1_300); }
+// squared distance between the killer and victim positions of a record (stored * 16)
+U3X_FN uint32_t med_distance2(const KillRecord *r) {
+    uint32_t s = 0;
+    for (int i = 0; i < 3; ++i) {
+        const uint32_t d = f_mul(f_sub(f_from_int(r->pos[i]), f_from_int(r->pos[3 + i])), med_1_16);
+        s = f_add(s, f_mul(d, d));
+    }
+    return s;
+}
+}  // namespace
+// f_379c18: a kill from well above or below (|dy| >= 5 and the steep part of the direction)
+extern "C" U3X_FN void u3x_kr_379c18(uintptr_t base, void *s, uint8_t *knp, uint8_t *info) {
+    const uint32_t *k = reinterpret_cast<const uint32_t *>(info + 0x10), *v = reinterpret_cast<const uint32_t *>(info + 0x20);
+    const uint32_t dx = f_sub(v[0], k[0]), dy = f_sub(v[1], k[1]), dz = f_sub(v[2], k[2]);
+    if (!f_less_equal(0x40a00000u, dy) && !f_less_equal(dy, 0xc0a00000u)) return;
+    const uint32_t len = f_root(f_add(f_add(f_mul(dz, dz), f_mul(dx, dx)), f_mul(dy, dy)));
+    const uint32_t n = f_div(dy, len);
+    if (f_less(0x3f5db3d7u, n)) u3h_kr_stat(base, s, 0x427bfc52u, 1, knp);
+    else if (f_less(n, 0xbf5db3d7u)) u3h_kr_stat(base, s, 0x8a14a6a4u, 1, knp);
+}
+// f_37952c: deaths since the last kill
+extern "C" U3X_FN void u3x_kr_37952c(uintptr_t base, void *s, uint8_t *S, uint8_t *knp) {
+    const uint32_t id = med_pid(knp);
+    uint32_t c = 0;
+    for (uint32_t i = 1; i < kill_count(S); ++i) {
+        const KillRecord *r = kill_record(S, i);
+        if (r->killer == static_cast<uint16_t>(id)) break;
+        if (r->victim == static_cast<uint16_t>(id)) ++c;
+    }
+    u3h_kr_stat(base, s, 0x5852e7edu, c, knp);
+}
+// f_3817b8: explosive multi-kill (the same weapon within 1 s); the player's record keeps the best
+extern "C" U3X_FN void u3x_kr_3817b8(uintptr_t base, void *s, uint8_t *S, uint8_t *knp, uint8_t *info, int team_mode) {
+    if (!(rd<uint32_t>(info, 0x60) & 0x20)) return;
+    const uint32_t w = rd<uint32_t>(info, 0x38), killer = rd<uint32_t>(info, 0x30);
+    const int32_t t = rd<int32_t>(info, 0);
+    uint32_t c = 0;
+    for (uint32_t i = 0; i < kill_count(S); ++i) {
+        const KillRecord *r = kill_record(S, i);
+        if (!r->uncounted && r->killer == static_cast<uint16_t>(killer) && med_enemy(r) && f_less(med_seconds(r->time - t) & 0x7fffffffu, F_ONE))
+            c += med_stat_weapon(base, r->weapon_index) == w;
+    }
+    uint32_t id = 0x5bc68f9cu;
+    bool emit = true;
+    if (team_mode) {
+        if (w == 0x159df996u) emit = false;
+        else if (w == 0x7525aa5cu) id = 0x2de62476u;
+        else if (w == 0x08be7587u) id = 0x55917637u;
+    }
+    if (emit) u3h_kr_stat(base, s, id, c & 0xff, knp);
+    uint8_t *pr = u3h_kr_prec(S, knp);
+    if ((c & 0xff) > pr[0x52]) pr[0x52] = static_cast<uint8_t>(c);
+}
+// f_37992c: kills with the weapon and with the pistol group, and the pistol-only streak
+extern "C" U3X_FN void u3x_kr_37992c(uintptr_t base, void *s, uint8_t *S, uint8_t *knp, uint8_t *info) {
+    const KillRecord *r0 = kill_record(S, 0);
+    if (!med_enemy(r0)) return;
+    const uint32_t id = rd<uint32_t>(info, 0x30), w = rd<uint32_t>(info, 0x38);
+    uint32_t c7 = 0, c4 = 0, c3 = 0;
+    for (uint32_t i = 0; i < kill_count(S); ++i) {
+        const KillRecord *r = kill_record(S, i);
+        if (r->uncounted || r->killer != id || !med_enemy(r)) continue;
+        const uint32_t x = med_stat_weapon(base, r->weapon_index);
+        if (x == w) {
+            ++c7;
+            ++c4;
+        } else if (u3x_weapon_group(x) == 6) {
+            ++c4;
+        }
+    }
+    u3h_kr_stat(base, s, 0xb934b2b2u, c4, knp);
+    for (uint32_t i = 0; i < kill_count(S); ++i) {
+        const KillRecord *r = kill_record(S, i);
+        if (r->killer == id && med_enemy(r)) {
+            if (u3x_weapon_group(med_stat_weapon(base, r->weapon_index)) != 6) break;
+            ++c3;
+        } else if (r->victim == id) {
+            break;
+        }
+    }
+    u3h_kr_stat(base, s, 0xd2b04848u, c3, knp);
+    if (w == 0x472bca9au || w == 0x16980e31u || w == 0xc58ae515u || w == 0xb17d9450u) u3h_kr_stat(base, s, w, c7, knp);
+    else if (w == 0x22bf34f2u || w == 0xbe729d23u) u3h_kr_stat(base, s, 0x7fdbcbbfu, c7, knp);
+}
+// f_37ab00: kills chained within a time window (all weapons, then the two grenades)
+extern "C" U3X_FN void u3x_kr_37ab00(uintptr_t base, void *s, uint8_t *S, uint8_t *knp, uint8_t *info) {
+    const uint32_t *window = static_cast<const uint32_t *>(med_dc(base, 0x47efb8e4u));
+    const KillRecord *r0 = kill_record(S, 0);
+    const uint32_t id = med_pid(knp);
+    if (!window) return;
+    if (med_enemy(r0)) {
+        int32_t t = rd<int32_t>(info, 0);
+        uint32_t c = 1;
+        for (uint32_t i = 1; i < kill_count(S); ++i) {
+            const KillRecord *r = kill_record(S, i);
+            if (r->uncounted) continue;
+            if (f_less(*window, f_sub(med_seconds(t), med_seconds(r->time)))) break;
+            if (r->killer == static_cast<uint16_t>(id) && med_enemy(r)) {
+                ++c;
+                t = r->time;
+            }
+        }
+        u3h_kr_stat(base, s, 0xf2c76c63u, c, knp);
+    }
+    const uint32_t w1 = med_stat_index(base, 0xbe281563u), w2 = med_stat_index(base, 0x33e29a1bu);
+    const uint32_t *window2 = static_cast<const uint32_t *>(med_dc(base, 0xee602459u));
+    if (window2 && (r0->weapon_index == w1 || r0->weapon_index == w2) && med_enemy(r0)) {
+        int32_t t = rd<int32_t>(info, 0);
+        uint32_t c = 1;
+        for (uint32_t i = 1; i < kill_count(S); ++i) {
+            const KillRecord *r = kill_record(S, i);
+            if (f_less(*window2, f_sub(med_seconds(t), med_seconds(r->time)))) break;
+            if (r->killer == static_cast<uint16_t>(id) && med_enemy(r) && (r->weapon_index == w1 || r->weapon_index == w2)) {
+                ++c;
+                t = r->time;
+            }
+        }
+        u3h_kr_stat(base, s, 0x4bae48b4u, c, knp);
+    }
+}
+// f_37a4bc: long-range kills
+extern "C" U3X_FN void u3x_kr_37a4bc(uintptr_t base, void *s, uint8_t *S, uint8_t *knp) {
+    const uint32_t *range = static_cast<const uint32_t *>(med_dc(base, 0x42b7081bu));
+    if (!range) return;
+    const KillRecord *r0 = kill_record(S, 0);
+    const uint32_t id = med_pid(knp);
+    if (r0->killer != static_cast<uint16_t>(id) || !med_enemy(r0)) return;
+    const uint32_t R2 = f_mul(*range, *range);
+    if (!f_less_equal(R2, med_distance2(r0))) return;
+    uint32_t c = 1;
+    for (uint32_t i = 1; i < kill_count(S); ++i) {
+        const KillRecord *r = kill_record(S, i);
+        if (!r->uncounted && r->killer == static_cast<uint16_t>(id) && med_enemy(r) && f_less_equal(R2, med_distance2(r))) ++c;
+    }
+    u3h_kr_stat(base, s, 0xa8932480u, c, knp);
+}
+// f_379ed8: an objective stat chain (record 0's +0x1c) for every player of that team
+extern "C" U3X_FN void u3x_kr_379ed8(uintptr_t base, void *s, uint8_t *S) {
+    const KillRecord *r0 = kill_record(S, 0);
+    if (!r0->f1c) return;
+    uint32_t c = 1;
+    const uint16_t teams = *reinterpret_cast<const uint16_t *>(&r0->killer_team);
+    for (uint32_t i = 1; i < kill_count(S); ++i) {
+        const KillRecord *r = kill_record(S, i);
+        if (*reinterpret_cast<const uint16_t *>(&r->killer_team) != teams) continue;
+        if (r->f1c != r0->f1c) break;
+        ++c;
+    }
+    const uint32_t n = med_np_count(base);
+    for (uint32_t i = 0; i < n; ++i) {
+        uint8_t *np = med_np_at(base, i);
+        if (np && med_team(np) == r0->killer_team) u3h_kr_stat(base, s, static_cast<uint32_t>(r0->f1c), c, np);
+    }
+}
+// f_379ff0: the fewest kills on any enemy
+extern "C" U3X_FN void u3x_kr_379ff0(uintptr_t base, void *s, uint8_t *S, uint8_t *knp) {
+    uint8_t cnt[10];
+    for (uint8_t &b : cnt) b = 0;
+    const uint32_t id = med_pid(knp);
+    for (uint32_t i = 0; i < kill_count(S); ++i) {
+        const KillRecord *r = kill_record(S, i);
+        if (r->killer != static_cast<uint16_t>(id)) continue;
+        const int j = med_np_index(base, r->victim);
+        if (j >= 0) ++cnt[j];
+    }
+    uint8_t m = 0x10;
+    const uint32_t n = med_np_count(base);
+    for (uint32_t i = 0; i < n && i < 10; ++i) {
+        const uint8_t *np = med_np_at(base, i);
+        if (!med_friendly(base, knp, np) && cnt[i] <= m) m = cnt[i];
+    }
+    u3h_kr_stat(base, s, 0x610ae399u, m, knp);
+}
+// f_379430: the betrayal chain (record flag +0x21)
+extern "C" U3X_FN void u3x_kr_379430(uintptr_t base, void *s, uint8_t *S, uint8_t *knp) {
+    const KillRecord *r0 = kill_record(S, 0);
+    const uint16_t k = r0->killer;
+    if (k != static_cast<uint16_t>(med_pid(knp)) || r0->victim == k || !r0->f21) return;
+    uint32_t c = 1;
+    for (uint32_t i = 1; i < kill_count(S); ++i) {
+        const KillRecord *r = kill_record(S, i);
+        if (r->killer == k && r->victim != k) c += r->f21 != 0;
+    }
+    u3h_kr_stat(base, s, 0x8d70ef29u, c, knp);
+}
+// f_3791ec: trade kills (the killer died after the victim's death, by an explosive; or the victim's explosive kill at the
+// same moment)
+extern "C" U3X_FN void u3x_kr_3791ec(uintptr_t base, void *s, uint8_t *S, uint8_t *knp, uint8_t *vnp, uint8_t *info) {
+    const KillRecord *r0 = kill_record(S, 0);
+    const int32_t now = rd<int32_t>(info, 0);
+    const uint32_t fl = rd<uint32_t>(info, 0x60);
+    if (med_enemy(r0)) {
+        int32_t t = 0;
+        for (uint32_t i = 0; i < kill_count(S); ++i) {
+            const KillRecord *r = kill_record(S, i);
+            if (!r->uncounted && r->victim == static_cast<uint16_t>(rd<uint32_t>(info, 0x30))) {
+                t = r->time;
+                break;
+            }
+        }
+        if (rd<int32_t>(knp, 0x3a0) < t && t < now && (fl & 0x20)) u3h_kr_stat(base, s, 0x9d715fdau, 1, knp);
+    }
+    for (uint32_t i = 0; i < kill_count(S); ++i) {
+        const KillRecord *r = kill_record(S, i);
+        if (r->time < now) break;
+        if (r->killer == static_cast<uint16_t>(rd<uint32_t>(info, 0x34)) && med_enemy(r) && r->type == 6) {
+            u3h_kr_stat(base, s, 0x9d715fdau, 1, vnp);
+            return;
+        }
+    }
+}
+// f_3590b0: the player is not counted (effect 0xc054e78b, dead with a character, or +0x770)
+extern "C" U3X_FN int u3x_kr_3590b0(uintptr_t base, uint8_t *np) {
+    if (game_call<uint8_t>(base + 0x793280, np, 0xc054e78bu, 0u)) return 1;
+    if (handle_valid(np + 0x10) && rd<int32_t>(np, 0x39c) <= rd<int32_t>(np, 0x3a0)) return 1;
+    return np[0x770];
+}
+// f_37a914: killed every enemy that is alive (at least DC 0xa84641cc of them)
+extern "C" U3X_FN void u3x_kr_37a914(uintptr_t base, void *s, uint8_t *S, uint8_t *knp) {
+    const int32_t *minimum = static_cast<const int32_t *>(med_dc(base, 0xa84641ccu));
+    if (!minimum) return;
+    bool all = true;
+    int32_t c = 0;
+    const uint32_t me = med_pid(knp);
+    for (uint32_t i = 0; i < 10; ++i) {
+        uint8_t *np = med_np_at(base, i);
+        if (!np || !u3x_net_player_in_game(np) || med_friendly(base, knp, np)) continue;
+        if (u3x_kr_3590b0(base, np)) return;
+        const uint32_t id = med_pid(np);
+        for (uint32_t j = 0; j < kill_count(S); ++j) {
+            const KillRecord *r = kill_record(S, j);
+            if (r->victim != static_cast<uint16_t>(id)) continue;
+            if (r->killer == static_cast<uint16_t>(me)) ++c;
+            else all = false;
+            break;
+        }
+    }
+    if (all && *minimum <= c) u3h_kr_stat(base, s, 0x4a9da8a5u, 1, knp);
+}
+// f_37a16c: ended someone's streak (at least DC 0xdd9356ec kills)
+extern "C" U3X_FN void u3x_kr_37a16c(uintptr_t base, void *s, uint8_t *S, uint8_t *knp) {
+    const uint32_t *streak = static_cast<const uint32_t *>(med_dc(base, 0xdd9356ecu));
+    const KillRecord *r0 = kill_record(S, 0);
+    if (!streak) return;
+    const uint16_t v = r0->victim;
+    const bool ffa = med_mode_type(base) == 0xe;
+    if (r0->killer == v) return;
+    if (!(med_enemy(r0) || ffa || r0->f22 || r0->f21)) return;
+    uint32_t c = 0;
+    for (uint32_t i = 1; i < kill_count(S); ++i) {
+        const KillRecord *r = kill_record(S, i);
+        if (r->uncounted) continue;
+        if (r->victim == v) break;
+        if (r->killer == v) {
+            if (r->victim_team == r0->victim_team && !ffa && !r0->f22 && !r0->f21) break;
+            ++c;
+        }
+    }
+    if (*streak <= c) u3h_kr_stat(base, s, 0xf69e35a3u, 1, knp);
+}
+// f_37a32c: revenge on the player who last killed you
+extern "C" U3X_FN void u3x_kr_37a32c(uintptr_t base, void *s, uint8_t *S, uint8_t *knp, uint8_t *info) {
+    const KillRecord *r0 = kill_record(S, 0);
+    const uint32_t v = rd<uint32_t>(info, 0x34), k = rd<uint32_t>(info, 0x30);
+    const bool ffa = med_mode_type(base) == 0xe;
+    if (!(med_enemy(r0) || ffa) || kill_count(S) < 2) return;
+    if (rd<int32_t>(knp, 0x3a0) < rd<int32_t>(knp, 0x39c)) return;   // the killer is dead
+    for (uint32_t i = 1; i < kill_count(S); ++i) {
+        const KillRecord *r = kill_record(S, i);
+        if (r->uncounted) continue;
+        if (r->victim == static_cast<uint16_t>(v) && r->killer == static_cast<uint16_t>(k)) return;
+        if (r->victim == static_cast<uint16_t>(k) && (r->killer_team == r0->victim_team || ffa)) {
+            if (r->killer == static_cast<uint16_t>(v)) u3h_kr_stat(base, s, 0x6623a3f4u, 1, knp);
+            return;
+        }
+    }
+}
+
+// ===== v7.205: fourth split, part 9 (the medal kickback list) =====
+
+extern "C" {
+U3H_IMPORT const char *u3h_fmt(void *s, const char *f, int64_t a0, const char *s0, const char *s1, const char *s2);
+U3H_IMPORT void u3h_k49_kickback(uintptr_t base, void *s, uint32_t user, int coop, int32_t row);
+}
+extern "C" void *u3x_unlock_entry(uintptr_t base, void *s, uint32_t id);
+
+// LIST_MEDAL_STREAKS (0x44, PS3 f_345d20): row 0 "None", then the kickbacks of the loadout (DC 0xd9f6ada2 {count,
+// entries of 0x28: id, name +4, medal cost +8, tier count +0xc, tiers +0x18 (0x18 each: icon, description +4, duration
+// f32 +8), flags +0x20: 1 competitive, 2 co-op}). The selection is 0x17d998c, the equipped kickback loadout item 7.
+// a005 row icons: the current tier's icon, the equipped check, "!" when new, else the unlock status icon. Picking a row
+// equips it when it is owned (buying is not ported). ExtState ea: [16] row icons, [17] checks, [18] "!", [19] status.
+namespace {
+U3X_RO const char kb_space[] = " ", kb_break[] = "\\", kb_cash_colour[] = "|@Cff00ff00|", kb_empty[] = "";
+constexpr uint32_t kb_table = 0xd9f6ada2u;
+U3X_FN uint8_t *kb_symbol(void *s) {
+    const uintptr_t lookup = state_native(s, 13);
+    return lookup ? reinterpret_cast<uint8_t *(*)(uint32_t)>(lookup)(kb_table) : nullptr;
+}
+U3X_FN void kb_icon(uintptr_t base, int32_t *ev, uint32_t id) {
+    if (u3h_icon_index(base, id) >= 0) u3h_set_icon(base, ev, id);
+}
+// the kickback's level for the user (0x74eba0 reads only the user at state +0xc), at least 0
+U3X_FN int kb_level(void *s, uint32_t user, uint32_t id) {
+    const uintptr_t lvl = state_native(s, 33);
+    uint32_t kst[8];
+    for (uint32_t &w : kst) w = 0;
+    kst[3] = user;
+    const int lv = lvl ? reinterpret_cast<int (*)(void *, uint32_t)>(lvl)(kst, id) : 0;
+    return lv < 0 ? 0 : lv;
+}
+U3X_FN int kb_status(uintptr_t base, void *s, uint32_t user, uint32_t id) {   // callers check the native first
+    const uintptr_t status = state_native(s, 35);
+    return reinterpret_cast<int (*)(uintptr_t, uint32_t, void *)>(status)(base + 0x17f3068, user, u3x_unlock_entry(base, s, id));
+}
+}  // namespace
+// the n-th kickback of the competitive (or co-op) list
+extern "C" U3X_FN uint8_t *u3x_kickback_nth(void *s, int32_t n, int coop) {
+    uint8_t *t = kb_symbol(s);
+    if (!t || n < 0) return nullptr;
+    const uint32_t cnt = rd<uint32_t>(t, 0), flag = coop ? 2 : 1;
+    uint8_t *e = rd<uint8_t *>(t, 8);
+    for (uint32_t i = 0; e && i < cnt; ++i, e += 0x28)
+        if (rd<uint32_t>(e, 0x20) & flag) {
+            if (n == 0) return e;
+            --n;
+        }
+    return nullptr;
+}
+extern "C" U3X_FN int32_t u3x_kickback_count(void *s, int coop) {
+    const uint8_t *t = kb_symbol(s);
+    if (!t) return 0;
+    const uint32_t cnt = rd<uint32_t>(t, 0), flag = coop ? 2 : 1;
+    uint32_t n = 0;
+    const uint8_t *e = rd<const uint8_t *>(t, 8);
+    for (uint32_t i = 0; e && i < cnt; ++i, e += 0x28)
+        if (rd<uint32_t>(e, 0x20) & flag) ++n;
+    return static_cast<int32_t>(n);
+}
+extern "C" U3X_FN void *u3x_unlock_entry(uintptr_t base, void *s, uint32_t id) {
+    const uintptr_t find = state_native(s, 24);
+    return find ? reinterpret_cast<void *(*)(uintptr_t, int, int)>(find)(base + 0x17f3068, static_cast<int>(id), 0) : nullptr;
+}
+extern "C" U3X_FN uint8_t *u3x_kickback_by_id(void *s, uint32_t id) {
+    uint8_t *t = kb_symbol(s);
+    if (!t) return nullptr;
+    const uint32_t cnt = rd<uint32_t>(t, 0);
+    uint8_t *e = rd<uint8_t *>(t, 8);
+    for (uint32_t i = 0; e && i < cnt; ++i, e += 0x28)
+        if (rd<uint32_t>(e, 0) == id) return e;
+    return nullptr;
+}
+extern "C" U3X_FN void u3x_kickback_icons(uintptr_t base, void *s, int32_t *ev, int32_t row, int coop, uint32_t user, uint8_t *pr, int32_t loadout) {
+    uint32_t *ea = ext_ea();
+    const uint8_t *e = u3x_kickback_nth(s, row - 1, coop);
+    const uint32_t slot = static_cast<uint32_t>(ev[0x14]);
+    if (slot == 0xf5a294f3u) {   // the row icon: the current tier's
+        ++ea[16];
+        if (row == 0 || !e) {
+            kb_icon(base, ev, 0x19d9ea44u);
+            return;
+        }
+        const int lv = kb_level(s, user, rd<uint32_t>(e, 0));
+        const uint8_t *tiers = rd<const uint8_t *>(e, 0x18);
+        const uint32_t icon = tiers ? rd<uint32_t>(tiers, static_cast<uintptr_t>(lv) * 0x18) : 0;
+        if (icon && u3h_icon_index(base, icon) >= 0) u3h_set_icon(base, ev, icon);
+        else kb_icon(base, ev, 0x91fb026bu);
+        return;
+    }
+    if (slot != 0) return;
+    const uintptr_t get = state_native(s, 34);
+    const uint8_t *cur = (pr && get) ? u3x_kickback_by_id(s, reinterpret_cast<uint32_t (*)(void *, int, int32_t)>(get)(pr, 7, loadout)) : nullptr;
+    if (e == cur) {   // equipped
+        kb_icon(base, ev, 0x08208d0au);
+        ++ea[17];
+        return;
+    }
+    if (!e) return;
+    const uintptr_t is_new = state_native(s, 36);
+    if (is_new && static_cast<uint8_t>(reinterpret_cast<uint64_t (*)(uintptr_t, uint32_t, uint32_t, uint32_t)>(is_new)(base + 0x17f3068, user, rd<uint32_t>(e, 0), 0))) {
+        ev[2] = 0x2f;   // "!"
+        ev[4] = ev[5] = ev[6] = ev[7] = ev[8] = 0;
+        ev[9] = -1;
+        ev[10] = 0;
+        ev[11] = -1;
+        ev[12] = 0x3f800000;
+        ++ea[18];
+        return;
+    }
+    if (!state_native(s, 35)) return;
+    const int st = kb_status(base, s, user, rd<uint32_t>(e, 0));
+    const uint32_t id = st == 1 ? 0xc2bb8920u : st == 2 ? 0x83817313u : st == 3 ? 0x7bebc95fu : 0;
+    if (id) {
+        kb_icon(base, ev, id);
+        ++ea[19];
+    }
+}
+extern "C" U3X_FN int u3x_kickback_source(uintptr_t base, int32_t *ev, void *s) {
+    const uint8_t *source = rd<const uint8_t *>(ev, 0x98);
+    if (!source || rd<uint32_t>(source, 0x1c) != 0x4c414e44u) return 0;
+    if (u3h_gate_closed(base, ev)) return 1;
+    *reinterpret_cast<uintptr_t *>(static_cast<uint8_t *>(s) + 760) = base;
+    if (!u3h_sym_ready(base, s, kb_table)) {
+        if (ev[0] == 6) ev[1] = -1;
+        return 1;
+    }
+    const int32_t loadout = at<int32_t>(base + 0x17d9988);
+    const int coop = loadout == 4;
+    const uint32_t user = local_user(base) & 3;
+    uint8_t *pr = player_profile(base);
+    const uint32_t money = pr ? rd<uint32_t>(pr, 0x74c) : 0;
+    const int32_t row = ev[1];
+    const uint8_t *e;
+    char *const buf = static_cast<char *>(s) + 0x2c80, *end = buf + 250;
+    char *o = buf;
+    *o = 0;
+    if (ev[0] == 0x16) u3h_k49_kickback(base, s, user, coop, ev[0x17]);
+    switch (ev[0]) {
+    case 1:
+        set_row_text(ev, u3h_text(base, s, 0x87b43182u));
+        [[fallthrough]];   // PS3 also marks the selected kickback as seen
+    case 9:
+        if ((e = u3x_kickback_nth(s, at<int32_t>(base + 0x17d998c) - 1, coop)))
+            if (const uintptr_t seen = state_native(s, 32))
+                reinterpret_cast<void (*)(uintptr_t, uint32_t, uint32_t, uint32_t)>(seen)(base + 0x17f3068, user, rd<uint32_t>(e, 0), 0);
+        break;
+    case 2: {
+        const uint32_t sub = static_cast<uint32_t>(ev[0x15]);
+        e = u3x_kickback_nth(s, row - 1, coop);
+        if (sub == 0) {
+            if (row == 0) set_row_text(ev, u3h_text(base, s, 0x9d3c6e80u));
+            else if (e) set_row_text(ev, u3h_text(base, s, rd<uint32_t>(e, 4)));
+            break;
+        }
+        if (sub == 3) {   // "Level n\tier text\Costs [A] Medals"
+            if (row == 0) {
+                set_row_text(ev, u3h_text(base, s, 0x034c8e1eu));
+                break;
+            }
+            if (!e) break;
+            const int lv = kb_level(s, user, rd<uint32_t>(e, 0));
+            const uint8_t *tiers = rd<const uint8_t *>(e, 0x18);
+            char tmp[128];
+            tmp[0] = 0;
+            u3h_text_num(base, s, tmp, sizeof tmp, 0x69443c24u, rd<int32_t>(e, 8));
+            o = append_chars(o, end, u3h_text(base, s, 0xadfc7da6u));
+            o = append_chars(o, end, kb_space);
+            o = append_number(o, end, lv + 1, false);
+            o = append_chars(o, end, kb_break);
+            if (tiers && lv < rd<int32_t>(e, 0xc)) o = append_chars(o, end, u3h_text(base, s, rd<uint32_t>(tiers, static_cast<uintptr_t>(lv) * 0x18 + 4)));
+            o = append_chars(o, end, kb_break);
+            o = append_chars(o, end, tmp);
+            *o = 0;
+            set_row_text(ev, buf);
+            break;
+        }
+        if (sub == 4) {   // owned, or what unlocks it
+            if (row == 0 || !e) break;
+            if (u3x_booster_unlocked(s, user, rd<uint32_t>(e, 0))) {
+                set_row_text(ev, u3h_text(base, s, 0xecf338f6u));
+            } else {
+                const uintptr_t item_text = state_native(s, 26);
+                set_row_text(ev, item_text ? reinterpret_cast<const char *(*)(uint32_t, uint32_t)>(item_text)(rd<uint32_t>(e, 0), 0) : kb_empty);
+            }
+            break;
+        }
+        if (sub == 8) {   // cash
+            o = append_chars(o, end, u3h_text(base, s, 0xba6d58f7u));
+            o = append_chars(o, end, kb_cash_colour);
+            o = append_number(o, end, money, true);
+            *o = 0;
+            set_row_text(ev, buf);
+            break;
+        }
+        if (!e) break;
+        const uint8_t *tiers = rd<const uint8_t *>(e, 0x18);
+        if (sub == 0x80d4cc7bu) {
+            if (tiers) set_row_text(ev, u3h_text(base, s, rd<uint32_t>(tiers, 4)));
+            break;
+        }
+        if (sub == 0xadacdbf3u) {   // "Duration n seconds" (the first tier's), or "until death"
+            if (!tiers) break;
+            const float dur = x87_float(rd<uint32_t>(tiers, 8));
+            o = append_chars(o, end, u3h_text(base, s, 0x3badfdd5u));
+            o = append_chars(o, end, kb_space);
+            if (dur <= 0.0f) {
+                o = append_chars(o, end, u3h_text(base, s, 0xa80e2d11u));
+            } else {
+                o = append_number(o, end, static_cast<int64_t>(dur + x87_const(0x3f000000u)), false);
+                o = append_chars(o, end, kb_space);
+                o = append_chars(o, end, u3h_text(base, s, 0xe7624faau));
+            }
+            *o = 0;
+            set_row_text(ev, buf);
+            break;
+        }
+        if (sub == 0xb684d68bu) set_row_text(ev, u3h_fmt(s, u3h_text(base, s, 0x819103ccu), rd<int32_t>(e, 8), nullptr, nullptr, nullptr));
+        break;
+    }
+    case 3:   // not unlocked: result 2
+        if (row == 0 || !(e = u3x_kickback_nth(s, row - 1, coop))) break;
+        if (!u3x_booster_unlocked(s, user, rd<uint32_t>(e, 0))) ev[14] = 2;
+        break;
+    case 4:
+        if (!(ext_ea()[0] & 16)) u3x_kickback_icons(base, s, ev, row, coop, user, pr, loadout);
+        break;
+    case 12:
+        if (!(ext_ea()[0] & 32)) {
+            ev[0x1f] = 0x43000000;
+            ev[0x20] = 0x43000000;
+        }
+        break;
+    case 5: ev[1] = at<int32_t>(base + 0x17d998c); break;
+    case 6: ev[1] = u3x_kickback_count(s, coop); break;
+    case 10: at<int32_t>(base + 0x17d998c) = row; break;
+    case 11:
+        if (static_cast<uint32_t>(ev[0x13]) == 0x67a48eb9u) ev[14] = 4;
+        break;
+    case 0x11: ev[1] = 8; break;
+    case 0x16: {   // equip when owned (PS3 f_328a40, stripped on PS4); buying is not ported
+        const uintptr_t set = state_native(s, 28);
+        if (!set || !pr) break;
+        const int32_t r = ev[0x17];
+        if (r <= 0) {
+            reinterpret_cast<void (*)(void *, int, uint32_t, int32_t)>(set)(pr, 7, 0, loadout);
+            break;
+        }
+        if (!(e = u3x_kickback_nth(s, r - 1, coop))) break;
+        if (state_native(s, 35) && kb_status(base, s, user, rd<uint32_t>(e, 0)) == 0)
+            reinterpret_cast<void (*)(void *, int, uint32_t, int32_t)>(set)(pr, 7, rd<uint32_t>(e, 0), loadout);
+        break;
+    }
+    }
+    return 1;
+}
+
+// ===== v7.206: fourth split, part 10 (the leaderboards) =====
+
+extern "C" {
+U3H_IMPORT void *u3h_ona(void);
+U3H_IMPORT uint8_t *u3h_lb_buf(int which);
+U3H_IMPORT int u3h_m02_lb_local(uintptr_t base, void *s, uint8_t *m, uint32_t board, int32_t req);
+U3H_IMPORT uint32_t u3h_fr_lb_names(uintptr_t base, char *out, uint32_t max);
+U3H_IMPORT void u3h_pm119(uintptr_t base, void *s, uint8_t *param);
+}
+
+// a013: PS3 1.19's leaderboard manager (mgr = 0x17d6230, f_328870 init, f_328a28 query, f_328614 submit, f_329058 the
+// worker) that PS4 cut; the widget update tail (kind 66) asks for a page. The network goes through the online interface
+// (lb_get / lb_range / lb_update / lb_poll tickets, polled each frame; offline = PS3's "cannot connect"); without a
+// community server the local profile's own row is shown (m002). Manager: own NpId +0, friends-row count +0x24, rows +0x28,
+// blobs +0x30, names +0x38, temp rows +0x40, temp blobs +0x48, flag +0x50, busy +0x58, board +0x60, requested page +0x64,
+// row count +0x70, page +0x74, reset +0x78, board index +0x7c, friends +0x80, refresh +0x81. Rows {name 0x5c, rank,
+// ..., score +0x70} of 0x80; 11 per page. Boards above 0x513 move by 4 x the week (DC 0x8466d21a). U3MP_LB119=0
+// (ea[1] bit 4) turns it off. ExtState ea: [48] inits, [49] queries, [50] rows, [51] submits, [52] dropped, [53] errors,
+// [54] done, [55] widget asks, [56] no week; the 4 boards {board, column set, title} at ea[200..211].
+namespace {
+struct LbRow {
+    char name[0x5c];
+    uint32_t rank;
+    uint8_t pad0[0x10];
+    int64_t score;
+    uint8_t pad1[8];
+};
+static_assert(sizeof(LbRow) == 0x80);
+struct LbWork { int32_t st, ticket, page, n; };
+struct LbSlot {
+    int32_t used, ticket;
+    uint32_t board;
+    int64_t score;
+    uint8_t blob[0x40];
+};
+struct OnlineIface {
+    uint32_t init;
+    void *party_send, *server_notice, *chat_restricted;
+    int32_t (*lb_get)(uintptr_t base, uint32_t board, const char *names, uint32_t n, uint8_t *rows, uint8_t *blobs, uint32_t max);
+    int32_t (*lb_range)(uintptr_t base, uint32_t board, uint32_t first, uint32_t last, uint8_t *rows, uint8_t *blobs, uint32_t max);
+    int32_t (*lb_update)(uintptr_t base, uint32_t board, const char *name, int64_t score, const uint8_t *blob64);
+    int32_t (*lb_poll)(uintptr_t base, int32_t ticket);   // -2 pending, -1 failed / offline, else rows
+    uint32_t (*session_names)(uintptr_t base, char *out, uint32_t max);
+    uint32_t (*friend_names)(uintptr_t base, char *out, uint32_t max);
+};
+U3X_BSS LbWork lb_work;
+U3X_BSS LbSlot lb_slots[5];
+U3X_FN uint8_t *lb_mgr(uintptr_t base) { return reinterpret_cast<uint8_t *>(base + 0x17d6230); }
+U3X_FN OnlineIface *ona() { return static_cast<OnlineIface *>(u3h_ona()); }
+U3X_FN bool same_npid(const char *a, const char *b) {   // strcmp == 0
+    int i = 0;
+    while (a[i] && a[i] == b[i]) ++i;
+    return a[i] == b[i];
+}
+}  // namespace
+extern "C" U3X_FN int u3x_lb_off(void) { return (ext_ea()[1] & 0x10u) != 0; }
+extern "C" U3X_FN uint32_t u3x_lb_week_board(void *s, uint32_t board) {
+    if (board > 0x513) {
+        if (const uint8_t *w = dc_table(s, 0x8466d21au)) board += static_cast<uint32_t>(rd<int32_t>(w, 0) * 4);
+        else ++ext_ea()[56];
+    }
+    return board;
+}
+// f_328870 (NetInit): own NpId (the profile name at net +0x3b8), the buffers, the fields
+extern "C" U3X_FN void u3x_lb_init(uintptr_t base, void *) {
+    if (u3x_lb_off()) return;
+    uint8_t *m = lb_mgr(base);
+    const char *me = reinterpret_cast<const char *>(base + 0x17d6010);
+    for (int i = 0; i < 0x24; ++i) m[i] = 0;
+    for (int i = 0; i < 16 && me[i]; ++i) m[i] = static_cast<uint8_t>(me[i]);
+    *reinterpret_cast<uint32_t *>(m + 0x24) = 0;
+    *reinterpret_cast<uint8_t **>(m + 0x28) = u3h_lb_buf(0);
+    *reinterpret_cast<uint8_t **>(m + 0x30) = u3h_lb_buf(1);
+    *reinterpret_cast<uint8_t **>(m + 0x38) = u3h_lb_buf(2);
+    *reinterpret_cast<uint8_t **>(m + 0x40) = u3h_lb_buf(3);
+    *reinterpret_cast<uint8_t **>(m + 0x48) = u3h_lb_buf(4);
+    for (int i = 0; i < 0x160; ++i) m[0x88 + i] = 0;
+    for (LbSlot &k : lb_slots) k.used = 0;
+    lb_work.st = 0;
+    *reinterpret_cast<uint64_t *>(m + 0x58) = 0;
+    *reinterpret_cast<uint64_t *>(m + 0x68) = 0;
+    *reinterpret_cast<uint64_t *>(m + 0x60) = 0;
+    *reinterpret_cast<int32_t *>(m + 0x74) = -1;
+    m[0x81] = 0;
+    m[0x78] = 1;
+    m[0x80] = 0;
+    *reinterpret_cast<uint32_t *>(m + 0x50) = 0;
+    *reinterpret_cast<uint32_t *>(m + 0x7c) = 0;
+    *reinterpret_cast<uint32_t *>(m + 0x24) = 0;
+    *reinterpret_cast<uint32_t *>(m + 0x70) = 0;
+    ++ext_ea()[48];
+}
+// f_328a28: start the page query unless one is running
+extern "C" U3X_FN void u3x_lb_query(uintptr_t base, void *s, uint32_t board, int32_t page) {
+    uint8_t *m = lb_mgr(base);
+    if (rd<uint64_t>(m, 0x58)) return;
+    board = u3x_lb_week_board(s, board);
+    *reinterpret_cast<int32_t *>(m + 0x64) = page;
+    *reinterpret_cast<uint32_t *>(m + 0x60) = board;
+    *reinterpret_cast<uint64_t *>(m + 0x58) = 1;
+    lb_work.st = 1;
+    ++ext_ea()[49];
+}
+// f_328614: one of 5 score slots, else dropped (-1)
+extern "C" U3X_FN int u3x_lb_submit(uintptr_t base, void *s, uint32_t board, int64_t score, const uint8_t *blob) {
+    board = u3x_lb_week_board(s, board);
+    for (LbSlot &k : lb_slots) {
+        if (k.used) continue;
+        for (int j = 0; j < 0x40; ++j) k.blob[j] = blob[j];
+        k.score = score;
+        k.board = board;
+        k.ticket = ona()->lb_update(base, board, reinterpret_cast<const char *>(lb_mgr(base)), score, k.blob);
+        k.used = k.ticket >= 0;
+        ++ext_ea()[51];
+        return 0;
+    }
+    ++ext_ea()[52];
+    return -1;
+}
+extern "C" U3X_FN void u3x_lb_net_error(uintptr_t base) {   // f_325618(net, 1)
+    at<uint8_t>(base + 0x17d5c58 + 0x28) = 1;
+    ++ext_ea()[53];
+}
+extern "C" U3X_FN int u3x_lb_me(uintptr_t base, const char *name) { return same_npid(reinterpret_cast<const char *>(lb_mgr(base)), name); }
+// f_329058's steps, one per frame while a ticket is pending: my rank -> my page, a page range, or the friends board
+extern "C" U3X_FN void u3x_lb_tick(uintptr_t base, void *s) {
+    if (u3x_lb_off()) return;
+    OnlineIface *o = ona();
+    uint8_t *m = lb_mgr(base);
+    uint8_t *rows = u3h_lb_buf(0), *blobs = u3h_lb_buf(1), *names = u3h_lb_buf(2), *trows = u3h_lb_buf(3), *tblobs = u3h_lb_buf(4);
+    for (LbSlot &k : lb_slots)   // finished score submits free their slot
+        if (k.used && o->lb_poll(base, k.ticket) != -2) k.used = 0;
+    if (!lb_work.st) return;
+    const uint32_t board = rd<uint32_t>(m, 0x60);
+    const int32_t req = rd<int32_t>(m, 0x64);
+    uint32_t &count = *reinterpret_cast<uint32_t *>(m + 0x70);
+    int32_t &page_now = *reinterpret_cast<int32_t *>(m + 0x74);
+    bool done = false, range = false;
+    if (lb_work.st == 1) {
+        if (u3h_m02_lb_local(base, s, m, board, req)) {   // no community server: the local profile's row
+            done = true;
+        } else {
+            *reinterpret_cast<uint32_t *>(m + 0x24) = 0;
+            if (!m[0x80]) {   // the global board
+                count = 0;
+                if (req == -1) {   // my rank first
+                    for (int i = 0; i < 0x24; ++i) names[i] = m[i];
+                    lb_work.ticket = o->lb_get(base, board, reinterpret_cast<const char *>(names), 1, trows, tblobs, 102);
+                    lb_work.st = 2;
+                    if (lb_work.ticket >= 0) return;
+                    lb_work.page = 0;
+                    u3x_lb_net_error(base);
+                } else {
+                    lb_work.page = req;
+                }
+                range = true;
+            } else {   // friends: session members, friends not in it, me
+                uint32_t n = u3h_fr_lb_names(base, reinterpret_cast<char *>(names), 101);
+                char fr[100 * 0x24];
+                uint32_t c = o->friend_names(base, fr, 100);
+                if (c > 100) c = 100;
+                for (uint32_t i = 0; i < c && n <= 100; ++i) {
+                    const char *f = fr + i * 0x24;
+                    bool dup = false;
+                    for (uint32_t k = 0; k < n && !dup; ++k) dup = same_npid(reinterpret_cast<const char *>(names) + k * 0x24, f);
+                    if (dup) continue;
+                    for (int j = 0; j < 0x24; ++j) names[n * 0x24 + j] = static_cast<uint8_t>(f[j]);
+                    ++n;
+                }
+                for (int j = 0; j < 0x24; ++j) names[n * 0x24 + j] = m[j];
+                lb_work.n = static_cast<int32_t>(n) + 1;
+                lb_work.ticket = o->lb_get(base, board, reinterpret_cast<const char *>(names), n + 1, trows, tblobs, 102);
+                lb_work.st = 4;
+                if (lb_work.ticket >= 0) return;
+                *reinterpret_cast<int32_t *>(m + 0x24) = -1;
+                u3x_lb_net_error(base);
+                done = true;
+            }
+        }
+    } else if (lb_work.st == 2) {   // my rank -> my page
+        const int32_t r = o->lb_poll(base, lb_work.ticket);
+        if (r == -2) return;
+        if (r < 0) {
+            lb_work.page = 0;
+            u3x_lb_net_error(base);
+        } else {
+            lb_work.page = r > 0 ? static_cast<int32_t>((reinterpret_cast<const LbRow *>(trows)[0].rank + 1u - 1u) / 11u) : 0;
+        }
+        range = true;
+    } else if (lb_work.st == 3) {   // the page's rows
+        int32_t r = o->lb_poll(base, lb_work.ticket);
+        if (r == -2) return;
+        if (r > 0) {
+            if (r > 11) r = 11;
+            for (int32_t i = 0; i < r; ++i) reinterpret_cast<LbRow *>(rows)[i].rank = static_cast<uint32_t>(lb_work.page * 11 + i + 1);
+            count = static_cast<uint32_t>(r);
+            ext_ea()[50] += static_cast<uint32_t>(r);
+        }
+        done = true;
+    } else if (lb_work.st == 4) {   // the friends' rows, sorted by rank, my page
+        const int32_t r = o->lb_poll(base, lb_work.ticket);
+        if (r == -2) return;
+        if (r < 0) {
+            *reinterpret_cast<int32_t *>(m + 0x24) = -1;
+            u3x_lb_net_error(base);
+        } else {
+            *reinterpret_cast<int32_t *>(m + 0x24) = r;
+            if (r == 0) {
+                count = 0;
+            } else {
+                LbRow *R = reinterpret_cast<LbRow *>(trows);
+                for (int32_t i = 0; i < r; ++i) R[i].rank += 1;   // rank = rank0 + 1
+                bool swapped;
+                do {   // bubble sort by rank, rows and blobs together
+                    swapped = false;
+                    for (int32_t i = 0; i + 1 < r; ++i) {
+                        if (!(R[i + 1].rank < R[i].rank)) continue;
+                        const LbRow t = R[i];
+                        R[i] = R[i + 1];
+                        R[i + 1] = t;
+                        for (int j = 0; j < 0x40; ++j) {
+                            const uint8_t b = tblobs[i * 0x40 + j];
+                            tblobs[i * 0x40 + j] = tblobs[(i + 1) * 0x40 + j];
+                            tblobs[(i + 1) * 0x40 + j] = b;
+                        }
+                        swapped = true;
+                    }
+                } while (swapped);
+                uint32_t me = 0;
+                for (int32_t i = 0; i < r; ++i)
+                    if (u3x_lb_me(base, R[i].name)) me = static_cast<uint32_t>(i);
+                int32_t page;
+                if (req == -1) {
+                    page = static_cast<int32_t>(me / 11u);
+                } else {
+                    int32_t mx = page_now;
+                    if (count > 10) ++mx;
+                    page = req;
+                    if (mx < req) {
+                        page = page_now;
+                        if (count > 10) ++page;
+                    }
+                }
+                count = 0;
+                page_now = page;
+                for (int32_t i = 0; i < r; ++i) {
+                    if (static_cast<uint32_t>(i) < static_cast<uint32_t>(page) * 11u || count >= 11) continue;
+                    reinterpret_cast<LbRow *>(rows)[count] = R[i];
+                    for (int j = 0; j < 0x40; ++j) blobs[count * 0x40 + j] = tblobs[i * 0x40 + j];
+                    ++count;
+                }
+                ext_ea()[50] += count;
+            }
+        }
+        done = true;
+    } else {
+        return;
+    }
+    if (range && !done) {   // the range of the page
+        page_now = lb_work.page;
+        count = 0;
+        lb_work.ticket = o->lb_range(base, board, static_cast<uint32_t>(lb_work.page) * 11u, static_cast<uint32_t>(lb_work.page) * 11u + 10u, rows, blobs, 11);
+        if (lb_work.ticket >= 0) {
+            lb_work.st = 3;
+            return;
+        }
+        done = true;
+    }
+    if (done) {
+        lb_work.st = 0;
+        *reinterpret_cast<uint64_t *>(m + 0x58) = 0;
+        ++ext_ea()[54];
+    }
+}
+// f_2551c0's tail (kind 66, 0x63a426): the widget's board index -> its query and column set (4 boards)
+extern "C" U3X_FN void u3x_lb_widget_tail(uintptr_t base, void *s, uint8_t *w, int32_t idx) {
+    *reinterpret_cast<int32_t *>(w + 0x20) = idx;
+    if (idx < 0 || idx > 3) idx = 0;
+    const uint32_t *tb = &ext_ea()[200 + idx * 3];
+    if (!u3x_lb_off()) u3x_lb_query(base, s, tb[0], rd<int32_t>(w, 0x1c));
+    *reinterpret_cast<uint32_t *>(w + 0x10) = tb[1];
+    ++ext_ea()[55];
+}
+extern "C" U3X_FN int u3x_lb_kind(uintptr_t base, void *s, uint64_t *ev, int kind) {
+    if (kind == 66) {
+        u3x_lb_widget_tail(base, s, reinterpret_cast<uint8_t *>(ev[0]), static_cast<int32_t>(ev[2]));
+        return 1;
+    }
+    if (kind == 67) {
+        u3h_pm119(base, s, reinterpret_cast<uint8_t *>(ev[0]));
+        return 1;
+    }
+    return 0;
+}
+
+// ===== v7.207: fourth split, part 11 (the LAN backend class) =====
+
+extern "C" {
+U3H_IMPORT void u3h_lnb_follow_tick(void *be, uintptr_t base, void *s);
+U3H_IMPORT void u3h_lnb_cli_update(uintptr_t base, void *bind);
+U3H_IMPORT void u3h_lnb_send_join(void *be, void *bind, uint8_t *ss, int host, int32_t *res);
+U3H_IMPORT void u3h_lnb_rank_stamp(void *be, uint8_t *md, uint32_t len);
+U3H_IMPORT uint64_t *u3h_lnb_match_room(void);
+U3H_IMPORT uint8_t *u3h_lnb_udpbuf(void);
+}
+
+// b010: PS3's LAN backend class (vtable 0x10f8018) behind the PS4 session code: slot 1 Update (LAN discovery: 0xc8 asks,
+// 0xc9 answers with the rooms of the sessions this PC hosts; then each binding's room server and client), 2 Shutdown,
+// 3 AttachSession, 4 Create (host a room server on 0x2333 (party) / 0x2332 (match), join it through 127.0.0.1, wait up to
+// 3 s for the room reply), 5 Search (broadcast 0xc8 on 0x2334), 6 Join, 7 Leave, 9 Kick, 12 MemberData, and with
+// U3MP_LAN_SOLO 11 (create a net player per member) / 14 (the host raises the start-load flag); the other slots do nothing.
+// Up to 4 session bindings {session, room server, client socket, receive buffer}; the Find a Party list (20 rooms of
+// 0x38) at +0x58. Without sockets (or without a room reply) U3MP_LAN_SOLO (eb[0] bit 1 clear) makes a one-member room
+// locally. ExtState eb: [64..93] backend counters (see the C part's b010 notes).
+namespace {
+struct LanBind {
+    uint8_t *session;
+    RoomServer srv;
+    Sock cli;
+    uint32_t rxlen;
+    uint8_t rx[0x800];
+};
+static_assert(sizeof(LanBind) == 0x9140 && __builtin_offsetof(LanBind, cli) == 0x8930 && __builtin_offsetof(LanBind, rx) == 0x8940);
+struct LanBackend {
+    void **vt;
+    char name[0x24];
+    uint8_t pad2c[0x24];
+    int32_t nrooms;
+    uint32_t pad54;
+    uint8_t rooms[20][0x38];
+    LanBind b[4];
+    uint32_t uport;
+    Sock udp;
+    uintptr_t base;
+    void *state;
+};
+static_assert(sizeof(LanBackend) == 0x249d8 && __builtin_offsetof(LanBackend, b) == 0x4b8 && __builtin_offsetof(LanBackend, udp) == 0x249bc &&
+              __builtin_offsetof(LanBackend, base) == 0x249c8);
+constexpr uint32_t lan_loopback = 0x0100007fu;   // 127.0.0.1 as stored in a sockaddr
+U3X_RO const char default_player[] = "Player";
+U3X_FN LanBackend &lan_be(void *be) { return *static_cast<LanBackend *>(be); }
+U3X_FN bool lan_solo_on() { return !(ext_eb()[0] & 2); }
+U3X_FN uint8_t *lan_match_ss(uintptr_t base) { return reinterpret_cast<uint8_t *>(base + 0x17d6420); }
+U3X_FN uint8_t *lan_party_ss(uintptr_t base) { return reinterpret_cast<uint8_t *>(base + 0x17dc298); }
+U3X_FN void clear_members(uintptr_t base, uint8_t *ss) { game_call<int64_t>(base + 0x7a25f0, ss); }
+U3X_FN void usleep_us(uint32_t us) {   // sys_timer_usleep, when the builder found it
+    const uintptr_t f = *reinterpret_cast<const uintptr_t *>(&ext_eb()[10]);
+    if (f) reinterpret_cast<int (*)(uint32_t)>(f)(us);
+}
+// the slot call counters and the last 32 slots (state +1900 / +1904), probe +0xb0 / +0xb4
+U3X_FN void note_slot(LanBackend &be, int slot) {
+    uint32_t *eb = ext_eb();
+    ++eb[67];
+    eb[68] = static_cast<uint32_t>(slot);
+    if (!be.state) return;
+    uint8_t *st = static_cast<uint8_t *>(be.state);
+    ++*reinterpret_cast<uint32_t *>(st + 1280 + 0xb0);
+    *reinterpret_cast<uint32_t *>(st + 1280 + 0xb4) = static_cast<uint32_t>(slot);
+    uint32_t &h = *reinterpret_cast<uint32_t *>(st + 1900);
+    st[1904 + h % 32] = static_cast<uint8_t>(slot);
+    ++h;
+}
+U3X_FN int bind_of(LanBackend &be, const uint8_t *ss) {
+    for (int i = 0; i < 4; ++i)
+        if (be.b[i].session == ss) return i;
+    return -1;
+}
+U3X_FN bool session_hosting(uint8_t *ss) { return (u3h_lnb_call(ss, 0) & 0xff) != 0; }
+}  // namespace
+extern "C" U3X_FN int64_t u3x_lnb_s12(void *be, uint8_t *ss, const uint8_t *data, uint32_t len);
+// slot 1, Update (f_38199c)
+extern "C" U3X_FN int64_t u3x_lnb_s1(void *be_) {
+    LanBackend &be = lan_be(be_);
+    const uintptr_t base = be.base;
+    uint32_t *eb = ext_eb();
+    ++eb[84];
+    u3h_lnb_follow_tick(be_, be.base, be.state);
+    uint8_t *buf = u3h_lnb_udpbuf();
+    if (u3x_sock_open(&be.udp) && net_fn(net_recvfrom))
+        for (;;) {
+            for (int k = 0; k < 0x1000; ++k) buf[k] = 0;
+            uint32_t ip = 0, port = 0;
+            const int32_t n = u3x_sock_recvfrom(&be.udp, buf, 0xfff, &ip, &port);
+            if (n < 1) break;
+            ByteStream rd_s{buf, 0, static_cast<uint32_t>(n)};
+            const uint32_t id = static_cast<uint32_t>(u3x_stream_get(&rd_s, 1));
+            if (id == 0xc8) {   // someone looks for rooms: answer with ours
+                if (ip == be.udp.ip) continue;   // our own broadcast
+                uint8_t out[0x800];
+                ByteStream w{out, 0, 0x800};
+                u3x_stream_put(&w, 0xc9, 1);
+                uint32_t cnt = 0;
+                for (const LanBind &b : be.b)
+                    if (b.session && session_hosting(b.session) && u3x_lnb_srv_running(&b.srv)) ++cnt;
+                u3x_stream_put(&w, cnt, 4);
+                for (LanBind &b : be.b) {
+                    if (!b.session || !session_hosting(b.session) || !u3x_lnb_srv_running(&b.srv)) continue;
+                    uint8_t blk[0x80];
+                    for (uint8_t &x : blk) x = 0;
+                    for (int k = 0; k < 0x24; ++k) blk[k] = static_cast<uint8_t>(be.name[k]);
+                    u3x_stream_put(&w, b.srv.listen.port & 0xffff, 2);
+                    u3x_stream_put(&w, b.srv.room, 8);
+                    u3x_stream_put(&w, u3x_lnb_srv_count(&b.srv), 2);
+                    u3x_stream_put(&w, b.srv.maxp & 0xffff, 2);
+                    for (int k = 0; k < 0x80; ++k) u3x_stream_put(&w, blk[k], 1);
+                }
+                u3x_sock_sendto(&be.udp, out, w.pos < w.max ? w.pos : w.max, ip, port);
+                ++eb[74];
+            } else if (id == 0xc9) {   // an answer: its rooms go into the Find a Party list
+                const uint32_t cnt = static_cast<uint32_t>(u3x_stream_get(&rd_s, 4));
+                for (uint32_t i = 0; i < cnt && rd_s.pos < 0x1000; ++i) {
+                    const uint32_t rport = static_cast<uint32_t>(u3x_stream_get(&rd_s, 2));
+                    const uint64_t room = u3x_stream_get(&rd_s, 8);
+                    const uint32_t members = static_cast<uint32_t>(u3x_stream_get(&rd_s, 2)), cap = static_cast<uint32_t>(u3x_stream_get(&rd_s, 2));
+                    uint8_t blk[0x80];
+                    for (uint8_t &x : blk) x = static_cast<uint8_t>(u3x_stream_get(&rd_s, 1));
+                    if (be.nrooms >= 20) continue;
+                    uint8_t *e = be.rooms[be.nrooms];
+                    *reinterpret_cast<uint64_t *>(e) = room;
+                    *reinterpret_cast<uint32_t *>(e + 8) = ip;
+                    *reinterpret_cast<uint16_t *>(e + 0xc) = static_cast<uint16_t>(rport);
+                    *reinterpret_cast<uint16_t *>(e + 0xe) = static_cast<uint16_t>(members);
+                    *reinterpret_cast<uint16_t *>(e + 0x10) = static_cast<uint16_t>(cap);
+                    for (int k = 0; k < 0x24; ++k) e[0x12 + k] = blk[k];
+                    ++be.nrooms;
+                    ++eb[75];
+                }
+            } else {
+                ++eb[83];   // PS3 traps here
+            }
+        }
+    for (LanBind &b : be.b) {
+        if (!b.session) continue;
+        u3x_lnb_srv_update(&b.srv);
+        u3h_lnb_cli_update(base, &b);
+    }
+    return 0;
+}
+// slot 2, Shutdown (f_3818d0)
+extern "C" U3X_FN int64_t u3x_lnb_s2(void *be_) {
+    LanBackend &be = lan_be(be_);
+    note_slot(be, 2);
+    int32_t r = u3x_sock_close(&be.udp);
+    for (LanBind &b : be.b)
+        if (b.session && u3x_sock_open(&b.cli)) r = u3x_sock_close(&b.cli);
+    return r;
+}
+// slot 3, AttachSession (f_382720)
+extern "C" U3X_FN int64_t u3x_lnb_s3(void *be_, uint8_t *ss) {
+    LanBackend &be = lan_be(be_);
+    note_slot(be, 3);
+    int i = bind_of(be, ss);
+    if (i >= 0) return i;
+    for (i = 0; i < 4; ++i)
+        if (!be.b[i].session) {
+            be.b[i].session = ss;
+            *reinterpret_cast<void **>(ss + 8) = be_;
+            return i;
+        }
+    return -1;
+}
+// U3MP_LAN_SOLO: a one-member room with this PC hosting (no sockets, or no room reply)
+extern "C" U3X_FN void u3x_lnb_solo_create(void *be_, uint8_t *ss, uint32_t maxp) {
+    LanBackend &be = lan_be(be_);
+    ++ext_eb()[82];
+    if (be.state) ++*reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(be.state) + 1280 + 0xac);
+    *reinterpret_cast<void **>(ss + 8) = be_;
+    uint8_t *m = ss + 0x680;
+    for (int k = 0; k < 0x120; ++k) m[k] = 0;
+    const char *name = be.state ? u3h_onp_id(be.state) : default_player;
+    for (int i = 0; i < 31 && name[i]; ++i) m[i] = static_cast<uint8_t>(name[i]);
+    m[0x25] = 1;
+    *reinterpret_cast<uint32_t *>(m + 0x2c) = 1;
+    *reinterpret_cast<uint32_t *>(m + 0x34) = 0;
+    *reinterpret_cast<uint32_t *>(ss + 0x18) = 1;
+    *reinterpret_cast<uint32_t *>(ss + 0x12e4) = 1;
+    *reinterpret_cast<uint32_t *>(ss + 0x12e8) = 1;
+    *reinterpret_cast<uint32_t *>(ss + 0x20c) = maxp;
+    *reinterpret_cast<int32_t *>(ss + 0xa4) = 0;
+    ss[0xa1] = 1;
+}
+// slot 4, Create (f_382d9c): our room server, joined through 127.0.0.1; up to 30 x 100 ms for the room reply
+extern "C" U3X_FN int64_t u3x_lnb_s4(void *be_, uint8_t *ss, uint32_t maxp) {
+    LanBackend &be = lan_be(be_);
+    uint32_t *eb = ext_eb();
+    note_slot(be, 4);
+    ++eb[69];
+    const uintptr_t base = be.base;
+    const int i = bind_of(be, ss);
+    if (i < 0) {
+        eb[70] = static_cast<uint32_t>(-1);
+        return -1;
+    }
+    LanBind &b = be.b[i];
+    const uint32_t port = session_hosting(ss) ? 0x2333 : 0x2332;
+    const int32_t sr = u3x_lnb_srv_start(&b.srv, 1, port, maxp);
+    if (sr < 0 && lan_solo_on()) {
+        u3x_lnb_solo_create(be_, ss, maxp);
+        eb[70] = 0;
+        return 0;
+    }
+    clear_members(base, ss);
+    *reinterpret_cast<uint32_t *>(ss + 0x20c) = maxp;
+    b.rxlen = 0;
+    u3x_sock_connect(&b.cli, lan_loopback, port, 0, 0);   // the result is unused, as on PS3
+    u3h_lnb_call(be_, 1);
+    int32_t r;
+    u3h_lnb_send_join(be_, &b, ss, 1, &r);
+    eb[92] = static_cast<uint32_t>(r);
+    ss[0xa1] = 0;
+    for (int k = 0; k < 30; ++k) {
+        usleep_us(100000);
+        u3h_lnb_call(be_, 1);
+        if (!ss[0xa1]) continue;
+        ss[0xa1] = 1;
+        if (!rd<uint64_t>(ss, 0x18)) *reinterpret_cast<int32_t *>(ss + 0xa4) = -1;
+        eb[70] = static_cast<uint32_t>(r);
+        if (ss == lan_match_ss(base) && rd<uint64_t>(ss, 0x18)) {   // x010: the party learns the match room
+            uint8_t *ps = lan_party_ss(base);
+            *u3h_lnb_match_room() = rd<uint64_t>(ss, 0x18);
+            if (rd<uint64_t>(ps, 0x18) && rd<uint32_t>(ps, 0x12e4) == rd<uint32_t>(ps, 0x12e8) && rd<uint32_t>(ps, 0x12f0) == 0x40) {
+                u3x_lnb_s12(be_, ps, ps + 0x12f4, 0x40);
+                ++reinterpret_cast<uint32_t *>(u3h_ext() + 0xbc0)[24];
+            }
+        }
+        return r;
+    }
+    u3x_lnb_srv_stop(&b.srv);
+    if (lan_solo_on()) {
+        u3x_sock_close(&b.cli);
+        u3x_lnb_solo_create(be_, ss, maxp);
+        eb[70] = 0;
+        return 0;
+    }
+    eb[70] = static_cast<uint32_t>(-1);
+    return -1;
+}
+// slot 5, Search (f_3817ec): broadcast 0xc8
+extern "C" U3X_FN int64_t u3x_lnb_s5(void *be_) {
+    LanBackend &be = lan_be(be_);
+    note_slot(be, 5);
+    be.nrooms = 0;
+    uint8_t out[0x10];
+    ByteStream w{out, 0, 0x10};
+    u3x_stream_put(&w, 200, 1);
+    if (u3x_sock_open(&be.udp) && net_fn(net_sendto)) {
+        u3x_sock_sendto(&be.udp, out, w.pos, 0xffffffffu, be.uport & 0xffff);
+        ++ext_eb()[73];
+    }
+    return 0;
+}
+// slot 6, Join (f_382af0): connect to the room's host, send the join, wait up to 30 x 100 ms
+extern "C" U3X_FN int64_t u3x_lnb_s6(void *be_, uint8_t *ss, uint64_t room) {
+    LanBackend &be = lan_be(be_);
+    uint32_t *eb = ext_eb();
+    note_slot(be, 6);
+    ++eb[71];
+    const uintptr_t base = be.base;
+    const int i = bind_of(be, ss);
+    if (i < 0) {
+        eb[72] = static_cast<uint32_t>(-1);
+        return -1;
+    }
+    LanBind &b = be.b[i];
+    u3x_sock_close(&b.cli);
+    u3x_lnb_srv_stop(&b.srv);
+    clear_members(base, ss);
+    b.rxlen = 0;
+    int32_t r = u3x_sock_connect(&b.cli, __builtin_bswap32(static_cast<uint32_t>(room >> 32)), static_cast<uint32_t>(room >> 16) & 0xffff, 0, 0);
+    if (r < 0) {
+        *reinterpret_cast<int32_t *>(ss + 0xbc) = r;
+        ss[0xb8] = 1;
+        eb[72] = static_cast<uint32_t>(r);
+        return r;
+    }
+    u3h_lnb_call(be_, 1);
+    u3h_lnb_send_join(be_, &b, ss, 0, &r);
+    *reinterpret_cast<uint64_t *>(ss + 0x18) = room;
+    ss[0xb8] = 0;
+    *reinterpret_cast<int32_t *>(ss + 0xbc) = 0;
+    for (int k = 0;; ++k) {
+        if (!rd<uint64_t>(ss, 0x18)) {
+            *reinterpret_cast<int32_t *>(ss + 0xbc) = -1;
+            break;
+        }
+        if (k == 30) {
+            u3x_lnb_srv_stop(&b.srv);
+            eb[72] = static_cast<uint32_t>(-1);
+            return -1;
+        }
+        usleep_us(100000);
+        u3h_lnb_call(be_, 1);
+        if (ss[0xb8]) {
+            if (!rd<uint64_t>(ss, 0x18)) *reinterpret_cast<int32_t *>(ss + 0xbc) = -1;
+            break;
+        }
+    }
+    ss[0xb8] = 1;
+    eb[72] = static_cast<uint32_t>(r);
+    return r;
+}
+// slot 7, Leave (f_382a18)
+extern "C" U3X_FN int64_t u3x_lnb_s7(void *be_, uint8_t *ss) {
+    LanBackend &be = lan_be(be_);
+    note_slot(be, 7);
+    const int i = bind_of(be, ss);
+    if (i < 0) return -1;
+    if (ss == lan_match_ss(be.base)) *u3h_lnb_match_room() = 0;
+    u3x_sock_close(&be.b[i].cli);
+    u3x_lnb_srv_stop(&be.b[i].srv);
+    *reinterpret_cast<uint64_t *>(ss + 0x18) = 0;
+    clear_members(be.base, ss);
+    return 0;
+}
+// slot 9, Kick (f_382950): 0xd1 to the room server; room[16..23] keep who asked (x009)
+extern "C" U3X_FN int64_t u3x_lnb_s9(void *be_, uint8_t *ss, uint32_t id) {
+    LanBackend &be = lan_be(be_);
+    note_slot(be, 9);
+    const int i = bind_of(be, ss);
+    if (i < 0) return -1;
+    {
+        uint32_t *room = reinterpret_cast<uint32_t *>(u3h_ext() + 0xbc0);
+        const uintptr_t *fp = static_cast<const uintptr_t *>(__builtin_frame_address(0));
+        ++room[16];
+        room[17] = id;
+        for (int k = 0; k < 6 && fp && (reinterpret_cast<uintptr_t>(fp) & 7) == 0; ++k) {
+            room[18 + k] = static_cast<uint32_t>(fp[1] - be.base);
+            fp = reinterpret_cast<const uintptr_t *>(fp[0]);
+        }
+    }
+    if (rd<uint64_t>(ss, 0x18)) {
+        uint8_t o[0x10];
+        *reinterpret_cast<uint32_t *>(o) = 0xd1;
+        *reinterpret_cast<uint32_t *>(o + 4) = id;
+        *reinterpret_cast<uint64_t *>(o + 8) = rd<uint64_t>(ss, 0x18);
+        u3x_sock_send(&be.b[i].cli, o, 0x10, 1);
+        ++ext_eb()[88];
+    }
+    return 0;
+}
+// slot 12, MemberData (f_3827ec): up to 0x40 bytes, stamped with our rank, sent as 0xcd
+extern "C" U3X_FN int64_t u3x_lnb_s12(void *be_, uint8_t *ss, const uint8_t *data, uint32_t len) {
+    LanBackend &be = lan_be(be_);
+    note_slot(be, 12);
+    if (len > 0x40) return -1;   // PS3 traps
+    *reinterpret_cast<uint32_t *>(ss + 0x12f0) = len;
+    for (uint32_t k = 0; k < len; ++k) ss[0x12f4 + k] = data[k];
+    const int i = bind_of(be, ss);
+    if (i < 0) return -1;
+    if (rd<uint64_t>(ss, 0x18)) {
+        uint8_t o[0x50];
+        for (uint8_t &x : o) x = 0;
+        *reinterpret_cast<uint32_t *>(o) = 0xcd;
+        *reinterpret_cast<uint32_t *>(o + 4) = len;
+        *reinterpret_cast<uint64_t *>(o + 8) = rd<uint64_t>(ss, 0x18);
+        for (uint32_t k = 0; k < len; ++k) o[0x10 + k] = data[k];
+        u3h_lnb_rank_stamp(be_, o + 0x10, len);
+        u3x_sock_send(&be.b[i].cli, o, 0x50, 1);
+        ++ext_eb()[89];
+    }
+    return 0;
+}
+// slot 11 with U3MP_LAN_SOLO: when the match starts (lock), a net player per session member (0x72eca0), team -1, not ready
+extern "C" U3X_FN int64_t u3x_lnb_s11(void *be_, uint8_t *ss, int32_t lock) {
+    LanBackend &be = lan_be(be_);
+    note_slot(be, 11);
+    if (!lan_solo_on()) return 0;
+    const uintptr_t base = be.base;
+    if (!be.state) return 0;
+    const uintptr_t create = state_native(be.state, 8);
+    if (!lock || !ss || !create || at<uintptr_t>(base + 0x17cb060 + 0x380)) return 0;
+    for (int i = 0; i < 10; ++i) {
+        uint8_t *m = ss + 0x680 + i * 0x120;
+        if (!m[0x25]) continue;
+        uint8_t *pl = reinterpret_cast<uint8_t *(*)(uintptr_t, uint8_t *, uint8_t *, uint32_t, uint32_t)>(create)(base + 0x17cb060, ss, m, 0, 0);
+        if (pl) {
+            *reinterpret_cast<int32_t *>(pl + 0x21c) = -1;
+            pl[0x365] = 0;
+            ++ext_eb()[93];
+        }
+    }
+    return 0;
+}
+// slot 14 with U3MP_LAN_SOLO: every member connected: the host raises the start-load flag
+extern "C" U3X_FN int64_t u3x_lnb_s14(void *be_, uint8_t *ss) {
+    LanBackend &be = lan_be(be_);
+    note_slot(be, 14);
+    if (lan_solo_on() && ss && rd<uint32_t>(ss, 0x12e4) == rd<uint32_t>(ss, 0x12e8)) ss[0x1338] = 1;
+    return 0;
+}
+extern "C" U3X_FN int64_t u3x_lnb_s_nop(void *) {
+    ++ext_eb()[67];
+    return 0;
+}
+// f_38305c: the bindings and the UDP socket closed, the vtable set
+extern "C" U3X_FN void u3x_lnb_ctor(void *be_, void **vt) {
+    LanBackend &be = lan_be(be_);
+    for (LanBind &b : be.b) {
+        u3x_lnb_srv_ctor(&b.srv);
+        u3x_sock_init(&b.cli);
+        b.session = nullptr;
+        b.rxlen = 0;
+    }
+    u3x_sock_init(&be.udp);
+    be.vt = vt;
+}
+// the vtable: slot 0 (Open, the C part's) given, the slots above, every other slot a no-op (addresses taken RIP-relative:
+// the helper link has no absolute relocations)
+extern "C" U3X_FN void u3x_lnb_vtable(void **vt, void *slot0) {
+    void *fp;
+    __asm__ volatile("leaq u3x_lnb_s_nop(%%rip),%0" : "=r"(fp));
+    for (int i = 0; i < 32; ++i) vt[i] = fp;
+    vt[0] = slot0;
+    __asm__ volatile("leaq u3x_lnb_s1(%%rip),%0" : "=r"(fp));
+    vt[1] = fp;
+    __asm__ volatile("leaq u3x_lnb_s2(%%rip),%0" : "=r"(fp));
+    vt[2] = fp;
+    __asm__ volatile("leaq u3x_lnb_s3(%%rip),%0" : "=r"(fp));
+    vt[3] = fp;
+    __asm__ volatile("leaq u3x_lnb_s4(%%rip),%0" : "=r"(fp));
+    vt[4] = fp;
+    __asm__ volatile("leaq u3x_lnb_s5(%%rip),%0" : "=r"(fp));
+    vt[5] = fp;
+    __asm__ volatile("leaq u3x_lnb_s6(%%rip),%0" : "=r"(fp));
+    vt[6] = fp;
+    __asm__ volatile("leaq u3x_lnb_s7(%%rip),%0" : "=r"(fp));
+    vt[7] = fp;
+    __asm__ volatile("leaq u3x_lnb_s9(%%rip),%0" : "=r"(fp));
+    vt[9] = fp;
+    __asm__ volatile("leaq u3x_lnb_s11(%%rip),%0" : "=r"(fp));
+    vt[11] = fp;
+    __asm__ volatile("leaq u3x_lnb_s12(%%rip),%0" : "=r"(fp));
+    vt[12] = fp;
+    __asm__ volatile("leaq u3x_lnb_s14(%%rip),%0" : "=r"(fp));
+    vt[14] = fp;
+}
+
+// ===== v7.208: fourth split, part 12 (the round results overlay) =====
+
+extern "C" {
+U3H_IMPORT int32_t u3h_pm_type(uintptr_t base, void *s);
+U3H_IMPORT int u3h_pm_coop(uintptr_t base, void *s);
+U3H_IMPORT void u3h_ol01_tick(uintptr_t base);
+U3H_IMPORT void u3h_rc_auto_tick(uintptr_t base);
+}
+
+// b019 / b020: PS3 1.19 f_376b14 (state) and f_3768cc (draw) of the two per-screen results objects (0x17dd670 +
+// 0x74 * screen: +0 dead, 4 slots of 24 bytes from +8 {on, alpha f32 +4, speed f32 +8, dim +12, page +16}, previous
+// state +0x68, +0x6c), which PS4 lost, run from the menu draw (kind 77). Slot 0 is the Select-toggled scoreboard, 2 the
+// RESULTS page, 3 the scoreboard of type-10 games; slot pages draw through f_26748c (0x624500 / 0x627520 and the
+// children's draw slot). Float maths in x87 as the C part (this part is built without SSE). U3MP_RESULTS_SLOT0=1
+// (eb[0] bit 7) only lets slot 0 switch on. ExtState eb: [180] frames, [181] state runs, [182] pages drawn, [183] draws
+// refused, [184] last page, [185] Select toggles, [186] screen-1 draws, [187] dim requests, [188] held-back slots,
+// [189] callee check failures, [190] slot-0 alpha bits, [191] slot-3 pages set.
+namespace {
+U3X_RO const uint32_t r19_pad_cmds[10] = {0xa2f8d3cdu, 0xa399fa92u, 0x2ee96703u, 0x187bb094u, 0x34c51705u, 0xee1dac26u, 0x91a1a1d3u, 0xb7c467f4u, 0xc1e54d53u, 0};
+U3X_RO const uint32_t r19_fn[8] = {0x624500u, 0x627520u, 0x658050u, 0x10dda70u, 0x796640u, 0x1197380u, 0x63c430u, 0};
+U3X_RO const uint32_t r19_pro[8] = {0xe5894855u, 0xe5894855u, 0x0d8d4853u, 0xe5894855u, 0xe5894855u, 0xe5894855u, 0xe5894855u, 0};
+U3X_BSS uint8_t r19_ok;
+U3X_BSS uint8_t r20_init[2];
+U3X_BSS uint8_t r19_out[0x320];
+U3X_FN uint8_t *r19_proc(uintptr_t base) { return u3x_rp_h(reinterpret_cast<const uint8_t *>(base + 0x1b3ee38)); }
+U3X_FN void r19_ident(float *t) {   // f_263fd4
+    for (int i = 0; i < 10; ++i) t[i] = x87_const(0);
+    t[0] = t[1] = t[2] = t[3] = t[4] = t[7] = x87_const(0x3f800000u);
+}
+U3X_FN void r19_mul(float *a, const float *b) {   // f_2642e8
+    a[0] *= b[0];
+    a[1] *= b[1];
+    a[2] *= b[2];
+    a[3] *= b[3];
+    a[4] *= b[4];
+    a[5] += b[5];
+    a[6] += b[6];
+    a[7] *= b[7];
+    a[8] += b[8];
+    a[9] += b[9];
+}
+U3X_FN uint8_t *r19_vt(uint8_t *o, uint32_t off) {   // the object's vtable entry, when everything is a valid pointer
+    uint8_t *v = ptr_ok(o) ? rd<uint8_t *>(o, 0) : nullptr;
+    return ptr_ok(v) && ptr_ok(rd<void *>(v, off)) ? rd<uint8_t *>(v, off) : nullptr;
+}
+// f_23704c as PS4 inlines it: the children drawn, the focused one last over the screen fade
+U3X_FN void r19_children(uintptr_t base, uint8_t *page, uint8_t *ctx) {
+    int32_t n = rd<int32_t>(page, 0xac);
+    uint8_t **a = rd<uint8_t **>(page, 0xb0);
+    if (n <= 0) n = 0;
+    if (n > 64 || (n && !ptr_ok(a))) {
+        ++ext_eb()[183];
+        return;
+    }
+    uint8_t *focus = nullptr;
+    for (int32_t i = 0; i < n; ++i)
+        if (ptr_ok(a[i]) && a[i][8]) {
+            focus = a[i];
+            break;
+        }
+    for (int32_t i = 0; i < n; ++i) {
+        uint8_t *c = a[i];
+        if (c == focus) continue;
+        if (uint8_t *f = r19_vt(c, 0x18)) reinterpret_cast<void (*)(uint8_t *, void *, uint8_t *)>(f)(c, nullptr, ctx);
+    }
+    const uint32_t saved = at<uint32_t>(base + 0x16e8110);
+    at<uint32_t>(base + 0x16e8110) = 0x3f800000u;
+    game_call<void>(base + 0x63c430, static_cast<void *>(nullptr), static_cast<void *>(nullptr));
+    if (focus)
+        if (uint8_t *f = r19_vt(focus, 0x18)) reinterpret_cast<void (*)(uint8_t *, void *, uint8_t *)>(f)(focus, nullptr, ctx);
+    at<uint32_t>(base + 0x16e8110) = saved;
+}
+// f_26748c(menu, page id, alpha, offset): the page drawn over the game (floats passed as bits)
+U3X_FN void r19_page_draw(uintptr_t base, uint8_t *menu, uint32_t id, uint32_t alpha_bits, uint32_t ofs_x_bits, uint32_t ofs_y_bits) {
+    uint32_t *eb = ext_eb();
+    if (rd<uint32_t>(menu, 8)) {   // a menu page is up
+        ++eb[183];
+        return;
+    }
+    uint8_t *page = nullptr;
+    for (int i = 0; i <= 0x9f; ++i) {
+        uint8_t *p = rd<uint8_t *>(menu, 0x390 + 8 * i);
+        if (!p) break;
+        if (ptr_ok(p) && rd<uint32_t>(p, 0x10) == id) {
+            page = p;
+            break;
+        }
+    }
+    if (!page || !r19_vt(page, 0x10) || !r19_vt(page, 0x30)) {
+        ++eb[183];
+        return;
+    }
+    const uint32_t g = menu[0xdf5];
+    at<uint32_t>(base + 0x17c23a0) = g;
+    *reinterpret_cast<uint32_t *>(menu + 0x2694) = g;
+    alignas(16) uint8_t ctx[0x50];
+    for (uint8_t &b : ctx) b = 0;
+    float t1[10];
+    r19_ident(t1);
+    t1[4] = x87_float(alpha_bits);
+    *reinterpret_cast<uint8_t **>(ctx) = menu + 0x10;
+    for (int i = 0; i < 10; ++i) reinterpret_cast<float *>(ctx + 8)[i] = t1[i];
+    uint32_t *box = reinterpret_cast<uint32_t *>(ctx + 0x30);
+    box[0] = 0;
+    box[1] = 0;
+    box[2] = 0x44a00000u;
+    box[3] = 0x44340000u;
+    *reinterpret_cast<float *>(ctx + 0x40) = static_cast<float>(at<int32_t>(base + 0x17b4a90 + 0x114)) / x87_const(0x43960000u);
+    ctx[0x44] = rd<uint32_t>(menu, 0xc) == 1;
+    *reinterpret_cast<uint32_t *>(ctx + 0x48) = rd<uint32_t>(menu, 0x13fc);
+    ctx[0x44] = 0;   // PS3 clears it again
+    float t2[10];
+    r19_ident(t2);
+    t2[8] = x87_float(ofs_x_bits);
+    t2[9] = x87_float(ofs_y_bits);
+    r19_mul(reinterpret_cast<float *>(ctx + 8), t2);
+    int32_t st = game_call<int32_t>(base + 0x658050, menu, 0, 0);
+    if (st == 8) st = 5;
+    else if (static_cast<uint32_t>(st - 1) > 1u) st = 0;
+    {
+        const uint32_t idx = 2u + (g > 0);
+        uint8_t *pads = at<uint8_t *>(base + 0x16e2fa0);
+        if (ptr_ok(pads)) game_call<void>(base + 0x10dda70, pads + 0x7e0 + idx * 0x1d8, idx, 2u, r19_pad_cmds, 0x24u);
+    }
+    reinterpret_cast<void (*)(uint8_t *, int)>(r19_vt(page, 0x30))(page, 1);
+    struct {
+        uint8_t *menu;
+        int32_t st;
+        uint32_t dt;
+    } u;
+    u.menu = menu;
+    u.st = st;
+    u.dt = at<uint32_t>(base + 0x17b4a90 + 0x11c);
+    reinterpret_cast<void (*)(uint8_t *, void *)>(r19_vt(page, 0x10))(page, &u);
+    for (uint8_t &b : r19_out) b = 0;
+    game_call<void>(base + 0x624500, page, static_cast<uint8_t *>(ctx), static_cast<uint8_t *>(r19_out));
+    alignas(16) uint8_t rect[16];
+    for (int i = 0; i < 16; ++i) rect[i] = r19_out[i];
+    game_call<void>(base + 0x627520, page, static_cast<void *>(nullptr), static_cast<uint8_t *>(ctx), static_cast<uint8_t *>(ctx + 8), static_cast<uint8_t *>(rect));
+    r19_children(base, page, ctx);
+    ++eb[182];
+    eb[184] = id;
+}
+// f_37666c = 0x796640(obj, slot, on, sound)
+U3X_FN void r19_set(uintptr_t base, uint8_t *obj, uint32_t slot, bool on, bool snd) {
+    if (slot && on && (ext_eb()[0] & 0x80)) {   // U3MP_RESULTS_SLOT0=1
+        ++ext_eb()[188];
+        return;
+    }
+    game_call<void>(base + 0x796640, obj, slot, on ? 1u : 0u, snd ? 1u : 0u);
+}
+U3X_FN void r19_clr4(uint8_t *o) {
+    o[8 + 0x48] = 0;
+    o[8] = 0;
+    o[8 + 0x18] = 0;
+    o[8 + 0x30] = 0;
+}
+U3X_FN uint32_t r19_state_id(uint8_t *o) {   // f_959844: the process's state id
+    if (!ptr_ok(o)) return 0;
+    uint8_t *a = rd<uint8_t *>(o, 0x80);
+    if (!ptr_ok(a)) return 0;
+    uint8_t *b = rd<uint8_t *>(a, 0);
+    if (!ptr_ok(b)) return 0;
+    uint8_t *c = rd<uint8_t *>(b, 0x10);
+    if (!ptr_ok(c)) return 0;
+    return rd<uint32_t>(c, 0x18);
+}
+U3X_FN void r19_query(uintptr_t base, uint32_t msg, uint64_t *ret) {   // f_9555d0(ret, 0, msg, the game process, no args)
+    uint64_t a0[3], a1[3], a2[3], a3[3];
+    for (int k = 0; k < 3; ++k) a0[k] = a1[k] = a2[k] = a3[k] = 0;
+    ret[0] = ret[1] = ret[2] = 0;
+    game_call<void>(base + 0x1197380, static_cast<void *>(ret), static_cast<void *>(nullptr), msg, static_cast<void *>(r19_proc(base)),
+                    static_cast<void *>(a0), static_cast<void *>(a1), static_cast<void *>(a2), static_cast<void *>(a3));
+}
+U3X_FN bool r19_dead(const uint8_t *t) { return rd<int32_t>(t, 0x3a0) < rd<int32_t>(t, 0x39c); }
+U3X_FN bool r19_menu_up(const uint8_t *m) { return rd<uint32_t>(m, 8) && rd<uint32_t>(m, 0xc) == 1; }
+}  // namespace
+extern "C" U3X_FN int u3x_r19_callees(uintptr_t base) {
+    if (r19_ok) return r19_ok == 1;
+    r19_ok = 1;
+    for (int i = 0; r19_fn[i]; ++i)
+        if (at<uint32_t>(base + r19_fn[i]) != r19_pro[i]) {
+            r19_ok = 2;
+            ++ext_eb()[189];
+        }
+    return r19_ok == 1;
+}
+// f_376b14(obj): which slots show, then the slots' alpha moves toward on / off
+extern "C" U3X_FN void u3x_r19_tick(uintptr_t base, void *s, uint8_t *obj, int scr) {
+    uint8_t *mgr = reinterpret_cast<uint8_t *>(base + 0x17cb060);
+    uint32_t *eb = ext_eb();
+    const bool mp = at<uint8_t>(base + 0x17d5c61) != 0;
+    const bool split = mp && (at<uint8_t>(base + 0x17d7a50 + 182) || at<int32_t>(base + 0x17f2fc0) == 3);
+    if (!split && scr) return;
+    ++eb[181];
+    const int32_t r26 = rd<int32_t>(mgr, 0x6808);
+    if (u3h_pm_type(base, s) == 12) {
+        r19_clr4(obj);
+        goto L078;
+    }
+    if (r26 != 2) goto L54;
+    {
+        uint8_t *trk = rd<uint8_t *>(mgr, 0x370 + 8 * scr);
+        if (!ptr_ok(trk)) trk = nullptr;
+        if (mgr[0x6a24]) {
+            obj[0] = 0;
+            uint64_t r[3];
+            r19_query(base, 0x8a87d1dau, r);
+            if (r[2]) {
+                const uint32_t i = static_cast<uint32_t>(r[0]);
+                const uint8_t *p = (mp && i <= 9) ? mgr + 0x390 + static_cast<uintptr_t>(i) * 0x9c0 : nullptr;
+                if (p && r19_dead(p)) obj[0] = 1;
+            }
+            r19_query(base, 0xf498c2b5u, r);
+            if (!r[2] || !static_cast<uint8_t>(r[0])) obj[0] = 0;
+            if (r19_state_id(r19_proc(base)) == 0x1f574facu) obj[0] = 0;
+        } else {
+            obj[0] = (!trk || r19_dead(trk)) ? 1 : 0;
+        }
+        if (trk && mp && u3h_pm_coop(base, s) && rd<int32_t>(trk, 0x21c) == 1 && rd<int32_t>(trk, 0x600)) obj[0] = 0;
+        if (rd<int32_t>(obj, 0x68) == 5) {
+            r19_set(base, obj, 3, false, false);
+            r19_set(base, obj, 0, false, false);
+        }
+        if (!at<uint8_t>(base + 0x17d7a50 + 100) && (!mgr[0x6a24] || !at<uint8_t>(base + 0x17c5b70))) {   // Select toggles slot 0
+            uint8_t *menu = reinterpret_cast<uint8_t *>(base + (scr ? 0x17bfa10u : 0x17bd080u));
+            uint8_t *pads = at<uint8_t *>(base + 0x16e2fa0);
+            const uint8_t *pad = ptr_ok(pads) ? pads + 0x7e0 + static_cast<uintptr_t>(scr) * 0x1d8 : nullptr;
+            if (pad && !r19_menu_up(menu) && !(rd<uint32_t>(pad, 0x9c) & 0x2u) && (rd<uint32_t>(pad, 0x94) & 0x100000u) && !at<uint64_t>(base + 0x17b4a68)) {
+                *reinterpret_cast<uint32_t *>(obj + 16) = 0x40000000u;
+                r19_set(base, obj, 0, !obj[8], true);
+                ++eb[185];
+                goto L3fc;
+            }
+        }
+        goto L0d4;
+    }
+L54:
+    if (r26 != 5) goto L39c;
+    if (r19_state_id(r19_proc(base)) == 0x1f574facu) goto L39c;
+    if (rd<int32_t>(mgr, 0x6810) != 3 && !u3h_pm_coop(base, s)) {
+        r19_set(base, obj, 0, true, false);
+        goto L0d4;
+    }
+    if (u3h_pm_type(base, s) != 10) goto L0d4;
+    r19_set(base, obj, 3, true, false);
+    goto L0d4;
+L39c:
+    {
+        uint8_t *proc = r19_proc(base);
+        const int32_t md = rd<int32_t>(mgr, 0x680c);
+        r19_set(base, obj, 0, proc && r19_state_id(proc) == 0x9f514949u && (md == 3 || md == 8), false);
+    }
+L078:
+    if (r26 != 3) goto L0d4;
+    if (!obj[0x6c]) goto L3fc;
+    obj[8] = 0;
+    obj[8 + 0x18] = 0;
+    obj[8 + 0x48] = 0;
+    r19_set(base, obj, 2, true, false);
+    goto L3d8;
+L3fc:
+    r19_set(base, obj, 2, false, false);
+    goto L0f0;
+L0d4:
+    r19_set(base, obj, 2, false, false);
+    if (r26 == 4) goto L110;
+L0f0:
+    if (r26 != 5 || !u3h_pm_coop(base, s)) goto L3d8;
+L110:
+    if (u3h_pm_type(base, s) == 10) {
+        r19_set(base, obj, 3, true, false);
+        goto L148;
+    }
+    r19_clr4(obj);
+    goto L148;
+L3d8:
+    r19_set(base, obj, 3, false, false);
+L148:
+    if (at<uint8_t>(base + 0x17d7a50 + 84)) {
+        obj[8] = 0;
+        obj[8 + 0x18] = 0;
+        obj[8 + 0x48] = 0;
+        r19_set(base, obj, 2, true, false);
+    }
+    {
+        uint64_t r[3];
+        r19_query(base, 0xe68ae001u, r);
+        if (r[2] && static_cast<uint8_t>(r[0])) r19_clr4(obj);
+    }
+    {   // each slot's alpha moves by 4 x dt x its speed toward on / off, clamped to 0..1
+        const float f30 = *reinterpret_cast<const float *>(base + 0x17b4a90 + 0x11c) * x87_const(0x40800000u);
+        for (int i = 0; i < 4; ++i) {
+            uint8_t *sl = obj + 8 + 24 * i;
+            float d = f30 * *reinterpret_cast<const float *>(sl + 8);
+            if (!sl[0]) d = -d;
+            float v = *reinterpret_cast<const float *>(sl + 4) + d;
+            if (!(v >= x87_const(0))) v = x87_const(0);
+            if (v - x87_const(0x3f800000u) >= x87_const(0)) v = x87_const(0x3f800000u);
+            *reinterpret_cast<float *>(sl + 4) = v;
+        }
+    }
+    *reinterpret_cast<int32_t *>(obj + 0x68) = r26;
+    eb[190] = rd<uint32_t>(obj, 0xc);
+}
+// f_3768cc(obj): the highest visible slot's page, sliding in with its alpha (screen 0 only: PS4 draws screen 0's menus)
+extern "C" U3X_FN void u3x_r19_draw(uintptr_t base, void *, uint8_t *obj, int scr) {
+    if (at<uint8_t>(base + 0x17b4a48 + 0x17)) return;
+    uint8_t *mgr = reinterpret_cast<uint8_t *>(base + 0x17cb060);
+    for (int i = 3; i >= 0; --i) {
+        uint8_t *sl = obj + 8 + 24 * i;
+        const float a = *reinterpret_cast<const float *>(sl + 4);
+        if (a == x87_const(0)) continue;
+        if (scr) {
+            ++ext_eb()[186];
+            return;
+        }
+        const float f11 = x87_const(0x3f800000u);
+        float f31 = a * a, f12 = x87_const(0x3f800000u);
+        if (sl[0]) {
+            const float f0 = x87_const(0x3f800000u) - a;
+            f12 = x87_const(0xbf800000u);
+            f31 = x87_const(0x3f800000u) - f0 * f0;
+        }
+        uint8_t *menu = reinterpret_cast<uint8_t *>(base + 0x17bd080u);
+        r19_page_draw(base, menu, rd<uint32_t>(sl, 16), x87_bits(a * f11), x87_bits(x87_const(0)),
+                      x87_bits((x87_const(0x3f800000u) - f31) * (f12 * x87_const(0x41a00000u))));
+        if (!sl[12]) return;
+        if (mgr[0x6cb0]) return;
+        if (!menu[0xdd4]) {   // the background dims with the slot
+            *reinterpret_cast<float *>(menu + 0xdcc) = f31;
+            menu[0xdd4] = 1;
+            ++ext_eb()[187];
+        }
+        return;
+    }
+}
+// kind 77 (0x571235, the menu draw call): every frame the ol01 / rc02 ticks, then while MP is active screens 1 and 0
+extern "C" U3X_FN int u3x_r19_frame(uintptr_t base, void *s) {
+    ++ext_eb()[180];
+    u3h_ol01_tick(base);
+    u3h_rc_auto_tick(base);
+    if (!u3x_r19_callees(base)) return 0;
+    if (!at<uint8_t>(base + 0x17d5c61)) return 0;
+    for (int i = 1; i >= 0; --i) {
+        uint8_t *obj = reinterpret_cast<uint8_t *>(base + 0x17dd670u + 0x74u * static_cast<uint32_t>(i));
+        if (!r20_init[i]) {   // slot 3's page, as 1.19 f_3767a0 sets it
+            r20_init[i] = 1;
+            if (!rd<uint32_t>(obj, 0x60)) {
+                *reinterpret_cast<uint32_t *>(obj + 0x60) = 0xf650325du;
+                ++ext_eb()[191];
+            }
+        }
+        u3x_r19_tick(base, s, obj, i);
+        u3x_r19_draw(base, s, obj, i);
+    }
+    return 0;
+}
+
+// ===== v7.209: fourth split, part 13 (the emblem records and the CPU rasterizer) =====
+
+extern "C" {
+U3H_IMPORT void *u3h_emb_fallback(void);
+U3H_IMPORT void *u3h_emb_retire_queue(void);
+U3H_IMPORT const uint8_t *u3h_emb_zero(void);
+}
+
+// c011 / c014: what PS3's GPU emblem pass did, done on the CPU. Layer icons are DXT1 / DXT5 DDS files
+// ("<root>/build/<platform>/vtex1/ps4/<name>.dds", loaded with 0xf42fa0 from engine temp memory), sampled bilinearly
+// between two mip levels (bias -1) and blended into an A8R8G8B8 target with fp16-rounded colours; decals are
+// axis-aligned quads. Records (24 + the shared 4x4 transparent fallback, kept in the C part) always hold a valid texture;
+// a replaced or freed texture is released 3 ticks later. sin / cos are the Cephes sinf / cosf polynomials PS3 1.19 uses
+// (f_d574b4). The DC handles of the layers, scales and palette are bound as PS4's 0x66b510 binds them.
+namespace {
+struct EmbRetire {
+    uint64_t tex, map;
+    uint32_t age, pad;
+};
+struct EmbLod { uint32_t l0, l1, f; };
+U3X_RO const char emb_build[] = "/build/", emb_vtex[] = "/vtex1/ps4/", emb_ext[] = ".dds";
+U3X_RO const uint32_t emb_bind_table[18] = {0x1b67e60u, 0xc7f8567cu, 0x1b67e78u, 0xe2311588u, 0x1b67e90u, 0x03ffae77u, 0x1b67ea8u, 0,
+                                            0x1b67ee0u, 0x88f9bd5cu, 0x1b67ef8u, 0x83d670b8u, 0x1b67f10u, 0x4cfe4557u, 0x1b67f28u, 0,
+                                            0x1b67ec0u, 0xbcbbdfbdu};
+U3X_FN EmbRec &emb_fb() { return *static_cast<EmbRec *>(u3h_emb_fallback()); }
+U3X_FN EmbRetire *emb_retq() { return static_cast<EmbRetire *>(u3h_emb_retire_queue()); }
+U3X_FN uint8_t *emb_allocstack(uintptr_t b) { return game_call<uint8_t *>(b + 0xda0d60); }
+U3X_FN EmbRec *emb_records() {
+    uint8_t *flag;
+    return reinterpret_cast<EmbRec *>(u3h_emb_records(&flag));
+}
+U3X_FN bool f_greater(uint32_t a, uint32_t b) { return f_less(b, a); }
+}  // namespace
+extern "C" U3X_FN uint32_t u3x_sincos119(uint32_t x, uint32_t cosine) {
+    if ((x & 0x7fffffffu) > 0x7f800000u) return 0x7fc00000u;   // NaN
+    if ((x & 0x7fffffffu) == 0x7f800000u) return x;            // infinity
+    if (!(x & 0x7fffffffu)) return cosine ? F_ONE : x;         // zero
+    uint32_t t = f_mul(x, 0x3f22f983u);                         // x * 2/pi, rounded to the nearest quadrant
+    t = f_greater(t, 0) ? f_add(t, 0x3f000000u) : f_sub(t, 0x3f000000u);
+    const int32_t n = f_to_int(t);
+    const uint32_t q = (static_cast<uint32_t>(n) & 3) + cosine, nf = f_from_int(n);
+    uint32_t r = f_madd(nf, 0xbfc90fdau, x);   // x - n * pi/2 in two parts
+    r = f_madd(nf, 0xb3a22169u, r);
+    if (f_less(0xb9800000u, r) && f_less(r, 0x39800000u)) {
+        if (q & 1) r = F_ONE;
+    } else {
+        const uint32_t r2 = f_mul(r, r);
+        if (!(q & 1)) {   // sin polynomial
+            const uint32_t r3 = f_mul(r, r2);
+            uint32_t p = f_madd(r2, 0xb94c8c6eu, 0x3c088342u);
+            p = f_madd(r2, p, 0xbe2aaaa1u);
+            r = f_madd(r3, p, r);
+        } else {   // cos polynomial
+            uint32_t p = f_madd(r2, 0xbab24993u, 0x3d2aa036u);
+            p = f_madd(r2, p, 0xbeffffdfu);
+            r = f_madd(r2, p, F_ONE);
+        }
+    }
+    return (q & 2) ? r ^ 0x80000000u : r;
+}
+// float -> Q32, rounded
+extern "C" U3X_FN int64_t u3x_fq32(uint32_t f) {
+    const int32_t e = static_cast<int32_t>((f >> 23) & 0xff);
+    if (!e) return 0;
+    const uint64_t m = (f & 0x7fffffu) | 0x800000u;
+    int32_t sh = e - 127 - 23 + 32;
+    int64_t v;
+    if (sh >= 0) {
+        if (sh > 38) sh = 38;
+        v = static_cast<int64_t>(m << sh);
+    } else if (sh < -40) {
+        v = 0;
+    } else {
+        v = static_cast<int64_t>((m + ((1ull << (-sh)) >> 1)) >> (-sh));
+    }
+    return (f >> 31) ? -v : v;
+}
+// round(256 * log2 f), f > 0
+extern "C" U3X_FN int32_t u3x_log2q8(uint32_t f) {
+    const int32_t e = static_cast<int32_t>((f >> 23) & 0xff) - 127;
+    uint64_t m = (f & 0x7fffffu) | 0x800000u;
+    uint32_t r = 0;
+    for (int i = 0; i < 9; ++i) {
+        m = (m * m) >> 23;
+        r <<= 1;
+        if (m >= (1ull << 24)) {
+            m >>= 1;
+            r |= 1;
+        }
+    }
+    return e * 256 + static_cast<int32_t>((r + 1) >> 1);
+}
+// fp32 -> fp16 (the H register: round to nearest even) -> value * 65536
+extern "C" U3X_FN uint32_t u3x_h16q16(uint32_t f) {
+    if ((f >> 31) || !(f & 0x7fffffffu)) return 0;
+    const int32_t e = static_cast<int32_t>((f >> 23) & 0xff) - 127;
+    if (e < -25) return 0;
+    if (e > 15) return 0x7fffffffu;
+    const uint32_t m = (f & 0x7fffffu) | 0x800000u;
+    int32_t sh = 13;
+    if (e < -14) sh += -14 - e;
+    uint32_t q = m >> sh;
+    const uint32_t rem = m & ((1u << sh) - 1), half = 1u << (sh - 1);
+    if (rem > half || (rem == half && (q & 1))) ++q;
+    const int32_t p = e - 23 + sh + 16;
+    const uint64_t v = p >= 0 ? (static_cast<uint64_t>(q) << p) : (static_cast<uint64_t>(q) >> (-p));
+    return v > 0x7fffffffu ? 0x7fffffffu : static_cast<uint32_t>(v);
+}
+// engine temp memory: PushAllocator(0x30) (0xda1590), allocate from the stack top, PopAllocator
+extern "C" U3X_FN void u3x_emb_pop(uintptr_t b) {
+    uint8_t *st = emb_allocstack(b);
+    if (!st) return;
+    uint32_t &c = *reinterpret_cast<uint32_t *>(st + 0x730);
+    if (!c) return;
+    uint64_t *e = reinterpret_cast<uint64_t *>(st + static_cast<uint64_t>(c - 1) * 0x28);
+    e[0] = e[1] = e[2] = e[3] = e[4] = 0;
+    --c;
+}
+extern "C" U3X_FN void u3x_emb_push(uintptr_t b) {
+    uint32_t id[2];
+    id[0] = 0x30u;
+    id[1] = 0;
+    game_call<void>(b + 0xda1590, static_cast<uint32_t *>(id), b + 0x13ac250, 0u, b + 0x13ac250);
+}
+extern "C" U3X_FN void *u3x_emb_alloc(uintptr_t b, uint64_t n) {
+    u3x_emb_push(b);
+    void *p = nullptr;
+    uint8_t *st = emb_allocstack(b);
+    if (st) {
+        const uint32_t c = rd<uint32_t>(st, 0x730);
+        if (c) {
+            uintptr_t *a = rd<uintptr_t *>(st, static_cast<uint64_t>(c - 1) * 0x28);
+            if (a) p = reinterpret_cast<void *(*)(uintptr_t *, uint64_t, uint64_t, uintptr_t, uint32_t, uintptr_t)>(rd<uintptr_t>(reinterpret_cast<const void *>(*a), 0x48))(a, n, 0x10, b + 0x147d6bb, 0, b + 0x147d6bb);
+        }
+    }
+    u3x_emb_pop(b);
+    return p;
+}
+extern "C" U3X_FN void u3x_emb_free(uintptr_t b, void *p) {
+    if (p) game_call<void>(b + 0xda0dc0, p, b + 0x147d6bb, 0u, b + 0x147d6bb);
+}
+// the DDS file name.dds of the platform's vtex folder, loaded whole (0xf42fa0)
+extern "C" U3X_FN uint8_t *u3x_emb_file(uintptr_t b, const char *name, uint64_t *size) {
+    char path[0x200];
+    uint32_t n = 0;
+    const uint8_t *g = at<const uint8_t *>(b + 0x1b24b80);
+    if (!g || !name) return nullptr;
+    const char *parts[5];
+    parts[0] = reinterpret_cast<const char *>(g + 0x408);
+    parts[1] = emb_build;
+    parts[2] = reinterpret_cast<const char *>(g + 0x479c);
+    parts[3] = emb_vtex;
+    parts[4] = name;
+    for (const char *part : parts)
+        for (const char *p = part; *p && n < 0x1f8; ++p) path[n++] = *p;
+    for (int k = 0; k < 4; ++k) path[n++] = emb_ext[k];
+    path[n] = 0;
+    uint64_t buf[2];
+    buf[0] = buf[1] = 0;
+    u3x_emb_push(b);
+    const uint8_t ok = static_cast<uint8_t>(game_call<uint64_t>(b + 0xf42fa0, static_cast<uint64_t *>(buf), static_cast<const char *>(path)));
+    u3x_emb_pop(b);
+    if (!ok || !buf[0]) return nullptr;
+    *size = buf[1];
+    return reinterpret_cast<uint8_t *>(buf[0]);
+}
+extern "C" U3X_FN uint8_t *u3x_emb_cache(uintptr_t b, const char *name) { return game_call<uint8_t *>(b + 0x1189430, b + 0x1b31128, name); }
+// a DC handle (0x18: ptr, version, sid, module): cached while the module's version (+0x58) is unchanged, else looked up
+extern "C" U3X_FN uint8_t *u3x_emb_h(uintptr_t b, void *s, uintptr_t ha) {
+    uint8_t *h = reinterpret_cast<uint8_t *>(b + ha);
+    const uint32_t sid = rd<uint32_t>(h, 0xc);
+    if (!sid) return nullptr;
+    uint8_t *m = rd<uint8_t *>(h, 0x10);
+    const uintptr_t find = state_native(s, 9);
+    if (!m) {
+        if (!find) return nullptr;
+        m = reinterpret_cast<uint8_t *(*)(uint32_t, int)>(find)(sid, 1);
+        if (m == reinterpret_cast<uint8_t *>(b + 0x1b3af40)) m = nullptr;
+        *reinterpret_cast<uint8_t **>(h + 0x10) = m;
+        if (!m) return nullptr;
+    } else if (rd<uint32_t>(h, 8) == rd<uint32_t>(m, 0x58)) {
+        return rd<uint8_t *>(h, 0);
+    }
+    const uint8_t *t = rd<const uint8_t *>(m, 0x48);
+    if (!t) return nullptr;
+    int32_t lo = 0, hi = rd<int32_t>(t, 0x30) - 1;
+    const uint8_t *ent = rd<const uint8_t *>(t, 0x38);
+    while (lo <= hi) {
+        const int32_t md = (lo + hi) / 2;
+        const uint32_t v = rd<uint32_t>(ent, static_cast<int64_t>(md) * 0x10);
+        if (v < sid) {
+            lo = md + 1;
+        } else if (v > sid) {
+            hi = md - 1;
+        } else {
+            *reinterpret_cast<uint8_t **>(h) = rd<uint8_t *>(ent, static_cast<int64_t>(md) * 0x10 + 8);
+            *reinterpret_cast<uint32_t *>(h + 8) = rd<uint32_t>(m, 0x58);
+            return rd<uint8_t *>(h, 0);
+        }
+    }
+    return nullptr;
+}
+extern "C" U3X_FN void u3x_emb_bind1(uintptr_t b, void *s, uintptr_t ha, uint32_t sid) {   // PS3 f_27d368
+    uint8_t *h = reinterpret_cast<uint8_t *>(b + ha);
+    const uintptr_t find = state_native(s, 9);
+    uint8_t *m = find ? reinterpret_cast<uint8_t *(*)(uint32_t, int)>(find)(sid, 1) : nullptr;
+    if (m == reinterpret_cast<uint8_t *>(b + 0x1b3af40)) m = nullptr;
+    *reinterpret_cast<uint8_t **>(h + 0x10) = m;
+    *reinterpret_cast<uint64_t *>(h) = 0;
+    *reinterpret_cast<uint32_t *>(h + 8) = 0xffffffffu;
+    *reinterpret_cast<uint32_t *>(h + 0xc) = sid;
+    if (m && rd<uint8_t *>(m, 0x48)) u3x_emb_h(b, s, ha);
+}
+// layers, layer 3 = a copy of 2, scales, scale 3 = a copy of 2, palette
+extern "C" U3X_FN void u3x_emb_dcbind(uintptr_t b, void *s) {
+    for (int i = 0; i < 18; i += 2) {
+        if (emb_bind_table[i + 1]) {
+            u3x_emb_bind1(b, s, emb_bind_table[i], emb_bind_table[i + 1]);
+        } else {
+            for (int k = 0; k < 0x18; ++k) at<uint8_t>(b + emb_bind_table[i] + k) = at<uint8_t>(b + emb_bind_table[i - 2] + k);
+        }
+    }
+}
+extern "C" U3X_FN int u3x_emb_isrec(uint64_t p) {
+    const uint64_t a = reinterpret_cast<uint64_t>(emb_records());
+    return p >= a && p < a + 24 * sizeof(EmbRec) && !((p - a) % sizeof(EmbRec));
+}
+extern "C" U3X_FN void u3x_emb_release(uintptr_t b, uint64_t *tex, uint64_t *map) {
+    const uint32_t frame = *at<uint32_t *>(b + 0x1c1f308);   // main thread: never a job worker
+    if (*tex && *tex != emb_fb().tex) game_call<void>(b + 0xe73490, tex);
+    if (*map) game_call<void>(b + 0xe4e8f0, b + 0x18c8960, *map, frame);
+    *tex = 0;
+    *map = 0;
+}
+extern "C" U3X_FN void u3x_emb_retire(uintptr_t b, uint64_t *tex, uint64_t *map) {
+    if (*tex == emb_fb().tex && !*map) {   // the fallback is shared, never released
+        *tex = 0;
+        return;
+    }
+    if (!*tex && !*map) return;
+    EmbRetire *q = emb_retq();
+    for (int k = 0; k < 16; ++k)
+        if (!q[k].tex && !q[k].map) {
+            q[k].tex = *tex;
+            q[k].map = *map;
+            q[k].age = 0;
+            *tex = 0;
+            *map = 0;
+            return;
+        }
+    u3x_emb_release(b, tex, map);
+}
+extern "C" U3X_FN void u3x_emb_retick(uintptr_t b) {
+    EmbRetire *q = emb_retq();
+    for (int k = 0; k < 16; ++k)
+        if ((q[k].tex || q[k].map) && ++q[k].age >= 3) u3x_emb_release(b, &q[k].tex, &q[k].map);
+}
+// point a record at the fallback (the new value is stored before the old one is retired)
+extern "C" U3X_FN void u3x_emb_rfb(uintptr_t b, void *r_) {
+    EmbRec &r = *static_cast<EmbRec *>(r_);
+    uint64_t ot = r.tex, om = r.map;
+    r.tex = emb_fb().tex;
+    r.map = 0;
+    r.ok = emb_fb().tex ? 1 : 0;
+    r.fmt = 0x57u;
+    if (om) u3x_emb_retire(b, &ot, &om);
+}
+extern "C" U3X_FN void *u3x_emb_ralloc(uint32_t size) {
+    EmbRec *recs = emb_records();
+    for (int k = 0; k < 24; ++k) {
+        if (recs[k].used) continue;
+        EmbRec *r = &recs[k];
+        uint8_t *p = reinterpret_cast<uint8_t *>(r);
+        for (uint32_t i = 0; i < sizeof(*r); ++i) p[i] = 0;
+        r->used = 1;
+        r->size = size;
+        r->w = size;
+        r->h = size;
+        r->tex = emb_fb().tex;
+        r->ok = emb_fb().tex ? 1 : 0;
+        r->fmt = 0x57u;
+        ++ext_ec()[116];
+        return r;
+    }
+    ext_ec()[122] = 1;
+    return nullptr;
+}
+extern "C" U3X_FN void u3x_emb_rfree(uintptr_t b, void *r_) {
+    EmbRec *r = static_cast<EmbRec *>(r_);
+    if (!r || !u3x_emb_isrec(reinterpret_cast<uint64_t>(r)) || !r->used) return;
+    u3x_emb_rfb(b, r);
+    r->used = 0;
+    r->pin = 0;
+    ++ext_ec()[117];
+}
+// the composite becomes the record's texture (CreateDdsTextureFromMemory's path, A8R8G8B8 = ndgi 0x57); the old texture
+// is retired only after the new one is in place
+extern "C" U3X_FN int u3x_emb_texcreate(uintptr_t b, void *r_, const uint8_t *pix, uint32_t size) {
+    EmbRec &r = *static_cast<EmbRec *>(r_);
+    int32_t ctx = 0xe;
+    uint64_t desc[2], sub[2], second = 0;
+    desc[0] = static_cast<uint64_t>(size) | (static_cast<uint64_t>(size) << 16) | (1ull << 32) | (1ull << 40) | (0x57ull << 48);
+    desc[1] = 0x800010001ull;
+    sub[0] = reinterpret_cast<uint64_t>(pix);
+    sub[1] = static_cast<uint64_t>(size * 4) | (static_cast<uint64_t>(size * size * 4) << 32);
+    uint64_t map = game_call<uint64_t>(b + 0xe76cb0, &ctx, static_cast<uint64_t *>(desc), static_cast<uint64_t *>(sub), &second);
+    if (!map) {
+        ext_ec()[122] = 2;
+        return 0;
+    }
+    const uint64_t tex = game_call<uint64_t>(b + 0xe77c50, map, 0x57u);
+    if (!tex) {
+        uint64_t z = 0;
+        u3x_emb_release(b, &z, &map);
+        ext_ec()[122] = 3;
+        return 0;
+    }
+    uint64_t ot = r.tex, om = r.map;
+    r.tex = tex;
+    r.map = map;
+    r.w = size;
+    r.h = size;
+    r.fmt = 0x57u;
+    r.ok = 1;
+    ++ext_ec()[115];
+    if (om) u3x_emb_retire(b, &ot, &om);
+    return 1;
+}
+// the shared fallback (4x4, transparent), made once the graphics device exists; published at ec[158..159]
+extern "C" U3X_FN void u3x_emb_fb(uintptr_t b) {
+    EmbRec &fb = emb_fb();
+    if (fb.tex || !at<uint64_t>(b + 0x1cf5330)) return;
+    EmbRec t;
+    uint8_t *p = reinterpret_cast<uint8_t *>(&t);
+    for (uint32_t i = 0; i < sizeof(t); ++i) p[i] = 0;
+    if (!u3x_emb_texcreate(b, &t, u3h_emb_zero(), 4)) return;
+    fb = t;
+    fb.map = 0;   // never released
+    ext_ec()[158] = static_cast<uint32_t>(t.tex);
+    ext_ec()[159] = static_cast<uint32_t>(t.tex >> 32);
+}
+// a DXT1 / DXT5 DDS (as PS3's loader accepts): size, block size, mip offsets
+extern "C" U3X_FN int u3x_emb_dds(uintptr_t b, const char *name, void *t_) {
+    EmbDds &t = *static_cast<EmbDds *>(t_);
+    uint64_t n = 0;
+    t.file = u3x_emb_file(b, name, &n);
+    if (!t.file) {
+        ++ext_ec()[123];
+        return 0;
+    }
+    const uint8_t *d = t.file;
+    const uint32_t four = rd<uint32_t>(d, 84);
+    if (n < 128 || rd<uint32_t>(d, 0) != 0x20534444u || (four != 0x31545844u && four != 0x35545844u)) {
+        u3x_emb_free(b, t.file);
+        t.file = nullptr;
+        ++ext_ec()[123];
+        return 0;
+    }
+    t.h = rd<uint32_t>(d, 12);
+    t.w = rd<uint32_t>(d, 16);
+    const uint32_t mips = rd<uint32_t>(d, 28);
+    uint32_t nl = mips ? mips : 1;
+    if (nl > 16) nl = 16;
+    t.bs = four == 0x31545844u ? 8 : 16;
+    uint64_t o = 128;
+    for (uint32_t l = 0; l < nl; ++l) {
+        uint32_t w = t.w >> l, h = t.h >> l;
+        if (!w) w = 1;
+        if (!h) h = 1;
+        t.off[l] = static_cast<uint32_t>(o);
+        o += static_cast<uint64_t>((w + 3) / 4) * ((h + 3) / 4) * t.bs;
+    }
+    if (o > n || !t.w || !t.h) {
+        u3x_emb_free(b, t.file);
+        t.file = nullptr;
+        ++ext_ec()[123];
+        return 0;
+    }
+    t.maxl = mips < nl - 1 ? mips : nl - 1;
+    return 1;
+}
+// the R channel (5 bits widened to 8) of texel (x, y) of level l, clamped to the edge
+extern "C" U3X_FN uint32_t u3x_emb_dxt(const void *t_, uint32_t l, int32_t x, int32_t y) {
+    const EmbDds &t = *static_cast<const EmbDds *>(t_);
+    int32_t w = static_cast<int32_t>(t.w >> l), h = static_cast<int32_t>(t.h >> l);
+    if (w < 1) w = 1;
+    if (h < 1) h = 1;
+    if (x < 0) x = 0;
+    else if (x >= w) x = w - 1;
+    if (y < 0) y = 0;
+    else if (y >= h) y = h - 1;
+    const uint8_t *k = t.file + t.off[l] + (static_cast<uint32_t>(y >> 2) * static_cast<uint32_t>((w + 3) >> 2) + static_cast<uint32_t>(x >> 2)) * t.bs + (t.bs == 16 ? 8 : 0);
+    const uint32_t c0 = k[0] | static_cast<uint32_t>(k[1]) << 8, c1 = k[2] | static_cast<uint32_t>(k[3]) << 8;
+    const uint32_t ix = ((k[4] | static_cast<uint32_t>(k[5]) << 8 | static_cast<uint32_t>(k[6]) << 16 | static_cast<uint32_t>(k[7]) << 24) >> (((y & 3) * 4 + (x & 3)) * 2)) & 3;
+    uint32_t r0 = c0 >> 11, r1 = c1 >> 11;
+    r0 = (r0 << 3) | (r0 >> 2);
+    r1 = (r1 << 3) | (r1 >> 2);
+    if (ix == 0) return r0;
+    if (ix == 1) return r1;
+    if (c0 > c1 || t.bs == 16) return ix == 2 ? (2 * r0 + r1) / 3 : (r0 + 2 * r1) / 3;
+    return ix == 2 ? (r0 + r1) / 2 : 0;
+}
+// the two mip levels and their blend for rho2 = (texels per pixel)^2, bias -1
+extern "C" U3X_FN void u3x_emb_lod(const void *t_, uint32_t rho2, void *L_) {
+    const EmbDds &t = *static_cast<const EmbDds *>(t_);
+    EmbLod &L = *static_cast<EmbLod *>(L_);
+    L.l0 = L.l1 = L.f = 0;
+    if (!(rho2 & 0x7fffffffu) || (rho2 >> 31)) return;
+    const int32_t lam = ((u3x_log2q8(rho2) + 1) >> 1) - 256;
+    if (lam <= 0) return;
+    uint32_t d = static_cast<uint32_t>(lam);
+    const uint32_t mx = t.maxl << 8;
+    if (d > mx) d = mx;
+    L.l0 = d >> 8;
+    L.f = d & 255;
+    L.l1 = L.l0 + 1;
+    if (L.l1 > t.maxl) {
+        L.l1 = t.maxl;
+        L.f = 0;
+    }
+}
+// bilinear R * 65536 at (U, V) in Q32
+extern "C" U3X_FN uint32_t u3x_emb_bil(const void *t_, uint32_t l, int64_t U, int64_t V) {
+    const EmbDds &t = *static_cast<const EmbDds *>(t_);
+    int64_t w = static_cast<int64_t>(t.w >> l), h = static_cast<int64_t>(t.h >> l);
+    if (w < 1) w = 1;
+    if (h < 1) h = 1;
+    const int64_t tu = U * w - (1ll << 31), tv = V * h - (1ll << 31);
+    const int32_t x = static_cast<int32_t>(tu >> 32), y = static_cast<int32_t>(tv >> 32);
+    const uint32_t fx = static_cast<uint32_t>(tu >> 24) & 255, fy = static_cast<uint32_t>(tv >> 24) & 255;
+    const uint32_t a = u3x_emb_dxt(t_, l, x, y), c = u3x_emb_dxt(t_, l, x + 1, y), d = u3x_emb_dxt(t_, l, x, y + 1), e = u3x_emb_dxt(t_, l, x + 1, y + 1);
+    return (a * (256 - fx) + c * fx) * (256 - fy) + (d * (256 - fx) + e * fx) * fy;
+}
+// the filtered R as Q32 in [0, 1]
+extern "C" U3X_FN uint64_t u3x_emb_a32(const void *t, const void *L_, int64_t U, int64_t V) {
+    const EmbLod &L = *static_cast<const EmbLod *>(L_);
+    const uint64_t r0 = u3x_emb_bil(t, L.l0, U, V);
+    const uint64_t r = L.f ? r0 * (256 - L.f) + static_cast<uint64_t>(u3x_emb_bil(t, L.l1, U, V)) * L.f : r0 * 256;
+    return (r << 8) / 255;
+}
+// pixel B, G, R, A over by colour c16 (b, g, r * 65536) with coverage a32
+extern "C" U3X_FN void u3x_emb_blend(uint8_t *px, const uint32_t *c16, uint64_t a32) {
+    if (a32 > (1ull << 32)) a32 = 1ull << 32;
+    const uint64_t ia = (1ull << 32) - a32;
+    for (int k = 0; k < 3; ++k) {
+        const uint64_t v = (255ull * c16[k] * a32 + static_cast<uint64_t>(px[k]) * 65536ull * ia + (1ull << 47)) >> 48;
+        px[k] = static_cast<uint8_t>(v > 255 ? 255 : v);
+    }
+    const uint64_t v = (255ull * 65536ull * a32 + static_cast<uint64_t>(px[3]) * 65536ull * ia + (1ull << 47)) >> 48;
+    px[3] = static_cast<uint8_t>(v > 255 ? 255 : v);
+}
+// (du tw / size)^2 + (dv th / size)^2
+extern "C" U3X_FN uint32_t u3x_emb_rho2(uint32_t du, uint32_t dv, uint32_t tw, uint32_t th, uint32_t size) {
+    const uint32_t fs = f_from_int(static_cast<int32_t>(size));
+    const uint32_t a = f_div(f_mul(du, f_from_int(static_cast<int32_t>(tw))), fs), c = f_div(f_mul(dv, f_from_int(static_cast<int32_t>(th))), fs);
+    return f_add(f_mul(a, a), f_mul(c, c));
+}
+extern "C" U3X_FN uint32_t u3x_emb_fmax(uint32_t a, uint32_t b) { return f_less(a, b) ? b : a; }
+// one layer quad over the target (scissor 1..size-2), optionally through a mask over pixel / size
+extern "C" U3X_FN void u3x_emb_quad(uint8_t *pix, uint32_t size, const void *t_, const uint32_t *uv, const void *mk_, const uint32_t *c16) {
+    const EmbDds &t = *static_cast<const EmbDds *>(t_);
+    const EmbDds *mk = static_cast<const EmbDds *>(mk_);
+    const int64_t U1 = u3x_fq32(uv[2]), V1 = u3x_fq32(uv[3]);
+    const int64_t DUX = u3x_fq32(uv[4]) - U1, DVX = u3x_fq32(uv[5]) - V1, DUY = u3x_fq32(uv[0]) - U1, DVY = u3x_fq32(uv[1]) - V1;
+    EmbLod L, Lm;
+    const uint32_t rx = u3x_emb_rho2(f_sub(uv[4], uv[2]), f_sub(uv[5], uv[3]), t.w, t.h, size);
+    const uint32_t ry = u3x_emb_rho2(f_sub(uv[0], uv[2]), f_sub(uv[1], uv[3]), t.w, t.h, size);
+    u3x_emb_lod(t_, u3x_emb_fmax(rx, ry), &L);
+    if (mk) {
+        const uint32_t k = f_div(f_from_int(static_cast<int32_t>(mk->w)), f_from_int(static_cast<int32_t>(size)));
+        u3x_emb_lod(mk, f_mul(k, k), &Lm);
+    }
+    const uint32_t sh = size == 256 ? 9 : 8;
+    for (uint32_t py = 1; py + 1 < size; ++py)
+        for (uint32_t px = 1; px + 1 < size; ++px) {
+            const int64_t ox = 2 * static_cast<int64_t>(px) + 1, oy = 2 * static_cast<int64_t>(py) + 1;
+            const int64_t u = U1 + ((DUX * ox + DUY * oy) >> sh), v = V1 + ((DVX * ox + DVY * oy) >> sh);
+            uint64_t a = u3x_emb_a32(t_, &L, u, v);
+            if (mk) {
+                const uint64_t m = u3x_emb_a32(mk, &Lm, ox << (32 - sh), oy << (32 - sh));
+                a = static_cast<uint64_t>((static_cast<unsigned __int128>(a) * m) >> 32);
+            }
+            if (a) u3x_emb_blend(pix + (static_cast<uintptr_t>(py) * size + px) * 4, c16, a);
+        }
+}
+// one decal quad, axis-aligned in pixels; q: x lo / hi, y lo / hi (normalized), u lo / hi, v top / bottom
+extern "C" U3X_FN void u3x_emb_decal(uint8_t *pix, uint32_t size, const void *t_, const uint32_t *q, const uint32_t *c16) {
+    const EmbDds &t = *static_cast<const EmbDds *>(t_);
+    const uint32_t fs = f_from_int(static_cast<int32_t>(size));
+    const uint32_t x0 = f_mul(q[0], fs), x1 = f_mul(q[1], fs), y0 = f_mul(q[2], fs), y1 = f_mul(q[3], fs);
+    const uint32_t dx = f_sub(x1, x0), dy = f_sub(y1, y0);
+    if (!f_greater(dx, 0) || !f_greater(dy, 0)) return;
+    const uint32_t du = f_sub(q[5], q[4]), dv = f_sub(q[7], q[6]);
+    const uint32_t rxf = f_div(f_mul(du, f_from_int(static_cast<int32_t>(t.w))), dx), ryf = f_div(f_mul(dv, f_from_int(static_cast<int32_t>(t.h))), dy);
+    EmbLod L;
+    u3x_emb_lod(t_, u3x_emb_fmax(f_mul(rxf, rxf), f_mul(ryf, ryf)), &L);
+    const int64_t X0 = u3x_fq32(x0), X1 = u3x_fq32(x1), Y0 = u3x_fq32(y0), Y1 = u3x_fq32(y1), U0 = u3x_fq32(q[4]), V0 = u3x_fq32(q[6]);
+    const int64_t DUDX = u3x_fq32(f_div(du, dx)), DVDY = u3x_fq32(f_div(dv, dy));
+    for (uint32_t py = 1; py + 1 < size; ++py) {
+        const int64_t cy = static_cast<int64_t>(2 * py + 1) << 31;
+        if (cy < Y0 || cy >= Y1) continue;
+        const int64_t v = V0 + ((DVDY * ((cy - Y0) >> 16)) >> 16);
+        for (uint32_t px = 1; px + 1 < size; ++px) {
+            const int64_t cx = static_cast<int64_t>(2 * px + 1) << 31;
+            if (cx < X0 || cx >= X1) continue;
+            const int64_t u = U0 + ((DUDX * ((cx - X0) >> 16)) >> 16);
+            const uint64_t a = u3x_emb_a32(t_, &L, u, v);
+            if (a) u3x_emb_blend(pix + (static_cast<uintptr_t>(py) * size + px) * 4, c16, a);
+        }
+    }
+}
+
+// ===== v7.210: fourth split, part 14 (the post-match handler) =====
+
+extern "C" {
+U3H_IMPORT void u3h_n13_rearm(uintptr_t base, void *s);
+}
+
+// a013 / a019 / a014 / n013: PS3 1.19 f_29a068, the post-match handler (kind 67), replacing PS4's 1.10 copy 0x678b00:
+// the in-match flag and the profile publish, the menu reset and the "multi-menu" level, the leave routing (the page stack
+// and the party messages), then per local user the profile counters of the match (co-op, unranked or competitive: kills,
+// scores, wins / ties / losses with 1.19's weekly fields, map and game-type challenge stats), the publish and the
+// leaderboard submits, and the return pages (the lobby, matchmaking, or the spoofed Find Game re-arm). The challenge table
+// is DC 0xb630d01c (1.19 medals.bin). ExtState ea: [57] challenge calls (low) / updates (high), [59] runs, [60] submits,
+// [61] done, [90..94] the n013 return routing.
+namespace {
+U3X_RO const char pm_title1[] = "BCET70043", pm_title2[] = "NPUA70180", pm_title3[] = "NPHA80158";
+U3X_FN uint8_t *pm_rec(uintptr_t base, void *s, uint32_t u) { return u3h_lg_rec(base, s, u3h_lg_profile(base, u)); }
+U3X_FN void pm_add(uintptr_t base, void *s, uint32_t u, uint32_t off, int32_t v) { *reinterpret_cast<int32_t *>(pm_rec(base, s, u) + off) += v; }
+U3X_FN uint32_t &n13_flag() { return ext_ea()[94]; }
+U3X_FN bool pm_title_differs(uintptr_t scmp, const void *tid, const char *title) { return reinterpret_cast<int (*)(const void *, const char *)>(scmp)(tid, title) != 0; }
+}  // namespace
+extern "C" U3X_FN uint8_t *u3x_pm_ngentry(uintptr_t base, void *s) {
+    const int16_t i = at<int16_t>(base + 0x17cb060 + 0x661c);
+    uint8_t *t = dc_table(s, 0x3b9a067du);
+    if (!t || i < 0 || i >= rd<int32_t>(t, 0)) return nullptr;
+    uint8_t *e = rd<uint8_t *>(t, 8);
+    return e ? e + static_cast<uintptr_t>(i) * 0xd0 : nullptr;
+}
+extern "C" U3X_FN int32_t u3x_pm_type(uintptr_t base, void *s) {   // f_30e004
+    const uint8_t *e = u3x_pm_ngentry(base, s);
+    return e ? rd<int32_t>(e, 0xc) : 0;
+}
+extern "C" U3X_FN int u3x_pm_coop(uintptr_t base, void *s) {   // f_310c68: types 4 8 9 11 13 16 17 18
+    const uint8_t *e = u3x_pm_ngentry(base, s);
+    if (!e) return 0;
+    const uint32_t t = rd<uint32_t>(e, 0xc) - 4;
+    return t < 0xf && ((0x72b1u >> t) & 1);
+}
+// f_315240 (PS4 0x7270f0 without the 1.10 abort-flag wrapper)
+extern "C" U3X_FN int u3x_pm_ranked(uintptr_t base, void *s) {
+    const bool b = u3x_pm_coop(base, s) && u3x_pm_type(base, s) != 0x12;
+    const uintptr_t scmp = base + 0x139c710;
+    const void *tid = reinterpret_cast<const void *>(base + 0x17b9ca0);
+    const uint32_t w = at<uint32_t>(base + 0x17b9d10);
+    if (!b && at<int32_t>(base + 0x17d603c) != 1 && !at<uint8_t>(base + 0x17d7b27) && pm_title_differs(scmp, tid, pm_title1) && pm_title_differs(scmp, tid, pm_title2) && pm_title_differs(scmp, tid, pm_title3) &&
+        w != 0xc0e2aff8u && w != 0x2c3d7d0fu)
+        return 0;
+    if (at<uint8_t>(base + 0x17cb060 + 0x6a24)) return 0;
+    if (at<uint8_t>(base + 0x17d5c60)) return at<uint8_t>(base + 0x17d6065) != 0;
+    return 1;
+}
+extern "C" U3X_FN int u3x_pm_leader_of(uintptr_t base, uintptr_t obj) {   // f_37f1f8
+    return !at<uint64_t>(base + obj + 0x18) || at<uint32_t>(base + obj + 0x12e4) == at<uint32_t>(base + obj + 0x12e8);
+}
+// the party backend's slot off (obj, party[, arg])
+extern "C" U3X_FN void u3x_pm_party_vcall(uintptr_t base, uint32_t off, int arg, int three) {
+    uint8_t *pa = reinterpret_cast<uint8_t *>(base + 0x17d6420);
+    uint8_t *o = rd<uint8_t *>(pa, 8);
+    if (!o) return;
+    const uintptr_t fn = rd<uintptr_t *>(o, 0)[off / 8];
+    if (!fn) return;
+    if (three) reinterpret_cast<void (*)(void *, void *, int)>(fn)(o, pa, arg);
+    else reinterpret_cast<void (*)(void *, void *)>(fn)(o, pa);
+}
+extern "C" U3X_FN void u3x_pm_pg_clear(uintptr_t base) { at<int32_t>(base + 0x17bd080 + 0xef8) = 0; }
+extern "C" U3X_FN void u3x_pm_pg_push(uintptr_t base, uint32_t id) {   // f_264820 as PS4 inlines it
+    uint8_t *m = reinterpret_cast<uint8_t *>(base + 0x17bd080);
+    int32_t n = rd<int32_t>(m, 0xef8);
+    if (n > 0x9f || rd<uint32_t>(m, 0xefc + static_cast<uintptr_t>(n) * 4) == id) return;
+    ++n;
+    *reinterpret_cast<int32_t *>(m + 0xef8) = n;
+    *reinterpret_cast<uint32_t *>(m + 0xefc + static_cast<uintptr_t>(n) * 4) = id;
+}
+extern "C" U3X_FN void u3x_pm_menu_reset(uintptr_t base, uintptr_t menu) {   // f_26e978 as PS4 inlines it
+    uint8_t *m = reinterpret_cast<uint8_t *>(base + menu);
+    const uint32_t st = rd<uint32_t>(m, 8);
+    if (st <= 6 && ((0x61u >> st) & 1)) return;
+    uint8_t buf[0x80];
+    game_call<void>(base + 0xf23970, static_cast<void *>(buf), 0, 0);
+    game_call<void>(base + 0x6534e0, static_cast<void *>(m), static_cast<void *>(buf), 3);
+    *reinterpret_cast<uint32_t *>(m + 8) = 5;
+    *reinterpret_cast<uint32_t *>(m + 0xdb4) = 0;
+    *reinterpret_cast<uint32_t *>(m + 0xdb8) = 0x3f800000u;
+    game_call<void>(base + 0x6534e0, static_cast<void *>(m), static_cast<void *>(buf), 0);
+}
+extern "C" U3X_FN uint32_t u3x_pm_map(uintptr_t base, void *s) {   // f_304214
+    if (at<uint8_t>(base + 0x17bb670)) return 0xb70ed28u;
+    return rd<uint32_t>(pm_rec(base, s, 0), 0x52c);
+}
+extern "C" U3X_FN int u3x_pm_map_is(uintptr_t base, void *s, uint32_t id) {
+    const uint32_t *e = game_call<uint32_t *>(base + 0x73f7d0, reinterpret_cast<void *>(base + 0x17cb060), u3x_pm_map(base, s));
+    return e && *e == id;
+}
+// a019: challenge stat id (0x755..0x795) of user u += v, or |= the net game's bit
+extern "C" U3X_FN void u3x_pm_challenge(uintptr_t base, void *s, uint32_t u, uint32_t id, int32_t v, int bit) {
+    uint32_t *ea = ext_ea();
+    ++ea[57];
+    uint8_t *p = u3h_lg_profile(base, u);
+    if (!p || p[0x7afc]) return;
+    if (id < 0x755 || id > 0x795) return;   // PS3 traps
+    if (at<int32_t>(base + 0x17d5c58 + 0x40) == 0 && !u3x_pm_coop(base, s)) return;
+    if (at<uint8_t>(base + 0x17cb060 + 0x6a24)) return;
+    const uint8_t *t = dc_table(s, 0xb630d01cu);
+    if (!t) return;
+    const uint8_t *hit = u3x_challenge_entry(t, static_cast<int32_t>(id - 0x755u));
+    if (!hit || !rd<uint32_t>(hit, 0x20)) return;   // the entry's DLC mask (every DLC is on)
+    uint32_t *c = reinterpret_cast<uint32_t *>(u3h_lg_rec(base, s, p) + static_cast<uintptr_t>(id) * 4 + 8);
+    if (bit) {
+        const uint8_t *ng = u3x_pm_ngentry(base, s);
+        if (!ng) return;
+        const uint32_t sh = rd<uint32_t>(ng, 0xb8) & 0x3f;
+        *c |= sh < 32 ? 1u << sh : 0u;
+    } else {
+        *c += static_cast<uint32_t>(v);
+    }
+    ea[57] += 0x10000u;
+}
+// f_365c5c: the game type's win challenge (and Plunder's 5-0)
+extern "C" U3X_FN void u3x_pm_365c5c(uintptr_t base, void *s, uint32_t u, int32_t mine, int32_t theirs) {
+    const int32_t t = u3x_pm_type(base, s);
+    uint32_t id;
+    if (t == 2) {
+        if (mine == 5 && theirs == 0) u3x_pm_challenge(base, s, u, 0x776, 1, 0);
+        id = 0x768;
+    } else if (t == 0) {
+        id = 0x76f;
+    } else if (t == 1) {
+        id = 0x77c;
+    } else if (t == 0xf) {
+        id = 0x780;
+    } else if (t == 10) {
+        id = 0x777;
+    } else {
+        if (t == 0x13) pm_add(base, s, u, 0x1d78, 1);
+        return;
+    }
+    u3x_pm_challenge(base, s, u, id, 1, 0);
+}
+// f_365da8: co-op map counters and the wave challenges
+extern "C" U3X_FN void u3x_pm_365da8(uintptr_t base, void *s, uint32_t u, uint32_t map, int32_t a3) {
+    if (map < 0x20) pm_add(base, s, u, (map + 0x58a) * 4 + 8, 1);
+    else if (map - 0x20 < 0x20) pm_add(base, s, u, (map + 0x715) * 4 + 8, 1);
+    const uint32_t x = at<uint32_t>(base + 0x17cb060 + 0x6a48);
+    const int32_t t = u3x_pm_type(base, s);
+    if (!a3) {
+        if (t == 0xb) {
+            if (x > 1) u3x_pm_challenge(base, s, u, 0x75d, 1, 0);
+            if (x > 2) u3x_pm_challenge(base, s, u, 0x769, 1, 0);
+            if (x >= 4) u3x_pm_challenge(base, s, u, 0x773, 1, 0);
+        } else if (t == 0x11) {
+            if (x > 3) u3x_pm_challenge(base, s, u, 0x77b, 1, 0);
+            if (x >= 3) u3x_pm_challenge(base, s, u, 0x76a, 1, 0);
+        } else if (t == 8) {
+            if (x >= 2) u3x_pm_challenge(base, s, u, 0x75e, 1, 0);
+        }
+    }
+    if (x != 4) return;
+    if (t == 0xb) u3x_pm_challenge(base, s, u, 0x77f, 1, 1);
+    else if (t == 0x11) u3x_pm_challenge(base, s, u, 0x771, 1, 1);
+}
+// f_324f9c + f_325154 per score entry + f_325094: the weapon stats of the match into 0x17d3630
+extern "C" U3X_FN void u3x_pm_weapon_stats(uintptr_t base) {
+    uint8_t *obj = reinterpret_cast<uint8_t *>(base + 0x17d3630);
+    const uint8_t *sm = reinterpret_cast<const uint8_t *>(base + 0x17dd778);
+    *reinterpret_cast<uint32_t *>(obj + 0x24a0) = 0;
+    const uint32_t n = rd<uint32_t>(sm, 0xe8);
+    for (uint32_t i = 0; i < n; ++i) {
+        const uint8_t *e = sm + 0xec + static_cast<uintptr_t>(i) * 0x28;
+        if (!rd<uint16_t>(e, 2) || !rd<uint16_t>(e, 4)) continue;
+        const uint32_t b = e[0xc];
+        const int32_t *mp = game_call<int32_t *>(base + 0x11f2e30, 0x9e354807u);
+        if (b >= 0x13 && (!mp || b - 0x13 >= static_cast<uint32_t>(mp[0]))) continue;   // PS4 asserts here
+        const uint32_t id = b < 0x13 ? at<uint32_t>(base + 0x13a6170 + b * 4) : reinterpret_cast<const uint32_t *>(*reinterpret_cast<const uintptr_t *>(mp + 2))[b - 0x13];
+        game_call<void>(base + 0x748ef0, static_cast<void *>(obj), id);
+    }
+    for (uint32_t i = 0; i < rd<uint32_t>(obj, 0x24a0); ++i) {
+        uint8_t *o = obj + static_cast<uintptr_t>(i) * 0xa0;
+        *reinterpret_cast<uint64_t *>(o + 0x1118) = 0x2d6e6f706165775full;   // "weapon-stats"
+        *reinterpret_cast<uint16_t *>(o + 0x1124) = 0x73;
+        *reinterpret_cast<uint32_t *>(o + 0x1120) = 0x74617473u;
+        *reinterpret_cast<uint32_t *>(o + 0x112c) = static_cast<uint32_t>(obj[0x24a4 + i * 4]) + 100;
+        *reinterpret_cast<uint64_t *>(o + 0x1130) = rd<uint64_t>(obj, 0x2528 + static_cast<uintptr_t>(i) * 8);
+    }
+}
+// 1.19 0x29b954..0x29be48: the leaderboard blob and submits (co-op: 0x517 / 0x515; ranked: 0x514 / 0x515 / 0x516)
+extern "C" U3X_FN void u3x_pm_lb_submits(uintptr_t base, void *s, uint32_t u) {
+    uint8_t blob[0x40];
+    for (uint8_t &b : blob) b = 0;
+    uint8_t *p = u3h_lg_profile(base, u);
+    const uint8_t *r = pm_rec(base, s, u);
+    *reinterpret_cast<uint32_t *>(blob) = game_call<uint32_t>(base + 0x781ea0, static_cast<void *>(p));
+    *reinterpret_cast<uint32_t *>(blob + 8) = rd<uint32_t>(r, 0x1c58);
+    *reinterpret_cast<uint32_t *>(blob + 0xc) = rd<uint32_t>(r, 0x1f24);
+    *reinterpret_cast<uint32_t *>(blob + 0x10) = rd<uint32_t>(r, 0x1eac);
+    *reinterpret_cast<int32_t *>(blob + 4) = rd<int32_t>(r, 0x1f30) + rd<int32_t>(r, 0x1f28);
+    if (!u3x_lb_off()) {
+        if (u3x_pm_coop(base, s)) {
+            u3x_lb_submit(base, s, 0x517, rd<int32_t>(r, 0x1f2c), blob);
+            u3x_lb_submit(base, s, 0x515, rd<int32_t>(r, 0x1f38), blob);
+        } else if (u3x_pm_ranked(base, s)) {
+            u3x_lb_submit(base, s, 0x514, rd<int32_t>(r, 0x1c54), blob);
+            u3x_lb_submit(base, s, 0x515, rd<int32_t>(r, 0x1f38), blob);
+            u3x_lb_submit(base, s, 0x516, rd<int32_t>(r, 0x1f34), blob);
+        }
+    }
+    ++ext_ea()[60];
+}
+extern "C" U3X_FN int u3x_n13_on(void) { return !(ext_ec()[3] & 0x100u); }
+// one local user's counters (0x29a3fc..0x29be64)
+namespace {
+U3X_FN void pm_user(uintptr_t base, void *s, uint32_t u) {
+    uint8_t *net = reinterpret_cast<uint8_t *>(base + 0x17d5c58), *ngm = reinterpret_cast<uint8_t *>(base + 0x17cb060), *party = reinterpret_cast<uint8_t *>(base + 0x17d6420);
+    const uint8_t flag = at<uint8_t>(base + 0x16e7170);
+    const uint8_t *tr = rd<const uint8_t *>(ngm, 0x370 + static_cast<uintptr_t>(u) * 8);
+    if (!tr) return;
+    const uint8_t *sm = reinterpret_cast<const uint8_t *>(base + 0x17dd778);
+    const uint16_t *st = reinterpret_cast<const uint16_t *>(base + 0x1b7f114);
+    const uint8_t *tm = reinterpret_cast<const uint8_t *>(base + 0x1b7f070);
+    if (rd<uint32_t>(sm, 8)) {   // this player's score and member records (by network id)
+        const uint32_t lo = rd<uint32_t>(tr, 0x1e4) & 0xfff;
+        uint32_t k = lo + 0x800;
+        if (!(lo && tr[0x1ec])) k = lo;
+        k += rd<uint32_t>(tr, 0x1e8) << 12;
+        bool found = false;
+        for (uint32_t i = 0; i < rd<uint32_t>(sm, 8); ++i)
+            if (rd<uint32_t>(sm, 0x50ec + static_cast<uintptr_t>(i) * 0xa4) == k) {
+                st = reinterpret_cast<const uint16_t *>(sm + 0x60d4 + static_cast<uintptr_t>(i) * 0x130);
+                found = true;
+                break;
+            }
+        if (!found) st = reinterpret_cast<const uint16_t *>(base + 0x1b7f114);
+        for (uint32_t i = 0; i < rd<uint32_t>(sm, 8); ++i)
+            if (rd<uint32_t>(sm, 0x50ec + static_cast<uintptr_t>(i) * 0xa4) == k) {
+                tm = sm + 0x50ec + static_cast<uintptr_t>(i) * 0xa4;
+                break;
+            }
+    }
+    const uint8_t team = tm[7];
+    const uint8_t *T = reinterpret_cast<const uint8_t *>(base + 0x17e338c);   // the 3 team blocks
+    int16_t sc[3];
+    for (int i = 0; i < 3; ++i) sc[i] = rd<int16_t>(T, i * 0x130 + 2);
+    int32_t cnt[4];
+    for (int32_t &c : cnt) c = 0;
+    for (int i = 0; i < 10; ++i) {
+        const uint8_t *pl = net[9] ? ngm + 0x390 + static_cast<uintptr_t>(i) * 0x9c0 : nullptr;
+        if (pl && pl[0xe1]) {
+            const uint32_t k = rd<uint32_t>(pl, 0x21c);
+            if (k < 4) ++cnt[k];
+        }
+    }
+    for (int i = 0; i < 2; ++i) {
+        const int32_t r = game_call<int32_t>(base + 0x688160, reinterpret_cast<void *>(base + 0x17c3b40), static_cast<uint64_t>(u), i, -1);
+        pm_add(base, s, u, static_cast<uint32_t>(r + 0x4fd) * 4 + 8, 1);
+    }
+    {
+        const int32_t r = game_call<int32_t>(base + 0x74e6d0, reinterpret_cast<void *>(base + 0x17d79f0 + static_cast<uintptr_t>(u) * 0xc), -1, u3x_pm_coop(base, s));
+        pm_add(base, s, u, static_cast<uint32_t>(r + 0x53d) * 4 + 8, 1);
+    }
+    bool publish = false;
+    const int32_t st24 = *reinterpret_cast<const int32_t *>(reinterpret_cast<const uint8_t *>(st) + 0x24);
+    if (u3x_pm_coop(base, s) && u3x_pm_type(base, s) != 0x12) {   // co-op
+        pm_add(base, s, u, 0x5bc, st24);
+        pm_add(base, s, u, 0x1f2c, st24);
+        pm_add(base, s, u, 0x5c0, rd<int32_t>(tm, 0x14));
+        pm_add(base, s, u, 0x1f28, rd<int32_t>(tm, 0x14));
+        at<uint32_t>(base + 0x1b68a18 + u * 4) = 1;
+        if (!party[0x1339]) {
+            pm_add(base, s, u, 0x15fc, 1);
+            pm_add(base, s, u, 0x65c, st[5]);
+            if (rd<int32_t>(ngm, 0x680c) == 4) {
+                pm_add(base, s, u, 0x1600, 1);
+                if (const uint8_t *e = u3x_pm_ngentry(base, s)) u3x_pm_365da8(base, s, u, rd<uint32_t>(e, 0xb8), st[6]);
+                switch (rd<uint32_t>(ngm, 0x6a48)) {
+                case 1: pm_add(base, s, u, 0x660, 1); break;
+                case 2: pm_add(base, s, u, 0x664, 1); break;
+                case 3: pm_add(base, s, u, 0x668, 1); break;
+                case 4: pm_add(base, s, u, 0x66c, 1); break;
+                }
+            }
+        }
+        publish = true;
+    } else if (!u3x_pm_ranked(base, s)) {
+        publish = true;
+    } else {   // competitive
+        if (u3x_pm_leader_of(base, 0x17d6420) && u == 0) u3x_pm_weapon_stats(base);
+        at<uint32_t>(base + 0x1b68a18 + u * 4) = 1;
+        if ((party[0x1339] || flag) && !u3x_pm_coop(base, s)) {
+            pm_add(base, s, u, 0x5b0, 1);
+            pm_add(base, s, u, 0x1f24, 1);
+        }
+        pm_add(base, s, u, 0x1604, 1);
+        if (!flag && u3x_pm_map_is(base, s, 0x5242014bu)) u3x_pm_challenge(base, s, u, 0x78b, 1, 0);
+        const int32_t ty = u3x_pm_type(base, s);
+        if (ty != 0x12 && ty != 0xf && ty != 2) {
+            pm_add(base, s, u, 0x5a4, st[4]);
+            pm_add(base, s, u, 0x5a8, st[6]);
+        }
+        if (u3x_pm_map(base, s) != 0x5242014bu && (game_call<int>(base + 0x729b10, static_cast<void *>(ngm)) || u3x_pm_type(base, s) == 10 || u3x_pm_type(base, s) == 0xe) &&
+            u3x_pm_type(base, s) != 0xf && u3x_pm_type(base, s) != 2) {
+            pm_add(base, s, u, 0x1c54, st[4]);
+            pm_add(base, s, u, 0x1c58, st[6]);
+        }
+        pm_add(base, s, u, 0x5b4, st[0x24]);
+        pm_add(base, s, u, 0x5b8, rd<int32_t>(tm, 0x14));
+        pm_add(base, s, u, 0x1f30, rd<int32_t>(tm, 0x14));
+        pm_add(base, s, u, 0x65c, st[5]);
+        if (u3x_pm_type(base, s) == 0xf) {
+            pm_add(base, s, u, 0x658, static_cast<int16_t>(st[1]));
+            u3x_pm_challenge(base, s, u, 0x765, static_cast<int16_t>(st[1]), 0);
+        } else if (u3x_pm_type(base, s) == 2) {
+            pm_add(base, s, u, 0x654, static_cast<int16_t>(st[1]));
+        }
+        const uint32_t mode = rd<uint32_t>(ngm, 0x680c);
+        if (u3x_pm_map(base, s) != 0x5242014bu && mode <= 9 && ((1u << mode) & 0x244u)) {   // win / tie / loss
+            const uint8_t *my = T + static_cast<uintptr_t>(team) * 0x130;
+            const int32_t tmode = game_call<int32_t>(base + 0x7210a0, static_cast<void *>(ngm));
+            int path = 0;   // 1 win, 2 tie, 3 loss (team), 4 loss (free for all)
+            if (tmode == 2) {
+                if (cnt[0] && cnt[1]) {
+                    if (sc[0] == sc[1]) path = 2;
+                    else if (rd<int16_t>(my, 0) != 1) path = 3;
+                    else path = 1;
+                } else {
+                    path = 1;
+                }
+                if (path == 1) {
+                    if (ngm[0x34e]) pm_add(base, s, u, 0x61c, 1);
+                    else if (ngm[0x34d]) pm_add(base, s, u, 0x614, 1);
+                } else if (path == 3) {
+                    if (ngm[0x34e]) pm_add(base, s, u, 0x620, 1);
+                    else if (ngm[0x34d]) pm_add(base, s, u, 0x618, 1);
+                }
+            } else if (tmode == 3 && team <= 2) {
+                if (rd<int16_t>(my, 0) != 1) {
+                    path = 4;
+                } else {   // first place: a tie when another team has the same score
+                    const int32_t a[3] = {sc[0], sc[1], sc[2]};
+                    bool tie = false;
+                    if (team) tie = sc[0] == a[team];
+                    if (team != 1 && a[1] == a[team]) tie = true;
+                    if (team != 2 && a[2] == a[team]) path = 2;
+                    else path = tie ? 2 : 1;
+                }
+            }
+            if (path == 1) {
+                pm_add(base, s, u, 0x5ac, 1);
+                pm_add(base, s, u, 0x1f34, 1);
+                const uint8_t *other = T + (team == 0 ? 0x130 : 0);
+                u3x_pm_365c5c(base, s, u, rd<int16_t>(my, 2), rd<int16_t>(other, 2));
+            } else if (path == 2) {
+                pm_add(base, s, u, 0x60c, 1);
+            } else if (path == 3 || path == 4) {
+                pm_add(base, s, u, 0x5b0, 1);
+                pm_add(base, s, u, 0x1f24, 1);
+            }
+        }
+    }
+    if (publish) u3h_publish(base, s, u3h_lg_profile(base, u));
+    u3x_pm_lb_submits(base, s, u);
+}
+U3X_FN uint32_t cvt_i64_float(int64_t v) {   // int64 -> float bits (cvtsi2ss)
+    uint32_t r;
+    __asm__("cvtsi2ss %1,%%xmm0\n\tmovd %%xmm0,%0" : "=r"(r) : "r"(v) : "xmm0");
+    return r;
+}
+}  // namespace
+extern "C" U3X_FN void u3x_pm119(uintptr_t base, void *s, uint8_t *param) {
+    uint32_t *ea = ext_ea();
+    uint8_t *net = reinterpret_cast<uint8_t *>(base + 0x17d5c58), *ngm = reinterpret_cast<uint8_t *>(base + 0x17cb060), *party = reinterpret_cast<uint8_t *>(base + 0x17d6420);
+    uint8_t &flag = at<uint8_t>(base + 0x16e7170);
+    ++ea[59];
+    const bool n13 = u3x_n13_on() && n13_flag();   // n013: a spoofed matchmade match
+    n13_flag() = 0;
+    ea[93] = rd<uint32_t>(net, 0x40) << 8 | static_cast<uint32_t>(n13) << 4 | flag;
+    // 0x29a088..0x29a3f8
+    *reinterpret_cast<uint32_t *>(pm_rec(base, s, 0) + 0x558) = 0;
+    u3h_publish(base, s, u3h_lg_profile(base, 0));
+    *reinterpret_cast<uint32_t *>(param + 0x1c) = 0;
+    game_call<void>(base + 0x74b290);
+    game_call<void>(base + 0x6a3130, reinterpret_cast<void *>(base + 0x17c3ba8));
+    {
+        uint8_t *q = rd<uint8_t *>(param, 8);
+        *reinterpret_cast<uint32_t *>(q + 0x1a0) = 0x3f800000u;
+        *reinterpret_cast<uint32_t *>(param + 0x18) = at<uint32_t>(base + 0x17b4a90 + 0x114);
+        *reinterpret_cast<uint32_t *>(q + 0x19c) = 0x3f800000u;
+    }
+    u3x_pm_menu_reset(base, 0x17bd080);
+    u3x_pm_menu_reset(base, 0x17bfa10);
+    at<uint8_t>(base + 0x17f9938 + 0x104b) = 0;
+    {   // f_587b0(.., 1) as PS4 inlines it
+        uint8_t *t = reinterpret_cast<uint8_t *>(base + 0x17bb860);
+        if (*t != 1) {
+            *t = 1;
+            const uint32_t c = f_div(f_from_int(at<int32_t>(base + 0x17b4a90 + 0x114)), at<uint32_t>(base + 0x1443b34));
+            *reinterpret_cast<uint32_t *>(t + 4) = f_add(c, at<uint32_t>(base + 0x17b6368 + 0x39b0));
+            *reinterpret_cast<uint32_t *>(t + 8) = f_add(c, at<uint32_t>(base + 0x1443b38));
+        }
+    }
+    if (party[0x1339]) {
+        if (at<uint64_t>(base + 0x17dc298 + 0x18)) at<uint8_t>(base + 0x17dc298 + 0x1334) = 1;
+        flag = 1;
+    }
+    *reinterpret_cast<uint32_t *>(ngm + 0x6808) = 0;
+    at<uint32_t>(base + 0x17c3b40) = 0;
+    at<uint32_t>(base + 0x17c3b40 + 0x14) = 0;
+    at<uint32_t>(base + 0x17c3b40 + 4) = 0;
+    at<uint8_t>(base + 0x1b68a20) = 0;
+    {   // the "multi-menu" level
+        const char *nm = reinterpret_cast<const char *>(base + 0x145e7f2);
+        uint8_t rq[0x18];
+        for (uint8_t &b : rq) b = 0;
+        *reinterpret_cast<uint64_t *>(rq) = game_call<uint64_t>(base + 0x10e95b0, nm);
+        *reinterpret_cast<uint32_t *>(rq + 8) = (*reinterpret_cast<uint32_t (**)(int, const char *, int)>(base + 0x1702720))(0, nm, 0);
+        rq[0xe] = 0x0a;
+        game_call<void>(base + 0x10eb990, reinterpret_cast<void *>(base + 0x1afcf10), static_cast<void *>(rq));
+    }
+    if (flag) {   // leaving: the page stack back to the lobby, the party told
+        u3x_pm_pg_clear(base);
+        u3x_pm_pg_push(base, 0x37656388u);
+        u3x_pm_pg_push(base, 0x53cbb5f2u);
+        if (!rd<uint32_t>(net, 0x40) && !n13) u3x_pm_pg_push(base, 0xb99a3235u);
+        else if (n13) ++ea[91];
+        u3x_pm_pg_push(base, 0xb808d03cu);
+        if (u3x_pm_leader_of(base, 0x17dc298)) {
+            if (!rd<uint32_t>(net, 0x40)) reinterpret_cast<int (*)(uintptr_t, uint32_t, const void *, uint32_t)>(rd<uintptr_t>(u3h_ona(), 8))(base, 0x117, net + 0x78, 8);
+            else at<uint8_t>(base + 0x17dc298 + 0x1334) = 1;
+        } else if (!rd<uint8_t>(rd<uint8_t *>(param, 8), 0x198)) {
+            at<uint8_t>(base + 0x17dc298 + 0x1334) = 1;
+        }
+        game_call<void>(base + 0x74d1f0, party[0xc8] ? rd<uint64_t>(party, 0x18) : static_cast<uint64_t>(0));
+        u3x_pm_party_vcall(base, 0x38, 0, 0);
+        at<uint8_t>(base + 0x1b68a20) = 1;
+        *reinterpret_cast<uint32_t *>(net + 0x40) = 0;
+        at<uint32_t>(base + 0x1b68810) = 0x26;
+        at<uint32_t>(base + 0x1b68814) = at<uint32_t>(base + 0x17b4a90 + 0x114);
+    } else {
+        if (uint8_t *ob = rd<uint8_t *>(party, 8))
+            if (const uintptr_t fn = rd<uintptr_t *>(ob, 0)[0x58 / 8]) reinterpret_cast<void (*)(void *, void *, int)>(fn)(ob, party, 0);
+        const uint8_t *host = rd<const uint8_t *>(ngm, 0x380), *t0 = rd<const uint8_t *>(ngm, 0x370);
+        if (t0 && host) {   // tell the host we are back (0x105)
+            const uint32_t lo = rd<uint32_t>(t0, 0x1e4) & 0xfff;
+            uint32_t k = lo + 0x800;
+            if (!(lo && t0[0x1ec])) k = lo;
+            uint8_t b[0x10];
+            *reinterpret_cast<uint32_t *>(b) = (rd<uint32_t>(t0, 0x1e8) << 12) + k;
+            *reinterpret_cast<uint32_t *>(b + 4) = 0;
+            *reinterpret_cast<uint64_t *>(b + 8) = rd<uint64_t>(net, 0x78);
+            game_call<void>(base + 0x6b85a0, rd<uint32_t>(host, 0x5b4), 0x105, static_cast<void *>(b), 0x10);
+        }
+    }
+    for (uint32_t u = 0; u < 2; ++u) pm_user(base, s, u);
+    // 0x29be68..
+    if (flag) return;
+    if (n13) {   // PS3's net +0x40 != 0 branch, on the spoof
+        u3h_n13_rearm(base, s);
+        ++ea[92];
+        ++ea[61];
+        return;
+    }
+    if (!rd<uint32_t>(net, 0x40)) {   // back to the Custom Game lobby
+        at<uint8_t>(base + 0x16e7171) = 1;
+        at<uint8_t>(base + 0x16e7172) = 1;
+        u3x_pm_party_vcall(base, 0x38, 0, 0);
+        u3x_pm_pg_clear(base);
+        u3x_pm_pg_push(base, 0x37656388u);
+        u3x_pm_pg_push(base, 0x53cbb5f2u);
+        u3x_pm_pg_push(base, 0xb99a3235u);
+        game_call<void>(base + 0x751aa0, 0xb99a3235u, 0x5ef96af1u);
+        const uint32_t md = rd<uint32_t>(ngm, 0x680c);
+        if (u3x_pm_ranked(base, s) && md != 0 && md != 8 && md != 3 && !party[0x1339]) u3x_pm_pg_push(base, 0xc3a3716u);
+        at<uint32_t>(base + 0x1b68810) = u3x_pm_leader_of(base, 0x17d6420) ? 3u : 0x12u;
+        at<uint32_t>(base + 0x1b68814) = at<uint32_t>(base + 0x17b4a90 + 0x114);
+    } else {   // back to matchmaking
+        const uint64_t tsc = __builtin_ia32_rdtsc(), fr = at<uint64_t>(base + 0x16e7918);
+        const uint64_t q = fr ? tsc / fr : 0, r = tsc - q * fr;
+        const uint32_t fq = cvt_i64_float(static_cast<int64_t>(q)), frf = cvt_i64_float(static_cast<int64_t>(fr)), frr = cvt_i64_float(static_cast<int64_t>(r));
+        at<uint32_t>(base + 0x17d79e0) = f_add(f_add(fq, f_div(frr, frf)), at<uint32_t>(base + 0x1443b3c));
+        u3x_pm_pg_clear(base);
+        u3x_pm_pg_push(base, 0x37656388u);
+        u3x_pm_pg_push(base, 0x53cbb5f2u);
+        u3x_pm_pg_push(base, 0xe35f0f1au);
+        game_call<void>(base + 0x751aa0, 0xe35f0f1au, 0x5ef96af1u);
+        if (u3x_shows_match_stats(rd<uint32_t>(ngm, 0x680c), party[0x1339])) u3x_pm_pg_push(base, 0xc3a3716u);
+        if (u3x_pm_leader_of(base, 0x17d6420)) {
+            u3x_pm_party_vcall(base, 0x68, 0, 1);
+            u3x_pm_party_vcall(base, 0x40, 0, 1);
+        }
+    }
+    ++ea[61];
+}
+// ===== v7.211: fourth split, part 15 (the online backend's room messages) =====
+
+extern "C" {
+U3H_IMPORT void *u3h_onb_object(void);
+U3H_IMPORT uint8_t *u3h_onb_msg(void);
+U3H_IMPORT uint64_t *u3h_onb_pj(void);
+U3H_IMPORT void **u3h_onb_vt(void);
+U3H_IMPORT int u3h_smn_send(const void *m, uint32_t n);
+U3H_IMPORT void u3h_smn_attach(int on);
+U3H_IMPORT int u3h_ol_up(void);
+U3H_IMPORT int u3h_ol_frame(uint32_t type, const void *m, uint32_t n);
+U3H_IMPORT void u3h_fw_line(const char *a, uint32_t hex, int dig, const char *b, int32_t v);
+U3H_IMPORT const char *u3h_fw_sess(uintptr_t base, uint8_t *ss);
+U3H_IMPORT uint32_t u3h_fw_game_ra(uintptr_t base, uintptr_t ra, uintptr_t fp);
+U3H_IMPORT int32_t u3h_fw_host_link(uintptr_t base);
+U3H_IMPORT void u3h_cg_log(const char *a, int32_t v);
+U3H_IMPORT void *u3h_fl_state(void);
+U3H_IMPORT void u3h_ng_stamp(uintptr_t base, void *s, uint8_t *md);
+U3H_IMPORT void u3h_lnb_marks(uint8_t *guest_wait, uint8_t *host_playing, uint8_t *at_start, uint64_t *followed);
+}
+
+// b014: the online backend (PS3 1.19's matchmaking client object, f_3831dc .. f_385540). The object (u3h_onb_object) is
+// the vtable, the online id, the four bound sessions (match, party, ...; the cookie of a binding is its index + 1), the
+// next ping time (float seconds), the receive buffer and the image base. Each slot builds one little-endian room
+// message (type at +0, 303..323) in the shared message buffer and sends it over the PS3 session socket while that is
+// live, else as a community frame 0x0400 + (type - 300) over the online link. Slot 1 (Update, the receive side) stays in
+// C beside the private session-wire block. ExtState eb: [128] object, [130] Init result, [131] slot calls, [132] last
+// slot, [133] messages sent, [134] last sent type, [137] pings, [138] creates, [139] joins, [140] searches, [141]
+// leaves, [147] receive overflows, [148] unknown cookies, [93] net players made at match start.
+namespace {
+struct OnbBe {
+    void *vt;
+    char name[0x24];
+    uint8_t *bind[4];
+    uint32_t next_ping;   // float bits
+    uint32_t rxlen;
+    uint8_t rx[0x1000];
+    uintptr_t base;
+};
+static_assert(sizeof(OnbBe) == 0x1060, "the C OnbBe");
+OnbBe &onb_be(void *be) { return *static_cast<OnbBe *>(be); }
+uint8_t *onb_match_ss(uintptr_t base) { return reinterpret_cast<uint8_t *>(base + 0x17d6420); }
+uint8_t *onb_party_ss(uintptr_t base) { return reinterpret_cast<uint8_t *>(base + 0x17dc298); }
+uint64_t &onb_room(uint8_t *ss) { return *reinterpret_cast<uint64_t *>(ss + 0x18); }
+template <typename T> T &onb_put(uint8_t *m, uint32_t off) { return *reinterpret_cast<T *>(m + off); }
+// seconds on the PS3 timebase (a 1/1200 s tick count); x87 like the C
+[[gnu::always_inline]] inline float onb_seconds(uintptr_t base) { return static_cast<float>(at<int32_t>(base + 0x17b4ba4)) * x87_const(0x3b5a740eu); }
+// a log line: text capped at 120 characters (member names up to 150), as the C log builders do
+struct OnbText {
+    char t[184];
+    int n;
+};
+U3X_FN void onb_cat(OnbText &l, const char *s) {
+    while (*s && l.n < 120) l.t[l.n++] = *s++;
+}
+U3X_FN void onb_dec(OnbText &l, uint32_t v) {
+    char d[12];
+    int k = 0;
+    do {
+        d[k++] = static_cast<char>('0' + v % 10);
+        v /= 10;
+    } while (v);
+    while (k && l.n < 120) l.t[l.n++] = d[--k];
+}
+U3X_FN uint8_t *onb_clear_msg(uint32_t n) {
+    uint8_t *m = u3h_onb_msg();
+    zero_bytes(m, n);
+    return m;
+}
+U3X_FN void onb_clear_members(uintptr_t base, uint8_t *ss) { game_call<int64_t>(base + 0x7a25f0, ss); }   // f_381670
+U3X_RO const char onb_t_session[] = " session, room ", onb_t_create[] = "Create (303): ", onb_t_old[] = " (the old one), cookie ",
+                  onb_t_join[] = "Join (304) asked by the ", onb_t_cookie[] = ", cookie ", onb_t_leave[] = "Leave (307) of the ",
+                  onb_t_game[] = " room asked by the game at ",
+                  onb_t_outside[] = " room asked from outside the game image (helper or runtime), first return ",
+                  onb_t_state[] = "  ... net state then ", onb_t_link[] = ", link to the match host + 10: ",
+                  onb_t_kick[] = "Kick (311) of member ", onb_t_from[] = " from the ", onb_t_entry[] = " room, its link state+1 ",
+                  onb_t_flags[] = ", entry/active/flag5/flag6 ", onb_t_asked[] = ", asked at ", onb_t_slash[] = "/",
+                  onb_t_gone[] = "Kick (311) asked for an id that is not in the room: not sent; so far ",
+                  onb_t_lead[] = "Kick (311) not sent: this PC does not lead that room, or the member is this PC; so far ",
+                  onb_t_made[] = "match start (slot 11): net players created ", onb_t_local[] = "  ... local net player present ",
+                  onb_t_there[] = "match start (slot 11): local net player already there",
+                  onb_t_loaded[] = "every player connected (slot 14): start-load flag raised, players ",
+                  onb_t_notonb[] = "party session is not on the online backend: member data not sent",
+                  onb_t_mdsent[] = "party member data sent: room-follow marks, at start ";
+U3X_BSS uint32_t onb_kick_gone, onb_kick_lead, onb_md_count;
+U3X_BSS uint8_t onb_md_once;
+}  // namespace
+
+extern "C" U3X_FN void *u3x_onb_obj(uintptr_t base) {
+    void *o = at<void *>(base + 0x17dd760);
+    return o && at<void *>(base + 0x17dd768) == o ? o : nullptr;
+}
+extern "C" U3X_FN void u3x_onb_strcpy(char *d, const char *s, uint32_t n) {   // f_d78874
+    uint32_t i = 0;
+    for (; i + 1 < n && s[i]; ++i) d[i] = s[i];
+    d[i] = 0;
+}
+extern "C" U3X_FN void u3x_onb_note(int slot) {
+    ++ext_eb()[131];
+    ext_eb()[132] = static_cast<uint32_t>(slot);
+}
+extern "C" U3X_FN int u3x_onb_bound(void *be, uint8_t *ss) {
+    for (int i = 0; i < 4; ++i)
+        if (onb_be(be).bind[i] == ss) return i;
+    return -1;
+}
+extern "C" U3X_FN uint8_t *u3x_onb_by_room(void *be, uint64_t room) {
+    for (uint8_t *s : onb_be(be).bind)
+        if (s && onb_room(s) == room) return s;
+    return nullptr;
+}
+extern "C" U3X_FN uint8_t *u3x_onb_by_cookie(void *be, uint32_t c) {
+    if (c >= 1 && c <= 4 && onb_be(be).bind[c - 1]) return onb_be(be).bind[c - 1];
+    ++ext_eb()[148];
+    return nullptr;
+}
+extern "C" U3X_FN uint32_t u3x_onb_cookie(void *be, uint8_t *ss) {
+    const int i = u3x_onb_bound(be, ss);
+    return i < 0 ? 0 : static_cast<uint32_t>(i) + 1;
+}
+// f_94a1c8(conn, msg, n, 1): the PS3 socket (big-endian, swapped there) or a community frame
+extern "C" U3X_FN int32_t u3x_onb_send(const void *msg, uint32_t n) {
+    const uint32_t t = *static_cast<const uint32_t *>(msg);
+    if (t < 300 || t > 0x3ff) return -1;
+    if (u3h_smn_up()) {
+        if (u3h_smn_send(msg, n) < 0) return -1;
+    } else if (!u3h_ol_up() || !u3h_ol_frame(0x0400u + (t - 300u), msg, n)) {
+        return -1;
+    }
+    ++ext_eb()[133];
+    ext_eb()[134] = t;
+    return static_cast<int32_t>(n);
+}
+// 0xC4xx from the b006 receive path, appended to the receive buffer (PS3: recv into +0x23cf8)
+extern "C" U3X_FN void u3x_onb_rx(const uint8_t *p, uint32_t n) {
+    OnbBe &be = onb_be(u3h_onb_object());
+    if (u3h_smn_up()) return;   // the PS3 stream owns the buffer
+    if (be.rxlen + n > sizeof be.rx) {
+        ++ext_eb()[147];
+        return;
+    }
+    copy_bytes(be.rx + be.rxlen, p, n);
+    be.rxlen += n;
+}
+// the ping clock: restart (now + 30 s) and due (next ping before now)
+extern "C" U3X_FN void u3x_onb_ping_restart(void *be) {
+    OnbBe &o = onb_be(be);
+    o.next_ping = x87_bits(onb_seconds(o.base) + x87_const(0x41f00000u));
+}
+extern "C" U3X_FN int u3x_onb_ping_due(void *be) {
+    OnbBe &o = onb_be(be);
+    return x87_float(o.next_ping) < onb_seconds(o.base);
+}
+// sprintf("%s.%lld", online id, time)
+extern "C" U3X_FN void u3x_onb_name_time(uintptr_t base, char *out) {
+    const char *id = reinterpret_cast<const char *>(base + 0x17d6010);
+    uint32_t k = 0;
+    for (; k < 0x24 && id[k]; ++k) out[k] = id[k];
+    out[k++] = '.';
+    uint64_t t = static_cast<uint32_t>(at<int32_t>(base + 0x17b4ba4));
+    char d[24];
+    int nd = 0;
+    do {
+        d[nd++] = static_cast<char>('0' + t % 10);
+        t /= 10;
+    } while (t);
+    while (nd) out[k++] = d[--nd];
+    out[k] = 0;
+}
+// f_32562c(net, &f124, &f112): the two location words of net +0x30 / +0x34, truncated
+extern "C" U3X_FN void u3x_onb_geo(uintptr_t base, uint16_t *a, uint16_t *b) {
+    const float f124 = x87_float(at<uint32_t>(base + 0x17d5c58 + 0x30)), f112 = x87_float(at<uint32_t>(base + 0x17d5c58 + 0x34));
+    *a = static_cast<uint16_t>(static_cast<int32_t>(f112));
+    *b = static_cast<uint16_t>(static_cast<int32_t>(f124));
+}
+// "U3MP online: custom game: <what><session> session, room 0x<low 32 bits><b><v>"
+extern "C" U3X_FN void u3x_onb_wire(uintptr_t base, const char *what, uint8_t *ss, uint64_t room, const char *b, int32_t v) {
+    OnbText l;
+    l.n = 0;
+    onb_cat(l, what);
+    onb_cat(l, u3h_fw_sess(base, ss));
+    onb_cat(l, onb_t_session);
+    l.t[l.n] = 0;
+    u3h_fw_line(l.t, static_cast<uint32_t>(room), 8, b, v);
+}
+
+// ---- slots ----
+extern "C" U3X_FN int64_t u3x_onb_s0(void *be_) {   // f_3831dc Init
+    OnbBe &be = onb_be(be_);
+    u3x_onb_note(0);
+    be.rxlen = 0;
+    u3x_onb_ping_restart(be_);
+    const int64_t r = (u3h_smn_up() == 1 || u3h_ol_up()) ? 0 : -1;   // a live session = PS3 connect >= 0
+    ext_eb()[130] = static_cast<uint32_t>(r);
+    if (!r) u3h_smn_attach(1);
+    return r;
+}
+extern "C" U3X_FN int64_t u3x_onb_s2(void *be_) {   // f_3831a0 Shutdown
+    u3x_onb_note(2);
+    onb_be(be_).rxlen = 0;
+    u3h_smn_attach(0);
+    return 0;
+}
+extern "C" U3X_FN int64_t u3x_onb_s3(void *be_, uint8_t *ss) {   // f_3835f8 AttachSession
+    OnbBe &be = onb_be(be_);
+    u3x_onb_note(3);
+    int i = u3x_onb_bound(be_, ss);
+    if (i < 0)
+        for (i = 0; i < 4 && be.bind[i]; ++i) {}
+    if (i >= 4) return -1;
+    be.bind[i] = ss;
+    *reinterpret_cast<void **>(ss + 8) = be_;   // a re-attach restores session +8 too
+    return i;
+}
+extern "C" U3X_FN int64_t u3x_onb_s4(void *be_, uint8_t *ss, uint32_t cap, uint32_t a4, uint32_t a5, uint32_t a6) {   // f_3836c0 Create
+    OnbBe &be = onb_be(be_);
+    u3x_onb_note(4);
+    ++ext_eb()[138];
+    const int i = u3x_onb_bound(be_, ss);
+    if (i < 0) return -1;
+    u3h_onb_pj()[i] = 0;
+    u3x_onb_wire(be.base, onb_t_create, ss, onb_room(ss), onb_t_old, static_cast<int32_t>(i + 1));
+    onb_clear_members(be.base, ss);
+    uint8_t *m = onb_clear_msg(232);
+    onb_put<uint32_t>(m, 0) = 303;
+    onb_put<uint32_t>(m, 8) = static_cast<uint32_t>(i + 1);
+    onb_put<uint32_t>(m, 12) = rd<uint32_t>(ss, 0x14);
+    onb_put<uint32_t>(m, 20) = rd<uint32_t>(ss, 0xf8) | (a6 ? 0x8000u : 0);   // +16: region | languages (no NP) stays 0
+    onb_put<uint16_t>(m, 28) = static_cast<uint16_t>(a5);
+    u3x_onb_geo(be.base, &onb_put<uint16_t>(m, 32), &onb_put<uint16_t>(m, 34));
+    onb_put<uint16_t>(m, 36) = static_cast<uint16_t>(cap);
+    m[38] = static_cast<uint8_t>(rd<uint32_t>(ss, 0x12f0));
+    m[39] = a4 ? 4 : 0;
+    ss[0x12ec] = 0;
+    u3x_onb_name_time(be.base, reinterpret_cast<char *>(m + 40));
+    copy_bytes(m + 168, ss + 0x12f4, 64);
+    *reinterpret_cast<uint32_t *>(ss + 0x20c) = cap;
+    ss[0xa1] = 0;
+    *reinterpret_cast<uint32_t *>(ss + 0xa4) = 0;
+    u3x_onb_send(m, 232);
+    return 0;
+}
+extern "C" U3X_FN int64_t u3x_onb_s5(void *be_, uint8_t *ss, uint32_t a3, uint32_t, int32_t a5, int32_t a6, int32_t a7, uint32_t a8) {   // f_385394 Search
+    OnbBe &be = onb_be(be_);
+    u3x_onb_note(5);
+    ++ext_eb()[140];
+    uint8_t *m = onb_clear_msg(36);
+    onb_put<uint32_t>(m, 0) = 309;
+    onb_put<uint32_t>(m, 8) = u3x_onb_cookie(be_, ss);
+    onb_put<uint32_t>(m, 12) = rd<uint32_t>(ss, 0x14);
+    *reinterpret_cast<uint32_t *>(ss + 0x218) = 0;
+    onb_put<uint32_t>(m, 16) = rd<uint32_t>(ss, 0xf8) | (a8 ? 0x8000u : 0);
+    u3x_onb_geo(be.base, &onb_put<uint16_t>(m, 20), &onb_put<uint16_t>(m, 22));
+    onb_put<uint16_t>(m, 24) = static_cast<uint16_t>(a3);   // +32: the a4 region | languages (no NP) stays 0
+    if (a5 >= 0) {
+        const int32_t lo = a5 - a6;
+        onb_put<uint16_t>(m, 28) = static_cast<uint16_t>(lo < 0 ? 0 : lo);
+        onb_put<uint16_t>(m, 30) = static_cast<uint16_t>(a5 + a7);
+    }
+    u3x_onb_send(m, 36);
+    ss[0xb0] = 0;
+    *reinterpret_cast<uint32_t *>(ss + 0xb4) = 0;
+    return 0;
+}
+extern "C" U3X_FN int64_t u3x_onb_s6(void *be_, uint8_t *ss, uint64_t room) {   // f_3842b0 Join
+    OnbBe &be = onb_be(be_);
+    u3x_onb_note(6);
+    ++ext_eb()[139];
+    const int i = u3x_onb_bound(be_, ss);
+    if (i < 0) return -1;
+    u3h_onb_pj()[i] = room;   // the room this binding's pending Join asked for
+    u3x_onb_wire(be.base, onb_t_join, ss, room, onb_t_cookie, static_cast<int32_t>(i + 1));
+    onb_clear_members(be.base, ss);
+    uint8_t *m = onb_clear_msg(88);
+    onb_put<uint32_t>(m, 0) = 304;
+    onb_put<uint32_t>(m, 8) = static_cast<uint32_t>(i + 1);
+    m[12] = static_cast<uint8_t>(rd<uint32_t>(ss, 0x12f0));
+    onb_put<uint64_t>(m, 16) = room;
+    copy_bytes(m + 24, ss + 0x12f4, 64);
+    *reinterpret_cast<uint32_t *>(ss + 0xbc) = 0;
+    ss[0xb8] = 0;
+    u3x_onb_send(m, 88);
+    return 0;
+}
+extern "C" U3X_FN int64_t u3x_onb_s7(void *be_, uint8_t *ss) {   // f_3841ac Leave
+    OnbBe &be = onb_be(be_);
+    const uintptr_t base = be.base;
+    u3x_onb_note(7);
+    ++ext_eb()[141];
+    {   // who asked: the game (image-relative return) or something outside the image (helper or runtime)
+        const uintptr_t ra0 = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
+        const uint32_t g = u3h_fw_game_ra(base, ra0, reinterpret_cast<uintptr_t>(__builtin_frame_address(0)));
+        OnbText l;
+        l.n = 0;
+        onb_cat(l, onb_t_leave);
+        onb_cat(l, u3h_fw_sess(base, ss));
+        onb_cat(l, g ? onb_t_game : onb_t_outside);
+        l.t[l.n] = 0;
+        if (g)
+            u3h_fw_line(l.t, g, 7, nullptr, -1);
+        else
+            u3h_fw_line(l.t, static_cast<uint32_t>(ra0 - base), 8, nullptr, -1);
+        u3h_fw_line(onb_t_state, at<uint32_t>(base + 0x1b68810), 2, onb_t_link, u3h_fw_host_link(base) + 10);   // 12 up, 9 none, 8 no match room, 7 no host
+    }
+    const int i = u3x_onb_bound(be_, ss);
+    if (i < 0) return -1;
+    u3h_onb_pj()[i] = 0;
+    const uint64_t room = onb_room(ss);
+    ss[0xc8] = 1;
+    if (ss == onb_match_ss(base)) *u3h_lnb_match_room() = 0;
+    if (!room) return 0;
+    *reinterpret_cast<uint32_t *>(ss + 0xcc) = 0;
+    uint8_t *m = onb_clear_msg(16);
+    onb_put<uint32_t>(m, 0) = 307;
+    onb_put<uint64_t>(m, 8) = room;
+    u3x_onb_send(m, 16);
+    onb_room(ss) = 0;
+    onb_clear_members(base, ss);
+    return 0;
+}
+extern "C" U3X_FN int64_t u3x_onb_s8(void *be_, uint8_t *ss, uint32_t v) {   // f_38407c SetAttr
+    OnbBe &be = onb_be(be_);
+    u3x_onb_note(8);
+    if (u3x_onb_bound(be_, ss) < 0) return -1;
+    v &= 0xff;
+    if ((v != 0) == (ss[0x12ec] != 0)) return -1;   // no change
+    ss[0x12ec] = static_cast<uint8_t>(v);
+    const uint64_t room = onb_room(ss);
+    if (!room) return 0;
+    uint8_t *m = onb_clear_msg(16);
+    onb_put<uint32_t>(m, 0) = 318;
+    onb_put<uint64_t>(m, 8) = room;
+    m[5] = 3;
+    m[4] = at<uint32_t>(be.base + 0x17d603c) == 2 ? static_cast<uint8_t>(v) : (v ? 3 : 0);   // net +0x3d4 (custom game mode)
+    u3x_onb_send(m, 16);
+    return 0;
+}
+extern "C" U3X_FN int64_t u3x_onb_s9(void *be_, uint8_t *ss, uint32_t id, uint32_t flag) {   // f_383fb0 Kick
+    OnbBe &be = onb_be(be_);
+    const uintptr_t base = be.base;
+    u3x_onb_note(9);
+    if (u3x_onb_bound(be_, ss) < 0) return -1;
+    const uint8_t *mb = u3x_find_member(ss, id);
+    if (!mb) {   // not in the room: nothing is sent
+        if (!(onb_kick_gone++ % 1800u)) u3h_fw_line(onb_t_gone, 0, 0, nullptr, static_cast<int32_t>(onb_kick_gone));
+        return 0;
+    }
+    if (rd<uint32_t>(ss, 0x12e4) != rd<uint32_t>(ss, 0x12e8) || id == rd<uint32_t>(ss, 0x12e4)) {   // only the room's leader kicks others
+        if (!(onb_kick_lead++ % 1800u)) u3h_fw_line(onb_t_lead, 0, 0, nullptr, static_cast<int32_t>(onb_kick_lead));
+        return 0;
+    }
+    const int32_t conn = rd<int32_t>(mb, 0x34);
+    const uint8_t *e = u3x_entry_by_id(base, conn);
+    OnbText l;
+    l.n = 0;
+    onb_cat(l, onb_t_kick);
+    for (int q = 0; q < 16 && mb[q] && l.n < 150; ++q) l.t[l.n++] = static_cast<char>(mb[q]);
+    onb_cat(l, onb_t_from);
+    onb_cat(l, u3h_fw_sess(base, ss));
+    onb_cat(l, onb_t_entry);
+    onb_dec(l, static_cast<uint32_t>(u3x_connection_state(base, conn) + 1));
+    onb_cat(l, onb_t_flags);
+    onb_dec(l, e ? 1u : 0u);
+    for (int k = 4; k <= 6; ++k) {
+        onb_cat(l, onb_t_slash);
+        onb_dec(l, e ? e[k] : 0u);
+    }
+    onb_cat(l, onb_t_asked);
+    l.t[l.n] = 0;
+    u3h_fw_line(l.t, u3h_fw_game_ra(base, reinterpret_cast<uintptr_t>(__builtin_return_address(0)), reinterpret_cast<uintptr_t>(__builtin_frame_address(0))), 7, nullptr, -1);
+    const uint64_t room = onb_room(ss);
+    if (!room) return 0;
+    uint8_t *m = onb_clear_msg(16);
+    onb_put<uint32_t>(m, 0) = 311;
+    onb_put<uint16_t>(m, 4) = static_cast<uint16_t>(id);
+    onb_put<uint16_t>(m, 6) = static_cast<uint16_t>(flag & 0xff);
+    onb_put<uint64_t>(m, 8) = room;
+    u3x_onb_send(m, 16);
+    return 0;
+}
+extern "C" U3X_FN int64_t u3x_onb_s10(void *be_, uint8_t *ss, uint32_t id) {   // f_383eec Promote
+    u3x_onb_note(10);
+    if (u3x_onb_bound(be_, ss) < 0) return -1;
+    const uint64_t room = onb_room(ss);
+    if (!room) return 0;
+    uint8_t *m = onb_clear_msg(16);
+    onb_put<uint32_t>(m, 0) = 316;
+    onb_put<uint16_t>(m, 4) = static_cast<uint16_t>(id);
+    onb_put<uint64_t>(m, 8) = room;
+    u3x_onb_send(m, 16);
+    return 0;
+}
+extern "C" U3X_FN int64_t u3x_onb_s11(void *be_, uint8_t *ss, uint32_t v) {   // f_383de8 RoomFlags
+    const uintptr_t base = onb_be(be_).base;
+    u3x_onb_note(11);
+    const uintptr_t mg = base + 0x17cb060;
+    if (v && ss == onb_match_ss(base)) {   // the match starts: PS3 state 0x11's member loop makes the net players
+        if (!at<uintptr_t>(mg + 0x380)) {
+            int made = 0;
+            for (int i = 0; i < 10; ++i) {
+                uint8_t *m = ss + 0x680 + i * 0x120;
+                if (!m[0x25]) continue;
+                uint8_t *pl = game_call<uint8_t *>(base + 0x72eca0, mg, ss, m, 0u, 0u);
+                if (!pl) continue;
+                *reinterpret_cast<int32_t *>(pl + 0x21c) = -1;
+                pl[0x365] = 0;
+                ++made;
+                ++ext_eb()[93];
+            }
+            u3h_cg_log(onb_t_made, made);
+            u3h_cg_log(onb_t_local, at<uintptr_t>(mg + 0x380) != 0);
+        } else {
+            u3h_cg_log(onb_t_there, -1);
+        }
+    }
+    if (u3x_onb_bound(be_, ss) < 0) return -1;
+    const uint64_t room = onb_room(ss);
+    if (room) {
+        uint8_t *m = onb_clear_msg(16);
+        onb_put<uint32_t>(m, 0) = 320;
+        onb_put<uint16_t>(m, 4) = static_cast<uint16_t>(v);
+        onb_put<uint64_t>(m, 8) = room;
+        u3x_onb_send(m, 16);
+    } else if (u3x_session_host(ss)) {   // f_37f1f8
+        *reinterpret_cast<uint32_t *>(ss + 0x204) = v;
+        ss[0xf0] = 1;
+    }
+    return 0;
+}
+// the party's member data as lnb_rank_stamp writes it on LAN: rank (bit 29 = stamped), match room, mode and follow marks
+extern "C" U3X_FN void u3x_onb_md_stamp(uintptr_t base, uint8_t *md) {
+    void *s = u3h_fl_state();
+    const uintptr_t rank = s ? state_native(s, 21) : 0;   // NATIVE_PROFILE_RANK
+    uint8_t *pr = player_profile(base);
+    if (rank && pr) *reinterpret_cast<uint32_t *>(md + 0x3c) = reinterpret_cast<uint32_t (*)(void *)>(rank)(pr) | 0x20000000u;
+    const uint64_t room = *u3h_lnb_match_room();
+    uint8_t guest_wait, host_playing, at_start;
+    uint64_t followed;
+    u3h_lnb_marks(&guest_wait, &host_playing, &at_start, &followed);
+    *reinterpret_cast<uint64_t *>(md + 0x34) = room;
+    *reinterpret_cast<int16_t *>(md + 0x30) = at<int16_t>(base + 0x17d167c);
+    md[0x32] = u3x_member_status(at<uint32_t>(base + 0x17d603c) == 2, guest_wait, host_playing);
+    md[0x33] = u3x_member_start(at_start, followed, room);
+    u3h_ng_stamp(base, s, md);
+}
+extern "C" U3X_FN int64_t u3x_onb_s12(void *be_, uint8_t *ss, const uint8_t *data, uint32_t len) {   // f_383c88 MemberData
+    OnbBe &be = onb_be(be_);
+    u3x_onb_note(12);
+    if (len > 64) return -1;   // PS3 traps (twu)
+    *reinterpret_cast<uint32_t *>(ss + 0x12f0) = len;
+    copy_bytes(ss + 0x12f4, data, len);
+    if (u3x_onb_bound(be_, ss) < 0) return -1;
+    const uint64_t room = onb_room(ss);
+    if (!room) return 0;
+    uint8_t *m = onb_clear_msg(80);
+    onb_put<uint32_t>(m, 0) = 314;
+    m[4] = static_cast<uint8_t>(len);
+    onb_put<uint64_t>(m, 8) = room;
+    copy_bytes(m + 16, data, len);
+    if (ss == onb_party_ss(be.base) && len == 0x40) u3x_onb_md_stamp(be.base, m + 16);
+    u3x_onb_send(m, 80);
+    return 0;
+}
+// member data to the party, on LAN (lan_be) or online
+extern "C" U3X_FN void u3x_fl_md(void *lan_be, uint8_t *ps) {
+    if (lan_be) {
+        u3x_lnb_s12(lan_be, ps, ps + 0x12f4, 0x40);
+        return;
+    }
+    void *ob = rd<void *>(ps, 8);
+    if (!ob || onb_be(ob).vt != u3h_onb_vt()) {
+        if (!onb_md_once) {
+            onb_md_once = 1;
+            u3h_cg_log(onb_t_notonb, -1);
+        }
+        return;
+    }
+    *reinterpret_cast<uint32_t *>(ps + 0x12f0) = 0x40;
+    u3x_onb_s12(ob, ps, ps + 0x12f4, 0x40);
+    if (onb_md_count++ < 40) {
+        uint8_t guest_wait, host_playing, at_start;
+        uint64_t followed;
+        u3h_lnb_marks(&guest_wait, &host_playing, &at_start, &followed);
+        u3h_cg_log(onb_t_mdsent, at_start);
+    }
+}
+extern "C" U3X_FN int64_t u3x_onb_s13(void *be_, uint8_t *ss, uint32_t v) {   // f_385540 SetAttr4
+    u3x_onb_note(13);
+    if (u3x_onb_bound(be_, ss) < 0) return -1;
+    const uint64_t room = onb_room(ss);
+    if (!room) return 0;
+    uint8_t *m = onb_clear_msg(16);
+    onb_put<uint32_t>(m, 0) = 318;
+    m[4] = (v & 0xff) ? 4 : 0;
+    m[5] = 4;
+    onb_put<uint64_t>(m, 8) = room;
+    u3x_onb_send(m, 16);
+    return 0;
+}
+extern "C" U3X_FN int64_t u3x_onb_s14(void *be_, uint8_t *ss, const uint16_t *rank, uint32_t n) {   // f_383b28 HostRank
+    const uintptr_t base = onb_be(be_).base;
+    u3x_onb_note(14);
+    if (ss == onb_match_ss(base) && at<uint32_t>(base + 0x1b68810) == 0x30u && !ss[0x1338] && rd<uint32_t>(ss, 0x12e4) == rd<uint32_t>(ss, 0x12e8)) {
+        ss[0x1338] = 1;   // the host raises the start-load flag, as lnb_s14
+        u3h_cg_log(onb_t_loaded, static_cast<int32_t>(n));
+    }
+    if (u3x_onb_bound(be_, ss) < 0) return -1;
+    const uint64_t room = onb_room(ss);
+    if (!room) {
+        ss[0xe0] = 1;
+        return 0;
+    }
+    if (n > (0x100 - 16) / 2) n = (0x100 - 16) / 2;   // PS3: alloca of 16 + 2n
+    uint8_t *m = onb_clear_msg(16 + 2 * n);
+    onb_put<uint32_t>(m, 0) = 322;
+    onb_put<uint16_t>(m, 4) = static_cast<uint16_t>(n);
+    onb_put<uint64_t>(m, 8) = room;
+    copy_bytes(m + 16, rank, 2 * n);
+    u3x_onb_send(m, 16 + 2 * n);
+    return 0;
+}
+namespace {
+U3X_FN int64_t onb_send_name(uint8_t *ss) {   // 323: the room name of ss +0x20
+    const uint64_t room = onb_room(ss);
+    if (!room) return 0;
+    uint8_t *m = onb_clear_msg(144);
+    onb_put<uint32_t>(m, 0) = 323;
+    onb_put<uint64_t>(m, 8) = room;
+    u3x_onb_strcpy(reinterpret_cast<char *>(m + 16), reinterpret_cast<const char *>(ss + 0x20), 128);
+    u3x_onb_send(m, 144);
+    return 0;
+}
+}  // namespace
+extern "C" U3X_FN int64_t u3x_onb_s15(void *be_, uint8_t *ss) {   // f_3852b4 RoomNameAuto
+    u3x_onb_note(15);
+    ss[0xe8] = 1;
+    u3x_onb_name_time(onb_be(be_).base, reinterpret_cast<char *>(ss + 0x20));
+    return onb_send_name(ss);
+}
+extern "C" U3X_FN int64_t u3x_onb_s16(void *, uint8_t *ss) {   // f_383110 RoomName
+    u3x_onb_note(16);
+    ss[0xe8] = 1;
+    return onb_send_name(ss);
+}

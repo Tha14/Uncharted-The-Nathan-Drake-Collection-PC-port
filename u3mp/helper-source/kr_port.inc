@@ -81,11 +81,6 @@ static int kr_active(uint8_t *np){return u3x_net_player_in_game(np);}   /* v7.13
 /* PS3 f_2f8af4 / f_2f9ea0 */
 static uint8_t *kr_np_at(uintptr_t base,uint32_t i){
  if(!*(uint8_t*)(base+0x17d5c61u)||i>9)return 0;return kr_ng(base)+0x390+(uint64_t)i*0x9c0;}
-static uint32_t kr_np_count(uintptr_t base){
- uint32_t c=0;for(int i=0;i<10;i++)c+=kr_active(kr_ng(base)+0x390+(uint64_t)i*0x9c0)!=0;return c;}
-/* PS3 f_2fa32c */
-static int kr_np_index(uintptr_t base,uint32_t id){
- if(!id)return -1;for(int i=0;i<10;i++)if(kr_pid(kr_ng(base)+0x390+(uint64_t)i*0x9c0)==id)return i;return -1;}
 /* current mode entry (PS3 f_300a40 = PS4 0x721050) and its type (+0xc) */
 static uint8_t *kr_mode(uintptr_t base){return ((uint8_t*(*)(void*))(base+0x721050u))(kr_ng(base));}
 static int32_t kr_mode_type(uintptr_t base){uint8_t *m=kr_mode(base);return m?*(int32_t*)(m+0xc):-1;}
@@ -111,8 +106,6 @@ static uint32_t kr_statw(uintptr_t base,uint32_t idx){
  return u3x_weapon_for_stat((const uint32_t*)(base+0x13a6170u),idx<0x13?0:kr_wlist(base),idx);}   /* v7.131 C++ */
 static int kr_group6(uint32_t w){return u3x_weapon_group(w)==6;}   /* v7.131 C++ */
 static int kr_group4(uint32_t w){return u3x_weapon_group(w)==4;}
-/* DC symbol value (PS3 f_9a77e0: traps when missing; here 0 = skip) */
-static void *kr_dc(uintptr_t base,uint32_t id){uint64_t *p=((uint64_t*(*)(uint32_t))(base+0x11f2bf0u))(id);return p?(void*)*p:0;}
 /* stat event (PS3 f_59c94(0x11f45b0,id,amount,np,0) = PS4 0x5ae4e0) */
 static void kr_stat(uintptr_t base,ProfileState *s,uint32_t id,uint32_t amount,uint8_t *np){
  X.kr[2]++;X.krs[X.kr[3]++&15]=id;
@@ -128,141 +121,23 @@ static void kr_prof_add(uintptr_t base,uint8_t *np,uint32_t n,uint32_t amt){
  uint8_t *obj=*(uint8_t**)(base+0x17dd610u);if(!obj)return;
  obj+=(uint64_t)kr_user(np)*0x7b00;*(uint32_t*)(obj+0x250+n*4)+=amt;X.kr[9]++;}
 static uint32_t kr_now(uintptr_t base){uint8_t *c=*(uint8_t**)(base+0x17c3580u);return c?*(uint32_t*)(c+0xc):0;}
-/* squared distance between the killer and victim positions of a record (stored *16) */
-static uint32_t kr_rdist2(KRec *r){
- uint32_t s=0;for(int i=0;i<3;i++){uint32_t d=f_mul(f_sub(f_i2f(r->pos[i]),f_i2f(r->pos[3+i])),F_1_16);s=f_add(s,f_mul(d,d));}
- return s;}
 
 /* ---- medal sub-checks (PS3 0x379xxx..0x381xxx) ---- */
 static const char kr_killed[]="-killed";
-/* f_379c18: kill from above / below */
-static void kr_379c18(uintptr_t base,ProfileState *s,uint8_t *knp,uint8_t *info){
- const uint32_t *k=(const uint32_t*)(info+0x10),*v=(const uint32_t*)(info+0x20);
- uint32_t dx=f_sub(v[0],k[0]),dy=f_sub(v[1],k[1]),dz=f_sub(v[2],k[2]);
- if(f_le(0x40a00000u,dy)||f_le(dy,0xc0a00000u)){
-  uint32_t len=f_sqrt(f_add(f_add(f_mul(dz,dz),f_mul(dx,dx)),f_mul(dy,dy)));
-  uint32_t n=f_div(dy,len);
-  if(f_lt(0x3f5db3d7u,n))kr_stat(base,s,0x427bfc52u,1,knp);
-  else if(f_lt(n,0xbf5db3d7u))kr_stat(base,s,0x8a14a6a4u,1,knp);}}
-/* f_37952c: deaths since the last kill */
-static void kr_37952c(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp){
- uint32_t id=kr_pid(knp),c=0;
- for(uint32_t i=1;i<kr_n(S);i++){KRec *r=kr_rec(S,i);if(r->killer==(uint16_t)id)break;if(r->victim==(uint16_t)id)c++;}
- kr_stat(base,s,0x5852e7edu,c,knp);}
-/* f_3817b8: explosive multi-kill (same weapon within 1 s) */
-static void kr_3817b8(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp,uint8_t *info,int team_mode){
- uint32_t fl=*(uint32_t*)(info+0x60);if(!(fl&0x20))return;
- uint32_t w=*(uint32_t*)(info+0x38),c=0;int32_t t=*(int32_t*)info;
- for(uint32_t i=0;i<kr_n(S);i++){KRec *r=kr_rec(S,i);
-  if(!r->f25&&r->killer==(uint16_t)*(uint32_t*)(info+0x30)&&r->kteam!=r->vteam&&
-     f_lt(f_mul(f_i2f(r->time-t),F_1_300)&0x7fffffffu,F_ONE))c+=kr_statw(base,r->widx)==w;}
- uint32_t id=0x5bc68f9cu;int emit=1;
- if(team_mode){if(w==0x159df996u)emit=0;else if(w==0x7525aa5cu)id=0x2de62476u;else if(w==0x08be7587u)id=0x55917637u;}
- if(emit)kr_stat(base,s,id,c&0xff,knp);
- uint8_t *pr=kr_prec(S,knp);if((c&0xff)>pr[0x52])pr[0x52]=(uint8_t)c;}
-/* f_37992c: pistol/handgun group kills */
-static void kr_37992c(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp,uint8_t *info){
- KRec *r0=kr_rec(S,0);if(r0->kteam==r0->vteam)return;
- uint32_t id=*(uint32_t*)(info+0x30),w=*(uint32_t*)(info+0x38),c7=0,c4=0,c3=0;
- for(uint32_t i=0;i<kr_n(S);i++){KRec *r=kr_rec(S,i);
-  if(!r->f25&&r->killer==id&&r->kteam!=r->vteam){uint32_t x=kr_statw(base,r->widx);if(x==w){c7++;c4++;}else if(kr_group6(x))c4++;}}
- kr_stat(base,s,0xb934b2b2u,c4,knp);
- for(uint32_t i=0;i<kr_n(S);i++){KRec *r=kr_rec(S,i);
-  if(r->killer==id&&r->kteam!=r->vteam){if(!kr_group6(kr_statw(base,r->widx)))break;c3++;}
-  else if(r->victim==id)break;}
- kr_stat(base,s,0xd2b04848u,c3,knp);
- if(w==0x472bca9au||w==0x16980e31u||w==0xc58ae515u||w==0xb17d9450u)kr_stat(base,s,w,c7,knp);
- else if(w==0x22bf34f2u||w==0xbe729d23u)kr_stat(base,s,0x7fdbcbbfu,c7,knp);}
-/* f_37ab00: chained kills within a time window (all weapons, then grenades) */
-static void kr_37ab00(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp,uint8_t *info){
- uint32_t *pf=kr_dc(base,0x47efb8e4u);KRec *r0=kr_rec(S,0);uint32_t id=kr_pid(knp);
- if(!pf)return;
- if(r0->kteam!=r0->vteam){
-  int32_t t=*(int32_t*)info;uint32_t c=1;
-  for(uint32_t i=1;i<kr_n(S);i++){KRec *r=kr_rec(S,i);if(r->f25)continue;
-   if(f_lt(*pf,f_sub(f_mul(f_i2f(t),F_1_300),f_mul(f_i2f(r->time),F_1_300))))break;
-   if(r->killer==(uint16_t)id&&r->kteam!=r->vteam){c++;t=r->time;}}
-  kr_stat(base,s,0xf2c76c63u,c,knp);}
- uint32_t w1=kr_statidx(base,0xbe281563u),w2=kr_statidx(base,0x33e29a1bu);uint32_t *pf2=kr_dc(base,0xee602459u);
- if(pf2&&(r0->widx==w1||r0->widx==w2)&&r0->kteam!=r0->vteam){
-  int32_t t=*(int32_t*)info;uint32_t c=1;
-  for(uint32_t i=1;i<kr_n(S);i++){KRec *r=kr_rec(S,i);
-   if(f_lt(*pf2,f_sub(f_mul(f_i2f(t),F_1_300),f_mul(f_i2f(r->time),F_1_300))))break;
-   if(r->killer==(uint16_t)id&&r->kteam!=r->vteam&&(r->widx==w1||r->widx==w2)){c++;t=r->time;}}
-  kr_stat(base,s,0x4bae48b4u,c,knp);}}
-/* f_37a4bc: long-range kills (distance >= DC 0x42b7081b) */
-static void kr_37a4bc(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp){
- uint32_t *pf=kr_dc(base,0x42b7081bu);if(!pf)return;
- KRec *r0=kr_rec(S,0);uint32_t id=kr_pid(knp);
- if(r0->killer!=(uint16_t)id||r0->kteam==r0->vteam)return;
- uint32_t R2=f_mul(*pf,*pf);if(!f_le(R2,kr_rdist2(r0)))return;
- uint32_t c=1;
- for(uint32_t i=1;i<kr_n(S);i++){KRec *r=kr_rec(S,i);
-  if(!r->f25&&r->killer==(uint16_t)id&&r->kteam!=r->vteam&&f_le(R2,kr_rdist2(r)))c++;}
- kr_stat(base,s,0xa8932480u,c,knp);}
-/* f_379ed8: objective stat chains (rec0 +0x1c holds a stat id) */
-static void kr_379ed8(uintptr_t base,ProfileState *s,uint8_t *S){
- KRec *r0=kr_rec(S,0);if(!r0->f1c)return;
- uint32_t c=1;uint16_t tp=*(uint16_t*)&r0->kteam;
- for(uint32_t i=1;i<kr_n(S);i++){KRec *r=kr_rec(S,i);if(*(uint16_t*)&r->kteam==tp){if(r->f1c!=r0->f1c)break;c++;}}
- uint32_t n=kr_np_count(base);
- for(uint32_t i=0;i<n;i++){uint8_t *np=kr_np_at(base,i);if(np&&kr_team(np)==r0->kteam)kr_stat(base,s,(uint32_t)r0->f1c,c,np);}}
-/* f_379ff0: fewest kills on any enemy */
-static void kr_379ff0(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp){
- uint8_t cnt[10];clear(cnt,10);uint32_t id=kr_pid(knp);
- for(uint32_t i=0;i<kr_n(S);i++){KRec *r=kr_rec(S,i);if(r->killer==(uint16_t)id){int j=kr_np_index(base,r->victim);if(j>=0)cnt[j]++;}}
- uint8_t m=0x10;uint32_t n=kr_np_count(base);
- for(uint32_t i=0;i<n&&i<10;i++){uint8_t *np=kr_np_at(base,i);if(!kr_friendly(base,knp,np)&&cnt[i]<=m)m=cnt[i];}
- kr_stat(base,s,0x610ae399u,m,knp);}
-/* f_379430: betrayal chain (flag 19) */
-static void kr_379430(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp){
- KRec *r0=kr_rec(S,0);uint16_t k=r0->killer;
- if(k!=(uint16_t)kr_pid(knp)||r0->victim==k||!r0->f21)return;
- uint32_t c=1;
- for(uint32_t i=1;i<kr_n(S);i++){KRec *r=kr_rec(S,i);if(r->killer==k&&r->victim!=k)c+=r->f21!=0;}
- kr_stat(base,s,0x8d70ef29u,c,knp);}
-/* f_3791ec: trade kills (killer died after spawning / victim's explosive kill at the same moment) */
-static void kr_3791ec(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp,uint8_t *vnp,uint8_t *info){
- KRec *r0=kr_rec(S,0);int32_t now=*(int32_t*)info;uint32_t fl=*(uint32_t*)(info+0x60);
- if(r0->kteam!=r0->vteam){
-  int32_t t=0;
-  for(uint32_t i=0;i<kr_n(S);i++){KRec *r=kr_rec(S,i);if(!r->f25&&r->victim==(uint16_t)*(uint32_t*)(info+0x30)){t=r->time;break;}}
-  if(*(int32_t*)(knp+0x3a0)<t&&t<now&&(fl&0x20))kr_stat(base,s,0x9d715fdau,1,knp);}
- for(uint32_t i=0;i<kr_n(S);i++){KRec *r=kr_rec(S,i);if(r->time<now)break;
-  if(r->killer==(uint16_t)*(uint32_t*)(info+0x34)&&r->kteam!=r->vteam&&r->type==6){kr_stat(base,s,0x9d715fdau,1,vnp);return;}}}
-/* f_37a914: killed every enemy alive (DC 0xa84641cc minimum) */
-static int kr_3590b0(uintptr_t base,uint8_t *np){
- if(((uint8_t(*)(void*,uint32_t,uint32_t))(base+0x793280u))(np,0xc054e78bu,0))return 1;
- if(handle_obj_valid(np+0x10)&&*(int32_t*)(np+0x39c)<=*(int32_t*)(np+0x3a0))return 1;
- return np[0x770];}
-static void kr_37a914(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp){
- int32_t *pi=kr_dc(base,0xa84641ccu);if(!pi)return;
- int all=1;int32_t c=0;uint32_t me=kr_pid(knp);
- for(uint32_t i=0;i<10;i++){uint8_t *np=kr_np_at(base,i);
-  if(!np||!kr_active(np)||kr_friendly(base,knp,np))continue;
-  if(kr_3590b0(base,np))return;
-  uint32_t id=kr_pid(np);
-  for(uint32_t j=0;j<kr_n(S);j++){KRec *r=kr_rec(S,j);if(r->victim==(uint16_t)id){if(r->killer==(uint16_t)me)c++;else all=0;break;}}}
- if(all&&*pi<=c)kr_stat(base,s,0x4a9da8a5u,1,knp);}
-/* f_37a16c: ended someone's streak (DC 0xdd9356ec) */
-static void kr_37a16c(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp){
- uint32_t *pt=kr_dc(base,0xdd9356ecu);KRec *r0=kr_rec(S,0);if(!pt)return;
- uint16_t v=r0->victim;int ffa=kr_mode_type(base)==0xe;
- if(r0->killer==v)return;
- if(!(r0->kteam!=r0->vteam||ffa||r0->f22||r0->f21))return;
- uint32_t c=0;
- for(uint32_t i=1;i<kr_n(S);i++){KRec *r=kr_rec(S,i);if(r->f25)continue;
-  if(r->victim==v)break;
-  if(r->killer==v){if(r->vteam==r0->vteam&&!ffa&&!r0->f22&&!r0->f21)break;c++;}}
- if(*pt<=c)kr_stat(base,s,0xf69e35a3u,1,knp);}
-/* f_37a32c: revenge on the player who last killed you */
-static void kr_37a32c(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp,uint8_t *info){
- KRec *r0=kr_rec(S,0);uint32_t v=*(uint32_t*)(info+0x34),k=*(uint32_t*)(info+0x30);int ffa=kr_mode_type(base)==0xe;
- if(!(r0->kteam!=r0->vteam||ffa)||kr_n(S)<2)return;
- if(*(int32_t*)(knp+0x3a0)<*(int32_t*)(knp+0x39c))return;   /* PS3 f_358c1c */
- for(uint32_t i=1;i<kr_n(S);i++){KRec *r=kr_rec(S,i);if(r->f25)continue;
-  if(r->victim==(uint16_t)v&&r->killer==(uint16_t)k)return;
-  if(r->victim==(uint16_t)k&&(r->kteam==r0->vteam||ffa)){if(r->killer==(uint16_t)v)kr_stat(base,s,0x6623a3f4u,1,knp);return;}}}
+/* v7.204 C++: the medal sub-checks are u3x_kr_* in u3x_fixes.cpp */
+static void kr_379c18(uintptr_t base,ProfileState *s,uint8_t *knp,uint8_t *info){u3x_kr_379c18(base,s,knp,info);}   /* from above / below */
+static void kr_37952c(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp){u3x_kr_37952c(base,s,S,knp);}   /* deaths since the last kill */
+static void kr_3817b8(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp,uint8_t *info,int team_mode){u3x_kr_3817b8(base,s,S,knp,info,team_mode);}   /* explosive multi-kill */
+static void kr_37992c(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp,uint8_t *info){u3x_kr_37992c(base,s,S,knp,info);}   /* pistol kills */
+static void kr_37ab00(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp,uint8_t *info){u3x_kr_37ab00(base,s,S,knp,info);}   /* chained kills */
+static void kr_37a4bc(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp){u3x_kr_37a4bc(base,s,S,knp);}   /* long range */
+static void kr_379ed8(uintptr_t base,ProfileState *s,uint8_t *S){u3x_kr_379ed8(base,s,S);}   /* objective chains */
+static void kr_379ff0(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp){u3x_kr_379ff0(base,s,S,knp);}   /* fewest kills on an enemy */
+static void kr_379430(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp){u3x_kr_379430(base,s,S,knp);}   /* betrayal chain */
+static void kr_3791ec(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp,uint8_t *vnp,uint8_t *info){u3x_kr_3791ec(base,s,S,knp,vnp,info);}   /* trade kills */
+static void kr_37a914(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp){u3x_kr_37a914(base,s,S,knp);}   /* killed every enemy alive */
+static void kr_37a16c(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp){u3x_kr_37a16c(base,s,S,knp);}   /* ended a streak */
+static void kr_37a32c(uintptr_t base,ProfileState *s,uint8_t *S,uint8_t *knp,uint8_t *info){u3x_kr_37a32c(base,s,S,knp,info);}   /* revenge */
 
 /* ---- step 2: points, cash/XP awards ---- */
 #define KR_NOPTS 0x4000u

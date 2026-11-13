@@ -450,3 +450,68 @@ char *u3h_pu_why(void) { static char w[48]; return w; }
 void *u3h_rc_mem(void) { return nullptr; }
 void u3h_s19_count(int, uint32_t) {}
 }
+extern "C" {
+void u3h_cs_tick(uintptr_t, void *) {}
+uint8_t *u3h_custom_map(uintptr_t, void *, int32_t *) { return nullptr; }
+}
+extern "C" {
+void u3h_rp_cam_mode12(uintptr_t, uint8_t *, uint8_t *) {}
+void u3h_rp_render_vars(uintptr_t, uint8_t *) {}
+void u3h_rp_cam_target(uintptr_t, uint8_t *) {}
+}
+extern "C" {
+const char *u3h_fmt(void *, const char *, int64_t, const char *, const char *, const char *) { return ""; }
+void u3h_k49_kickback(uintptr_t, void *, uint32_t, int, int32_t) {}
+}
+extern "C" {
+void *u3h_ona(void) { return nullptr; }
+uint8_t *u3h_lb_buf(int) { return nullptr; }
+int u3h_m02_lb_local(uintptr_t, void *, uint8_t *, uint32_t, int32_t) { return 0; }
+uint32_t u3h_fr_lb_names(uintptr_t, char *, uint32_t) { return 0; }
+void u3h_pm119(uintptr_t, void *, uint8_t *) {}
+}
+extern "C" {
+void u3h_lnb_follow_tick(void *, uintptr_t, void *) {}
+void u3h_lnb_cli_update(uintptr_t, void *) {}
+void u3h_lnb_send_join(void *, void *, uint8_t *, int, int32_t *r) { *r = 0; }
+void u3h_lnb_rank_stamp(void *, uint8_t *, uint32_t) {}
+uint64_t *u3h_lnb_match_room(void) { static uint64_t r; return &r; }
+uint8_t *u3h_lnb_udpbuf(void) { static uint8_t b[0x1000]; return b; }
+}
+extern "C" {
+int32_t u3h_pm_type(uintptr_t, void *) { return 0; }
+int u3h_pm_coop(uintptr_t, void *) { return 0; }
+void u3h_ol01_tick(uintptr_t) {}
+void u3h_rc_auto_tick(uintptr_t) {}
+}
+extern "C" {
+void *u3h_emb_fallback(void) { static uint8_t f[80]; return f; }
+void *u3h_emb_retire_queue(void) { static uint8_t q[16 * 24]; return q; }
+const uint8_t *u3h_emb_zero(void) { static uint8_t z[64]; return z; }
+}
+extern "C" {
+void u3h_n13_rearm(uintptr_t, void *) {}
+}
+// v7.211: the online backend's exports; the message buffer and the frames sent are kept for the b41 check
+static uint8_t t41_msg[0x100], t41_object[0x1060], t41_frame[0x100];
+static uint32_t t41_type, t41_len, t41_frames;
+static uint64_t t41_pj[4];
+static void *t41_vt[32];
+extern "C" {
+void *u3h_onb_object(void) { return t41_object; }
+uint8_t *u3h_onb_msg(void) { return t41_msg; }
+uint64_t *u3h_onb_pj(void) { return t41_pj; }
+void **u3h_onb_vt(void) { return t41_vt; }
+int u3h_smn_send(const void *, uint32_t) { return -1; }
+void u3h_smn_attach(int) {}
+int u3h_ol_up(void) { return 1; }
+int u3h_ol_frame(uint32_t type, const void *m, uint32_t n) { t41_type = type; t41_len = n; memcpy(t41_frame, m, n); t41_frames++; return 1; }
+void u3h_fw_line(const char *, uint32_t, int, const char *, int32_t) {}
+const char *u3h_fw_sess(uintptr_t, uint8_t *) { return "other"; }
+uint32_t u3h_fw_game_ra(uintptr_t, uintptr_t, uintptr_t) { return 0; }
+int32_t u3h_fw_host_link(uintptr_t) { return -1; }
+void u3h_cg_log(const char *, int32_t) {}
+void *u3h_fl_state(void) { return nullptr; }
+void u3h_ng_stamp(uintptr_t, void *, uint8_t *) {}
+void u3h_lnb_marks(uint8_t *a, uint8_t *b, uint8_t *c, uint64_t *d) { *a = *b = *c = 0; *d = 0; }
+}

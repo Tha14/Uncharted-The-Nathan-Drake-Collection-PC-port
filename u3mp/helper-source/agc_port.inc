@@ -351,10 +351,7 @@ static uint32_t fabs119(uint32_t f){return f&0x7fffffffu;}
 /* PPC fctiwz: truncation with saturation (>= 2^31 -> 0x7fffffff, <= -2^31 -> 0x80000000, NaN -> 0x80000000); x86 cvttss2si
  * returns 0x80000000 for every out-of-range value, which differs in the low bits the packer keeps (1-frame anims: x/0). */
 static uint32_t ppc_ctiwz119(uint32_t f){
- uint32_t e=(f>>23)&0xff;
- if(e==0xff&&(f&0x7fffff))return 0x80000000u;
- if(e>=0x9e){if(f>>31)return 0x80000000u;return 0x7fffffffu;}
- return (uint32_t)f_trunc(f);}
+ return u3x_ppc_ctiwz(f);}   /* v7.199 C++ */
 static void bsw_vec119(uint8_t *bs,const uint32_t *v){
  if(f_lt(fabs119(v[0]),0x437f0000u)&&f_lt(fabs119(v[1]),0x42fe0000u)&&f_lt(fabs119(v[2]),0x437f0000u)){
   bsw119(bs,0,1);bsw119(bs,ppc_ctiwz119(f_mul(v[0],0x44000000u)),18);
@@ -847,70 +844,7 @@ static void vsub2_119(V119 *v){u3x_v_sub2(v);}   /* slot 7 */
 static void vmark119(V119 *v,uint32_t ph,uint8_t *an,uint32_t dep,int32_t p7){u3x_v_mark(v,ph,an,dep,p7);}   /* slot 8 */
 /* ---- 1.19 0x3869cc (v, snapshot bits, bytes, flags (+0x228), tables, a4 -> v+4, a5 -> v+8, a6 default index, a7) ---- */
 static void dec119(V119 *v,uint8_t *bits,uint32_t nbytes,uint32_t flags,uint8_t **tabs,int32_t a4,int32_t a5,int32_t a6,int32_t a7){
- uintptr_t base=v->base;
- vbegin119(v);v->v1=a4;v->v2=a5;
- if(!nbytes){verr119(v,12);return;}                    /* a sender without anim bits (PS4 / pre-c008): PS3 never sends one */
- BR119 r;br_init119(&r,bits,nbytes);
- uint32_t wide=br119(&r,1)!=0;                          /* r20 */
- {uint32_t h=br119(&r,1);v->v60=h?br119(&r,13):0;}
- br_frame119(base,&r,v->frame);
- if(flags&1){uint8_t tf[0x60] __attribute__((aligned(16)));uint8_t tv[0x10] __attribute__((aligned(16)));
-  frame_init119(tf);br_frame119(base,&r,tf);br119(&r,8);br_vec119(base,&r,tv);}   /* camera frame, FOV byte, aim point */
- uint32_t n=br119(&r,5);
- uint32_t direct=br119(&r,1)!=0;                        /* byte 114: sequential indices */
- uint32_t ids[32],ty[32];
- for(uint32_t i=0;i<n;i++)ids[i]=br119(&r,wide?32:12);
- if(br119(&r,1)){uint32_t t=br119(&r,3);if(t==7)t=br119(&r,32);for(uint32_t i=0;i<n;i++)ty[i]=t;}
- else for(uint32_t i=0;i<n;i++){ty[i]=br119(&r,3);if(ty[i]==7)ty[i]=br119(&r,32);}
- uint32_t ib=n<=2?1:n<=4?2:n<=8?3:n<=16?4:n<=32?5:0;
- uint32_t sub=6,code=br119(&r,2);if(code==3)sub=br119(&r,3);
- uint32_t ix=0,dep=0;
- while(!v->abort&&sub!=1){
-  if(r.err){verr119(v,1);break;}
-  if(v->err)break;
-  if(code==2||(code==3&&sub==5)){                       /* anim (0x386ee4) / marker anim (jump table 5, 0x387150) */
-   if(!direct)ix=br119(&r,ib);
-   if(ix>=n){verr119(v,11);break;}                      /* PS3 reads its uninitialised arrays */
-   uint32_t t=ty[ix],id=ids[ix];
-   uint8_t *ag=t<7?tabs[t]:art_group_sid119(base,t);    /* f_89a3ac */
-   if(!ag){verr119(v,3);break;}
-   uint8_t *an;
-   if(id==0xfff)an=tabs[0]?tab_idx119(tabs[0],a6):0;
-   else if(!wide)an=tab_idx119(ag,(int32_t)id);
-   else an=tab_sid119(ag,id);
-   if(!an||!*(uint8_t**)(an+0x28)){verr119(v,4);break;}
-   uint32_t ph;
-   if(!wide){uint32_t fr=frames119(an);
-    if(fr<=8)ph=f_mul(f_i2f((int32_t)br119(&r,4)),0x3d888889u);          /* 1.19 0x1148aa8-0x7fe0 */
-    else if(fr<=64)ph=f_mul(f_i2f((int32_t)br119(&r,8)),0x3b808081u);    /* -0x7ff0 */
-    else ph=f_mul(f_i2f((int32_t)br119(&r,16)),0x37800080u);}            /* -0x7fe8 */
-   else ph=f_mul(f_i2f((int32_t)br119(&r,16)),0x37800080u);
-   if(*(uint32_t*)(an+0x24)&4){                         /* f_7f8b44 / f_7f8c6c -> 0xfd4c60 */
-    uint32_t id4=*(uint32_t*)(an+0x18);uint8_t *rec=stream_rec119(base,id4);
-    if(rec){ph=*(uint32_t*)(rec+0x20);an=((uint8_t*(*)(uint8_t*,uint32_t,uint32_t*))(base+0xfd4c60u))(an,id4,&ph);}
-    else{ph=0;an=0;}}
-   if(r.err){verr119(v,1);break;}
-   ix++;
-   if(code==2)vanim119(v,ph,an,dep);else vmark119(v,ph,an,dep,a7);
-   dep++;}
-  else if(code<2){                                      /* blend (0x386d5c) */
-   if(dep<2){verr119(v,2);break;}
-   uint32_t b1=br119(&r,1)!=0;
-   uint32_t a=b1?dep-1:dep-2,b=b1?dep-2:dep-1,c,lt;
-   if(br119(&r,1)!=0){c=a;lt=a<b;}else{c=b;lt=b<a;}
-   if(lt)dep--;
-   uint32_t m=br119(&r,2);uint32_t mode=m==1?2:(m==2?6:1);
-   uint32_t w=code==0?f_mul(f_i2f((int32_t)br119(&r,8)),0x3b808081u):F_ONE;
-   if(r.err){verr119(v,1);break;}
-   vblend119(v,w,a,b,c,mode);}
-  else if(code==3&&sub<6){                              /* jump table 0x387138 */
-   if(sub==0){uint32_t d=br119(&r,2);if(dep-1<d){verr119(v,5);break;}vsub0_119(v,dep-d-1);}
-   else if(sub==2)vsub2_119(v);
-   else if(sub==3){vsub3_119(v,dep);dep++;}
-   else if(sub==4){dep--;vsub4_119(v);}}
-  code=br119(&r,2);if(code==3)sub=br119(&r,3);}
- if(r.err&&!v->err)verr119(v,1);
- X.ec[101]=r.pos;}
+ u3x_decode_anim(v,bits,nbytes,flags,tabs,a4,a5,a6,a7);}   /* v7.197 C++ */
 /* ---- kind 117: apply 0x683670 at 0x683c61 (after the state clear and the vt+0x190 call; rbx = generator, r12 = snapshot
  * offset): 1.19 f_2a19c0 0x2a1d6c..0x2a1de0, decode the new snapshot into its anim state (state visitor, args 0, 0, +0x3c,
  * vt+0xc4). PS4 discarded vt+0x190's result; it is a getter (PS4 calls it twice in a row in 0x684d61 / 0x684d87), so the
@@ -1092,202 +1026,31 @@ static const uint8_t er119_zero[64]={0};
  *  - job-manager word (*(TLS + [0x16e3020]), used only to choose the frame counter 0x1c1f300 vs 0x1c1f308): PS4 has no getter.
  *    The helper's tick and look calls run on the main thread, which is not a job worker, so the native test (0x56e7c0..0x56e801)
  *    answers "not a worker" -> 0x1c1f308. */
-static uint8_t *emb_allocstack119(uintptr_t b){return ((uint8_t*(*)(void))(b+0xda0d60u))();}
-EXT static uint32_t f_fma119(uint32_t a,uint32_t b,uint32_t c){uint32_t r;__asm__("movd %1,%%xmm0\n\tmovd %2,%%xmm1\n\tmovd %3,%%xmm2\n\t"
+/* v7.209 C++: sin / cos, the number conversions, engine temp memory, DDS files, the DC binds, the records and the CPU
+ * rasterizer are u3x_* in u3x_fixes.cpp; the record arrays stay here while the C emblem code uses them */
+EXT static uint32_t f_fma119(uint32_t a,uint32_t b,uint32_t c){uint32_t r;__asm__("movd %1,%%xmm0\n\tmovd %2,%%xmm1\n\tmovd %3,%%xmm2\n\t"   /* still used by C code elsewhere */
  "cvtss2sd %%xmm0,%%xmm0\n\tcvtss2sd %%xmm1,%%xmm1\n\tcvtss2sd %%xmm2,%%xmm2\n\tmulsd %%xmm1,%%xmm0\n\taddsd %%xmm2,%%xmm0\n\t"
  "cvtsd2ss %%xmm0,%%xmm0\n\tmovd %%xmm0,%0":"=r"(r):"r"(a),"r"(b),"r"(c):"xmm0","xmm1","xmm2");return r;}
-static int f_gt119(uint32_t a,uint32_t b){return f_lt(b,a);}
-/* PS3 1.19 f_d574b4 (float sin / cos; flag 1 = cos), constants 0x11cdcb0..0x11cdcf4, threshold 0x11dee60. The |x| > 40.7
- * reduction (f_d560b4) is unreachable here (angle = L[1] * 2pi/255 <= 6.29). */
-EXT static uint32_t sincos119(uint32_t x,uint32_t flag){
- if((x&0x7fffffffu)>0x7f800000u)return 0x7fc00000u;             /* class 1: NaN */
- if((x&0x7fffffffu)==0x7f800000u)return x;                      /* class 2 */
- if(!(x&0x7fffffffu))return flag?F_ONE:x;                       /* class 0 */
- uint32_t t=f_mul(x,0x3f22f983u);                                /* x * 2/pi */
- t=f_gt119(t,0)?f_add(t,0x3f000000u):f_sub(t,0x3f000000u);
- int32_t n=f_trunc(t);uint32_t q=((uint32_t)n&3)+flag,nf=f_i2f(n);
- uint32_t r=f_fma119(nf,0xbfc90fdau,x);r=f_fma119(nf,0xb3a22169u,r);
- if(f_lt(0xb9800000u,r)&&f_lt(r,0x39800000u)){if(q&1)r=F_ONE;}
- else{uint32_t r2=f_mul(r,r);
-  if(!(q&1)){uint32_t r3=f_mul(r,r2),p=f_fma119(r2,0xb94c8c6eu,0x3c088342u);p=f_fma119(r2,p,0xbe2aaaa1u);r=f_fma119(r3,p,r);}
-  else{uint32_t p=f_fma119(r2,0xbab24993u,0x3d2aa036u);p=f_fma119(r2,p,0xbeffffdfu);r=f_fma119(r2,p,F_ONE);}}
- return (q&2)?r^0x80000000u:r;}
-EXT static int64_t fq32_119(uint32_t f){   /* float -> Q32, rounded */
- int32_t e=(int32_t)((f>>23)&0xff);if(!e)return 0;uint64_t m=(f&0x7fffffu)|0x800000u;int32_t sh=e-127-23+32;int64_t v;
- if(sh>=0){if(sh>38)sh=38;v=(int64_t)(m<<sh);}else if(sh<-40)v=0;else v=(int64_t)((m+((1ull<<(-sh))>>1))>>(-sh));
- return (f>>31)?-v:v;}
-EXT static int32_t log2q8_119(uint32_t f){  /* round(256 * log2 f), f > 0 */
- int32_t e=(int32_t)((f>>23)&0xff)-127;uint64_t m=(f&0x7fffffu)|0x800000u;uint32_t r=0;
- for(int i=0;i<9;i++){m=(m*m)>>23;r<<=1;if(m>=(1ull<<24)){m>>=1;r|=1;}}
- return e*256+(int32_t)((r+1)>>1);}
-EXT static uint32_t h16q16_119(uint32_t f){   /* fp32 -> fp16 (the H register, round to nearest even) -> value * 65536 */
- if((f>>31)||!(f&0x7fffffffu))return 0;
- int32_t e=(int32_t)((f>>23)&0xff)-127;if(e<-25)return 0;if(e>15)return 0x7fffffffu;
- uint32_t m=(f&0x7fffffu)|0x800000u;int32_t sh=13;if(e<-14)sh+=-14-e;
- uint32_t q=m>>sh,rem=m&((1u<<sh)-1),hf=1u<<(sh-1);if(rem>hf||(rem==hf&&(q&1)))q++;
- int32_t p=e-23+sh+16;uint64_t v=p>=0?((uint64_t)q<<p):((uint64_t)q>>(-p));return v>0x7fffffffu?0x7fffffffu:(uint32_t)v;}
-/* engine temp memory: PushAllocator(0x30) 0xda1590 as 0xe500d0, allocate from the stack top as 0xf42fa0, PopAllocator inline */
-EXT static void emb_pop119(uintptr_t b){uint8_t *st=emb_allocstack119(b);if(!st)return;uint32_t c=*(uint32_t*)(st+0x730);if(!c)return;
- uint64_t *e=(uint64_t*)(st+(uint64_t)(c-1)*0x28);e[0]=e[1]=e[2]=e[3]=e[4]=0;*(uint32_t*)(st+0x730)=c-1;}
-EXT static void emb_push119(uintptr_t b){uint32_t id[2]={0x30u,0};
- ((void(*)(uint32_t*,uintptr_t,uint32_t,uintptr_t))(b+0xda1590u))(id,b+0x13ac250u,0,b+0x13ac250u);}
-EXT static void *emb_alloc119(uintptr_t b,uint64_t n){
- emb_push119(b);void *p=0;uint8_t *st=emb_allocstack119(b);
- if(st){uint32_t c=*(uint32_t*)(st+0x730);if(c){uintptr_t *a=*(uintptr_t**)(st+(uint64_t)(c-1)*0x28);
-  if(a)p=((void*(*)(uintptr_t*,uint64_t,uint64_t,uintptr_t,uint32_t,uintptr_t))(*(uintptr_t*)(*a+0x48)))(a,n,0x10,b+0x147d6bbu,0,b+0x147d6bbu);}}
- emb_pop119(b);return p;}
-EXT static void emb_free119(uintptr_t b,void *p){if(p)((void(*)(void*,uintptr_t,uint32_t,uintptr_t))(b+0xda0dc0u))(p,b+0x147d6bbu,0,b+0x147d6bbu);}
-/* "%s/build/%s/vtex1/ps4/%s.dds" (0x11892b0) with 0xf42fa0 */
-EXT static uint8_t *emb_file119(uintptr_t b,const char *name,uint64_t *size){
- char path[0x200];uint32_t n=0;const char *parts[5];uint8_t *g=*(uint8_t**)(b+0x1b24b80u);if(!g||!name)return 0;
- parts[0]=(const char*)(g+0x408);parts[1]="/build/";parts[2]=(const char*)(g+0x479c);parts[3]="/vtex1/ps4/";parts[4]=name;
- for(int k=0;k<5;k++)for(const char *p=parts[k];*p&&n<0x1f8;p++)path[n++]=*p;
- const char *ext=".dds";for(int k=0;k<4;k++)path[n++]=ext[k];path[n]=0;
- uint64_t buf[2]={0,0};emb_push119(b);uint8_t ok=(uint8_t)((uint64_t(*)(uint64_t*,const char*))(b+0xf42fa0u))(buf,path);emb_pop119(b);
- if(!ok||!buf[0])return 0;*size=buf[1];return (uint8_t*)buf[0];}
-EXT static uint8_t *emb_cache119(uintptr_t b,const char *name){return ((uint8_t*(*)(uintptr_t,const char*))(b+0x1189430u))(b+0x1b31128u,name);}
-static int emb_ld119(const uint8_t *p){return p&&p[0x10];}   /* entry+0x10 (state 3) and entry+0x20 = load result */
-/* DC handles (0x18: ptr, version, sid, module): layers 0x1b67e60 + i*0x18, palette 0x1b67ec0, scales 0x1b67ee0 + i*0x18.
- * Resolve as the PS4 users (0x66c2d0) do: cached while the module version (+0x58) is unchanged. */
-EXT static uint8_t *emb_h119(uintptr_t b,ProfileState *s,uintptr_t ha){
- uint8_t *h=(uint8_t*)(b+ha);uint32_t sid=*(uint32_t*)(h+0xc);if(!sid)return 0;
- uint8_t *m=*(uint8_t**)(h+0x10);void *(*find)(uint32_t,int)=(void*(*)(uint32_t,int))s->natives[NATIVE_FIND_MODULE];
- if(!m){if(!find)return 0;m=(uint8_t*)find(sid,1);if(m==(uint8_t*)(b+0x1b3af40u))m=0;*(uint8_t**)(h+0x10)=m;if(!m)return 0;}
- else if(*(uint32_t*)(h+8)==*(uint32_t*)(m+0x58))return *(uint8_t**)h;
- uint8_t *t=*(uint8_t**)(m+0x48);if(!t)return 0;
- int32_t lo=0,hi=*(int32_t*)(t+0x30)-1;uint8_t *ent=*(uint8_t**)(t+0x38);
- while(lo<=hi){int32_t md=(lo+hi)/2;uint32_t v=*(uint32_t*)(ent+(int64_t)md*0x10);
-  if(v<sid)lo=md+1;else if(v>sid)hi=md-1;else{*(uint8_t**)h=*(uint8_t**)(ent+(int64_t)md*0x10+8);*(uint32_t*)(h+8)=*(uint32_t*)(m+0x58);return *(uint8_t**)h;}}
- return 0;}
-/* PS3 f_27d368 (the table binds at the end of f_27d610 / f_27d5b8 / f_27d790 / f_27dd7c; PS4 inline in 0x66b510) */
-EXT static void emb_bind1_119(uintptr_t b,ProfileState *s,uintptr_t ha,uint32_t sid){
- uint8_t *h=(uint8_t*)(b+ha);void *(*find)(uint32_t,int)=(void*(*)(uint32_t,int))s->natives[NATIVE_FIND_MODULE];
- uint8_t *m=find?(uint8_t*)find(sid,1):0;if(m==(uint8_t*)(b+0x1b3af40u))m=0;
- *(uint8_t**)(h+0x10)=m;*(uint64_t*)h=0;*(uint32_t*)(h+8)=0xffffffffu;*(uint32_t*)(h+0xc)=sid;
- if(m&&*(uint8_t**)(m+0x48))emb_h119(b,s,ha);}
-static const uint32_t emb_dct119[18]={0x1b67e60u,0xc7f8567cu,0x1b67e78u,0xe2311588u,0x1b67e90u,0x03ffae77u,0x1b67ea8u,0,
- 0x1b67ee0u,0x88f9bd5cu,0x1b67ef8u,0x83d670b8u,0x1b67f10u,0x4cfe4557u,0x1b67f28u,0,0x1b67ec0u,0xbcbbdfbdu};
-EXT static void emb_dcbind119(uintptr_t b,ProfileState *s){   /* layers, layer 3 = copy of 2, scales, scale 3 = copy of 2, palette */
- for(int i=0;i<18;i+=2){if(emb_dct119[i+1])emb_bind1_119(b,s,emb_dct119[i],emb_dct119[i+1]);
-  else for(int k=0;k<0x18;k++)*(uint8_t*)(b+emb_dct119[i]+k)=*(uint8_t*)(b+emb_dct119[i-2]+k);}}
-/* records */
-static int emb_isrec119(uint64_t p){uint64_t a=(uint64_t)er119;return p>=a&&p<a+sizeof(er119)&&!((p-a)%sizeof(EmbRec119));}
-EXT static void emb_release119(uintptr_t b,uint64_t *tex,uint64_t *map){
- uintptr_t pp=b+0x1c1f308u;   /* t007: main thread, never a job worker (see emb_allocstack119) */
- uint32_t frame=*(uint32_t*)*(uint64_t*)pp;
- if(*tex&&*tex!=er119_fb.tex)((void(*)(uint64_t*))(b+0xe73490u))(tex);
- if(*map)((void(*)(uintptr_t,uint64_t,uint32_t))(b+0xe4e8f0u))(b+0x18c8960u,*map,frame);
- *tex=0;*map=0;}
-/* a replaced or freed texture is released 3 ticks later: an instance table may still hold it until the next look call */
+static uint32_t sincos119(uint32_t x,uint32_t flag){return u3x_sincos119(x,flag);}
+EXT static uint32_t h16q16_119(uint32_t f){return u3x_h16q16(f);}
+EXT static void *emb_alloc119(uintptr_t b,uint64_t n){return u3x_emb_alloc(b,n);}
+EXT static void emb_free119(uintptr_t b,void *p){u3x_emb_free(b,p);}
+EXT static uint8_t *emb_cache119(uintptr_t b,const char *name){return u3x_emb_cache(b,name);}
+EXT static uint8_t *emb_h119(uintptr_t b,ProfileState *s,uintptr_t ha){return u3x_emb_h(b,s,ha);}
+EXT static void emb_dcbind119(uintptr_t b,ProfileState *s){u3x_emb_dcbind(b,s);}
+static int emb_isrec119(uint64_t p){return u3x_emb_isrec(p);}
 typedef struct { uint64_t tex,map; uint32_t age,pad; } EmbRet119;
 static EmbRet119 erq119[16] EXT_BSS;
-EXT static void emb_retire119(uintptr_t b,uint64_t *tex,uint64_t *map){
- if(*tex==er119_fb.tex&&!*map){*tex=0;return;}   /* c014: the fallback is shared, never released */
- if(!*tex&&!*map)return;
- for(int k=0;k<16;k++)if(!erq119[k].tex&&!erq119[k].map){erq119[k].tex=*tex;erq119[k].map=*map;erq119[k].age=0;*tex=0;*map=0;return;}
- emb_release119(b,tex,map);}
-static void emb_retick119(uintptr_t b){
- for(int k=0;k<16;k++)if((erq119[k].tex||erq119[k].map)&&++erq119[k].age>=3)emb_release119(b,&erq119[k].tex,&erq119[k].map);}
-/* c014: point a record at the fallback (no zero window: the new value is stored before the old one is retired) */
-static void emb_rfb119(uintptr_t b,EmbRec119 *r){
- uint64_t ot=r->tex,om=r->map;r->tex=er119_fb.tex;r->map=0;r->ok=er119_fb.tex?1:0;r->fmt=0x57u;
- if(om)emb_retire119(b,&ot,&om);}
-EXT static EmbRec119 *emb_ralloc119(uint32_t size){
- for(int k=0;k<24;k++)if(!er119[k].used){EmbRec119 *r=&er119[k];uint8_t *p=(uint8_t*)r;for(uint32_t i=0;i<sizeof(*r);i++)p[i]=0;
-  r->used=1;r->size=size;r->w=size;r->h=size;r->tex=er119_fb.tex;r->ok=er119_fb.tex?1:0;r->fmt=0x57u;X.ec[116]++;return r;}
- X.ec[122]=1;return 0;}
-EXT static void emb_rfree119(uintptr_t b,EmbRec119 *r){if(!r||!emb_isrec119((uint64_t)r)||!r->used)return;emb_rfb119(b,r);r->used=0;r->pin=0;X.ec[117]++;}
-/* the composite becomes the record's texture (CreateDdsTextureFromMemory 0xe4fb80 path, A8R8G8B8 = ndgi 0x57) */
-EXT static int emb_texcreate119(uintptr_t b,EmbRec119 *r,const uint8_t *pix,uint32_t size){
- int32_t ctx=0xe;uint64_t desc[2];desc[0]=(uint64_t)size|((uint64_t)size<<16)|(1ull<<32)|(1ull<<40)|(0x57ull<<48);desc[1]=0x800010001ull;
- uint64_t sub[2];sub[0]=(uint64_t)pix;sub[1]=(uint64_t)(size*4)|((uint64_t)(size*size*4)<<32);uint64_t second=0;
- uint64_t map=((uint64_t(*)(int32_t*,uint64_t*,uint64_t*,uint64_t*))(b+0xe76cb0u))(&ctx,desc,sub,&second);
- if(!map){X.ec[122]=2;return 0;}
- uint64_t tex=((uint64_t(*)(uint64_t,uint32_t))(b+0xe77c50u))(map,0x57);
- if(!tex){uint64_t z=0;emb_release119(b,&z,&map);X.ec[122]=3;return 0;}
- uint64_t ot=r->tex,om=r->map;   /* c014: new texture first, then retire the old one (no window with texture 0) */
- r->tex=tex;r->map=map;r->w=size;r->h=size;r->fmt=0x57u;r->ok=1;X.ec[115]++;
- if(om)emb_retire119(b,&ot,&om);return 1;}
-/* c014: the shared fallback (4x4, zero = transparent), made once the graphics device exists (0x1cf5330, the device
- * CreateDdsTextureFromFile 0xe500d0 is given); published at ec[158..159] for the 0xe66a67 guard stub. */
-EXT static void emb_fb119(uintptr_t b){
- if(er119_fb.tex||!*(uint64_t*)(b+0x1cf5330u))return;
- EmbRec119 t;uint8_t *p=(uint8_t*)&t;for(uint32_t i=0;i<sizeof(t);i++)p[i]=0;
- if(!emb_texcreate119(b,&t,er119_zero,4))return;
- er119_fb=t;er119_fb.map=0;   /* never released (the map stays with the texture) */
- X.ec[158]=(uint32_t)t.tex;X.ec[159]=(uint32_t)(t.tex>>32);}
-/* DDS (DXT1 / DXT5, as the PS3 loader f_9416cc accepts) */
+static void emb_retick119(uintptr_t b){u3x_emb_retick(b);}
+EXT static EmbRec119 *emb_ralloc119(uint32_t size){return (EmbRec119*)u3x_emb_ralloc(size);}
+EXT static void emb_rfree119(uintptr_t b,EmbRec119 *r){u3x_emb_rfree(b,r);}
+EXT static int emb_texcreate119(uintptr_t b,EmbRec119 *r,const uint8_t *pix,uint32_t size){return u3x_emb_texcreate(b,r,pix,size);}
+EXT static void emb_fb119(uintptr_t b){u3x_emb_fb(b);}
 typedef struct { uint8_t *file; uint32_t w,h,maxl,bs; uint32_t off[16]; } Dds119;
-EXT static int emb_dds119(uintptr_t b,const char *name,Dds119 *t){
- uint64_t n=0;t->file=emb_file119(b,name,&n);if(!t->file){X.ec[123]++;return 0;}
- uint8_t *d=t->file;uint32_t four=*(uint32_t*)(d+84);
- if(n<128||*(uint32_t*)d!=0x20534444u||(four!=0x31545844u&&four!=0x35545844u)){emb_free119(b,t->file);t->file=0;X.ec[123]++;return 0;}
- t->h=*(uint32_t*)(d+12);t->w=*(uint32_t*)(d+16);uint32_t mips=*(uint32_t*)(d+28),nl=mips?mips:1;if(nl>16)nl=16;
- t->bs=four==0x31545844u?8:16;uint64_t o=128;
- for(uint32_t l=0;l<nl;l++){uint32_t w=t->w>>l,h=t->h>>l;if(!w)w=1;if(!h)h=1;t->off[l]=(uint32_t)o;o+=(uint64_t)((w+3)/4)*((h+3)/4)*t->bs;}
- if(o>n||!t->w||!t->h){emb_free119(b,t->file);t->file=0;X.ec[123]++;return 0;}
- t->maxl=mips<nl-1?mips:nl-1;return 1;}
-EXT static uint32_t emb_dxt119(const Dds119 *t,uint32_t l,int32_t x,int32_t y){   /* R channel of texel (x, y), clamp to edge */
- int32_t w=(int32_t)(t->w>>l),h=(int32_t)(t->h>>l);if(w<1)w=1;if(h<1)h=1;
- if(x<0)x=0;else if(x>=w)x=w-1;if(y<0)y=0;else if(y>=h)y=h-1;
- const uint8_t *k=t->file+t->off[l]+((uint32_t)(y>>2)*(uint32_t)((w+3)>>2)+(uint32_t)(x>>2))*t->bs+(t->bs==16?8:0);
- uint32_t c0=k[0]|(uint32_t)k[1]<<8,c1=k[2]|(uint32_t)k[3]<<8;
- uint32_t ix=((k[4]|(uint32_t)k[5]<<8|(uint32_t)k[6]<<16|(uint32_t)k[7]<<24)>>(((y&3)*4+(x&3))*2))&3;
- uint32_t r0=c0>>11,r1=c1>>11;r0=(r0<<3)|(r0>>2);r1=(r1<<3)|(r1>>2);
- if(ix==0)return r0;if(ix==1)return r1;
- if(c0>c1||t->bs==16)return ix==2?(2*r0+r1)/3:(r0+2*r1)/3;
- return ix==2?(r0+r1)/2:0;}
+EXT static int emb_dds119(uintptr_t b,const char *name,Dds119 *t){return u3x_emb_dds(b,name,t);}
 typedef struct { uint32_t l0,l1,f; } Lod119;
-EXT static void emb_lod119(const Dds119 *t,uint32_t rho2,Lod119 *L){   /* rho2 = (texels per pixel)^2; bias -1.0 */
- L->l0=L->l1=L->f=0;if(!(rho2&0x7fffffffu)||(rho2>>31))return;
- int32_t lam=((log2q8_119(rho2)+1)>>1)-256;if(lam<=0)return;
- uint32_t d=(uint32_t)lam,mx=t->maxl<<8;if(d>mx)d=mx;
- L->l0=d>>8;L->f=d&255;L->l1=L->l0+1;if(L->l1>t->maxl){L->l1=t->maxl;L->f=0;}}
-EXT static uint32_t emb_bil119(const Dds119 *t,uint32_t l,int64_t U,int64_t V){   /* R * 65536 */
- int64_t w=(int64_t)(t->w>>l),h=(int64_t)(t->h>>l);if(w<1)w=1;if(h<1)h=1;
- int64_t tu=U*w-(1ll<<31),tv=V*h-(1ll<<31);int32_t x=(int32_t)(tu>>32),y=(int32_t)(tv>>32);
- uint32_t fx=(uint32_t)(tu>>24)&255,fy=(uint32_t)(tv>>24)&255;
- uint32_t a=emb_dxt119(t,l,x,y),c=emb_dxt119(t,l,x+1,y),d=emb_dxt119(t,l,x,y+1),e=emb_dxt119(t,l,x+1,y+1);
- return (a*(256-fx)+c*fx)*(256-fy)+(d*(256-fx)+e*fx)*fy;}
-EXT static uint64_t emb_a32_119(const Dds119 *t,const Lod119 *L,int64_t U,int64_t V){   /* filtered R as Q32 [0,1] */
- uint64_t r0=emb_bil119(t,L->l0,U,V),r=L->f?r0*(256-L->f)+(uint64_t)emb_bil119(t,L->l1,U,V)*L->f:r0*256;
- return (r<<8)/255;}
-EXT static void emb_blend119(uint8_t *px,const uint32_t *c16,uint64_t a32){   /* px B,G,R,A; c16 b,g,r */
- if(a32>(1ull<<32))a32=1ull<<32;uint64_t ia=(1ull<<32)-a32;
- for(int k=0;k<3;k++){uint64_t v=(255ull*c16[k]*a32+(uint64_t)px[k]*65536ull*ia+(1ull<<47))>>48;px[k]=(uint8_t)(v>255?255:v);}
- uint64_t v=(255ull*65536ull*a32+(uint64_t)px[3]*65536ull*ia+(1ull<<47))>>48;px[3]=(uint8_t)(v>255?255:v);}
-EXT static uint32_t emb_rho2_119(uint32_t du,uint32_t dv,uint32_t tw,uint32_t th,uint32_t size){   /* (du tw / size)^2 + (dv th / size)^2 */
- uint32_t fs=f_i2f((int32_t)size),a=f_div(f_mul(du,f_i2f((int32_t)tw)),fs),c=f_div(f_mul(dv,f_i2f((int32_t)th)),fs);return f_add(f_mul(a,a),f_mul(c,c));}
-static uint32_t emb_fmax119(uint32_t a,uint32_t b){return f_lt(a,b)?b:a;}
-/* one layer quad (full target, scissor 1..size-2), optional mask over UV2 = pixel/size */
-EXT static void emb_quad119(uint8_t *pix,uint32_t size,const Dds119 *t,const uint32_t *uv,const Dds119 *mk,const uint32_t *c16){
- /* uv[0..7] = (u,v') of vertices 0..3 (v0 = (0,H) bottom-left, v1 = (0,0) top-left, v2 = (W,0), v3 = (W,H)) */
- int64_t U1=fq32_119(uv[2]),V1=fq32_119(uv[3]),DUX=fq32_119(uv[4])-U1,DVX=fq32_119(uv[5])-V1,DUY=fq32_119(uv[0])-U1,DVY=fq32_119(uv[1])-V1;
- Lod119 L,Lm;uint32_t rx=emb_rho2_119(f_sub(uv[4],uv[2]),f_sub(uv[5],uv[3]),t->w,t->h,size),ry=emb_rho2_119(f_sub(uv[0],uv[2]),f_sub(uv[1],uv[3]),t->w,t->h,size);
- emb_lod119(t,emb_fmax119(rx,ry),&L);
- if(mk){uint32_t k=f_div(f_i2f((int32_t)mk->w),f_i2f((int32_t)size));emb_lod119(mk,f_mul(k,k),&Lm);}
- uint32_t sh=size==256?9:8;
- for(uint32_t py=1;py+1<size;py++)for(uint32_t px=1;px+1<size;px++){
-  int64_t ox=2*(int64_t)px+1,oy=2*(int64_t)py+1;
-  int64_t u=U1+((DUX*ox+DUY*oy)>>sh),v=V1+((DVX*ox+DVY*oy)>>sh);
-  uint64_t a=emb_a32_119(t,&L,u,v);
-  if(mk){uint64_t m=emb_a32_119(mk,&Lm,ox<<(32-sh),oy<<(32-sh));a=(uint64_t)(((unsigned __int128)a*m)>>32);}
-  if(a)emb_blend119(pix+((size_t)py*size+px)*4,c16,a);}}
-/* one decal quad, axis-aligned in pixels [X0,X1) x [Y0,Y1) (Q32), u from U0 at X0, v' from V0 at Y0 */
-EXT static void emb_decal119(uint8_t *pix,uint32_t size,const Dds119 *t,const uint32_t *q,const uint32_t *c16){
- /* q: xlo, xhi, ylo, yhi (normalized), u_lo, u_hi, vtop', vbot' */
- uint32_t fs=f_i2f((int32_t)size),x0=f_mul(q[0],fs),x1=f_mul(q[1],fs),y0=f_mul(q[2],fs),y1=f_mul(q[3],fs);
- uint32_t dx=f_sub(x1,x0),dy=f_sub(y1,y0);if(!f_gt119(dx,0)||!f_gt119(dy,0))return;
- uint32_t du=f_sub(q[5],q[4]),dv=f_sub(q[7],q[6]);
- uint32_t rxf=f_div(f_mul(du,f_i2f((int32_t)t->w)),dx),ryf=f_div(f_mul(dv,f_i2f((int32_t)t->h)),dy);
- Lod119 L;emb_lod119(t,emb_fmax119(f_mul(rxf,rxf),f_mul(ryf,ryf)),&L);
- int64_t X0=fq32_119(x0),X1=fq32_119(x1),Y0=fq32_119(y0),Y1=fq32_119(y1),U0=fq32_119(q[4]),V0=fq32_119(q[6]);
- int64_t DUDX=fq32_119(f_div(du,dx)),DVDY=fq32_119(f_div(dv,dy));
- for(uint32_t py=1;py+1<size;py++){int64_t cy=((int64_t)(2*py+1))<<31;if(cy<Y0||cy>=Y1)continue;
-  int64_t v=V0+((DVDY*((cy-Y0)>>16))>>16);
-  for(uint32_t px=1;px+1<size;px++){int64_t cx=((int64_t)(2*px+1))<<31;if(cx<X0||cx>=X1)continue;
-   int64_t u=U0+((DUDX*((cx-X0)>>16))>>16);uint64_t a=emb_a32_119(t,&L,u,v);
-   if(a)emb_blend119(pix+((size_t)py*size+px)*4,c16,a);}}}
+EXT static void emb_quad119(uint8_t *pix,uint32_t size,const Dds119 *t,const uint32_t *uv,const Dds119 *mk,const uint32_t *c16){u3x_emb_quad(pix,size,t,uv,mk,c16);}
+EXT static void emb_decal119(uint8_t *pix,uint32_t size,const Dds119 *t,const uint32_t *q,const uint32_t *c16){u3x_emb_decal(pix,size,t,q,c16);}
 static uint8_t *emb_rec_slot119(uintptr_t b,uint32_t sl){return u3x_emb_rec_slot(b,sl);}   /* f_27d29c, v7.188 C++ */
 static uint32_t emb_size119(uintptr_t b){return u3x_emb_size(b);}   /* f_27c888, v7.188 C++ */
 /* PS3 f_2800c8(emb, sl) */
@@ -1338,80 +1101,10 @@ EXT static int emb_tag119(uintptr_t b,uint8_t *sp,uint32_t sid){
 EXT static int emb_look119(uintptr_t b,ProfileState *s,uint64_t *regs){
  (void)s;return u3x_emblem_look(b,regs);}   /* v7.160 C++ */
 /* 1.19 f_217000 stat lines. Kind 249 0x61a3f1: ds/row; kind 250 0x61a638: draw. PS3 draws them whatever the Hat Stats setting is. */
-/* f_207398 text part. 0 = unknown stat */
-static int hs_text(uintptr_t base,ProfileState *s,uint32_t stat,uint32_t m,char *b,size_t cap){
- uint8_t *t=sym_table(s,0x53ed596au);if(!t)return 0;
- int32_t n=*(int32_t*)t;uint8_t *e=*(uint8_t**)(t+8),*hit=0;if(!e||n<=0||n>512)return 0;
- for(int32_t i=0;i<n;i++)if(*(uint32_t*)(e+(size_t)i*0x28)==stat)hit=e+(size_t)i*0x28;
- if(!hit)return 0;
- const char *nm=text(base,s,*(uint32_t*)(hit+0x24));if(!nm)return 0;
- char *o=b,*end=b+cap-1;
- if(stat==0x974e6226u||stat==0xd0ab3f8bu)o=fmt_append(o,end,"+ ");             /* 0x2075f8 */
- else if(stat==0x2df81dfeu||stat==0x93a5a7c2u||stat==0xbe693215u){             /* 0x20751c */
-  o=fmt_append(o,end,"+");o=fmt_int(o,end,(int32_t)ppc_ctiwz119(m),0);o=fmt_append(o,end," ");}
- else{
-  if(stat==0x7da763c9u||stat==0x2d57beb9u||stat==0x8b73121au)m=f_div(F_ONE,m); /* 0x2075e8 */
-  int lo=f_lt(m,F_ONE);
-  o=fmt_append(o,end,lo?"-":"+");
-  o=fmt_int(o,end,(int32_t)ppc_ctiwz119(f_mul(lo?f_sub(F_ONE,m):f_sub(m,F_ONE),0x42c80000u)),0);
-  o=fmt_append(o,end,"% ");}
- o=fmt_append(o,end,nm);*o=0;return 1;}
-static char hs_t[384] EXT_BSS;static uint32_t hs_off[2] EXT_BSS;
-static uint32_t hs_ic[2][2] EXT_BSS;static int32_t hs_n EXT_BSS,hs_top EXT_BSS;
+/* v7.199 C++: the stat lines are u3x_hs_* in u3x_fixes.cpp (with their text buffer) */
 static uint32_t hd_n EXT_BSS,hd_c EXT_BSS;
-#define HS_LH 0x41c00000u   /* 24.0 */
-#define HS_IC 0x41c00000u
-EXT static void hs_save119(uintptr_t base,ProfileState *s,uint64_t *regs){   /* x097: stat lines joined to the slot 4 text, 0x61a402 (r15 = regs[13]) */
- if(active_page(base)!=0x211019f2u)return;
- int32_t row=(int32_t)regs[3];uint32_t cnt=*(uint32_t*)(base+0x1b6a7c0u);
- if(row<0||(uint32_t)row>=cnt||cnt>96)return;
- uint32_t idx=*(uint32_t*)(base+0x2208000u+(size_t)row*4);
- uint8_t *lt=*(uint8_t**)(base+0x1b6a7c8u);if(!lt||idx>=*(uint32_t*)lt)return;
- uint8_t *lr=*(uint8_t**)(lt+8);if(!lr)return;
- uint32_t id=*(uint32_t*)(lr+(size_t)idx*0x38);
- uint8_t *t=sym_table(s,0xb8a3581bu);if(!t)return;
- int32_t n=*(int32_t*)t;uint8_t *rows=*(uint8_t**)(t+8);if(!rows||n<=0||n>4096)return;
- const char *src=(const char*)regs[13];       /* rax = vt+0x48 result */
- char *o=hs_t,*end=hs_t+sizeof(hs_t)-1;int line=0;
- if(src&&*src)o=fmt_append(o,end,src);
- for(int32_t r=0;r<n;r++){uint8_t *w=rows+(size_t)r*16;if(*(uint32_t*)w!=id)continue;
-  int32_t c=*(int32_t*)(w+4);uint8_t *pp=*(uint8_t**)(w+8);if(!pp)continue;
-  for(int32_t k=0;k<c&&line<2;k++){char b[96];
-   if(!hs_text(base,s,*(uint32_t*)(pp+(size_t)k*8),*(uint32_t*)(pp+(size_t)k*8+4),b,96))continue;
-   if(o!=hs_t)o=fmt_append(o,end,"\\");       /* game text's line break */
-   hs_off[line]=(uint32_t)(o-hs_t);o=fmt_append(o,end,"      ");o=fmt_append(o,end,b);hs_ic[line][0]=*(uint32_t*)(pp+(size_t)k*8);hs_ic[line][1]=*(uint32_t*)(pp+(size_t)k*8+4);line++;}}
- *o=0;if(line){regs[13]=(uint64_t)(uintptr_t)hs_t;hs_n=line;hs_top=(src&&*src)?1:0;}}
-EXT static void hs_meas(uintptr_t base,uint32_t sc,const char *t,uint32_t w,uint32_t h,uint32_t fl,uint32_t *ow,uint32_t *oh){
- uint32_t item[12] __attribute__((aligned(16))),sz[2] __attribute__((aligned(16)))={w,h},z[4] __attribute__((aligned(16)))={0,0,0,0};
- uint8_t L[0x80] __attribute__((aligned(16)));
- for(int k=0;k<12;k++)item[k]=0;
- item[0]=1;item[4]=fl;item[7]=0xffffffffu;item[9]=0xffffffffu;item[10]=F_ONE;
- call8_119(base+0x640ac0u,sc,(uintptr_t)L,(uintptr_t)item,(uintptr_t)t,(uintptr_t)sz,(uintptr_t)z,0xffffffffu,0,0);
- *ow=*(uint32_t*)(L+0x3c);*oh=*(uint32_t*)(L+0x40);}
-EXT static void hs_draw119(uintptr_t base,ProfileState *s,uint64_t *regs){   /* x102: kind 250, 0x61a638: icons left of the lines */
- int n=hs_n;hs_n=0;if(n<=0)return;
- uint8_t *rbp=(uint8_t*)regs[14],*r13=(uint8_t*)regs[2];uint32_t *rt=(uint32_t*)(rbp-0x180),*ts=(uint32_t*)(rbp-0xa8);
- uint32_t st[10] __attribute__((aligned(16)));for(int k=0;k<10;k++)st[k]=((uint32_t*)(rbp-0x58))[k];
- st[1]=st[2]=st[3]=F_ONE;st[5]=0;
- uint32_t sc=f_mul(f_add(f_mul(f_mul(f_mul(ts[6],ts[7]),ts[4]),0x3d4ccccdu),F_ONE),ts[0]);
- uint32_t w0,lh,w1,d;
- hs_meas(base,sc,"A",rt[2],rt[3],1,&d,&lh);
- hs_meas(base,sc,"A",rt[2],rt[3],0,&w0,&d);hs_meas(base,sc,"      A",rt[2],rt[3],0,&w1,&d);
- uint32_t ind=f_sub(w1,w0);
- if(f_lt(lh,0x41000000u)||f_lt(0x42800000u,lh))lh=HS_LH;
- if(f_lt(ind,0x40800000u)||f_lt(0x42800000u,ind))ind=HS_IC;
- uint32_t ic=f_lt(f_sub(ind,0x40000000u),lh)?f_sub(ind,0x40000000u):lh;
- uint32_t x=f_add(rt[0],f_mul(f_sub(ind,ic),0x3f000000u));
- for(int i=0;i<n;i++){uint8_t *v=stat_icon119(base,s,hs_ic[i][0],hs_ic[i][1]);if(!v)continue;
-  char pre[390];uint32_t c=hs_off[i];if(c>sizeof(pre)-2)continue;
-  for(uint32_t k=0;k<c;k++)pre[k]=hs_t[k];pre[c]='A';pre[c+1]=0;
-  uint32_t hp;hs_meas(base,sc,pre,rt[2],rt[3],1,&d,&hp);
-  uint32_t y=f_add(f_add(rt[1],f_sub(hp,lh)),f_mul(f_sub(lh,ic),0x3f000000u));
-  uint32_t item[12] __attribute__((aligned(16)));for(int k=0;k<12;k++)item[k]=0;
-  item[0]=2;*(uint8_t**)(item+2)=v;item[7]=0xffffffffu;item[9]=0xffffffffu;item[10]=F_ONE;
-  uint32_t rc[4] __attribute__((aligned(16)))={x,y,ic,ic},sz[2] __attribute__((aligned(16)))={ic,ic},z[4] __attribute__((aligned(16)))={0,0,0,0};
-  call8_119(base+0x640ac0u,st[0],(uintptr_t)(rbp-0x118),(uintptr_t)item,0,(uintptr_t)sz,(uintptr_t)z,0xffffffffu,0,0);
-  call8_119(base+0x63d6f0u,0,*(uint64_t*)r13,*(uint64_t*)(rbp-0x198),(uintptr_t)st,(uintptr_t)(rbp-0x118),(uintptr_t)rc,0,0,0xffffffffu);}}
+EXT static void hs_save119(uintptr_t base,ProfileState *s,uint64_t *regs){u3x_hs_save(base,s,regs);}   /* x097: kind 249, 0x61a402 */
+EXT static void hs_draw119(uintptr_t base,ProfileState *s,uint64_t *regs){u3x_hs_draw(base,s,regs);}   /* x102: kind 250, 0x61a638 */
 /* hat colour: PS4's tint guard 0x759505 fails on 'none' parts; apply the preview look directly (x098) */
 EXT static void h01_tint(uintptr_t base,uint8_t *cm,uint8_t *ch,int32_t side){
  uint64_t *l=(uint64_t*)(ch+0x1c40),old[5];int diff=0;hd_n++;
