@@ -47,7 +47,7 @@
  "must_write": false,
  "status": "partly-reproducible",
  "applied": "2026-10-26 08:13 .. 10-27 01:01 (cloud)",
- "notes": "Rows of plan.tsv: identical = byte-identical to the reference file; base = identical to the recorded pre-session state (backup-london etc.), the later fix steps make the final; equivalent = no recorded converter state reproduces it, built with the nearest version and installed only when the file is missing. Converter versions: f525859 (tools/paktools + pak23-levels/paktools-f525859 overlay), git 003b433 / 7d45c1f (pak23-levels/paktools-*). See tools/fixes/pak23-levels/README.md and recipe/GAPS.md.",
+ "notes": "Rows of plan.tsv: identical = byte-identical to the reference file; base = identical to the recorded pre-session state (backup-london etc.), the later fix steps make the final; equivalent = no recorded converter state reproduces it, built with the nearest version and installed only when the file is missing. Converter: the latest (f525859) in C++ (tools/fixes/dctools); sky rows: pak23-levels/paktools-sky. See tools/fixes/pak23-levels/README.md and recipe/GAPS.md.",
  "recipe_version_added": "1.0.0",
  "recipe_version_changed": "1.7.0"
 }

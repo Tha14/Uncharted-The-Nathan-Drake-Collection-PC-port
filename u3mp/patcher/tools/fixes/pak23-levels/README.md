@@ -12,7 +12,7 @@ version and no recorded per-level choice is kept (owner's decision: all assets w
 | `lib/` | the scripts the driver still starts for the sky rows (build_skies, anim_actors) |
 | `data/conv_anim_actors.json` | actor names the converter treats as animated |
 | `data/overrides/overlay-r3/coop-syria-area1.json`, `-area2.json` | `gobo`: the projector-light gobo textures taken from the retail PS4 syria paks |
-| `paktools-f525859/`, `paktools-sky/` | the latest converter's files on top of `tools/paktools`, and the sky converter |
+| `paktools-sky/` | the sky converter (Python, until it is ported) |
 | `lost-batches/`, `cloud-batches/` | the two replay steps `lost-batches-r3` / `cloud-batches-r3` (to be redone on the latest converter's output) |
 
 Methods: stage (C++ `dctools/stageplan.cpp` + `ps4stage.cpp`: mkplan -> fxextract -> ps4stage, `mb`: + paramfix + cubefix), ingame (ps4ingame), vischeat, empty (the

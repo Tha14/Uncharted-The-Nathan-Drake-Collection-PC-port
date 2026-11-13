@@ -1,6 +1,6 @@
 // Recipe steps convert-levels-port / -r2 / -r3: the converted level paks of overlay-port / -r2 / -r3, rebuilt row by
-// row from plan.tsv with the current converter (f525859 = tools/paktools + paktools-f525859/; the sky rows: paktools-sky,
-// the only sky converter).
+// row from plan.tsv with the current converter (f525859, in C++ in dctools/; the sky rows: paktools-sky, the only sky
+// converter).
 //   u3fix levels <family> --project P --job J --paktools D --ps4 D --ps3-disc D --ps3-update D --ps3-data2 D
 //                --ps3-dlcmaps D --python EXE [--apply] [--only REGEX] [--strict] [--jobs N] [--keep-work]
 //
@@ -119,9 +119,7 @@ fs::path default_lightmaps() {
 
 // the files of a converter tree: relative path -> source (later roots override earlier ones)
 std::map<std::string, fs::path> pt_sources(const std::string &ver) {
-    std::vector<fs::path> roots;
-    if (ver == "f525859") roots = {upath(g_paktools), upath(g_here + "/paktools-f525859")};
-    else roots = {upath(g_here + "/paktools-" + ver)};
+    const std::vector<fs::path> roots = {upath(g_here + "/paktools-" + ver)};   // only the sky converter is still a tree
     std::map<std::string, fs::path> m;
     for (const fs::path &r : roots) {
         if (!fs::is_directory(r)) continue;

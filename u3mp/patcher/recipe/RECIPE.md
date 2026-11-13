@@ -45,12 +45,8 @@ patches a hidden pak (checked 2026-11-06: the only writers of those paths are th
 Worker processes: `--jobs N`, default logical cores - 2 (`RECIPE_JOBS` for levels.py, build_actors.py,
 convert_banks.py). The sound-bank encoder uses `sound-banks/native/vagenc.dll` (the original vagenc.c compiled,
 byte-identical to vagenc.py, ~30x faster) when it loads, else the Python port.
-Level converter fast paths (`pak23-levels/lib/fastpaths.py`, installed by convert_one.py): a py-spy profile of the
-r3 stage conversions (2026-11-06) put 37 % of the time in `collision._enc_box` (per-scalar float32 loops) and 27 %
-in `ps3geom._bits_be` (bit fields read through one big Python int, quadratic). Both are replaced by vectorised
-numpy versions with the same float32 operations in the same order and the same integer results, only where the
-loaded converter's function is the known original (source sha256); `lib/check_fastpaths.py` compares them on random
-inputs, and the r3 paks were rebuilt byte-identical with them. `U3_LEVELS_FAST=0` turns them off.
+The level converter (stage, ingame, vischeat, empty, hud, windoff) is C++ in `tools/fixes/dctools` (u3fix.exe levels);
+only the sky rows still run the Python sky converter.
 
 ## Files in this folder
 
