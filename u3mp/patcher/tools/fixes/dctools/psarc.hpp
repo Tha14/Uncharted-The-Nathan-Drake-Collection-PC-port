@@ -17,6 +17,7 @@ public:
     explicit Psarc(const fs::path &path);
     std::vector<std::string> names;   // entry i + 1 is names[i]
     size_t entries() const { return toc.size(); }
+    uint64_t length(size_t i) const { return i < toc.size() ? toc[i].length : 0; }   // entry i's size
     Bytes read(size_t i);             // entry i (0 = the name list)
 
 private:

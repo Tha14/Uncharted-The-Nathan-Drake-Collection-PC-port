@@ -52,5 +52,6 @@ int coop_audit(const std::vector<std::string> &argv);         // tools/fixes/coo
 int registry_levels(const std::vector<std::string> &argv);    // tools/fixes/registry/run_mkregistry.cpp
 int registry_final(const std::vector<std::string> &argv);     // tools/fixes/pak23-registry/apply_registry.cpp
 int hair_key(const std::vector<std::string> &argv);           // tools/fixes/hat-chloe/apply_hair_key.cpp
+int levels(const std::vector<std::string> &argv);             // tools/fixes/pak23-levels/levels.cpp
 
 }  // namespace u3

@@ -121,6 +121,7 @@ u3_import() {   # Uncharted 3's importer, its recipe and tools, and the newest m
         "$fx/coop-chars/apply_coop_desc_fix.cpp" "$fx/coop-tab/fix_vram_gap.cpp" "$fx/airport-igc3/airport_igc3.cpp" \
         "$fx/dctools/psarc.cpp" "$fx/text1-merge/merge_text1.cpp" "$fx/coop-audit/apply_option_defaults_2.cpp" \
         "$fx/registry/run_mkregistry.cpp" "$fx/pak23-registry/apply_registry.cpp" "$fx/hat-chloe/apply_hair_key.cpp" \
+        "$fx/pak23-levels/levels.cpp" \
         -o "$out/u3mp/bin/u3fix.exe"
     # ffmpeg (the EULA pages, sound banks with MP3 samples) and, when installed, GNU objdump (the characters' Havok
     # tables; mingw-w64-ucrt-x86_64-binutils: without it the import skips that step)
