@@ -168,6 +168,31 @@ int run_pipe(const std::vector<std::string> &cmd, const Bytes &input, Bytes &out
     return int(code);
 }
 
+
+// a child with its stdout written to a file (stderr inherited); its exit code
+int run_to_file(const std::vector<std::string> &cmd, const fs::path &out) {
+    std::wstring line = command_line(cmd), block = env_block({});
+    SECURITY_ATTRIBUTES sa{sizeof sa, nullptr, TRUE};
+    HANDLE f = CreateFileW(out.wstring().c_str(), GENERIC_WRITE, 0, &sa, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) throw Stop("cannot write " + utf8(out));
+    STARTUPINFOW si{};
+    si.cb = sizeof si;
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    si.hStdOutput = f;
+    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+    PROCESS_INFORMATION pi{};
+    if (!CreateProcessW(nullptr, line.data(), nullptr, nullptr, TRUE, CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW, block.data(), nullptr, &si, &pi)) {
+        CloseHandle(f);
+        throw Stop("cannot start " + cmd[0]);
+    }
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD code = 1;
+    GetExitCodeProcess(pi.hProcess, &code);
+    CloseHandle(pi.hProcess); CloseHandle(pi.hThread); CloseHandle(f);
+    return int(code);
+}
+
 std::string text_file(const fs::path &p) {   // read in text mode
     const Bytes b = read_file(p);
     std::string s(b.begin(), b.end());

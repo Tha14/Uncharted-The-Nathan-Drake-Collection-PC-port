@@ -14,6 +14,7 @@ std::string P(const fs::path &p);                                 // a path as P
 std::wstring quote_arg(const std::wstring &a);                   // subprocess.list2cmdline
 std::string run(const std::vector<std::string> &cmd, const Env &env = {}, const std::string &cwd = "");
 int run_pipe(const std::vector<std::string> &cmd, const Bytes &input, Bytes &out, std::string &err);   // stdin fed, exit code
+int run_to_file(const std::vector<std::string> &cmd, const fs::path &out);                             // stdout to a file, exit code
 std::string text_file(const fs::path &p);                         // read in text mode (CRLF -> LF)
 void write_text(const fs::path &p, const std::string &s);         // write in text mode (LF -> CRLF)
 std::string sha_file(const fs::path &p);

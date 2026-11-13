@@ -268,6 +268,7 @@ int wmain(int argc, wchar_t **argv) {
         if (step == "dc-recipes") return u3::dc_recipes(a);
         if (step == "sound-banks") return u3::sound_banks(a);
         if (step == "part-modules") return u3::part_modules(a);
+        if (step == "actors-hk") return u3::actors_hk(a);
         if (step == "pakinfo") return u3::pakinfo(a);
         std::fprintf(stderr, "usage: u3fix <step> [options] (the steps: see u3fix.cpp)\n");
         return 2;
