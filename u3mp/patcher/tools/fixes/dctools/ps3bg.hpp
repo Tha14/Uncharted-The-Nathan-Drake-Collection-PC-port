@@ -74,6 +74,13 @@ struct Proto {
 };
 std::vector<Proto> collection(const Pak &p);
 
+// a PS3 material's technique-pass nodes: (pass k < 8, entry e, node) for the runs of 0x20-byte entries (ps3params._walk)
+struct WalkNode {
+    uint32_t k, e;
+    Ref node;
+};
+std::vector<WalkNode> walk_passes(const Pak &p, const Ref &material);
+
 struct Instance {
     Ref addr;
     uint32_t x8 = 0;

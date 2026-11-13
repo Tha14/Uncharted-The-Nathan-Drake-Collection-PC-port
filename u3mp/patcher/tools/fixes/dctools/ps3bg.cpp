@@ -592,10 +592,7 @@ void node_params(const Pak &p, const Ref &node, Params &out) {
     }
 }
 
-struct WalkNode {
-    uint32_t k, e;
-    Ref node;
-};
+}  // namespace
 
 std::vector<WalkNode> walk_passes(const Pak &p, const Ref &m) {
     std::vector<WalkNode> out;
@@ -613,6 +610,8 @@ std::vector<WalkNode> walk_passes(const Pak &p, const Ref &m) {
     }
     return out;
 }
+
+namespace {
 
 }  // namespace
 

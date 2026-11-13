@@ -1,32 +1,27 @@
 {
  "id": "map-colors2",
- "title": "Normal-map blend / gloss / stripes on 8 level paks (map-colors2/apply_mapcolor2.py)",
+ "title": "Normal-map blend / gloss / stripes on 8 level paks (u3fix map-colors2, map-colors2/apply_mapcolor2.cpp)",
  "kind": "script",
  "job": "map-colors2",
  "family": "overlay-r3/pak23",
  "needs": [
   "ps3_disc",
   "ps4",
-  "python:numpy",
   "ps3_update"
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/mk_p3idx.py"
-  ],
-  [
-   "{{PYTHON}}",
-   "{{JOB}}/survey_ov.py"
-  ],
-  [
-   "{{PYTHON}}",
-   "{{JOB}}/detect.py"
-  ],
-  [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_mapcolor2.py",
-   "--apply"
+   "u3fix.exe",
+   "map-colors2",
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--job",
+   "{{JOB}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
+   "--ps3-update",
+   "{{PS3_UPDATE}}"
   ]
  ],
  "writes": [
@@ -35,6 +30,6 @@
  "status": "needs-converted-base",
  "applied": "2026-11-01 23:31 / 11-02 00:11 (backup-mapcolor2)",
  "recipe_version_added": "1.0.0",
- "notes": "1.7.0: mk_p3idx.py builds the PS3 archive index p3idx.pkl (the session cached it in scratch). survey_ov.py + detect.py regenerate ov.jsonl.gz / rows.jsonl (the session inputs) from the overlay state before this step and the PS3 paks.",
+ "notes": "C++ since 2026-11-13 (u3fix map-colors2 replaces mk_p3idx.py, survey_ov.py, detect.py and apply_mapcolor2.py with sm.py, fxin.py, bc1inv.py and the Python ps4writer copy: the PS3 archive index, the overlay survey and the fragment-program rows are made in memory, no p3idx.pkl / ov.jsonl.gz / rows.jsonl). Verified on the real import's backup-mapcolor2: all 8 paks equal the recorded md5_after (plan-result.json) and plan-result.json comes out the same. Before, 1.7.0: mk_p3idx.py built the PS3 archive index p3idx.pkl (the session cached it in scratch); survey_ov.py + detect.py regenerated ov.jsonl.gz / rows.jsonl (the session inputs) from the overlay state before this step and the PS3 paks.",
  "recipe_version_changed": "1.7.0"
 }

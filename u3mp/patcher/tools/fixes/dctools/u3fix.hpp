@@ -81,6 +81,7 @@ int grass_leaf(const std::vector<std::string> &argv);            // tools/fixes/
 int london_fade(const std::vector<std::string> &argv);           // tools/fixes/london/apply_london.cpp
 int map_lighting(const std::vector<std::string> &argv);          // tools/fixes/map-lighting/apply_map_lighting.cpp
 int map_colors(const std::vector<std::string> &argv);            // tools/fixes/map-colors/apply_mapcolor.cpp
+int map_colors2(const std::vector<std::string> &argv);           // tools/fixes/map-colors2/apply_mapcolor2.cpp
 int pakinfo(const std::vector<std::string> &argv);            // dctools/ndpak.cpp: a pak's summary (as ndpak.py prints it)
 
 }  // namespace u3
