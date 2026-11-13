@@ -206,6 +206,8 @@ Bytes PakWriter::build() {
         else vram_table_loc.reset();
     } else if (!login_page) {
         throw Stop("AssertionError: no login table");
+    } else if (vram_table_item) {   // raw retail pages, the VRAM desc table an item on a new page
+        vram_table_loc = std::make_pair(vram_table_item->page->index, vram_table_item->off);
     }
     if (vram_table_blob) {
         const auto [vpg, voff] = all_abs().at(key(vram_table_blob.get()));

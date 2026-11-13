@@ -1,18 +1,21 @@
 {
  "id": "outdoor-jacket",
- "title": "Outdoor Jacket A: restore its color map and reconstruct the missing surface basis",
+ "title": "Outdoor Jacket A: restore its color map and reconstruct the missing surface basis (u3fix outdoor-jacket, outdoor-jacket/apply_outdoor_jacket.cpp)",
  "kind": "script",
  "job": "outdoor-jacket",
  "family": "overlay-r3/actor33",
  "needs": [
   "ps3_disc",
-  "ps4",
-  "python:numpy"
+  "ps4"
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_outdoor_jacket.py"
+   "u3fix.exe",
+   "outdoor-jacket",
+   "--project",
+   "{{PROJECT}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}"
   ]
  ],
  "writes": [
@@ -22,10 +25,6 @@
  "must_write": false,
  "status": "needs-converted-base",
  "applied": "2026-11-08",
- "notes": "Uses the pinned PS3 source and overlay-port donor. Restores the jacket Color1 map and reconstructs normals/tangents from unchanged PS4 positions, UVs, and triangle lists. The helper refuses unexpected input hashes and preserves the original pak under work/backup-outdoor-jacket/. Donor: the pre-hat-colour jacket that step keeps as work/backup-hat-colour/mp-kit-hunter-torso-jacket-a.pak (SHA-256 065ee28fa8e99bd8aab43d7008c98091fe27cd53166a3b6178cb9a0973aa9985); work/backup-outdoor-jacket/donor.pak (070e2c95...) is used instead when present.",
- "recipe_version_added": "1.10.2",
- "with_jobs": [
-  "actor-materials",
-  "hat-colour"
- ]
+ "notes": "C++ since 2026-11-13 (u3fix outdoor-jacket replaces apply_outdoor_jacket.py + actor-materials/repair_hunter_jacket.py): the PS3 jacket is read from the disc actor33.psarc (the Python step read the hat-colour scratch copy the C++ hat-colour no longer makes) and checked by sha256; the donor pak only served checks and is not needed; the result is the pinned a28e8d1b... (verified 2026-11-13 on the real import's inputs). Before: uses the pinned PS3 source and overlay-port donor. Restores the jacket Color1 map and reconstructs normals/tangents from unchanged PS4 positions, UVs, and triangle lists. The helper refuses unexpected input hashes and preserves the original pak under work/backup-outdoor-jacket/. Donor: the pre-hat-colour jacket that step keeps as work/backup-hat-colour/mp-kit-hunter-torso-jacket-a.pak (SHA-256 065ee28fa8e99bd8aab43d7008c98091fe27cd53166a3b6178cb9a0973aa9985); work/backup-outdoor-jacket/donor.pak (070e2c95...) is used instead when present.",
+ "recipe_version_added": "1.10.2"
 }
