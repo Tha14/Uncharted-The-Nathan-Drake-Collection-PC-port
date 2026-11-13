@@ -1,6 +1,6 @@
 {
  "id": "map-lighting",
- "title": "Sun shadow blockers made shadow-only in 20 MP/coop paks (London Underground library lighting) + Fort stairs / plaster panel materials (map-lighting/apply_map_lighting.py)",
+ "title": "Sun shadow blockers made shadow-only in 20 MP/coop paks (London Underground library lighting) + Fort stairs / plaster panel materials (u3fix map-lighting, map-lighting/apply_map_lighting.cpp)",
  "kind": "script",
  "job": "map-lighting",
  "family": "overlay-r3/pak23",
@@ -9,8 +9,8 @@
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_map_lighting.py",
+   "u3fix.exe",
+   "map-lighting",
    "--work",
    "{{WORK}}",
    "--apply"
@@ -23,6 +23,6 @@
  "reference_check": false,
  "status": "needs-converted-base",
  "applied": "2026-11-09 (backup-map-lighting)",
- "notes": "By 33martyr (PR #3). Blockers (material shadowblocker / ik-only / canopy-shadow) get +0x20 |= 0x10000 and +0x24 |= 0x101, the retail hidden-blocker rule; without it the sun floods interiors (London library: bright floor, dark walls, hard shafts). Fort: stone-steps layer swap + PS3 spec terms, plaster-cream border tint, template metalness removed. Recipe 1.12.0 kept London and Fort only (the other paks restored from backup-map-lighting); 1.13.0 applies it to every pak again (KEEP = None, nothing restored). Some maps may still look off (user check 2026-11-09). In place, no size change, idempotent.",
+ "notes": "C++ since 2026-11-13 (u3fix map-lighting replaces apply_map_lighting.py, recipe 1.13.0 form: every pak, nothing restored). Verified: the 20 paks of the real import's backup-map-lighting come out byte-identical with its overlay. By 33martyr (PR #3). Blockers (material shadowblocker / ik-only / canopy-shadow) get +0x20 |= 0x10000 and +0x24 |= 0x101, the retail hidden-blocker rule; without it the sun floods interiors (London library: bright floor, dark walls, hard shafts). Fort: stone-steps layer swap + PS3 spec terms, plaster-cream border tint, template metalness removed. Recipe 1.12.0 kept London and Fort only (the other paks restored from backup-map-lighting); 1.13.0 applies it to every pak again (KEEP = None, nothing restored). Some maps may still look off (user check 2026-11-09). In place, no size change, idempotent.",
  "recipe_version_added": "1.11.0"
 }

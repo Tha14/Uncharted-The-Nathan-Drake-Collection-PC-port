@@ -437,7 +437,8 @@ int lab_registration(const std::vector<std::string> &argv) {
     sizes.fields.push_back({"net", json::Value::integer((long long)net.size())});
     sizes.fields.push_back({"nal", json::Value::integer((long long)nal.size())});
     log.fields.push_back({"sizes", sizes});
-    const std::string lj = json_dump_indent1(log);
+    std::string lj;   // json.dump to a text-mode file on Windows: CRLF line ends
+    for (char c : json_dump_indent1(log)) lj += c == 10 ? std::string{char(13), char(10)} : std::string(1, c);
     write_file_replace(upath(BK + "lab_reg.log.json"), Bytes(lj.begin(), lj.end()));
     std::string nd = "[", dr = "{";
     for (size_t k = 0; k < nodef.size(); k++) nd += (k ? ", '" : "'") + nodef[k] + "'";

@@ -1,6 +1,6 @@
 {
  "id": "london-fade",
- "title": "Fade-distance records restored in 87 stage paks + ldn-train sun back to 886.71 (london/apply_london.py --maps all)",
+ "title": "Fade-distance records restored in 87 stage paks + ldn-train sun back to 886.71 (u3fix london-fade --maps all, london/apply_london.cpp)",
  "kind": "script",
  "job": "london",
  "family": "overlay-r3/pak23",
@@ -8,16 +8,23 @@
   "ps3_disc",
   "ps3_update",
   "ps3_data2",
-  "ps4",
-  "python:numpy"
+  "ps4"
  ],
  "commands": [
   [
-   "{{PYTHON}}",
-   "{{JOB}}/apply_london.py",
+   "u3fix.exe",
+   "london-fade",
    "--maps",
    "all",
-   "--apply"
+   "--apply",
+   "--project",
+   "{{PROJECT}}",
+   "--ps3-disc",
+   "{{PS3_DISC}}",
+   "--ps3-update",
+   "{{PS3_UPDATE}}",
+   "--ps3-data2",
+   "{{PS3_DATA2}}"
   ]
  ],
  "writes": [
@@ -25,5 +32,6 @@
  ],
  "status": "needs-converted-base",
  "applied": "2026-11-02 03:35 (backup-london, 3.0 GB)",
- "recipe_version_added": "1.0.0"
+ "recipe_version_added": "1.0.0",
+ "notes": "C++ since 2026-11-13 (u3fix london-fade replaces apply_london.py, fadefix.py and llib.py; the PS3 paks are read straight from the archives, no extract cache; --check, which ran the Python crashcheck / ps4check, is gone). Verified on the real import's backup-london: all 86 paks give the recorded md5_after, and backup-london/manifest.json comes out byte-identical (CRLF, as Python wrote it)."
 }

@@ -78,6 +78,8 @@ bool net_is_ps3_order(const Dc &net, const std::string &net18);   // dctools/net
 int maps_batch_dc(const std::vector<std::string> &argv);         // tools/fixes/dctools/lab_reg.cpp
 int water_jitter(const std::vector<std::string> &argv);          // tools/fixes/borneo/borneo_fixes.cpp
 int grass_leaf(const std::vector<std::string> &argv);            // tools/fixes/borneo/borneo_fixes.cpp
+int london_fade(const std::vector<std::string> &argv);           // tools/fixes/london/apply_london.cpp
+int map_lighting(const std::vector<std::string> &argv);          // tools/fixes/map-lighting/apply_map_lighting.cpp
 int pakinfo(const std::vector<std::string> &argv);            // dctools/ndpak.cpp: a pak's summary (as ndpak.py prints it)
 
 }  // namespace u3
