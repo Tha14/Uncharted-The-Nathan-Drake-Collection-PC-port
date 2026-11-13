@@ -114,6 +114,60 @@ std::string run(const std::vector<std::string> &cmd, const Env &env, const std::
     return out;
 }
 
+
+// a child fed `input` on stdin, its stdout / stderr captured as bytes (subprocess.run(input=..., capture_output=True))
+int run_pipe(const std::vector<std::string> &cmd, const Bytes &input, Bytes &out, std::string &err) {
+    std::wstring line = command_line(cmd), block = env_block({});
+    SECURITY_ATTRIBUTES sa{sizeof sa, nullptr, TRUE};
+    HANDLE in_r, in_w, out_r, out_w, err_r, err_w;
+    CreatePipe(&in_r, &in_w, &sa, 0);
+    CreatePipe(&out_r, &out_w, &sa, 0);
+    CreatePipe(&err_r, &err_w, &sa, 0);
+    SetHandleInformation(in_w, HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(out_r, HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(err_r, HANDLE_FLAG_INHERIT, 0);
+    STARTUPINFOW si{};
+    si.cb = sizeof si;
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = in_r;
+    si.hStdOutput = out_w;
+    si.hStdError = err_w;
+    PROCESS_INFORMATION pi{};
+    if (!CreateProcessW(nullptr, line.data(), nullptr, nullptr, TRUE, CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW, block.data(), nullptr, &si, &pi)) {
+        for (HANDLE h : {in_r, in_w, out_r, out_w, err_r, err_w}) CloseHandle(h);
+        throw Stop("cannot start " + cmd[0]);
+    }
+    CloseHandle(in_r);
+    CloseHandle(out_w);
+    CloseHandle(err_w);
+    std::thread tw([&] {
+        size_t o = 0;
+        DWORD n;
+        while (o < input.size() && WriteFile(in_w, input.data() + o, DWORD(std::min<size_t>(input.size() - o, 1 << 20)), &n, nullptr) && n) o += n;
+        CloseHandle(in_w);
+    });
+    std::string es;
+    std::thread te([&] {
+        char buf[65536];
+        DWORD n;
+        while (ReadFile(err_r, buf, sizeof buf, &n, nullptr) && n) es.append(buf, n);
+    });
+    out.clear();
+    {
+        uint8_t buf[65536];
+        DWORD n;
+        while (ReadFile(out_r, buf, sizeof buf, &n, nullptr) && n) out.insert(out.end(), buf, buf + n);
+    }
+    tw.join();
+    te.join();
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD code = 1;
+    GetExitCodeProcess(pi.hProcess, &code);
+    CloseHandle(pi.hProcess); CloseHandle(pi.hThread); CloseHandle(out_r); CloseHandle(err_r);
+    err = es;
+    return int(code);
+}
+
 std::string text_file(const fs::path &p) {   // read in text mode
     const Bytes b = read_file(p);
     std::string s(b.begin(), b.end());
