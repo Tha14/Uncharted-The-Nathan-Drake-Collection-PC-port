@@ -20,6 +20,7 @@
 #include "psarc.hpp"
 #include "ps4ingame.hpp"
 #include "vischeat.hpp"
+#include "windoff.hpp"
 #include "ps4writer.hpp"
 
 #include <algorithm>
@@ -292,10 +293,8 @@ fs::path build(const Row &row, const std::map<std::pair<std::string, std::string
         run({g_python, g_here + "/lib/hud_textures.py", P(paktools(ver)), P(pak4 / "hud.pak"), P(ps3_source(row, idx)), P(op)});
         return op;
     }
-    if (m == "windoff") {
-        std::vector<std::string> cmd = {g_python, g_here + "/lib/windoff.py", P(paktools(ver)), P(pak4 / upath(row.at("src") + ".pak")), P(op)};
-        cmd.insert(cmd.end(), items.begin(), items.end());
-        run(cmd);
+    if (m == "windoff") {   // C++ (dctools/windoff.cpp)
+        write_file_replace(op, windoff_convert(pak4 / upath(row.at("src") + ".pak"), items));
         return op;
     }
     if (m == "sky") {
@@ -460,7 +459,7 @@ int levels(const std::vector<std::string> &argv) {
         if (r.at("method") == "stage" || r.at("method") == "sky") { res_dir(); break; }
     std::set<std::string> vers;
     for (const Row &r : todo)
-        if (r.at("method") != "empty" && r.at("method") != "ingame" && r.at("method") != "vischeat") vers.insert(version_of(r));   // the methods that still run a converter script
+        if (r.at("method") != "empty" && r.at("method") != "ingame" && r.at("method") != "vischeat" && r.at("method") != "windoff") vers.insert(version_of(r));   // the methods that still run a converter script
     for (const Row &r : todo)
         if (r.at("method") == "ingame") {
             g_anim = anim_actor_names(ps4main() / "actor33" / "ps4", upath(g_here + "/data/conv_anim_actors.json"));
