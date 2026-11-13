@@ -11,9 +11,9 @@
 // work/backup-pak23-levels/<overlay>/. Rows hidden by a higher overlay ($RECIPE_SHADOWED) are not built.
 // The PS3 sources: ps3idx.tsv (every pak23 level pak of the player's PS3 archives, in source priority) and one extract
 // per row (a GOTY disc stands in for the DLC map packs); both caches are dropped when the PS3 inputs change.
-// In C++: empty (dctools/ps4writer.cpp), ingame (dctools/ps4ingame.cpp), vischeat (dctools/vischeat.cpp). The methods
+// In C++: empty (dctools/ps4writer.cpp), ingame (dctools/ps4ingame.cpp), vischeat, windoff, hud (dctools/texcodec.cpp). The methods
 // not in C++ yet run their converter script in the converter tree (scratch/pak23-levels-work/pt-<version>, assembled
-// with a size manifest): stage (lib/convert_one.py; data/overrides/<overlay>/<name>.json: gobo), hud, windoff, sky.
+// with a size manifest): stage (lib/convert_one.py; data/overrides/<overlay>/<name>.json: gobo), sky.
 // Replaces levels.py for these families (the retired lab and maps-batch families are not supported).
 #include "u3fix.hpp"
 #include "proc.hpp"
@@ -21,6 +21,8 @@
 #include "ps4ingame.hpp"
 #include "vischeat.hpp"
 #include "windoff.hpp"
+#include "ndpak.hpp"
+#include "texcodec.hpp"
 #include "ps4writer.hpp"
 
 #include <algorithm>
@@ -261,6 +263,42 @@ fs::path ps3_source(const Row &row, const std::map<std::pair<std::string, std::s
     return p;
 }
 
+// overlay-r3 hud.pak: the PS4 game kept small copies of two HUD textures (gun-galil-trans, the distress font); their
+// full-size PS3 DXT1 texels are tiled 1:1 as PS4 BC1 and appended to the VRAM in this order. Only the two VRAM_DESC
+// records (VRAM offset, size, format 0x47, mips, width, height, flag 3) and the header VRAM size change.
+Bytes hud_convert(const fs::path &retail, const fs::path &ps3) {
+    const Pak r(retail), p(ps3);
+    Bytes d = r.d;
+    Bytes vram(r.d.begin() + r.vram_base, r.d.end());
+    const std::vector<PakTexture> t4s = r.textures(), t3s = p.textures();
+    auto find = [](const std::vector<PakTexture> &ts, const std::string &s) -> const PakTexture & {
+        for (const PakTexture &t : ts)
+            if (t.path.find("/" + s + "/") != std::string::npos) return t;
+        throw Stop("IndexError: no texture " + s);
+    };
+    auto put32 = [&](uint64_t o, uint32_t v) { for (int i = 0; i < 4; i++) d.at(o + i) = uint8_t(v >> (8 * i)); };
+    for (const char *s : {"art/general/hud/guns/gun-galil-trans.tga", "art/general/textures/font/distress.tga"}) {
+        const PakTexture &t4 = find(t4s, s), &t3 = find(t3s, s);
+        const auto f = tc::ps3_format(t3);
+        if (!f || f->kind != "DXT1") throw Stop("AssertionError: " + (f ? f->kind : std::string("None")));
+        const Bytes til = tc::ps3_to_ps4_texels(p.vram_bytes(t3.vramOffset, t3.vramSize), t3.width, t3.height, t3.mips, f->bpb);
+        const uint64_t b = r.pbase(t4.page) + t4.off + 0x20;
+        put32(b + 8, uint32_t(vram.size()));
+        put32(b + 12, uint32_t(uint64_t(vram.size()) >> 32));
+        put32(b + 0x10, uint32_t(til.size()));
+        put32(b + 0x1c, 0x47);
+        put32(b + 0x24, t3.mips);
+        put32(b + 0x28, t3.width);
+        put32(b + 0x2c, t3.height);
+        put32(b + 0x34, 3);
+        vram.insert(vram.end(), til.begin(), til.end());
+    }
+    put32(0x20, uint32_t(vram.size()));
+    Bytes out(d.begin(), d.begin() + r.vram_base);
+    out.insert(out.end(), vram.begin(), vram.end());
+    return out;
+}
+
 fs::path build(const Row &row, const std::map<std::pair<std::string, std::string>, std::vector<std::string>> &idx) {
     const fs::path od = g_tmp / "out" / upath(row.at("overlay")), op = od / upath(row.at("name") + ".pak");
     fs::create_directories(od);
@@ -289,8 +327,8 @@ fs::path build(const Row &row, const std::map<std::pair<std::string, std::string
         write_file_replace(op, d);
         return op;
     }
-    if (m == "hud") {
-        run({g_python, g_here + "/lib/hud_textures.py", P(paktools(ver)), P(pak4 / "hud.pak"), P(ps3_source(row, idx)), P(op)});
+    if (m == "hud") {   // C++: the retail PS4 hud.pak with two HUD textures replaced by their full-size PS3 versions
+        write_file_replace(op, hud_convert(pak4 / "hud.pak", ps3_source(row, idx)));
         return op;
     }
     if (m == "windoff") {   // C++ (dctools/windoff.cpp)
@@ -459,7 +497,7 @@ int levels(const std::vector<std::string> &argv) {
         if (r.at("method") == "stage" || r.at("method") == "sky") { res_dir(); break; }
     std::set<std::string> vers;
     for (const Row &r : todo)
-        if (r.at("method") != "empty" && r.at("method") != "ingame" && r.at("method") != "vischeat" && r.at("method") != "windoff") vers.insert(version_of(r));   // the methods that still run a converter script
+        if (r.at("method") != "empty" && r.at("method") != "ingame" && r.at("method") != "vischeat" && r.at("method") != "windoff" && r.at("method") != "hud") vers.insert(version_of(r));   // the methods that still run a converter script
     for (const Row &r : todo)
         if (r.at("method") == "ingame") {
             g_anim = anim_actor_names(ps4main() / "actor33" / "ps4", upath(g_here + "/data/conv_anim_actors.json"));
