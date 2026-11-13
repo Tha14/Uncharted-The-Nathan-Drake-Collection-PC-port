@@ -12064,6 +12064,3255 @@ extern "C" U3X_FN int u3x_boosters_source(uintptr_t base, int32_t *ev, void *s) 
 // The other contributor's C++ goes between this line and the "end of contributor section" line below (newest last).
 // Claude's parts are appended at the end of the file, after the three lines that follow the end line, so a patch for
 // this section and Claude's own parts never touch the same lines.
+extern "C" {
+U3H_IMPORT uint32_t u3h_anim_pack_full(uintptr_t base, uint8_t *msg, uint8_t *bs, uint8_t *actor, uint8_t **tabs,
+                                        int32_t p5, int32_t p6);
+U3H_IMPORT void u3h_weapons_fill(uintptr_t base, uint8_t *msg, uint8_t *pl);
+U3H_IMPORT uint8_t *u3h_np_by_id(uintptr_t base, uint32_t id);
+U3H_IMPORT uint32_t u3h_np_code(uint8_t *np);
+U3H_IMPORT int32_t u3h_net_now(uintptr_t base);
+}
+
+namespace {
+[[gnu::always_inline]] inline uint8_t *vget(uint8_t *o, uint32_t off) {
+    return reinterpret_cast<uint8_t *(*)(uint8_t *)>((*reinterpret_cast<uintptr_t **>(o))[off / 8])(o);
+}
+template <typename T> [[gnu::always_inline]] inline T &put(uint8_t *p, uintptr_t off) {
+    return *reinterpret_cast<T *>(p + off);
+}
+[[gnu::always_inline]] inline bool fill_le(uint32_t a, uint32_t b) {
+    int r;
+    __asm__("movd %1,%%xmm0\n\tmovd %2,%%xmm1\n\txorl %0,%0\n\tucomiss %%xmm0,%%xmm1\n\tsetae %b0"
+            : "=&r"(r) : "r"(a), "r"(b) : "xmm0", "xmm1", "cc");
+    return r != 0;
+}
+}  // namespace
+
+extern "C" U3X_FN int u3x_has_eff(uint8_t *c, uint32_t sid) {
+    uint8_t **p = rd<uint8_t **>(c, 0x80);
+    if (!p || !*p) return 0;
+    return rd<uint32_t>(rd<uint8_t *>(*p, 0x10), 0x18) == sid;
+}
+
+extern "C" U3X_FN uint8_t *u3x_char_np(uintptr_t base, uint8_t *c) {
+    if (!c || !at<uint8_t>(base + 0x17d5c61)) return nullptr;
+    const uint32_t ty = rd<uint32_t>(c, 0x30);
+    if (ty == 0xa5a63e9bu) {
+        const int32_t screen = rd<int32_t>(c, 0x1c68);
+        return screen >= 0 && screen < 2
+                   ? *reinterpret_cast<uint8_t **>(base + 0x17cb060 + 0x370 + 8 * static_cast<uintptr_t>(screen))
+                   : nullptr;
+    }
+    if (ty == 0xf2c86c22u && rd<uint32_t>(c, 0x3f8)) return u3h_np_by_id(base, rd<uint32_t>(c, 0x3f8));
+    return nullptr;
+}
+
+extern "C" U3X_FN uint32_t u3x_player_fill(uintptr_t base, void *s, uint8_t *msg, uint8_t *pl) {
+    uint32_t *ec = ext_ec();
+    uint32_t *flags = reinterpret_cast<uint32_t *>(msg + 0x148);
+    *flags |= 1;
+    uint8_t *t198 = rd<uint8_t *>(pl, 0x198);
+    if (at<uint64_t>(base + 0x1b24ee0 + 0x3450) && t198 && rd<int32_t>(t198, 0x50) == 3) {
+        *flags |= 4;
+        if (!static_cast<uint8_t>(reinterpret_cast<uintptr_t>(vget(rd<uint8_t *>(pl, 0x598), 0xa8)))) *flags |= 8;
+    }
+    if (!u3x_has_eff(pl, 0x5ec9a3e7u) && !u3x_has_eff(pl, 0xe9be68acu)) {
+        uint8_t *mv = rd<uint8_t *>(pl, 0x550);
+        const int32_t mode = static_cast<int32_t>(reinterpret_cast<uintptr_t>(vget(mv, 0x80)));
+        if (mode == 1) *flags |= 2;
+        else if (mode == 2) *flags |= 0x20;
+    }
+    if (pl[0x1338] || u3x_has_eff(pl, 0xd69dcc37u) || u3x_has_eff(pl, 0x3eaffc07u) || u3x_has_eff(pl, 0x16b32adeu))
+        *flags |= 0x40;
+    const int32_t screen = rd<int32_t>(pl, 0x1c68);
+    uint8_t *np = screen >= 0 && screen < 2
+                      ? *reinterpret_cast<uint8_t **>(base + 0x17cb060 + 0x370 + 8 * static_cast<uintptr_t>(screen))
+                      : nullptr;
+    put<uint32_t>(msg, 0x14c) = np ? u3h_np_code(np) : 0;
+    put<uint32_t>(msg, 0x150) = rd<uint32_t>(pl, 0x3c0);
+    put<uint32_t>(msg, 0x14) = f_mul(f_from_int(u3h_net_now(base)), 0x3b5a740eu);
+    put<uint32_t>(msg, 0x154) = rd<uint32_t>(pl, 0x3a8);
+    for (int i = 0; i < 4; ++i) put<uint32_t>(msg, 0x160 + 4 * i) = rd<uint32_t>(pl, 0x3b0 + 4 * i);
+    put<uint32_t>(msg, 0x158) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(vget(rd<uint8_t *>(pl, 0x548), 0x98)));
+    uint8_t *copy = rd<uint8_t *>(pl, 0x538);
+    if (copy)
+        for (int i = 0; i < 0x60; ++i) msg[0x170 + i] = copy[0x140 + i];
+    msg[0x1de] = np ? np[0x430] : 0;
+    put<uint16_t>(msg, 0x1dc) =
+        static_cast<uint16_t>(reinterpret_cast<uintptr_t>(vget(rd<uint8_t *>(pl, 0x310), 0x70)));
+    uint8_t *t = vget(rd<uint8_t *>(pl, 0x668), 0x60);
+    if (t) {
+        msg[0x1e0] = 1;
+        put<uint32_t>(msg, 0x1e4) = rd<uint32_t>(t, 0x98);
+        put<uint32_t>(msg, 0x1e8) = rd<uint32_t>(t, 0x9ac);
+        put<uint32_t>(msg, 0x1ec) = rd<uint32_t>(t, 0x9b0);
+    }
+    alignas(16) uint8_t stream[0x10];
+    for (int i = 0; i < 300; ++i) msg[0x18 + i] = 0;
+    *reinterpret_cast<uint8_t **>(stream) = msg + 0x18;
+    put<uint32_t>(stream, 8) = 0;
+    put<uint32_t>(stream, 0xc) = 300 * 8;
+    uint32_t &error = *u3h_repl_error();
+    error = 0;
+    uint8_t **tables = rd<uint8_t **>(pl, 0x1c20);
+    uint32_t bits = u3h_anim_pack_full(base, msg, stream, pl, tables, 1, 3);
+    if (error) {
+        ++ec[71];
+        bits = 0;
+    }
+    put<uint32_t>(msg, 0x144) = bits;
+    u3h_repl_loop(base, pl, tables, msg, bits);
+    put<uint32_t>(msg, 0x1d0) = rd<uint32_t>(pl, 0x39c);
+    put<uint32_t>(msg, 0x1d4) = np ? rd<uint32_t>(np, 0x398) : 0;
+    put<uint16_t>(msg, 0x1dc) =
+        static_cast<uint16_t>(reinterpret_cast<uintptr_t>(vget(rd<uint8_t *>(pl, 0x310), 0x70)));
+    put<uint32_t>(msg, 0x1d8) = np ? rd<uint32_t>(np, 0x5a4) : 0;
+    u3h_weapons_fill(base, msg, pl);
+    int on = 0;
+    {
+        const char *str = reinterpret_cast<const char *>(vget(rd<uint8_t *>(pl, 0x520), 0x78));
+        if (str && str[0]) on = 1;
+        else {
+            const uint32_t v = static_cast<uint32_t>(u3h_call_f32(
+                base + 0x689d20, 0, base + 0x17c3b78, 0x974e6226,
+                reinterpret_cast<uint64_t>(u3x_char_np(base, pl)), 0));
+            on = fill_le(0x3f800000u, v);
+        }
+    }
+    if (u3h_netgame_type(base, s) != 0xe && on) {
+        uint64_t d1 = base + 0x17b39f0, d2 = base + 0x17b3138;
+        const int cam = game_call<uint8_t *>(base + 0x4ef790, screen, &d1) != nullptr ||
+                        game_call<uint8_t *>(base + 0x4ef790, screen, &d2) != nullptr;
+        if (cam) {
+            alignas(16) uint8_t buf[0x40];
+            for (int i = 0; i < 0x40; ++i) buf[i] = 0;
+            uint8_t *component = rd<uint8_t *>(pl, 0x528);
+            uint8_t *tc = reinterpret_cast<uint8_t *(*)(uint8_t *, uint8_t *, uint32_t)>(
+                (*reinterpret_cast<uintptr_t **>(component))[0xc8 / 8])(component, buf, 0);
+            uint8_t *tq = tc ? u3x_char_np(base, tc) : nullptr;
+            if (tq) {
+                put<int32_t>(tq, 0x9a8) = rd<int32_t>(*reinterpret_cast<uint8_t **>(base + 0x17c3580), 0xc) + 900;
+                put<uint32_t>(tq, 0x9ac) = np ? u3h_np_code(np) : 0;
+                put<uint32_t>(msg, 0x210) = u3h_np_code(tq);
+                ++ec[72];
+            }
+        }
+    }
+    return rd<uint32_t>(msg, 0x144);
+}
+
+extern "C" uint32_t u3x_ppc_ctiwz(uint32_t f);
+extern "C" int u3x_bf_handle_valid(uintptr_t base, const uint8_t *bf);
+
+extern "C" U3X_FN void u3x_bsw(uint8_t *bs, uint32_t val, uint32_t n) {
+    const uint32_t pos = rd<uint32_t>(bs, 8);
+    if (pos + n > rd<uint32_t>(bs, 0xc)) {
+        *u3h_repl_error() = 1;
+        return;
+    }
+    uint32_t *w = rd<uint32_t *>(bs, 0);
+    const uint32_t v = static_cast<uint32_t>(static_cast<uint64_t>(val) << (32 - n));
+    const uint32_t sh = pos & 31, room = 32 - sh;
+    uint32_t *p = w + (pos >> 5);
+    *p = static_cast<uint32_t>((*p & static_cast<uint32_t>(static_cast<uint64_t>(0xffffffffu) << room)) |
+                               static_cast<uint32_t>(static_cast<uint64_t>(v) >> sh));
+    if (room < n) p[1] = static_cast<uint32_t>(static_cast<uint64_t>(v) << room);
+    put<uint32_t>(bs, 8) = pos + n;
+}
+
+extern "C" U3X_FN uint32_t u3x_fabs(uint32_t f) { return f & 0x7fffffffu; }
+
+extern "C" U3X_FN void u3x_bsw_vec(uint8_t *bs, const uint32_t *v) {
+    if (f_less(u3x_fabs(v[0]), 0x437f0000u) && f_less(u3x_fabs(v[1]), 0x42fe0000u) &&
+        f_less(u3x_fabs(v[2]), 0x437f0000u)) {
+        u3x_bsw(bs, 0, 1);
+        u3x_bsw(bs, u3x_ppc_ctiwz(f_mul(v[0], 0x44000000u)), 18);
+        u3x_bsw(bs, u3x_ppc_ctiwz(f_mul(v[1], 0x43800000u)), 17);
+        u3x_bsw(bs, u3x_ppc_ctiwz(f_mul(v[2], 0x44000000u)), 18);
+    } else {
+        u3x_bsw(bs, 1, 1);
+        u3x_bsw(bs, v[0], 32);
+        u3x_bsw(bs, v[1], 32);
+        u3x_bsw(bs, v[2], 32);
+    }
+}
+
+extern "C" U3X_FN void u3x_bsw_frame(uintptr_t base, uint8_t *bs, uint8_t *f) {
+    if (*u3h_repl_error()) return;
+    if (rd<uint32_t>(bs, 8) + 0x200 > rd<uint32_t>(bs, 0xc)) {
+        *u3h_repl_error() = 1;
+        return;
+    }
+    game_call<void>(base + 0x7befc0, bs, f);
+}
+
+extern "C" U3X_FN void u3x_q_mul(uint32_t *o, const uint32_t *a, const uint32_t *b) {
+    const uint32_t x = f_add(f_add(f_mul(a[3], b[0]), f_mul(a[0], b[3])),
+                             f_sub(f_mul(a[1], b[2]), f_mul(a[2], b[1])));
+    const uint32_t y = f_add(f_add(f_mul(a[3], b[1]), f_mul(a[1], b[3])),
+                             f_sub(f_mul(a[2], b[0]), f_mul(a[0], b[2])));
+    const uint32_t z = f_add(f_add(f_mul(a[3], b[2]), f_mul(a[2], b[3])),
+                             f_sub(f_mul(a[0], b[1]), f_mul(a[1], b[0])));
+    const uint32_t w = f_sub(f_sub(f_mul(a[3], b[3]), f_mul(a[0], b[0])),
+                             f_add(f_mul(a[1], b[1]), f_mul(a[2], b[2])));
+    o[0] = x;
+    o[1] = y;
+    o[2] = z;
+    o[3] = w;
+}
+
+extern "C" U3X_FN void u3x_q_rot(uint32_t *o, const uint32_t *q, const uint32_t *v) {
+    const uint32_t p[4] = {v[0], v[1], v[2], 0};
+    const uint32_t c[4] = {q[0] ^ 0x80000000u, q[1] ^ 0x80000000u, q[2] ^ 0x80000000u, q[3]};
+    uint32_t t[4], r[4];
+    u3x_q_mul(t, q, p);
+    u3x_q_mul(r, t, c);
+    o[0] = r[0];
+    o[1] = r[1];
+    o[2] = r[2];
+    o[3] = 0;
+}
+
+extern "C" U3X_FN void u3x_loc_mul(uint32_t *o, const uint32_t *a, const uint32_t *b) {
+    uint32_t r[4], q[4];
+    u3x_q_rot(r, a + 4, b);
+    u3x_q_mul(q, a + 4, b + 4);
+    o[0] = f_add(a[0], r[0]);
+    o[1] = f_add(a[1], r[1]);
+    o[2] = f_add(a[2], r[2]);
+    o[3] = 0;
+    for (int i = 0; i < 4; ++i) o[4 + i] = q[i];
+}
+
+extern "C" U3X_FN void u3x_loc_rel(uint32_t *o, const uint32_t *a, const uint32_t *b) {
+    const uint32_t c[4] = {a[4] ^ 0x80000000u, a[5] ^ 0x80000000u, a[6] ^ 0x80000000u, a[7]};
+    const uint32_t d[4] = {f_sub(b[0], a[0]), f_sub(b[1], a[1]), f_sub(b[2], a[2]), 0};
+    uint32_t r[4], q[4];
+    u3x_q_rot(r, c, d);
+    u3x_q_mul(q, c, b + 4);
+    for (int i = 0; i < 3; ++i) o[i] = r[i];
+    o[3] = 0;
+    for (int i = 0; i < 4; ++i) o[4 + i] = q[i];
+}
+
+extern "C" U3X_FN void u3x_bf_world(uintptr_t base, uint8_t *f, uint32_t *o) {
+    uint32_t par[8], loc[8];
+    uint8_t *b = u3x_bf_handle_valid(base, f) ? **reinterpret_cast<uint8_t ***>(f + 8) : nullptr;
+    for (int i = 0; i < 8; ++i) {
+        par[i] = b ? rd<uint32_t>(b, 4 * i) : rd<uint32_t>(f, 0x20 + 4 * i);
+        loc[i] = rd<uint32_t>(f, 0x40 + 4 * i);
+    }
+    u3x_loc_mul(o, par, loc);
+}
+
+extern "C" U3X_FN uint8_t *u3x_bind_root(uintptr_t base, uint8_t *obj) {
+    uint8_t *b = reinterpret_cast<uint8_t *(*)(uint8_t *, uint32_t)>(
+        (*reinterpret_cast<uintptr_t **>(obj))[0x248 / 8])(obj, 0);
+    for (int g = 0; obj && g < 64; ++g) {
+        if (rd<uint16_t>(obj, 0x128) & 0x800) return b;
+        b = u3x_bf_handle_valid(base, obj + 0xb0) ? **reinterpret_cast<uint8_t ***>(obj + 0xb8) : nullptr;
+        obj = game_call<uint8_t *>(base + 0x10c5010, obj);
+    }
+    return nullptr;
+}
+
+extern "C" U3X_FN uint64_t u3x_ev_query(uintptr_t base, uint32_t sid, uint8_t *obj) {
+    alignas(16) uint64_t r[4] = {};
+    uint64_t a0[3] = {}, a1[3] = {}, a2[3] = {}, a3[3] = {};
+    reinterpret_cast<void (*)(void *, void *, uint32_t, void *, void *, void *, void *, void *)>(
+        base + 0x1197380)(r, nullptr, sid, obj, a0, a1, a2, a3);
+    return r[0];
+}
+
+extern "C" U3X_FN uint8_t *u3x_np_by_id(uintptr_t base, uint32_t id) {
+    if (!id) return nullptr;
+    for (int i = 0; i < 10; ++i) {
+        uint8_t *q = reinterpret_cast<uint8_t *>(base + 0x17cb060 + 0x390 + static_cast<uintptr_t>(i) * 0x9c0);
+        if (u3h_np_code(q) == id) return q;
+    }
+    return nullptr;
+}
+
+extern "C" U3X_FN int32_t u3x_tab_find(uint8_t *t, uint32_t key) {
+    const uint32_t n = rd<uint32_t>(t, 0);
+    uint8_t *e = rd<uint8_t *>(t, 8);
+    uint64_t lo = 0, hi = static_cast<uint32_t>(n - 1);
+    for (int g = 0; g < 64; ++g) {
+        const uint64_t mid = (lo + hi) >> 1;
+        if (mid >= n || !e) break;
+        const uint32_t v = rd<uint32_t>(e, mid * 16);
+        if (key < v) hi = mid - 1;
+        else {
+            lo = mid + 1;
+            if (key <= v) return static_cast<int32_t>(mid);
+        }
+        if (lo > hi) break;
+    }
+    return -1;
+}
+
+extern "C" U3X_FN uint8_t *u3x_art_tab(uint8_t *g) {
+    uint8_t *a = g ? rd<uint8_t *>(g, 0x30) : nullptr;
+    return a ? rd<uint8_t *>(a, 0x10) : nullptr;
+}
+
+extern "C" U3X_FN uint32_t u3x_sid(uintptr_t base, const char *s) {
+    if (!s || !*s) return 0;
+    return reinterpret_cast<uint32_t (*)(int, const char *, int)>(*reinterpret_cast<uintptr_t *>(base + 0x1702720))(0, s, 1);
+}
+
+extern "C" U3X_FN int u3x_anim_lookup(uintptr_t base, uint32_t *tab, int32_t *idx, uint32_t id, uint8_t *anim,
+                                       uint8_t **tabs) {
+    for (uint32_t i = 0; i < 8; ++i) {
+        uint8_t *g = tabs[i];
+        if (!g) continue;
+        if (anim && rd<uint32_t>(g, 0x18) != u3x_sid(base, rd<const char *>(anim, 0x38))) continue;
+        uint8_t *t = u3x_art_tab(g);
+        const int32_t k = t ? u3x_tab_find(t, id) : -1;
+        if (k != -1) {
+            *idx = k;
+            *tab = i;
+            return 1;
+        }
+    }
+    const char *nm = anim ? rd<const char *>(anim, 0x38) : nullptr;
+    if (!nm) return 0;
+    uint8_t *g = u3h_find_art_group_name(base, nm);
+    uint8_t *t = u3x_art_tab(g);
+    const int32_t k = t ? u3x_tab_find(t, id) : -1;
+    if (k == -1) return 0;
+    *idx = k;
+    *tab = u3x_sid(base, nm);
+    return 1;
+}
+
+extern "C" U3X_FN uint8_t *u3x_stream_root(uintptr_t base, uint8_t *x, uint32_t *phase) {
+    const int32_t n = at<int32_t>(base + 0x1d46088);
+    for (int32_t i = 0; i < n && i < 0x32; ++i) {
+        uint8_t *r = at<uint8_t *>(base + 0x1d46090 + 8 * static_cast<uintptr_t>(i));
+        if (!r) continue;
+        const uint32_t nu = rd<uint32_t>(r, 0);
+        uint8_t *def = rd<uint8_t *>(r, 0x30);
+        uint8_t *t0 = rd<uint8_t *>(r, 0x48);
+        if (!def || !t0) continue;
+        uint32_t *cnt = rd<uint32_t *>(def, 0);
+        uint32_t **ids = rd<uint32_t **>(def, 8);
+        uint32_t **ix = rd<uint32_t **>(def, 0x10);
+        uint32_t *mx = rd<uint32_t *>(def, 0x20);
+        uint8_t **t1 = rd<uint8_t **>(t0, 0);
+        if (!cnt || !ids || !ix || !mx || !t1) continue;
+        for (uint32_t u = 0; u < nu; ++u) {
+            uint32_t *ixu = rd<uint32_t *>(ix, 8 * static_cast<uintptr_t>(u));
+            uint32_t *idsu = rd<uint32_t *>(ids, 8 * static_cast<uintptr_t>(u));
+            for (uint32_t k = 0; k < rd<uint32_t>(cnt, 4 * static_cast<uintptr_t>(u)); ++k) {
+                const uint32_t a = rd<uint32_t>(ixu, 4 * static_cast<uintptr_t>(k));
+                uint8_t **p = reinterpret_cast<uint8_t **>(rd<uint8_t *>(t1, 8 * static_cast<uintptr_t>(a)));
+                if (!p) continue;
+                const uint32_t mx_a = rd<uint32_t>(mx, 4 * static_cast<uintptr_t>(a));
+                for (uint32_t c = 0; c <= mx_a; ++c) {
+                    uint8_t **row = reinterpret_cast<uint8_t **>(rd<uint8_t *>(p, 8 * static_cast<uintptr_t>(c)));
+                    if (row && rd<uint8_t *>(row, 8 * static_cast<uintptr_t>(u)) == x) {
+                        *phase = rd<uint32_t>(r, 0x20);
+                        return game_call<uint8_t *>(base + 0xfd62a0, rd<uint32_t>(x, 0x40),
+                                                    rd<uint32_t>(rd<uint8_t *>(x, 0x28), 4),
+                                                    rd<uint32_t>(idsu, 4 * static_cast<uintptr_t>(k)));
+                    }
+                }
+            }
+        }
+    }
+    return nullptr;
+}
+
+extern "C" U3X_FN int u3x_layer_counts(uint32_t u, const uint32_t *ex, uint32_t n) {
+    if (static_cast<uint32_t>(u + 0x46d2949du) <= 4) return 0;
+    if (u >= 0xb4e30afau && u <= 0xb4e30b08u) return 0;
+    for (uint32_t i = 0; i < n; ++i)
+        if (u == ex[i]) return 0;
+    return 1;
+}
+
+extern "C" {
+U3H_IMPORT uint8_t *u3h_anim_cmd_buffer(void);
+U3H_IMPORT uint8_t *u3h_repl_frame(int i);
+U3H_IMPORT uint8_t *u3h_repl_loc(void);
+U3H_IMPORT uint8_t *u3h_handle_obj(uint8_t *h);
+U3H_IMPORT uint8_t *u3h_cam_mgr(uintptr_t base, int32_t screen);
+U3H_IMPORT void u3h_loop_src119(uint8_t *buf, uint32_t n);
+U3H_IMPORT int u3h_layer_counts(uint32_t u);
+}
+
+namespace {
+constexpr uint16_t C4_LBEGIN = 3, C4_LEND = 4, C4_ANIM = 8, C4_MANIM = 0x1b, C4_SNAP = 0xc, C4_NONE = 0xd;
+constexpr uint16_t C4_BLEND = 9, C4_BLEND2 = 0xa, C4_LMARK = 0x19, C4_LCOUNT = 0x1a;
+}
+
+extern "C" U3X_FN uint32_t u3x_anim_pack_body(uintptr_t base, uint8_t *msg, uint8_t *bs, uint8_t *actor, uint8_t **tabs,
+                                               int32_t param5, int32_t param6, uint8_t **buf) {
+    uint32_t *ec = reinterpret_cast<uint32_t *>(u3h_ext() + 0x4450);
+    if (!actor || !tabs) {
+        ++ec[66];
+        return 0;
+    }
+    uint8_t *mk = reinterpret_cast<uint8_t *>(base + 0x16e79f0);
+    *mk = 1;
+    uint8_t *ctrl = rd<uint8_t *>(actor, 0x138);
+    if (!ctrl) {
+        *mk = 0;
+        return 0;
+    }
+    uint8_t *cmd = u3h_anim_cmd_buffer();
+    if (!cmd) {
+        ++ec[74];
+        *mk = 0;
+        return 0;
+    }
+    *buf = cmd;
+    alignas(16) uint8_t cb[0x20] = {};
+    put<uint8_t *>(cb, 0) = cmd;
+    put<uint32_t>(cb, 8) = 0x2000;
+    game_call<void>(base + 0xfbe270, ctrl, cb);
+    uint32_t ncmd = rd<uint32_t>(cb, 0xc);
+    if (ncmd > 0x2000) ncmd = 0x2000;
+    if (ec[0] & 4096) u3h_loop_src119(cmd, ncmd);
+    uint8_t *end = cmd + static_cast<uintptr_t>(ncmd) * 4;
+    u3x_bsw(bs, 0, 1);
+    uint8_t *f = u3h_repl_frame(0);
+    for (int i = 0; i < 0x60; ++i) f[i] = actor[0xb0 + i];
+    if (!static_cast<uint8_t>(u3x_ev_query(base, 0x660778e0u, actor))) u3x_bsw(bs, 0, 1);
+    else {
+        uint32_t id = static_cast<uint32_t>(u3x_ev_query(base, 0xfbd8cf95u, actor));
+        if (!id) u3x_bsw(bs, 0, 1);
+        else {
+            u3x_bsw(bs, 1, 1);
+            u3x_bsw(bs, id, 13);
+            uint8_t *q = u3x_np_by_id(base, id);
+            uint8_t *pc = q ? u3h_handle_obj(q + 0x10) : nullptr;
+            if (pc) {
+                uint32_t A[8], P[8], R[8];
+                u3x_bf_world(base, pc + 0xb0, P);
+                u3x_bf_world(base, f, A);
+                u3x_loc_rel(R, P, A);
+                reinterpret_cast<void (*)(uint8_t *, uint8_t *)>(base + 0x1196230)(f, nullptr);
+                for (int i = 0; i < 8; ++i) put<uint32_t>(f, 0x40 + 4 * i) = R[i];
+            } else ++ec[67];
+        }
+    }
+    u3x_bsw_frame(base, bs, f);
+    if (rd<uint32_t>(msg, 0x148) & 1) {
+        uint8_t *pl = actor;
+        int32_t scr = rd<int32_t>(pl, 0x1c68);
+        uint8_t *cm = (scr >= 0 && scr < 2) ? u3h_cam_mgr(base, scr) : nullptr;
+        if (!cm) {
+            ++ec[68];
+            *mk = 0;
+            return 0;
+        }
+        uint8_t *cf = u3h_repl_frame(1);
+        for (int i = 0; i < 0x60; ++i) cf[i] = 0;
+        put<uint32_t>(cf, 0) = 0x7fccccccu;
+        put<uint32_t>(cf, 4) = 0x7fccccccu;
+        put<uint32_t>(cf, 0x3c) = F_ONE;
+        for (int i = 0; i < 8; ++i) put<uint32_t>(cf, 0x40 + 4 * i) = rd<uint32_t>(cm, 0x4c0 + 4 * i);
+        uint8_t *b = u3x_bind_root(base, pl);
+        if (b) reinterpret_cast<void (*)(uint8_t *, uint8_t *)>(base + 0x1196230)(cf, b);
+        u3x_bsw_frame(base, bs, cf);
+        uint8_t *rc = rd<uint8_t *>(cm, 0xc0);
+        u3x_bsw(bs, rc ? (u3x_ppc_ctiwz(rd<uint32_t>(rc, 0x30)) & 0xffu) : 0u, 8);
+        uint32_t *lo = reinterpret_cast<uint32_t *>(u3h_repl_loc());
+        for (int i = 0; i < 16; ++i) lo[i] = 0;
+        reinterpret_cast<void (*)(uint32_t *, uint8_t *, uint32_t)>((*reinterpret_cast<uintptr_t **>(pl))[0x170 / 8])(lo, pl, 0x3a83fc57u);
+        u3x_bsw_vec(bs, lo);
+    }
+    uint32_t al[64], tl[64], refs[64];
+    uint16_t lc[36];
+    int32_t nA = 0, nR = 0, lay = -1, skip = 0, cnt = 0;
+    for (int i = 0; i < 64; ++i) al[i] = tl[i] = refs[i] = 0;
+    for (int i = 0; i < 36; ++i) lc[i] = 0;
+    for (uint8_t *c = cmd; c < end; c += static_cast<uintptr_t>(rd<uint16_t>(c, 2)) * 4) {
+        uint16_t ty = rd<uint16_t>(c, 0), sz = rd<uint16_t>(c, 2);
+        if (!sz) break;
+        if (ty == C4_LEND) break;
+        if (ty == C4_ANIM || ty == C4_MANIM) {
+            if (skip || cnt >= param6) continue;
+            uint8_t *an = rd<uint8_t *>(c, 4), *u;
+            uint32_t ph = 0;
+            u = u3x_stream_root(base, an, &ph);
+            if (!u) u = an;
+            uint32_t t = 0;
+            int32_t k = -1;
+            if (!u3x_anim_lookup(base, &t, &k, rd<uint32_t>(u, 0x18), u, tabs) || k == -1 || (k & 0xfffff000)) {
+                ++ec[75];
+                ec[76] = rd<uint32_t>(u, 0x18);
+                *mk = 0;
+                return 0;
+            }
+            int32_t j = 0;
+            for (; j < nA; ++j)
+                if (al[j] == static_cast<uint32_t>(k) && tl[j] == t) break;
+            if (j == nA && nA < 64) {
+                al[nA] = static_cast<uint32_t>(k);
+                tl[nA] = t;
+                ++nA;
+            }
+            if (nR < 64) refs[nR++] = static_cast<uint32_t>(j);
+        } else if (ty == C4_SNAP) {
+            if (skip || cnt >= param6) continue;
+            uint8_t *t0 = u3x_art_tab(tabs[0]);
+            int32_t k = t0 ? u3x_tab_find(t0, param5 ? 0x86dfee10u : 0x1a1c52d3u) : -1;
+            if (k == -1) {
+                ++ec[75];
+                ec[76] = param5 ? 0x86dfee10u : 0x1a1c52d3u;
+                *mk = 0;
+                return 0;
+            }
+            int32_t j = 0;
+            for (; j < nA; ++j)
+                if (al[j] == static_cast<uint32_t>(k) && tl[j] == 0) break;
+            if (j == nA && nA < 64) {
+                al[nA] = static_cast<uint32_t>(k);
+                tl[nA] = 0;
+                ++nA;
+            }
+            if (nR < 64) refs[nR++] = static_cast<uint32_t>(j);
+        } else if (ty == C4_LMARK) {
+            ++lay;
+            skip = 1;
+            if (u3h_layer_counts(rd<uint32_t>(c, 4))) {
+                skip = 0;
+                cnt = 0;
+            }
+        } else if (ty == C4_LCOUNT) {
+            ++cnt;
+            if (lay >= 0 && lay < 36) ++lc[lay];
+        }
+    }
+    if (nR > 0x3f || nA >= 0x20) {
+        ++ec[70];
+        *mk = 0;
+        return 0;
+    }
+    uint32_t ib = nA < 3 ? 1 : nA < 5 ? 2 : nA < 9 ? 3 : nA < 0x11 ? 4 : 5;
+    int direct = (nA == nR);
+    u3x_bsw(bs, static_cast<uint32_t>(nA), 5);
+    u3x_bsw(bs, static_cast<uint32_t>(direct), 1);
+    for (int32_t i = 0; i < nA; ++i) u3x_bsw(bs, al[i], 12);
+    {
+        int same = 1;
+        for (int32_t i = 0; i < nA; ++i)
+            if (tl[i] != tl[0]) same = 0;
+        if (same) {
+            u3x_bsw(bs, 1, 1);
+            if (tl[0] < 7) u3x_bsw(bs, tl[0], 3);
+            else {
+                u3x_bsw(bs, 7, 3);
+                u3x_bsw(bs, tl[0], 32);
+            }
+        } else {
+            u3x_bsw(bs, 0, 1);
+            for (int32_t i = 0; i < nA; ++i) {
+                if (tl[i] < 7) u3x_bsw(bs, tl[i], 3);
+                else {
+                    u3x_bsw(bs, 7, 3);
+                    u3x_bsw(bs, tl[i], 32);
+                }
+            }
+        }
+    }
+    int32_t li = 0, ri = 0, dep = 0, lbc = -1;
+    uint32_t lid = 0, cc = 0;
+    skip = 0;
+    for (uint8_t *c = cmd; c < end; c += static_cast<uintptr_t>(rd<uint16_t>(c, 2)) * 4) {
+        uint16_t ty = rd<uint16_t>(c, 0), sz = rd<uint16_t>(c, 2);
+        if (!sz) break;
+        if (ty == C4_LEND) break;
+        if (ty == C4_LBEGIN) continue;
+        int32_t u17 = static_cast<int32_t>(cc);
+        if (ty == C4_ANIM || ty == C4_MANIM) {
+            if (skip || u17 >= param6) continue;
+            if (dep > 5) ++ec[69];
+            li = rd<int32_t>(c, 0xc);
+            if (ty == C4_ANIM) u3x_bsw(bs, 2, 2);
+            else {
+                u3x_bsw(bs, 3, 2);
+                u3x_bsw(bs, 5, 3);
+            }
+            if (!direct) {
+                uint32_t r = ri < 64 ? refs[ri] : 0;
+                u3x_bsw(bs, r, ib);
+                if (r >= static_cast<uint32_t>(nA)) ++ec[69];
+            }
+            uint8_t *an = rd<uint8_t *>(c, 4);
+            uint32_t ph = rd<uint32_t>(c, 0x10), sp = 0;
+            uint8_t *u = u3x_stream_root(base, an, &sp);
+            if (u) {
+                uint32_t fr = f_from_int(rd<uint16_t>(rd<uint8_t *>(u, 0x28), 0x22));
+                ph = f_mul(sp, f_sub(fr, F_ONE));
+            } else u = an;
+            uint32_t frames = rd<uint16_t>(rd<uint8_t *>(u, 0x28), 0x22), ffr = f_from_int(static_cast<int32_t>(frames)), nb, sc;
+            if (frames < 9) {
+                nb = 4;
+                sc = 0x41700000u;
+            } else if (frames > 0x40) {
+                nb = 16;
+                sc = 0x477fff00u;
+            } else {
+                nb = 8;
+                sc = 0x437f0000u;
+            }
+            uint32_t q = u3x_ppc_ctiwz(f_div(f_mul(ph, sc), f_sub(ffr, F_ONE)));
+            ++dep;
+            u3x_bsw(bs, q & 0xffff, nb);
+            ++ri;
+        } else if (ty == C4_SNAP) {
+            if (skip || u17 >= param6) continue;
+            if (dep > 5) ++ec[69];
+            li = rd<int32_t>(c, 4);
+            u3x_bsw(bs, 2, 2);
+            if (!direct) {
+                uint32_t r = ri < 64 ? refs[ri] : 0;
+                u3x_bsw(bs, r, ib);
+                if (r >= static_cast<uint32_t>(nA)) ++ec[69];
+            }
+            ++dep;
+            u3x_bsw(bs, 0, 4);
+            ++ri;
+        } else if (ty == C4_NONE) {
+            if (skip || u17 >= param6) continue;
+            if (dep > 5) ++ec[69];
+            li = rd<int32_t>(c, 4);
+            u3x_bsw(bs, 3, 2);
+            u3x_bsw(bs, 3, 3);
+            ++dep;
+        } else if (ty == C4_BLEND) {
+            if (skip || dep < 2 || (u17 >= param6 && (lbc < 0 || lbc >= 36 || static_cast<uint32_t>(u17) != lc[lbc]))) continue;
+            int one = (rd<uint32_t>(c, 0x14) == F_ONE);
+            u3x_bsw(bs, static_cast<uint32_t>(one), 2);
+            uint32_t a = rd<uint32_t>(c, 4), b = rd<uint32_t>(c, 8), d = rd<uint32_t>(c, 0xc);
+            if (b < a) u3x_bsw(bs, 1, 1);
+            else if (a < b) u3x_bsw(bs, 0, 1);
+            else ++ec[69];
+            if (d == a) {
+                u3x_bsw(bs, 1, 1);
+                if (a < b) --dep;
+            } else if (d == b) {
+                u3x_bsw(bs, 0, 1);
+                if (b < a) --dep;
+            } else ++ec[69];
+            li = static_cast<int32_t>(d);
+            if (dep > 5) ++ec[69];
+            uint32_t m = rd<uint32_t>(c, 0x10);
+            u3x_bsw(bs, m == 2 ? 1 : m == 6 ? 2 : 0, 2);
+            uint32_t fw = rd<uint32_t>(c, 0x14);
+            if (fw != F_ONE) u3x_bsw(bs, u3x_ppc_ctiwz(f_mul(fw, 0x437f0000u)) & 0xffu, 8);
+        } else if (ty == C4_BLEND2) {
+            if (skip || u17 >= param6) continue;
+            if (dep > 5) ++ec[69];
+            u3x_bsw(bs, 3, 2);
+            u3x_bsw(bs, 0, 3);
+            uint32_t dd = static_cast<uint32_t>(li - rd<int32_t>(c, 4));
+            if (dd & 0xfffffffcu) ++ec[69];
+            u3x_bsw(bs, dd, 2);
+        } else {
+            if (ty == C4_LCOUNT) ++cc;
+            if (ty == C4_LMARK) {
+                if (lid == 0x7339d08cu || rd<uint32_t>(c, 4) == 0x7339d08cu) {
+                    u3x_bsw(bs, 3, 2);
+                    u3x_bsw(bs, 2, 3);
+                }
+                cc = 0;
+                ++lbc;
+                skip = !u3h_layer_counts(rd<uint32_t>(c, 4));
+                lid = rd<uint32_t>(c, 4);
+            }
+        }
+    }
+    u3x_bsw(bs, 3, 2);
+    u3x_bsw(bs, 1, 3);
+    *mk = 0;
+    return rd<uint32_t>(bs, 8);
+}
+
+extern "C" U3X_FN uint8_t *u3x_s16_char(uintptr_t base, uint8_t *cm) {
+    uint8_t **h = rd<uint8_t **>(cm, 0xf60);
+    const uint32_t id = rd<uint32_t>(cm, 0xf68);
+    if (!h || !id || !ptr_ok(h)) return nullptr;
+    uint8_t *ch = *h;
+    if (!ch || !ptr_ok(ch) || rd<uint32_t>(ch, 0x7c) != id) return nullptr;
+    (void)base;
+    return ch;
+}
+
+extern "C" U3X_FN int u3x_s17_apply(uintptr_t base, uint8_t *cm, int own_kill) {
+    volatile uint32_t *d = u3h_s16_diag();
+    uint8_t *ch = u3x_s16_char(base, cm);
+    if (!ch) { d[4] = d[4] + 1; return 0; }
+    if (rd<uint32_t>(ch, 0x30) != 0xa5a63e9bu) {
+        if ((d[11] & 0xffu) != 0xffu) d[11] = d[11] + 1;
+        return 0;
+    }
+    uint8_t *menu = reinterpret_cast<uint8_t *>(base + 0x17bd080);
+    const int32_t user = menu[0xdf5] ? 1 : rd<int32_t>(menu, 0x2694);
+    const int32_t side = rd<int32_t>(cm, 0);
+    const int32_t idx = game_call<int32_t>(base + 0x995ec0, static_cast<void *>(cm), user, side);
+    uint8_t **dt = game_call<uint8_t **>(base + 0x11f2bf0, 0xbd3bb3b9u);
+    const uint32_t nt = (dt && ptr_ok(dt) && *dt && ptr_ok(*dt)) ? **reinterpret_cast<uint32_t **>(dt) : 0u;
+    const uint32_t lim = (ext_eb()[2] & 0x08000000u) ? 0x40u : nt;
+    if (static_cast<uint32_t>(idx) >= lim || static_cast<uint32_t>(side) > 1u) {
+        d[14] = d[14] + 1;
+        return 0;
+    }
+    uint64_t lk[8] = {};
+    game_call<void>(base + 0x997a40, static_cast<void *>(lk), static_cast<void *>(cm), user, idx, side);
+    d[5] = rd<uint32_t>(cm, 0xf74);
+    d[6] = static_cast<uint32_t>(side) | static_cast<uint32_t>(cm[0xfc8]) << 8 |
+           static_cast<uint32_t>(cm[0xf70]) << 16 | static_cast<uint32_t>(cm[0xfc9]) << 24;
+    uint8_t *L = reinterpret_cast<uint8_t *>(lk);
+    d[7] = static_cast<uint32_t>(L[0]) | static_cast<uint32_t>(idx & 0xffffff) << 8;
+    int chg = 0;
+    for (int k = 0; k < 0x28; ++k)
+        if (ch[0x1c40 + k] != L[k]) { chg = 1; break; }
+    if (own_kill && !chg) return 1;
+    if (chg) {
+        for (int k = 0; k < 0x28; ++k) ch[0x1c40 + k] = L[k];
+        d[1] = d[1] + 1;
+    }
+    uint8_t **dc = game_call<uint8_t **>(base + 0x11f2bf0, 0xbd3bb3b9u);
+    if (!dc || !ptr_ok(dc) || !*dc || !ptr_ok(*dc)) return 0;
+    uint8_t *tab = rd<uint8_t *>(*dc, 8);
+    if (!ptr_ok(tab)) return 0;
+    const uintptr_t vt = *reinterpret_cast<uintptr_t *>(ch);
+    const uint32_t cur = game_call<uint32_t>(*reinterpret_cast<uintptr_t *>(vt + 0x190), static_cast<void *>(ch));
+    const int32_t n = at<int32_t>(base + 0x18bed80);
+    uint8_t *ents = at<uint8_t *>(base + 0x16e2f88);
+    uint32_t mid = 0;
+    if (ptr_ok(ents))
+        for (int32_t i = n - 1; i >= 0; --i) {
+            uint8_t *e = ents + static_cast<uintptr_t>(i) * 0x28;
+            uint8_t *p = rd<uint8_t *>(e, 0);
+            if (p && rd<uint32_t>(p, 0x50) == cur) { mid = rd<uint32_t>(e, 0x20); break; }
+        }
+    if (mid != rd<uint32_t>(tab + static_cast<uintptr_t>(L[0]) * 0x70, 0x58)) {
+        d[2] = d[2] + 1;
+        if (!own_kill) return 0;
+        game_call<void>(base + 0x11a6250, static_cast<void *>(ch));
+    } else if (chg) {
+        virtual_call<void>(ch, 0x4f8);
+        d[3] = d[3] + 1;
+    }
+    if (own_kill) game_call<void>(base + 0x997230, static_cast<void *>(cm));
+    return 1;
+}
+
+extern "C" U3X_FN int u3x_s16_refresh(uintptr_t base, uint64_t *r) {
+    volatile uint32_t *d = u3h_s16_diag();
+    uint8_t *cm = reinterpret_cast<uint8_t *>(r[4]);
+    d[0] = d[0] + 1;
+    if (ext_eb()[2] & 0x02000000u) return 0;
+    if (!(ext_ec()[1] & 1u)) return 0;
+    if (cm != reinterpret_cast<uint8_t *>(base + 0x17f9938)) return 0;
+    return u3x_s17_apply(base, cm, 0);
+}
+
+extern "C" U3X_FN int u3x_s17_page(uint32_t pg) {
+    return pg == 0x81bfb972u || pg == 0xd7e00396u || pg == 0x1f707657u || pg == 0x211019f2u ||
+           pg == 0x812c7d24u || pg == 0xea656124u || pg == 0x11201ffdu || pg == 0xcbe59a09u ||
+           pg == 0xe13ed766u;
+}
+
+namespace {
+U3X_BSS static int32_t s16_last74_ext;
+U3X_BSS static uint8_t s17_on_ext;
+}
+
+extern "C" U3X_FN void u3x_s16_tick(uintptr_t base) {
+    volatile uint32_t *d = u3h_s16_diag();
+    const uint32_t pg = u3h_active_page(base);
+    uint8_t *cm = reinterpret_cast<uint8_t *>(base + 0x17f9938);
+    if (pg == 0x81bfb972u) {
+        d[8] = d[8] + 1;
+        const int32_t v = rd<int32_t>(cm, 0xf74);
+        if (v != s16_last74_ext) { s16_last74_ext = v; d[9] = d[9] + 1; }
+        d[10] = static_cast<uint32_t>(cm[0xfc8]) | static_cast<uint32_t>(cm[0xf70]) << 8 |
+                static_cast<uint32_t>(at<uint8_t>(base + 0x17bba90)) << 16 |
+                static_cast<uint32_t>(u3x_s16_char(base, cm) != nullptr) << 24;
+    }
+    u3x_h01_tick(base, cm);
+    if (ext_eb()[2] & 0x04000000u) return;
+    const int ok = u3x_s17_page(pg) && at<volatile uint8_t>(base + 0x17d5c61) &&
+                   at<uint32_t>(base + 0x17bba90) == 2 && at<uint32_t>(base + 0x17d1868) != 2;
+    if (!ok) {
+        if (s17_on_ext) {
+            s17_on_ext = 0;
+            if ((ext_ec()[1] & 1u) && at<uint32_t>(base + 0x17bba90) == 2 && cm[0xf70])
+                u3x_s17_apply(base, cm, 1);
+        }
+        return;
+    }
+    s17_on_ext = 1;
+    uint32_t w = d[11], cur = w >> 24;
+    if (!u3x_s16_char(base, cm)) {
+        if (d[13] % 15u == 0 && cur < 255u) ++cur;
+        w = (w & 0x00ffffffu) | cur << 24;
+    } else if (cur) {
+        w = (w & 0x0000ffffu) | cur << 16;
+    }
+    d[11] = w;
+    if (!cm[0xf70]) {
+        game_call<void>(base + 0x997670, static_cast<void *>(cm));
+        d[12] = d[12] + 1;
+    }
+    d[13] = d[13] + 1;
+    if (ext_ec()[1] & 1u) u3x_s17_apply(base, cm, 1);
+}
+
+extern "C" {
+U3H_IMPORT const char *u3h_fmt(void *s, const char *f, int64_t a0, const char *s0, const char *s1, const char *s2);
+U3H_IMPORT char *u3h_fmt_int(char *o, char *end, int64_t v, int32_t commas);
+U3H_IMPORT int u3h_native_gate_closed(uintptr_t base, int32_t *event);
+}
+
+namespace {
+struct MedalListExt {
+    uint16_t ids[256];
+    uint16_t count, pad;
+    uint32_t selected, tab, built;
+};
+U3X_RO const char medal_sep[] = " |@Cff7cce96|$";
+uintptr_t state_lookup(void *s) { return *reinterpret_cast<uintptr_t *>(static_cast<uint8_t *>(s) + 0x290); }
+MedalListExt *medal_list_ext(void *s) { return reinterpret_cast<MedalListExt *>(static_cast<uint8_t *>(s) + 0x2800); }
+uint32_t player_user_ext(uintptr_t base) {
+    return at<uint8_t>(base + 0x17bde75) ? 1u : at<uint32_t>(base + 0x17bf714);
+}
+void set_text_ext(int32_t *event, const char *t) {
+    *reinterpret_cast<const char **>(reinterpret_cast<uint8_t *>(event) + 0x40) = t;
+}
+char *fmt_append_ext(char *o, char *end, const char *t) {
+    while (*t && o < end) *o++ = *t++;
+    return o;
+}
+}  // namespace
+
+extern "C" U3X_FN void *u3x_medal_list(void *s) { return medal_list_ext(s); }
+
+extern "C" U3X_FN uint8_t *u3x_medal_record(void *s, uint32_t i) {
+    const uintptr_t lookup = state_native(s, 13);
+    uint8_t *t = lookup ? game_call<uint8_t *>(lookup, 0x980d6543u) : nullptr;
+    if (!t || i >= rd<uint32_t>(t, 0)) return nullptr;
+    return rd<uint8_t *>(t, 8) + static_cast<uintptr_t>(i) * 0x48;
+}
+
+extern "C" U3X_FN uint32_t u3x_w04_tab(uintptr_t base, void *s) {
+    if (ext_eb()[3] & 0x08000000u) return u3h_current_tab(base, s);
+    const uintptr_t lookup = state_lookup(s);
+    if (!lookup) return 0;
+    uint8_t **sym = game_call<uint8_t **>(lookup, 0xf1514340u);
+    if (!sym || !*sym) return 0;
+    uint8_t *t = *sym;
+    const uint32_t n = rd<uint32_t>(t, 0);
+    uint8_t *e = rd<uint8_t *>(t, 8);
+    for (uint32_t i = 0; e && i < n && i < 1024; ++i, e += 0x20) {
+        if (rd<uint32_t>(e, 0) == 0xc98ee52au && rd<uint32_t>(e, 4) == at<uint8_t>(base + 0x17d5c60)) {
+            uint8_t *tabs = rd<uint8_t *>(e, 0x10);
+            const int32_t cur = rd<int32_t>(e, 0x18);
+            return (tabs && cur >= 0) ? rd<uint32_t>(tabs + static_cast<uintptr_t>(cur) * 0xc, 0) : 0;
+        }
+    }
+    return 0;
+}
+
+extern "C" U3X_FN void u3x_medal_build(uintptr_t base, void *s) {
+    MedalListExt *l = medal_list_ext(s);
+    const uint32_t tab = u3x_w04_tab(base, s);
+    uint32_t mask = 0;
+    switch (tab) {
+    case 0x091026d1u: mask = 2; break;
+    case 0xfb0dd522u: mask = 4; break;
+    case 0xa13b68fbu: mask = 8; break;
+    case 0xadbd5585u: mask = 0x10; break;
+    }
+    l->tab = tab;
+    l->built = 1;
+    l->count = 0;
+    const uintptr_t lookup = state_native(s, 13);
+    uint8_t *t = lookup ? game_call<uint8_t *>(lookup, 0x980d6543u) : nullptr;
+    if (!t || !mask) return;
+    const uint32_t n = rd<uint32_t>(t, 0);
+    int32_t old = -1, neu = -1;
+    if (!(ext_eb()[3] & 0x08000000u))
+        for (uint32_t i = 0; i < n; ++i) {
+            uint8_t *r = u3x_medal_record(s, i);
+            if (!r) continue;
+            if (rd<uint32_t>(r, 0) == 0xa8e90238u && old < 0) old = static_cast<int32_t>(i);
+            else if (rd<uint32_t>(r, 0) == 0x9befafdeu && neu < 0) neu = static_cast<int32_t>(i);
+        }
+    if (old < 0 || neu < 0 || neu < old) old = neu = -1;
+    for (uint32_t i = 0; i < n && l->count < 256; ++i) {
+        if (static_cast<int32_t>(i) == neu) continue;
+        const uint32_t k = static_cast<int32_t>(i) == old ? static_cast<uint32_t>(neu) : i;
+        uint8_t *r = u3x_medal_record(s, k);
+        if (r && (mask & rd<uint32_t>(r, 0x10)) == mask) l->ids[l->count++] = static_cast<uint16_t>(k);
+    }
+    if (l->selected >= l->count) l->selected = 0;
+}
+
+extern "C" U3X_FN int u3x_medals_source(uintptr_t base, int32_t *event, void *s) {
+    uint8_t *source = *reinterpret_cast<uint8_t **>(reinterpret_cast<uint8_t *>(event) + 0x98);
+    if (!source || rd<uint32_t>(source, 0x1c) != 0x4c414ed3u) return 0;
+    if (u3h_native_gate_closed(base, event)) return 1;
+    MedalListExt *l = medal_list_ext(s);
+    if (!l->built || l->tab != u3x_w04_tab(base, s)) u3x_medal_build(base, s);
+    const uint32_t row = static_cast<uint32_t>(event[1]);
+    switch (event[0]) {
+    case 10:
+        l->selected = row;
+        [[fallthrough]];
+    case 2: {
+        if (row >= l->count) break;
+        uint8_t *r = u3x_medal_record(s, l->ids[row]);
+        if (!r) break;
+        const uint32_t sub = static_cast<uint32_t>(event[0x15]);
+        if (sub == 0) set_text_ext(event, u3h_text(base, s, rd<uint32_t>(r, 0)));
+        else if (sub == 0x80d4cc7bu) set_text_ext(event, u3h_text(base, s, rd<uint32_t>(r, 4)));
+        else if (sub == 0xadacdbf3u) {
+            ext_ec()[250] = ext_ec()[250] + 1;
+            const uintptr_t earned = state_native(s, 19);
+            const int64_t c = earned ? game_call<uint32_t>(earned, base + 0x17bb878, static_cast<void *>(r), player_user_ext(base)) : 0;
+            set_text_ext(event, u3h_fmt(s, u3h_text(base, s, 0xe9a0ddd7u), c, nullptr, nullptr, nullptr));
+        } else if (sub == 0xb684d68bu) {
+            ext_ec()[251] = ext_ec()[251] + 1;
+            char num[24];
+            char *e = u3h_fmt_int(num, num + 23, rd<int32_t>(r, 0x20), 1);
+            *e = 0;
+            char *o = reinterpret_cast<char *>(s) + 0x2b00;
+            char *end = o + 120;
+            o = fmt_append_ext(o, end, u3h_text(base, s, 0xb4b0d5c2u));
+            o = fmt_append_ext(o, end, medal_sep);
+            o = fmt_append_ext(o, end, num);
+            *o = 0;
+            set_text_ext(event, reinterpret_cast<const char *>(s) + 0x2b00);
+        }
+        break;
+    }
+    case 4: {
+        if (row >= l->count || static_cast<uint32_t>(event[0x14]) != 0xf5a294f3u) break;
+        uint8_t *r = u3x_medal_record(s, l->ids[row]);
+        if (!r) break;
+        const char *name = rd<const char *>(r, 0x18);
+        if (name) {
+            unsigned k = 0;
+            int slash = 0;
+            for (; k < 48 && name[k]; ++k) {
+                if (name[k] == '/') slash = 1;
+                if (name[k] < 0x20 || name[k] > 0x7e) { name = nullptr; break; }
+            }
+            if (name && (!slash || k == 0 || k >= 48)) name = nullptr;
+        }
+        const uintptr_t vtex = state_native(s, 20);
+        void *tex = (vtex && name) ? game_call<void *>(vtex, base + 0x1b31128, name) : nullptr;
+        for (int k = 4; k <= 11; ++k) event[k] = 0;
+        if (tex) {
+            event[2] = 2;
+            *reinterpret_cast<void **>(event + 4) = tex;
+            event[9] = -1;
+            event[11] = -1;
+            event[12] = 0x3f800000;
+        } else {
+            event[2] = 0x10;
+            event[9] = -1;
+            event[11] = -1;
+            event[12] = 0x40100000;
+        }
+        break;
+    }
+    case 5: event[1] = static_cast<int32_t>(l->selected); break;
+    case 6: event[1] = static_cast<int32_t>(l->count) - 1; break;
+    case 9: u3x_medal_build(base, s); break;
+    case 11:
+        ext_ec()[252] = ext_ec()[252] + 1;
+        ext_ec()[253] = static_cast<uint32_t>(event[0x13]);
+        if (static_cast<uint32_t>(event[0x13]) == 0x67a48eb9u) event[14] = 4;
+        break;
+    }
+    return 1;
+}
+
+extern "C" {
+U3H_IMPORT void *u3h_fi_state(void);
+U3H_IMPORT int32_t u3h_inv_send(uintptr_t base, const uint8_t *target, const uint8_t *blob48);
+U3H_IMPORT int32_t u3h_inv_list(uintptr_t base, const uint8_t *me, uint8_t *blobs, uint32_t max);
+U3H_IMPORT int32_t u3h_inv_delete(uintptr_t base, const uint8_t *me, const uint8_t *blob48);
+U3H_IMPORT int32_t u3h_inv_poll(uintptr_t base, int32_t ticket);
+U3H_IMPORT void u3h_so_inv_diag(uintptr_t base, uint32_t rows, uint32_t kept, uint32_t w1, uint32_t w2, uint32_t w3, uint32_t wf, uint32_t bad, const uint8_t *first, uint32_t fw);
+}
+
+namespace {
+struct FiStateExt {
+    uint64_t time[10];
+    uint8_t blob[10][0x30];
+    uint8_t newrows[12][0x30];
+    int32_t sel, lsel, ticket, dticket, notify, oldn, del;
+    uint64_t prev, seen;
+};
+static_assert(sizeof(FiStateExt) == 0x4a0, "FiState layout");
+U3X_RO const char fi_list_from[] = "invite in the list from ";
+U3X_RO const char fi_go[] = "invite notice: getting the invite list";
+U3X_RO const char fi_wait[] = "invite notice: invite list busy, getting it when free";
+U3X_RO const char fi_clr[] = "invite list was busy for 30 s with no request: cleared";
+U3X_BSS uint8_t fi_pend_ext;
+U3X_BSS int32_t fi_busy_ext;
+FiStateExt *fi_state_ext() { return static_cast<FiStateExt *>(u3h_fi_state()); }
+uint8_t *fi_io(uintptr_t base) { return reinterpret_cast<uint8_t *>(base + 0x17d5c58u + 0x430); }
+void fi_copy(void *d, const void *s, uint32_t n) {
+    auto *to = static_cast<uint8_t *>(d);
+    auto *from = static_cast<const uint8_t *>(s);
+    for (uint32_t k = 0; k < n; ++k) to[k] = from[k];
+}
+bool fi_key_ok(uint32_t k) { return (k & 0xffffff00u) == 0x13000000u || (k & 0xffffff00u) == 0x05000000u; }
+}  // namespace
+
+extern "C" U3X_FN uint64_t u3x_fi_rec_seen(uintptr_t base, void *s) {
+    uint8_t *r = u3h_lg_rec(base, s, u3h_lg_profile(base, 0));
+    return (static_cast<uint64_t>(rd<uint32_t>(r, 0x1610)) << 32) | rd<uint32_t>(r, 0x1614);
+}
+
+extern "C" U3X_FN uint32_t u3x_fi_row_why(uintptr_t base, const uint8_t *b, uint64_t now) {
+    const uint32_t key = rd<uint32_t>(b, 0);
+    (void)u3h_fr_key(base);
+    if (!fi_key_ok(key)) return 1u;
+    if (static_cast<int32_t>(now / 1000000) - static_cast<int32_t>(rd<uint64_t>(b, 0x28) / 1000000) >= 0x15180) return 2u;
+    const uint8_t *me = reinterpret_cast<const uint8_t *>(base + 0x17d6010u);
+    int k = 0;
+    while (k < 0x14 && me[k] && me[k] == b[0x10 + k]) ++k;
+    if (me[0] && (k == 0x14 || me[k] == b[0x10 + k])) return 3u;
+    return 0;
+}
+
+extern "C" U3X_FN int u3x_fi_is_friend(uintptr_t base, const uint8_t *nm20) {
+    char nm[0x15];
+    fi_copy(nm, nm20, 0x14);
+    nm[0x14] = 0;
+    uint8_t *nf = reinterpret_cast<uint8_t *>(base + 0x17caeb0u);
+    if (!nm[0] || rd<uint64_t>(nf, 0xc8)) return 0;
+    for (uint32_t k = 0; k < rd<uint32_t>(nf, 0); ++k) {
+        uint8_t *x = u3h_fr_ent(base, k);
+        if (x[1] && u3h_fr_strcmp(base, x + 1, nm) == 0) return 1;
+    }
+    return 0;
+}
+
+extern "C" U3X_FN void u3x_fi_finish(uintptr_t base, void *s, int32_t rows) {
+    FiStateExt *st = fi_state_ext();
+    uint8_t *o = fi_io(base);
+    uint32_t c = 0;
+    const uint64_t now = u3x_network_usec();
+    uint32_t w1 = 0, w2 = 0, w3 = 0, wf = 0, bad = 0, fw = 0;
+    const uint8_t *first = nullptr;
+    for (int32_t i = 0; i < rows && c < 10; ++i) {
+        const uint8_t *b = st->newrows[i];
+        const uint64_t t = rd<uint64_t>(b, 0x28);
+        const uint32_t w = u3x_fi_row_why(base, b, now);
+        if (w) {
+            if (w == 1) { ++w1; if (!bad) bad = rd<uint32_t>(b, 0); }
+            else if (w == 2) ++w2;
+            else ++w3;
+            if (!first) { first = b; fw = w; }
+            continue;
+        }
+        if (!u3x_fi_is_friend(base, b + 0x10)) ++wf;
+        fi_copy(st->blob[c], b, 0x30);
+        st->time[c] = t;
+        uint8_t *r = o + 8 + static_cast<uintptr_t>(c) * 0x28;
+        for (int k = 0; k < 0x28; ++k) r[k] = 0;
+        *reinterpret_cast<uint32_t *>(r) = rd<uint32_t>(b, 0);
+        *reinterpret_cast<uint64_t *>(r + 8) = rd<uint64_t>(b, 8);
+        fi_copy(r + 0x10, b + 0x10, 0x14);
+        ++c;
+    }
+    *reinterpret_cast<uint32_t *>(o) = c;
+    ext_ea()[100] = c;
+    u3h_so_inv_diag(base, rows < 0 ? 0u : static_cast<uint32_t>(rows), c, w1, w2, w3, wf, bad, first, fw);
+    for (uint32_t i = 0; i < c; ++i) {
+        char nm[0x15];
+        fi_copy(nm, st->blob[i] + 0x10, 0x14);
+        nm[0x14] = 0;
+        u3h_so_note(fi_list_from, nm, -1, nullptr);
+    }
+    if (st->oldn != 0 || st->notify == 0) {
+        for (uint32_t i = 0; i < c; ++i) {
+            if (st->time[i] <= st->prev) continue;
+            char nm[0x15];
+            fi_copy(nm, st->blob[i] + 0x10, 0x14);
+            nm[0x14] = 0;
+            char out[0x80];
+            out[0] = 0;
+            reinterpret_cast<void (*)(void *, char *, int, uint32_t, const char *, const char *, const char *)>(base + 0xf32bd0u)(
+                reinterpret_cast<void *>(base + 0x17026b8u), out, 0x80, 0x7f845fbdu, nm, nullptr, nullptr);
+            int ol = 0;
+            while (out[ol]) ++ol;
+            if (ol > 34) {
+                const char *pt = u3h_text(base, s, 0x82c61354u);
+                int k = 0;
+                if (pt) for (; pt[k] && k < 60; ++k) out[k] = pt[k];
+                out[k++] = ':';
+                out[k++] = ' ';
+                for (int j = 0; nm[j] && k < 0x7e; ++j) out[k++] = nm[j];
+                out[k] = 0;
+            }
+            const uint32_t ic[3] = {0, 0, 0xffffffffu};
+            u3x_ms_hud(base, 0, out, 0, 0, ic);
+            ++ext_ea()[101];
+        }
+    }
+    uint32_t un = 0;
+    for (uint32_t i = 0; i < c; ++i) if (st->seen < st->time[i]) ++un;
+    *reinterpret_cast<uint32_t *>(o + 4) = un;
+    o[0x198] = 0;
+}
+
+extern "C" U3X_FN void u3x_fi_refresh(uintptr_t base, void *s, int32_t notify) {
+    FiStateExt *st = fi_state_ext();
+    uint8_t *o = fi_io(base);
+    st->seen = u3x_fi_rec_seen(base, s);
+    st->oldn = static_cast<int32_t>(rd<uint32_t>(o, 0));
+    st->prev = st->oldn ? st->time[0] : 0;
+    st->notify = notify;
+    *reinterpret_cast<uint32_t *>(o + 4) = 0;
+    o[0x198] = 1;
+    st->ticket = u3h_inv_list(base, reinterpret_cast<const uint8_t *>(base + 0x17d6010u), &st->newrows[0][0], 12);
+    ++ext_ea()[99];
+    if (st->ticket < 0) {
+        st->ticket = -1;
+        u3x_fi_finish(base, s, 0);
+    }
+}
+
+extern "C" U3X_FN void u3x_fi_delete(uintptr_t base, int32_t i) {
+    FiStateExt *st = fi_state_ext();
+    uint8_t *o = fi_io(base);
+    if (i >= static_cast<int32_t>(rd<uint32_t>(o, 0)) || i < 0) { o[0x198] = 0; return; }
+    o[0x198] = 1;
+    st->del = i;
+    st->dticket = u3h_inv_delete(base, reinterpret_cast<const uint8_t *>(base + 0x17d6010u), st->blob[i]);
+    ++ext_ea()[102];
+    if (st->dticket < 0) {
+        st->dticket = -1;
+        if (!rd<uint32_t>(o, 0)) *reinterpret_cast<uint32_t *>(o + 4) = 0;
+        o[0x198] = 0;
+    }
+}
+
+extern "C" U3X_FN void u3x_fi_delete_done(uintptr_t base) {
+    FiStateExt *st = fi_state_ext();
+    uint8_t *o = fi_io(base);
+    const uint32_t n = rd<uint32_t>(o, 0);
+    const int32_t i = st->del;
+    if (i >= 0 && static_cast<uint32_t>(i) < n) {
+        for (uint32_t k = static_cast<uint32_t>(i); k + 1 < n; ++k) {
+            fi_copy(o + 8 + static_cast<uintptr_t>(k) * 0x28, o + 8 + static_cast<uintptr_t>(k + 1) * 0x28, 0x28);
+            fi_copy(st->blob[k], st->blob[k + 1], 0x30);
+            st->time[k] = st->time[k + 1];
+        }
+        *reinterpret_cast<uint32_t *>(o) = n - 1;
+    }
+    if (!rd<uint32_t>(o, 0)) *reinterpret_cast<uint32_t *>(o + 4) = 0;
+    o[0x198] = 0;
+}
+
+extern "C" U3X_FN void u3x_fi_mark_seen(uintptr_t base, void *s) {
+    FiStateExt *st = fi_state_ext();
+    uint8_t *o = fi_io(base);
+    if (o[0x198] || !rd<uint32_t>(o, 0)) return;
+    if (u3x_fi_rec_seen(base, s) < st->time[0]) {
+        uint8_t *p = u3h_lg_profile(base, 0);
+        uint8_t *r = u3h_lg_rec(base, s, p);
+        *reinterpret_cast<uint32_t *>(r + 0x1610) = static_cast<uint32_t>(st->time[0] >> 32);
+        r = u3h_lg_rec(base, s, p);
+        *reinterpret_cast<uint32_t *>(r + 0x1614) = static_cast<uint32_t>(st->time[0]);
+        *reinterpret_cast<uint32_t *>(o + 4) = 0;
+        u3h_publish(base, s, p);
+        ++ext_ea()[103];
+    }
+}
+
+extern "C" U3X_FN void u3x_fi_tick(uintptr_t base, void *s) {
+    FiStateExt *st = fi_state_ext();
+    if (st->ticket >= 0) {
+        const int32_t r = u3h_inv_poll(base, st->ticket);
+        if (r != -2) { st->ticket = -1; u3x_fi_finish(base, s, r < 0 ? 0 : r); }
+    }
+    if (st->dticket >= 0) {
+        const int32_t r = u3h_inv_poll(base, st->dticket);
+        if (r != -2) {
+            st->dticket = -1;
+            if (r >= 0) u3x_fi_delete_done(base);
+            else {
+                uint8_t *io = fi_io(base);
+                if (!rd<uint32_t>(io, 0)) *reinterpret_cast<uint32_t *>(io + 4) = 0;
+                io[0x198] = 0;
+            }
+        }
+    }
+    int any = 0;
+    uint32_t ix;
+    while (u3x_queue_find(reinterpret_cast<uint8_t *>(base + 0x1b6d3d0u), reinterpret_cast<uint32_t *>(base + 0x1b6d3c0u), 0x11du, &ix, 1) == 0) any = 1;
+    uint8_t *o = fi_io(base);
+    if (any) {
+        if (o[0x198] && !fi_pend_ext) u3h_so_note(fi_wait, nullptr, -1, nullptr);
+        fi_pend_ext = 1;
+    }
+    if (!o[0x198]) fi_busy_ext = 0;
+    else if (st->ticket < 0 && st->dticket < 0) {
+        const int32_t now = at<int32_t>(base + 0x17b4a90u + 0x114);
+        if (!fi_busy_ext) fi_busy_ext = now;
+        else if (now - fi_busy_ext > 30 * 300) {
+            o[0x198] = 0;
+            fi_busy_ext = 0;
+            u3h_so_note(fi_clr, nullptr, -1, nullptr);
+        }
+    }
+    if (fi_pend_ext && !o[0x198]) {
+        fi_pend_ext = 0;
+        u3h_so_note(fi_go, nullptr, -1, nullptr);
+        o[0x198] = 1;
+        u3x_fi_refresh(base, s, 0);
+        ++ext_ea()[104];
+    }
+}
+
+extern "C" U3X_FN void u3x_fi_send(uintptr_t base) {
+    uint8_t b[0x30];
+    for (int k = 0; k < 0x30; ++k) b[k] = 0;
+    uint8_t *ps = reinterpret_cast<uint8_t *>(base + 0x17dc298u);
+    *reinterpret_cast<uint32_t *>(b) = u3h_fr_key(base);
+    if (ps[0xc8]) *reinterpret_cast<uint64_t *>(b + 8) = rd<uint64_t>(ps, 0x18);
+    fi_copy(b + 0x10, reinterpret_cast<const void *>(base + 0x17d6010u), 0x14);
+    *reinterpret_cast<uint64_t *>(b + 0x28) = u3x_network_usec();
+    if (u3h_inv_send(base, reinterpret_cast<const uint8_t *>(base + 0x17c3871u), b) < 0) ++ext_ea()[106];
+    else ++ext_ea()[105];
+    u3x_queue_send(base, reinterpret_cast<const uint8_t *>(base + 0x17c3871u), 0x11du, nullptr, 0);
+}
+
+
+extern "C" {
+uint8_t *u3x_sym_table(void *s, uint32_t id);
+U3H_IMPORT int u3h_n06_on(void);
+U3H_IMPORT void u3h_n06_mapimg(uintptr_t base, void *s, int32_t *ev, uint8_t *map);
+U3H_IMPORT void u3h_h11_tag(int32_t *ev);
+U3H_IMPORT int u3h_n08_vq(uintptr_t base, int32_t *ev);
+}
+
+namespace {
+U3X_BSS int32_t mmv_sel_ext;
+U3X_RO const uint8_t mmv_rule0[0x58] = {};
+U3X_RO const char mmv_f1[] = "%s %s";
+U3X_RO const char mmv_f2[] = "%s - %s";
+U3X_RO const char mmv_f3[] = "%s\n%s";
+U3X_RO const char mmv_sp[] = " ";
+U3X_RO const char mmv_nul[] = "";
+}  // namespace
+
+extern "C" U3X_FN void u3x_retag_mm_vote(uint8_t *page) {
+    if (rd<uint32_t>(page, 8) != 0xe35f0f1au) return;
+    uint8_t *c = rd<uint8_t *>(page, 0x48);
+    if (!c) return;
+    const uint32_t n = rd<uint32_t>(c, 0);
+    uint8_t *it = rd<uint8_t *>(c, 8);
+    if (!it || n > 64) return;
+    for (uint32_t j = 0; j < n; ++j) {
+        uint8_t *w = it + static_cast<uintptr_t>(j) * 0x68;
+        if (rd<uint32_t>(w, 8) == 0xdc6e89d8u && rd<uint32_t>(w, 0x30) == 21 && rd<uint32_t>(w, 0x34) == 0x50 &&
+            rd<uint32_t>(w, 0x40) == 0) {
+            put<uint32_t>(w, 0x34) = 0xcf;
+            put<uint32_t>(w, 0x40) = 0x4c414e50u;
+            ++ext_eb()[170];
+        }
+    }
+}
+
+extern "C" U3X_FN uint8_t *u3x_mmv_netgame(void *s, int16_t i) {
+    uint8_t *t = u3x_sym_table(s, 0x3b9a067du);
+    if (!t || i < 0 || static_cast<int32_t>(i) >= rd<int32_t>(t, 0)) return nullptr;
+    return rd<uint8_t *>(t, 8) + static_cast<uintptr_t>(i) * 0xd0;
+}
+
+extern "C" U3X_FN uint8_t *u3x_mmv_playlist(void *s, uint32_t id) {
+    uint8_t *t = u3x_sym_table(s, 0x0dec97a4u);
+    if (!t) return nullptr;
+    uint8_t *e = rd<uint8_t *>(t, 8);
+    for (int32_t i = 0; e && i < rd<int32_t>(t, 0); ++i)
+        if (rd<uint32_t>(e, static_cast<uintptr_t>(i) * 0x98) == id) return e + static_cast<uintptr_t>(i) * 0x98;
+    return nullptr;
+}
+
+extern "C" U3X_FN const uint8_t *u3x_mmv_rule(void *s, int32_t i) {
+    uint8_t *t = u3x_sym_table(s, 0xf985c7b6u);
+    if (!t || i < 0 || i >= rd<int32_t>(t, 0) || !rd<uint8_t *>(t, 8)) return mmv_rule0;
+    return rd<uint8_t *>(t, 8) + static_cast<uintptr_t>(i) * 0x58;
+}
+
+extern "C" U3X_FN int u3x_mmv_coop(uintptr_t base, void *s) {
+    const uint32_t key = reinterpret_cast<uint32_t (*)(void)>(base + 0x73f630u)();
+    uint8_t *t = u3x_sym_table(s, 0xc1b0be0du);
+    if (!t) return 0;
+    uint8_t *e = rd<uint8_t *>(t, 8);
+    const uint8_t lan = at<uint8_t>(base + 0x17d5c60u), coop = at<uint8_t>(base + 0x17d6065u);
+    for (int32_t i = 0; e && i < rd<int32_t>(t, 0); ++i) {
+        uint8_t *x = e + static_cast<uintptr_t>(i) * 0x68;
+        if (lan && rd<uint32_t>(x, 0x28) != coop) continue;
+        if (rd<uint32_t>(x, 0) == key || key == 0) return rd<uint32_t>(x, 0x28) != 0;
+    }
+    return 0;
+}
+
+extern "C" U3X_FN const char *u3x_mmv_diff(uintptr_t base, void *s, uint32_t n) {
+    const uint32_t *ids = u3x_difficulty_texts();
+    return n < 5 ? u3h_text(base, s, ids[n]) : mmv_nul;
+}
+
+extern "C" U3X_FN int u3x_mmv_source(uintptr_t base, int32_t *ev, void *s) {
+    uint8_t *src = *reinterpret_cast<uint8_t **>(reinterpret_cast<uint8_t *>(ev) + 0x98);
+    if (!src || rd<uint32_t>(src, 0x1c) != 0x4c414e50u) return 0;
+    if (u3h_native_gate_closed(base, ev)) return 1;
+    uint8_t *V = reinterpret_cast<uint8_t *>(base + 0x17d7760u), *W = reinterpret_cast<uint8_t *>(base + 0x17d7784u),
+            *mgr = reinterpret_cast<uint8_t *>(base + 0x17cb060u);
+    auto spr = reinterpret_cast<char *(*)(const char *, ...)>(base + 0x62aa60u);
+    ++ext_eb()[171];
+    if (!V[0]) return 1;
+    if (u3h_fr_tab(base, s) != 0xbd1d2c53u) return 1;
+    if (u3h_n06_on() ? (W[0] && !W[1]) : (!W[0] && !W[1])) return 1;
+    ++ext_eb()[172];
+    ext_eb()[173] = static_cast<uint32_t>(ev[0]);
+    const uint32_t o = ev[1] != 0 ? 4u : 0u;
+    switch (ev[0]) {
+    case 1: set_text_ext(ev, V[1] ? mmv_sp : u3h_text(base, s, 0x81cc5e93u)); break;
+    case 2: {
+        uint8_t *P = u3x_mmv_netgame(s, static_cast<int16_t>(rd<int32_t>(V, 8 + o)));
+        if (!P) break;
+        uint8_t *R = u3x_mmv_playlist(s, rd<uint32_t>(P, 4));
+        if (!R) break;
+        const int32_t col = ev[0x15];
+        if (col == 0) set_text_ext(ev, u3h_text(base, s, rd<uint32_t>(R, 4)));
+        else if (col == 3) {
+            if (!u3x_mmv_coop(base, s)) {
+                set_text_ext(ev, u3h_text(base, s, rd<uint32_t>(u3x_mmv_rule(s, rd<int32_t>(P, 0xc)), 0)));
+                const uint32_t nm = rd<uint32_t>(P, 8);
+                if (nm != 0x22a276ecu && nm != 0x6f96651fu) set_text_ext(ev, u3h_text(base, s, nm));
+            } else {
+                const char *a = u3h_text(base, s, rd<uint32_t>(u3x_mmv_rule(s, rd<int32_t>(P, 0xc)), 0));
+                if (!W[1]) set_text_ext(ev, spr(mmv_f1, a, mmv_nul));
+                else set_text_ext(ev, spr(mmv_f2, a, u3x_mmv_diff(base, s, mgr[0x6a48])));
+            }
+        } else if (static_cast<uint32_t>(col) == 0x3cf3527au) {
+            if (!rd<uint32_t>(R, 8)) set_text_ext(ev, u3h_text(base, s, rd<uint32_t>(R, 4)));
+            else {
+                const char *a = u3h_text(base, s, rd<uint32_t>(R, 4));
+                set_text_ext(ev, spr(mmv_f3, a, u3h_text(base, s, rd<uint32_t>(R, 8))));
+            }
+        }
+        break;
+    }
+    case 4: {
+        uint8_t *P = u3x_mmv_netgame(s, static_cast<int16_t>(rd<int32_t>(V, 8 + o)));
+        if (!P) break;
+        if (u3h_n06_on()) {
+            u3h_n06_mapimg(base, s, ev, u3x_mmv_playlist(s, rd<uint32_t>(P, 4)));
+            u3h_h11_tag(ev);
+            break;
+        }
+        ev[2] = 36; ev[4] = 0; ev[5] = 0; ev[6] = rd<int32_t>(P, 4); ev[7] = 0; ev[8] = 0; ev[9] = -1; ev[10] = 0;
+        ev[11] = -1; ev[12] = 0x3f800000;
+        break;
+    }
+    case 5: ev[1] = mmv_sel_ext; break;
+    case 6: case 8: ev[1] = 1; break;
+    case 10: mmv_sel_ext = ev[1]; break;
+    case 11: {
+        const uint32_t q = static_cast<uint32_t>(ev[0x13]);
+        if (q == 0xbedebbb3u) {
+            const int32_t n = rd<int32_t>(V, 0x10 + o);
+            ev[14] = n ? n : (V[1] ? -1 : 0);
+        } else if (q == 0x88abe7afu) {
+            ev[14] = V[1] ? (static_cast<int32_t>(rd<int16_t>(mgr, 0x661c)) != rd<int32_t>(V, 8)) : -1;
+        } else if (q == 0xe87f9498u) {
+            ev[14] = V[1] ? 0 : (rd<uint32_t>(V, 4) > 1u);
+        } else if (q == 0x7bc431fbu) {
+            ev[14] = rd<int32_t>(V, 4);
+        } else u3h_n08_vq(base, ev);
+        break;
+    }
+    }
+    return 1;
+}
+
+
+extern "C" {
+U3H_IMPORT void u3h_start_calls_inc(void *s);
+U3H_IMPORT void u3h_probe_pad2_inc(void *s);
+U3H_IMPORT uint32_t *u3h_pt_state(void);
+U3H_IMPORT uint32_t *u3h_cg_t0_ptr(void);
+U3H_IMPORT void u3h_cg_log(const char *a, int32_t v);
+U3H_IMPORT void u3h_ng_limits(int32_t type, int32_t *mx, int32_t *mn);
+U3H_IMPORT int u3h_onb_startmatch(uintptr_t base, void *s);
+U3H_IMPORT int u3h_m03_startmatch(uintptr_t base, void *s);
+U3H_IMPORT void u3h_cg_commit_selection(uintptr_t base, void *s);
+extern "C" U3X_FN void u3x_start_prepare(uintptr_t base, void *s);
+extern "C" U3X_FN void u3x_start_game_now(uintptr_t base, void *s);
+}
+
+namespace {
+U3X_BSS uint32_t t008_start_ext;
+U3X_RO const char st_p[] = "Start pressed, net mode ";
+U3X_RO const char st_g[] = "only the party leader can start (this PC is a party member)";
+U3X_RO const char st_a[] = "already starting, net state ";
+U3X_RO const char st_c[] = "a start check refused it (2 party too big, 3 too few players, 4 teams): ";
+U3X_RO const char st_ok[] = "checks passed, countdown next; party size ";
+U3X_RO const char st_kv[] = "san-upper-multi-killvis";
+uint32_t *ext_cd_ext() { return reinterpret_cast<uint32_t *>(u3h_ext() + 0x2238); }
+uint32_t *ext_sc_ext() { return reinterpret_cast<uint32_t *>(u3h_ext() + 0x2ff0); }
+uintptr_t native_at(void *s, uint32_t i) { return rd<uintptr_t>(s, 768 + static_cast<uintptr_t>(i) * 8); }
+uint32_t engine_clock_ext(uintptr_t base) { return rd<uint32_t>(reinterpret_cast<const uint8_t *>(base), 0x17b4a90u + 0x114); }
+}  // namespace
+
+extern "C" U3X_FN int u3x_popup_timed(uintptr_t base, void *s, uint32_t text, int seconds, uint32_t ok, uint32_t cancel) {
+    uint8_t *m = reinterpret_cast<uint8_t *>(base + 0x17bd080u);
+    uint8_t *pd = rd<uint8_t *>(m, 0x14f0);
+    const uintptr_t show = rd<uintptr_t>(s, 648);
+    if (!pd || !show) return 0;
+    const uint32_t now = engine_clock_ext(base);
+    put<uint32_t>(pd, 8) = text;
+    put<uint32_t>(pd, 0x10) = now;
+    put<uint32_t>(pd, 0x14) = now + static_cast<uint32_t>(seconds) * 300u;
+    uint32_t *pt = u3h_pt_state();
+    if (!pt[0]) {
+        pt[1] = rd<uint32_t>(m, 0x1544);
+        pt[2] = rd<uint32_t>(m, 0x1548);
+    }
+    pt[0] = 1;
+    pt[3] = ok;
+    pt[4] = 0;
+    put<uint32_t>(m, 0x1544) = ok;
+    put<uint32_t>(m, 0x1548) = cancel;
+    ext_cd_ext()[1] = now;
+    ext_cd_ext()[2] = text;
+    return reinterpret_cast<int (*)(void *, uint32_t, int, int)>(show)(m, 0x453470ddu, 0, 0) & 255;
+}
+
+extern "C" U3X_FN int u3x_start_checks(uintptr_t base, void *s) {
+    uint32_t *cd = ext_cd_ext(), *sc = ext_sc_ext();
+    const int32_t type = u3h_netgame_type(base, s);
+    const int n = u3x_lan_party_size(base);
+    int32_t mx = 0, mn = 0;
+    u3h_ng_limits(type, &mx, &mn);
+    cd[7] = static_cast<uint32_t>(n) | (static_cast<uint32_t>(type & 0xff) << 8) | (static_cast<uint32_t>(mn) << 16) |
+            (static_cast<uint32_t>(mx) << 24);
+    cd[6] = 0;
+    if (n > mx) {
+        cd[6] = 2;
+        u3h_show_dialog(base, s, 0x4a936499u, 0xc6467f2du, 0x13cabc15u, 0, 0, 0xe1e040aau);
+        return 0;
+    }
+    uint32_t flags = rd<uint32_t>(s, 0x3d78);
+    int solo = (n == 1) && (flags & 0x80);
+    if (type == 18 && !(flags & 0x20000)) solo = 0;
+    const int nomin = (flags & 0x80000) != 0;
+    if (nomin && n < mn) ++sc[1];
+    if (!solo && !nomin && n < mn) {
+        cd[6] = 3;
+        u3h_show_dialog(base, s, 0x4a93e6b9u, 0xc6467f2du, 0x13cafe1fu, 0, 0, 0xe1e040aau);
+        return 0;
+    }
+    if (type == 10 && !solo) {
+        int hist[4] = {0, 0, 0, 0}, counted = 0;
+        const int guess = (rd<uint32_t>(s, 0x20c0) & 4) != 0;
+        uint8_t *ps = reinterpret_cast<uint8_t *>(base + 0x17dc298u);
+        for (int i = 0; i < 10; ++i) {
+            uint8_t *m = ps + 0x680 + static_cast<uintptr_t>(i) * 0x120;
+            if (!m[0x25]) continue;
+            if (guess) {
+                ++counted;
+                continue;
+            }
+            const uint8_t *md = nullptr;
+            if (!rd<uint64_t>(ps, 0x18) || rd<uint32_t>(m, 0x2c) == rd<uint32_t>(ps, 0x12e4)) {
+                if (rd<uint32_t>(ps, 0x12f0) == 0x40) md = ps + 0x12f4;
+            } else if (rd<uint32_t>(m, 0x3c) == 0x40) {
+                md = m + 0x40;
+            }
+            if (!md) continue;
+            ++counted;
+            const int team = md[9];
+            if (team >= 1 && team <= 4) ++hist[team - 1];
+        }
+        cd[6] = (static_cast<uint32_t>(counted) << 8) |
+                (static_cast<uint32_t>(hist[0] | hist[1] << 4 | hist[2] << 8 | hist[3] << 12) << 16);
+        for (int k = 0; k < 4; ++k)
+            if (counted == hist[k]) {
+                cd[6] |= 4;
+                u3h_show_dialog(base, s, 0x101c7f10u, 0xc6467f2du, 0x5350146eu, 0, 0, 0xe1e040aau);
+                return 0;
+            }
+    }
+    return 1;
+}
+
+extern "C" U3X_FN void u3x_start_game(uintptr_t base, void *s) {
+    uint32_t *cd = ext_cd_ext();
+    ++cd[0];
+    u3h_cg_log(st_p, static_cast<int32_t>(rd<uint32_t>(reinterpret_cast<const uint8_t *>(base), 0x17d603c)));
+    if (u3x_party_guest(reinterpret_cast<const uint8_t *>(base + 0x17dc298u))) {
+        u3h_cg_log(st_g, -1);
+        return;
+    }
+    if (u3h_onb_startmatch(base, s)) return;
+    if (u3h_m03_startmatch(base, s)) return;
+    u3h_cg_commit_selection(base, s);
+    if (rd<uint32_t>(s, 0x3d78) & 0x40) {
+        u3x_start_game_now(base, s);
+        return;
+    }
+    auto done = reinterpret_cast<void (*)(void)>(native_at(s, 7));
+    if (!done || rd<uint32_t>(reinterpret_cast<const uint8_t *>(base), 0x17d603c) != 2 || !u3x_mp_lan_or_online(base)) return;
+    uint32_t *t008 = &t008_start_ext;
+    const uint32_t now = engine_clock_ext(base);
+    const uint32_t ns = rd<uint32_t>(reinterpret_cast<const uint8_t *>(base), 0x1b68810);
+    if (*t008 && now - *t008 < 30u * 300u && (ns == 3 || ns == 0xb)) {
+        u3h_cg_log(st_a, static_cast<int32_t>(ns));
+        return;
+    }
+    uint8_t *popup = rd<uint8_t *>(reinterpret_cast<const uint8_t *>(base), 0x17bd080u + 0x898);
+    if (popup && rd<uint32_t>(popup, 0x10) == 0x453470ddu) return;
+    if (!u3x_start_checks(base, s)) {
+        u3h_cg_log(st_c, static_cast<int32_t>(cd[6] & 0xff));
+        return;
+    }
+    u3h_cg_log(st_ok, u3x_lan_party_size(base));
+    uint32_t *cg_t0 = u3h_cg_t0_ptr();
+    *cg_t0 = now;
+    if (!*cg_t0) *cg_t0 = 1;
+    u3x_start_prepare(base, s);
+    uint8_t *ps = reinterpret_cast<uint8_t *>(base + 0x17dc298u);
+    uint8_t *be = rd<uint8_t *>(ps, 8);
+    if (be && (!rd<uint64_t>(ps, 0x18) || rd<uint32_t>(ps, 0x12e4) == rd<uint32_t>(ps, 0x12e8))) {
+        uintptr_t fn = rd<uintptr_t>(be, 0x40);
+        if (fn) {
+            reinterpret_cast<int64_t (*)(void *, void *, int)>(fn)(be, ps, 1);
+            ++cd[3];
+        }
+    }
+    put<uint8_t>(reinterpret_cast<uint8_t *>(base) + 0x17bd080u + 0x269a, 0);
+    *t008 = engine_clock_ext(base);
+    if (!*t008) *t008 = 1;
+    if (u3x_popup_timed(base, s, 0x73a73dd8u, 5, 0xe2707dbeu, 0xbf6ce4d5u)) ++cd[4];
+    else {
+        ++cd[5];
+        done();
+    }
+}
+
+extern "C" U3X_FN void u3x_start_prepare(uintptr_t base, void *s) {
+    u3h_start_calls_inc(s);
+    uint8_t *nc = reinterpret_cast<uint8_t *>(s) + 0x2000;
+    if (rd<uint8_t *>(reinterpret_cast<const uint8_t *>(base), 0x17c3580) == nc) {
+        put<uint64_t>(nc, 0xc) = 0;
+        put<uint32_t>(nc, 0x20) = 0;
+        put<uint32_t>(nc, 0x28) = 0;
+    }
+    const uint32_t flags = rd<uint32_t>(s, 0x3d78);
+    if (!(flags & 0x20000000u)) {
+        put<uint8_t>(reinterpret_cast<uint8_t *>(base) + 0x16e7170u, 0);
+        put<uint8_t>(reinterpret_cast<uint8_t *>(base) + 0x17d5c80u, 0);
+        auto reset = reinterpret_cast<int64_t (*)(uintptr_t)>(native_at(s, 12));
+        if (reset) reset(base + 0x17d6420u);
+    }
+    auto lookup = reinterpret_cast<void *(*)(uint32_t)>(native_at(s, 13));
+    uint8_t *ml = lookup ? static_cast<uint8_t *>(lookup(0x0dec97a4u)) : nullptr;
+    if (ml) {
+        const uint32_t n = rd<uint32_t>(ml, 0);
+        uint8_t *e = rd<uint8_t *>(ml, 8);
+        for (uint32_t i = 0; e && i < n && i < 64; ++i, e += 0x98) {
+            const char *nm = rd<const char *>(e, 0x38);
+            if (!nm) continue;
+            int eq = 1;
+            for (int k = 0; k < static_cast<int>(sizeof(st_kv)); ++k)
+                if (nm[k] != st_kv[k]) {
+                    eq = 0;
+                    break;
+                }
+            if (eq && !(rd<uint32_t>(s, 0x3d78) & 8)) {
+                put<uint32_t>(e, 0x40) = 0;
+                u3h_probe_pad2_inc(s);
+                reinterpret_cast<uint32_t *>(u3h_ext() + 0x2070)[11] = (rd<uint32_t>(s, 0x3d78) & 8) != 0;
+            }
+        }
+    }
+    u3x_lan_reattach(base);
+}
+
+extern "C" U3X_FN void u3x_start_game_now(uintptr_t base, void *s) {
+    auto done = reinterpret_cast<void (*)(void)>(native_at(s, 7));
+    if (!done || rd<uint32_t>(reinterpret_cast<const uint8_t *>(base), 0x17d603c) != 2 || !u3x_mp_lan_or_online(base)) return;
+    const uint32_t ns = rd<uint32_t>(reinterpret_cast<const uint8_t *>(base), 0x1b68810);
+    if (ns == 3 || ns == 0xb) return;
+    u3x_start_prepare(base, s);
+    done();
+}
+
+
+extern "C" {
+U3H_IMPORT int u3h_k26_draw(uintptr_t b, void *el, void *rbp);
+}
+
+namespace {
+U3X_BSS uint8_t k23_ok_ext;
+U3X_BSS uint8_t k23_snd_ext[0x200];
+U3X_RO const uint32_t k23_fn_ext[] = {0x64ce90u, 0x1007610u, 0x119b250u, 0};
+}  // namespace
+
+extern "C" U3X_FN int u3x_k29_eok(const void *p) {
+    const uintptr_t v = reinterpret_cast<uintptr_t>(p);
+    return v >= 0x10000u && v < (1ull << 47) && !(v & 3);
+}
+
+extern "C" U3X_FN int u3x_k23_callees(uintptr_t base) {
+    if (k23_ok_ext) return k23_ok_ext == 1;
+    k23_ok_ext = 1;
+    for (int i = 0; k23_fn_ext[i]; ++i)
+        if (rd<uint32_t>(reinterpret_cast<const uint8_t *>(base), k23_fn_ext[i]) != 0xe5894855u) {
+            k23_ok_ext = 2;
+            ++ext_eb()[207];
+        }
+    return k23_ok_ext == 1;
+}
+
+extern "C" U3X_FN int u3x_k23_rep(uintptr_t base, uint8_t *pad, uint32_t m) {
+    if (rd<uint32_t>(pad, 0x94) & m) return 1;
+    if (!(rd<uint32_t>(pad, 0x9c) & m)) return 0;
+    uint32_t t = 0xbf800000u;
+    for (int i = 0; i < 22; ++i)
+        if (m & (1u << i)) {
+            t = rd<uint32_t>(pad, 0xbc + 4 * i);
+            break;
+        }
+    uint8_t *c = rd<uint8_t *>(reinterpret_cast<const uint8_t *>(base), 0x1b24b98u);
+    if (!ptr_ok(c)) return 0;
+    c += static_cast<int64_t>(rd<int32_t>(pad, 0xa8)) * 64;
+    const uint32_t k = 0x3b5a740eu, d = 0x3e4ccccdu, rate0 = 0x3dcccccdu;
+    uint32_t cur = f_sub(f_mul(f_from_int(rd<int32_t>(c, 0x54)), k), t);
+    if (f_less(cur, d)) return 0;
+    uint32_t prev = f_sub(f_mul(f_from_int(rd<int32_t>(c, 0x70)), k), t);
+    if (f_less(prev, d)) return 1;
+    uint32_t rate = rate0;
+    if (f_less(0x40000000u, cur)) rate = f_mul(rate, 0x3f000000u);
+    if (f_less(0x40800000u, cur)) rate = f_mul(rate, 0x3f000000u);
+    return f_to_int(f_div(f_sub(cur, d), rate)) != f_to_int(f_div(f_sub(prev, d), rate));
+}
+
+extern "C" U3X_FN void u3x_k23_action(uintptr_t base, uint32_t id) {
+    ++ext_eb()[204];
+    ext_eb()[208] = id;
+    reinterpret_cast<void (*)(uint8_t *, uint32_t, uint32_t)>(base + 0x64ce90u)(
+        reinterpret_cast<uint8_t *>(base + 0x17bd080u), id, 0);
+}
+
+extern "C" U3X_FN void u3x_k23_update(uintptr_t base, uint8_t *el) {
+    uint8_t *ngm = reinterpret_cast<uint8_t *>(base + 0x17cb060u);
+    uint8_t *F = reinterpret_cast<uint8_t *>(base + 0x17c3ba8u);
+    uint8_t *menu = reinterpret_cast<uint8_t *>(base + 0x17bd080u);
+    const int32_t tnow = rd<int32_t>(reinterpret_cast<const uint8_t *>(base), 0x17b4a90u + 0x114);
+    uint32_t vc = 0;
+    put<uint32_t>(el, 0x1d0) = 0;
+    if (rd<uint8_t>(reinterpret_cast<const uint8_t *>(base), 0x1acab73u)) {
+        ++ext_eb()[202];
+        return;
+    }
+    int32_t n = rd<int32_t>(el, 0x15c);
+    if (n > 14) n = 14;
+    const int32_t mode = rd<int32_t>(F, 0x1e68);
+    for (int32_t i = 0; i < n; ++i) {
+        uint8_t *e = el + 0xc + 24 * i;
+        const uint32_t id = rd<uint32_t>(e, 0);
+        if (id == 0xc1f65aebu && rd<int32_t>(reinterpret_cast<const uint8_t *>(base), 0x18c6b34u + 0x24) != 1280) continue;
+        if (ngm[0x6cb1] || ngm[0x6cb0]) {
+            if (id == 0xff502160u) {
+                if (mode != 2) continue;
+            } else if (id == 0x806c9824u || id == 0x682c6868u) continue;
+            else if (id == 0x887c7d6eu) {
+                if (mode != 0) continue;
+            }
+        } else {
+            if (id == 0xff502160u) {
+                if (mode != 1) continue;
+            } else if (id == 0x806c9824u) {
+                if (mode != 2) continue;
+            } else if (id == 0x887c7d6eu) {
+                if (mode != 0) continue;
+            }
+        }
+        if (rd<uint32_t>(F, 0x31c) & 1) {
+            if (id == 0xe8184ce8u || id == 0x887c7d6eu || id == 0xa65c61bau || id == 0x806c9824u ||
+                id == 0x38231b34u || id == 0x516bfbb8u || id == 0xff502160u) continue;
+        } else {
+            uint8_t r = 1;
+            if (rd<uint8_t>(reinterpret_cast<const uint8_t *>(base), 0x17c3571u))
+                r = rd<uint8_t>(reinterpret_cast<const uint8_t *>(base), 0x17c3572u);
+            if (id == 0x3cf5deedu) {
+                if (!r) continue;
+            } else if (id == 0xe8184ce8u) {
+                if (r) continue;
+            }
+        }
+        if (rd<int32_t>(reinterpret_cast<const uint8_t *>(base), 0x17c5cf8u + 8)) {
+            if (id == 0x682c6868u || id == 0xbd8d7974u || id == 0x38231b34u) continue;
+        } else {
+            if (id == 0x516bfbb8u) continue;
+        }
+        put<uint8_t *>(el, 0x160 + 8 * vc) = e;
+        ++vc;
+        put<uint32_t>(el, 0x1d0) = vc;
+    }
+    ext_eb()[206] = vc;
+    uint8_t *g = rd<uint8_t *>(reinterpret_cast<const uint8_t *>(base), 0x16e2fa0u);
+    if (!ptr_ok(g)) return;
+    uint8_t *pad = g + 0x7e0;
+    if (!(rd<uint32_t>(pad, 0x9c) & 0x4000u)) {
+        uint32_t pend = rd<uint32_t>(el, 8);
+        if (pend) {
+            u3x_k23_action(base, pend);
+            put<uint32_t>(el, 8) = 0;
+        }
+        const int32_t old = rd<int32_t>(el, 0);
+        if (u3x_k23_rep(base, pad, 0x80u)) put<int32_t>(el, 0) -= 1;
+        if (u3x_k23_rep(base, pad, 0x20u)) put<int32_t>(el, 0) += 1;
+        int32_t c = rd<int32_t>(el, 0);
+        if (c < 0) c = 0;
+        int32_t mx = static_cast<int32_t>(vc) - 1;
+        if (c > mx) c = mx;
+        put<int32_t>(el, 0) = c;
+        put<uint32_t>(el, 4) = f_add(f_mul(rd<uint32_t>(el, 4), 0x3f000000u),
+                                     f_mul(f_from_int(c), 0x3f000000u));
+        if (c != old) {
+            reinterpret_cast<void (*)(void *, uint32_t, uint32_t)>(base + 0x1007610u)(k23_snd_ext, 0xf57d53ceu, 0);
+            reinterpret_cast<void (*)(void *, uint32_t)>(base + 0x119b250u)(k23_snd_ext, 0);
+        }
+    }
+    put<int32_t>(el, 0x1d8) = tnow;
+    uint32_t tgt = F_ONE;
+    if (rd<uint32_t>(menu, 8)) {
+        put<int32_t>(el, 0x1d8) = tnow - 3000;
+        tgt = 0;
+    }
+    put<uint32_t>(el, 0x1d4) = f_add(f_mul(rd<uint32_t>(el, 0x1d4), 0x3f333333u),
+                                     f_mul(tgt, 0x3e99999au));
+    if (f_less(rd<uint32_t>(el, 0x1d4), 0x3f666666u)) return;
+    uint8_t *opt = rd<uint8_t *>(reinterpret_cast<const uint8_t *>(base), 0x1b24b80u);
+    const uint32_t m = (ptr_ok(opt) && opt[0x39b4] == 1) ? 0x4000u : 0x2000u;
+    if (!(rd<uint32_t>(pad, 0x94) & m)) return;
+    int32_t c = rd<int32_t>(el, 0);
+    if (c < 0 || static_cast<uint32_t>(c) >= vc) {
+        ++ext_eb()[205];
+        return;
+    }
+    uint8_t *e = rd<uint8_t *>(el, 0x160 + 8 * c);
+    if (!u3x_k29_eok(e)) {
+        ++ext_eb()[205];
+        return;
+    }
+    u3x_k23_action(base, rd<uint32_t>(e, 0));
+    put<uint32_t>(el, 8) = rd<uint32_t>(e, 4);
+}
+
+extern "C" U3X_FN int u3x_k23_hud(uintptr_t base, uint64_t *r) {
+    ++ext_eb()[200];
+    if (ext_eb()[1] & 1) return 0;
+    if (rd<uint64_t>(reinterpret_cast<const uint8_t *>(base), 0x17b4a48u + 0x20)) return 0;
+    uint8_t *hud = reinterpret_cast<uint8_t *>(r[3]);
+    if (!ptr_ok(hud)) return 0;
+    if (!u3x_k23_callees(base)) return 0;
+    ++ext_eb()[201];
+    u3x_k23_update(base, hud + 0x2408);
+    if (ext_eb()[1] & 2) ++ext_eb()[203];
+    else u3h_k26_draw(base, hud + 0x2408, reinterpret_cast<uint8_t *>(r[14]));
+    return 0;
+}
+
+
+extern "C" {
+U3H_IMPORT void *u3h_join_state(void);
+U3H_IMPORT int32_t u3h_gt_conn_state(uintptr_t base, int32_t id);
+U3H_IMPORT uint8_t *u3h_gt_entry_by_id(uintptr_t base, int32_t id);
+U3H_IMPORT int32_t u3h_mq_find(uintptr_t base, uint32_t type, uint32_t *idx, int remove);
+U3H_IMPORT int32_t u3h_mq_get_np(uintptr_t base, uint32_t idx, uint8_t *npid, void *data, uint32_t *len);
+}
+
+namespace {
+struct FjInfoExt { uint8_t flags, ok; int16_t sel; uint32_t name; uint64_t room; };
+struct PjExt { uint64_t id; int32_t t; uint8_t ph, drop; };
+struct JoinStateExt {
+    int32_t timeout;
+    uint8_t joined, wait, lastc, try_, seen;
+    int32_t wait_t, tj, dir_t;
+    uint8_t from[0x14];
+    FjInfoExt hi;
+    PjExt pj;
+};
+U3X_RO const char j_s[] = ": party state ", j_r[] = ", room ", j_p[] = ", pending id ",
+    j_j[] = ", join done/result/joined ", j_c[] = ", create done ", j_l[] = ", leave done/asked ",
+    j_e[] = ", net error ", j_m[] = ", we lead ", j_sl[] = "/", j_mi[] = "-";
+U3X_RO const char j_in[] = "join: 0x10c in", j_af[] = "join: after the first step",
+    j_x[] = "join: party state ", j_x5[] = " at the answer: an earlier join was never answered; dropped, the new id is joined now",
+    j_x8[] = " at the answer: a state without code; reset to 0";
+U3X_RO const char j_d[] = "join: the party room join was never answered: dropped (party state 5 -> 0); a room that still comes is left",
+    j_i[] = "join: given up with the id still waiting: id dropped, party state ";
+U3X_RO const char j_g[] = "join: id set by the game itself (its own 0x10c step or a 0x116)",
+    j_ok[] = "join: id taken", j_no[] = "join: id NOT taken in 5 s", j_f[] = "join: party state ",
+    j_f2[] = " for 5 s with an id waiting: forced on", j_o[] = "join: a party room came after its join was dropped: left";
+U3X_RO const char j_to[] = "join: gave up after 20 s (PS3 timeout): ", j_t0[] = "no 0x10c answer",
+    j_t1[] = "the party room was not joined (no 305 for the party session)",
+    j_t2[] = "the friend is not in the room we got",
+    j_t3[] = "the peer link to the party leader did not come up (see the peer link lines of both PCs)",
+    j_w[] = "join: waiting for the party room (Join 304 sent)", j_rm[] = "join: in a party room: members ",
+    j_ld[] = ", we lead it ", j_fr[] = ", the friend is in it ", j_al[] = "join: the room we got does not hold ",
+    j_al2[] = ": leaving it, asking for a fresh party (0x10b again)",
+    j_a3[] = "join: failed (again not in the friend's room)",
+    j_sv[] = "join: failed (the server refused the party room)", j_lk[] = "join: peer link to ", j_up[] = ": up",
+    j_nu[] = ": not up yet", j_ne[] = ": no connection entry",
+    j_ms[] = "join: our MATCH session got a room with the friend while the party session waits (see the 305 lines)",
+    j_lv[] = "join: leaving the party room we got (nobody stays half joined)";
+U3X_RO const char js_a[] = "join: answer from ", js_ay[] = ": accepted", js_an[] = ": refused",
+    js_fr[] = "join: failed (refused)", js_l[] = "join: in the party lobby";
+void j_text(char *b, int &n, const char *t, int lim = 196) { while (*t && n < lim) b[n++] = *t++; }
+void j_dec(char *b, int &n, uint32_t v) { char d[12]; int k = 0; do { d[k++] = static_cast<char>('0' + v % 10); v /= 10; } while (v); while (k && n < 196) b[n++] = d[--k]; }
+void j_hex(char *b, int &n, uint32_t v) { if (n > 186) return; b[n++] = '0'; b[n++] = 'x'; for (int sh = 28; sh >= 0; sh -= 4) { const uint32_t x = (v >> sh) & 15u; b[n++] = static_cast<char>(x < 10 ? '0' + x : 'a' + x - 10); } }
+uint8_t *party_ext(uintptr_t base) { return reinterpret_cast<uint8_t *>(base + 0x17dc298u); }
+int32_t fr_clock_ext(uintptr_t base) { return rd<int32_t>(reinterpret_cast<const uint8_t *>(base), 0x17b4a90u + 0x114); }
+void zclear(void *p, uint32_t n) { for (uint32_t i = 0; i < n; ++i) reinterpret_cast<uint8_t *>(p)[i] = 0; }
+void zcopy(void *d, const void *s, uint32_t n) { for (uint32_t i = 0; i < n; ++i) reinterpret_cast<uint8_t *>(d)[i] = reinterpret_cast<const uint8_t *>(s)[i]; }
+}  // namespace
+
+extern "C" U3X_FN uint8_t *u3x_fj_member(uint8_t *ps, const uint8_t *name) {
+    for (int i = 0; i < 10; ++i) {
+        uint8_t *m = ps + 0x680 + static_cast<uintptr_t>(i) * 0x120;
+        if (!m[0x25]) continue;
+        int k = 0;
+        while (k < 16 && m[k] == name[k] && m[k]) ++k;
+        if (k == 16 || m[k] == name[k]) return m;
+    }
+    return nullptr;
+}
+
+extern "C" U3X_FN void u3x_fj_fail(uintptr_t base, void *s, const char *why) {
+    JoinStateExt *j = static_cast<JoinStateExt *>(u3h_join_state());
+    ++reinterpret_cast<uint32_t *>(u3h_ext() + 0x3c50)[110];
+    u3h_show_dialog(base, s, 0x4d972420u, 0xc6467f2du, 0xa8cda6e0u, 0, 0, 0xe1e040aau);
+    u3h_so_note(why, nullptr, -1, nullptr);
+    j->wait = 0;
+}
+
+extern "C" U3X_FN void u3x_pj_line(uintptr_t base, const char *what) {
+    JoinStateExt *j = static_cast<JoinStateExt *>(u3h_join_state());
+    uint8_t *ps = party_ext(base);
+    char b[200]; int n = 0;
+    int32_t r = rd<int32_t>(ps, 0xbc);
+    j_text(b, n, what); j_text(b, n, j_s); j_dec(b, n, rd<uint32_t>(ps, 0x1338));
+    j_text(b, n, j_r); j_hex(b, n, static_cast<uint32_t>(rd<uint64_t>(ps, 0x18)));
+    j_text(b, n, j_p); j_hex(b, n, static_cast<uint32_t>(rd<uint64_t>(ps, 0x1340)));
+    j_text(b, n, j_j); j_dec(b, n, rd<uint8_t>(ps, 0xb8)); j_text(b, n, j_sl);
+    if (r < 0) { j_text(b, n, j_mi); r = -r; }
+    j_dec(b, n, static_cast<uint32_t>(r)); j_text(b, n, j_sl); j_dec(b, n, rd<uint64_t>(ps, 0xc0) != 0);
+    j_text(b, n, j_c); j_dec(b, n, rd<uint8_t>(ps, 0xa1)); j_text(b, n, j_l);
+    j_dec(b, n, rd<uint8_t>(ps, 0xc8)); j_text(b, n, j_sl); j_dec(b, n, rd<uint8_t>(ps, 0x1334));
+    j_text(b, n, j_e); j_dec(b, n, rd<uint8_t>(reinterpret_cast<const uint8_t *>(base), 0x17d5c80u));
+    j_text(b, n, j_m); j_dec(b, n, static_cast<uint32_t>(u3x_party_leader(base))); b[n] = 0;
+    u3h_so_note(b, nullptr, -1, nullptr);
+    (void)j;
+}
+
+extern "C" U3X_FN void u3x_pj_accept(uintptr_t base, uint64_t id, int flag) {
+    JoinStateExt *j = static_cast<JoinStateExt *>(u3h_join_state());
+    uint8_t *ps = party_ext(base);
+    u3x_pj_line(base, j_in);
+    if (rd<uint32_t>(ps, 0x1338) == 5u && rd<uint8_t>(ps, 0xb8))
+        reinterpret_cast<int64_t (*)(void *)>(base + 0x77d270u)(ps);
+    const uint32_t st = rd<uint32_t>(ps, 0x1338);
+    if (st == 5u || st == 3u || st == 4u || st > 7u) {
+        put<uint32_t>(ps, 0x1338) = st == 5u ? 1u : 0u;
+        u3h_so_note(j_x, nullptr, static_cast<int32_t>(st), st == 5u ? j_x5 : j_x8);
+    }
+    put<uint8_t>(ps, 0x1374) = 0;
+    put<uint64_t>(ps, 0x1340) = id;
+    put<uint8_t>(ps, 0xb8) = 0;
+    if (flag) put<uint8_t>(ps, 0x1374) = 1;
+    j->pj.id = id; j->pj.t = fr_clock_ext(base); j->pj.ph = 1; j->pj.drop = 0;
+    reinterpret_cast<int64_t (*)(void *)>(base + 0x77d270u)(ps);
+    u3x_pj_line(base, j_af);
+}
+
+extern "C" U3X_FN void u3x_pj_giveup(uintptr_t base) {
+    JoinStateExt *j = static_cast<JoinStateExt *>(u3h_join_state());
+    uint8_t *ps = party_ext(base);
+    if (rd<uint64_t>(ps, 0x1340)) {
+        put<uint64_t>(ps, 0x1340) = 0;
+        u3h_so_note(j_i, nullptr, static_cast<int32_t>(rd<uint32_t>(ps, 0x1338)), nullptr);
+    }
+    if (rd<uint32_t>(ps, 0x1338) == 5u && !rd<uint8_t>(ps, 0xb8)) {
+        put<uint8_t>(ps, 0xb8) = 1;
+        put<int32_t>(ps, 0xbc) = 0;
+        put<uint64_t>(ps, 0xc0) = 0;
+        put<uint32_t>(ps, 0x1338) = rd<uint8_t>(reinterpret_cast<const uint8_t *>(base), 0x17d5c60u) ? 1u : 0u;
+        j->pj.drop = 1;
+        u3h_so_note(j_d, nullptr, -1, nullptr);
+    }
+    j->pj.ph = 0;
+}
+
+extern "C" U3X_FN void u3x_pj_tick(uintptr_t base) {
+    JoinStateExt *j = static_cast<JoinStateExt *>(u3h_join_state());
+    uint8_t *ps = party_ext(base), *be = rd<uint8_t *>(ps, 8);
+    if (!be || !rd<uint8_t>(reinterpret_cast<const uint8_t *>(base), 0x17d5c61u)) return;
+    const uint64_t id = rd<uint64_t>(ps, 0x1340);
+    const uint32_t st = rd<uint32_t>(ps, 0x1338);
+    const int32_t now = fr_clock_ext(base);
+    if (!id) {
+        if (j->pj.ph) { j->pj.ph = 0; u3x_pj_line(base, j_ok); }
+        if (j->pj.drop) {
+            if (st != 0u) j->pj.drop = 0;
+            else if (rd<uint64_t>(ps, 0x18)) {
+                j->pj.drop = 0;
+                u3h_so_note(j_o, nullptr, -1, nullptr);
+                reinterpret_cast<int64_t (*)(void *, void *)>(rd<uintptr_t>(be, 7 * 8))(be, ps);
+            }
+        }
+        return;
+    }
+    if (!j->pj.ph || id != j->pj.id) {
+        j->pj.id = id; j->pj.t = now; j->pj.ph = 1; j->pj.drop = 0;
+        u3x_pj_line(base, j_g);
+        return;
+    }
+    if (j->pj.ph != 1 || now - j->pj.t < 5 * 300) return;
+    j->pj.ph = 2;
+    u3x_pj_line(base, j_no);
+    if (st == 5u) put<uint32_t>(ps, 0x1338) = 1u;
+    else if (st == 2u) { put<uint8_t>(ps, 0xa1) = 1; put<uint32_t>(ps, 0x1338) = 1u; }
+    else if (st == 7u) put<uint8_t>(ps, 0xc8) = 1;
+    else if (st == 3u || st == 4u || st > 7u) put<uint32_t>(ps, 0x1338) = 0u;
+    else return;
+    u3h_so_note(j_f, nullptr, static_cast<int32_t>(st), j_f2);
+}
+
+extern "C" U3X_FN void u3x_fj_cb(uintptr_t base, void *s, int32_t *ev) {
+    JoinStateExt *j = static_cast<JoinStateExt *>(u3h_join_state());
+    uint8_t *ps = party_ext(base);
+    const int32_t now = fr_clock_ext(base);
+    if (ev[0] == 0) { j->joined = 0; j->seen = 0; j->timeout = now + 20 * 300; return; }
+    if (ev[0] != 6) return;
+    const int32_t st = !rd<uint8_t>(ps, 0xb8) ? 1 : (rd<int32_t>(ps, 0xbc) < 0 ? 2 : (rd<uint64_t>(ps, 0xc0) ? 3 : -1));
+    uint8_t *fr = j->joined ? u3x_fj_member(ps, j->from) : nullptr;
+    if (now > j->timeout) {
+        reinterpret_cast<int (*)(void *, int)>(base + 0x652200u)(reinterpret_cast<void *>(base + 0x17bd080u), 0);
+        char b[160]; int n = 0; j_text(b, n, j_to, 158);
+        const char *q = !j->joined ? j_t0 : st != 3 ? j_t1 : !fr ? j_t2 : j_t3;
+        j_text(b, n, q, 158); b[n] = 0; u3h_so_note(b, nullptr, -1, nullptr);
+        j->wait = 0; u3x_pj_giveup(base);
+        if (j->joined && st == 3 && rd<uint64_t>(ps, 0x18) && rd<uint32_t>(ps, 0x12e4) != rd<uint32_t>(ps, 0x12e8)) {
+            put<uint8_t>(ps, 0x1334) = 1;
+            u3h_so_note(j_lv, nullptr, -1, nullptr);
+            u3h_show_dialog(base, s, 0x4d972420u, 0xc6467f2du, 0xa8cda6e0u, 0, 0, 0xe1e040aau);
+        }
+        return;
+    }
+    if (!j->joined) {
+        uint32_t ix;
+        if (u3h_mq_find(base, 0x10c, &ix, 0) != 0) return;
+        uint8_t from[0x24]; uint8_t d[0x10]; uint32_t len = 0x10; zclear(d, 0x10);
+        if (u3h_mq_get_np(base, ix, from, d, &len) != 0) return;
+        const uint64_t id = rd<uint64_t>(d, 0);
+        u3h_fj_note(js_a, from, id ? js_ay : js_an, -1);
+        if (!id) { u3x_fj_fail(base, s, js_fr); return; }
+        if (u3x_party_leader(base)) {
+            uint8_t *list[10]; const uint32_t n = u3h_members(ps, list); uint8_t *me = nullptr;
+            if (rd<uint64_t>(ps, 0x18))
+                for (int i = 0; i < 10; ++i) {
+                    uint8_t *m = ps + 0x680 + static_cast<uintptr_t>(i) * 0x120;
+                    if (m[0x25] && rd<uint32_t>(m, 0x2c) == rd<uint32_t>(ps, 0x12e4)) { me = m; break; }
+                }
+            if (me)
+                for (uint32_t k = 0; k < n; ++k)
+                    if (rd<uint32_t>(me, 0x28) != rd<uint32_t>(list[k], 0x28)) {
+                        const uint64_t v = id; u3h_mq_send(base, list[k], 0x116, &v, 8);
+                    }
+        }
+        j->joined = 1; j->seen = 0; zcopy(j->from, from, 0x14);
+        u3x_pj_accept(base, id, rd<uint8_t>(d, 8));
+        ++reinterpret_cast<uint32_t *>(u3h_ext() + 0x3c50)[108];
+        return;
+    }
+    if (st == 2) { u3x_fj_fail(base, s, j_sv); return; }
+    if (st != 3) {
+        if (!(j->seen & 1)) { j->seen |= 1; j->tj = now; u3h_so_note(j_w, nullptr, -1, nullptr); }
+        if (!(j->seen & 4) && now - j->tj > 2 * 300) {
+            uint8_t *ms = reinterpret_cast<uint8_t *>(base + 0x17d6420u);
+            if (rd<uint64_t>(ms, 0x18) && u3x_fj_member(ms, j->from)) { j->seen |= 4; u3h_so_note(j_ms, nullptr, -1, nullptr); }
+        }
+        return;
+    }
+    if (!(j->seen & 2)) {
+        j->seen |= 2; j->tj = now;
+        int nm = 0; for (int i = 0; i < 10; ++i) if (rd<uint8_t>(ps, 0x680 + static_cast<uintptr_t>(i) * 0x120 + 0x25)) ++nm;
+        char b[160]; int n = 0; j_text(b, n, j_rm, 158); j_dec(b, n, static_cast<uint32_t>(nm));
+        j_text(b, n, j_ld, 158); j_dec(b, n, rd<uint32_t>(ps, 0x12e4) == rd<uint32_t>(ps, 0x12e8));
+        j_text(b, n, j_fr, 158); j_dec(b, n, fr != nullptr); b[n] = 0; u3h_so_note(b, nullptr, -1, nullptr);
+    }
+    if (!fr) {
+        if (now - j->tj < 300) return;
+        put<uint8_t>(ps, 0x1334) = 1;
+        if (j->try_) { u3x_fj_fail(base, s, j_a3); return; }
+        j->try_ = 1; u3h_fj_note(j_al, j->from, j_al2, -1);
+        uint8_t m[0x10], to[0x24]; zclear(m, 0x10); zclear(to, 0x24); zcopy(to, j->from, 0x14);
+        m[9] = 0x4a; m[10] = 2; u3h_mq_send(base, to, 0x10b, m, 0x10);
+        j->joined = 0; j->seen = 0; j->timeout = now + 20 * 300; j->wait_t = now;
+        return;
+    }
+    uint8_t *lm = fr;
+    if (rd<uint32_t>(ps, 0x12e4) != rd<uint32_t>(ps, 0x12e8))
+        for (int i = 0; i < 10; ++i) {
+            uint8_t *m = ps + 0x680 + static_cast<uintptr_t>(i) * 0x120;
+            if (m[0x25] && rd<uint32_t>(m, 0x2c) == rd<uint32_t>(ps, 0x12e8)) { lm = m; break; }
+        }
+    uint8_t *ce = u3h_gt_entry_by_id(base, rd<int32_t>(lm, 0x34));
+    const int32_t c = ce ? u3h_gt_conn_state(base, rd<int32_t>(ce, 0)) : -9;
+    if (static_cast<uint8_t>(c + 16) != j->lastc) {
+        j->lastc = static_cast<uint8_t>(c + 16);
+        u3h_fj_note(j_lk, lm, c == 2 ? j_up : ce ? j_nu : j_ne, -1);
+    }
+    if (c != 2) return;
+    u3h_show(base, s, 0x53cbb5f2u, 0); u3h_show(base, s, 0xb99a3235u, 0);
+    ++reinterpret_cast<uint32_t *>(u3h_ext() + 0x3c50)[109];
+    u3h_so_note(js_l, nullptr, -1, nullptr); j->wait = 0;
+    if (j->hi.ok && (j->hi.flags & 1)) j->dir_t = now ? now : 1;
+}
+
+
+extern "C" {
+U3H_IMPORT int u3h_onb_pl_np(uintptr_t base, uint8_t *e, const char *name);
+int64_t u3x_onb_s0(void *); int64_t u3x_onb_s2(void *); int64_t u3x_onb_s3(void *, uint8_t *);
+int64_t u3x_onb_s4(void *, uint8_t *, uint32_t, uint32_t, uint32_t, uint32_t);
+int64_t u3x_onb_s5(void *, uint8_t *, uint32_t, uint32_t, int32_t, int32_t, int32_t, uint32_t);
+int64_t u3x_onb_s6(void *, uint8_t *, uint64_t); int64_t u3x_onb_s7(void *, uint8_t *);
+int64_t u3x_onb_s8(void *, uint8_t *, uint32_t); int64_t u3x_onb_s9(void *, uint8_t *, uint32_t, uint32_t);
+int64_t u3x_onb_s10(void *, uint8_t *, uint32_t); int64_t u3x_onb_s11(void *, uint8_t *, uint32_t);
+int64_t u3x_onb_s12(void *, uint8_t *, const uint8_t *, uint32_t); int64_t u3x_onb_s13(void *, uint8_t *, uint32_t);
+int64_t u3x_onb_s14(void *, uint8_t *, const uint16_t *, uint32_t);
+int64_t u3x_onb_s15(void *, uint8_t *); int64_t u3x_onb_s16(void *, uint8_t *);
+void u3x_onb_wire(uintptr_t, const char *, uint8_t *, uint64_t, const char *, int32_t);
+void u3x_fl_md(void *, uint8_t *); uint8_t *u3x_onb_by_cookie(void *, uint32_t);
+uint8_t *u3x_onb_by_room(void *, uint64_t); void u3x_onb_strcpy(char *, const char *, uint32_t);
+void u3x_onb_note(int); int32_t u3x_onb_send(const void *, uint32_t);
+void u3x_onb_ping_restart(void *); int u3x_onb_ping_due(void *);
+U3H_IMPORT int32_t u3h_smn_pull(uint8_t *rx, uint32_t *len, uint32_t cap);
+U3H_IMPORT uint32_t u3h_smn_len(const uint8_t *m, uint32_t n);
+U3H_IMPORT uint32_t u3h_smn_swap(uint8_t *m, uint32_t len);
+U3H_IMPORT void u3h_smn_got(const uint8_t *m, uint32_t id);
+U3H_IMPORT void u3h_smn_unknown(const uint8_t *m, uint32_t n);
+U3H_IMPORT uint64_t *u3h_onb_pj(void);
+U3H_IMPORT void **u3h_onb_vt(void);
+U3H_IMPORT uint64_t *u3h_lnb_match_room(void);
+U3H_IMPORT const char *u3h_fw_sess(uintptr_t base, uint8_t *ss);
+U3H_IMPORT void u3h_fw_line(const char *a, uint32_t hex, int dig, const char *b, int32_t v);
+U3H_IMPORT void u3h_cg_log(const char *a, int32_t v);
+U3H_IMPORT int u3h_ol_up(void);
+U3H_IMPORT void u3h_gt_stamp(uintptr_t base, uint8_t *sub, int off);
+}
+
+namespace {
+struct O19Be { void *vt; char name[0x24]; uint8_t *bind[4]; uint32_t next_ping; uint32_t rxlen; uint8_t rx[0x1000]; uintptr_t base; };
+static_assert(sizeof(O19Be) == 0x1060, "the C OnbBe layout");
+void o19_clear(uintptr_t base, uint8_t *ss) { reinterpret_cast<int64_t (*)(void *)>(base + 0x7a25f0u)(ss); }
+U3X_RO const char o19_x[] = "room joined (305): the cookie points at another session; given to the one that asked: ";
+U3X_RO const char o19_j[] = "room joined (305): ", o19_m[] = ", members ", o19_o[] = ", owner id ", o19_w[] = ", our id ",
+    o19_c[] = ", cookie ", o19_r[] = ", room ", o19_mj[] = "member joined (306): ", o19_mi[] = " in the ",
+    o19_l[] = "room left (308) by member ", o19_lr[] = " of the ", o19_le[] = " room",
+    o19_k[] = "we were kicked out of the ", o19_d[] = "the server destroyed the ", o19_ke[] = " room (", o19_kc[] = "), net state 0x",
+    o19_oo[] = "room owner changed (317): ", o19_on[] = ", new owner id ",
+    o19_h[] = "match room made: party told to follow (member data)";
+void o19_cat(char *b, int &n, const char *t) { while (*t && n < 120) b[n++] = *t++; }
+void o19_dec(char *b, int &n, uint32_t v) { char d[12]; int k = 0; do { d[k++] = static_cast<char>('0' + v % 10); v /= 10; } while (v); while (k && n < 120) b[n++] = d[--k]; }
+int64_t o19_call(uint8_t *ss, int slot) { return reinterpret_cast<int64_t (*)(void *)>((*reinterpret_cast<uintptr_t **>(ss))[slot])(ss); }
+void o19_add(uintptr_t base, uint8_t *ss, const MemberInfo *in, int you, int host) { u3x_add_member(base, ss, in, you, host); }
+}  // namespace
+
+extern "C" U3X_FN void u3x_onb_member_link(uintptr_t base, uint8_t *ss, const char *name) {
+    uint8_t *cm = reinterpret_cast<uint8_t *>(base + 0x17f31b0u);
+    if (cm[0x4db4] || !same_name(name, reinterpret_cast<const char *>(cm + 0x4d90))) return;
+    for (int k = 0; k < 32; ++k) {
+        uint8_t *e = cm + 8 + static_cast<uintptr_t>(k) * 0x220;
+        if (!e[4] || !same_name(reinterpret_cast<const char *>(e + 7), name)) continue;
+        if (ss == reinterpret_cast<uint8_t *>(base + 0x17d6420u)) u3h_gt_stamp(base, e + 0x40, 0xa8);
+        if (!rd<int32_t>(e, 0x34)) u3h_onb_pl_np(base, e, name);
+        break;
+    }
+}
+
+extern "C" U3X_FN void u3x_onb_peer_begin(uintptr_t base, uint8_t *ss) {
+    for (int i = 0; i < 10; ++i) {
+        uint8_t *mb = ss + 0x680 + static_cast<uintptr_t>(i) * 0x120;
+        if (!mb[0x25] || rd<uint32_t>(mb, 0x2c) == rd<uint32_t>(ss, 0x12e4)) continue;
+        u3x_onb_member_link(base, ss, reinterpret_cast<const char *>(mb));
+    }
+}
+
+extern "C" U3X_FN void u3x_onb_info(void *in, const uint8_t *r) {
+    MemberInfo *i = static_cast<MemberInfo *>(in);
+    i->name = reinterpret_cast<const char *>(r); i->id = rd<uint16_t>(r, 36); i->nat = r[38];
+    i->length = r[39]; i->data = r + 40; i->has_data = 1;
+}
+
+extern "C" U3X_FN uint32_t u3x_onb_msg_in(void *be_) {
+    O19Be &be = *static_cast<O19Be *>(be_);
+    const uintptr_t base = be.base;
+    uint8_t *m = be.rx;
+    const uint32_t n = be.rxlen, t = rd<uint32_t>(m, 0);
+    if (n < 4) return 0;
+    if (t == 305) {
+        if (n < 160) return 0;
+        const uint32_t cnt = rd<uint16_t>(m, 26), need = 160 + cnt * 104;
+        if (n < need) return 0;
+        const uint32_t ck = rd<uint32_t>(m, 8);
+        const uint64_t rid = rd<uint64_t>(m, 16);
+        uint8_t *ss = (ck >= 1 && ck <= 4) ? be.bind[ck - 1] : nullptr;
+        int pi = -1;
+        if (rid) for (int i = 0; i < 4; ++i) if (be.bind[i] && u3h_onb_pj()[i] == rid) { pi = i; break; }
+        if (pi >= 0) {
+            if (be.bind[pi] != ss) { u3x_onb_wire(base, o19_x, be.bind[pi], rid, nullptr, -1); ss = be.bind[pi]; }
+            u3h_onb_pj()[pi] = 0;
+        } else if (ck >= 1 && ck <= 4) u3h_onb_pj()[ck - 1] = 0;
+        if (!ss) ++ext_eb()[148];
+        if (ss) {
+            char a[120]; int k = 0;
+            o19_cat(a, k, o19_j); o19_cat(a, k, u3h_fw_sess(base, ss)); o19_cat(a, k, o19_m); o19_dec(a, k, cnt);
+            o19_cat(a, k, o19_o); o19_dec(a, k, rd<uint16_t>(m, 12)); o19_cat(a, k, o19_w); o19_dec(a, k, rd<uint16_t>(m, 14));
+            o19_cat(a, k, o19_c); o19_dec(a, k, ck); o19_cat(a, k, o19_r); a[k] = 0;
+            u3h_fw_line(a, static_cast<uint32_t>(rid), 8, nullptr, -1);
+            put<uint32_t>(ss, 0x20c) = rd<uint16_t>(m, 24);
+            put<uint64_t>(ss, 0x18) = rd<uint64_t>(m, 16);
+            for (uint32_t i = 0; i < cnt; ++i) {
+                const uint8_t *r = m + 160 + static_cast<uintptr_t>(i) * 104;
+                MemberInfo in; u3x_onb_info(&in, r);
+                const uint16_t id = rd<uint16_t>(r, 36);
+                o19_add(base, ss, &in, id == rd<uint16_t>(m, 14), id == rd<uint16_t>(m, 12));
+                ++ext_eb()[143];
+            }
+            if (!ss[0xb8]) {
+                if (rd<uint64_t>(ss, 0x18)) { put<uint32_t>(ss, 0xbc) = 0; put<uint32_t>(ss, 0xc0) = 1; o19_call(ss, 2); }
+                else { put<uint32_t>(ss, 0xc0) = 0; put<int32_t>(ss, 0xbc) = -1; }
+                ss[0xb8] = 1;
+            }
+            if (!ss[0xa1]) { o19_call(ss, 1); ss[0xa1] = 1; }
+            if (ss == reinterpret_cast<uint8_t *>(base + 0x17d6420u) && rd<uint64_t>(ss, 0x18) &&
+                rd<uint32_t>(ss, 0x12e4) == rd<uint32_t>(ss, 0x12e8) && at<uint32_t>(base + 0x17d603cu) == 2) {
+                uint8_t *ps = reinterpret_cast<uint8_t *>(base + 0x17dc298u);
+                *u3h_lnb_match_room() = rd<uint64_t>(ss, 0x18);
+                if (rd<uint64_t>(ps, 0x18) && rd<uint32_t>(ps, 0x12e4) == rd<uint32_t>(ps, 0x12e8)) {
+                    u3x_fl_md(nullptr, ps);
+                    u3h_cg_log(o19_h, -1);
+                }
+            }
+            u3x_onb_peer_begin(base, ss);
+        }
+        return need;
+    }
+    if (t == 306) {
+        if (n < 120) return 0;
+        const uint64_t room = rd<uint64_t>(m, 8);
+        for (int bi = 0; bi < 4; ++bi) {
+            uint8_t *ss = be.bind[bi];
+            if (!ss || !room || rd<uint64_t>(ss, 0x18) != room) continue;
+            MemberInfo in; u3x_onb_info(&in, m + 16);
+            char a[90]; int k = 0; o19_cat(a, k, o19_mj);
+            for (int q = 0; q < 16 && in.name[q] && k < 60; ++q) a[k++] = in.name[q];
+            o19_cat(a, k, o19_mi); a[k] = 0; u3x_onb_wire(base, a, ss, room, nullptr, -1);
+            o19_add(base, ss, &in, 0, 0); ++ext_eb()[143]; u3x_onb_member_link(base, ss, in.name);
+        }
+        return 120;
+    }
+    if (t == 308) {
+        if (n < 24) return 0;
+        const uint64_t room = rd<uint64_t>(m, 8);
+        for (int bi = 0; bi < 4; ++bi) {
+            uint8_t *ss = be.bind[bi];
+            if (!ss || !room || rd<uint64_t>(ss, 0x18) != room) continue;
+            uint8_t *mb = u3x_find_member(ss, rd<uint16_t>(m, 16));
+            char b[120]; int k = 0; o19_cat(b, k, o19_l);
+            if (mb) for (int q = 0; q < 16 && mb[q] && k < 100; ++q) b[k++] = static_cast<char>(mb[q]);
+            o19_cat(b, k, o19_lr); o19_cat(b, k, u3h_fw_sess(base, ss)); o19_cat(b, k, o19_le); b[k] = 0;
+            u3h_fw_line(b, 0, 0, nullptr, -1);
+            if (mb) { u3x_remove_member(base, ss, reinterpret_cast<const char *>(mb)); ++ext_eb()[144]; }
+        }
+        return 24;
+    }
+    if (t == 310) {
+        if (n < 16) return 0;
+        const uint32_t cnt = rd<uint32_t>(m, 12), need = 16 + cnt * 56;
+        if (n < need) return 0;
+        uint8_t *ss = u3x_onb_by_cookie(&be, rd<uint32_t>(m, 8));
+        if (ss) {
+            put<uint32_t>(ss, 0xb4) = 0; ss[0xb0] = 1;
+            for (uint32_t i = 0; i < cnt && i < 20; ++i) {
+                const uint8_t *r = m + 16 + static_cast<uintptr_t>(i) * 56;
+                uint8_t *o = ss + 0x220 + static_cast<uintptr_t>(i) * 56;
+                put<uint64_t>(o, 0) = rd<uint64_t>(r, 0); copy_bytes(o + 8, r + 20, 36);
+                put<uint32_t>(o, 44) = rd<uint16_t>(r, 12); put<uint32_t>(o, 52) = rd<uint16_t>(r, 16);
+                put<uint32_t>(ss, 0x218) = rd<uint32_t>(ss, 0x218) + 1; ++ext_eb()[142];
+            }
+        }
+        return need;
+    }
+    if (t == 312 || t == 313) {
+        if (n < 16) return 0;
+        const uint64_t room = rd<uint64_t>(m, 8);
+        for (int bi = 0; bi < 4; ++bi) {
+            uint8_t *ss = be.bind[bi];
+            if (!ss || !room || rd<uint64_t>(ss, 0x18) != room) continue;
+            char b[120]; int k = 0; o19_cat(b, k, t == 312 ? o19_k : o19_d); o19_cat(b, k, u3h_fw_sess(base, ss));
+            o19_cat(b, k, o19_ke); o19_dec(b, k, t); o19_cat(b, k, o19_kc); b[k] = 0;
+            u3h_fw_line(b, at<uint32_t>(base + 0x1b68810u), 2, nullptr, -1);
+            o19_call(ss, 5); if (t == 312) o19_call(ss, 6); put<uint64_t>(ss, 0x18) = 0; o19_clear(base, ss); ++ext_eb()[145];
+        }
+        return 16;
+    }
+    if (t == 315) {
+        if (n < 80) return 0;
+        const uint64_t room = rd<uint64_t>(m, 8);
+        for (int bi = 0; bi < 4; ++bi) {
+            uint8_t *ss = be.bind[bi];
+            if (!ss || !room || rd<uint64_t>(ss, 0x18) != room) continue;
+            uint8_t *mb = u3x_find_member(ss, rd<uint16_t>(m, 4));
+            if (mb) { uint32_t l = m[6]; if (l > 64) l = 64; put<uint32_t>(mb, 0x3c) = m[6]; copy_bytes(mb + 0x40, m + 16, l); }
+        }
+        return 80;
+    }
+    if (t == 317 || t == 319 || t == 321) {
+        if (n < 16) return 0;
+        uint8_t *ss = u3x_onb_by_room(&be, rd<uint64_t>(m, 8));
+        if (ss) {
+            if (t == 317) {
+                u3x_onb_wire(base, o19_oo, ss, rd<uint64_t>(ss, 0x18), o19_on, static_cast<int32_t>(rd<uint16_t>(m, 4)));
+                put<uint32_t>(ss, 0x12e8) = rd<uint16_t>(m, 4); o19_call(ss, 7); ++ext_eb()[146]; u3x_onb_peer_begin(base, ss);
+            } else if (t == 319) ss[0x12ec] = m[4] & 1;
+            else put<uint32_t>(ss, 0x204) = rd<uint16_t>(m, 4);
+        }
+        return 16;
+    }
+    if (t == 324) {
+        if (n < 144) return 0;
+        uint8_t *ss = u3x_onb_by_room(&be, rd<uint64_t>(m, 8));
+        if (ss) u3x_onb_strcpy(reinterpret_cast<char *>(ss + 0x20), reinterpret_cast<const char *>(m + 16), 128);
+        return 144;
+    }
+    return 0;
+}
+
+extern "C" U3X_FN int64_t u3x_onb_s_nop(void) { return 0; }
+
+extern "C" U3X_FN int64_t u3x_onb_s1(void *be_) {
+    O19Be &be = *static_cast<O19Be *>(be_);
+    u3x_onb_note(1);
+    const int u = u3h_smn_up();
+    if (u) {
+        if (u == 1) u3h_smn_pull(be.rx, &be.rxlen, sizeof be.rx);
+        while (be.rxlen >= 4) {
+            const uint32_t need = u3h_smn_len(be.rx, be.rxlen);
+            if (!need || need > sizeof be.rx) { u3h_smn_unknown(be.rx, be.rxlen); be.rxlen = 0; break; }
+            if (be.rxlen < need) break;
+            const uint32_t id = u3h_smn_swap(be.rx, need); u3h_smn_got(be.rx, id);
+            uint32_t used = u3x_onb_msg_in(&be); if (!used) used = need;
+            ++ext_eb()[135]; ext_eb()[136] = id;
+            for (uint32_t j = used; j < be.rxlen; ++j) be.rx[j - used] = be.rx[j];
+            be.rxlen -= used;
+        }
+        return 0;
+    }
+    if (!u3h_ol_up()) { ++ext_eb()[149]; return -1; }
+    if (u3x_onb_ping_due(&be)) { uint32_t p = 325; u3x_onb_send(&p, 4); ++ext_eb()[137]; u3x_onb_ping_restart(&be); }
+    while (be.rxlen) {
+        const uint32_t used = u3x_onb_msg_in(&be); if (!used) break;
+        ++ext_eb()[135]; ext_eb()[136] = rd<uint32_t>(be.rx, 0);
+        for (uint32_t j = used; j < be.rxlen; ++j) be.rx[j - used] = be.rx[j];
+        be.rxlen -= used;
+    }
+    return 0;
+}
+
+extern "C" U3X_FN void u3x_onb_vtable(void) {
+    void **vt = u3h_onb_vt();
+    for (int i = 0; i < 32; ++i) vt[i] = reinterpret_cast<void *>(&u3x_onb_s_nop);
+    vt[0] = reinterpret_cast<void *>(&u3x_onb_s0); vt[1] = reinterpret_cast<void *>(&u3x_onb_s1);
+    vt[2] = reinterpret_cast<void *>(&u3x_onb_s2); vt[3] = reinterpret_cast<void *>(&u3x_onb_s3);
+    vt[4] = reinterpret_cast<void *>(&u3x_onb_s4); vt[5] = reinterpret_cast<void *>(&u3x_onb_s5);
+    vt[6] = reinterpret_cast<void *>(&u3x_onb_s6); vt[7] = reinterpret_cast<void *>(&u3x_onb_s7);
+    vt[8] = reinterpret_cast<void *>(&u3x_onb_s8); vt[9] = reinterpret_cast<void *>(&u3x_onb_s9);
+    vt[10] = reinterpret_cast<void *>(&u3x_onb_s10); vt[11] = reinterpret_cast<void *>(&u3x_onb_s11);
+    vt[12] = reinterpret_cast<void *>(&u3x_onb_s12); vt[13] = reinterpret_cast<void *>(&u3x_onb_s13);
+    vt[14] = reinterpret_cast<void *>(&u3x_onb_s14); vt[15] = reinterpret_cast<void *>(&u3x_onb_s15);
+    vt[16] = reinterpret_cast<void *>(&u3x_onb_s16);
+}
+
+
+extern "C" {
+U3H_IMPORT int u3h_mp_code_is(uintptr_t base, uint32_t off, const char *hex12);
+U3H_IMPORT uint32_t u3h_crc_sid(const char *p);
+}
+
+namespace {
+uint8_t *o21_session(uintptr_t base) { return reinterpret_cast<uint8_t *>(base + 0x17d6420u); }
+uint32_t *o21_rs(void *s) { return reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(s) + 0x3d40); }
+uint32_t *o21_rs2(void *s) { return reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(s) + 0x3d78); }
+uintptr_t o21_native(void *s, int k) { return *reinterpret_cast<uintptr_t *>(static_cast<uint8_t *>(s) + 768 + k * 8); }
+}  // namespace
+
+extern "C" U3X_FN int u3x_handle_obj_valid(uint8_t *h) {
+    uint8_t **pp = *reinterpret_cast<uint8_t ***>(h);
+    const uint32_t id = rd<uint32_t>(h, 8);
+    return pp && id && *pp && rd<uint32_t>(*pp, 0x7c) == id;
+}
+extern "C" U3X_FN uint8_t *u3x_handle_obj(uint8_t *h) { return u3x_handle_obj_valid(h) ? **reinterpret_cast<uint8_t ***>(h) : nullptr; }
+extern "C" U3X_FN int32_t u3x_net_now(uintptr_t base) { return at<int32_t>(base + 0x17b4ca4u); }
+extern "C" U3X_FN int32_t u3x_loc_now(uintptr_t base) { return at<int32_t>(base + 0x17b4ba4u); }
+
+extern "C" U3X_FN uint8_t *u3x_netgame_cur(uintptr_t base, void *s) {
+    const uintptr_t lookup = at<uintptr_t>(reinterpret_cast<uintptr_t>(s) + 656);
+    void **h = lookup ? reinterpret_cast<void **(*)(uint32_t)>(lookup)(0x3b9a067du) : nullptr;
+    int32_t *t = h ? static_cast<int32_t *>(*h) : nullptr;
+    const int16_t i = rd<int16_t>(reinterpret_cast<const uint8_t *>(base + 0x17cb060u), 0x661c);
+    if (!t || i < 0 || i >= t[0]) return nullptr;
+    uint8_t *e = *reinterpret_cast<uint8_t **>(reinterpret_cast<uint8_t *>(t) + 8);
+    return e ? e + static_cast<int64_t>(i) * 0xd0 : nullptr;
+}
+extern "C" U3X_FN int32_t u3x_netgame_type(uintptr_t base, void *s) {
+    uint8_t *e = u3x_netgame_cur(base, s); return e ? rd<int32_t>(e, 0xc) : 0;
+}
+extern "C" U3X_FN int u3x_net_coop_mode(uintptr_t base, void *s) {
+    if (!at<uint8_t>(base + 0x17d5c61u)) return 0;
+    const uint32_t t = static_cast<uint32_t>(u3x_netgame_type(base, s)) - 4u;
+    return t < 15 && ((0x72b1u >> t) & 1);
+}
+extern "C" U3X_FN int u3x_net_late_joining(uintptr_t base) {
+    uint8_t *ms = o21_session(base);
+    if (!rd<uint64_t>(ms, 0x18) || rd<uint32_t>(ms, 0x12e4) == rd<uint32_t>(ms, 0x12e8)) return 0;
+    return at<int32_t>(base + 0x1b69530u) > 3;
+}
+extern "C" U3X_FN int u3x_np_has_effect(void *s, uint8_t *p, uint32_t h) {
+    return reinterpret_cast<uint8_t (*)(uint8_t *, uint32_t, void *)>(o21_native(s, 56))(p, h, nullptr) != 0;
+}
+extern "C" U3X_FN int u3x_np_alive(void *s, uint8_t *p) {
+    if (u3x_np_has_effect(s, p, 0xc054e78bu)) return 1;
+    if (u3x_handle_obj_valid(p + 0x10) && rd<int32_t>(p, 0x39c) <= rd<int32_t>(p, 0x3a0)) return 1;
+    return p[0x770] != 0;
+}
+extern "C" U3X_FN uint8_t *u3x_screen_player(uintptr_t base, uint8_t *p) {
+    const int32_t sc = rd<int32_t>(p, 0x1e8);
+    return u3x_handle_obj(reinterpret_cast<uint8_t *>(base + 0x1bb9500u) + static_cast<int64_t>(sc) * 0x10);
+}
+extern "C" U3X_FN uint32_t u3x_respawn_delay_bits(void *s, uint8_t *p) {
+    uintptr_t fn = o21_native(s, 55); uint32_t r;
+    __asm__ volatile("push %%rbp\n\tmov %%rsp,%%rbp\n\tand $-16,%%rsp\n\tcall *%%rax\n\tmov %%rbp,%%rsp\n\tpop %%rbp\n\tmovd %%xmm0,%k1"
+     : "+a"(fn), "=r"(r), "+D"(p):: "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11", "memory", "cc");
+    return r;
+}
+extern "C" U3X_FN int64_t u3x_f_ticks(uint32_t f, int64_t half) {
+    int64_t e = static_cast<int64_t>((f >> 23) & 0xff), m = static_cast<int64_t>(f & 0x7fffff);
+    if (!e && !m) return -half * 150;
+    m |= 0x800000; e -= 127 + 23;
+    int64_t v = m * 300;
+    int64_t sh = e + 16;
+    v = sh >= 0 ? (sh > 30 ? static_cast<int64_t>(1) << 46 : v << sh) : (sh < -40 ? 0 : v >> (-sh));
+    if (f >> 31) v = -v;
+    v -= (half * 150) << 16;
+    return v >= 0 ? v >> 16 : -((-v) >> 16);
+}
+extern "C" U3X_FN int u3x_f_positive(uint32_t f) { return !(f >> 31) && (f & 0x7fffffff) && ((f >> 23) & 0xff) != 0xff; }
+
+extern "C" U3X_FN void *u3x_dc_type_object(uintptr_t base, uint32_t key) {
+    uint8_t *t = reinterpret_cast<uint8_t *>(base + 0x1b3ee70u);
+    const int32_t n = rd<int32_t>(t, 0x3c);
+    uint64_t *b = rd<uint64_t *>(t, 0);
+    uint32_t h = 0x811c9dc5u;
+    for (int i = 0; i < 4; ++i) { h ^= (key >> (i * 8)) & 0xffu; h *= 0x1000193u; }
+    if (!b || n <= 0) return nullptr;
+    for (uint8_t *nd = reinterpret_cast<uint8_t *>(b[h % static_cast<uint32_t>(n)]); nd; nd = rd<uint8_t *>(nd, 0))
+        if (rd<uint32_t>(nd, 0x10) == key) return nd == reinterpret_cast<uint8_t *>(b[n]) ? nullptr : rd<void *>(nd, 0x18);
+    return nullptr;
+}
+
+extern "C" U3X_FN int u3x_default_spawner_exists(uintptr_t base, void *s) {
+    if (!u3h_mp_code_is(base, 0x72fb00u, "554889e553504889fbbf7d06")) return 1;
+    uint8_t *lv = reinterpret_cast<uint8_t *(*)(uintptr_t)>(base + 0x72fb00u)(base + 0x17cb060u);
+    if (!lv) return 0;
+    uint8_t *list = rd<uint8_t *>(lv, 0x190);
+    if (!list) return 0;
+    const int32_t n = rd<int32_t>(list, 0x10);
+    uint8_t **sp = rd<uint8_t **>(list, 8);
+    uint8_t *flt = static_cast<uint8_t *>(s) - 0x10100 + 0x420;
+    if (flt[0] != 0x48 || flt[1] != 0x8b || flt[2] != 0x46 || flt[3] != 0x68) return 1;
+    for (int32_t i = 0; sp && i < n && i < 4096; ++i) {
+        uint8_t *e = sp[i];
+        if (!e) continue;
+        if (!reinterpret_cast<uint8_t (*)(uintptr_t, uint8_t *)>(flt)(base + 0x17cb060u, e)) continue;
+        uint8_t *tt = rd<uint8_t *>(e, 0x68);
+        if (!tt) continue;
+        uint8_t *data = rd<uint8_t *>(tt, 0);
+        const uint32_t cnt = rd<uint32_t>(tt, 8);
+        if (!data) continue;
+        uint32_t lo = 0, m = cnt;
+        while (m) { const uint32_t h = m >> 1; if (rd<uint32_t>(data, (lo + h) * 0x10) < 0x5bfae217u) { lo += h + 1; m -= h + 1; } else m = h; }
+        if (lo >= cnt || rd<uint32_t>(data, lo * 0x10) != 0x5bfae217u) continue;
+        uint16_t *v = rd<uint16_t *>(data, lo * 0x10 + 8);
+        if (v && *v == 1 && rd<uint32_t *>(v, 4) && *rd<uint32_t *>(v, 4)) return 1;
+    }
+    return 0;
+}
+
+extern "C" U3X_FN int u3x_spawn_locator(uintptr_t base, void *s, uint8_t *p, void *loc, uint32_t spawner, uint32_t index) {
+    if (!p[0x3b8] && !reinterpret_cast<void *(*)(uintptr_t, uint32_t)>(o21_native(s, 58))(base + 0x1afcf10u, spawner) && !u3x_default_spawner_exists(base, s)) {
+        ++o21_rs2(s)[7]; return 0;
+    }
+    return reinterpret_cast<uint8_t (*)(uint8_t *, void *, uint32_t, uint32_t)>(o21_native(s, 54))(p, loc, spawner, index) != 0;
+}
+
+extern "C" U3X_FN void u3x_spawn_fade(uintptr_t base, void *s, uint8_t *p, int on) {
+    uint32_t *e = o21_rs2(s);
+    if (e[0] & 2) return;
+    if (!u3h_mp_code_is(base, 0x1197380u, "554889e54157415641554154")) return;
+    uint32_t v = on ? 0x3f800000u : 0u;
+    if (at<int32_t>(base + 0x17cb060u + 0x320) > 0) v = 0x3f800000u;
+    uint8_t *proc = nullptr;
+    {
+        uint8_t **pp = *reinterpret_cast<uint8_t ***>(base + 0x1b3ee38u);
+        const uint32_t id = rd<uint32_t>(reinterpret_cast<const uint8_t *>(base + 0x1b3ee38u), 8);
+        if (pp && id && *pp && rd<uint32_t>(*pp, 0x7c) == id) proc = *pp;
+    }
+    const int32_t screen = rd<int32_t>(p, 0x1e8);
+    uint64_t a0[3] = {v, 0, base + 0x17006d0u}, a1[3] = {static_cast<uint64_t>(screen), 0, base + 0x1700670u}, a2[3] = {}, a3[3] = {};
+    alignas(16) uint64_t r[8] = {};
+    reinterpret_cast<void (*)(void *, void *, uint32_t, void *, void *, void *, void *, void *)>(base + 0x1197380u)(r, nullptr, 0xa1a13050u, proc, a0, a1, a2, a3);
+    ++e[3]; e[4] = (static_cast<uint32_t>(screen) << 31) | (v >> 1);
+}
+
+extern "C" U3X_FN void u3x_spawn_region_request(uintptr_t base, void *s, uint8_t *p, uint32_t spawner) {
+    uint8_t *ng = u3x_netgame_cur(base, s);
+    alignas(16) uint32_t loc[16] = {};
+    if (!u3x_spawn_locator(base, s, p, loc, spawner, 0)) return;
+    alignas(16) uint32_t pos[4];
+    for (int i = 0; i < 4; ++i) pos[i] = loc[i];
+    void *obj = u3x_dc_type_object(base, 0x6e51b48fu);
+    const uint64_t id = reinterpret_cast<uint64_t (*)(void *, uint32_t, uint32_t)>(o21_native(s, 62))(obj, 0x9f2aeafbu, 0xd3b86d60u);
+    alignas(16) uint8_t req[0x20] = {};
+    *reinterpret_cast<void **>(req) = pos;
+    *reinterpret_cast<uint64_t *>(req + 8) = id;
+    *reinterpret_cast<uint32_t *>(req + 0x10) = 0x2743c4b0u;
+    *reinterpret_cast<uint32_t *>(req + 0x14) = ng ? rd<uint32_t>(ng, 0) : 0;
+    req[0x18] = 0; req[0x19] = rd<uint8_t>(reinterpret_cast<const uint8_t *>(base + 0x1afcf10u), 0x8a10);
+    reinterpret_cast<void (*)(uintptr_t, void *)>(o21_native(s, 60))(base + 0x1afcf10u, req);
+    ++o21_rs(s)[7];
+    if (!ng) return;
+    int32_t *ml = static_cast<int32_t *>(reinterpret_cast<void *(*)(uint32_t)>(o21_native(s, 13))(0xdec97a4u));
+    if (!ml) return;
+    uint8_t *e = *reinterpret_cast<uint8_t **>(reinterpret_cast<uint8_t *>(ml) + 8);
+    const uint32_t map = rd<uint32_t>(ng, 4);
+    for (int32_t i = 0; e && i < ml[0]; ++i, e += 0x98) if (rd<uint32_t>(e, 0) == map) {
+        const char *w = rd<const char *>(e, 0x70);
+        if (!w || !*w) break;
+        uint8_t *lv = static_cast<uint8_t *>(reinterpret_cast<void *(*)(uintptr_t, uint32_t)>(o21_native(s, 42))(base + 0x1afcf10u, u3h_crc_sid(w)));
+        if (lv && rd<uint32_t>(lv, 0x30) == 8) break;
+        reinterpret_cast<void (*)(uintptr_t, const char *)>(o21_native(s, 61))(base + 0x1afcf10u, w);
+        break;
+    }
+}
+
+extern "C" U3X_FN int u3x_spawn_levels_ready(uintptr_t base, void *s, uint32_t spawner) {
+    struct O21List { uint32_t count, pad; const char *names[32]; } list = {};
+    reinterpret_cast<void (*)(uintptr_t, void *)>(o21_native(s, 59))(base + 0x1afcf10u, &list);
+    o21_rs(s)[8] = list.count; o21_rs2(s)[5] = list.count;
+    {
+        uint32_t k = 0, dropped = 0;
+        for (uint32_t j = 0; j < list.count && j < 32; ++j) {
+            const char *nm = list.names[j];
+            uint8_t *lv = (nm && *nm) ? static_cast<uint8_t *>(reinterpret_cast<void *(*)(uintptr_t, uint32_t)>(o21_native(s, 42))(base + 0x1afcf10u, u3h_crc_sid(nm))) : nullptr;
+            if (lv && rd<uint32_t>(lv, 0x30) == 0xc && !(rd<uint32_t>(s, 0x20c0) & 0x20)) { ++dropped; continue; }
+            list.names[k++] = nm;
+        }
+        if (list.count > 32) k += list.count - 32;
+        list.count = k; o21_rs2(s)[6] = dropped;
+    }
+    int ready = list.count == 0;
+    uint8_t *sp = static_cast<uint8_t *>(reinterpret_cast<void *(*)(uintptr_t, uint32_t)>(o21_native(s, 58))(base + 0x1afcf10u, spawner));
+    if (!sp || ready) return ready;
+    uint8_t *tt = rd<uint8_t *>(sp, 0x68);
+    if (!tt) return 0;
+    uint8_t *data = rd<uint8_t *>(tt, 0);
+    const uint32_t cnt = rd<uint32_t>(tt, 8);
+    if (!data || !cnt) return 0;
+    uint32_t (*sid)(int, const char *, int) = reinterpret_cast<uint32_t (*)(int, const char *, int)>(at<uintptr_t>(base + 0x1702720u));
+    uint32_t lo = 0, n = cnt;
+    while (n) { const uint32_t h = n >> 1; if (rd<uint32_t>(data, (lo + h) * 0x10) < 0x38a0841fu) { lo += h + 1; n -= h + 1; } else n = h; }
+    for (uint32_t k = 0; k < list.count && k < 32; ++k) {
+        const char *nm = list.names[k];
+        const uint32_t want = (nm && *nm) ? sid(0, nm, 1) : 0;
+        for (uint32_t j = lo; j < cnt && rd<uint32_t>(data, j * 0x10) == 0x38a0841fu; ++j) {
+            int16_t *v = rd<int16_t *>(data, j * 0x10 + 8);
+            uint32_t got = 0;
+            if (v && *v == 5) { const char *str = *rd<const char **>(v, 4); got = (str && *str) ? sid(0, str, 1) : 0; }
+            else if (v && *v == 0xd) got = *rd<uint32_t *>(v, 4);
+            if (got == want) return 1;
+        }
+    }
+    return 0;
+}
+
+
+extern "C" {
+U3H_IMPORT volatile uint32_t *u3h_i03_d(void);
+}
+
+namespace {
+struct K26C { uint64_t fn, i[6], x[5], s[2], al; };
+U3X_BSS uint8_t k26_ok;
+U3X_RO const uint32_t k26_fn[8] = {0x11b8dd0u, 0x11b89b0u, 0xe42310u, 0xf1d9f0u, 0xf32ae0u, 0x640ac0u, 0x63d6f0u, 0};
+}  // namespace
+
+extern "C" U3X_FN uint64_t u3x_k26_call(void *cp) {
+    K26C *c = static_cast<K26C *>(cp); uint64_t r;
+    __asm__ volatile("mov %1,%%r12\n\tmov %%rsp,%%r13\n\tand $-16,%%rsp\n\tpushq 0x68(%%r12)\n\tpushq 0x60(%%r12)\n\t"
+     "movq 0x38(%%r12),%%xmm0\n\tmovq 0x40(%%r12),%%xmm1\n\tmovq 0x48(%%r12),%%xmm2\n\tmovq 0x50(%%r12),%%xmm3\n\tmovq 0x58(%%r12),%%xmm4\n\t"
+     "mov 0x08(%%r12),%%rdi\n\tmov 0x10(%%r12),%%rsi\n\tmov 0x18(%%r12),%%rdx\n\tmov 0x20(%%r12),%%rcx\n\tmov 0x28(%%r12),%%r8\n\t"
+     "mov 0x30(%%r12),%%r9\n\tmov 0x70(%%r12),%%rax\n\tcall *(%%r12)\n\tmov %%r13,%%rsp"
+     : "=a"(r) : "r"(c) : "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5",
+      "xmm6", "xmm7", "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15", "memory", "cc");
+    return r;
+}
+extern "C" U3X_FN uint64_t u3x_k26_f2d(uint32_t f) {
+    uint64_t r;
+    __asm__("movd %1,%%xmm0\n\tcvtss2sd %%xmm0,%%xmm0\n\tmovq %%xmm0,%0" : "=r"(r) : "r"(f) : "xmm0");
+    return r;
+}
+extern "C" U3X_FN uint32_t u3x_k26_fsel(uint32_t a, uint32_t b, uint32_t c) {
+    if ((a & 0x7fffffffu) > 0x7f800000u) return c;
+    return f_less(a, 0) ? c : b;
+}
+extern "C" U3X_FN uint32_t u3x_k26_rd(const void *p) { return rd<uint32_t>(p, 0); }
+extern "C" U3X_FN void u3x_k26_c4(uint32_t *o, uint32_t a, uint32_t b, uint32_t c, uint32_t d) { o[0] = a; o[1] = b; o[2] = c; o[3] = d; }
+extern "C" U3X_FN uint32_t u3x_k26_col(const uint32_t c[4]) {
+    uint32_t v[4];
+    for (int k = 0; k < 4; ++k) {
+        uint32_t f = u3x_k26_fsel(c[k], c[k], 0); f = u3x_k26_fsel(f_sub(f, F_ONE), F_ONE, f);
+        v[k] = static_cast<uint32_t>(f_to_int(f_mul(f, 0x437f0000u))) & 0xffu;
+    }
+    return v[3] << 24 | v[2] << 16 | v[1] << 8 | v[0];
+}
+extern "C" U3X_FN void u3x_k26_tp(uint32_t *P) {
+    for (int k = 0; k < 48; ++k) P[k] = 0;
+    P[5] = 0xbf800000u; P[7] = 0xbf800000u; P[0x2c / 4] = F_ONE; P[0x30 / 4] = 0xffffffffu;
+    P[0x50 / 4] = F_ONE; P[0x64 / 4] = F_ONE; P[0x78 / 4] = F_ONE; P[0x8c / 4] = F_ONE; P[0x90 / 4] = F_ONE;
+}
+extern "C" U3X_FN void u3x_k26_text(uintptr_t b, uint32_t *P, const char *s) {
+    K26C c = {}; c.fn = b + 0xf1d9f0u; c.i[0] = reinterpret_cast<uint64_t>(P); c.i[1] = reinterpret_cast<uint64_t>(s); u3x_k26_call(&c);
+}
+extern "C" U3X_FN const char *u3x_k26_str(uintptr_t b, uint32_t id) {
+    K26C c = {}; c.fn = b + 0xf32ae0u; c.i[0] = b + 0x17026b8u; c.i[1] = id;
+    const char *s = reinterpret_cast<const char *>(u3x_k26_call(&c));
+    return s ? s : *reinterpret_cast<const char **>(b + 0x17026b8u + 0x10);
+}
+extern "C" U3X_FN void u3x_k26_sprite(uintptr_t b, uint64_t idq, uint32_t idx, const uint32_t col[4], uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t ctr, uint32_t ha) {
+    alignas(16) uint32_t cv[4];
+    for (int k = 0; k < 4; ++k) cv[k] = col[k];
+    K26C c = {}; c.fn = b + 0x11b8dd0u; c.i[0] = 0; c.i[1] = idq; c.i[2] = idx; c.i[3] = reinterpret_cast<uint64_t>(cv); c.i[4] = ctr; c.i[5] = ha;
+    c.x[0] = x | static_cast<uint64_t>(y) << 32; c.x[1] = w | static_cast<uint64_t>(h) << 32; c.x[2] = static_cast<uint64_t>(F_ONE) << 32; c.x[3] = 0; c.x[4] = F_ONE | static_cast<uint64_t>(F_ONE) << 32;
+    u3x_k26_call(&c);
+}
+extern "C" U3X_FN uint64_t u3x_k26_tex(uintptr_t b, uint32_t id) {
+    int32_t idx = -1; uint8_t *t = rd<uint8_t *>(reinterpret_cast<const uint8_t *>(b + 0x1b24b80u), 0x48);
+    if (ptr_ok(t)) { uint8_t *tb = rd<uint8_t *>(t, 0x28);
+        if (ptr_ok(tb)) { uint32_t n = rd<uint16_t>(tb, 2); uint8_t *e = rd<uint8_t *>(tb, 8);
+            if (n && ptr_ok(e)) for (uint32_t i = 0; i < n; ++i) if (rd<uint32_t>(e, 8 + i * 0x28) == id) { idx = static_cast<int32_t>(i); break; } } }
+    K26C c = {}; c.fn = b + 0x11b89b0u; c.i[0] = id | (1ull << 32); c.i[1] = static_cast<uint32_t>(idx);
+    return u3x_k26_call(&c);
+}
+extern "C" U3X_FN void u3x_k26_quad(uintptr_t b, uint64_t dc, uint64_t tex, uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1, const uint32_t col[4]) {
+    alignas(16) uint32_t v[0x44] = {};
+    const uint32_t px[4] = {x0, x1, x1, x0}, py[4] = {y0, y0, y1, y1}, pu[4] = {0, F_ONE, F_ONE, 0}, pv[4] = {0, 0, F_ONE, F_ONE};
+    for (int k = 0; k < 4; ++k) {
+        uint32_t *w = v + k * 16; w[0] = px[k]; w[1] = py[k]; w[3] = pu[k]; w[4] = pv[k];
+        w[8] = col[0]; w[9] = col[1]; w[10] = col[2]; w[11] = col[3]; w[12] = w[13] = w[14] = w[15] = F_ONE;
+    }
+    uint64_t ctx[6] = {dc, 0, 0, 0, 0, 0}, td[4] = {tex, 0, 0, 0};
+    K26C c = {}; c.fn = b + 0xe42310u; c.i[0] = reinterpret_cast<uint64_t>(ctx); c.i[1] = reinterpret_cast<uint64_t>(td); c.i[2] = reinterpret_cast<uint64_t>(v); u3x_k26_call(&c);
+}
+extern "C" U3X_FN void u3x_k26_time(uintptr_t b, char *buf, int32_t s) {
+    int32_t m = s / 60, mi = m - (m / 60) * 60, se = s - m * 60, h = s / 3600; h = h - (h / 24) * 24;
+    K26C c = {}; c.fn = b + 0x139cab0u; c.i[0] = reinterpret_cast<uint64_t>(buf); c.i[1] = 64;
+    if (h) { c.i[2] = b + 0x1496f61u; c.i[3] = static_cast<uint32_t>(h); c.i[4] = static_cast<uint32_t>(mi); c.i[5] = static_cast<uint32_t>(se); }
+    else { c.i[2] = b + 0x1496f6eu; c.i[3] = static_cast<uint32_t>(mi); c.i[4] = static_cast<uint32_t>(se); }
+    u3x_k26_call(&c);
+}
+extern "C" U3X_FN int u3x_k26_callees(uintptr_t b) {
+    if (k26_ok) return k26_ok == 1;
+    k26_ok = 1;
+    for (int i = 0; k26_fn[i]; ++i) if (rd<uint32_t>(reinterpret_cast<const uint8_t *>(b + k26_fn[i]), 0) != 0xe5894855u) k26_ok = 2;
+    if (rd<uint32_t>(reinterpret_cast<const uint8_t *>(b + 0x6a2700u), 0) != 0x009cbf80u || rd<uint32_t>(reinterpret_cast<const uint8_t *>(b + 0x139cab0u), 0) != 0x6aca25ffu) k26_ok = 2;
+    return k26_ok == 1;
+}
+extern "C" U3X_FN int u3x_k26_draw(uintptr_t b, uint8_t *el, uint8_t *rbp) {
+    const uint32_t ONE = F_ONE, Z = 0, C08 = 0x3f4ccccdu;
+    ++ext_eb()[220];
+    if (rd<uint8_t>(reinterpret_cast<const uint8_t *>(b + 0x1acab60u), 0x13)) { ++ext_eb()[229]; return 0; }
+    if (!u3x_k26_callees(b) || !ptr_ok(rbp)) { ++ext_eb()[221]; return 0; }
+    uint64_t dc = rd<uint64_t>(rbp - 0x11f8, 0);
+    const int i03dc0 = !(ext_eb()[1] & 0x40000u);
+    if (i03dc0) { dc = 0; ++u3h_i03_d()[0]; }
+    const int32_t vc = rd<int32_t>(el, 0x1d0); ext_eb()[222] = static_cast<uint32_t>(vc);
+    if (vc < 0 || vc > 14) { ++ext_eb()[221]; return 0; }
+    const uint32_t W = f_from_int(rd<int32_t>(reinterpret_cast<const uint8_t *>(b + 0x18c6b34u), 8));
+    uint32_t a = f_sub(ONE, u3x_k26_rd(el + 0x1d4)); a = u3x_k26_fsel(a, a, Z);
+    const uint32_t f16 = f_madd(f_from_int(vc), 0x42900000u, 0xc1000000u);
+    const uint32_t t = u3x_k26_fsel(f_sub(a, ONE), ONE, a);
+    const uint32_t f18 = f_madd(f_sub(ONE, t), 0x44098000u, f_mul(t, 0x44228000u));
+    const uint32_t f26 = f_mul(f_sub(W, f16), 0x3f000000u);
+    const uint32_t Y0 = f_sub(f18, 0x424c0000u);
+    {
+        uint32_t style[10] = {ONE, 0, 0, 0, f_mul(f_from_int(128), 0x3b808081u), 0, 0, ONE, 0, 0};
+        uint32_t desc[12] = {24, 0, 0, 0, 0, 0, 0, 0xffffffffu, 0, 0xffffffffu, ONE, 0};
+        uint32_t rect[4] = {f_sub(f26, 0x41200000u), f_sub(Y0, 0x41200000u), f_add(f16, 0x41a00000u),
+                            f_add(f_sub(f_add(f18, 0x41a80000u), Y0), 0x41a00000u)};
+        uint32_t wh[2] = {rect[2], rect[3]}, z4[4] = {0, 0, 0, 0};
+        alignas(16) uint64_t tmp[0x40] = {};
+        K26C c = {}; c.fn = b + 0x640ac0u; c.i[0] = reinterpret_cast<uint64_t>(tmp); c.i[1] = reinterpret_cast<uint64_t>(desc); c.i[2] = 0; c.i[3] = reinterpret_cast<uint64_t>(wh); c.i[4] = reinterpret_cast<uint64_t>(z4);
+        c.i[5] = 0xffffffffu; c.x[0] = style[0]; u3x_k26_call(&c);
+        ext_eb()[243]++; ext_eb()[244] = static_cast<uint32_t>(tmp[0]); ext_eb()[245] = rd<uint32_t>(reinterpret_cast<const uint8_t *>(tmp), 0x3c); ext_eb()[246] = rd<uint32_t>(reinterpret_cast<const uint8_t *>(tmp), 0x40);
+        if ((ext_eb()[1] & 0x20) || i03dc0) {
+            uint32_t pc[4]; u3x_k26_c4(pc, 0, 0, 0, style[4]); ext_eb()[46]++;
+            u3x_k26_quad(b, dc, 0, rect[0], rect[1], f_add(rect[0], rect[2]), f_add(rect[1], rect[3]), pc);
+        } else {
+            K26C d = {}; d.fn = b + 0x63d6f0u; d.i[0] = b + 0x17bd090u; d.i[1] = dc; d.i[2] = reinterpret_cast<uint64_t>(style); d.i[3] = reinterpret_cast<uint64_t>(tmp); d.i[4] = reinterpret_cast<uint64_t>(rect);
+            d.i[5] = 1; d.s[0] = 1; d.s[1] = 0xffffffffu; u3x_k26_call(&d);
+        }
+        ext_eb()[47] = rect[0]; ext_eb()[63] = rect[1];
+    }
+    const uint32_t a22 = u3x_k26_rd(el + 0x1d4);
+    {
+        uint32_t x = f_sub(f_madd(u3x_k26_rd(el + 4), 0x42900000u, f26), 0x40400000u);
+        uint32_t f1 = f_mul(f_from_int(rd<int32_t>(reinterpret_cast<const uint8_t *>(b + 0x17b4a90u), 0x114)), 0x3c5a740eu);
+        f1 = f_add(u3h_sincos(f1, 1), ONE);
+        uint32_t y = f_sub(f18, 0x420c0000u);
+        f1 = f_mul(f1, 0x3f000000u); f1 = u3x_k26_fsel(f1, f1, Z);
+        uint32_t g = u3x_k26_fsel(f_sub(f1, ONE), ONE, f1); g = u3x_k26_fsel(g, g, Z);
+        uint32_t p = u3x_k26_fsel(f_sub(g, ONE), ONE, g);
+        uint32_t col[4] = {ONE, ONE, C08, f_mul(a22, f_madd(f_sub(ONE, p), 0x3ecccccdu, f_mul(p, 0x3f333333u)))};
+        u3x_k26_sprite(b, rd<uint64_t>(el, 0x1dc), rd<uint32_t>(el, 0x1e4), col, x, y, 0x428c0000u, 0x428c0000u, 0, 1);
+    }
+    for (int32_t i = 0; i < rd<int32_t>(el, 0x1d0) && i < 14; ++i) {
+        uint8_t *e = rd<uint8_t *>(el, 0x160 + static_cast<uintptr_t>(i) * 8);
+        if (!u3x_k29_eok(e)) { ++ext_eb()[221]; continue; }
+        uint32_t fi = f_from_int(i), d = f_sub(u3x_k26_rd(el + 4), fi);
+        uint32_t f27 = f_madd(fi, 0x42900000u, f26), f17 = f_sub(f18, 0x41800000u);
+        uint32_t f31 = f_sub(ONE, d & 0x7fffffffu);
+        uint32_t w0 = u3x_k26_fsel(f31, f31, Z), w = u3x_k26_fsel(f_sub(w0, ONE), ONE, w0);
+        uint32_t col[4] = {ONE, ONE, C08, f_mul(a22, f_madd(f_sub(ONE, w), 0x3e99999au, f_mul(w, C08)))};
+        u3x_k26_sprite(b, rd<uint64_t>(e, 8), rd<uint32_t>(e, 0x10), col, f27, f17, 0x42800000u, 0x42000000u, 0, 0);
+        if (f_less(f31, 0x3a83126fu)) continue;
+        uint32_t lc[4] = {ONE, ONE, C08, f_mul(a22, f31)}; uint32_t cc = u3x_k26_col(lc);
+        alignas(16) uint32_t P[48]; u3x_k26_tp(P);
+        uint32_t ty = f_add(f17, 0x42280000u);
+        P[0] = f_sub(f27, 0x43ea0000u); P[1] = ty; P[8] = P[9] = 0x3f333333u; P[10] = cc; P[0x34 / 4] = 5; P[0x94 / 4] = 0x447a0000u;
+        const char *s = u3x_k26_str(b, rd<uint32_t>(e, 0x14));
+        u3x_k26_text(b, P, s);
+        uint32_t w1 = f_add(P[0x94 / 4], ONE), cx = f_add(f27, 0x42000000u), rx = f_sub(f_add(f26, f16), w1);
+        P[0x34 / 4] = 1; P[0x30 / 4] = 0xffffffffu; P[10] = cc; P[1] = ty; P[8] = P[9] = 0x3f333333u; P[0x2c / 4] = ONE; P[0x94 / 4] = w1;
+        uint32_t x0 = f_madd(w1, 0xbf000000u, cx), x1 = u3x_k26_fsel(f_sub(x0, f26), x0, f26);
+        P[0] = u3x_k26_fsel(f_sub(x1, rx), rx, x1);
+        u3x_k26_text(b, P, s); ++ext_eb()[225];
+    }
+    uint8_t *F = reinterpret_cast<uint8_t *>(b + 0x17c3ba8u);
+    uint32_t lenf = f_from_int(rd<int32_t>(F, 0x158));
+    K26C tc = {}; tc.fn = b + 0x6a2700u; tc.i[0] = reinterpret_cast<uint64_t>(F); const int32_t cur = static_cast<int32_t>(static_cast<uint32_t>(u3x_k26_call(&tc)));
+    ext_eb()[223] = static_cast<uint32_t>(cur); ext_eb()[224] = rd<uint32_t>(F, 0x158);
+    uint32_t f21 = f_from_int(cur), f20 = f_div(ONE, lenf);
+    uint32_t prog = u3x_k26_fsel(lenf | 0x80000000u, Z, f_div(f21, lenf));
+    { uint32_t c0[4]; u3x_k26_c4(c0, ONE, ONE, C08, 0x3e4ccccdu); u3x_k26_quad(b, dc, 0, f26, Y0, f_add(f26, f16), f_add(Y0, 0x41a00000u), c0); }
+    uint32_t f22 = f_sub(f16, 0x43200000u), py = f_add(Y0, 0x40800000u), px = f_add(f26, 0x42a00000u);
+    uint32_t pw0 = f_mul(f22, prog), pw = u3x_k26_fsel(f_sub(ONE, pw0), ONE, pw0);
+    { uint32_t c1[4]; u3x_k26_c4(c1, ONE, ONE, C08, 0x3f000000u); u3x_k26_quad(b, dc, 0, px, py, f_add(px, pw), f_add(py, 0x41400000u), c1); }
+    uint32_t cxp = f_sub(f_add(pw, px), 0x41400000u), cyp = f_sub(py, 0x40c00000u);
+    { uint32_t c2[4]; u3x_k26_c4(c2, ONE, ONE, C08, ONE); u3x_k26_quad(b, dc, u3x_k26_tex(b, 0xeae7862au), cxp, cyp, f_add(cxp, 0x41c00000u), f_add(cyp, 0x41c00000u), c2); }
+    const int32_t ci = rd<int32_t>(F, 0x1e8c);
+    if (ci > -1) {
+        if (ci >= 10) ++ext_eb()[227];
+        else for (uint32_t n = 0; n < F[0x3c8 + static_cast<uint32_t>(ci) * 0x2a8]; ++n) {
+            if (n >= 64) { ++ext_eb()[227]; break; }
+            uint8_t *rec = F + 0x3cc + static_cast<uint32_t>(ci) * 0x2a8 + 8 * n;
+            uint32_t fr = 0;
+            if ((lenf & 0x7fffffffu) != 0) fr = f_mul(f20, f_mul(f_from_int(rd<int32_t>(rec, 4) - rd<int32_t>(F, 0x1dbc)), 0x3b5a740eu));
+            uint32_t f13 = f_mul(f22, fr);
+            uint32_t mc[4]; u3x_k26_c4(mc, ONE, ONE, ONE, ONE); const int16_t ty = rd<int16_t>(rec, 0);
+            if (ty == -1) { mc[1] = 0; mc[2] = 0; } else if (ty == -2) { mc[0] = mc[1] = mc[2] = 0x3e99999au; }
+            uint32_t f11 = u3x_k26_fsel(f_sub(ONE, f13), ONE, f13);
+            uint32_t mx = f_sub(f_add(f11, px), 0x40200000u), my = f_sub(py, 0x40c00000u);
+            u3x_k26_quad(b, dc, u3x_k26_tex(b, 0xeae7862au), mx, my, f_add(mx, 0x40a00000u), f_add(my, 0x41c00000u), mc); ++ext_eb()[226];
+        }
+    }
+    {
+        uint32_t tcol[4]; u3x_k26_c4(tcol, ONE, ONE, C08, 0x3f666666u);
+        alignas(16) uint32_t P[48]; u3x_k26_tp(P); char buf[64];
+        P[8] = P[9] = 0x3f000000u; P[10] = u3x_k26_col(tcol); P[0x94 / 4] = 0x42a00000u;
+        P[0] = f_add(f26, 0x40800000u); P[1] = Y0;
+        u3x_k26_time(b, buf, f_to_int(f_add(f21, 0x3f000000u))); u3x_k26_text(b, P, buf);
+        P[1] = Y0; P[0x34 / 4] = 2; P[0x94 / 4] = 0x42a00000u; P[0] = f_sub(f_add(f16, f26), 0x42a80000u);
+        u3x_k26_time(b, buf, f_to_int(f_add(lenf, 0x3f000000u))); u3x_k26_text(b, P, buf);
+        P[0x94 / 4] = 0x43c80000u; P[9] = ONE; P[8] = ONE; P[1] = 0x43160000u; P[0x34 / 4] = 9; P[0] = f_mul(f_sub(W, 0x43c80000u), 0x3f000000u);
+        u3x_k26_text(b, P, reinterpret_cast<const char *>(F + 0x1e6c));
+        if (u3x_k26_rd(reinterpret_cast<const void *>(b + 0x16e716cu)) != ONE && rd<uint8_t>(reinterpret_cast<const uint8_t *>(b + 0x17c3571u), 0)) {
+            uint32_t sp = u3x_k26_rd(reinterpret_cast<const void *>(b + 0x17b4a90u + 0x8c));
+            uint64_t fm = 0x78ull | 0x25ull << 8 | 0x32ull << 16 | 0x2eull << 24 | 0x31ull << 32 | 0x66ull << 40;
+            P[0x94 / 4] = 0x42c80000u; P[0x34 / 4] = 1; P[8] = P[9] = 0x3f000000u; P[0] = f_sub(cxp, 0x42180000u); P[1] = f_sub(cyp, 0x41a00000u);
+            K26C c = {}; c.fn = b + 0x139cab0u; c.i[0] = reinterpret_cast<uint64_t>(buf); c.i[1] = 64; c.i[2] = reinterpret_cast<uint64_t>(&fm); c.x[0] = u3x_k26_f2d(sp); c.al = 1; u3x_k26_call(&c);
+            u3x_k26_text(b, P, buf); ++ext_eb()[228];
+        }
+    }
+    return 0;
+}
+
+
+extern "C" {
+extern "C" U3X_FN int16_t u3x_i01_ngi_push(uintptr_t base);
+extern "C" U3X_FN void u3x_i01_ngi_pop(uintptr_t base, int16_t keep);
+U3H_IMPORT void *u3h_i01_state(void);
+U3H_IMPORT void *u3h_i05_state(void);
+U3H_IMPORT void u3h_set_text(int32_t *ev, const char *t);
+U3H_IMPORT void u3h_clan_tag_poll(uintptr_t base, void *s);
+U3H_IMPORT char *u3h_fmt_append(char *o, char *e, const char *t);
+U3H_IMPORT uint8_t *u3h_player_profile(uintptr_t base);
+U3H_IMPORT int32_t u3h_ox_rank_of(const char *nm);
+U3H_IMPORT uint8_t *u3h_ec_find_np(uintptr_t base, const uint8_t *m, int32_t idx);
+U3H_IMPORT uint32_t u3h_pad_pressed(uintptr_t base, int32_t screen);
+U3H_IMPORT uint8_t *u3h_active_page_object(uintptr_t base);
+U3H_IMPORT void u3h_fr_qa_push(uintptr_t base, void *q);
+U3H_IMPORT uint32_t u3h_np_code(uint8_t *np);
+U3H_IMPORT int32_t u3h_gt_conn_state(uintptr_t base, int32_t id);
+U3H_IMPORT void u3h_rank_icon(uintptr_t base, void *s, int32_t *ev);
+U3H_IMPORT void u3h_stage_tick(uintptr_t base, void *s);
+U3H_IMPORT void u3h_hud_alias_names(uintptr_t base, void *s);
+U3H_IMPORT void u3h_loadout_tick(uintptr_t base, void *s);
+}
+
+namespace {
+struct I01StateExt {
+    volatile uint32_t d[12]; uint8_t *tab[10]; uint32_t ntab, row[20], nrow; int32_t sel;
+    uint8_t pseudo[0x120]; char name[64]; uint32_t fok, fsolo, fpage, fpopup, ftick;
+    uint8_t *fprev, *flast, *fparty; uint32_t fmem[4], fmk;
+};
+struct I05StateExt { uint8_t self, sel[0x24]; };
+uint8_t *o27_ps(uintptr_t base) { return reinterpret_cast<uint8_t *>(base + 0x17dc298u); }
+uint32_t *o27_rb() { return reinterpret_cast<uint32_t *>(u3h_ext() + 0x31b0); }
+void o27_clear(void *p, uint32_t n) { for (uint32_t i = 0; i < n; ++i) reinterpret_cast<uint8_t *>(p)[i] = 0; }
+void o27_copy(void *d, const void *s, uint32_t n) { for (uint32_t i = 0; i < n; ++i) reinterpret_cast<uint8_t *>(d)[i] = reinterpret_cast<const uint8_t *>(s)[i]; }
+void o27_qa_init(QuickActions &q, uint32_t page) { q.argument = 0; q.page = page ? page : 0x99ab57c2u; q.count = 0; }
+int32_t o27_type(uintptr_t base, void *s) { int16_t k = u3x_i01_ngi_push(base); int32_t t = u3x_netgame_cur(base, s) ? u3x_netgame_type(base, s) : -1; u3x_i01_ngi_pop(base, k); return t; }
+}  // namespace
+
+extern "C" U3X_FN uint8_t *u3x_i01_md(uintptr_t base, uint8_t *m) {
+    return reinterpret_cast<uint8_t *(*)(void *, void *)>(base + 0x7a3400u)(o27_ps(base), m);
+}
+extern "C" U3X_FN int u3x_i01_self(uintptr_t base, uint8_t *m) { return rd<uint32_t>(m, 0x2c) == rd<uint32_t>(o27_ps(base), 0x12e4); }
+extern "C" U3X_FN void u3x_i01_rows(uintptr_t base) {
+    I01StateExt *st = static_cast<I01StateExt *>(u3h_i01_state());
+    uint8_t *ps = o27_ps(base); st->ntab = 0; st->nrow = 0; ++st->d[0];
+    if (!rd<uint64_t>(ps, 0x18)) {
+        o27_clear(st->pseudo, sizeof st->pseudo); put<uint32_t>(st->pseudo, 0x2c) = rd<uint32_t>(ps, 0x12e4); put<int32_t>(st->pseudo, 0x34) = -1;
+        st->tab[0] = st->pseudo; st->ntab = 1;
+    } else {
+        uint8_t *m[10]; int32_t key[10]; uint8_t host[10]; int32_t own = 0; uint32_t n = 0;
+        for (int i = 0; i < 10; ++i) {
+            uint8_t *e = ps + 0x680 + static_cast<uintptr_t>(i) * 0x120; if (!e[0x25]) continue;
+            uint8_t *md = u3x_i01_md(base, e); int32_t k = md ? md[9] : 0;
+            uint8_t *np = u3h_ec_find_np(base, e, 0); if (np && rd<int32_t>(np, 0x21c) != -1) k = rd<int32_t>(np, 0x21c);
+            m[n] = e; key[n] = k; host[n] = rd<uint32_t>(ps, 0x12e8) == rd<uint32_t>(e, 0x2c); if (host[n]) own = k; ++n;
+        }
+        for (int g = 0; g < 3; ++g) for (uint32_t i = 0; i < n; ++i) { int gi = host[i] ? 0 : (key[i] == own ? 1 : 2); if (gi == g) st->tab[st->ntab++] = m[i]; }
+    }
+    for (uint32_t i = 0; i < st->ntab && st->nrow < 20; ++i) {
+        st->row[st->nrow++] = i;
+        uint8_t *md = u3x_i01_md(base, st->tab[i]); if (md && md[0x19] && st->nrow < 20) st->row[st->nrow++] = i | 0x100u;
+    }
+    st->d[1] = st->nrow;
+}
+extern "C" U3X_FN int16_t u3x_i01_ngi_push(uintptr_t base) {
+    int16_t *ngi = reinterpret_cast<int16_t *>(base + 0x17cb060u + 0x661c); int16_t keep = *ngi, sel = rd<int16_t>(reinterpret_cast<const uint8_t *>(base + 0x17d167cu), 0);
+    if (keep < 0 && sel >= 0 && rd<uint32_t>(reinterpret_cast<const uint8_t *>(base + 0x17d603cu), 0) == 2) *ngi = sel; return keep;
+}
+extern "C" U3X_FN void u3x_i01_ngi_pop(uintptr_t base, int16_t keep) { *reinterpret_cast<int16_t *>(base + 0x17cb060u + 0x661c) = keep; }
+extern "C" U3X_FN int32_t u3x_i01_type(uintptr_t base, void *s) { return o27_type(base, s); }
+extern "C" U3X_FN int u3x_i01_coop(int32_t t) { return t == 4 || t == 8 || t == 9 || t == 11 || t == 13 || t == 16 || t == 17 || t == 18; }
+extern "C" U3X_FN uint32_t u3x_i01_colour(uintptr_t base, int32_t idx) {
+    if (idx < 0 || idx >= 5) return 0;
+    uint32_t out[8] = {}; int16_t k = u3x_i01_ngi_push(base);
+    reinterpret_cast<void *(*)(void *, uintptr_t, int, int)>(base + 0x7418e0u)(out, base + 0x17cb060u, idx, 0);
+    u3x_i01_ngi_pop(base, k); return out[3];
+}
+extern "C" U3X_FN uint8_t *u3x_i01_np_by_code(uintptr_t base, uint32_t id) {
+    if (!id) return nullptr;
+    for (int i = 0; i < 10; ++i) { uint8_t *np = reinterpret_cast<uint8_t *>(base + 0x17cb060u + 0x390) + static_cast<uintptr_t>(i) * 0x9c0; if (u3h_np_code(np) == id) return np; }
+    return nullptr;
+}
+extern "C" U3X_FN int u3x_i01_strcmp(const uint8_t *a, const uint8_t *b) { while (*a && *a == *b) { ++a; ++b; } return *a - *b; }
+
+extern "C" U3X_FN void u3x_i01_row_colour(uintptr_t base, void *s, int32_t *event, uint8_t *m, int guest, uint32_t row) {
+    I01StateExt *st = static_cast<I01StateExt *>(u3h_i01_state());
+    if (rd<uint32_t>(reinterpret_cast<const uint8_t *>(base + 0x17d603cu), 0) != 2) { u3h_set_text(event, ""); event[1] = 0; return; }
+    const int32_t t = u3x_i01_type(base, s); uint8_t *ps = o27_ps(base);
+    int (*cnt)(void *) = reinterpret_cast<int (*)(void *)>(base + 0x7a2b10u);
+    if (u3x_i01_coop(t) && cnt(ps) < 2) return;
+    if (event[0x16] != 2) return;
+    uint8_t *md = u3x_i01_md(base, m); if (!md) { ++st->d[8]; return; }
+    uint32_t c = 0x80000000u; int32_t idx = -1;
+    if (md[9]) {
+        idx = md[9] - 1;
+        if (guest && cnt(ps) == 2) {
+            int16_t k = u3x_i01_ngi_push(base); int32_t tc = reinterpret_cast<int32_t (*)(uintptr_t)>(base + 0x7210a0u)(base + 0x17cb060u); u3x_i01_ngi_pop(base, k);
+            const int f31089c = (t < 0 || t == 0 || t == 1 || t == 19);
+            if (tc == 2 && (f31089c || t == 18 || t == 10)) idx = (idx == 0);
+        }
+        c = (u3x_i01_colour(base, idx) & 0xffffffu) | 0x80000000u;
+    }
+    event[0xf] = static_cast<int32_t>(c); ++st->d[2];
+    uint32_t slot = 0xff;
+    uint8_t *ms = reinterpret_cast<uint8_t *>(base + 0x17d6420u), *mm = nullptr;
+    for (int i = 0; i < 10 && m != st->pseudo; ++i) { uint8_t *e = ms + 0x680 + static_cast<uintptr_t>(i) * 0x120; if (e[0x25] && !u3x_i01_strcmp(e, m)) { mm = e; break; } }
+    if (mm) {
+        uint8_t *np = u3x_i01_np_by_code(base, rd<uint32_t>(mm, 0x2c));
+        if (guest) { if (!np) np = nullptr; else { uint32_t code = (rd<uint32_t>(np, 0x1e4) & 0xfffu) | (rd<int32_t>(np, 0x1e8) ? 0x1000u : 0u); np = u3x_i01_np_by_code(base, code); } }
+        if (np && rd<int32_t>(np, 0x21c) >= 0) { slot = static_cast<uint32_t>(rd<int32_t>(np, 0x21c)); event[0xf] = static_cast<int32_t>((u3x_i01_colour(base, rd<int32_t>(np, 0x21c)) & 0xffffffu) | 0x80000000u); }
+    }
+    st->d[3] = static_cast<uint32_t>(md[9]) | (static_cast<uint32_t>(idx & 0xff) << 8) | ((slot & 0xff) << 16) | (row << 24); st->d[9] = static_cast<uint32_t>(event[0xf]);
+}
+
+extern "C" U3X_FN void u3x_i01_focus(uintptr_t base, void *s);
+extern "C" U3X_FN int u3x_i01_party(uintptr_t base, int32_t *event, void *s, const char *selfname) {
+    I01StateExt *st = static_cast<I01StateExt *>(u3h_i01_state());
+    const uint32_t op = static_cast<uint32_t>(event[0]);
+    if (op == 9 || op == 6) u3x_i01_rows(base);
+    switch (op) {
+    case 6: event[1] = static_cast<int32_t>(st->nrow) - 1; u3h_clan_tag_poll(base, s); u3h_hud_alias_names(base, s); u3h_stage_tick(base, s); u3h_loadout_tick(base, s);
+        if (!(ext_eb()[1] & 0x20000u)) u3x_i01_focus(base, s); return 1;
+    case 5: event[1] = st->sel; return 1;
+    case 10: st->sel = event[1]; return 1;
+    case 21: event[1] = (!(ext_eb()[1] & 0x20000u) && (st->fok || st->fsolo)) ? 1 : 0; return 1;
+    case 8: event[1] = (!(ext_eb()[1] & 0x20000u)) ? 1 : 0; return 1;
+    case 1: return 0;
+    }
+    if (!st->nrow) u3x_i01_rows(base);
+    const uint32_t r = static_cast<uint32_t>(event[1]);
+    if (r >= st->nrow || (st->row[r] & 0xff) >= st->ntab) return 1;
+    uint8_t *m = st->tab[st->row[r] & 0xff]; const int guest = (st->row[r] >> 8) & 1;
+    const int self = u3x_i01_self(base, m);
+    switch (op) {
+    case 1: case 2: {
+        const char *nm = self ? selfname : reinterpret_cast<const char *>(m);
+        if (guest) { char *o = st->name, *end = o + 60; o = u3h_fmt_append(o, end, nm); o = u3h_fmt_append(o, end, " (1)"); *o = 0; nm = st->name; }
+        if (op == 2 && event[0x15] != 0) nm = "";
+        u3h_set_text(event, nm); return 1;
+    }
+    case 4:
+        if (self && !guest && static_cast<uint32_t>(event[0x14]) == 0xf5a294f3u) {
+            uint32_t (*rank)(void *) = reinterpret_cast<uint32_t (*)(void *)>(state_native(s, 21)); uint8_t *pr = u3h_player_profile(base);
+            if (rank && pr) { event[2] = 0x29; *reinterpret_cast<uint64_t *>(event + 4) = 0; event[6] = static_cast<int32_t>(rank(pr)); event[7] = 0; event[8] = 0; event[9] = -1; event[10] = 0; event[11] = -1; event[12] = 0x3f800000; ++o27_rb()[4]; u3h_rank_icon(base, s, event); }
+        } else if (!self && !guest && static_cast<uint32_t>(event[0x14]) == 0xf5a294f3u && u3h_ox_rank_of(reinterpret_cast<const char *>(m)) >= 0) {
+            event[2] = 0x29; *reinterpret_cast<uint64_t *>(event + 4) = 0; event[6] = u3h_ox_rank_of(reinterpret_cast<const char *>(m)); event[7] = 0; event[8] = 0; event[9] = -1; event[10] = 0; event[11] = -1; event[12] = 0x3f800000; ++o27_rb()[4]; u3h_rank_icon(base, s, event);
+        } else if (!self && !guest && static_cast<uint32_t>(event[0x14]) == 0xf5a294f3u && rd<uint32_t>(m, 0x3c) == 0x40) {
+            uint32_t rk = rd<uint32_t>(m, 0x40 + 0x3c);
+            if (rk & 0x20000000u) { event[2] = 0x29; *reinterpret_cast<uint64_t *>(event + 4) = 0; event[6] = static_cast<int32_t>((m[0x40 + 0x32] & 8) ? (rk & 0xffffu) : (rk & ~0x20000000u)); event[7] = 0; event[8] = 0; event[9] = -1; event[10] = 0; event[11] = -1; event[12] = 0x3f800000; ++o27_rb()[4]; u3h_rank_icon(base, s, event); }
+        }
+        return 1;
+    case 11: {
+        uint32_t q = static_cast<uint32_t>(event[0x13]);
+        if (q == 0) event[0xe] = 1;
+        else if (q == 1 && rd<int32_t>(m, 0x34) != -1) event[0xe] = u3h_gt_conn_state(base, rd<int32_t>(m, 0x34));
+        return 1;
+    }
+    case 20: if (!(rd<uint32_t>(static_cast<uint8_t *>(s), 0x3d78) & 0x2000000)) u3x_i01_row_colour(base, s, event, m, guest, r); return 1;
+    }
+    return 1;
+}
+
+extern "C" U3X_FN int u3x_i01_canfocus(uint8_t *c) { return c && reinterpret_cast<uint8_t (*)(void *)>((*reinterpret_cast<uintptr_t **>(c))[8])(c) != 0; }
+extern "C" U3X_FN int u3x_i01_leftctl(uint32_t pid, uint32_t id) {
+    if (pid == 0x53cbb5f2u) return id == 0xf75ffe57u;
+    if (pid == 0xb99a3235u) return id == 0x70e80076u || id == 0xef031de1u || id == 0x9247257au || id == 0x382fa1fdu || id == 0x002b2bd6u;
+    return 0;
+}
+
+extern "C" U3X_FN void u3x_i01_click(uintptr_t base, int32_t *ev) {
+    I01StateExt *st = static_cast<I01StateExt *>(u3h_i01_state()); I05StateExt *is = static_cast<I05StateExt *>(u3h_i05_state());
+    uint8_t *net = reinterpret_cast<uint8_t *>(base + 0x17d5c58u); is->self = 0; ++st->d[4];
+    u3x_i01_rows(base); const int32_t row = ev[1];
+    put<uint64_t>(reinterpret_cast<uint8_t *>(base + 0x17c3898u), 0) = 0;
+    if (row < 0 || static_cast<uint32_t>(row) >= st->nrow || (st->row[row] & 0xff) >= st->ntab) return;
+    uint8_t *m = st->tab[st->row[row] & 0xff], *ps = o27_ps(base); const int guest = (st->row[row] >> 8) & 1;
+    uint8_t *sel = reinterpret_cast<uint8_t *>(base + 0x17c3871u);
+    if (!guest) o27_copy(sel, m, 0x24);
+    else { uint8_t *md = u3x_i01_md(base, m); if (md) { o27_copy(sel, md + 0x19, 0x23); sel[0x23] = md[0x3c]; } }
+    const int lan = net[8] != 0, self = u3x_i01_self(base, m), mine = self;
+    is->self = self && !guest ? 1 : 2; o27_copy(is->sel, sel, 0x24);
+    QuickActions q;
+    const bool early = !mine && (!lan || !self);
+    if (!lan || !self) {
+        o27_qa_init(q, 0xecc3219du);
+        if (!mine) {
+            u3x_quick_action_add(&q, 0xffbbac12u, 0x6547d63cu);
+            if (u3x_session_host(ps)) {
+                if (!lan && !guest) u3x_quick_action_add(&q, 0x9fdf8887u, 0x2d32c8b0u);
+                if (rd<int32_t>(net, 0x408) == 0) u3x_quick_action_add(&q, 0x1e2955afu, 0x7cc46b94u);
+            }
+            if (!lan) u3x_quick_action_add(&q, 0xc5790997u, 0x0ecbd5bdu);
+        }
+    } else {
+        o27_qa_init(q, 0xecc3219du);
+        int n = 1; if (rd<uint64_t>(ps, 0x18)) { n = 0; for (int i = 0; i < 10; ++i) if (ps[0x680 + i * 0x120 + 0x25]) ++n; }
+        if (u3x_session_host(ps) || n == 1) { if (rd<uint8_t>(reinterpret_cast<const uint8_t *>(base + 0x17c3570u), 0)) u3x_quick_action_add(&q, 0x6253c96au, 0x0d0c91cdu); else u3x_quick_action_add(&q, 0xa095f551u, 0xccbf832eu); }
+    }
+    if (!early) u3x_quick_action_add(&q, 0x2962edc6u, 0x089143eau);
+    st->d[5] = static_cast<uint32_t>(row) | (static_cast<uint32_t>(q.count) << 8) | (static_cast<uint32_t>(self) << 16) | (static_cast<uint32_t>(lan) << 24);
+    u3h_fr_qa_push(base, &q);
+}
+
+extern "C" U3X_FN void u3x_i01_focus(uintptr_t base, void *s) {
+    I01StateExt *st = static_cast<I01StateExt *>(u3h_i01_state()); uint8_t *sp = static_cast<uint8_t *>(s);
+    uint8_t *page = u3h_active_page_object(base), *menu = reinterpret_cast<uint8_t *>(base + 0x17bd080u);
+    void (*setf)(void *, void *) = reinterpret_cast<void (*)(void *, void *)>(state_native(s, 0));
+    if (!page || !setf || rd<uint32_t>(sp, 708)) return;
+    uint32_t tick = rd<uint32_t>(reinterpret_cast<const uint8_t *>(base + 0x17b4a90u), 0x114);
+    if (tick == st->ftick) return; st->ftick = tick;
+    uint32_t pid = rd<uint32_t>(page, 0x10);
+    if (pid != st->fpage) {
+        if (st->fpage && st->flast && st->flast == st->fparty) { uint32_t k = st->fmk++ & 3; st->fmem[k] = st->fpage; }
+        st->fpage = pid; st->flast = nullptr; st->fprev = nullptr; st->fpopup = 0; st->fparty = nullptr; st->fok = 0; st->fsolo = 0;
+        for (int k = 0; k < 4; ++k) if (st->fmem[k] == pid) { st->fok = 1; st->fmem[k] = 0; }
+    }
+    uint8_t *pop = rd<uint8_t *>(menu, 0x898);
+    if (pop && rd<uint32_t>(pop, 0x10)) { st->fpopup = 1; return; } st->fpopup = 0;
+    uint32_t n = rd<uint32_t>(page, 0xac); uint8_t **cs = rd<uint8_t **>(page, 0xb0); if (!cs || n > 64) return;
+    uint8_t *party = nullptr, *box = nullptr, *foc = nullptr, *first = nullptr; uint32_t pi = n;
+    for (uint32_t i = 0; i < n; ++i) { uint8_t *c = cs[i]; if (!c) continue; uint32_t id = rd<uint32_t>(c, 0x10); if (id == 0x3406420cu) { party = c; pi = i; } else if (id == 0x649e809au) box = c; if (c[8]) foc = c; }
+    if (!party || !page[8]) return; st->fparty = party;
+    for (uint32_t i = 0; i < n; ++i) { uint8_t *c = cs[i]; if (c && c != box && c != party && rd<uint32_t>(c, 0x10) && u3x_i01_canfocus(c)) { first = c; break; } }
+    (void)pi; st->fsolo = !first;
+    uint8_t *prev = nullptr; for (uint32_t i = 0; i < n; ++i) if (cs[i] && cs[i] == st->fprev && u3x_i01_canfocus(st->fprev)) prev = st->fprev;
+    uint32_t edge = u3h_pad_pressed(base, 0);
+    st->d[11] = (foc ? (rd<uint32_t>(foc, 0x10) & 0xffffu) : 0xffffu) | (edge << 16);
+    uint8_t *to = nullptr;
+    if (foc && foc != party && foc != box && (edge & (0x20u | 0x1000000u)) && u3x_i01_leftctl(pid, rd<uint32_t>(foc, 0x10))) { st->fok = 1; to = party; ++st->d[6]; }
+    else if (foc == party && first && (edge & (0x80u | 0x800000u))) { st->fok = 0; to = prev ? prev : first; ++st->d[7]; }
+    else if (foc && foc == box) { if (first) { st->fok = 0; to = prev ? prev : first; } else to = party; ++st->d[7]; }
+    else if (foc == party && !st->fok && first) { to = prev ? prev : first; ++st->d[10]; }
+    if (to && to != foc) { put<uint32_t>(sp, 708) = 1; setf(page, to); put<uint32_t>(sp, 708) = 0; foc = to; for (uint32_t i = 0; i < n; ++i) if (cs[i] && cs[i][8]) foc = cs[i]; }
+    st->flast = foc; if (foc && foc != party && foc != box) st->fprev = foc;
+}
+extern "C" U3X_FN int u3x_i01_user_party(void) { I01StateExt *st = static_cast<I01StateExt *>(u3h_i01_state()); return st->fok && st->flast && st->flast == st->fparty; }
+
+
+extern "C" {
+U3H_IMPORT void u3h_kr_stat(uintptr_t base, void *s, uint32_t id, uint32_t amount, uint8_t *np);
+U3H_IMPORT uint8_t *u3h_kr_prec(uint8_t *S, uint8_t *np);
+U3H_IMPORT uint8_t *u3h_kr_np_by_id(uintptr_t base, uint32_t id);
+U3H_IMPORT int u3h_kr_30feec(uintptr_t base);
+extern "C" U3X_FN void u3x_kr_379c18(uintptr_t base, void *s, uint8_t *knp, uint8_t *info);
+extern "C" U3X_FN void u3x_kr_37952c(uintptr_t base, void *s, uint8_t *S, uint8_t *knp);
+extern "C" U3X_FN void u3x_kr_3817b8(uintptr_t base, void *s, uint8_t *S, uint8_t *knp, uint8_t *info, int team_mode);
+extern "C" U3X_FN void u3x_kr_37992c(uintptr_t base, void *s, uint8_t *S, uint8_t *knp, uint8_t *info);
+extern "C" U3X_FN void u3x_kr_37ab00(uintptr_t base, void *s, uint8_t *S, uint8_t *knp, uint8_t *info);
+extern "C" U3X_FN void u3x_kr_37a4bc(uintptr_t base, void *s, uint8_t *S, uint8_t *knp);
+extern "C" U3X_FN void u3x_kr_379ed8(uintptr_t base, void *s, uint8_t *S);
+extern "C" U3X_FN void u3x_kr_379ff0(uintptr_t base, void *s, uint8_t *S, uint8_t *knp);
+extern "C" U3X_FN void u3x_kr_379430(uintptr_t base, void *s, uint8_t *S, uint8_t *knp);
+extern "C" U3X_FN void u3x_kr_3791ec(uintptr_t base, void *s, uint8_t *S, uint8_t *knp, uint8_t *vnp, uint8_t *info);
+extern "C" U3X_FN void u3x_kr_37a914(uintptr_t base, void *s, uint8_t *S, uint8_t *knp);
+extern "C" U3X_FN void u3x_kr_37a16c(uintptr_t base, void *s, uint8_t *S, uint8_t *knp);
+extern "C" U3X_FN void u3x_kr_37a32c(uintptr_t base, void *s, uint8_t *S, uint8_t *knp, uint8_t *info);
+}
+namespace {
+constexpr uint32_t o29_off = 0x200u, o29_nohist = 0x400u, o29_nokd = 0x800u, o29_nomedal = 0x2000u;
+constexpr uint32_t o29_f16 = 0x41800000u;
+constexpr uint32_t o29_nopts = 0x4000u, o29_nopopup = 0x8000u, o29_noboost = 0x10000u;
+U3X_RO const char o29_killed[] = "-killed";
+uint8_t *o29_ng(uintptr_t base) { return reinterpret_cast<uint8_t *>(base + 0x17cb060u); }
+uint8_t *o29_s(uintptr_t base) { return reinterpret_cast<uint8_t *>(base + 0x17dd780u); }
+uint32_t o29_bits(const void *s) { return rd<uint32_t>(static_cast<const uint8_t *>(s), 0x3d78); }
+uint32_t o29_n(const uint8_t *S) { return rd<uint32_t>(S, 0xe0); }
+int32_t o29_team(const uint8_t *np) { return rd<int32_t>(np, 0x21c); }
+uint32_t o29_user(const uint8_t *np) { return rd<uint32_t>(np, 0x1e8); }
+uint8_t *o29_mode(uintptr_t base) { return game_call<uint8_t *>(base + 0x721050, o29_ng(base)); }
+int32_t o29_mode_type(uintptr_t base) { uint8_t *m = o29_mode(base); return m ? rd<int32_t>(m, 0xc) : -1; }
+bool o29_local(uintptr_t base, const uint8_t *np) { uint8_t *ng = o29_ng(base); return np == rd<const uint8_t *>(ng, 0x370) || np == rd<const uint8_t *>(ng, 0x378); }
+bool o29_friendly(uintptr_t base, const uint8_t *a, const uint8_t *b) {
+    if (a == b) return true; if (o29_mode_type(base) == 0xe) return false; return a && b && o29_team(a) == o29_team(b);
+}
+int o29_online(uintptr_t base) { return game_call<uint8_t>(base + 0x7270f0, o29_ng(base)) != 0; }
+int o29_member(const uint8_t *S, uint32_t id) { return u3x_score_member(S, id); }
+uint8_t *o29_np_by_id(uintptr_t base, uint32_t id) { return u3h_kr_np_by_id(base, id); }
+uint8_t *o29_prec(uint8_t *S, uint8_t *np) { return u3h_kr_prec(S, np); }
+uint32_t *o29_wlist(uintptr_t base) { uint64_t *p = game_call<uint64_t *>(base + 0x11f2bf0, 0x9e354807u); return p ? reinterpret_cast<uint32_t *>(*p) : nullptr; }
+uint32_t o29_statidx(uintptr_t base, uint32_t sid) { return u3x_weapon_stat_number(reinterpret_cast<const uint32_t *>(base + 0x13a6170u), o29_wlist(base), sid); }
+int o29_tag(uintptr_t base, uint8_t *tags, uint32_t sid, uint32_t bucket) {
+    uint8_t *t = reinterpret_cast<uint8_t *>(base + 0x1b3efd8u); if (!tags || !*t) return 0;
+    return u3x_has_tag(t + bucket, tags, sid);
+}
+void o29_stat(uintptr_t base, void *s, uint32_t id, uint32_t amount, uint8_t *np) { u3h_kr_stat(base, s, id, amount, np); }
+uint32_t o29_sid_cat(uintptr_t base, uint32_t h, const char *str) {
+    const uint32_t *t = reinterpret_cast<const uint32_t *>(base + 0x13a6ff0u);
+    while (*str) { h = ((h & 0xffffffu) << 8) ^ t[((h >> 24) ^ static_cast<uint8_t>(*str)) & 0xffu]; ++str; }
+    return h;
+}
+void o29_prof_add(uintptr_t base, uint8_t *np, uint32_t n, uint32_t amt) {
+    if (!o29_online(base)) return; uint8_t *obj = at<uint8_t *>(base + 0x17dd610u); if (!obj) return;
+    obj += static_cast<uint64_t>(o29_user(np)) * 0x7b00u; *reinterpret_cast<uint32_t *>(obj + 0x250u + n * 4u) += amt; ++reinterpret_cast<uint32_t *>(u3h_ext() + 0x2bc0u)[9];
+}
+uint32_t o29_now(uintptr_t base) { uint8_t *c = at<uint8_t *>(base + 0x17c3580u); return c ? rd<uint32_t>(c, 0xc) : 0; }
+bool o29_le(uint32_t a, uint32_t b) {
+    int r; __asm__("movd %1,%%xmm0\n\tmovd %2,%%xmm1\n\txorl %0,%0\n\tucomiss %%xmm0,%%xmm1\n\tsetae %b0" : "=&r"(r) : "r"(a), "r"(b) : "xmm0", "xmm1", "cc"); return r != 0;
+}
+}  // namespace
+
+extern "C" U3X_FN void u3x_kr_port(uintptr_t base, uint8_t *info, void *s_) {
+    uint8_t *s = static_cast<uint8_t *>(s_); uint32_t *kr = reinterpret_cast<uint32_t *>(u3h_ext() + 0x2bc0u);
+    uint32_t *cai = reinterpret_cast<uint32_t *>(u3h_ext() + 0x31e0u), *ec = ext_ec();
+    uint32_t bits = o29_bits(s); ++kr[0];
+    if (bits & o29_off) { ++kr[15]; return; }
+    uint8_t *ng = o29_ng(base), *S = o29_s(base), *mode = o29_mode(base); if (!mode) return; ++kr[1];
+    int kd = !(bits & o29_nokd), med = !(bits & o29_nomedal);
+    int team_mode = game_call<uint8_t>(base + 0x722670u, ng) != 0, ffa = rd<int32_t>(mode, 0xc) == 0xe;
+    uint32_t fl = rd<uint32_t>(info, 0x60), id30 = rd<uint32_t>(info, 0x30), id34 = rd<uint32_t>(info, 0x34), w = rd<uint32_t>(info, 0x38);
+    kr[7] = fl; kr[8] = id30; kr[10] = id34;
+    uint32_t n = o29_n(S); KillRecord *r0 = kill_record(S, 0);
+    uint8_t *knp = nullptr, *vnp = nullptr, *vent = nullptr, *krec = nullptr, *vrec = nullptr, *anp = nullptr, *arec = nullptr;
+    uint8_t *vch = nullptr, *kb = nullptr; int local_cc = 0, on = 0, wi = 0, m = 0, c2c28 = 1, t0i = 0;
+    int32_t pts = 0, dbl = 0, mt = 0, cls = 0; uint32_t c = 0, d2 = 0;
+    if (!(bits & o29_nohist)) {
+        for (int64_t i = static_cast<int64_t>(n) - 1; i >= 0; --i)
+            if (i < 0x1fe) {
+                uint8_t *a = reinterpret_cast<uint8_t *>(kill_record(S, static_cast<uint32_t>(i)));
+                uint8_t *b = reinterpret_cast<uint8_t *>(kill_record(S, static_cast<uint32_t>(i + 1)));
+                for (int j = 0; j < 0x26; ++j) b[j] = a[j];
+            }
+        r0->type = 0; r0->killer = (fl & 1) ? static_cast<uint16_t>(id30) : 0;
+        r0->victim = (fl & 2) ? static_cast<uint16_t>(id34) : 0; r0->time = rd<int32_t>(info, 0);
+        r0->weapon_index = static_cast<uint8_t>(o29_statidx(base, w));
+        for (int i = 0; i < 3; ++i) {
+            r0->pos[i] = static_cast<int16_t>(f_to_int(f_mul(reinterpret_cast<const uint32_t *>(info + 0x10)[i], o29_f16)));
+            r0->pos[3 + i] = static_cast<int16_t>(f_to_int(f_mul(reinterpret_cast<const uint32_t *>(info + 0x20)[i], o29_f16)));
+        }
+        r0->killer_team = -1; r0->victim_team = -1; r0->f1c = rd<int32_t>(info, 0x6c);
+        r0->f23 = (fl >> 27) & 1; r0->f24 = (fl >> 13) & 1;
+        if (fl & 0x20) r0->type = 6; else if (fl & 4) r0->type = 1; else if (fl & 0x40) r0->type = 2;
+        r0->uncounted = 0; if (n < 0x200) { n = o29_n(S) + 1; *reinterpret_cast<uint32_t *>(S + 0xe0) = n; }
+        kr[4] = n;
+    }
+    knp = (fl & 1) ? o29_np_by_id(base, id30) : nullptr; vnp = (fl & 2) ? o29_np_by_id(base, id34) : nullptr;
+    if (!(fl & 2)) {
+        uint32_t h = 0x811c9dc5u, v = id34; for (int i = 0; i < 4; ++i) { h = ((v & 0xff) ^ h) * 0x1000193u; v >>= 8; }
+        uint32_t size = rd<uint32_t>(ng, 0x655c); uint64_t *tab = rd<uint64_t *>(ng, 0x6520);
+        if (size && tab) { uint64_t *node = reinterpret_cast<uint64_t *>(tab[h % size]); while (node && rd<uint32_t>(node, 0x10) != id34) node = reinterpret_cast<uint64_t *>(*node);
+            if (node && node != reinterpret_cast<uint64_t *>(tab[size])) vent = reinterpret_cast<uint8_t *>(node + 3); }
+        if (vent && !(bits & 0x10000000u)) { uint8_t *vc = u3x_handle_obj(vent); if (vc && ((rd<uint64_t>(vc, 0x708) >> 48) & 1)) r0->uncounted = 1; }
+    }
+    if (u3h_kr_30feec(base) && !(fl & 0x200)) r0->uncounted = 1;
+    krec = o29_prec(S, knp); vrec = o29_prec(S, vnp);
+    if (knp) r0->killer_team = static_cast<int8_t>(o29_team(knp)); if (vnp) r0->victim_team = static_cast<int8_t>(o29_team(vnp));
+    r0->f22 = (fl >> 20) & 1; r0->f21 = (fl >> 19) & 1;
+    if (knp && vnp && knp == vnp) {
+        local_cc = 1; if (kd) { ++*reinterpret_cast<int16_t *>(vrec + 0xc); ++*reinterpret_cast<int16_t *>(krec + 0x10); ++kr[5]; }
+        goto L20f0;
+    }
+    if (ffa) { r0->killer_team = 0; r0->victim_team = 1; }
+    if (vnp && kd) { ++*reinterpret_cast<int16_t *>(vrec + 0xc); ++kr[5]; }
+    if (!knp) goto L3b44;
+    if (vnp) { local_cc = 0; goto L20f0; }
+    on = o29_online(base) || (ec[245] & 1u); local_cc = 0;
+    goto L298c;
+L20f0:
+    if (o29_friendly(base, knp, vnp)) {
+        if (kd) ++*reinterpret_cast<int16_t *>(krec + 0x12);
+        if (r0->f21) {
+            uint32_t a = (rd<int32_t>(knp, 0x9a0) - static_cast<int32_t>(o29_now(base)) > 0) ? rd<uint32_t>(knp, 0x9a4) : 0;
+            anp = o29_np_by_id(base, a);
+            if (!anp) {
+                if (!(fl & 0x4000)) u3x_team_score(base, s, S, 1 - o29_team(knp), (fl & 0x200000) ? (u3x_kr_34fc04(base) ? 0 : 3) : u3x_kr_37c9f4(base));
+                else if (!u3x_kr_34fc04(base)) u3x_team_score(base, s, S, 1 - o29_team(knp), u3x_kr_37c984(base));
+            } else if (o29_team(anp) != o29_team(knp)) {
+                arec = o29_prec(S, anp); if (kd) ++*reinterpret_cast<int16_t *>(arec + 8);
+                if (fl & 0x4000) { ++arec[0x57]; u3x_add_score(base, s, S, anp, u3x_kr_37c984(base)); o29_stat(base, s, 0xb477093du, arec[0x57], anp); }
+                else u3x_add_score(base, s, S, anp, (fl & 0x200000) ? (u3x_kr_34fc04(base) ? 0 : 3) : u3x_kr_37c9f4(base));
+            }
+        }
+    }
+    on = o29_online(base) || (ec[245] & 1u);
+    if (!local_cc && !o29_friendly(base, knp, vnp)) goto L2528;
+    if (!r0->f21) {
+        int ti = o29_team(vnp) == 0;
+        if (!(fl & 0x4000)) { if (fl & 0x200000) u3x_team_score(base, s, S, ti, u3x_kr_34fc04(base) ? 0 : 3); }
+        else u3x_team_score(base, s, S, ti, u3x_kr_37c984(base));
+    } else { if (!local_cc) { if (vnp) goto L2528; goto L298c; } if (!vnp) goto L298c; }
+    goto L296c;
+L2528:
+    if (!o29_friendly(base, knp, vnp)) {
+        if (!(fl & 0x4000)) {
+            mt = rd<int32_t>(mode, 0xc);
+            if (!game_call<uint8_t>(base + 0x729b10u, ng)) {
+                if (mt != 10 || !on) {
+                    if (!team_mode && on) { if (!ffa) { pts = u3x_kill_points(base, 0x662220u, knp); goto L27a0; } u3x_add_score(base, s, S, knp, 1); }
+                    else if (!ffa) goto L28d4; else { u3x_add_score(base, s, S, knp, 1); if (!on) goto L28d4; }
+                } else if (!(ec[0] & 1)) { pts = u3x_kill_points(base, 0x6621a0u, knp) << 1; ++ec[16]; goto L27a0; }
+L2798:
+                pts = u3x_kill_points(base, 0x6621a0u, knp);
+            } else {
+                u3x_add_score(base, s, S, knp, (fl & 0x200000) ? (u3x_kr_34fc04(base) ? 0 : 3) : u3x_kr_37c9f4(base));
+                if (fl & 0x40000) { u3x_add_score(base, s, S, knp, u3x_kr_37c914(base)); ++krec[0x57]; o29_stat(base, s, 0xb477093du, krec[0x57], knp); }
+                if (!on) goto L28d4; if (mt != 0xf) goto L2798;
+                pts = game_call<uint8_t>(base + 0x77c880u, base + 0x17dc230u, knp, vnp) ? u3x_kill_points(base, 0x6622a0u, knp) : u3x_kill_points(base, 0x662320u, knp);
+            }
+L27a0:
+            if (pts) {
+                dbl = 0; if (u3x_double_points(base, knp)) { pts <<= 1; dbl = 1; } if (r0->f21) { pts <<= 1; dbl = 1; }
+                if (o29_local(base, knp)) u3x_kill_popup(base, s, knp, vnp ? vnp : nullptr, info, pts, 0, dbl);
+                u3x_award(base, s, S, knp, pts, 0, 0);
+            } else { u3x_add_score(base, s, S, knp, u3x_kr_37c984(base)); ++krec[0x57]; o29_stat(base, s, 0xb477093du, krec[0x57], knp); }
+L28d4:
+            if (!ffa) {
+                c = n ? n : 1;
+                for (uint32_t i = 1;; ++i) { if (--c == 0) break; KillRecord *r = kill_record(S, i);
+                    if (static_cast<int32_t>(rd<int32_t>(info, 0) - r->time) > 0x2ee) break;
+                    if (r->killer_team != r->victim_team && r->killer == static_cast<uint16_t>(id34) && r->victim != static_cast<uint16_t>(id30) && r->victim_team == o29_team(knp)) { o29_stat(base, s, 0x5258a989u, 1, knp); break; }
+                }
+            }
+        } else {
+            u3x_add_score(base, s, S, knp, (fl & 0x200000) ? (u3x_kr_34fc04(base) ? 0 : 3) : u3x_kr_37c9f4(base));
+            if (fl & 0x40000) { u3x_add_score(base, s, S, knp, u3x_kr_37c914(base)); ++krec[0x57]; o29_stat(base, s, 0xb477093du, krec[0x57], knp); }
+            if (!on) goto L28d4; if (mt != 0xf) goto L2798;
+            pts = game_call<uint8_t>(base + 0x77c880u, base + 0x17dc230u, knp, vnp) ? u3x_kill_points(base, 0x6622a0u, knp) : u3x_kill_points(base, 0x662320u, knp);
+        }
+    }
+L296c:
+    if (!o29_friendly(base, knp, vnp)) goto L298c; goto L3698;
+L298c:
+    if (kd) {
+        ++*reinterpret_cast<int16_t *>(krec + 8); ++kr[6];
+        if (at<uint8_t>(base + 0x17d5c61u) && game_call<uint8_t>(base + 0x722670u, ng) && o29_team(knp) == 1) ++*reinterpret_cast<int16_t *>(krec + 0x6c);
+        m = o29_member(S, id30);
+        if (m >= 0) { const uint32_t *t = reinterpret_cast<const uint32_t *>(base + 0x13a66d0u); wi = 0; for (uint32_t j = 1; j <= 0x1a; ++j) if (t[j] == w) { wi = static_cast<int>(j); break; }
+            ++*reinterpret_cast<int16_t *>(S + 0x60ccu + static_cast<uint64_t>(m) * 0x130u + 0xeeu + static_cast<uint64_t>(wi) * 2u); }
+    }
+    o29_stat(base, s, 0x5c494554u, rd<uint16_t>(krec, 8), knp);
+    if (o29_local(base, knp)) game_call<void>(base + 0x773b50u, base + 0x17da200u + static_cast<uint64_t>(o29_user(knp)) * 0x1018u, w, 1, 0, w, static_cast<uint8_t>(rd<uint32_t>(info, 0x3c)));
+    if (!r0->uncounted) {
+        if (fl & 0x2000000) { ++krec[0x65]; o29_stat(base, s, 0x15fd6bcdu, krec[0x65], knp); }
+        if (fl & 0x40000000) o29_stat(base, s, 0x1e8153a6u, 1, knp);
+        c2c28 = 1;
+        if (fl & 0x8000000) {
+            c = 0; for (uint32_t i = 0; i < n; ++i) c += kill_record(S, i)->f23 != 0;
+            o29_stat(base, s, 0xd4f91f9au, c, knp);
+            if (u3x_weapon_group(w) == 6) o29_stat(base, s, 0xbb000af1u, 1, knp);
+            else if (u3x_weapon_group(w) == 4) o29_stat(base, s, 0x5398047bu, 1, knp);
+            else c2c28 = 0;
+        }
+        if (c2c28 && w == 0x3d2f108bu) o29_stat(base, s, 0xc2b00a95u, 1, knp);
+        if (fl & 0x4000000) o29_stat(base, s, 0x78573763u, 1, knp);
+        if (fl & 0x10000000) o29_stat(base, s, 0xd323c81du, 1, knp);
+        if (fl & 0x20000000) o29_stat(base, s, 0xdc380255u, 1, knp);
+        if (fl & 0x100) { ++krec[0x56]; o29_stat(base, s, 0x76f0c8c8u, krec[0x56], knp); }
+        if (fl & 0x200) { ++*reinterpret_cast<uint16_t *>(krec + 0x58); o29_stat(base, s, 0x77240247u, rd<uint16_t>(krec, 0x58), knp); }
+        if (fl & 0x400) o29_stat(base, s, 0xcff265edu, 1, knp);
+        if (fl & 0x8000) o29_stat(base, s, 0x87cbf9cbu, 1, knp);
+        if (fl & 0x800) o29_stat(base, s, 0x3838b544u, 1, knp);
+        if (fl & 0x1000) o29_stat(base, s, 0x68774d94u, 1, knp);
+        if (fl & 0x20000) o29_stat(base, s, 0xb4210460u, 1, knp);
+        if (fl & 0x400000) o29_stat(base, s, 0x6685348eu, 1, knp);
+        if (fl & 0x800000) o29_stat(base, s, 0x0b854093u, 1, knp);
+        if (fl & 0x1000000) o29_stat(base, s, 0xcd644ff7u, 1, knp);
+        o29_stat(base, s, o29_sid_cat(base, rd<uint32_t>(info, 0x70), o29_killed), 1, knp);
+        if (fl & 0x2000) { c = 0; for (uint32_t i = 0; i < n; ++i) { KillRecord *r = kill_record(S, i); if (r->f24 && r->killer == static_cast<uint16_t>(id30) && r->killer_team != r->victim_team) ++c; } o29_stat(base, s, 0xa622ff01u, c, knp); }
+        else if (fl & 0x10000) o29_stat(base, s, 0xe5ad0b24u, 1, knp);
+        if (u3x_weapon_group(w) == 4) {
+            const uint32_t *k = reinterpret_cast<const uint32_t *>(info + 0x10), *v = reinterpret_cast<const uint32_t *>(info + 0x20); d2 = 0;
+            for (int i = 0; i < 3; ++i) { uint32_t d = f_sub(k[i], v[i]); d2 = f_add(d2, f_mul(d, d)); }
+            if (o29_le(0x44610000u, d2)) o29_stat(base, s, 0xd294ccd1u, 1, knp);
+        }
+        if (!ng[0x31d]) { o29_stat(base, s, 0x1bdbd578u, 1, knp); ng[0x31d] = 1; }
+        if (med) { u3x_kr_379c18(base, s, knp, info); u3x_kr_37952c(base, s, S, knp); ++kr[11]; }
+    }
+    u3x_booster_kill(base, s, knp, fl, w);
+    if (vent && kd) ++*reinterpret_cast<int16_t *>(krec + 0xa);
+    if (team_mode) {
+        vch = (vent && !(o29_bits(s) & 0x8000000u)) ? u3x_handle_obj(vent) : nullptr;
+        if (vch) { ++cai[0]; if ((rd<uint64_t>(vch, 0x708) >> 48) & 1) { cai[1] = (cai[1] & 0xffff0000u) | ((cai[1] + 1) & 0xffffu); goto L3698; } }
+        t0i = rd<int32_t>(info, 0);
+        if (!(o29_bits(s) & o29_nopts)) game_call<void>(base + 0x661ca0u, base + 0x17c3404u, info[0x64], &t0i);
+        pts = u3x_ai_kill_points(base, w, rd<uint32_t>(info, 0x68), knp, (fl >> 9) & 1);
+        if (o29_local(base, knp)) { if (on) u3x_kill_popup(base, s, knp, nullptr, info, pts, 0, 0); o29_prof_add(base, knp, 0x17b, 1); }
+        if (on) u3x_award(base, s, S, knp, pts, 0, 0);
+        if (vch) {
+            if ((rd<uint64_t>(vch, 0x708) >> 49) & 1) { o29_stat(base, s, 0x0c65fecdu, 1, knp); ++cai[2]; cai[3] = 0x0c65fecdu; }
+            kb = rd<uint8_t *>(vch, 0xbf8);
+            if (kb && rd<uint32_t>(kb, 4)) { o29_stat(base, s, 0x9c498eb3u, 1, knp); ++cai[2]; cai[3] = 0x9c498eb3u; }
+            else if (!o29_tag(base, rd<uint8_t *>(vch, 0x38), 0xfd2c9c09u, 0x9e8u)) {
+                cls = rd<int32_t>(vch, 0xc60);
+                if (cls == 2) { if (w == 0xb934b2b2u && krec) { ++krec[0x64]; o29_stat(base, s, 0x35cfda1fu, krec[0x64], knp); ++cai[2]; cai[3] = 0x35cfda1fu; } }
+                else if (cls == 4) { o29_stat(base, s, 0x38771768u, 1, knp); ++cai[2]; cai[3] = 0x38771768u; }
+            }
+        }
+    }
+L3698:
+    if (!r0->uncounted) {
+        if (!local_cc) {
+            if (vnp && !o29_friendly(base, knp, vnp) && (fl & 0x80)) { ++*reinterpret_cast<uint16_t *>(krec + 0x54); o29_stat(base, s, 0x744a942bu, rd<uint16_t>(krec, 0x54), knp); }
+            if (fl & 4) { ++*reinterpret_cast<uint16_t *>(krec + 0x48); o29_stat(base, s, 0xb759f1c7u, rd<uint16_t>(krec, 0x48), knp); }
+            if (fl & 0x40) { ++*reinterpret_cast<uint16_t *>(krec + 0x4e); o29_stat(base, s, 0xaa22db16u, rd<uint16_t>(krec, 0x4e), knp); }
+        }
+        if (fl & 0x10) o29_stat(base, s, 0x5cff7436u, 1, knp);
+        if (med) u3x_kr_3817b8(base, s, S, knp, info, team_mode);
+        if (u3x_weapon_group(w) == 6) {
+            if (o29_local(base, knp)) { o29_prof_add(base, knp, 0x17c, 1); if (w == 0xc58ae515u) o29_prof_add(base, knp, 0x17d, 1); }
+            if (med) u3x_kr_37992c(base, s, S, knp, info);
+        } else if (med) u3x_category_medals(base, s, S, knp, info, team_mode);
+        if (med) { u3x_kr_37ab00(base, s, S, knp, info); u3x_kr_37a4bc(base, s, S, knp); u3x_kr_379ed8(base, s, S); u3x_kr_379ff0(base, s, S, knp); u3x_kr_379430(base, s, S, knp); ++kr[12]; }
+        if (r0->f22 && r0->killer_team == r0->victim_team && !local_cc && !r0->f21) o29_stat(base, s, 0xffc1c7b5u, 1, knp);
+        if (vnp) {
+            if ((fl & 8) && r0->killer_team != r0->victim_team) { o29_stat(base, s, 0x89c96dedu, 1, knp); ++krec[0x6a]; }
+            c = 0; for (uint32_t i = 0; i < n; ++i) { KillRecord *r = kill_record(S, i); if (r->uncounted) continue; if (r->victim == static_cast<uint16_t>(id30)) break; if (r->killer == static_cast<uint16_t>(id30)) { if (r->victim_team == r0->killer_team) break; ++c; } }
+            o29_stat(base, s, 0x58b0d53du, c, knp); if (med) u3x_kr_37a32c(base, s, S, knp, info);
+            c = 0; for (uint32_t i = 0; i < n; ++i) { KillRecord *r = kill_record(S, i); if (r->uncounted) continue; if (r->killer == static_cast<uint16_t>(id34)) break; if (r->victim == static_cast<uint16_t>(id34)) { if (r->victim_team == r0->killer_team) break; ++c; } }
+            o29_stat(base, s, 0x6f593a9bu, c, vnp);
+            if (med) { u3x_kr_3791ec(base, s, S, knp, vnp, info); u3x_kr_37a914(base, s, S, knp); u3x_three_of_each(base, s, S, knp); u3x_kr_37a16c(base, s, S, knp); ++kr[13]; }
+        }
+    }
+    if (o29_local(base, knp)) u3x_weapon_boosters(base, s, S, knp);
+L3b44:
+    if (!ffa) {
+        for (int i = 0; i < 8; ++i) {
+            int32_t kt = r0->killer_team; if (o29_mode_type(base) == 0x12 && kt == -1) kt = 1;
+            uint32_t aid = rd<uint32_t>(info, 0x40 + i * 4); anp = aid ? o29_np_by_id(base, aid) : nullptr;
+            if (!anp || o29_team(anp) == r0->victim_team || o29_team(anp) != kt) continue;
+            arec = o29_prec(S, anp); if (kd) { ++*reinterpret_cast<uint16_t *>(arec + 0xe); ++kr[14]; }
+            if (o29_online(base) || (ec[245] & 1u)) {
+                if (o29_mode_type(base) == 0xf) pts = game_call<uint8_t>(base + 0x77c880u, base + 0x17dc230u, anp, vnp) ? u3x_kill_points(base, 0x6623a0u, anp) : u3x_kill_points(base, 0x662520u, anp);
+                else pts = u3x_kill_points(base, 0x662320u, anp) * u3x_kr_30ffa8(base, knp, (fl >> 9) & 1);
+                if (u3x_double_points(base, knp)) pts <<= 1;
+                if (o29_local(base, anp)) u3x_kill_popup(base, s, anp, vnp, info, pts, 1, 0);
+                u3x_award(base, s, S, anp, pts, 0, 0);
+            }
+            o29_stat(base, s, 0x83daf02cu, rd<uint16_t>(arec, 0xe), anp);
+        }
+    }
+    game_call<void>(base + 0x7aa560u, S);
+}
+
 // ===== end of contributor section =====
 // (keep these three lines unchanged: they separate the contributor section from the parts appended below)
 // (-)
@@ -17029,6 +20278,9 @@ U3H_IMPORT void *u3h_onb_object(void);
 U3H_IMPORT uint8_t *u3h_onb_msg(void);
 U3H_IMPORT uint64_t *u3h_onb_pj(void);
 U3H_IMPORT void **u3h_onb_vt(void);
+U3H_IMPORT uint64_t *u3h_lnb_match_room(void);
+U3H_IMPORT void **u3h_onb_vt(void);
+U3H_IMPORT uint64_t *u3h_lnb_match_room(void);
 U3H_IMPORT int u3h_smn_send(const void *m, uint32_t n);
 U3H_IMPORT void u3h_smn_attach(int on);
 U3H_IMPORT int u3h_ol_up(void);
@@ -17307,7 +20559,7 @@ extern "C" U3X_FN int64_t u3x_onb_s6(void *be_, uint8_t *ss, uint64_t room) {   
     return 0;
 }
 extern "C" U3X_FN int64_t u3x_onb_s7(void *be_, uint8_t *ss) {   // f_3841ac Leave
-    OnbBe &be = onb_be(be_);
+    O19Be &be = *static_cast<O19Be *>(be_);
     const uintptr_t base = be.base;
     u3x_onb_note(7);
     ++ext_eb()[141];
@@ -17360,7 +20612,7 @@ extern "C" U3X_FN int64_t u3x_onb_s8(void *be_, uint8_t *ss, uint32_t v) {   // 
     return 0;
 }
 extern "C" U3X_FN int64_t u3x_onb_s9(void *be_, uint8_t *ss, uint32_t id, uint32_t flag) {   // f_383fb0 Kick
-    OnbBe &be = onb_be(be_);
+    O19Be &be = *static_cast<O19Be *>(be_);
     const uintptr_t base = be.base;
     u3x_onb_note(9);
     if (u3x_onb_bound(be_, ss) < 0) return -1;

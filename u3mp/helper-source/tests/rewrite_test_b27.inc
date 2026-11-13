@@ -3,7 +3,8 @@
 static uint8_t t27_ext[0x6000];
 extern "C" {
 int u3h_show(uintptr_t, void *, uint32_t, int) { return 1; }
-void u3h_show_dialog(uintptr_t, void *, uint32_t, uint32_t, uint32_t, int32_t, uint32_t, uint32_t) {}
+static uint32_t t27_show_dialog_calls;
+void u3h_show_dialog(uintptr_t, void *, uint32_t, uint32_t, uint32_t, int32_t, uint32_t, uint32_t) { ++t27_show_dialog_calls; }
 void u3h_lan_chosen(void) {}
 int u3h_offline_find(uintptr_t, void *) { return 0; }
 void u3h_onm_state(uintptr_t, uint32_t) {}
@@ -150,11 +151,13 @@ extern "C" {
 void u3h_net_pick(void) {}
 }
 extern "C" {
-uint32_t u3h_fr_tab(uintptr_t, void *) { return 0; }
+static uint32_t t27_fr_tab_value;
+uint32_t u3h_fr_tab(uintptr_t, void *) { return t27_fr_tab_value; }
 void u3h_fi_mark_seen(uintptr_t, void *) {}
 void u3h_fi_refresh(uintptr_t, void *, int) {}
+static int (*t27_strcmp_fn)(const void *, const void *);
 uint8_t *u3h_fr_ent(uintptr_t, uint32_t) { return t27_ext; }
-int u3h_fr_strcmp(uintptr_t, const void *, const void *) { return 1; }
+int u3h_fr_strcmp(uintptr_t, const void *a, const void *b) { return t27_strcmp_fn ? t27_strcmp_fn(a, b) : 1; }
 void u3h_fr_icon22(int32_t *, int32_t) {}
 int32_t u3h_fr_state_icon(uintptr_t, uint8_t *) { return 0; }
 static char t27_buf[0x100];
@@ -223,9 +226,11 @@ int32_t u3h_friend_get(uintptr_t, uint32_t, uint8_t *, uint8_t *) { return -1; }
 int32_t u3h_presence_set(uintptr_t, const uint8_t *, uint32_t) { return -1; }
 void u3h_fr_sort(uint8_t *, int64_t) {}
 void u3h_fr_strncpy(char *, const char *, uint32_t) {}
-uint32_t u3h_fr_key(uintptr_t) { return 0; }
-uint8_t *u3h_lg_profile(uintptr_t, uint32_t) { return nullptr; }
-uint8_t *u3h_lg_rec(uintptr_t, void *, uint8_t *) { return nullptr; }
+static uint32_t t27_fr_key_value;
+static uint8_t *t27_lg_profile_ptr, *t27_lg_rec_ptr;
+uint32_t u3h_fr_key(uintptr_t) { return t27_fr_key_value; }
+uint8_t *u3h_lg_profile(uintptr_t, uint32_t) { return t27_lg_profile_ptr; }
+uint8_t *u3h_lg_rec(uintptr_t, void *, uint8_t *) { return t27_lg_rec_ptr; }
 int u3h_match_end_time(uintptr_t, void *, int64_t *) { return 0; }
 }
 extern "C" {
@@ -264,6 +269,9 @@ static volatile uint32_t t27_s16[16];
 static uint32_t t27_h08[5][16];
 uint8_t *u3h_s16_char(uintptr_t, uint8_t *) { return nullptr; }
 volatile uint32_t *u3h_s16_diag(void) { return t27_s16; }
+int u3h_mp_code_is(uintptr_t, uint32_t, const char *) { return 0; }
+static volatile uint32_t t27_i03_d[8];
+volatile uint32_t *u3h_i03_d(void) { return t27_i03_d; }
 uint32_t u3h_crc_sid(const char *p) { uint32_t c = 0; for (; *p; p++) { c ^= (uint32_t)(uint8_t)*p << 24; for (int b = 0; b < 8; b++) c = (c & 0x80000000u) ? (c << 1) ^ 0x04C11DB7u : (c << 1); } return c; }
 void u3h_h01_tint(uintptr_t, uint8_t *, uint8_t *, int32_t) {}
 uint32_t *u3h_h08_state(int which) { return t27_h08[which]; }
@@ -376,7 +384,8 @@ void u3h_spawn_fade(uintptr_t, void *, uint8_t *, int) {}
 int u3h_spawn_locator(uintptr_t, void *, uint8_t *, void *, uint32_t, uint32_t) { return 0; }
 void u3h_spawn_region_request(uintptr_t, void *, uint8_t *, uint32_t) {}
 int u3h_spawn_levels_ready(uintptr_t, void *, uint32_t) { return 0; }
-int32_t u3h_netgame_type(uintptr_t, void *) { return 0; }
+static int32_t t27_netgame_type_value;
+int32_t u3h_netgame_type(uintptr_t, void *) { return t27_netgame_type_value; }
 int u3h_vis_oob_tick(uintptr_t, void *, uint8_t *, uint8_t *, int32_t, int) { return 0; }
 void u3h_camera_tick(uintptr_t, void *, uint8_t *, int) {}
 }
@@ -504,6 +513,12 @@ uint64_t *u3h_onb_pj(void) { return t41_pj; }
 void **u3h_onb_vt(void) { return t41_vt; }
 int u3h_smn_send(const void *, uint32_t) { return -1; }
 void u3h_smn_attach(int) {}
+int32_t u3h_smn_pull(uint8_t *, uint32_t *, uint32_t) { return -1; }
+uint32_t u3h_smn_len(const uint8_t *, uint32_t) { return 0; }
+uint32_t u3h_smn_swap(uint8_t *, uint32_t) { return 0; }
+void u3h_smn_got(const uint8_t *, uint32_t) {}
+void u3h_smn_unknown(const uint8_t *, uint32_t) {}
+int u3h_onb_pl_np(uintptr_t, uint8_t *, const char *) { return 0; }
 int u3h_ol_up(void) { return 1; }
 int u3h_ol_frame(uint32_t type, const void *m, uint32_t n) { t41_type = type; t41_len = n; memcpy(t41_frame, m, n); t41_frames++; return 1; }
 void u3h_fw_line(const char *, uint32_t, int, const char *, int32_t) {}

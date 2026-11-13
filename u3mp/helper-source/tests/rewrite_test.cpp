@@ -82,6 +82,21 @@ static void old_skins(uint8_t *l) {
 #include "rewrite_test_b39.inc"
 #include "rewrite_test_b40.inc"
 #include "rewrite_test_b41.inc"
+#include "rewrite_test_b42.inc"
+#include "rewrite_test_b43.inc"
+#include "rewrite_test_b44.inc"
+#include "rewrite_test_b45.inc"
+#include "rewrite_test_b46.inc"
+#include "rewrite_test_b47.inc"
+#include "rewrite_test_b48.inc"
+#include "rewrite_test_b49.inc"
+#include "rewrite_test_b50.inc"
+#include "rewrite_test_b51.inc"
+#include "rewrite_test_b52.inc"
+#include "rewrite_test_b53.inc"
+#include "rewrite_test_b54.inc"
+#include "rewrite_test_b55.inc"
+#include "rewrite_test_b56.inc"
 
 int main() {
     // match defaults: same bytes from a filled buffer
@@ -160,6 +175,21 @@ int main() {
     batch39();
     batch40();
     batch41();
+    batch42();
+    batch43();
+    batch44();
+    batch45();
+    batch46();
+    batch47();
+    batch48();
+    batch49();
+    batch50();
+    batch51();
+    batch52();
+    batch53();
+    batch54();
+    batch55();
+    batch56();
     batch28b();
     std::printf("%s (%d failures)\n", fails ? "FAILED" : "all equal", fails);
     return fails ? 1 : 0;

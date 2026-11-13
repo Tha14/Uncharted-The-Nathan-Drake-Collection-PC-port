@@ -692,6 +692,133 @@ __attribute__((visibility("hidden"))) uint32_t u3x_m04_cur_map(const uint8_t *t,
 __attribute__((visibility("hidden"))) void u3x_m04_select_var(uintptr_t base,void *s,int32_t v);
 __attribute__((visibility("hidden"))) uint32_t u3x_m04_var_value(uintptr_t base,int solo);
 /* ===== contributor prototypes: the other contributor's u3x_ prototypes go between this line and the end line ===== */
+__attribute__((visibility("hidden"))) int u3x_has_eff(uint8_t *c,uint32_t sid);
+__attribute__((visibility("hidden"))) uint8_t *u3x_char_np(uintptr_t base,uint8_t *c);
+__attribute__((visibility("hidden"))) uint32_t u3x_player_fill(uintptr_t base,void *s,uint8_t *msg,uint8_t *pl);
+__attribute__((visibility("hidden"))) void u3x_bsw(uint8_t *bs,uint32_t val,uint32_t n);
+__attribute__((visibility("hidden"))) uint32_t u3x_fabs(uint32_t f);
+__attribute__((visibility("hidden"))) void u3x_bsw_vec(uint8_t *bs,const uint32_t *v);
+__attribute__((visibility("hidden"))) void u3x_bsw_frame(uintptr_t base,uint8_t *bs,uint8_t *f);
+__attribute__((visibility("hidden"))) void u3x_q_mul(uint32_t *o,const uint32_t *a,const uint32_t *b);
+__attribute__((visibility("hidden"))) void u3x_q_rot(uint32_t *o,const uint32_t *q,const uint32_t *v);
+__attribute__((visibility("hidden"))) void u3x_loc_mul(uint32_t *o,const uint32_t *a,const uint32_t *b);
+__attribute__((visibility("hidden"))) void u3x_loc_rel(uint32_t *o,const uint32_t *a,const uint32_t *b);
+__attribute__((visibility("hidden"))) void u3x_bf_world(uintptr_t base,uint8_t *f,uint32_t *o);
+__attribute__((visibility("hidden"))) uint8_t *u3x_bind_root(uintptr_t base,uint8_t *obj);
+__attribute__((visibility("hidden"))) uint64_t u3x_ev_query(uintptr_t base,uint32_t sid,uint8_t *obj);
+__attribute__((visibility("hidden"))) uint8_t *u3x_np_by_id(uintptr_t base,uint32_t id);
+__attribute__((visibility("hidden"))) int32_t u3x_tab_find(uint8_t *t,uint32_t key);
+__attribute__((visibility("hidden"))) uint8_t *u3x_art_tab(uint8_t *g);
+__attribute__((visibility("hidden"))) uint32_t u3x_sid(uintptr_t base,const char *s);
+__attribute__((visibility("hidden"))) int u3x_anim_lookup(uintptr_t base,uint32_t *tab,int32_t *idx,uint32_t id,uint8_t *anim,uint8_t **tabs);
+__attribute__((visibility("hidden"))) uint8_t *u3x_stream_root(uintptr_t base,uint8_t *x,uint32_t *phase);
+__attribute__((visibility("hidden"))) int u3x_layer_counts(uint32_t u,const uint32_t *ex,uint32_t n);
+__attribute__((visibility("hidden"))) uint32_t u3x_anim_pack_body(uintptr_t base,uint8_t *msg,uint8_t *bs,uint8_t *actor,uint8_t **tabs,int32_t p5,int32_t p6,uint8_t **buf);
+__attribute__((visibility("hidden"))) uint8_t *u3x_s16_char(uintptr_t base,uint8_t *cm);
+__attribute__((visibility("hidden"))) int u3x_s17_apply(uintptr_t base,uint8_t *cm,int own_kill);
+__attribute__((visibility("hidden"))) int u3x_s16_refresh(uintptr_t base,uint64_t *r);
+__attribute__((visibility("hidden"))) int u3x_s17_page(uint32_t pg);
+__attribute__((visibility("hidden"))) void u3x_s16_tick(uintptr_t base);
+__attribute__((visibility("hidden"))) void *u3x_medal_list(void *s);
+__attribute__((visibility("hidden"))) uint8_t *u3x_medal_record(void *s,uint32_t i);
+__attribute__((visibility("hidden"))) uint32_t u3x_w04_tab(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) void u3x_medal_build(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) int u3x_medals_source(uintptr_t base,int32_t *event,void *s);
+__attribute__((visibility("hidden"))) uint64_t u3x_fi_rec_seen(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) void u3x_fi_refresh(uintptr_t base,void *s,int32_t notify);
+__attribute__((visibility("hidden"))) uint32_t u3x_fi_row_why(uintptr_t base,const uint8_t *b,uint64_t now);
+__attribute__((visibility("hidden"))) int u3x_fi_is_friend(uintptr_t base,const uint8_t *nm20);
+__attribute__((visibility("hidden"))) void u3x_fi_finish(uintptr_t base,void *s,int32_t rows);
+__attribute__((visibility("hidden"))) void u3x_fi_delete(uintptr_t base,int32_t i);
+__attribute__((visibility("hidden"))) void u3x_fi_delete_done(uintptr_t base);
+__attribute__((visibility("hidden"))) void u3x_fi_mark_seen(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) void u3x_fi_tick(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) void u3x_fi_send(uintptr_t base);
+__attribute__((visibility("hidden"))) void u3x_retag_mm_vote(uint8_t *page);
+__attribute__((visibility("hidden"))) uint8_t *u3x_mmv_netgame(void *s,int16_t i);
+__attribute__((visibility("hidden"))) uint8_t *u3x_mmv_playlist(void *s,uint32_t id);
+__attribute__((visibility("hidden"))) const uint8_t *u3x_mmv_rule(void *s,int32_t i);
+__attribute__((visibility("hidden"))) int u3x_mmv_coop(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) const char *u3x_mmv_diff(uintptr_t base,void *s,uint32_t n);
+__attribute__((visibility("hidden"))) int u3x_mmv_source(uintptr_t base,int32_t *ev,void *s);
+__attribute__((visibility("hidden"))) int u3x_popup_timed(uintptr_t base,void *s,uint32_t text,int seconds,uint32_t ok,uint32_t cancel);
+__attribute__((visibility("hidden"))) int u3x_start_checks(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) void u3x_start_game(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) void u3x_start_prepare(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) void u3x_start_game_now(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) int u3x_k29_eok(const void *p);
+__attribute__((visibility("hidden"))) int u3x_k23_callees(uintptr_t base);
+__attribute__((visibility("hidden"))) int u3x_k23_rep(uintptr_t base,uint8_t *pad,uint32_t m);
+__attribute__((visibility("hidden"))) void u3x_k23_action(uintptr_t base,uint32_t id);
+__attribute__((visibility("hidden"))) void u3x_k23_update(uintptr_t base,uint8_t *el);
+__attribute__((visibility("hidden"))) int u3x_k23_hud(uintptr_t base,uint64_t *r);
+__attribute__((visibility("hidden"))) uint8_t *u3x_fj_member(uint8_t *ps,const uint8_t *name);
+__attribute__((visibility("hidden"))) void u3x_fj_fail(uintptr_t base,void *s,const char *why);
+__attribute__((visibility("hidden"))) void u3x_pj_line(uintptr_t base,const char *what);
+__attribute__((visibility("hidden"))) void u3x_pj_accept(uintptr_t base,uint64_t id,int flag);
+__attribute__((visibility("hidden"))) void u3x_pj_giveup(uintptr_t base);
+__attribute__((visibility("hidden"))) void u3x_pj_tick(uintptr_t base);
+__attribute__((visibility("hidden"))) void u3x_fj_cb(uintptr_t base,void *s,int32_t *ev);
+__attribute__((visibility("hidden"))) void u3x_onb_member_link(uintptr_t base,uint8_t *ss,const char *name);
+__attribute__((visibility("hidden"))) void u3x_onb_peer_begin(uintptr_t base,uint8_t *ss);
+__attribute__((visibility("hidden"))) void u3x_onb_info(void *in,const uint8_t *r);
+__attribute__((visibility("hidden"))) uint32_t u3x_onb_msg_in(void *be);
+__attribute__((visibility("hidden"))) int64_t u3x_onb_s1(void *be);
+__attribute__((visibility("hidden"))) int64_t u3x_onb_s_nop(void);
+__attribute__((visibility("hidden"))) void u3x_onb_vtable(void);
+__attribute__((visibility("hidden"))) int u3x_handle_obj_valid(uint8_t *h);
+__attribute__((visibility("hidden"))) uint8_t *u3x_handle_obj(uint8_t *h);
+__attribute__((visibility("hidden"))) int32_t u3x_net_now(uintptr_t base);
+__attribute__((visibility("hidden"))) int32_t u3x_loc_now(uintptr_t base);
+__attribute__((visibility("hidden"))) uint8_t *u3x_netgame_cur(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) int32_t u3x_netgame_type(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) int u3x_net_coop_mode(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) int u3x_net_late_joining(uintptr_t base);
+__attribute__((visibility("hidden"))) int u3x_np_has_effect(void *s,uint8_t *p,uint32_t h);
+__attribute__((visibility("hidden"))) int u3x_np_alive(void *s,uint8_t *p);
+__attribute__((visibility("hidden"))) uint8_t *u3x_screen_player(uintptr_t base,uint8_t *p);
+__attribute__((visibility("hidden"))) uint32_t u3x_respawn_delay_bits(void *s,uint8_t *p);
+__attribute__((visibility("hidden"))) int64_t u3x_f_ticks(uint32_t f,int64_t half);
+__attribute__((visibility("hidden"))) int u3x_f_positive(uint32_t f);
+__attribute__((visibility("hidden"))) void *u3x_dc_type_object(uintptr_t base,uint32_t key);
+__attribute__((visibility("hidden"))) int u3x_default_spawner_exists(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) int u3x_spawn_locator(uintptr_t base,void *s,uint8_t *p,void *loc,uint32_t spawner,uint32_t index);
+__attribute__((visibility("hidden"))) void u3x_spawn_fade(uintptr_t base,void *s,uint8_t *p,int on);
+__attribute__((visibility("hidden"))) void u3x_spawn_region_request(uintptr_t base,void *s,uint8_t *p,uint32_t spawner);
+__attribute__((visibility("hidden"))) int u3x_spawn_levels_ready(uintptr_t base,void *s,uint32_t spawner);
+__attribute__((visibility("hidden"))) uint64_t u3x_k26_call(void *c);
+__attribute__((visibility("hidden"))) uint64_t u3x_k26_f2d(uint32_t f);
+__attribute__((visibility("hidden"))) uint32_t u3x_k26_fsel(uint32_t a,uint32_t b,uint32_t c);
+__attribute__((visibility("hidden"))) uint32_t u3x_k26_rd(const void *p);
+__attribute__((visibility("hidden"))) void u3x_k26_c4(uint32_t *o,uint32_t a,uint32_t b,uint32_t c,uint32_t d);
+__attribute__((visibility("hidden"))) uint32_t u3x_k26_col(const uint32_t c[4]);
+__attribute__((visibility("hidden"))) void u3x_k26_tp(uint32_t *P);
+__attribute__((visibility("hidden"))) void u3x_k26_text(uintptr_t b,uint32_t *P,const char *s);
+__attribute__((visibility("hidden"))) const char *u3x_k26_str(uintptr_t b,uint32_t id);
+__attribute__((visibility("hidden"))) void u3x_k26_sprite(uintptr_t b,uint64_t idq,uint32_t idx,const uint32_t col[4],uint32_t x,uint32_t y,uint32_t w,uint32_t h,uint32_t ctr,uint32_t ha);
+__attribute__((visibility("hidden"))) uint64_t u3x_k26_tex(uintptr_t b,uint32_t id);
+__attribute__((visibility("hidden"))) void u3x_k26_quad(uintptr_t b,uint64_t dc,uint64_t tex,uint32_t x0,uint32_t y0,uint32_t x1,uint32_t y1,const uint32_t col[4]);
+__attribute__((visibility("hidden"))) void u3x_k26_time(uintptr_t b,char *buf,int32_t s);
+__attribute__((visibility("hidden"))) int u3x_k26_callees(uintptr_t b);
+__attribute__((visibility("hidden"))) int u3x_k26_draw(uintptr_t b,uint8_t *el,uint8_t *rbp);
+__attribute__((visibility("hidden"))) uint8_t *u3x_i01_md(uintptr_t base,uint8_t *m);
+__attribute__((visibility("hidden"))) int u3x_i01_self(uintptr_t base,uint8_t *m);
+__attribute__((visibility("hidden"))) void u3x_i01_rows(uintptr_t base);
+__attribute__((visibility("hidden"))) int16_t u3x_i01_ngi_push(uintptr_t base);
+__attribute__((visibility("hidden"))) void u3x_i01_ngi_pop(uintptr_t base,int16_t keep);
+__attribute__((visibility("hidden"))) int32_t u3x_i01_type(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) int u3x_i01_coop(int32_t t);
+__attribute__((visibility("hidden"))) uint32_t u3x_i01_colour(uintptr_t base,int32_t idx);
+__attribute__((visibility("hidden"))) uint8_t *u3x_i01_np_by_code(uintptr_t base,uint32_t id);
+__attribute__((visibility("hidden"))) int u3x_i01_strcmp(const uint8_t *a,const uint8_t *b);
+__attribute__((visibility("hidden"))) void u3x_i01_row_colour(uintptr_t base,void *s,int32_t *event,uint8_t *m,int guest,uint32_t row);
+__attribute__((visibility("hidden"))) int u3x_i01_party(uintptr_t base,int32_t *event,void *s,const char *selfname);
+__attribute__((visibility("hidden"))) void u3x_i01_click(uintptr_t base,int32_t *ev);
+__attribute__((visibility("hidden"))) int u3x_i01_canfocus(uint8_t *c);
+__attribute__((visibility("hidden"))) int u3x_i01_leftctl(uint32_t pid,uint32_t id);
+__attribute__((visibility("hidden"))) void u3x_i01_focus(uintptr_t base,void *s);
+__attribute__((visibility("hidden"))) int u3x_i01_user_party(void);
+__attribute__((visibility("hidden"))) void u3x_kr_port(uintptr_t base,uint8_t *info,void *s);
 /* ===== end of contributor prototypes ===== */
 /* (keep these three lines unchanged) */
 /* (-) */
@@ -1724,18 +1851,14 @@ static int lobby_buttons(uintptr_t base,int32_t *event,ProfileState *s){
  * +0x10 start, +0x14 expiry in Clock 0x17b4a90+0x114 units, 300/s = PS3 f_24d890). Menu::Update 0x6560c7 closes it
  * when the clock passes +0x14 and calls OnButton(menu+0x1544 = PS3 menu+3412); Back sends 0x128aa55b ->
  * OnButton(menu+0x1548 = PS3 menu+3416). OnButton's default path 0x6502b1 runs the named callbacks (menu+0x155c). */
-static uint32_t pt_live EXT_BSS,pt_ok0 EXT_BSS,pt_bk0 EXT_BSS,pt_ok EXT_BSS,pt_seen EXT_BSS;   /* v7.83 rf18 */
+static uint32_t pt_state[5] EXT_BSS;   /* v7.83 rf18: live, ok0, bk0, ok, seen */
+#define pt_live pt_state[0]
+#define pt_ok0 pt_state[1]
+#define pt_bk0 pt_state[2]
+#define pt_ok pt_state[3]
+#define pt_seen pt_state[4]
 static int popup_timed(uintptr_t base,ProfileState *s,uint32_t text,int seconds,uint32_t ok,uint32_t cancel){
- uint8_t *m=(uint8_t*)(base+0x17bd080u);uint8_t *pd=*(uint8_t**)(m+0x14f0);
- if(!pd||!s->show_page)return 0;
- uint32_t now=*(uint32_t*)(base+0x17b4a90u+0x114);
- *(uint32_t*)(pd+8)=text;*(uint32_t*)(pd+0x10)=now;*(uint32_t*)(pd+0x14)=now+(uint32_t)seconds*300u;
- if(!pt_live){pt_ok0=*(uint32_t*)(m+0x1544);pt_bk0=*(uint32_t*)(m+0x1548);}   /* v7.83 rf18: put back once this popup is gone */
- pt_live=1;pt_ok=ok;pt_seen=0;
- *(uint32_t*)(m+0x1544)=ok;*(uint32_t*)(m+0x1548)=cancel;
- X.cd[1]=now;X.cd[2]=text;
- return ((int(*)(void*,uint32_t,int,int))s->show_page)(m,0x453470ddu,0,0)&255;
-}
+ return u3x_popup_timed(base,s,text,seconds,ok,cancel);}   /* v7.212 C++ */
 /* BUTTON_MULTIPLAYER_STARTMATCH (0x70e80076; PS4 0x66edf0 stub), PS3 0x292e3c custom-game branch (net mode 2,
  * PS3 0x2931cc..0x293548). v5.13: no longer calls the countdown completion 0x66e9b0 directly. Like PS3 it locks the
  * party session when this PC hosts it (f_374318 / f_3744c8(s,1) = PS4 party session 0x17dc298: count 0 or self ==
@@ -1769,45 +1892,7 @@ static const uint8_t ng_min_players[20]={1,1,1,1,2,1,1,1,2,2,2,2,1,2,1,1,1,2,2,1
 /* b010: party size = PS3 f_3757c8 on the party session (lnb_party_size; was the v4.98 room's member count) */
 static int lan_party_size(uintptr_t base){return lnb_party_size(base);}
 static int start_checks(uintptr_t base,ProfileState *s){
- int32_t type=netgame_type(base,s);int n=lan_party_size(base);
- int mx=(type>=0&&type<20)?ng_max_players[type]:0,mn=(type>=0&&type<20)?ng_min_players[type]:0;
- X.cd[7]=(uint32_t)n|((uint32_t)(type&0xff)<<8)|((uint32_t)mn<<16)|((uint32_t)mx<<24);X.cd[6]=0;
- if(n>mx){X.cd[6]=2;show_dialog(base,s,0x4a936499u,0xc6467f2du,0x13cabc15u,0,0,0xe1e040aau);return 0;}
- int solo=(n==1)&&(*(uint32_t*)((uint8_t*)s+0x3d78)&0x80);
- if(type==18&&!(*(uint32_t*)((uint8_t*)s+0x3d78)&0x20000))solo=0;   /* v5.24: Hunter needs 2 players like PS3 (U3MP_SOLO_HUNTER=1 keeps the bypass) */
- /* v5.30 solo-start port of the user's RPCS3 patch (U3MP_SOLO_COOP, RS2 bit 0x80000, default on): the patch removes the
-  * read of debug byte +0x7c (PS3 1.10 0x293290, f_292e3c) so the following branch takes the
-  * "skip" side, i.e. check 3 is never run, for any party size and any game type (Hunter included). Check 4 (type-10
-  * teams) is after the gate on PS3 and still runs; the lone-host override above keeps skipping it as before. */
- int nomin=(*(uint32_t*)((uint8_t*)s+0x3d78)&0x80000)!=0;
- if(nomin&&n<mn)X.sc[1]++;
- if(!solo&&!nomin&&n<mn){X.cd[6]=3;show_dialog(base,s,0x4a93e6b9u,0xc6467f2du,0x13cafe1fu,0,0,0xe1e040aau);return 0;}
- if(type==10&&!solo){
-  int hist[4]={0,0,0,0},counted=0;
-  /* s007: PS3 1.10 0x293640..: for party members i = 0..9, f_3755d0 (active, session +0x670 + i*0x180, +0xe0) then
-   * f_375fb0 = the member's 0x40-byte member data (+0xf8 length must be 0x40, else 0 and the member is not counted; with no
-   * room bound, the session's local data +0x1704). Team = data byte +9. PS4 builds the same data in 0x74c980 (+9 = profile
-   * +0x77c, the team R2 Change Team sets) and stores it with 0x7a32d0 (members +0x680, 0x120 each, length +0x3c, data +0x40;
-   * no room: local length +0x11fc, data +0x1200). b010: the party session itself, as PS3 (the LAN backend port fills its
-   * members): f_3755d0 = member i if active; f_375fb0 = no room or this PC's own member -> the session's local data
-   * (PS3 +0x1700/+0x1704 = PS4 +0x12f0/+0x12f4), another member -> its data; length must be 0x40. U3MP_TEAMCHK_GUESS=1
-   * (switch word state+0x20c0 bit2) brings back the old "every member on team 0" guess. */
-  int guess=(*(uint32_t*)((uint8_t*)s+0x20c0)&4)!=0;
-  uint8_t *ps=(uint8_t*)(base+0x17dc298u);
-  for(int i=0;i<10;i++){uint8_t *m=ps+0x680+i*0x120;if(!m[0x25])continue;
-   if(guess){counted++;continue;}
-   const uint8_t *md=0;
-   if(!*(uint64_t*)(ps+0x18)||*(uint32_t*)(m+0x2c)==*(uint32_t*)(ps+0x12e4)){if(*(uint32_t*)(ps+0x12f0)==0x40)md=ps+0x12f4;}
-   else if(*(uint32_t*)(m+0x3c)==0x40)md=m+0x40;
-   if(!md)continue;
-   counted++;int team=md[9];
-   if(team>=1&&team<=4)hist[team-1]++;}
-  X.cd[6]=(uint32_t)counted<<8|(uint32_t)(hist[0]|hist[1]<<4|hist[2]<<8|hist[3]<<12)<<16;   /* s007: check-4 inputs */
-  for(int k=0;k<4;k++)if(counted==hist[k]){X.cd[6]|=4;show_dialog(base,s,0x101c7f10u,0xc6467f2du,0x5350146eu,0,0,0xe1e040aau);return 0;}
- }
- return 1;
-}
-static uint32_t t008_start EXT_BSS;   /* t008: a start issued in this lobby visit (see start_game) */
+ return u3x_start_checks(base,s);}   /* v7.212 C++ */
 static uint32_t cg_t0 EXT_BSS;   /* v7.82 rf17: engine clock of the last Custom Game start press (0 = not watching) */
 static void so_note(const char *a,const char *nm,int32_t v,const char *b);
 EXT static void cg_log(const char *a,int32_t v){static const char p[]="custom game: ";char t[120];int n=0;for(const char *q=p;*q;)t[n++]=*q++;for(const char *q=a;*q&&n<118;)t[n++]=*q++;t[n]=0;so_note(t,0,v,0);}
@@ -1826,33 +1911,7 @@ EXT static void cg_commit_selection(uintptr_t base,ProfileState *s){
  {static const char t_n[]="lobby selection made the match's net game: ";cg_log(t_n,want);}
  {static const char t_w[]="  ... it was net game ";cg_log(t_w,was);}}
 static void start_game(uintptr_t base,ProfileState *s){
- X.cd[0]++;
- {static const char t_p[]="Start pressed, net mode ";cg_log(t_p,(int32_t)*(uint32_t*)(base+0x17d603c));}   /* v7.82 rf17 */
- if(party_guest(base)){static const char t_g[]="only the party leader can start (this PC is a party member)";cg_log(t_g,-1);return;}   /* x020 */
- if(onb_startmatch(base,s))return;   /* sw02: Find Game (net mode 1) with the online backend: PS3 f_2986c0's real branch */
- if(m03_startmatch(base,s))return;   /* agent M m003: Find Game (net mode 1) STARTMATCH, spoofed matchmaking */
- cg_commit_selection(base,s);   /* v7.99 */
- if(*(uint32_t*)((uint8_t*)s+0x3d78)&0x40){start_game_now(base,s);return;}
- void (*done)(void)=(void(*)(void))s->natives[NATIVE_COUNTDOWN_DONE];
- if(!done||*(uint32_t*)(base+0x17d603c)!=2||!mp_lan_or_online(base))return;   /* sw06: online too */
- /* t008: net state 3 is also where the host sits after a match (0x20 post-match -> 0x3 -> Custom Game), so "3 = already starting"
-  * blocked every Start Game after the first match (v5.78..v5.84: Start Game on the post-match Custom Game page does nothing;
-  * X.cd[0] counts the press, nothing else runs). Only a start this helper issued in the last 30 s counts as "already starting"
-  * (t008_start = engine clock 0x17b4a90+0x114, 300/s, when the countdown / start is issued). */
- {uint32_t ns=*(uint32_t*)(base+0x1b68810),now=*(uint32_t*)(base+0x17b4a90u+0x114);
-  if(t008_start&&now-t008_start<30u*300u&&(ns==3||ns==0xb)){static const char t_a[]="already starting, net state ";cg_log(t_a,(int32_t)ns);return;}}   /* already starting */
- if(*(uint8_t**)(base+0x17bd080u+0x898)&&*(uint32_t*)(*(uint8_t**)(base+0x17bd080u+0x898)+0x10)==0x453470ddu)return; /* popup up */
- if(!start_checks(base,s)){static const char t_c[]="a start check refused it (2 party too big, 3 too few players, 4 teams): ";cg_log(t_c,(int32_t)(X.cd[6]&0xff));return;}
- {static const char t_ok[]="checks passed, countdown next; party size ";cg_log(t_ok,(int32_t)lan_party_size(base));cg_t0=*(uint32_t*)(base+0x17b4a90u+0x114);if(!cg_t0)cg_t0=1;}
- start_prepare(base,s);
- {uint8_t *ps=(uint8_t*)(base+0x17dc298u);uint8_t *be=*(uint8_t**)(ps+8);
-  if(be&&(!*(uint64_t*)(ps+0x18)||*(uint32_t*)(ps+0x12e4)==*(uint32_t*)(ps+0x12e8))){
-   uintptr_t fn=(*(uintptr_t**)be)[0x40/8];if(fn){((int64_t(*)(void*,void*,int))fn)(be,ps,1);X.cd[3]++;}}}
- *(uint8_t*)(base+0x17bd080u+0x269a)=0;
- t008_start=*(uint32_t*)(base+0x17b4a90u+0x114);if(!t008_start)t008_start=1;   /* t008 */
- if(popup_timed(base,s,0x73a73dd8u,5,0xe2707dbeu,0xbf6ce4d5u))X.cd[4]++;
- else{X.cd[5]++;done();}       /* no popup page: start at once */
-}
+ u3x_start_game(base,s);}   /* v7.212 C++ */
 /* v7.83 rf18: once the timed popup has been up and is gone (its OK or Back has run), the menu's popup callbacks go back to
  * what they were, so no later popup can run the countdown completion again */
 EXT static void pt_tick(uintptr_t base){
@@ -1865,43 +1924,9 @@ EXT static void pt_tick(uintptr_t base){
  *(uint32_t*)(m+0x1548)=pt_bk0;pt_live=0;
  static const char t_r[]="countdown popup closed: its OK / Back callbacks cleared again";cg_log(t_r,-1);}
 static void start_prepare(uintptr_t base,ProfileState *s){
- Probe *p=probe_of(s);p->start_calls++;
- {uint8_t *nc=(uint8_t*)s+0x2000;if(*(uint8_t**)(base+0x17c3580)==nc){*(uint64_t*)(nc+0xc)=0;*(uint32_t*)(nc+0x20)=0;*(uint32_t*)(nc+0x28)=0;}}
- /* Abort flag 0x16e7170 starts as 1 in data and is cleared by the state enter 0x666c20 that a
-  * normal match start passes through (and by Leave's exit 0x6775f0); EstablishConnection 0x67fad0
-  * leaves at once while it is set. Clear it and the net error flag 0x17d5c80 for a fresh start. */
- /* s003 KEEP (solo LAN backend): PS3 does both of these once at NetInit (f_2901e0 clears the abort flag DAT_011bf4d4, the
-  * worker f_290ca0 runs Session Init f_374068 = PS4 0x7a2360 on g_matchSession); startup_tick now does the same there. The
-  * repeat at every Start Game stayed because the old guest LanBackend did not complete the session's async operations the
-  * way PS3's LAN class does (b010 ports that class; the repeat stays default on until a two-PC run shows it can go). U3MP_START_RESET=0
-  * (RS2 0x20000000) leaves the per-start repeat out (PS3 placement only). */
- if(!(*(uint32_t*)((uint8_t*)s+0x3d78)&0x20000000u)){
- *(uint8_t*)(base+0x16e7170)=0;*(uint8_t*)(base+0x17d5c80)=0;
- /* Session Init/Reset 0x7a2360 has no PS4 caller: without it every async-operation "done" flag of
-  * g_matchSession is 0 and Playing (0x67d760) ends the match on +0xc8. Reset before Create. */
- {int64_t (*reset)(uintptr_t)=(int64_t(*)(uintptr_t))s->natives[NATIVE_SESSION_RESET];if(reset)reset(base+0x17d6420);}}
- /* SHORTCUT (missing PS4 asset): City of Brass's kill-volume level san-upper-multi-killvis is listed in
-  * pak23_ps4.txt but shipped as an empty 244-byte stub with no -ingame pack, so it never leaves level
-  * state 2 and the load queue stalls. PS3 loads it from map entry +0x38 when +0x40 is set (0x72b570).
-  * Clear +0x40 of map-list (symbol 0xdec97a4) entries naming that level until the PS3 data is ported. */
- {void *(*lookup)(uint32_t)=(void*(*)(uint32_t))s->natives[NATIVE_LOOKUP_SYMBOL];
-  uint8_t *ml=lookup?(uint8_t*)lookup(0x0dec97a4):0;
-  if(ml){uint32_t n=*(uint32_t*)ml;uint8_t *e=*(uint8_t**)(ml+8);
-   static const char kv[]="san-upper-multi-killvis";
-   for(uint32_t i=0;e&&i<n&&i<64;i++,e+=0x98){const char *nm=*(const char**)(e+0x38);if(!nm)continue;
-    int eq=1;for(int k=0;k<(int)sizeof(kv);k++)if(nm[k]!=kv[k]){eq=0;break;}
-    /* v5.07: +0x40 is the killvis level's sid (PS3 +0x24, the out-of-bounds gate of f_363ed4). With a converted killvis pak
-     * (vischeat.py) in the overlay, build with U3MP_KILLVIS=1 (mode bit3 at s+0x3d78) to keep it. */
-    if(eq&&!(*(uint32_t*)((uint8_t*)s+0x3d78)&8)){*(uint32_t*)(e+0x40)=0;probe_of(s)->pad2++;}
-    X.oob[11]=(*(uint32_t*)((uint8_t*)s+0x3d78)&8)!=0;}}}
- lnb_reattach(base);                               /* b010: g_matchSession +8 = the LAN backend again (the reset cleared it) */
-}
+ u3x_start_prepare(base,s);}   /* v7.212 C++ */
 static void start_game_now(uintptr_t base,ProfileState *s){
- void (*done)(void)=(void(*)(void))s->natives[NATIVE_COUNTDOWN_DONE];
- if(!done||*(uint32_t*)(base+0x17d603c)!=2||!mp_lan_or_online(base))return;   /* sw06: online too */
- if(*(uint32_t*)(base+0x1b68810)==3||*(uint32_t*)(base+0x1b68810)==0xb)return;
- start_prepare(base,s);done();
-}
+ u3x_start_game_now(base,s);}   /* v7.212 C++ */
 /* LIST_MAIN_MENU (PS4 source 0xb3 = PS3 0xb4, f_334ee8; PS4 0x76c4b0 is a RET stub). Rows are
  * {text id, icon id, action id}. LAN lobby uses PS3 table 0x11bf908 (6 rows; the 4-row table
  * 0x11bf8d8 applies when PS3 net-game+0x3fd is set - PS4 offset not identified yet). */
@@ -2156,11 +2181,9 @@ static uint32_t current_tab(uintptr_t base,ProfileState *s){
  * The visible list (PS3 0x1233000: u16 ids, count at +0x200, selection 0x1232a8c) is kept at
  * state+0x2800 and rebuilt for the tab's mask (PS3 f_32d1cc: (mask & flags) == mask). */
 typedef struct { uint16_t ids[256]; uint16_t count,pad; uint32_t selected,tab,built; } MedalList;
-static MedalList *medal_list(ProfileState *s){return (MedalList*)((uint8_t*)s+0x2800);}
+static MedalList *medal_list(ProfileState *s){return (MedalList*)u3x_medal_list(s);}   /* v7.212 C++ */
 static uint8_t *medal_record(ProfileState *s,uint32_t i){
- void *(*lookup)(uint32_t)=(void*(*)(uint32_t))s->natives[NATIVE_LOOKUP_SYMBOL];
- uint8_t *t=lookup?(uint8_t*)lookup(0x980d6543):0;if(!t||i>=*(uint32_t*)t)return 0;
- return *(uint8_t**)(t+8)+(size_t)i*0x48;}
+ return u3x_medal_record(s,i);}   /* v7.212 C++ */
 /* fixer W w004 (switch rw2+0x405f bit3, U3MP_MEDALS119=0 = off):
  * (a) The Medals panel opened collapsed (tabs + footer only) for a few frames: the list was rebuilt for the ACTIVE page's tab,
  *     and while PAGE_MULTIPLAYER_MEDALS fades in the active page is still the Profile page (its own TAB_NET_PROFILE entry in
@@ -2172,74 +2195,11 @@ static uint8_t *medal_record(ProfileState *s,uint32_t i){
  *     after three-medal) appended at the end. The list shows 1.19's record in the old one's place and skips the appended copy, so
  *     the lists are PS3 1.19's (66 / 46 / 43 / 34, same order). */
 EXT static uint32_t w04_tab(uintptr_t base,ProfileState *s){
- if(X.eb[3]&0x08000000u)return current_tab(base,s);
- if(!s->lookup)return 0;
- void **sym=((void**(*)(uint32_t))s->lookup)(0xf1514340);if(!sym||!*sym)return 0;
- uint8_t *t=(uint8_t*)*sym;uint32_t n=*(uint32_t*)t;uint8_t *e=*(uint8_t**)(t+8);
- for(uint32_t i=0;e&&i<n&&i<1024;i++,e+=0x20){
-  if(*(uint32_t*)e==0xc98ee52au&&*(uint32_t*)(e+4)==*(uint8_t*)(base+0x17d5c60)){
-   uint8_t *tabs=*(uint8_t**)(e+0x10);int32_t cur=*(int32_t*)(e+0x18);
-   return (tabs&&cur>=0)?*(uint32_t*)(tabs+(size_t)cur*0xc):0;}
- }
- return 0;}
+ return u3x_w04_tab(base,s);}   /* v7.212 C++ */
 EXT static void medal_build(uintptr_t base,ProfileState *s){
- MedalList *l=medal_list(s);uint32_t tab=w04_tab(base,s),mask=0;
- switch(tab){case 0x091026d1u:mask=2;break;case 0xfb0dd522u:mask=4;break;case 0xa13b68fbu:mask=8;break;case 0xadbd5585u:mask=0x10;break;}
- l->tab=tab;l->built=1;l->count=0;
- void *(*lookup)(uint32_t)=(void*(*)(uint32_t))s->natives[NATIVE_LOOKUP_SYMBOL];
- uint8_t *t=lookup?(uint8_t*)lookup(0x980d6543):0;if(!t||!mask)return;
- uint32_t n=*(uint32_t*)t;int32_t old=-1,neu=-1;
- if(!(X.eb[3]&0x08000000u))for(uint32_t i=0;i<n;i++){uint8_t *r=medal_record(s,i);if(!r)continue;
-  if(*(uint32_t*)r==0xa8e90238u&&old<0)old=(int32_t)i;else if(*(uint32_t*)r==0x9befafdeu&&neu<0)neu=(int32_t)i;}
- if(old<0||neu<0||neu<old)old=neu=-1;
- for(uint32_t i=0;i<n&&l->count<256;i++){
-  if((int32_t)i==neu)continue;
-  uint32_t k=(int32_t)i==old?(uint32_t)neu:i;
-  uint8_t *r=medal_record(s,k);if(r&&(mask&*(uint32_t*)(r+0x10))==mask)l->ids[l->count++]=(uint16_t)k;}
- if(l->selected>=l->count)l->selected=0;}
+ u3x_medal_build(base,s);}   /* v7.212 C++ */
 EXT static int medals_source(uintptr_t base,int32_t *event,ProfileState *s){
- uint8_t *source=*(uint8_t**)((uint8_t*)event+0x98);if(!source||*(uint32_t*)(source+0x1c)!=0x4c414ed3)return 0;
- if(native_gate_closed(base,event))return 1;   /* agent A a017: native enum 0xd3 is gated by PS4 0x76403e..0x76405f (t001 rule) */
- MedalList *l=medal_list(s);
- if(!l->built||l->tab!=w04_tab(base,s))medal_build(base,s);
- uint32_t row=(uint32_t)event[1];
- switch(event[0]){
-  case 10:l->selected=row; /* PS3 falls through into the text case */
-  /* fallthrough */
-  case 2:{
-   if(row>=l->count)break;uint8_t *r=medal_record(s,l->ids[row]);if(!r)break;
-   uint32_t sub=(uint32_t)event[0x15];
-   if(sub==0)set_text(event,text(base,s,*(uint32_t*)r));
-   else if(sub==0x80d4cc7bu)set_text(event,text(base,s,*(uint32_t*)(r+4)));
-   else if(sub==0xadacdbf3u){X.ec[250]++;
-    uint32_t (*earned)(uintptr_t,void*,uint32_t)=(uint32_t(*)(uintptr_t,void*,uint32_t))s->natives[NATIVE_MEDAL_EARNED];
-    int64_t c=earned?earned(base+0x17bb878,r,player_user(base)):0;
-    set_text(event,fmt(s,text(base,s,0xe9a0ddd7u),c,0,0,0));}
-   else if(sub==0xb684d68bu){X.ec[251]++;
-    char num[24];char *e=fmt_int(num,num+23,*(int32_t*)(r+0x20),1);*e=0;
-    char *o=(char*)s+0x2b00,*end=o+120;o=fmt_append(o,end,text(base,s,0xb4b0d5c2u));o=fmt_append(o,end," |@Cff7cce96|$");o=fmt_append(o,end,num);*o=0;
-    set_text(event,(const char*)s+0x2b00);}
-   break;}
-  case 4:{
-   /* PS3 case: icon slot 0xf5a294f3 gets the medal's vtex image (record name at PS4 +0x18),
-    * or the placeholder type 0x10 while it is not loaded (PS4 layout as in 0x753330 op 4). */
-   if(row>=l->count||(uint32_t)event[0x14]!=0xf5a294f3u)break;
-   uint8_t *r=medal_record(s,l->ids[row]);if(!r)break;
-   const char *name=*(const char**)(r+0x18);
-   /* Sanity check: a short printable path like "net-medals/assistant". */
-   if(name){unsigned k=0;int slash=0;for(;k<48&&name[k];k++){if(name[k]=='/')slash=1;if(name[k]<0x20||name[k]>0x7e){name=0;break;}}if(name&&(!slash||k==0||k>=48))name=0;}
-   void *(*vtex)(uintptr_t,const char*)=(void*(*)(uintptr_t,const char*))s->natives[NATIVE_VTEX_FIND];
-   void *tex=(vtex&&name)?vtex(base+0x1b31128,name):0;
-   for(int k=4;k<=11;k++)event[k]=0;
-   if(tex){event[2]=2;*(void**)(event+4)=tex;event[9]=-1;event[11]=-1;event[12]=0x3f800000;}
-   else{event[2]=0x10;event[9]=-1;event[11]=-1;event[12]=0x40100000;}
-   break;}
-  case 5:event[1]=(int32_t)l->selected;break;
-  case 6:event[1]=(int32_t)l->count-1;break;
-  case 9:medal_build(base,s);break;
-  case 11:X.ec[252]++;X.ec[253]=(uint32_t)event[0x13];if((uint32_t)event[0x13]==0x67a48eb9u)event[14]=4;break;
- }
- return 1;}
+ return u3x_medals_source(base,event,s);}   /* v7.212 C++ */
 
 /* Custom game Time Limit (datasource 0x29, PS4 0x753b70 = PS3 0x3310a8). Both builds format the
  * value with the rule's text (rules table 0xf985c7b6, 0x58-byte entries: base +0x1c, max +0x20,
@@ -2977,158 +2937,26 @@ static void finish(ProfileState *s){
  * [12] follow cameras (f_363074 = 0x7868a0). Mode bit2 = debug: force the out-of-bounds condition. */
 #define RS(s) ((uint32_t*)((uint8_t*)(s)+0x3d40))
 #define RS2(s) ((uint32_t*)((uint8_t*)(s)+0x3d78))
-static int handle_obj_valid(uint8_t *h){uint8_t **pp=*(uint8_t***)h;uint32_t id=*(uint32_t*)(h+8);return pp&&id&&*pp&&*(uint32_t*)(*pp+0x7c)==id;}
-static uint8_t *handle_obj(uint8_t *h){return handle_obj_valid(h)?**(uint8_t***)h:0;}
-static int32_t net_now(uintptr_t base){return *(int32_t*)(base+0x17b4ca4);}
-/* b012: engine clock 3 time (300/s, never Set). Helper-only timers use it: with the NetUpdate net-time block the net clock
- * (clock 7) is Set from the net time every frame and drops to 0 at NetInit and at each host match start (0x677100), as on PS3. */
-static int32_t loc_now(uintptr_t base){return *(int32_t*)(base+0x17b4ba4);}
-static uint8_t *netgame_cur(uintptr_t base,ProfileState *s){   /* PS3 f_300a40: netgames 0x3b9a067d[mgr+0x661c], stride 0xd0 */
- void **(*lookup)(uint32_t)=(void**(*)(uint32_t))s->lookup;void **h=lookup?lookup(0x3b9a067du):0;int32_t *t=h?(int32_t*)*h:0;
- int16_t i=*(int16_t*)(base+0x17cb060+0x661c);
- if(!t||i<0||i>=t[0])return 0;uint8_t *e=*(uint8_t**)(t+2);return e?e+(int64_t)i*0xd0:0;}
-static int32_t netgame_type(uintptr_t base,ProfileState *s){uint8_t *e=netgame_cur(base,s);return e?*(int32_t*)(e+0xc):0;} /* PS3 f_307728 */
-/* PS3 f_2836b0 (MP active && f_309bbc(mgr)) in its PS4 inlined form (0x788512): game type - 4 in mask 0x72b1 */
-static int net_coop_mode(uintptr_t base,ProfileState *s){
- if(!*(uint8_t*)(base+0x17d5c61))return 0;uint32_t t=(uint32_t)netgame_type(base,s)-4u;return t<15&&((0x72b1u>>t)&1);}
-/* PS3 f_31e284 "late joining": PS4 inlined form at 0x787be5 (not host, g_lateJoinStatus[0] 0x1b69530 > 3) */
-static int net_late_joining(uintptr_t base){
- uint8_t *ms=(uint8_t*)(base+0x17d6420);
- if(!*(uint64_t*)(ms+0x18)||*(uint32_t*)(ms+0x12e4)==*(uint32_t*)(ms+0x12e8))return 0;
- return *(int32_t*)(base+0x1b69530)>3;}
-static int np_has_effect(ProfileState *s,uint8_t *p,uint32_t h){return ((uint8_t(*)(uint8_t*,uint32_t,void*))s->natives[NATIVE_HAS_EFFECT])(p,h,0)!=0;}
-static int np_alive(ProfileState *s,uint8_t *p){   /* PS3 f_3590b0, PS4 inlined at 0x787acc */
- if(np_has_effect(s,p,0xc054e78bu))return 1;
- if(handle_obj_valid(p+0x10)&&*(int32_t*)(p+0x39c)<=*(int32_t*)(p+0x3a0))return 1;
- return p[0x770]!=0;}
-static uint8_t *screen_player(uintptr_t base,uint8_t *p){   /* PS3 f_57d9e0(+0x1b0): per-screen handle 0x1bb9500 */
- int32_t sc=*(int32_t*)(p+0x1e8);return handle_obj((uint8_t*)(base+0x1bb9500)+(int64_t)sc*0x10);}
-/* respawn delay (PS4 0x786250 returns a float in xmm0; the helper is built with -mno-sse) */
-__attribute__((noinline)) static uint32_t respawn_delay_bits(ProfileState *s,uint8_t *p){
- uintptr_t fn=s->natives[NATIVE_RESPAWN_DELAY];uint32_t r;
- __asm__ volatile("push %%rbp\n\tmov %%rsp,%%rbp\n\tand $-16,%%rsp\n\tcall *%%rax\n\tmov %%rbp,%%rsp\n\tpop %%rbp\n\tmovd %%xmm0,%k1"
-  :"+a"(fn),"=r"(r),"+D"(p):: "rcx","rdx","rsi","r8","r9","r10","r11","memory","cc");
- return r;}
-/* (int)((f - c) * 300) for c = half/2 (half 2 = 1.0, half 1 = 0.5), truncating like the PS3 conversion */
-static int64_t f_ticks(uint32_t f,int64_t half){
- int64_t e=(int64_t)((f>>23)&0xff),m=(int64_t)(f&0x7fffff);
- if(!e&&!m)return -half*150;
- m|=0x800000;e-=127+23;                       /* value = m * 2^e */
- int64_t v=m*300;                              /* fixed point, 16 fractional bits */
- int64_t sh=e+16;v=sh>=0?(sh>30?(int64_t)1<<46:v<<sh):(sh<-40?0:v>>(-sh));
- if(f>>31)v=-v;
- v-=(half*150)<<16;
- return v>=0?v>>16:-((-v)>>16);}
-static int f_positive(uint32_t f){return !(f>>31)&&(f&0x7fffffff)&&((f>>23)&0xff)!=0xff;}
-static void *dc_type_object(uintptr_t base,uint32_t key){   /* PS3 f_9e5f94(0x13af018), PS4 inlined at 0x72616b */
- uint8_t *t=(uint8_t*)(base+0x1b3ee70);int32_t n=*(int32_t*)(t+0x3c);uint64_t *b=*(uint64_t**)t;
- uint32_t h=0x811c9dc5u;for(int i=0;i<4;i++){h^=(key>>(i*8))&0xffu;h*=0x1000193u;}
- if(!b||n<=0)return 0;
- for(uint8_t *nd=(uint8_t*)b[h%(uint32_t)n];nd;nd=*(uint8_t**)nd)
-  if(*(uint32_t*)(nd+0x10)==key)return nd==(uint8_t*)b[n]?0:*(void**)(nd+0x18);
- return 0;}
-/* PS3 f_35f844 GetSpawnLocator. PS4 0x7838b0 is the same function except for one Bluepoint change: with
- * no spawner (0x10ec0c0 finds none) PS3 asked f_8a5010 for the main level's default spawner and returned 0
- * when there was none, PS4 calls GetDefaultSpawnPointId 0x72f9a0, which asserts ("Failed to even find a
- * default spawner for a player", the v4.87 assert). f_31b458 runs f_363ed4 also from the pre-load state
- * (PS3 f_272350 = PS4 0x66a5a0), so restore the PS3 answer: check what 0x72f9a0 would find first. */
-EXT static int default_spawner_exists(uintptr_t base,ProfileState *s){
- if(!mp_code_is(base,0x72fb00u,"554889e553504889fbbf7d06"))return 1;   /* unknown build: let the native decide */
- uint8_t *lv=((uint8_t*(*)(uintptr_t))(base+0x72fb00u))(base+0x17cb060);   /* main level of the current map */
- if(!lv)return 0;
- uint8_t *list=*(uint8_t**)(lv+0x190);if(!list)return 0;
- int32_t n=*(int32_t*)(list+0x10);uint8_t **sp=*(uint8_t***)(list+8);
- /* MP entity filter 0x72fbc0 through the builder's empty-tag-table stub (rx+0x420; rx = state - 0x10100) */
- uint8_t *flt=(uint8_t*)s-0x10100+0x420;
- if(flt[0]!=0x48||flt[1]!=0x8b||flt[2]!=0x46||flt[3]!=0x68)return 1;
- for(int32_t i=0;sp&&i<n&&i<4096;i++){uint8_t *e=sp[i];if(!e)continue;
-  if(!((uint8_t(*)(uintptr_t,uint8_t*))flt)(base+0x17cb060,e))continue;
-  uint8_t *tt=*(uint8_t**)(e+0x68);if(!tt)continue;uint8_t *data=*(uint8_t**)tt;uint32_t cnt=*(uint32_t*)(tt+8);if(!data)continue;
-  uint32_t lo=0,m=cnt;while(m){uint32_t h=m>>1;if(*(uint32_t*)(data+(lo+h)*0x10)<0x5bfae217u){lo+=h+1;m-=h+1;}else m=h;}
-  if(lo>=cnt||*(uint32_t*)(data+lo*0x10)!=0x5bfae217u)continue;
-  uint16_t *v=*(uint16_t**)(data+lo*0x10+8);
-  if(v&&*v==1&&*(uint32_t**)(v+4)&&**(uint32_t**)(v+4))return 1;}
- return 0;}
-EXT static int spawn_locator(uintptr_t base,ProfileState *s,uint8_t *p,void *loc,uint32_t spawner,uint32_t index){
- if(!p[0x3b8]&&!((void*(*)(uintptr_t,uint32_t))s->natives[NATIVE_SPAWNER_FIND])(base+0x1afcf10,spawner)&&!default_spawner_exists(base,s)){RS2(s)[7]++;return 0;}
- return ((uint8_t(*)(uint8_t*,void*,uint32_t,uint32_t))s->natives[NATIVE_SPAWN_LOCATOR])(p,loc,spawner,index)!=0;}
-/* PS3 f_35920c(fade, p): store the fade (p+0x3d8: nothing else reads it on PS3, PS4 offset unknown, so it
- * only travels in the event), forced to 1 while netgame+0x1a0 (PS4 mgr+0x320) counts down, and send event
- * 0xa1a13050 {F32 fade, I32 screen} to the net game process. PS4: send 0x1197380(result, 0, id, target,
- * a0, a1, a2, a3), args {value, -, type} with types F32 0x17006d0 / I32 0x1700670 (PS3 0x13b0240 /
- * 0x13b01f0); the target resolves the handle 0x1b3ee38 as the PS4 net task does at 0x7245e6 (0 if stale). */
-EXT static void spawn_fade(uintptr_t base,ProfileState *s,uint8_t *p,int on){
- uint32_t *e=RS2(s);if(e[0]&2)return;
- if(!mp_code_is(base,0x1197380u,"554889e54157415641554154"))return;
- uint32_t v=on?0x3f800000u:0u;if(*(int32_t*)(base+0x17cb060+0x320)>0)v=0x3f800000u;
- uint8_t *proc=0;{uint8_t **pp=*(uint8_t***)(base+0x1b3ee38);uint32_t id=*(uint32_t*)(base+0x1b3ee38+8);
-  if(pp&&id&&*pp&&*(uint32_t*)(*pp+0x7c)==id)proc=*pp;}
- int32_t screen=*(int32_t*)(p+0x1e8);
- uint64_t a0[3]={v,0,base+0x17006d0},a1[3]={(uint64_t)(int64_t)screen,0,base+0x1700670},a2[3]={0,0,0},a3[3]={0,0,0};
- uint64_t r[8] __attribute__((aligned(16)));for(int i=0;i<8;i++)r[i]=0;
- ((void(*)(void*,void*,uint32_t,void*,void*,void*,void*,void*))(base+0x1197380u))(r,0,0xa1a13050u,proc,a0,a1,a2,a3);
- e[3]++;e[4]=((uint32_t)screen<<31)|(v>>1);}
-/* PS3 f_3050e8(mgr, spawner, player): want-load the levels visible from the spawn point and the map's world.
- * v4.90 check: PS4's own copy of this request is in the net task (0x7260c1..0x72628b, same request layout,
- * every 0x5dd ticks around the camera when the map has its own world, entry +0x68), but it is gated by the
- * option byte 0x1ae9630 (0 in data, only bound by the debug/option tables at 0xc9acdd / 0x1016b72; PS3
- * gated it with DAT_0132972c the same way). So in normal play PS3 issued it only here, at respawn; PS4
- * never does. The level manager treats an already loaded level as a no-op want (it adds wants; the pending
- * query 0x10ebe40 skips levels in state 8 shown), so it is kept as on PS3; the world want is only sent
- * when the world level is not already loaded (state 8) and has a name. */
-EXT static void spawn_region_request(uintptr_t base,ProfileState *s,uint8_t *p,uint32_t spawner){
- uint8_t *ng=netgame_cur(base,s);
- uint32_t loc[16] __attribute__((aligned(16)));for(int i=0;i<16;i++)loc[i]=0;
- if(!spawn_locator(base,s,p,loc,spawner,0))return;
- uint32_t pos[4] __attribute__((aligned(16)));for(int i=0;i<4;i++)pos[i]=loc[i];
- void *obj=dc_type_object(base,0x6e51b48fu);
- uint64_t id=((uint64_t(*)(void*,uint32_t,uint32_t))s->natives[NATIVE_DC_TYPE_ID])(obj,0x9f2aeafbu,0xd3b86d60u);
- uint8_t req[0x20] __attribute__((aligned(16)));for(int i=0;i<0x20;i++)req[i]=0;   /* layout as 0x7261fe */
- *(void**)req=pos;*(uint64_t*)(req+8)=id;*(uint32_t*)(req+0x10)=0x2743c4b0u;*(uint32_t*)(req+0x14)=ng?*(uint32_t*)ng:0;
- req[0x18]=0;req[0x19]=*(uint8_t*)(base+0x1afcf10+0x8a10);
- ((void(*)(uintptr_t,void*))s->natives[NATIVE_LEVEL_WANT_AT])(base+0x1afcf10,req);
- RS(s)[7]++;
- if(!ng)return;
- int32_t *ml=(int32_t*)((void*(*)(uint32_t))s->natives[NATIVE_LOOKUP_SYMBOL])(0xdec97a4u);   /* map list, stride 0x98 */
- if(!ml)return;uint8_t *e=*(uint8_t**)(ml+2);uint32_t map=*(uint32_t*)(ng+4);
- for(int32_t i=0;e&&i<ml[0];i++,e+=0x98)if(*(uint32_t*)e==map){
-  const char *w=*(const char**)(e+0x70);if(!w||!*w)break;
-  uint8_t *lv=(uint8_t*)((void*(*)(uintptr_t,uint32_t))s->natives[NATIVE_LEVEL_FIND])(base+0x1afcf10,crc_sid(w));
-  if(lv&&*(uint32_t*)(lv+0x30)==8)break;
-  ((void(*)(uintptr_t,const char*))s->natives[NATIVE_LEVEL_WANT_WORLD])(base+0x1afcf10,w);break;}
-}
-/* PS3 f_363ed4 state 1 test: no wanted level still loading, or the spawner is tagged (0x38a0841f) with one.
- * The pending list (0x10ebe40 = f_8a30a8) also returns levels that failed (state 0xc). On PS3 none failed;
- * on PS4 the levels missing from the disc (City of Brass: san-multi-comp-pak, san-multi-pak, multi-all...)
- * sit in state 0xc forever and would hold the respawn. They are dropped from the list (counted in RS2[6]). */
-EXT static int spawn_levels_ready(uintptr_t base,ProfileState *s,uint32_t spawner){
- struct{uint32_t count,pad;const char *names[32];}list;list.count=0;list.pad=0;
- ((void(*)(uintptr_t,void*))s->natives[NATIVE_PENDING_LEVELS])(base+0x1afcf10,&list);
- RS(s)[8]=list.count;RS2(s)[5]=list.count;
- {uint32_t k=0,dropped=0;
-  for(uint32_t j=0;j<list.count&&j<32;j++){const char *nm=list.names[j];
-   uint8_t *lv=(nm&&*nm)?(uint8_t*)((void*(*)(uintptr_t,uint32_t))s->natives[NATIVE_LEVEL_FIND])(base+0x1afcf10,crc_sid(nm)):0;
-   /* s010: KEEP (PS4-only: disc lacks those levels). U3MP_PENDING_DROP=0 (state+0x20c0 bit5) keeps them, as PS3 would. */
-   if(lv&&*(uint32_t*)(lv+0x30)==0xc&&!(*(uint32_t*)((uint8_t*)s+0x20c0)&0x20)){dropped++;continue;}
-   list.names[k++]=nm;}
-  if(list.count>32)k+=list.count-32;
-  list.count=k;RS2(s)[6]=dropped;}
- int ready=list.count==0;
- uint8_t *sp=(uint8_t*)((void*(*)(uintptr_t,uint32_t))s->natives[NATIVE_SPAWNER_FIND])(base+0x1afcf10,spawner);
- if(!sp||ready)return ready;
- uint8_t *tt=*(uint8_t**)(sp+0x68);if(!tt)return 0;
- uint8_t *data=*(uint8_t**)tt;uint32_t cnt=*(uint32_t*)(tt+8);if(!data||!cnt)return 0;
- uint32_t (*sid)(int,const char*,int)=(uint32_t(*)(int,const char*,int))*(uintptr_t*)(base+0x1702720);   /* PS3 DAT_011c1b98 */
- uint32_t lo=0,n=cnt;while(n){uint32_t h=n>>1;if(*(uint32_t*)(data+(lo+h)*0x10)<0x38a0841fu){lo+=h+1;n-=h+1;}else n=h;}   /* f_89c2a4 */
- for(uint32_t k=0;k<list.count&&k<32;k++){
-  const char *nm=list.names[k];uint32_t want=(nm&&*nm)?sid(0,nm,1):0;
-  for(uint32_t j=lo;j<cnt&&*(uint32_t*)(data+j*0x10)==0x38a0841fu;j++){
-   int16_t *v=*(int16_t**)(data+j*0x10+8);uint32_t got=0;   /* f_89c0ac: 5 = string, 0xd = sid */
-   if(v&&*v==5){const char *str=*(const char**)*(void**)(v+4);got=(str&&*str)?sid(0,str,1):0;}
-   else if(v&&*v==0xd)got=**(uint32_t**)(v+4);
-   if(got==want)return 1;}
- }
- return 0;}
+static int handle_obj_valid(uint8_t *h){return u3x_handle_obj_valid(h);}   /* v7.212 C++ */
+static uint8_t *handle_obj(uint8_t *h){return u3x_handle_obj(h);}   /* v7.212 C++ */
+static int32_t net_now(uintptr_t base){return u3x_net_now(base);}   /* v7.212 C++ */
+static int32_t loc_now(uintptr_t base){return u3x_loc_now(base);}   /* v7.212 C++ */
+static uint8_t *netgame_cur(uintptr_t base,ProfileState *s){return u3x_netgame_cur(base,(void*)s);}   /* v7.212 C++ */
+static int32_t netgame_type(uintptr_t base,ProfileState *s){return u3x_netgame_type(base,(void*)s);}   /* v7.212 C++ */
+static int net_coop_mode(uintptr_t base,ProfileState *s){return u3x_net_coop_mode(base,(void*)s);}   /* v7.212 C++ */
+static int net_late_joining(uintptr_t base){return u3x_net_late_joining(base);}   /* v7.212 C++ */
+static int np_has_effect(ProfileState *s,uint8_t *p,uint32_t h){return u3x_np_has_effect((void*)s,p,h);}   /* v7.212 C++ */
+static int np_alive(ProfileState *s,uint8_t *p){return u3x_np_alive((void*)s,p);}   /* v7.212 C++ */
+static uint8_t *screen_player(uintptr_t base,uint8_t *p){return u3x_screen_player(base,p);}   /* v7.212 C++ */
+static uint32_t respawn_delay_bits(ProfileState *s,uint8_t *p){return u3x_respawn_delay_bits((void*)s,p);}   /* v7.212 C++ */
+static int64_t f_ticks(uint32_t f,int64_t half){return u3x_f_ticks(f,half);}   /* v7.212 C++ */
+static int f_positive(uint32_t f){return u3x_f_positive(f);}   /* v7.212 C++ */
+static void *dc_type_object(uintptr_t base,uint32_t key){return u3x_dc_type_object(base,key);}   /* v7.212 C++ */
+static int default_spawner_exists(uintptr_t base,ProfileState *s){return u3x_default_spawner_exists(base,(void*)s);}   /* v7.212 C++ */
+static int spawn_locator(uintptr_t base,ProfileState *s,uint8_t *p,void *loc,uint32_t spawner,uint32_t index){return u3x_spawn_locator(base,(void*)s,p,loc,spawner,index);}   /* v7.212 C++ */
+static void spawn_fade(uintptr_t base,ProfileState *s,uint8_t *p,int on){u3x_spawn_fade(base,(void*)s,p,on);}   /* v7.212 C++ */
+static void spawn_region_request(uintptr_t base,ProfileState *s,uint8_t *p,uint32_t spawner){u3x_spawn_region_request(base,(void*)s,p,spawner);}   /* v7.212 C++ */
+static int spawn_levels_ready(uintptr_t base,ProfileState *s,uint32_t spawner){return u3x_spawn_levels_ready(base,(void*)s,spawner);}   /* v7.212 C++ */
 /* ---- v5.07 out-of-bounds grid: PS3 f_74615c / f_745b64 on VIS_CHEAT ----
  * PS3 killvis levels hold one VIS_CHEAT item (type sid 0x4d3bdd98): a voxel grid whose non-zero cells are out of bounds.
  * PS3 login f_898c90 stores it in 0x12d5864; PS4 kept that login/logout (0x10e43c9 / 0x10e4d9e, global 0x1b3ae78 = item
@@ -4563,17 +4391,29 @@ EXT static uint32_t fr_lb_names(uintptr_t base,char *out,uint32_t max){
 #define MQN(b) (*(uint32_t*)((b)+0x1b6d3c0u))
 #define MQE(b,i) ((uint8_t*)((b)+0x1b6d3d0u)+(size_t)(i)*0x40)
 #define FIO(b) ((uint8_t*)((b)+0x17d5c58u+0x430))
-static uint64_t fi_time[10] EXT_BSS;          /* 1.19 row +0x28 (send time, microseconds) */
-static uint8_t fi_blob[10][0x30] EXT_BSS;     /* the 1.19 rows as invite-list returned them */
-static uint8_t fi_new[12][0x30] EXT_BSS;      /* invite-list result buffer */
-static int32_t fi_sel EXT_BSS;                /* PS3 0x122cf7c (invite selected by the click) / 0x1243aa0 (list selection) */
-static int32_t fi_lsel EXT_BSS;
-static int32_t fi_ticket EXT_BSS,fi_dticket EXT_BSS;   /* pending invite-list / invite-delete */
-static int32_t fi_notify EXT_BSS,fi_oldn EXT_BSS,fi_del EXT_BSS;
-static uint64_t fi_prev EXT_BSS,fi_seen EXT_BSS;
-static int32_t fj_timeout EXT_BSS;            /* PS3 0x122cf84 (seconds float there; clock units here) */
-static uint8_t fj_joined EXT_BSS;             /* PS3 0x122cf80 */
-static uint8_t fj_wait EXT_BSS,fj_lastc EXT_BSS;static int32_t fj_wait_t EXT_BSS;   /* v7.104 jip: a join request is waiting (watchdog) */
+typedef struct {
+ uint64_t time[10];                       /* 1.19 row +0x28 (send time, microseconds) */
+ uint8_t blob[10][0x30];                  /* the 1.19 rows as invite-list returned them */
+ uint8_t newrows[12][0x30];               /* invite-list result buffer */
+ int32_t sel;                             /* PS3 0x122cf7c (invite selected by the click) / 0x1243aa0 (list selection) */
+ int32_t lsel;
+ int32_t ticket,dticket;                  /* pending invite-list / invite-delete */
+ int32_t notify,oldn,del;
+ uint64_t prev,seen;
+} FiState;
+static FiState fi_state EXT_BSS;
+#define fi_time fi_state.time
+#define fi_blob fi_state.blob
+#define fi_new fi_state.newrows
+#define fi_sel fi_state.sel
+#define fi_lsel fi_state.lsel
+#define fi_ticket fi_state.ticket
+#define fi_dticket fi_state.dticket
+#define fi_notify fi_state.notify
+#define fi_oldn fi_state.oldn
+#define fi_del fi_state.del
+#define fi_prev fi_state.prev
+#define fi_seen fi_state.seen
 /* f_9497c0: sceNpManagerGetNetworkTime (NID 0xbdc07fd5) + the frame clock = microseconds since 0001-01-01 (RPCN get_psn_timestamp:
  * Unix + 62135596800 s). v7.61 so02: was Unix microseconds, which PS3's 24 h test (0x325fc8) reads as 2006054656 s old. */
 EXT static uint64_t fr_usec(void){return u3x_network_usec();}   /* v7.144 C++ */
@@ -4615,8 +4455,24 @@ JPX static void fj_note(const char *a,const uint8_t *id,const char *b,int32_t v)
  char t[160];int n=0;ol01_cat(t,&n,a);if(id)for(int k=0;k<16&&id[k]&&n<150;k++)t[n++]=(char)id[k];if(b)ol01_cat(t,&n,b);if(v>=0)ol01_dec(t,&n,(uint32_t)v);t[n]=0;so_note(t,0,-1,0);}
 /* v7.109 join: state shared by the join code */
 typedef struct { uint8_t flags,ok; int16_t sel; uint32_t name; uint64_t room; } FjInfo;   /* 0x1f0 from the host: flags 1 playing as match host (Custom Game), 2 late join allowed, 4 in somebody's match */
-static FjInfo fj_hi EXT_BSS;static uint8_t fj_from[0x14] EXT_BSS,fj_try EXT_BSS,fj_seen EXT_BSS,fj_req_pc EXT_BSS,jl_name[0x10] EXT_BSS;
-static int32_t fj_tj EXT_BSS,fj_dir_t EXT_BSS;
+typedef struct {
+ int32_t timeout; uint8_t joined,wait,lastc,try_,seen; int32_t wait_t,tj,dir_t;
+ uint8_t from[0x14]; FjInfo hi; struct { uint64_t id; int32_t t; uint8_t ph,drop; } pj;
+} JoinState;
+static JoinState JS EXT_BSS;
+#define fj_timeout JS.timeout
+#define fj_joined JS.joined
+#define fj_wait JS.wait
+#define fj_lastc JS.lastc
+#define fj_wait_t JS.wait_t
+#define fj_try JS.try_
+#define fj_seen JS.seen
+#define fj_tj JS.tj
+#define fj_dir_t JS.dir_t
+#define fj_from JS.from
+#define fj_hi JS.hi
+#define pj_v JS.pj
+static uint8_t fj_req_pc EXT_BSS,jl_name[0x10] EXT_BSS;
 JPX static uint32_t fj_ng_name(uintptr_t base,int32_t sel){   /* net.bin entry +0 at that index (DC 0x3b9a067d through PS4 0x11f2bf0); 0 = none */
  void **h=((void**(*)(uint32_t))(base+0x11f2bf0u))(0x3b9a067du);uint8_t *t=h?(uint8_t*)*h:0;if(!t||sel<0||sel>=*(int32_t*)t)return 0;
  uint8_t *e=*(uint8_t**)(t+8);return e?*(uint32_t*)(e+(size_t)sel*0xd0):0;}
@@ -4672,90 +4528,36 @@ JPX static void fj_hold(uintptr_t base,const uint8_t *id,const uint8_t *d){
 EXT static void fj_reply_tick(uintptr_t base){
  u3x_join_reply_tick(base);}   /* v7.147 C++ */
 /* ---- invites manager ---- */
-EXT static uint64_t fi_rec_seen(uintptr_t base,ProfileState *s){uint8_t *r=lg_rec(base,s,lg_profile(base,0));
- return ((uint64_t)*(uint32_t*)(r+0x1610)<<32)|*(uint32_t*)(r+0x1614);}
+EXT static uint64_t fi_rec_seen(uintptr_t base,ProfileState *s){
+ return u3x_fi_rec_seen(base,s);}   /* v7.212 C++ */
 /* f_325c1c(obj, notify), request part: previous newest, counts cleared, busy, "invite-list <own name 0x17d6010>" */
 EXT static void fi_finish(uintptr_t base,ProfileState *s,int32_t rows);
 EXT static void fi_refresh(uintptr_t base,ProfileState *s,int notify){
- uint8_t *o=FIO(base);
- fi_seen=fi_rec_seen(base,s);fi_oldn=(int32_t)*(uint32_t*)o;fi_prev=fi_oldn?fi_time[0]:0;fi_notify=notify;
- *(uint32_t*)(o+4)=0;o[0x198]=1;   /* v7.76 rf11: rows stay listed until the answer replaces them (PS3 cleared them; the PS4 list does not redraw) */
- fi_ticket=ona_get()->inv_list(base,(const uint8_t*)(base+0x17d6010u),&fi_new[0][0],12);X.ea[99]++;
- if(fi_ticket<0){fi_ticket=-1;fi_finish(base,s,0);}}   /* no connection: no rows (PS3 skips the parse) */
+ u3x_fi_refresh(base,s,notify);}   /* v7.212 C++ */
 /* f_325c1c, reply part: rows with our session key and less than 86400 s old, at most 10; "You received an invite from [TEXT]"
  * for rows newer than the previous newest (unless this is the NetInit refresh of an empty list); unseen = rows newer than
  * record +0x1610 */
 /* v7.61 so02: why a row is dropped: 0 kept, 1 key (f_325c1c 0x325fc0), 2 a day or older (0x325ffc), 3 the inviter is us */
 EXT static uint32_t fi_row_why(uintptr_t base,const uint8_t *b,uint64_t now){
- if(!fr_key_ok(base,*(const uint32_t*)b))return 1u;
- if((int32_t)(now/1000000)-(int32_t)(*(const uint64_t*)(b+0x28)/1000000)>=0x15180)return 2u;
- const uint8_t *me=(const uint8_t*)(base+0x17d6010u);int k=0;while(k<0x14&&me[k]&&me[k]==b[0x10+k])k++;
- if(me[0]&&(k==0x14||me[k]==b[0x10+k]))return 3u;
- return 0;}
-EXT static int fi_is_friend(uintptr_t base,const uint8_t *nm20){   /* f_300b7c as LIST_INVITES uses it */
- char nm[0x15];copy(nm,nm20,0x14);nm[0x14]=0;uint8_t *nf=NFB(base);if(!nm[0]||*(uint64_t*)(nf+0xc8))return 0;
- for(uint32_t k=0;k<*(uint32_t*)nf;k++){uint8_t *x=fr_ent(base,k);if(x[1]&&fr_strcmp(base,x+1,nm)==0)return 1;}
- return 0;}
+ return u3x_fi_row_why(base,b,now);}   /* v7.212 C++ */
+EXT static int fi_is_friend(uintptr_t base,const uint8_t *nm20){
+ return u3x_fi_is_friend(base,nm20);}   /* v7.212 C++ */
 JPX static void fi_finish(uintptr_t base,ProfileState *s,int32_t rows){
- uint8_t *o=FIO(base);uint32_t c=0;uint64_t now=fr_usec();
- uint32_t w1=0,w2=0,w3=0,wf=0,bad=0,fw=0;const uint8_t *first=0;   /* v7.61 so02 */
- for(int32_t i=0;i<rows&&c<10;i++){const uint8_t *b=fi_new[i];uint64_t t=*(uint64_t*)(b+0x28);
-  uint32_t w=fi_row_why(base,b,now);
-  if(w){if(w==1){w1++;if(!bad)bad=*(const uint32_t*)b;}else if(w==2)w2++;else w3++;if(!first){first=b;fw=w;}continue;}
-  if(!fi_is_friend(base,b+0x10))wf++;
-  copy(fi_blob[c],b,0x30);fi_time[c]=t;uint8_t *r=o+8+(size_t)c*0x28;clear(r,0x28);
-  *(uint32_t*)r=*(uint32_t*)b;*(uint64_t*)(r+8)=*(uint64_t*)(b+8);copy(r+0x10,b+0x10,0x14);c++;}
- *(uint32_t*)o=c;X.ea[100]=c;
- so_inv_diag(base,(uint32_t)(rows<0?0:rows),c,w1,w2,w3,wf,bad,first,fw);   /* v7.61 so02 */
- {static const char t_r[]="invite in the list from ";   /* v7.67 rf02 */
-  for(uint32_t i=0;i<c;i++){char nm[0x15];copy(nm,fi_blob[i]+0x10,0x14);nm[0x14]=0;so_note(t_r,nm,-1,0);}}
- if(fi_oldn!=0||fi_notify==0)
-  for(uint32_t i=0;i<c;i++){if(fi_time[i]<=fi_prev)continue;
-   char nm[0x15];copy(nm,fi_blob[i]+0x10,0x14);nm[0x14]=0;char out[0x80];out[0]=0;   /* f_939b40: no Facebook name -> the NpId */
-   ((void(*)(void*,char*,int,uint32_t,const char*,const char*,const char*))(base+0xf32bd0u))((void*)(base+0x17026b8u),out,0x80,0x7f845fbdu,nm,0,0);
-   {int ol=0;while(out[ol])ol++;   /* v7.80 rf15: the PS4 box is one line: a long name shows as "Party Invite: <name>" */
-    if(ol>34){const char *pt=text(base,s,0x82c61354u);int k=0;if(pt)for(;pt[k]&&k<60;k++)out[k]=pt[k];out[k++]=':';out[k++]=' ';for(int j=0;nm[j]&&k<0x7e;j++)out[k++]=nm[j];out[k]=0;}}
-   {const uint32_t ic[3]={0,0,0xffffffffu};ms_hud(base,0,out,0,0,ic);}X.ea[101]++;}   /* f_2678ac(menu, txt, 0, 0, -1, -1, 1.0) */
- uint32_t un=0;for(uint32_t i=0;i<c;i++)if(fi_seen<fi_time[i])un++;
- *(uint32_t*)(o+4)=un;o[0x198]=0;}
+ u3x_fi_finish(base,s,rows);}   /* v7.212 C++ */
 /* f_32632c(obj, i): "invite-delete <own name> <base64 of row i>"; on success the row is removed; count 0 -> unseen 0 */
 EXT static void fi_delete(uintptr_t base,int32_t i){
- uint8_t *o=FIO(base);if(i>=(int32_t)*(uint32_t*)o||i<0){o[0x198]=0;return;}
- o[0x198]=1;fi_del=i;
- fi_dticket=ona_get()->inv_delete(base,(const uint8_t*)(base+0x17d6010u),fi_blob[i]);X.ea[102]++;
- if(fi_dticket<0){fi_dticket=-1;if(!*(uint32_t*)o)*(uint32_t*)(o+4)=0;o[0x198]=0;}}
+ u3x_fi_delete(base,i);}   /* v7.212 C++ */
 EXT static void fi_delete_done(uintptr_t base){
- uint8_t *o=FIO(base);uint32_t n=*(uint32_t*)o;int32_t i=fi_del;
- if(i>=0&&(uint32_t)i<n){
-  for(uint32_t k=(uint32_t)i;k+1<n;k++){copy(o+8+(size_t)k*0x28,o+8+(size_t)(k+1)*0x28,0x28);copy(fi_blob[k],fi_blob[k+1],0x30);fi_time[k]=fi_time[k+1];}
-  *(uint32_t*)o=n-1;}
- if(!*(uint32_t*)o)*(uint32_t*)(o+4)=0;o[0x198]=0;}
+ u3x_fi_delete_done(base);}   /* v7.212 C++ */
 /* f_326204 (LIST_INVITES, every call): when idle and not empty, record +0x1610 = newest send time, unseen 0, publish */
 EXT static void fi_mark_seen(uintptr_t base,ProfileState *s){
- uint8_t *o=FIO(base);if(o[0x198]||!*(uint32_t*)o)return;
- if(fi_rec_seen(base,s)<fi_time[0]){uint8_t *p=lg_profile(base,0);uint8_t *r=lg_rec(base,s,p);
-  *(uint32_t*)(r+0x1610)=(uint32_t)(fi_time[0]>>32);r=lg_rec(base,s,p);*(uint32_t*)(r+0x1614)=(uint32_t)fi_time[0];
-  *(uint32_t*)(o+4)=0;mp_publish(base,s,p);X.ea[103]++;}}
+ u3x_fi_mark_seen(base,s);}   /* v7.212 C++ */
 EXT static void fi_tick(uintptr_t base,ProfileState *s){
- OnlineIfaceA *o=ona_get();
- if(fi_ticket>=0){int32_t r=o->inv_poll(base,fi_ticket);if(r!=-2){fi_ticket=-1;fi_finish(base,s,r<0?0:r);}}   /* v7.60 so01: inv_poll */
- if(fi_dticket>=0){int32_t r=o->inv_poll(base,fi_dticket);if(r!=-2){fi_dticket=-1;if(r>=0)fi_delete_done(base);else{uint8_t *io=FIO(base);if(!*(uint32_t*)io)*(uint32_t*)(io+4)=0;io[0x198]=0;}}}
- /* NetUpdate 0x292f68..0x292fe0: drop every 0x11d (invite poke); if there was one and no refresh runs -> refresh thread f_281c9c */
- int any=0;uint32_t ix;while(mq_find(base,0x11d,&ix,1)==0)any=1;
- static uint8_t pend EXT_BSS;static int32_t busy_t EXT_BSS;static const char t_go[]="invite notice: getting the invite list",t_wait[]="invite notice: invite list busy, getting it when free",
-  t_clr[]="invite list was busy for 30 s with no request: cleared";   /* v7.67 rf02 */
- if(any){if(FIO(base)[0x198]&&!pend)so_note(t_wait,0,-1,0);pend=1;}
- if(!FIO(base)[0x198])busy_t=0;
- else if(fi_ticket<0&&fi_dticket<0){int32_t now=FR_CLOCK(base);if(!busy_t)busy_t=now;else if(now-busy_t>30*300){FIO(base)[0x198]=0;busy_t=0;so_note(t_clr,0,-1,0);}}
- if(pend&&!FIO(base)[0x198]){pend=0;so_note(t_go,0,-1,0);FIO(base)[0x198]=1;fi_refresh(base,s,0);X.ea[104]++;}}
+ u3x_fi_tick(base,s);}   /* v7.212 C++ */
 /* f_294888: the invite blob {session key, party id (if in a party), own NpId 0x14, send time us} -> "invite-send <target>
  * <base64>", then message 0x11d to the target */
 EXT static void fi_send(uintptr_t base){
- uint8_t b[0x30];clear(b,0x30);uint8_t *ps=PS_(base);
- *(uint32_t*)b=FR_KEY(base);if(ps[0xc8])*(uint64_t*)(b+8)=*(uint64_t*)(ps+0x18);
- copy(b+0x10,(const void*)(base+0x17d6010u),0x14);*(uint64_t*)(b+0x28)=fr_usec();
- if(ona_get()->inv_send(base,(const uint8_t*)(base+0x17c3871u),b)<0)X.ea[106]++;else X.ea[105]++;
- mq_send(base,(const uint8_t*)(base+0x17c3871u),0x11d,0,0);}
+ u3x_fi_send(base);}   /* v7.212 C++ */
 /* ---- popups (f_26e3a4 with a page handler; f_26eecc = PS4 0x652200) ---- */
 EXT static void fj_send_join(uintptr_t base,const uint8_t *npid,uint64_t party,uintptr_t cb){   /* 0x10b {party id, 0} + "Joining Party..." */
  u3x_send_join(base,npid,party,cb);}   /* v7.141 C++ */
@@ -4776,125 +4578,20 @@ static uint8_t *gt_entry_by_id(uintptr_t base,int32_t id);   /* agent B: f_39ebb
  * only comes up when BOTH sides start it, i.e. when the host also got us as a member (306). So the room is checked by name:
  * the friend who answered must be in it; if not, the id did not lead to its party (one retry with a fresh party). */
 JPX static uint8_t *fj_member(uint8_t *ps,const uint8_t *name){
- for(int i=0;i<10;i++){uint8_t *m=ps+0x680+i*0x120;if(!m[0x25])continue;int k=0;while(k<16&&m[k]==name[k]&&m[k])k++;if(k==16||m[k]==name[k])return m;}
- return 0;}
+ return u3x_fj_member(ps,name);}   /* v7.212 C++ */
 JPX static void fj_fail(uintptr_t base,ProfileState *s,const char *why){
- X.ea[110]++;show_dialog(base,s,0x4d972420u,0xc6467f2du,0xa8cda6e0u,0,0,0xe1e040aau);so_note(why,0,-1,0);fj_wait=0;}
-/* v7.109 pj: the party machine PS4 0x77d270 (PS3 f_360d70) reads a pending join id (+0x1340) in state 1 only: 0 -> 1 -> Join
- * (no Leave), 6 -> Leave -> 7 -> 0 -> 1 -> Join. States 2 / 5 / 7 wait for create / join / leave done (+0xa1 / +0xb8 / +0xc8)
- * and do not look at the id; f_35fcc8 clears +0xb8, so in state 5 after a Join that was never answered the id stays for ever.
- * 3, 4, 8 have no code. See scratch/join-in-progress/pending-join/edits_v7109_pj.py. */
-static void so_c_(char *b,int *n,const char *t);static void so_cd(char *b,int *n,uint32_t v);static void so_cx(char *b,int *n,uint32_t v);
-static struct{uint64_t id;int32_t t;uint8_t ph,drop;} pj_v EXT_BSS;   /* ph: 1 an id waits, 2 reported; drop: a join was dropped */
-#define PJ_ST(ps) (*(uint32_t*)((ps)+0x1338))
-#define PJ_ID(ps) (*(uint64_t*)((ps)+0x1340))
+ u3x_fj_fail(base,s,why);}   /* v7.212 C++ */
 JPX static void pj_line(uintptr_t base,const char *what){
- static const char t_s[]=": party state ",t_r[]=", room ",t_p[]=", pending id ",t_j[]=", join done/result/joined ",t_c[]=", create done ",
-  t_l[]=", leave done/asked ",t_e[]=", net error ",t_m[]=", we lead ",sl[]="/",mi[]="-";
- uint8_t *ps=PS_(base);char b[200];int n=0;int32_t r=*(int32_t*)(ps+0xbc);
- so_c_(b,&n,what);so_c_(b,&n,t_s);so_cd(b,&n,PJ_ST(ps));so_c_(b,&n,t_r);so_cx(b,&n,(uint32_t)*(uint64_t*)(ps+0x18));
- so_c_(b,&n,t_p);so_cx(b,&n,(uint32_t)PJ_ID(ps));
- so_c_(b,&n,t_j);so_cd(b,&n,ps[0xb8]);so_c_(b,&n,sl);if(r<0){so_c_(b,&n,mi);r=-r;}so_cd(b,&n,(uint32_t)r);so_c_(b,&n,sl);so_cd(b,&n,*(uint64_t*)(ps+0xc0)!=0);
- so_c_(b,&n,t_c);so_cd(b,&n,ps[0xa1]);so_c_(b,&n,t_l);so_cd(b,&n,ps[0xc8]);so_c_(b,&n,sl);so_cd(b,&n,ps[0x1334]);
- so_c_(b,&n,t_e);so_cd(b,&n,*(uint8_t*)(base+0x17d5c80u));so_c_(b,&n,t_m);so_cd(b,&n,(uint32_t)pm_leader(base));b[n]=0;so_note(b,0,-1,0);}
+ u3x_pj_line(base,what);}   /* v7.212 C++ */
 /* the 0x10c step (PS3 0x28c9c8..0x28c9e4): f_35fcc8, flag +0x1784 -> +0x1374, f_360d70 */
 JPX static void pj_accept(uintptr_t base,uint64_t id,int flag){
- static const char t_in[]="join: 0x10c in",t_af[]="join: after the first step",t_x[]="join: party state ",
-  t_x5[]=" at the answer: an earlier join was never answered; dropped, the new id is joined now",t_x8[]=" at the answer: a state without code; reset to 0";
- uint8_t *ps=PS_(base);
- pj_line(base,t_in);
- if(PJ_ST(ps)==5u&&ps[0xb8])((int64_t(*)(void*))(base+0x77d270u))(ps);   /* a join that has just finished is seen first (5 -> 6 or 1) */
- uint32_t st=PJ_ST(ps);
- if(st==5u||st==3u||st==4u||st>7u){PJ_ST(ps)=st==5u?1u:0u;so_note(t_x,0,(int32_t)st,st==5u?t_x5:t_x8);}   /* 5 waits for the +0xb8 cleared below */
- ps[0x1374]=0;PJ_ID(ps)=id;ps[0xb8]=0;   /* f_35fcc8 */
- if(flag)ps[0x1374]=1;
- pj_v.id=id;pj_v.t=FR_CLOCK(base);pj_v.ph=1;pj_v.drop=0;
- ((int64_t(*)(void*))(base+0x77d270u))(ps);   /* f_360d70 */
- pj_line(base,t_af);}
-/* the join is given up (20 s timeout, watchdog): a Join that was never answered must not keep the machine in state 5, and an
- * id that was never read must not start a join later */
+ u3x_pj_accept(base,id,flag);}   /* v7.212 C++ */
 JPX static void pj_giveup(uintptr_t base){
- static const char t_d[]="join: the party room join was never answered: dropped (party state 5 -> 0); a room that still comes is left",
-  t_i[]="join: given up with the id still waiting: id dropped, party state ";
- uint8_t *ps=PS_(base);
- if(PJ_ID(ps)){PJ_ID(ps)=0;so_note(t_i,0,(int32_t)PJ_ST(ps),0);}
- if(PJ_ST(ps)==5u&&!ps[0xb8]){ps[0xb8]=1;*(int32_t*)(ps+0xbc)=0;*(uint64_t*)(ps+0xc0)=0;
-  PJ_ST(ps)=*(uint8_t*)(base+0x17d5c60u)?1u:0u;pj_v.drop=1;so_note(t_d,0,-1,0);}   /* LAN: 1, as PS3's state 7 exit (0x361658) */
- pj_v.ph=0;}
+ u3x_pj_giveup(base);}   /* v7.212 C++ */
 JPX static void pj_tick(uintptr_t base){
- static const char t_g[]="join: id set by the game itself (its own 0x10c step or a 0x116)",t_ok[]="join: id taken",t_no[]="join: id NOT taken in 5 s",
-  t_f[]="join: party state ",t_f2[]=" for 5 s with an id waiting: forced on",t_o[]="join: a party room came after its join was dropped: left";
- uint8_t *ps=PS_(base),*be=*(uint8_t**)(ps+8);if(!be||!*(uint8_t*)(base+0x17d5c61u))return;
- uint64_t id=PJ_ID(ps);uint32_t st=PJ_ST(ps);int32_t now=FR_CLOCK(base);
- if(!id){
-  if(pj_v.ph){pj_v.ph=0;pj_line(base,t_ok);}
-  if(pj_v.drop){
-   if(st!=0u)pj_v.drop=0;   /* a party is being made / joined in the normal way */
-   else if(*(uint64_t*)(ps+0x18)){pj_v.drop=0;so_note(t_o,0,-1,0);((int64_t(*)(void*,void*))(*(uintptr_t**)be)[7])(be,ps);}}   /* slot 7 Leave */
-  return;}
- if(!pj_v.ph||id!=pj_v.id){pj_v.id=id;pj_v.t=now;pj_v.ph=1;pj_v.drop=0;pj_line(base,t_g);return;}   /* PS4 0x723415 / 0x77d2f8 */
- if(pj_v.ph!=1||now-pj_v.t<5*300)return;
- pj_v.ph=2;pj_line(base,t_no);
- if(st==5u)PJ_ST(ps)=1u;                       /* the Join was never answered: the new id goes out */
- else if(st==2u){ps[0xa1]=1;PJ_ST(ps)=1u;}     /* the Create was never answered */
- else if(st==7u)ps[0xc8]=1;                    /* leave done */
- else if(st==3u||st==4u||st>7u)PJ_ST(ps)=0u;
- else return;                                  /* 0 / 6: the machine is not called; 1: net error flag */
- so_note(t_f,0,(int32_t)st,t_f2);}
+ u3x_pj_tick(base);}   /* v7.212 C++ */
 JPX static void fj_cb(uintptr_t base,ProfileState *s,int32_t *ev){
- static const char t_to[]="join: gave up after 20 s (PS3 timeout): ",t_t0[]="no 0x10c answer",t_t1[]="the party room was not joined (no 305 for the party session)",
-  t_t2[]="the friend is not in the room we got",t_t3[]="the peer link to the party leader did not come up (see the peer link lines of both PCs)",
-  t_w[]="join: waiting for the party room (Join 304 sent)",t_rm[]="join: in a party room: members ",t_ld[]=", we lead it ",t_fr[]=", the friend is in it ",
-  t_al[]="join: the room we got does not hold ",t_al2[]=": leaving it, asking for a fresh party (0x10b again)",t_a3[]="join: failed (again not in the friend's room)",
-  t_sv[]="join: failed (the server refused the party room)",t_lk[]="join: peer link to ",t_up[]=": up",t_nu[]=": not up yet",t_ne[]=": no connection entry",
-  t_ms[]="join: our MATCH session got a room with the friend while the party session waits (see the 305 lines)";
- uint8_t *ps=PS_(base);int32_t now=FR_CLOCK(base);
- if(ev[0]==0){fj_joined=0;fj_seen=0;fj_timeout=now+20*300;return;}   /* now + 20.0 s (1.19 TOC 0x41a00000) */
- if(ev[0]!=6)return;
- int32_t st=!ps[0xb8]?1:(*(int32_t*)(ps+0xbc)<0?2:(*(uint64_t*)(ps+0xc0)?3:-1));   /* f_37f2a0 */
- uint8_t *fr=fj_joined?fj_member(ps,fj_from):0;
- if(now>fj_timeout){((int(*)(void*,int))(base+0x652200u))((void*)(base+0x17bd080u),0);   /* PS3 0x28c7cc: back after 20 s */
-  char b[160];int n=0;ol01_cat(b,&n,t_to);for(const char *q=!fj_joined?t_t0:st!=3?t_t1:!fr?t_t2:t_t3;*q&&n<158;)b[n++]=*q++;b[n]=0;so_note(b,0,-1,0);fj_wait=0;pj_giveup(base);
-  if(fj_joined&&st==3&&*(uint64_t*)(ps+0x18)&&*(uint32_t*)(ps+0x12e4)!=*(uint32_t*)(ps+0x12e8)){   /* v7.110 link: PS3 leaves and says so */
-   static const char t_lv[]="join: leaving the party room we got (nobody stays half joined)";
-   ps[0x1334]=1;so_note(t_lv,0,-1,0);show_dialog(base,s,0x4d972420u,0xc6467f2du,0xa8cda6e0u,0,0,0xe1e040aau);}
-  return;}
- if(!fj_joined){
-  uint32_t ix;if(mq_find(base,0x10c,&ix,0)!=0)return;
-  uint8_t from[0x24];uint8_t d[0x10];uint32_t len=0x10;clear(d,0x10);
-  if(mq_get_np(base,ix,from,d,&len)!=0)return;
-  uint64_t id=*(uint64_t*)d;
-  fj_note(js_a,from,id?js_ay:js_an,-1);
-  if(!id){fj_fail(base,s,js_fr);return;}
-  if(pm_leader(base)){   /* f_37f1f8: tell the members of my party to follow (0x116, 8 bytes) */
-   uint8_t *list[10];uint32_t n=ec_members(ps,list);
-   uint8_t *me=0;if(*(uint64_t*)(ps+0x18))for(int i=0;i<10;i++){uint8_t *m=ps+0x680+i*0x120;if(m[0x25]&&*(uint32_t*)(m+0x2c)==*(uint32_t*)(ps+0x12e4)){me=m;break;}}
-   if(me)for(uint32_t k=0;k<n;k++)if(*(uint32_t*)(me+0x28)!=*(uint32_t*)(list[k]+0x28)){uint64_t v=id;mq_send(base,list[k],0x116,&v,8);}}
-  fj_joined=1;fj_seen=0;copy(fj_from,from,0x14);
-  pj_accept(base,id,d[8]);X.ea[108]++;   /* v7.109 pj: f_35fcc8 + flag + f_360d70 */
-  return;}
- if(st==2){fj_fail(base,s,t_sv);return;}
- if(st!=3){
-  if(!(fj_seen&1)){fj_seen|=1;fj_tj=now;so_note(t_w,0,-1,0);}
-  if(!(fj_seen&4)&&now-fj_tj>2*300){uint8_t *ms=(uint8_t*)(base+0x17d6420u);if(*(uint64_t*)(ms+0x18)&&fj_member(ms,fj_from)){fj_seen|=4;so_note(t_ms,0,-1,0);}}
-  return;}   /* still joining */
- if(!(fj_seen&2)){fj_seen|=2;fj_tj=now;int nm=0;for(int i=0;i<10;i++)if(ps[0x680+i*0x120+0x25])nm++;
-  char b[160];int n=0;ol01_cat(b,&n,t_rm);ol01_dec(b,&n,(uint32_t)nm);ol01_cat(b,&n,t_ld);ol01_dec(b,&n,*(uint32_t*)(ps+0x12e4)==*(uint32_t*)(ps+0x12e8));
-  ol01_cat(b,&n,t_fr);ol01_dec(b,&n,fr!=0);b[n]=0;so_note(b,0,-1,0);}
- if(!fr){if(now-fj_tj<300)return;   /* 1 s for a late MemberJoined */
-  ps[0x1334]=1;   /* leave the room we got (PS4 state 6 -> 7 -> 0) */
-  if(fj_try){fj_fail(base,s,t_a3);return;}
-  fj_try=1;fj_note(t_al,fj_from,t_al2,-1);
-  {uint8_t m[0x10],to[0x24];clear(m,0x10);clear(to,0x24);copy(to,fj_from,0x14);m[9]=0x4a;m[10]=2;mq_send(base,to,0x10b,m,0x10);}
-  fj_joined=0;fj_seen=0;fj_timeout=now+20*300;fj_wait_t=now;return;}
- uint8_t *lm=fr;   /* PS3: the connection to the leader (f_37f0a4); the friend when we are told that we lead */
- if(*(uint32_t*)(ps+0x12e4)!=*(uint32_t*)(ps+0x12e8))for(int i=0;i<10;i++){uint8_t *m=ps+0x680+i*0x120;if(m[0x25]&&*(uint32_t*)(m+0x2c)==*(uint32_t*)(ps+0x12e8)){lm=m;break;}}
- uint8_t *ce=gt_entry_by_id(base,*(int32_t*)(lm+0x34));   /* f_39ebb8(cm, +0xf0 -> +0x34) */
- int32_t c=ce?gt_conn_state(base,*(int32_t*)ce):-9;      /* f_39f0c4 */
- if((uint8_t)(c+16)!=fj_lastc){fj_lastc=(uint8_t)(c+16);fj_note(t_lk,lm,c==2?t_up:ce?t_nu:t_ne,-1);}
- if(c!=2)return;
- show(base,s,0x53cbb5f2u,0);show(base,s,0xb99a3235u,0);X.ea[109]++;so_note(js_l,0,-1,0);fj_wait=0;
- if(fj_hi.ok&&(fj_hi.flags&1)){fj_dir_t=now?now:1;}}
+ u3x_fj_cb(base,s,ev);}   /* v7.212 C++ */
 #pragma clang section text="" rodata=""
 /* the "Creating Party..." handler, PS3 1.19 f_294a34 (PS4 0x671810 without f_294888): once in a party, send the invite and
  * go back */
@@ -8843,127 +8540,13 @@ static void fl_md(LanBe *be,uint8_t *ps){u3x_fl_md(be,ps);}   /* v7.87 rf21: mem
 /* v7.110 link: one member of a room (305 list, 306, 317). Its connection entry exists (lnb_add_member -> lnb_cm_get); a
  * member of the MATCH session is "heard now" (the monitor's 20 s, f_287238, start at the match-room join, not at the
  * entry's creation at the party join), and an entry without a link is (re)armed. */
-static void onb_member_link(uintptr_t base,uint8_t *ss,const char *name){
- uint8_t *cm=LNB_CM(base);if(cm[0x4db4]||!lnb_strcmp(name,(const char*)(cm+0x4d90)))return;
- for(int k=0;k<32;k++){uint8_t *e=lnb_cm_entry(base,k);if(!e[4]||lnb_strcmp((const char*)(e+7),name))continue;
-  if(ss==LNB_SESS_MATCH(base))gt_stamp(base,e+0x40,0xa8);
-  if(pl_np_fn&&!*(int32_t*)(e+0x34))pl_np_fn(base,e,name);
-  break;}}
-static void onb_peer_begin(uintptr_t base,uint8_t *ss){   /* pl01; v7.110 link */
- for(int i=0;i<10;i++){uint8_t *mb=lnb_member(ss,i);if(!mb[0x25]||*(uint32_t*)(mb+0x2c)==*(uint32_t*)(ss+0x12e4))continue;
-  onb_member_link(base,ss,(const char*)mb);}}
-static void onb_info(LnbInfo *in,const uint8_t *r){in->name=(const char*)r;in->id=*(const uint16_t*)(r+36);in->nat=r[38];
- in->len=r[39];in->data=r+40;in->has_data=1;}
-static uint32_t onb_msg_in(OnbBe *be){                    /* one message; returns the bytes used, 0 = wait / unknown */
- uintptr_t base=be->base;uint8_t *m=be->rx;uint32_t n=be->rxlen,t=*(uint32_t*)m;
- if(n<4)return 0;
- if(t==305){                                                                        /* RoomJoined */
-  if(n<160)return 0;uint32_t cnt=*(uint16_t*)(m+26),need=160+cnt*104;if(n<need)return 0;
-  uint32_t ck=*(uint32_t*)(m+8);uint64_t rid=*(uint64_t*)(m+16);uint8_t *ss=(ck>=1&&ck<=4)?be->bind[ck-1]:0;int pi=-1;   /* v7.109 join */
-  if(rid)for(int i=0;i<4;i++)if(be->bind[i]&&onb_pj[i]==rid){pi=i;break;}
-  if(pi>=0){
-   if(be->bind[pi]!=ss){static const char t_x[]="room joined (305): the cookie points at another session; given to the one that asked: ";onb_wire(base,t_x,be->bind[pi],rid,0,-1);ss=be->bind[pi];}
-   onb_pj[pi]=0;}
-  else if(ck>=1&&ck<=4)onb_pj[ck-1]=0;
-  if(!ss)X.eb[148]++;
-  if(ss){
-   {static const char t_j[]="room joined (305): ",t_m[]=", members ",t_o[]=", owner id ",t_w[]=", our id ",t_c[]=", cookie ",t_r[]=", room ";
-    char a[120];int k=0;ol01_cat(a,&k,t_j);ol01_cat(a,&k,fw_sess(base,ss));ol01_cat(a,&k,t_m);ol01_dec(a,&k,cnt);ol01_cat(a,&k,t_o);ol01_dec(a,&k,*(uint16_t*)(m+12));
-    ol01_cat(a,&k,t_w);ol01_dec(a,&k,*(uint16_t*)(m+14));ol01_cat(a,&k,t_c);ol01_dec(a,&k,ck);ol01_cat(a,&k,t_r);a[k]=0;fw_line(a,(uint32_t)rid,8,0,-1);}
-   *(uint32_t*)(ss+0x20c)=*(uint16_t*)(m+24);*(uint64_t*)(ss+0x18)=*(uint64_t*)(m+16);
-   for(uint32_t i=0;i<cnt;i++){const uint8_t *r=m+160+i*104;LnbInfo in;onb_info(&in,r);uint16_t id=*(const uint16_t*)(r+36);
-    lnb_add_member(base,ss,&in,id==*(uint16_t*)(m+14),id==*(uint16_t*)(m+12));X.eb[143]++;}
-   if(!ss[0xb8]){
-    if(*(uint64_t*)(ss+0x18)){*(uint32_t*)(ss+0xbc)=0;*(uint32_t*)(ss+0xc0)=1;lnb_call(ss,2);}   /* joined (vt+8) */
-    else{*(uint32_t*)(ss+0xc0)=0;*(int32_t*)(ss+0xbc)=-1;}
-    ss[0xb8]=1;}
-   if(!ss[0xa1]){lnb_call(ss,1);ss[0xa1]=1;}
-   if(ss==LNB_SESS_MATCH(base)&&*(uint64_t*)(ss+0x18)&&*(uint32_t*)(ss+0x12e4)==*(uint32_t*)(ss+0x12e8)&&*(uint32_t*)(base+0x17d603cu)==2){   /* v7.87 rf21: x010 online, Custom Game only */
-    uint8_t *ps=LNB_SESS_PARTY(base);lnb_match_room=*(uint64_t*)(ss+0x18);
-    if(*(uint64_t*)(ps+0x18)&&*(uint32_t*)(ps+0x12e4)==*(uint32_t*)(ps+0x12e8)){fl_md(0,ps);
-     static const char t_h[]="match room made: party told to follow (member data)";cg_log(t_h,-1);}}
-   onb_peer_begin(base,ss);}   /* sw06: step 2 stop point */
-  return need;}
- if(t==306){                                                                        /* MemberJoined */
-  if(n<120)return 0;uint64_t room=*(uint64_t*)(m+8);
-  for(int bi=0;bi<4;bi++){uint8_t *ss=be->bind[bi];if(!ss||!room||*(uint64_t*)(ss+0x18)!=room)continue;   /* v7.109 join: every session in that room */
-   LnbInfo in;onb_info(&in,m+16);
-   {static const char t_j[]="member joined (306): ",t_i[]=" in the ";char a[90];int k=0;ol01_cat(a,&k,t_j);for(int q=0;q<16&&in.name[q]&&k<60;q++)a[k++]=in.name[q];ol01_cat(a,&k,t_i);a[k]=0;onb_wire(base,a,ss,room,0,-1);}
-   lnb_add_member(base,ss,&in,0,0);X.eb[143]++;onb_member_link(base,ss,in.name);}   /* v7.110 link */
-  return 120;}
- if(t==308){                                                                        /* RoomLeft */
-  if(n<24)return 0;uint64_t room=*(uint64_t*)(m+8);
-  for(int bi=0;bi<4;bi++){uint8_t *ss=be->bind[bi];if(!ss||!room||*(uint64_t*)(ss+0x18)!=room)continue;   /* v7.109 join */
-   uint8_t *mb=lnb_find_member(ss,*(uint16_t*)(m+16));
-   {static const char t_l[]="room left (308) by member ",t_r[]=" of the ",t_e[]=" room";char b[120];int k=0;ol01_cat(b,&k,t_l);   /* v7.108 follow */
-    if(mb)for(int q=0;q<16&&mb[q]&&k<100;q++)b[k++]=(char)mb[q];ol01_cat(b,&k,t_r);ol01_cat(b,&k,fw_sess(base,ss));ol01_cat(b,&k,t_e);b[k]=0;fw_line(b,0,0,0,-1);}
-   if(mb){lnb_remove_member(base,ss,(const char*)mb);X.eb[144]++;}}
-  return 24;}
- if(t==310){                                                                        /* RoomSearchResult */
-  if(n<16)return 0;uint32_t cnt=*(uint32_t*)(m+12),need=16+cnt*56;if(n<need)return 0;
-  uint8_t *ss=onb_by_cookie(be,*(uint32_t*)(m+8));
-  if(ss){*(uint32_t*)(ss+0xb4)=0;ss[0xb0]=1;
-   for(uint32_t i=0;i<cnt&&i<20;i++){const uint8_t *r=m+16+i*56;                    /* PS3: no bound; +0x210 has room for 20 */
-    uint8_t *o=ss+0x220+i*56;*(uint64_t*)o=*(const uint64_t*)r;copy(o+8,r+20,36);
-    *(uint32_t*)(o+44)=*(const uint16_t*)(r+12);*(uint32_t*)(o+52)=*(const uint16_t*)(r+16);
-    (*(uint32_t*)(ss+0x218))++;X.eb[142]++;}}
-  return need;}
- if(t==312||t==313){                                                                /* Kickedout / RoomDestroyed */
-  if(n<16)return 0;uint64_t room=*(uint64_t*)(m+8);
-  for(int bi=0;bi<4;bi++){uint8_t *ss=be->bind[bi];if(!ss||!room||*(uint64_t*)(ss+0x18)!=room)continue;   /* v7.109 join */
-   static const char t_k[]="we were kicked out of the ",t_d[]="the server destroyed the ",t_e[]=" room (",t_c[]="), net state 0x";   /* v7.108 follow */
-   char b[120];int k=0;ol01_cat(b,&k,t==312?t_k:t_d);ol01_cat(b,&k,fw_sess(base,ss));ol01_cat(b,&k,t_e);ol01_dec(b,&k,t);ol01_cat(b,&k,t_c);b[k]=0;
-   fw_line(b,*(uint32_t*)(base+0x1b68810u),2,0,-1);
-   lnb_call(ss,5);if(t==312)lnb_call(ss,6);*(uint64_t*)(ss+0x18)=0;lnb_clear_members(base,ss);X.eb[145]++;}
-  return 16;}
- if(t==315){                                                                        /* MemberUpdatedData */
-  if(n<80)return 0;uint64_t room=*(uint64_t*)(m+8);
-  for(int bi=0;bi<4;bi++){uint8_t *ss=be->bind[bi];if(!ss||!room||*(uint64_t*)(ss+0x18)!=room)continue;   /* v7.109 join */
-   uint8_t *mb=lnb_find_member(ss,*(uint16_t*)(m+4));
-   if(mb){uint32_t l=m[6];if(l>64)l=64;*(uint32_t*)(mb+0x3c)=m[6];copy(mb+0x40,m+16,l);}}
-  return 80;}
- if(t==317||t==319||t==321){                                                        /* OwnerChanged / attribute / flags */
-  if(n<16)return 0;uint8_t *ss=onb_by_room(be,*(uint64_t*)(m+8));
-  if(ss){
-   if(t==317){static const char t_o[]="room owner changed (317): ",t_n[]=", new owner id ";onb_wire(base,t_o,ss,*(uint64_t*)(ss+0x18),t_n,(int32_t)*(uint16_t*)(m+4));   /* v7.109 join */
-    *(uint32_t*)(ss+0x12e8)=*(uint16_t*)(m+4);lnb_call(ss,7);X.eb[146]++;onb_peer_begin(base,ss);}   /* v7.110 link */
-   else if(t==319)ss[0x12ec]=m[4]&1;
-   else *(uint32_t*)(ss+0x204)=*(uint16_t*)(m+4);}
-  return 16;}
- if(t==324){                                                                        /* UpdatedRoomName */
-  if(n<144)return 0;uint8_t *ss=onb_by_room(be,*(uint64_t*)(m+8));
-  if(ss)onb_strcpy((char*)(ss+0x20),(const char*)(m+16),128);
-  return 144;}
- return 0;}                                                                         /* PS3: unknown type stalls the stream */
-EXT __attribute__((used)) static int64_t onb_s1(OnbBe *be){                              /* f_3845bc Update */
- onb_note(1);
- {int u=smn_up();
-  if(u){                                                                            /* sw01: the PS3 socket; the ping comes from smn_tick */
-   if(u==1)smn_pull(be->rx,&be->rxlen,sizeof(be->rx));
-   while(be->rxlen>=4){uint32_t need=smn_len(be->rx,be->rxlen);
-    if(!need||need>sizeof(be->rx)){smn_unknown(be->rx,be->rxlen);be->rxlen=0;break;}   /* PS3 stalls the stream; here it is dropped and reported */
-    if(be->rxlen<need)break;
-    uint32_t id=smn_swap(be->rx,need);smn_got(be->rx,id);
-    uint32_t used=onb_msg_in(be);if(!used)used=need;
-    X.eb[135]++;X.eb[136]=id;
-    for(uint32_t j=used;j<be->rxlen;j++)be->rx[j-used]=be->rx[j];be->rxlen-=used;}
-   return 0;}}                                                                      /* lost: the reconnect runs, no error to the game */
- if(OL.st!=2){X.eb[149]++;return -1;}                                              /* f_94ace8 error */
- if(u3x_onb_ping_due(be)){uint32_t p=325;onb_send(&p,4);X.eb[137]++;u3x_onb_ping_restart(be);}
- while(be->rxlen){uint32_t used=onb_msg_in(be);if(!used)break;
-  X.eb[135]++;X.eb[136]=*(uint32_t*)be->rx;
-  for(uint32_t j=used;j<be->rxlen;j++)be->rx[j-used]=be->rx[j];be->rxlen-=used;}
- return 0;}
-EXT __attribute__((used)) static int64_t onb_s_nop(void){return 0;}
-static void onb_vtable(void){
- #define ONB_SET(i,f) do{void *fp;__asm__ volatile("leaq " #f "(%%rip),%0":"=r"(fp));onb_vt[i]=fp;}while(0)
- for(int i=0;i<32;i++)ONB_SET(i,onb_s_nop);
- ONB_SET(0,u3x_onb_s0);ONB_SET(1,onb_s1);ONB_SET(2,u3x_onb_s2);ONB_SET(3,u3x_onb_s3);ONB_SET(4,u3x_onb_s4);ONB_SET(5,u3x_onb_s5);
- ONB_SET(6,u3x_onb_s6);ONB_SET(7,u3x_onb_s7);ONB_SET(8,u3x_onb_s8);ONB_SET(9,u3x_onb_s9);ONB_SET(10,u3x_onb_s10);
- ONB_SET(11,u3x_onb_s11);ONB_SET(12,u3x_onb_s12);ONB_SET(13,u3x_onb_s13);ONB_SET(14,u3x_onb_s14);ONB_SET(15,u3x_onb_s15);
- ONB_SET(16,u3x_onb_s16);   /* v7.211 C++ */
- #undef ONB_SET
-}
+static void onb_member_link(uintptr_t base,uint8_t *ss,const char *name){u3x_onb_member_link(base,ss,name);}   /* v7.212 C++ */
+static void onb_peer_begin(uintptr_t base,uint8_t *ss){u3x_onb_peer_begin(base,ss);}   /* v7.212 C++ */
+static void onb_info(LnbInfo *in,const uint8_t *r){u3x_onb_info(in,r);}   /* v7.212 C++ */
+static uint32_t onb_msg_in(OnbBe *be){return u3x_onb_msg_in(be);}   /* v7.212 C++ */
+EXT __attribute__((used)) static int64_t onb_s1(OnbBe *be){return u3x_onb_s1(be);}   /* v7.212 C++ */
+EXT __attribute__((used)) static int64_t onb_s_nop(void){return u3x_onb_s_nop();}   /* v7.212 C++ */
+static void onb_vtable(void){u3x_onb_vtable();}   /* v7.212 C++ */
 /* ---- online NetInit, Play Online, shutdown ---- */
 static uint8_t onb_mode EXT_BSS;          /* Play Online chosen (PS3: NetInit's LAN argument 0) */
 #define ONB_ON (X.eb[0]&0x10)             /* U3MP_ONLINE_MM=1 */
@@ -9126,84 +8709,20 @@ EXT static int onb_catch(uintptr_t base,ProfileState *s,uint32_t id){
  *   f_24e7c4(fmt,..) PS4 0x62aa60 (vsnprintf into 0x1b676f0)
  * Diagnostics: eb[170] widgets retagged, eb[171] asks, eb[172] asks past the gate, eb[173] last op. */
 #pragma clang section text=".text.ext" rodata=".rodata.ext"
-static int32_t mmv_sel EXT_BSS;
-static const uint8_t mmv_rule0[0x58]={0};
-static const char mmv_f1[]="%s %s",mmv_f2[]="%s - %s",mmv_f3[]="%s\n%s",mmv_sp[]=" ",mmv_nul[]="";
 EXT static void retag_mm_vote(uint8_t *page){
- if(*(uint32_t*)(page+8)!=0xe35f0f1au)return;
- uint8_t *c=*(uint8_t**)(page+0x48);if(!c)return;uint32_t n=*(uint32_t*)c;uint8_t *it=*(uint8_t**)(c+8);if(!it||n>64)return;
- for(uint32_t j=0;j<n;j++){uint8_t *w=it+(size_t)j*0x68;
-  if(*(uint32_t*)(w+8)==0xdc6e89d8u&&*(uint32_t*)(w+0x30)==21&&*(uint32_t*)(w+0x34)==0x50&&*(uint32_t*)(w+0x40)==0){
-   *(uint32_t*)(w+0x34)=0xcf;*(uint32_t*)(w+0x40)=0x4c414e50u;X.eb[170]++;}}}
-EXT static uint8_t *mmv_netgame(ProfileState *s,int16_t i){   /* f_309904 */
- uint8_t *t=sym_table(s,0x3b9a067du);if(!t||i<0||(int32_t)i>=*(int32_t*)t)return 0;
- return *(uint8_t**)(t+8)+(size_t)i*0xd0;}
-EXT static uint8_t *mmv_playlist(ProfileState *s,uint32_t id){   /* f_303990 */
- uint8_t *t=sym_table(s,0x0dec97a4u);if(!t)return 0;uint8_t *e=*(uint8_t**)(t+8);
- for(int32_t i=0;e&&i<*(int32_t*)t;i++)if(*(uint32_t*)(e+(size_t)i*0x98)==id)return e+(size_t)i*0x98;
- return 0;}
-EXT static const uint8_t *mmv_rule(ProfileState *s,int32_t i){   /* f_303f18 (i >= 0: helper bound; never negative in data) */
- uint8_t *t=sym_table(s,0xf985c7b6u);if(!t||i<0||i>=*(int32_t*)t||!*(uint8_t**)(t+8))return mmv_rule0;
- return *(uint8_t**)(t+8)+(size_t)i*0x58;}
-EXT static int mmv_coop(uintptr_t base,ProfileState *s){   /* f_30b6d0 -> f_30b348 */
- uint32_t key=((uint32_t(*)(void))(base+0x73f630u))();
- uint8_t *t=sym_table(s,0xc1b0be0du);if(!t)return 0;uint8_t *e=*(uint8_t**)(t+8);
- uint8_t lan=*(uint8_t*)(base+0x17d5c60u),coop=*(uint8_t*)(base+0x17d6065u);
- for(int32_t i=0;e&&i<*(int32_t*)t;i++){uint8_t *x=e+(size_t)i*0x68;
-  if(lan&&*(uint32_t*)(x+0x28)!=coop)continue;
-  if(*(uint32_t*)x==key||key==0)return *(uint32_t*)(x+0x28)!=0;}
- return 0;}
-EXT static const char *mmv_diff(uintptr_t base,ProfileState *s,uint32_t n){   /* f_303694 */
- const uint32_t *ids=u3x_difficulty_texts();   /* v7.135 C++ */
- return n<5?text(base,s,ids[n]):mmv_nul;}
+ u3x_retag_mm_vote(page);}   /* v7.212 C++ */
+EXT static uint8_t *mmv_netgame(ProfileState *s,int16_t i){
+ return u3x_mmv_netgame(s,i);}   /* v7.212 C++ */
+EXT static uint8_t *mmv_playlist(ProfileState *s,uint32_t id){
+ return u3x_mmv_playlist(s,id);}   /* v7.212 C++ */
+EXT static const uint8_t *mmv_rule(ProfileState *s,int32_t i){
+ return u3x_mmv_rule(s,i);}   /* v7.212 C++ */
+EXT static int mmv_coop(uintptr_t base,ProfileState *s){
+ return u3x_mmv_coop(base,s);}   /* v7.212 C++ */
+EXT static const char *mmv_diff(uintptr_t base,ProfileState *s,uint32_t n){
+ return u3x_mmv_diff(base,s,n);}   /* v7.212 C++ */
 EXT static int mmv_source(uintptr_t base,int32_t *ev,ProfileState *s){
- uint8_t *src=*(uint8_t**)((uint8_t*)ev+0x98);if(!src||*(uint32_t*)(src+0x1c)!=0x4c414e50u)return 0;
- if(native_gate_closed(base,ev))return 1;   /* t001 rule: native enum 0x50 is gated by PS4 0x76403e..0x76405f */
- uint8_t *V=(uint8_t*)(base+0x17d7760u),*W=(uint8_t*)(base+0x17d7784u),*mgr=(uint8_t*)(base+0x17cb060u);
- char *(*spr)(const char*,...)=(char*(*)(const char*,...))(base+0x62aa60u);
- X.eb[171]++;
- if(!V[0])return 1;
- if(fr_tab(base,s)!=0xbd1d2c53u)return 1;
- if(n06_on()?(W[0]&&!W[1]):(!W[0]&&!W[1]))return 1;   /* fixer L n006: PS3 0x352548..0x352174 hides the map vote only while the co-op difficulty vote is open (W[0] && !W[1]); b017 read it as W[0] || W[1] */
- X.eb[172]++;X.eb[173]=(uint32_t)ev[0];
- uint32_t o=ev[1]!=0?4u:0u;
- switch(ev[0]){
-  case 1:set_text(ev,V[1]?mmv_sp:text(base,s,0x81cc5e93u));break;   /* 0x352178 */
-  case 2:{                                                         /* 0x3521cc */
-   uint8_t *P=mmv_netgame(s,(int16_t)*(int32_t*)(V+8+o));if(!P)break;
-   uint8_t *R=mmv_playlist(s,*(uint32_t*)(P+4));if(!R)break;
-   int32_t col=ev[0x15];
-   if(col==0)set_text(ev,text(base,s,*(uint32_t*)(R+4)));
-   else if(col==3){
-    if(!mmv_coop(base,s)){
-     set_text(ev,text(base,s,*(const uint32_t*)mmv_rule(s,*(int32_t*)(P+0xc))));
-     uint32_t nm=*(uint32_t*)(P+8);
-     if(nm!=0x22a276ecu&&nm!=0x6f96651fu)set_text(ev,text(base,s,nm));}
-    else{
-     const char *a=text(base,s,*(const uint32_t*)mmv_rule(s,*(int32_t*)(P+0xc)));
-     if(!W[1])set_text(ev,spr(mmv_f1,a,mmv_nul));
-     else set_text(ev,spr(mmv_f2,a,mmv_diff(base,s,mgr[0x6a48])));}}
-   else if((uint32_t)col==0x3cf3527au){
-    if(!*(uint32_t*)(R+8))set_text(ev,text(base,s,*(uint32_t*)(R+4)));
-    else{const char *a=text(base,s,*(uint32_t*)(R+4));set_text(ev,spr(mmv_f3,a,text(base,s,*(uint32_t*)(R+8))));}}
-   break;}
-  case 4:{                                                         /* 0x3523cc: icon type 36, PS3 [4] = playlist id */
-   uint8_t *P=mmv_netgame(s,(int16_t)*(int32_t*)(V+8+o));if(!P)break;
-   if(n06_on()){n06_mapimg(base,s,ev,mmv_playlist(s,*(uint32_t*)(P+4)));h11_tag(ev);break;}   /* fixer L n006: PS4 has no drawer for type 36; h011: PS3 card fill */
-   ev[2]=36;ev[4]=0;ev[5]=0;ev[6]=*(int32_t*)(P+4);ev[7]=0;ev[8]=0;ev[9]=-1;ev[10]=0;ev[11]=-1;ev[12]=0x3f800000;break;}
-  case 5:ev[1]=mmv_sel;break;                                      /* 0x3521ac */
-  case 6:case 8:ev[1]=1;break;                                     /* 0x3521a4 */
-  case 10:mmv_sel=ev[1];break;                                     /* 0x3521bc */
-  case 11:{                                                        /* 0x35244c */
-   uint32_t q=(uint32_t)ev[0x13];
-   if(q==0xbedebbb3u){int32_t n=*(int32_t*)(V+0x10+o);ev[14]=n?n:(V[1]?-1:0);}
-   else if(q==0x88abe7afu)ev[14]=V[1]?((int32_t)*(int16_t*)(mgr+0x661c)!=*(int32_t*)(V+8)):-1;
-   else if(q==0xe87f9498u)ev[14]=V[1]?0:(*(uint32_t*)(V+4)>1u);
-   else if(q==0x7bc431fbu)ev[14]=*(int32_t*)(V+4);
-   else n08_vq(base,ev);   /* fixer L n008: the PS4 control's ids for 0x88abe7af / 0xe87f9498 */
-   break;}
- }
- return 1;}
+ return u3x_mmv_source(base,ev,s);}   /* v7.212 C++ */
 #pragma clang section text="" rodata=""
 /* ===== end agent B b017 ===== */
 /* ===== agent B b018: lobby stage logout at match start / cinema, PS3 1.19 f_30e43c mode 3 kept =====
@@ -9434,101 +8953,20 @@ EXT static int sk22_push(uintptr_t base,uint64_t *r){
 #pragma clang section text=".text.ext" rodata=".rodata.ext"
 /* agent B b029: a tab entry is el+0xc + i*0x18 (4-aligned: 0xc3dba0 builds them in place), not an allocation, so the
  * 8-aligned stage_ptr_ok refused every entry (TEST v5.93f: b026 eb221 = 8 per draw, b023 eb205 on confirm). */
-EXT static int k29_eok(const void *p){uintptr_t v=(uintptr_t)p;return v>=0x10000u&&v<(1ull<<47)&&!(v&3);}
-static const uint32_t k23_fn[4]={0x64ce90u,0x1007610u,0x119b250u,0};
-static uint8_t k23_ok EXT_BSS;
-static uint8_t k23_snd[0x200] EXT_BSS;
+EXT static int k29_eok(const void *p){
+ return u3x_k29_eok(p);}   /* v7.212 C++ */
 EXT static int k23_callees(uintptr_t base){
- if(k23_ok)return k23_ok==1;
- k23_ok=1;for(int i=0;k23_fn[i];i++)if(*(const uint32_t*)(base+k23_fn[i])!=0xe5894855u){k23_ok=2;X.eb[207]++;}
- return k23_ok==1;}
-EXT static int k23_rep(uintptr_t base,uint8_t *pad,uint32_t m){       /* f_894bec(pad, m, 0.2, 0.1) */
- if(*(uint32_t*)(pad+0x94)&m)return 1;
- if(!(*(uint32_t*)(pad+0x9c)&m))return 0;
- float t=kf(0xbf800000u);
- for(int i=0;i<22;i++)if(m&(1u<<i)){t=rd_f(pad+0xbc+4*i);break;}
- uint8_t *c=*(uint8_t**)(base+0x1b24b98u);if(!stage_ptr_ok(c))return 0;
- c+=(int64_t)*(int32_t*)(pad+0xa8)*64;
- float k=kf(0x3b5a740eu),d=kf(0x3e4ccccdu),rate=kf(0x3dcccccdu);
- float cur=(float)*(int32_t*)(c+0x54)*k-t;
- if(cur<d)return 0;
- float prev=(float)*(int32_t*)(c+0x70)*k-t;
- if(prev<d)return 1;
- if(cur>kf(0x40000000u))rate=rate*kf(0x3f000000u);
- if(cur>kf(0x40800000u))rate=rate*kf(0x3f000000u);
- return (int32_t)((cur-d)/rate)!=(int32_t)((prev-d)/rate);}
+ return u3x_k23_callees(base);}   /* v7.212 C++ */
+EXT static int k23_rep(uintptr_t base,uint8_t *pad,uint32_t m){
+ return u3x_k23_rep(base,pad,m);}   /* v7.212 C++ */
 EXT static void k23_action(uintptr_t base,uint32_t id){
- X.eb[204]++;X.eb[208]=id;
- ((void(*)(uint8_t*,uint32_t,uint32_t))(base+0x64ce90u))((uint8_t*)(base+0x17bd080u),id,0);}
-EXT static void k23_update(uintptr_t base,uint8_t *el){                /* f_664c7c(el) */
- uint8_t *ngm=(uint8_t*)(base+0x17cb060u),*F=(uint8_t*)(base+0x17c3ba8u),*menu=(uint8_t*)(base+0x17bd080u);
- int32_t tnow=*(int32_t*)(base+0x17b4a90u+0x114);
- uint32_t vc=0;*(uint32_t*)(el+0x1d0)=0;
- if(*(uint8_t*)(base+0x1acab73u)){X.eb[202]++;return;}
- int32_t n=*(int32_t*)(el+0x15c);if(n>14)n=14;
- int32_t mode=*(int32_t*)(F+0x1e68);
- for(int32_t i=0;i<n;i++){uint8_t *e=el+0xc+24*i;uint32_t id=*(uint32_t*)e;
-  if(id==0xc1f65aebu&&*(int32_t*)(base+0x18c6b34u+0x24)!=1280)continue;
-  if(ngm[0x6cb1]||ngm[0x6cb0]){
-   if(id==0xff502160u){if(mode!=2)continue;}
-   else if(id==0x806c9824u||id==0x682c6868u)continue;
-   else if(id==0x887c7d6eu){if(mode!=0)continue;}
-  }else{
-   if(id==0xff502160u){if(mode!=1)continue;}
-   else if(id==0x806c9824u){if(mode!=2)continue;}
-   else if(id==0x887c7d6eu){if(mode!=0)continue;}
-  }
-  if(*(uint32_t*)(F+0x31c)&1){
-   if(id==0xe8184ce8u||id==0x887c7d6eu||id==0xa65c61bau||id==0x806c9824u||id==0x38231b34u||id==0x516bfbb8u||id==0xff502160u)continue;
-  }else{
-   uint8_t r=1;if(*(uint8_t*)(base+0x17c3571u))r=*(uint8_t*)(base+0x17c3572u);
-   if(id==0x3cf5deedu){if(!r)continue;}
-   else if(id==0xe8184ce8u){if(r)continue;}
-  }
-  if(*(int32_t*)(base+0x17c5cf8u+8)){
-   if(id==0x682c6868u||id==0xbd8d7974u||id==0x38231b34u)continue;
-  }else{
-   if(id==0x516bfbb8u)continue;                                        /* +8502 has no PS4 counterpart (0) */
-  }
-  *(uint8_t**)(el+0x160+8*vc)=e;vc++;*(uint32_t*)(el+0x1d0)=vc;}
- X.eb[206]=vc;
- uint8_t *g=*(uint8_t**)(base+0x16e2fa0u);if(!stage_ptr_ok(g))return;
- uint8_t *pad=g+0x7e0;
- if(!(*(uint32_t*)(pad+0x9c)&0x4000u)){
-  uint32_t pend=*(uint32_t*)(el+8);if(pend){k23_action(base,pend);*(uint32_t*)(el+8)=0;}
-  int32_t old=*(int32_t*)el;
-  if(k23_rep(base,pad,0x80u))*(int32_t*)el-=1;
-  if(k23_rep(base,pad,0x20u))*(int32_t*)el+=1;
-  int32_t c=*(int32_t*)el;if(c<0)c=0;
-  int32_t mx=(int32_t)vc-1;if(c>mx)c=mx;
-  *(int32_t*)el=c;
-  *(float*)(el+4)=rd_f(el+4)*kf(0x3f000000u)+(float)c*kf(0x3f000000u);
-  if(c!=old){((void(*)(void*,uint32_t,uint32_t))(base+0x1007610u))(k23_snd,0xf57d53ceu,0);
-   ((void(*)(void*,uint32_t))(base+0x119b250u))(k23_snd,0);}
- }
- *(int32_t*)(el+0x1d8)=tnow;float tgt=kf(0x3f800000u);
- if(*(uint32_t*)(menu+8)){*(int32_t*)(el+0x1d8)=tnow-3000;tgt=kf(0);}
- float a=rd_f(el+0x1d4)*kf(0x3f333333u)+tgt*kf(0x3e99999au);*(float*)(el+0x1d4)=a;
- if(a<kf(0x3f666666u))return;
- uint8_t *opt=*(uint8_t**)(base+0x1b24b80u);
- uint32_t m=(stage_ptr_ok(opt)&&opt[0x39b4]==1)?0x4000u:0x2000u;
- if(!(*(uint32_t*)(pad+0x94)&m))return;
- int32_t c=*(int32_t*)el;
- if(c<0||(uint32_t)c>=vc){X.eb[205]++;return;}
- uint8_t *e=*(uint8_t**)(el+0x160+8*c);if(!k29_eok(e)){X.eb[205]++;return;}          /* b029 */
- k23_action(base,*(uint32_t*)e);
- *(uint32_t*)(el+8)=*(uint32_t*)(e+4);}
+ u3x_k23_action(base,id);}   /* v7.212 C++ */
+EXT static void k23_update(uintptr_t base,uint8_t *el){
+ u3x_k23_update(base,el);}   /* v7.212 C++ */
 static int k26_draw(uintptr_t b,uint8_t *el,uint8_t *rbp);            /* agent B b026 (below) */
 static volatile uint32_t i03_d[8] EXT_BSS __attribute__((used));   /* agent I i003 (header in the agent I region) */
-EXT static int k23_hud(uintptr_t base,uint64_t *r){                  /* r = {r15,r14,r13,r12,rbx,r11,...} */
- X.eb[200]++;
- if(X.eb[1]&1)return 0;
- if(*(uint64_t*)(base+0x17b4a48u+0x20))return 0;                     /* PS3 *(0x11dfadc+24) != 0: nothing */
- uint8_t *hud=(uint8_t*)r[3];if(!stage_ptr_ok(hud))return 0;
- if(!k23_callees(base))return 0;
- X.eb[201]++;k23_update(base,hud+0x2408);
- if(X.eb[1]&2)X.eb[203]++;else k26_draw(base,hud+0x2408,(uint8_t*)r[14]); /* f_667f0c: b026 (r[14] = rbp) */
- return 0;}
+EXT static int k23_hud(uintptr_t base,uint64_t *r){
+ return u3x_k23_hud(base,r);}   /* v7.212 C++ */
 #pragma clang section text="" rodata=""
 /* ===== end agent B b023 ===== */
 /* ===== agent B b024: HUD counter ring, PS3 1.19 0x66b0fc..0x66b194 (f_669b68), at PS4's trap 0xc37a97 =====
@@ -9724,182 +9162,21 @@ EXT static int k40_deftex(uintptr_t b,uint64_t *r){                  /* r = {r15
  * [226] markers, [227] marker guard, [228] speed texts, [229] screenshot skips. */
 #pragma clang section text=".text.ext" rodata=".rodata.ext"
 typedef struct{uint64_t fn,i[6],x[5],s[2],al;}K26C;
-EXT static uint64_t k26_call(K26C *c){uint64_t r;
- __asm__ volatile("mov %1,%%r12\n\tmov %%rsp,%%r13\n\tand $-16,%%rsp\n\tpushq 0x68(%%r12)\n\tpushq 0x60(%%r12)\n\t"
-  "movq 0x38(%%r12),%%xmm0\n\tmovq 0x40(%%r12),%%xmm1\n\tmovq 0x48(%%r12),%%xmm2\n\tmovq 0x50(%%r12),%%xmm3\n\tmovq 0x58(%%r12),%%xmm4\n\t"
-  "mov 0x08(%%r12),%%rdi\n\tmov 0x10(%%r12),%%rsi\n\tmov 0x18(%%r12),%%rdx\n\tmov 0x20(%%r12),%%rcx\n\tmov 0x28(%%r12),%%r8\n\t"
-  "mov 0x30(%%r12),%%r9\n\tmov 0x70(%%r12),%%rax\n\tcall *(%%r12)\n\tmov %%r13,%%rsp"
-  :"=a"(r):"r"(c):"rcx","rdx","rsi","rdi","r8","r9","r10","r11","r12","r13","xmm0","xmm1","xmm2","xmm3","xmm4","xmm5",
-   "xmm6","xmm7","xmm8","xmm9","xmm10","xmm11","xmm12","xmm13","xmm14","xmm15","memory","cc");
- return r;}
-EXT static uint64_t k26_f2d(uint32_t f){uint64_t r;
- __asm__("movd %1,%%xmm0\n\tcvtss2sd %%xmm0,%%xmm0\n\tmovq %%xmm0,%0":"=r"(r):"r"(f):"xmm0");return r;}
-EXT static uint32_t k26_fsel(uint32_t a,uint32_t b,uint32_t c){        /* PPC fsel: a >= 0 ? b : c (NaN -> c) */
- if((a&0x7fffffffu)>0x7f800000u)return c;
- return f_lt(a,0)?c:b;}
-EXT static uint32_t k26_rd(const void *p){return *(const uint32_t*)p;}
-EXT static void k26_c4(uint32_t *o,uint32_t a,uint32_t b,uint32_t c,uint32_t d){o[0]=a;o[1]=b;o[2]=c;o[3]=d;}  /* no main-area constants */
-EXT static uint32_t k26_col(const uint32_t c[4]){                       /* f_667f0c byte loop (clamp 0..1, *255, fctiwz) */
- uint32_t v[4];
- for(int k=0;k<4;k++){uint32_t f=k26_fsel(c[k],c[k],0);f=k26_fsel(f_sub(f,F_ONE),F_ONE,f);
-  v[k]=(uint32_t)f_trunc(f_mul(f,0x437f0000u))&0xffu;}
- return v[3]<<24|v[2]<<16|v[1]<<8|v[0];}                               /* PS3 r<<24|g<<16|b<<8|a, byte-swapped */
-EXT static void k26_tp(uint32_t *P){                                   /* f_207f2c + the clip / defaults f_667f0c sets */
- for(int k=0;k<48;k++)P[k]=0;
- P[5]=0xbf800000u;P[7]=0xbf800000u;P[0x2c/4]=F_ONE;P[0x30/4]=0xffffffffu;
- P[0x50/4]=F_ONE;P[0x64/4]=F_ONE;P[0x78/4]=F_ONE;P[0x8c/4]=F_ONE;P[0x90/4]=F_ONE;}
-EXT static void k26_text(uintptr_t b,uint32_t *P,const char *s){
- K26C c={0};c.fn=b+0xf1d9f0u;c.i[0]=(uint64_t)P;c.i[1]=(uint64_t)s;k26_call(&c);}
-EXT static const char *k26_str(uintptr_t b,uint32_t id){
- K26C c={0};c.fn=b+0xf32ae0u;c.i[0]=b+0x17026b8u;c.i[1]=id;
- const char *s=(const char*)k26_call(&c);
- return s?s:*(const char**)(b+0x17026b8u+0x10);}
-EXT static void k26_sprite(uintptr_t b,uint64_t idq,uint32_t idx,const uint32_t col[4],uint32_t x,uint32_t y,uint32_t w,uint32_t h,uint32_t ctr,uint32_t ha){
- uint32_t cv[4] __attribute__((aligned(16)));for(int k=0;k<4;k++)cv[k]=col[k];
- K26C c={0};c.fn=b+0x11b8dd0u;c.i[0]=0;c.i[1]=idq;c.i[2]=idx;c.i[3]=(uint64_t)cv;c.i[4]=ctr;c.i[5]=ha;
- c.x[0]=x|(uint64_t)y<<32;c.x[1]=w|(uint64_t)h<<32;c.x[2]=(uint64_t)F_ONE<<32;c.x[3]=0;c.x[4]=F_ONE|(uint64_t)F_ONE<<32;
- k26_call(&c);}
-EXT static uint64_t k26_tex(uintptr_t b,uint32_t id){                   /* f_9939ac(id, 1) + texture of the image */
- int32_t idx=-1;uint8_t *t=*(uint8_t**)(b+0x1b24b80u+0x48);
- if(stage_ptr_ok(t)){uint8_t *tb=*(uint8_t**)(t+0x28);
-  if(stage_ptr_ok(tb)){uint32_t n=*(uint16_t*)(tb+2);uint8_t *e=*(uint8_t**)(tb+8);
-   if(n&&stage_ptr_ok(e))for(uint32_t i=0;i<n;i++)if(*(uint32_t*)(e+8+i*0x28)==id){idx=(int32_t)i;break;}}}
- K26C c={0};c.fn=b+0x11b89b0u;c.i[0]=id|(1ull<<32);c.i[1]=(uint32_t)idx;
- return k26_call(&c);}
-EXT static void k26_quad(uintptr_t b,uint64_t dc,uint64_t tex,uint32_t x0,uint32_t y0,uint32_t x1,uint32_t y1,const uint32_t col[4]){
- uint32_t v[0x44] __attribute__((aligned(16)));
- for(int k=0;k<0x44;k++)v[k]=0;
- const uint32_t px[4]={x0,x1,x1,x0},py[4]={y0,y0,y1,y1},pu[4]={0,F_ONE,F_ONE,0},pv[4]={0,0,F_ONE,F_ONE};
- for(int k=0;k<4;k++){uint32_t *w=v+k*16;w[0]=px[k];w[1]=py[k];w[3]=pu[k];w[4]=pv[k];
-  w[8]=col[0];w[9]=col[1];w[10]=col[2];w[11]=col[3];w[12]=w[13]=w[14]=w[15]=F_ONE;}
- uint64_t ctx[6]={dc,0,0,0,0,0},td[4]={tex,0,0,0};
- K26C c={0};c.fn=b+0xe42310u;c.i[0]=(uint64_t)ctx;c.i[1]=(uint64_t)td;c.i[2]=(uint64_t)v;k26_call(&c);}
-EXT static void k26_time(uintptr_t b,char *buf,int32_t s){              /* f_664bd0(buf, 64, s) */
- int32_t m=s/60,mi=m-(m/60)*60,se=s-m*60,h=s/3600;h=h-(h/24)*24;
- K26C c={0};c.fn=b+0x139cab0u;c.i[0]=(uint64_t)buf;c.i[1]=64;
- if(h){c.i[2]=b+0x1496f61u;c.i[3]=(uint32_t)h;c.i[4]=(uint32_t)mi;c.i[5]=(uint32_t)se;}
- else{c.i[2]=b+0x1496f6eu;c.i[3]=(uint32_t)mi;c.i[4]=(uint32_t)se;}
- k26_call(&c);}
-static const uint32_t k26_fn[8]={0x11b8dd0u,0x11b89b0u,0xe42310u,0xf1d9f0u,0xf32ae0u,0x640ac0u,0x63d6f0u,0};
-static uint8_t k26_ok EXT_BSS;
-EXT static int k26_callees(uintptr_t b){
- if(k26_ok)return k26_ok==1;
- k26_ok=1;for(int i=0;k26_fn[i];i++)if(*(const uint32_t*)(b+k26_fn[i])!=0xe5894855u)k26_ok=2;
- if(*(const uint32_t*)(b+0x6a2700u)!=0x009cbf80u||*(const uint32_t*)(b+0x139cab0u)!=0x6aca25ffu)k26_ok=2;
- return k26_ok==1;}
-EXT static int k26_draw(uintptr_t b,uint8_t *el,uint8_t *rbp){
- const uint32_t ONE=F_ONE,Z=0,C08=0x3f4ccccdu;
- X.eb[220]++;
- if(*(uint8_t*)(b+0x1acab60u+0x13)){X.eb[229]++;return 0;}             /* PS3 0x667f90 */
- if(!k26_callees(b)||!stage_ptr_ok(rbp)){X.eb[221]++;return 0;}
- uint64_t dc=*(uint64_t*)(rbp-0x11f8);
- int i03dc0=!(X.eb[1]&0x40000u);if(i03dc0){dc=0;i03_d[0]++;}   /* agent I i003: U3MP_CIN_DC0 (see i03 header) */
- int32_t vc=*(int32_t*)(el+0x1d0);X.eb[222]=(uint32_t)vc;
- if(vc<0||vc>14){X.eb[221]++;return 0;}
- uint32_t W=f_i2f((int32_t)*(uint32_t*)(b+0x18c6b34u+8));
- uint32_t a=f_sub(ONE,k26_rd(el+0x1d4));a=k26_fsel(a,a,Z);
- uint32_t f16=f_fma119(f_i2f(vc),0x42900000u,0xc1000000u);              /* vc*72 - 8 */
- uint32_t t=k26_fsel(f_sub(a,ONE),ONE,a);
- uint32_t f18=f_fma119(f_sub(ONE,t),0x44098000u,f_mul(t,0x44228000u));  /* (1-t)*550 + t*650 */
- uint32_t f26=f_mul(f_sub(W,f16),0x3f000000u);
- uint32_t Y0=f_sub(f18,0x424c0000u);                                    /* sp+252 */
- /* panel: f_263fd4 / f_264094(0x80000000) / f_25a7bc(0x1226c30, style, desc 24, rect, 1, 1) */
- {uint32_t style[10]={ONE,0,0,0,f_mul(f_i2f(128),0x3b808081u),0,0,ONE,0,0};
-  uint32_t desc[12]={24,0,0,0,0,0,0,0xffffffffu,0,0xffffffffu,ONE,0};
-  uint32_t rect[4]={f_sub(f26,0x41200000u),f_sub(Y0,0x41200000u),f_add(f16,0x41a00000u),
-                    f_add(f_sub(f_add(f18,0x41a80000u),Y0),0x41a00000u)};
-  uint32_t wh[2]={rect[2],rect[3]},z4[4]={0,0,0,0};
-  uint64_t tmp[0x40] __attribute__((aligned(16)));for(int k=0;k<0x40;k++)tmp[k]=0;
-  K26C c={0};c.fn=b+0x640ac0u;c.i[0]=(uint64_t)tmp;c.i[1]=(uint64_t)desc;c.i[2]=0;c.i[3]=(uint64_t)wh;c.i[4]=(uint64_t)z4;
-  c.i[5]=0xffffffffu;c.x[0]=style[0];k26_call(&c);
-  X.eb[243]++;X.eb[244]=(uint32_t)tmp[0];X.eb[245]=*(uint32_t*)((uint8_t*)tmp+0x3c);X.eb[246]=*(uint32_t*)((uint8_t*)tmp+0x40);   /* b029: panel */
-  if((X.eb[1]&0x20)||i03dc0){uint32_t pc[4];k26_c4(pc,0,0,0,style[4]);X.eb[46]++;   /* agent B b039: test only, not PS3 (U3MP_CIN_PANEL_QUAD=1); agent I i003: the deferred pass */
-   k26_quad(b,dc,0,rect[0],rect[1],f_add(rect[0],rect[2]),f_add(rect[1],rect[3]),pc);}
-  else{
-  K26C d={0};d.fn=b+0x63d6f0u;d.i[0]=b+0x17bd090u;d.i[1]=dc;d.i[2]=(uint64_t)style;d.i[3]=(uint64_t)tmp;d.i[4]=(uint64_t)rect;
-  d.i[5]=1;d.s[0]=1;d.s[1]=0xffffffffu;k26_call(&d);}
-  X.eb[47]=rect[0];X.eb[63]=rect[1];}
- /* highlight (el+0x1dc image) */
- uint32_t a22=k26_rd(el+0x1d4);
- {uint32_t x=f_sub(f_fma119(k26_rd(el+4),0x42900000u,f26),0x40400000u);
-  uint32_t f1=f_mul(f_i2f(*(int32_t*)(b+0x17b4a90u+0x114)),0x3c5a740eu);
-  f1=f_add(sincos119(f1,1),ONE);
-  uint32_t y=f_sub(f18,0x420c0000u);
-  f1=f_mul(f1,0x3f000000u);f1=k26_fsel(f1,f1,Z);
-  uint32_t g=k26_fsel(f_sub(f1,ONE),ONE,f1);g=k26_fsel(g,g,Z);
-  uint32_t p=k26_fsel(f_sub(g,ONE),ONE,g);
-  uint32_t col[4]={ONE,ONE,C08,f_mul(a22,f_fma119(f_sub(ONE,p),0x3ecccccdu,f_mul(p,0x3f333333u)))};
-  k26_sprite(b,*(uint64_t*)(el+0x1dc),*(uint32_t*)(el+0x1e4),col,x,y,0x428c0000u,0x428c0000u,0,1);}
- /* tabs */
- for(int32_t i=0;i<*(int32_t*)(el+0x1d0)&&i<14;i++){
-  uint8_t *e=*(uint8_t**)(el+0x160+8*i);if(!k29_eok(e)){X.eb[221]++;continue;}       /* b029 */
-  uint32_t fi=f_i2f(i),d=f_sub(k26_rd(el+4),fi);
-  uint32_t f27=f_fma119(fi,0x42900000u,f26),f17=f_sub(f18,0x41800000u);
-  uint32_t f31=f_sub(ONE,d&0x7fffffffu);
-  uint32_t w0=k26_fsel(f31,f31,Z),w=k26_fsel(f_sub(w0,ONE),ONE,w0);
-  uint32_t col[4]={ONE,ONE,C08,f_mul(a22,f_fma119(f_sub(ONE,w),0x3e99999au,f_mul(w,C08)))};
-  k26_sprite(b,*(uint64_t*)(e+8),*(uint32_t*)(e+0x10),col,f27,f17,0x42800000u,0x42000000u,0,0);
-  if(f_lt(f31,0x3a83126fu))continue;
-  uint32_t lc[4]={ONE,ONE,C08,f_mul(a22,f31)};uint32_t c=k26_col(lc);
-  uint32_t P[48] __attribute__((aligned(16)));k26_tp(P);
-  uint32_t ty=f_add(f17,0x42280000u);
-  P[0]=f_sub(f27,0x43ea0000u);P[1]=ty;P[8]=P[9]=0x3f333333u;P[10]=c;P[0x34/4]=5;P[0x94/4]=0x447a0000u;
-  const char *s=k26_str(b,*(uint32_t*)(e+0x14));
-  k26_text(b,P,s);
-  uint32_t w1=f_add(P[0x94/4],ONE),cx=f_add(f27,0x42000000u),rx=f_sub(f_add(f26,f16),w1);
-  P[0x34/4]=1;P[0x30/4]=0xffffffffu;P[10]=c;P[1]=ty;P[8]=P[9]=0x3f333333u;P[0x2c/4]=ONE;P[0x94/4]=w1;
-  uint32_t x0=f_fma119(w1,0xbf000000u,cx),x1=k26_fsel(f_sub(x0,f26),x0,f26);
-  P[0]=k26_fsel(f_sub(x1,rx),rx,x1);
-  k26_text(b,P,s);X.eb[225]++;}
- /* timeline */
- uint8_t *F=(uint8_t*)(b+0x17c3ba8u);
- uint32_t lenf=f_i2f(*(int32_t*)(F+0x158));
- K26C tc={0};tc.fn=b+0x6a2700u;tc.i[0]=(uint64_t)F;int32_t cur=(int32_t)(uint32_t)k26_call(&tc);
- X.eb[223]=(uint32_t)cur;X.eb[224]=*(uint32_t*)(F+0x158);
- uint32_t f21=f_i2f(cur),f20=f_div(ONE,lenf);
- uint32_t prog=k26_fsel(lenf|0x80000000u,Z,f_div(f21,lenf));
- {uint32_t c0[4];k26_c4(c0,ONE,ONE,C08,0x3e4ccccdu);
-  k26_quad(b,dc,0,f26,Y0,f_add(f26,f16),f_add(Y0,0x41a00000u),c0);}
- uint32_t f22=f_sub(f16,0x43200000u),py=f_add(Y0,0x40800000u),px=f_add(f26,0x42a00000u);
- uint32_t pw0=f_mul(f22,prog),pw=k26_fsel(f_sub(ONE,pw0),ONE,pw0);
- {uint32_t c1[4];k26_c4(c1,ONE,ONE,C08,0x3f000000u);
-  k26_quad(b,dc,0,px,py,f_add(px,pw),f_add(py,0x41400000u),c1);}
- uint32_t cxp=f_sub(f_add(pw,px),0x41400000u),cyp=f_sub(py,0x40c00000u);
- {uint32_t c2[4];k26_c4(c2,ONE,ONE,C08,ONE);
-  k26_quad(b,dc,k26_tex(b,0xeae7862au),cxp,cyp,f_add(cxp,0x41c00000u),f_add(cyp,0x41c00000u),c2);}
- int32_t ci=*(int32_t*)(F+0x1e8c);
- if(ci>-1){
-  if(ci>=10)X.eb[227]++;
-  else for(uint32_t n=0;n<F[0x3c8+(uint32_t)ci*0x2a8];n++){
-   if(n>=64){X.eb[227]++;break;}
-   uint8_t *rec=F+0x3cc+(uint32_t)ci*0x2a8+8*n;
-   uint32_t fr=0;
-   if((lenf&0x7fffffffu)!=0)fr=f_mul(f20,f_mul(f_i2f(*(int32_t*)(rec+4)-*(int32_t*)(F+0x1dbc)),0x3b5a740eu));
-   uint32_t f13=f_mul(f22,fr);
-   uint32_t mc[4];k26_c4(mc,ONE,ONE,ONE,ONE);int16_t ty=*(int16_t*)rec;
-   if(ty==-1){mc[1]=0;mc[2]=0;}
-   else if(ty==-2){mc[0]=mc[1]=mc[2]=0x3e99999au;}
-   uint32_t f11=k26_fsel(f_sub(ONE,f13),ONE,f13);
-   uint32_t mx=f_sub(f_add(f11,px),0x40200000u),my=f_sub(py,0x40c00000u);
-   k26_quad(b,dc,k26_tex(b,0xeae7862au),mx,my,f_add(mx,0x40a00000u),f_add(my,0x41c00000u),mc);X.eb[226]++;}}
- /* texts */
- {uint32_t tcol[4];k26_c4(tcol,ONE,ONE,C08,0x3f666666u);
-  uint32_t P[48] __attribute__((aligned(16)));k26_tp(P);char buf[64];
-  P[8]=P[9]=0x3f000000u;P[10]=k26_col(tcol);P[0x94/4]=0x42a00000u;
-  P[0]=f_add(f26,0x40800000u);P[1]=Y0;
-  k26_time(b,buf,f_trunc(f_add(f21,0x3f000000u)));k26_text(b,P,buf);
-  P[1]=Y0;P[0x34/4]=2;P[0x94/4]=0x42a00000u;P[0]=f_sub(f_add(f16,f26),0x42a80000u);
-  k26_time(b,buf,f_trunc(f_add(lenf,0x3f000000u)));k26_text(b,P,buf);
-  P[0x94/4]=0x43c80000u;P[9]=ONE;P[8]=ONE;P[1]=0x43160000u;P[0x34/4]=9;P[0]=f_mul(f_sub(W,0x43c80000u),0x3f000000u);
-  k26_text(b,P,(const char*)(F+0x1e6c));
-  if(k26_rd((const void*)(b+0x16e716cu))!=ONE&&*(uint8_t*)(b+0x17c3571u)){
-   uint32_t sp=k26_rd((const void*)(b+0x17b4a90u+0x8c));
-   uint64_t fm=0x78ull|0x25ull<<8|0x32ull<<16|0x2eull<<24|0x31ull<<32|0x66ull<<40;  /* "x%2.1f" */
-   P[0x94/4]=0x42c80000u;P[0x34/4]=1;P[8]=P[9]=0x3f000000u;P[0]=f_sub(cxp,0x42180000u);P[1]=f_sub(cyp,0x41a00000u);
-   K26C c={0};c.fn=b+0x139cab0u;c.i[0]=(uint64_t)buf;c.i[1]=64;c.i[2]=(uint64_t)&fm;c.x[0]=k26_f2d(sp);c.al=1;k26_call(&c);
-   k26_text(b,P,buf);X.eb[228]++;}}
- return 0;}
-#pragma clang section text="" rodata=""
+EXT static uint64_t k26_call(K26C *c){return u3x_k26_call(c);}   /* v7.212 C++ */
+EXT static uint64_t k26_f2d(uint32_t f){return u3x_k26_f2d(f);}   /* v7.212 C++ */
+EXT static uint32_t k26_fsel(uint32_t a,uint32_t b,uint32_t c){return u3x_k26_fsel(a,b,c);}   /* v7.212 C++ */
+EXT static uint32_t k26_rd(const void *p){return u3x_k26_rd(p);}   /* v7.212 C++ */
+EXT static void k26_c4(uint32_t *o,uint32_t a,uint32_t b,uint32_t c,uint32_t d){u3x_k26_c4(o,a,b,c,d);}   /* v7.212 C++ */
+EXT static uint32_t k26_col(const uint32_t c[4]){return u3x_k26_col(c);}   /* v7.212 C++ */
+EXT static void k26_tp(uint32_t *P){u3x_k26_tp(P);}   /* v7.212 C++ */
+EXT static void k26_text(uintptr_t b,uint32_t *P,const char *s){u3x_k26_text(b,P,s);}   /* v7.212 C++ */
+EXT static const char *k26_str(uintptr_t b,uint32_t id){return u3x_k26_str(b,id);}   /* v7.212 C++ */
+EXT static void k26_sprite(uintptr_t b,uint64_t idq,uint32_t idx,const uint32_t col[4],uint32_t x,uint32_t y,uint32_t w,uint32_t h,uint32_t ctr,uint32_t ha){u3x_k26_sprite(b,idq,idx,col,x,y,w,h,ctr,ha);}   /* v7.212 C++ */
+EXT static uint64_t k26_tex(uintptr_t b,uint32_t id){return u3x_k26_tex(b,id);}   /* v7.212 C++ */
+EXT static void k26_quad(uintptr_t b,uint64_t dc,uint64_t tex,uint32_t x0,uint32_t y0,uint32_t x1,uint32_t y1,const uint32_t col[4]){u3x_k26_quad(b,dc,tex,x0,y0,x1,y1,col);}   /* v7.212 C++ */
+EXT static void k26_time(uintptr_t b,char *buf,int32_t s){u3x_k26_time(b,buf,s);}   /* v7.212 C++ */
+EXT static int k26_callees(uintptr_t b){return u3x_k26_callees(b);}   /* v7.212 C++ */
+EXT static int k26_draw(uintptr_t b,uint8_t *el,uint8_t *rbp){return u3x_k26_draw(b,el,rbp);}   /* v7.212 C++ */
 /* ===== end agent B b026 ===== */
 /* ===== agent B b041: film-tab actions reach the film player, PS3 1.19 NetMenu catch-all f_2902e8 (the id-0 menu callback) =====
  * PS3: the film HUD tab bar (f_664c7c) sends its action ids through f_269c70(menu 0x1226c20, id, 0). None of them is a page
@@ -10996,209 +10273,48 @@ EXT static void m01_drop(uintptr_t base){
 #pragma clang section text=".text.ext" rodata=".rodata.ext"
 #define I01_ON() (!(X.eb[1]&0x10000u))
 #define I01_FOCUS() (!(X.eb[1]&0x20000u))
-static volatile uint32_t i01_d[12] EXT_BSS __attribute__((used));
-static uint8_t *i01_tab[10] EXT_BSS;   /* PS3 0x1243a34 (+4): the members, sorted */
-static uint32_t i01_ntab EXT_BSS;
-static uint32_t i01_row[20] EXT_BSS;    /* PS3 0x1243aac: member index | guest << 8 */
-static uint32_t i01_nrow EXT_BSS;      /* PS3 0x1243aa8 */
-static int32_t i01_sel EXT_BSS;        /* PS3 0x1243b2c */
-static uint8_t i01_pseudo[0x120] EXT_BSS;
-static char i01_name[64] EXT_BSS;   /* PS3 S+0x1570: the no-room pseudo member */
+typedef struct {
+ volatile uint32_t d[12]; uint8_t *tab[10]; uint32_t ntab,row[20],nrow; int32_t sel;
+ uint8_t pseudo[0x120]; char name[64]; uint32_t fok,fsolo,fpage,fpopup,ftick;
+ uint8_t *fprev,*flast,*fparty; uint32_t fmem[4],fmk;
+} I01State;
+static I01State I01S EXT_BSS __attribute__((used));
+#define i01_d I01S.d
+#define i01_tab I01S.tab
+#define i01_ntab I01S.ntab
+#define i01_row I01S.row
+#define i01_nrow I01S.nrow
+#define i01_sel I01S.sel
+#define i01_pseudo I01S.pseudo
+#define i01_name I01S.name
+#define i01_fok I01S.fok
+#define i01_fsolo I01S.fsolo
+#define i01_fpage I01S.fpage
+#define i01_fpopup I01S.fpopup
+#define i01_ftick I01S.ftick
+#define i01_fprev I01S.fprev
+#define i01_flast I01S.flast
+#define i01_fparty I01S.fparty
+#define i01_fmem I01S.fmem
+#define i01_fmk I01S.fmk
 #define I01_PS(b) ((uint8_t*)((b)+0x17dc298u))
-EXT static uint8_t *i01_md(uintptr_t base,uint8_t *m){   /* f_380eb0 = PS4 0x7a3400 */
- return ((uint8_t*(*)(void*,void*))(base+0x7a3400u))(I01_PS(base),m);}
-EXT static int i01_self(uintptr_t base,uint8_t *m){return *(uint32_t*)(m+0x2c)==*(uint32_t*)(I01_PS(base)+0x12e4);}   /* f_37f1b0 */
-/* f_380fc8(S, list, 1) + f_334838 */
-EXT static void i01_rows(uintptr_t base){
- uint8_t *ps=I01_PS(base);i01_ntab=0;i01_nrow=0;i01_d[0]++;
- if(!*(uint64_t*)(ps+0x18)){   /* no room: PS3 builds a pseudo member from the backend at S+0x1570; PS4 has none, the self id is used */
-  clear(i01_pseudo,sizeof(i01_pseudo));*(uint32_t*)(i01_pseudo+0x2c)=*(uint32_t*)(ps+0x12e4);*(int32_t*)(i01_pseudo+0x34)=-1;
-  i01_tab[0]=i01_pseudo;i01_ntab=1;}
- else{
-  uint8_t *m[10];int32_t key[10];uint8_t host[10];int32_t own=0;uint32_t n=0;
-  for(int i=0;i<10;i++){uint8_t *e=ps+0x680+(size_t)i*0x120;if(!e[0x25])continue;
-   uint8_t *md=i01_md(base,e);int32_t k=md?md[9]:0;
-   uint8_t *np=ec_find_np(base,e,0);if(np&&*(int32_t*)(np+0x21c)!=-1)k=*(int32_t*)(np+0x21c);   /* f_304160 +0x124 */
-   m[n]=e;key[n]=k;host[n]=*(uint32_t*)(ps+0x12e8)==*(uint32_t*)(e+0x2c);if(host[n])own=k;n++;}
-  /* f_37f338 order: host first, then the host's team, then the others; member order inside each group */
-  for(int g=0;g<3;g++)for(uint32_t i=0;i<n;i++){int gi=host[i]?0:(key[i]==own?1:2);if(gi==g)i01_tab[i01_ntab++]=m[i];}}
- for(uint32_t i=0;i<i01_ntab&&i01_nrow<20;i++){
-  i01_row[i01_nrow++]=i;
-  uint8_t *md=i01_md(base,i01_tab[i]);if(md&&md[0x19]&&i01_nrow<20)i01_row[i01_nrow++]=i|0x100u;}
- i01_d[1]=i01_nrow;}
-/* the net game the lobby has selected: NGM+0x661c, or the custom selection 0x17d167c while that is unset (as r2_team_source) */
-EXT static int16_t i01_ngi_push(uintptr_t base){int16_t *ngi=(int16_t*)(base+0x17cb060+0x661c);int16_t keep=*ngi,sel=*(int16_t*)(base+0x17d167c);
- if(keep<0&&sel>=0&&*(uint32_t*)(base+0x17d603c)==2)*ngi=sel;return keep;}
-EXT static void i01_ngi_pop(uintptr_t base,int16_t keep){*(int16_t*)(base+0x17cb060+0x661c)=keep;}
-EXT static int32_t i01_type(uintptr_t base,ProfileState *s){int16_t k=i01_ngi_push(base);int32_t t=netgame_cur(base,s)?netgame_type(base,s):-1;i01_ngi_pop(base,k);return t;}
-EXT static int i01_coop(int32_t t){return t==4||t==8||t==9||t==11||t==13||t==16||t==17||t==18;}   /* f_310c68 */
-EXT static uint32_t i01_colour(uintptr_t base,int32_t idx){   /* f_3133e0(out, NGM, idx, 0) = 0x7418e0; +8 = PS4 +0xc */
- if(idx<0||idx>=5)return 0;   /* both builds trap on idx >= 5 */
- uint32_t out[8]={0};int16_t k=i01_ngi_push(base);
- ((void*(*)(void*,uintptr_t,int,int))(base+0x7418e0u))(out,base+0x17cb060,(int)idx,0);
- i01_ngi_pop(base,k);return out[3];}
-EXT static uint8_t *i01_np_by_code(uintptr_t base,uint32_t id){   /* f_3097d0 */
- if(!id)return 0;for(int i=0;i<10;i++){uint8_t *np=(uint8_t*)(base+0x17cb060+0x390)+(size_t)i*0x9c0;if(np_code(np)==id)return np;}return 0;}
-EXT static int i01_strcmp(const uint8_t *a,const uint8_t *b){while(*a&&*a==*b){a++;b++;}return *a-*b;}
-/* op 20 (PS3 0x353c28..0x353e30) */
-EXT static void i01_row_colour(uintptr_t base,ProfileState *s,int32_t *event,uint8_t *m,int guest,uint32_t row){
- if(*(uint32_t*)(base+0x17d603c)!=2){set_text(event,"");event[1]=0;return;}
- int32_t t=i01_type(base,s);uint8_t *ps=I01_PS(base);
- int (*cnt)(void*)=(int(*)(void*))(base+0x7a2b10u);   /* f_3806c8 */
- if(i01_coop(t)&&cnt(ps)<2)return;
- if(event[0x16]!=2)return;
- uint8_t *md=i01_md(base,m);if(!md){i01_d[8]++;return;}
- uint32_t c=0x80000000u;int32_t idx=-1;
- if(md[9]){idx=md[9]-1;
-  if(guest&&cnt(ps)==2){int16_t k=i01_ngi_push(base);int32_t tc=((int32_t(*)(uintptr_t))(base+0x7210a0u))(base+0x17cb060);i01_ngi_pop(base,k);   /* f_313e7c */
-   int f31089c=(t<0||t==0||t==1||t==19);   /* f_31089c: 1 for no game / types 0, 1, 19 (its type-15 special case is not reproduced) */
-   if(tc==2&&(f31089c||t==18||t==10))idx=(idx==0);}
-  c=(i01_colour(base,idx)&0xffffffu)|0x80000000u;}
- event[0xf]=(int32_t)c;i01_d[2]++;
- uint32_t slot=0xff;
- /* f_37fb00(g_matchSession, member): the match member with this member's name */
- uint8_t *ms=(uint8_t*)(base+0x17d6420u),*mm=0;
- for(int i=0;i<10&&m!=i01_pseudo;i++){uint8_t *e=ms+0x680+(size_t)i*0x120;if(e[0x25]&&!i01_strcmp(e,m)){mm=e;break;}}
- if(mm){uint8_t *np=i01_np_by_code(base,*(uint32_t*)(mm+0x2c));
-  if(guest){if(!np)np=0;else{uint32_t code=(*(uint32_t*)(np+0x1e4)&0xfffu)|(*(int32_t*)(np+0x1e8)?0x1000u:0u);np=i01_np_by_code(base,code);}}   /* f_30a148 */
-  if(np&&*(int32_t*)(np+0x21c)>=0){slot=(uint32_t)*(int32_t*)(np+0x21c);event[0xf]=(int32_t)((i01_colour(base,*(int32_t*)(np+0x21c))&0xffffffu)|0x80000000u);}}
- i01_d[3]=(uint32_t)md[9]|((uint32_t)(idx&0xff)<<8)|((slot&0xff)<<16)|(row<<24);i01_d[9]=(uint32_t)event[0xf];}
-static void i01_focus(uintptr_t base,ProfileState *s);
-static uint32_t i01_fok EXT_BSS,i01_fsolo EXT_BSS;   /* i004: the box may take focus (player moved in / only control) */
-/* LIST_PLAYERS source (tag 0x4c414ead): returns 0 to fall back to the old interim code */
-EXT static int i01_party(uintptr_t base,int32_t *event,ProfileState *s,const char *selfname){
- uint32_t op=(uint32_t)event[0];
- if(op==9||op==6){i01_rows(base);}
- switch(op){
-  case 6:event[1]=(int32_t)i01_nrow-1;clan_tag_poll(base,s);hud_alias_names(base,s);stage_tick(base,s);loadout_tick(base,s);
-   if(I01_FOCUS())i01_focus(base,s);return 1;
-  case 5:event[1]=i01_sel;return 1;
-  case 10:i01_sel=event[1];return 1;
-  case 21:event[1]=(I01_FOCUS()&&(i01_fok||i01_fsolo))?1:0;return 1;   /* i004: focusable only once the player moved in (d-pad Right) or alone */
-  case 8:event[1]=I01_FOCUS()?1:0;return 1;
-  case 1:return 0;   /* the title: the old answer ("PARTY") */
- }
- if(!i01_nrow)i01_rows(base);
- uint32_t r=(uint32_t)event[1];   /* PS4 passes the row in ev[1] (as LIST_MAIN_MENU's op 2 / 4 / 11) */
- if(r>=i01_nrow||(i01_row[r]&0xff)>=i01_ntab)return 1;
- uint8_t *m=i01_tab[i01_row[r]&0xff];int guest=(i01_row[r]>>8)&1;
- int self=i01_self(base,m);
- switch(op){
-  case 1:case 2:{
-   const char *nm=self?selfname:(const char*)m;
-   if(guest){char *o=i01_name,*end=o+60;o=fmt_append(o,end,nm);o=fmt_append(o,end," (1)");*o=0;nm=i01_name;}   /* f_37f93c: the guest of a member */
-   if(op==2&&event[0x15]!=0)nm="";
-   set_text(event,nm);return 1;}
-  case 4:
-   if(self&&!guest&&(uint32_t)event[0x14]==0xf5a294f3u){
-    uint32_t (*rank)(void*)=(uint32_t(*)(void*))s->natives[NATIVE_PROFILE_RANK];uint8_t *pr=player_profile(base);
-    if(rank&&pr){event[2]=0x29;*(uint64_t*)(event+4)=0;event[6]=(int32_t)rank(pr);event[7]=0;event[8]=0;event[9]=-1;event[10]=0;event[11]=-1;event[12]=0x3f800000;X.rb[4]++;rank_icon_as_texture(base,s,event);}}
-    else if(!self&&!guest&&(uint32_t)event[0x14]==0xf5a294f3u&&ox_rank_of((const char*)m)>=0){   /* v7.78 rf13: their profile */
-     event[2]=0x29;*(uint64_t*)(event+4)=0;event[6]=ox_rank_of((const char*)m);event[7]=0;event[8]=0;event[9]=-1;event[10]=0;event[11]=-1;event[12]=0x3f800000;X.rb[4]++;rank_icon_as_texture(base,s,event);}
-    else if(!self&&!guest&&(uint32_t)event[0x14]==0xf5a294f3u&&*(uint32_t*)(m+0x3c)==0x40){uint32_t rk=*(uint32_t*)(m+0x40+0x3c);   /* x008 */
-     if(rk&0x20000000u){event[2]=0x29;*(uint64_t*)(event+4)=0;event[6]=(int32_t)((m[0x40+0x32]&8)?(rk&0xffffu):(rk&~0x20000000u));event[7]=0;event[8]=0;event[9]=-1;event[10]=0;event[11]=-1;event[12]=0x3f800000;X.rb[4]++;rank_icon_as_texture(base,s,event);}}
-   return 1;
-  case 11:{uint32_t q=(uint32_t)event[0x13];
-   if(q==0)event[0xe]=1;
-   else if(q==1&&*(int32_t*)(m+0x34)!=-1)event[0xe]=gt_conn_state(base,*(int32_t*)(m+0x34));   /* f_39f0c4 */
-   return 1;}
-  case 20:if(!(*(uint32_t*)((uint8_t*)s+0x3d78)&0x2000000))i01_row_colour(base,s,event,m,guest,r);return 1;
- }
- return 1;}
-static uint8_t i05_self EXT_BSS,i05_sel[0x24] EXT_BSS;   /* i005: 1 own row, 2 another member, 0 not from the party popup; the selection it was for */
-/* row click 0x3406420c: PS3 1.19 f_2844fc, LAN branch (0x283a40..0x283fb4) */
-EXT static void i01_click(uintptr_t base,int32_t *ev){
- uint8_t *net=(uint8_t*)(base+0x17d5c58u);
- i05_self=0;
- /* v7.78 rf13: online too (PS4's own 0x671b40 has no Kick / Promote / Report): the PS3 1.19 f_2844fc online branch below */
- i01_d[4]++;
- i01_rows(base);int32_t row=ev[1];
- *(uint64_t*)(base+0x17c3898u)=0;   /* FB id 0x122c6b0 */
- if(row<0||(uint32_t)row>=i01_nrow||(i01_row[row]&0xff)>=i01_ntab)return;
- uint8_t *m=i01_tab[i01_row[row]&0xff],*ps=I01_PS(base);int guest=(i01_row[row]>>8)&1;
- uint8_t *sel=(uint8_t*)(base+0x17c3871u);   /* selected NpId 0x122c68c */
- if(!guest)copy(sel,m,0x24);
- else{uint8_t *md=i01_md(base,m);if(md){copy(sel,md+0x19,0x23);sel[0x23]=md[0x3c];}}
- int lan=net[8]!=0,self=i01_self(base,m);
- int mine=self;   /* sceNpManagerGetNpId + compare with the selected NpId: on LAN the member name of this PC is its own */
- i05_self=self&&!guest?1:2;copy(i05_sel,sel,0x24);   /* i005: whose Statistics a following 0x089143ea shows (while the selection is this one) */
- FrQa q;
- if(!lan||!self){
-  fr_qa_init(&q,0xecc3219du);
-  if(!mine){
-   fr_qa_add(&q,0xffbbac12u,0x6547d63cu);   /* f_39dc74(entry +0x180) (voice state) is not ported: its "off" label */
-   if(gt_is_host(ps)){
-    if(!lan&&!guest)fr_qa_add(&q,0x9fdf8887u,0x2d32c8b0u);
-    if(*(int32_t*)(net+0x408)==0)fr_qa_add(&q,0x1e2955afu,0x7cc46b94u);}
-   fr_qa_add(&q,0x2962edc6u,0x089143eau);   /* Statistics */
-   if(!lan)fr_qa_add(&q,0xc5790997u,0x0ecbd5bdu);   /* Report Player */
-   goto push;}}
- else fr_qa_init(&q,0xecc3219du);
- {int n=1;if(*(uint64_t*)(ps+0x18)){n=0;for(int i=0;i<10;i++)if(ps[0x680+i*0x120+0x25])n++;}   /* f_37f2e4 */
-  if(gt_is_host(ps)||n==1){if(*(uint8_t*)(base+0x17c3570u))fr_qa_add(&q,0x6253c96au,0x0d0c91cdu);else fr_qa_add(&q,0xa095f551u,0xccbf832eu);}}   /* Unlock / Lock Party */
- fr_qa_add(&q,0x2962edc6u,0x089143eau);   /* Statistics */
- push:
- i01_d[5]=(uint32_t)row|((uint32_t)q.n<<8)|((uint32_t)self<<16)|((uint32_t)lan<<24);
- fr_qa_push(base,&q);}
-/* i004 (tester v6.06/v6.07: on PAGE_MULTIPLAYER the box took focus at entry and kept it; i001's keeper moved focus 7 times and
- * the box took it back each time, Left/Down did nothing, the left menu was unreachable). PS3 (ps3vid1 f096..f110): the page's
- * left control has the initial focus, d-pad RIGHT moves into the party box, LEFT goes back. Port of that behaviour:
- *  - op 21 (focusable) answers 1 only while i01_fok is set, so the page never hands the box focus by itself (the pre-i001
- *    state, which kept the left menu focused);
- *  - i01_fok is set when the player presses RIGHT (pad edge 0x20, or the left stick 0x1000000) while a left-column control
- *    of a lobby page has focus (PAGE_MULTIPLAYER LIST_MAIN_MENU; PAGE_LOBBY's buttons), and the box then gets the focus
- *    (SetFocusedControl 0x623660); it is also set when the box is the page's only focusable control (PAGE_CUSTOM_LOAD);
- *  - LEFT (0x80 / stick 0x800000) while the box has focus clears it and gives focus back to the last left control (else the
- *    first focusable one); a focus that lands on the profile box (Left from the box on PS4) does the same;
- *  - a page left with the box focused (Statistics) gets the box back when it returns.
- * Diagnostics i01_d: [6] moves into the box by Right, [7] moves back (Left / profile box), [10] spontaneous box focus
- * corrected, [11] last {focused id low 16 | pad edge << 16}. */
-static uint32_t i01_fpage EXT_BSS,i01_fpopup EXT_BSS,i01_ftick EXT_BSS;
-static uint8_t *i01_fprev EXT_BSS,*i01_flast EXT_BSS,*i01_fparty EXT_BSS;
-static uint32_t i01_fmem[4] EXT_BSS,i01_fmk EXT_BSS;   /* pages left while the box had focus */
-EXT static int i01_canfocus(uint8_t *c){return c&&((uint8_t(*)(void*))(*(uintptr_t**)c)[8])(c)!=0;}   /* control vt+0x40 */
-EXT static int i01_leftctl(uint32_t pid,uint32_t id){
- if(pid==0x53cbb5f2u)return id==0xf75ffe57u;                                        /* PAGE_MULTIPLAYER: LIST_MAIN_MENU */
- if(pid==0xb99a3235u)return id==0x70e80076u||id==0xef031de1u||id==0x9247257au||id==0x382fa1fdu||id==0x002b2bd6u;   /* PAGE_LOBBY */
- return 0;}
-EXT static void i01_focus(uintptr_t base,ProfileState *s){
- uint8_t *page=active_page_object(base);uint8_t *menu=(uint8_t*)(base+0x17bd080);
- void (*setf)(void*,void*)=(void(*)(void*,void*))s->natives[NATIVE_SET_FOCUS];
- if(!page||!setf||s->focus_busy)return;
- uint32_t tick=*(uint32_t*)(base+0x17b4a90u+0x114);
- if(tick==i01_ftick)return;   /* once per frame */
- i01_ftick=tick;
- uint32_t pid=*(uint32_t*)(page+0x10);
- if(pid!=i01_fpage){
-  if(i01_fpage&&i01_flast&&i01_flast==i01_fparty){uint32_t k=i01_fmk++&3;i01_fmem[k]=i01_fpage;}
-  i01_fpage=pid;i01_flast=0;i01_fprev=0;i01_fpopup=0;i01_fparty=0;i01_fok=0;i01_fsolo=0;
-  for(int k=0;k<4;k++)if(i01_fmem[k]==pid){i01_fok=1;i01_fmem[k]=0;}}
- uint8_t *pop=*(uint8_t**)(menu+0x898);
- if(pop&&*(uint32_t*)(pop+0x10)){i01_fpopup=1;return;}
- i01_fpopup=0;
- uint32_t n=*(uint32_t*)(page+0xac);uint8_t **cs=*(uint8_t***)(page+0xb0);if(!cs||n>64)return;
- uint8_t *party=0,*box=0,*foc=0,*first=0;uint32_t pi=n;
- for(uint32_t i=0;i<n;i++){uint8_t *c=cs[i];if(!c)continue;uint32_t id=*(uint32_t*)(c+0x10);
-  if(id==0x3406420cu){party=c;pi=i;}else if(id==0x649e809au)box=c;
-  if(*(uint8_t*)(c+8))foc=c;}
- if(!party||!*(uint8_t*)(page+8))return;
- i01_fparty=party;
- for(uint32_t i=0;i<n;i++){uint8_t *c=cs[i];if(c&&c!=box&&c!=party&&*(uint32_t*)(c+0x10)&&i01_canfocus(c)){first=c;break;}}
- (void)pi;
- i01_fsolo=!first;   /* the box is the page's only focusable control (per frame, never latched) */
- uint8_t *prev=0;for(uint32_t i=0;i<n;i++)if(cs[i]&&cs[i]==i01_fprev&&i01_canfocus(i01_fprev))prev=i01_fprev;
- uint32_t edge=pad_pressed(base,0);
- i01_d[11]=(foc?(*(uint32_t*)(foc+0x10)&0xffffu):0xffffu)|(edge<<16);
- uint8_t *to=0;
- if(foc&&foc!=party&&foc!=box&&(edge&(0x20u|0x1000000u))&&i01_leftctl(pid,*(uint32_t*)(foc+0x10))){
-  i01_fok=1;to=party;i01_d[6]++;}                                            /* RIGHT into the box */
- else if(foc==party&&first&&(edge&(0x80u|0x800000u))){i01_fok=0;to=prev?prev:first;i01_d[7]++;}   /* LEFT back */
- else if(foc&&foc==box){if(first){i01_fok=0;to=prev?prev:first;}else to=party;i01_d[7]++;}
- else if(foc==party&&!i01_fok&&first){to=prev?prev:first;i01_d[10]++;}
- if(to&&to!=foc){s->focus_busy=1;setf(page,to);s->focus_busy=0;foc=to;
-  for(uint32_t i=0;i<n;i++)if(cs[i]&&*(uint8_t*)(cs[i]+8))foc=cs[i];}
- i01_flast=foc;if(foc&&foc!=party&&foc!=box)i01_fprev=foc;}
-EXT static int i01_user_party(void){return i01_fok&&i01_flast&&i01_flast==i01_fparty;}
+EXT static uint8_t *i01_md(uintptr_t base,uint8_t *m){return u3x_i01_md(base,m);}   /* v7.212 C++ */
+EXT static int i01_self(uintptr_t base,uint8_t *m){return u3x_i01_self(base,m);}   /* v7.212 C++ */
+EXT static void i01_rows(uintptr_t base){u3x_i01_rows(base);}   /* v7.212 C++ */
+EXT static int16_t i01_ngi_push(uintptr_t base){return u3x_i01_ngi_push(base);}   /* v7.212 C++ */
+EXT static void i01_ngi_pop(uintptr_t base,int16_t keep){u3x_i01_ngi_pop(base,keep);}   /* v7.212 C++ */
+EXT static int32_t i01_type(uintptr_t base,ProfileState *s){return u3x_i01_type(base,(void*)s);}   /* v7.212 C++ */
+EXT static int i01_coop(int32_t t){return u3x_i01_coop(t);}   /* v7.212 C++ */
+EXT static uint32_t i01_colour(uintptr_t base,int32_t idx){return u3x_i01_colour(base,idx);}   /* v7.212 C++ */
+EXT static uint8_t *i01_np_by_code(uintptr_t base,uint32_t id){return u3x_i01_np_by_code(base,id);}   /* v7.212 C++ */
+EXT static int i01_strcmp(const uint8_t *a,const uint8_t *b){return u3x_i01_strcmp(a,b);}   /* v7.212 C++ */
+EXT static void i01_row_colour(uintptr_t base,ProfileState *s,int32_t *event,uint8_t *m,int guest,uint32_t row){u3x_i01_row_colour(base,(void*)s,event,m,guest,row);}   /* v7.212 C++ */
+EXT static int i01_party(uintptr_t base,int32_t *event,ProfileState *s,const char *selfname){return u3x_i01_party(base,event,(void*)s,selfname);}   /* v7.212 C++ */
+EXT static void i01_click(uintptr_t base,int32_t *ev){u3x_i01_click(base,ev);}   /* v7.212 C++ */
+EXT static int i01_canfocus(uint8_t *c){return u3x_i01_canfocus(c);}   /* v7.212 C++ */
+EXT static int i01_leftctl(uint32_t pid,uint32_t id){return u3x_i01_leftctl(pid,id);}   /* v7.212 C++ */
+EXT static void i01_focus(uintptr_t base,ProfileState *s){u3x_i01_focus(base,(void*)s);}   /* v7.212 C++ */
+EXT static int i01_user_party(void){return u3x_i01_user_party();}   /* v7.212 C++ */
 /* ===== agent I i005: Statistics from the party popup crashed (v6.08f: write to 0x7ae4 at 0x61ca30) =====
  * Cause: the stats page PAGE 0x83f24f04 (shown by the catch-all for action 0x089143ea, PS3 1.19 f_2902e8 case 0x89143ea:
  * show(menu, 0x83f24f04) and nothing else) shows a "viewed profile": a whole 0x7b00 profile object (PS3 0x7980) held by the
@@ -11216,6 +10332,10 @@ EXT static int i01_user_party(void){return i01_fok&&i01_flast&&i01_flast==i01_fp
  * 0x56, zeros, default ids), since PS4 has no way to fetch another player's record on LAN.
  * Switch U3MP_STATS_VIEW=0 (eb[1] bit19): the old show only (crashes). Diagnostics i05_d: [0] pointer installed,
  * [1] own record shown, [2] defaults shown, [3] shows while the pointer was someone else's. */
+typedef struct { uint8_t self,sel[0x24]; } I05State;
+static I05State I05S EXT_BSS;
+#define i05_self I05S.self
+#define i05_sel I05S.sel
 static uint8_t i05_vp[0x7b00] EXT_BSS;
 static volatile uint32_t i05_d[4] EXT_BSS __attribute__((used));
 EXT static int i05_same(const uint8_t *a,const uint8_t *b){return u3x_same_player(a,b);}   /* v7.128 C++ */
@@ -12996,55 +12116,15 @@ EXT static int w03_box(uintptr_t b,uint64_t *r){   /* value stub at 0x63d6f0: r 
  * (= list op 10 delivered), [10] last {+0xfc8 | +0xf70 << 8 | scene state << 16 | preview live << 24}, [11] non-Player preview. */
 #pragma clang section text=".text.ext" rodata=".rodata.ext"
 static volatile uint32_t s16_d[16] EXT_BSS __attribute__((used));
-static int32_t s16_last74 EXT_BSS;
 EXT static uint8_t *s16_char(uintptr_t base,uint8_t *cm){
- uint8_t **h=*(uint8_t***)(cm+0xf60);uint32_t id=*(uint32_t*)(cm+0xf68);
- if(!h||!id||!stage_ptr_ok(h))return 0;
- uint8_t *ch=*h;if(!ch||!stage_ptr_ok(ch)||*(uint32_t*)(ch+0x7c)!=id)return 0;
- (void)base;return ch;}
+ return u3x_s16_char(base,cm);}   /* v7.212 C++ */
 /* s017: the look application shared by the 0x995d50 stub (kind 233, s016) and the per-frame poll s17_tick.
  * own_kill = 0: a model change is left to the native 0x995d50 (answer 0); 1 (poll): the poll kills itself (0x11a6250 =
  * f_959398, exactly what 0x995d50 does) and wants the look's packages (0x997230 = f_43a174). Returns 1 when handled. */
 EXT static int s17_apply(uintptr_t base,uint8_t *cm,int own_kill){
- uint8_t *ch=s16_char(base,cm);if(!ch){s16_d[4]++;return 0;}
- if(*(uint32_t*)(ch+0x30)!=0xa5a63e9bu){if((s16_d[11]&0xffu)!=0xffu)s16_d[11]++;return 0;}   /* s019: [11] low byte */   /* +0x1c40 is the look only on Player (0x52e450, 0xbd5d37) */
- uint8_t *menu=(uint8_t*)(base+0x17bd080u);
- int32_t user=menu[0xdf5]?1:*(int32_t*)(menu+0x2694),side=*(int32_t*)cm;
- int32_t idx=((int32_t(*)(void*,int32_t,int32_t))(base+0x995ec0u))(cm,user,side);
- /* s018: the bound is the character table's own count (DC 0xbd3bb3b9: 79 entries in 1.19 = our net.bin), as the list op 10
-  * checks it (0x7560a7); PS4's 0x997a40 'type < 64' assert is lifted by the builder (s018), PS3 f_437f20 has no such limit. */
- {uint8_t **dt=((uint8_t**(*)(uint32_t))(base+0x11f2bf0u))(0xbd3bb3b9u);
-  uint32_t nt=(dt&&stage_ptr_ok(dt)&&*dt&&stage_ptr_ok(*dt))?**(uint32_t**)dt:0u;
-  uint32_t lim=(X.eb[2]&0x08000000u)?0x40u:nt;                                 /* U3MP_CHAR_TYPE64=0: PS4's assert stays, keep < 64 */
-  if((uint32_t)idx>=lim||(uint32_t)side>1u){s16_d[14]++;return 0;}}
- uint64_t lk[8];for(int k=0;k<8;k++)lk[k]=0;
- ((void(*)(void*,void*,int32_t,int32_t,int32_t))(base+0x997a40u))(lk,cm,user,idx,side);
- s16_d[5]=*(uint32_t*)(cm+0xf74);s16_d[6]=(uint32_t)side|(uint32_t)cm[0xfc8]<<8|(uint32_t)cm[0xf70]<<16|(uint32_t)cm[0xfc9]<<24;
- uint8_t *L=(uint8_t*)lk;s16_d[7]=(uint32_t)L[0]|(uint32_t)(idx&0xffffff)<<8;
- int chg=0;for(int k=0;k<0x28;k++)if(ch[0x1c40+k]!=L[k]){chg=1;break;}
- if(own_kill&&!chg)return 1;                                                 /* poll: nothing new */
- if(chg){copy(ch+0x1c40,L,0x28);s16_d[1]++;}                                  /* f_4393b4 */
- /* model test, as 0x995d50 0x995dfa..0x995e77 */
- uint8_t **dc=((uint8_t**(*)(uint32_t))(base+0x11f2bf0u))(0xbd3bb3b9u);
- if(!dc||!stage_ptr_ok(dc)||!*dc||!stage_ptr_ok(*dc))return 0;
- uint8_t *tab=*(uint8_t**)(*dc+8);if(!stage_ptr_ok(tab))return 0;
- uint32_t cur=((uint32_t(*)(void*))(*(uintptr_t*)(*(uintptr_t*)ch+0x190)))(ch);
- int32_t n=*(int32_t*)(base+0x18bed80u);uint8_t *ents=*(uint8_t**)(base+0x16e2f88u);uint32_t mid=0;
- if(stage_ptr_ok(ents))for(int32_t i=n-1;i>=0;i--){uint8_t *e=ents+(size_t)i*0x28;uint8_t *p=*(uint8_t**)e;
-  if(p&&*(uint32_t*)(p+0x50)==cur){mid=*(uint32_t*)(e+0x20);break;}}
- if(mid!=*(uint32_t*)(tab+(size_t)L[0]*0x70+0x58)){                          /* f_959398 */
-  s16_d[2]++;if(!own_kill)return 0;                                          /* the native kills, the scene re-places */
-  ((void(*)(void*))(base+0x11a6250u))(ch);}
- else if(chg){((void(*)(void*))(*(uintptr_t*)(*(uintptr_t*)ch+0x4f8)))(ch);s16_d[3]++;}   /* f_439eac's char vt+628 */
- if(own_kill)((void(*)(void*))(base+0x997230u))(cm);                         /* f_43a174 */
- return 1;}
+ return u3x_s17_apply(base,cm,own_kill);}   /* v7.212 C++ */
 EXT static int s16_refresh(uintptr_t base,uint64_t *r){   /* value stub at 0x995d50: r = {r11,r10,r9,r8,rdi,rsi,rdx,rcx,rax,rbp,ret}; 1 = done */
- uint8_t *cm=(uint8_t*)r[4];
- s16_d[0]++;
- if(X.eb[2]&0x02000000u)return 0;
- if(!(X.ec[1]&1u))return 0;   /* h001: f_439eac as PS4 has it (the re-dress is h01_redress, as PS3 f_4394c0) */
- if(cm!=(uint8_t*)(base+0x17f9938u))return 0;
- return s17_apply(base,cm,0);}
+ return u3x_s16_refresh(base,r);}   /* v7.212 C++ */
 /* s017: per-frame poll while a Character / Customise page is up (v6.24 showed no preview with s016 alone).
  * PS3 has the custom manager active (+3764 = PS4 +0xf70) in the lobby menus: f_28f800 0x29026c calls f_43a538 (PS4 0x997670,
  * f_43a174 + active = 1, orphaned on PS4) when it opens the lobby, and f_31ef18 0x31fa9c on the stage set-up. Our LAN flow
@@ -13056,29 +12136,10 @@ EXT static int s16_refresh(uintptr_t base,uint64_t *r){   /* value stub at 0x995
  * mode by then, so that is the chosen look). The list op 10 (0x5ead63 / 0x5eac5c call ds vt+8 on every cursor move) and the
  * page callbacks (0x66f390 sets +0xfc8, 0x670be0 sets +0xfc9) stay PS4's own. Switch U3MP_PREVIEW_POLL=0 (byte rw2+0x405b
  * bit2): no poll (s016 only). */
-static uint8_t s17_on EXT_BSS;
 EXT static int s17_page(uint32_t pg){
- return pg==0x81bfb972u||pg==0xd7e00396u||pg==0x1f707657u||pg==0x211019f2u||pg==0x812c7d24u||pg==0xea656124u||pg==0x11201ffdu||
-        pg==0xcbe59a09u||pg==0xe13ed766u;}   /* PAGE_BODY_TYPE/BASE/TORSO/HEAD/ARMS/LEGS/FEET, CUSTOMIZE_COLOR, CUSTOMIZE_CHARACTER */
+ return u3x_s17_page(pg);}   /* v7.212 C++ */
 EXT static void s16_tick(uintptr_t base){
- uint32_t pg=active_page(base);uint8_t *cm=(uint8_t*)(base+0x17f9938u);
- if(pg==0x81bfb972u){s16_d[8]++;
-  int32_t v=*(int32_t*)(cm+0xf74);if(v!=s16_last74){s16_last74=v;s16_d[9]++;}
-  s16_d[10]=(uint32_t)cm[0xfc8]|(uint32_t)cm[0xf70]<<8|(uint32_t)(*(uint8_t*)(base+0x17bba90u))<<16|(uint32_t)(s16_char(base,cm)!=0)<<24;}
- h01_tick(base,cm);   /* h001: PS3 f_439704's re-dress half, every frame */
- if(X.eb[2]&0x04000000u)return;
- int ok=s17_page(pg)&&*(volatile uint8_t*)(base+0x17d5c61u)&&*(uint32_t*)(base+0x17bba90u)==2&&*(uint32_t*)(base+0x17d1868u)!=2;
- if(!ok){if(s17_on){s17_on=0;if((X.ec[1]&1u)&&*(uint32_t*)(base+0x17bba90u)==2&&cm[0xf70])s17_apply(base,cm,1);}return;}
- s17_on=1;
- /* s019: [11] bits 24..31 = current run of poll frames with no preview character, bits 16..23 = the last finished run
-  * (both in units of 15 frames = 1/4 s at 60 fps, 255 = 64 s or more) */
- {uint32_t w=s16_d[11],cur=w>>24;
-  if(!s16_char(base,cm)){if(s16_d[13]%15u==0&&cur<255u)cur++;w=(w&0x00ffffffu)|cur<<24;}
-  else if(cur){w=(w&0x0000ffffu)|cur<<16;}
-  s16_d[11]=w;}
- if(!cm[0xf70]){((void(*)(void*))(base+0x997670u))(cm);s16_d[12]++;}          /* f_43a538 (PS3 f_28f800 0x29026c) */
- s16_d[13]++;
- if(X.ec[1]&1u)s17_apply(base,cm,1);}   /* h001: only with U3MP_REDRESS119=0 (the in-place re-dress is h01_tick) */
+ u3x_s16_tick(base);}   /* v7.212 C++ */
 /* s019: loadout_tick package list counters, s16_d[15]: low 16 = entries dropped (0), high 16 = parts refused, list full (1);
  * s16_d[11] bits 8..15 = entries in use (2). */
 EXT static void s19_count(int what,uint32_t v){
@@ -14626,6 +13687,66 @@ EXT static void pl_hidden_guard(uintptr_t base,ProfileState *s){
 /* ===== u3h exports: the C part's own helpers and state for the C++ part (u3x_fixes.cpp calls these by name) ===== */
 #define U3H __attribute__((visibility("hidden"),section(".text.ext"),noinline))
 /* ===== contributor exports: the other contributor's U3H exports and _Static_asserts go between this line and the end line ===== */
+U3H void u3h_weapons_fill(uintptr_t base,uint8_t *msg,uint8_t *pl){weapons119(base,msg,pl);}
+U3H uint8_t *u3h_np_by_id(uintptr_t base,uint32_t id){return np_by_id119(base,id);}
+U3H uint32_t u3h_np_code(uint8_t *np){return np_code(np);}
+U3H int32_t u3h_net_now(uintptr_t base){return net_now(base);}
+U3H uint32_t u3h_anim_pack_full(uintptr_t base,uint8_t *msg,uint8_t *bs,uint8_t *actor,uint8_t **tabs,int32_t p5,int32_t p6){return anim_pack119(base,msg,bs,actor,tabs,p5,p6);}
+U3H uint8_t *u3h_anim_cmd_buffer(void){static uint8_t *p;if(!p)p=(uint8_t*)plat_alloc(0x8000);return p;}
+U3H uint8_t *u3h_repl_frame(int i){return repl_frame119[i];}
+U3H uint8_t *u3h_repl_loc(void){return repl_loc119;}
+U3H uint8_t *u3h_handle_obj(uint8_t *h){return handle_obj(h);}
+U3H uint8_t *u3h_cam_mgr(uintptr_t base,int32_t screen){return cam_mgr(base,screen);}
+U3H void u3h_loop_src119(uint8_t *buf,uint32_t n){loop_src119(buf,n);}
+U3H int u3h_layer_counts(uint32_t u){return layer_counts119(u);}
+U3H int u3h_native_gate_closed(uintptr_t base,int32_t *event){return native_gate_closed(base,event);}
+U3H char *u3h_fmt_int(char *o,char *end,int64_t v,int32_t commas){return fmt_int(o,end,v,commas);}
+U3H void *u3h_fi_state(void){return &fi_state;}
+U3H int32_t u3h_inv_send(uintptr_t base,const uint8_t *target,const uint8_t *blob48){return ona_get()->inv_send(base,target,blob48);}
+U3H int32_t u3h_inv_list(uintptr_t base,const uint8_t *me,uint8_t *blobs,uint32_t max){return ona_get()->inv_list(base,me,blobs,max);}
+U3H int32_t u3h_inv_delete(uintptr_t base,const uint8_t *me,const uint8_t *blob48){return ona_get()->inv_delete(base,me,blob48);}
+U3H int32_t u3h_inv_poll(uintptr_t base,int32_t ticket){return ona_get()->inv_poll(base,ticket);}
+U3H void u3h_so_inv_diag(uintptr_t base,uint32_t rows,uint32_t kept,uint32_t w1,uint32_t w2,uint32_t w3,uint32_t wf,uint32_t bad,const uint8_t *first,uint32_t fw){
+ so_inv_diag(base,rows,kept,w1,w2,w3,wf,bad,first,fw);}
+U3H int u3h_n06_on(void){return n06_on();}
+U3H void u3h_n06_mapimg(uintptr_t base,void *s,int32_t *ev,uint8_t *map){n06_mapimg(base,(ProfileState*)s,ev,map);}
+U3H void u3h_h11_tag(int32_t *ev){h11_tag(ev);}
+U3H int u3h_n08_vq(uintptr_t base,int32_t *ev){return n08_vq(base,ev);}
+U3H void u3h_start_calls_inc(void *s){probe_of((ProfileState*)s)->start_calls++;}
+U3H void u3h_probe_pad2_inc(void *s){probe_of((ProfileState*)s)->pad2++;}
+U3H uint32_t *u3h_pt_state(void){return pt_state;}
+U3H uint32_t *u3h_cg_t0_ptr(void){return &cg_t0;}
+U3H void u3h_cg_log(const char *a,int32_t v){cg_log(a,v);}
+U3H void u3h_ng_limits(int32_t type,int32_t *mx,int32_t *mn){
+ *mx=(type>=0&&type<20)?ng_max_players[type]:0;*mn=(type>=0&&type<20)?ng_min_players[type]:0;}
+U3H int u3h_onb_startmatch(uintptr_t base,void *s){return onb_startmatch(base,(ProfileState*)s);}
+U3H int u3h_m03_startmatch(uintptr_t base,void *s){return m03_startmatch(base,(ProfileState*)s);}
+U3H void u3h_cg_commit_selection(uintptr_t base,void *s){cg_commit_selection(base,(ProfileState*)s);}
+U3H int u3h_k26_draw(uintptr_t b,void *el,void *rbp){return k26_draw(b,(uint8_t*)el,(uint8_t*)rbp);}
+U3H void *u3h_join_state(void){return &JS;}
+U3H int32_t u3h_gt_conn_state(uintptr_t base,int32_t id){return gt_conn_state(base,id);}
+U3H uint8_t *u3h_gt_entry_by_id(uintptr_t base,int32_t id){return gt_entry_by_id(base,id);}
+U3H int32_t u3h_mq_find(uintptr_t base,uint32_t type,uint32_t *idx,int remove){return mq_find(base,type,idx,remove);}
+U3H int32_t u3h_mq_get_np(uintptr_t base,uint32_t idx,uint8_t *npid,void *data,uint32_t *len){return mq_get_np(base,idx,npid,data,len);}
+U3H int u3h_onb_pl_np(uintptr_t base,uint8_t *e,const char *name){if(!pl_np_fn)return 0;pl_np_fn(base,e,name);return 1;}
+U3H int32_t u3h_smn_pull(uint8_t *rx,uint32_t *len,uint32_t cap){return smn_pull(rx,len,cap);}
+U3H uint32_t u3h_smn_len(const uint8_t *m,uint32_t n){return smn_len(m,n);}
+U3H uint32_t u3h_smn_swap(uint8_t *m,uint32_t len){return smn_swap(m,len);}
+U3H void u3h_smn_got(const uint8_t *m,uint32_t id){smn_got(m,id);}
+U3H void u3h_smn_unknown(const uint8_t *m,uint32_t n){smn_unknown(m,n);}
+U3H int u3h_mp_code_is(uintptr_t base,uint32_t off,const char *hex12){return mp_code_is(base,off,hex12);}
+U3H volatile uint32_t *u3h_i03_d(void){return i03_d;}
+U3H void *u3h_i01_state(void){return &I01S;}
+U3H void *u3h_i05_state(void){return &I05S;}
+U3H void u3h_set_text(int32_t *ev,const char *t){set_text(ev,t);}
+U3H void u3h_clan_tag_poll(uintptr_t base,void *s){clan_tag_poll(base,(ProfileState*)s);}
+U3H char *u3h_fmt_append(char *o,char *e,const char *t){return fmt_append(o,e,t);}
+U3H uint8_t *u3h_player_profile(uintptr_t base){return player_profile(base);}
+U3H int32_t u3h_ox_rank_of(const char *nm){return ox_rank_of(nm);}
+U3H uint8_t *u3h_ec_find_np(uintptr_t base,const uint8_t *m,int32_t idx){return ec_find_np(base,m,idx);}
+U3H uint32_t u3h_pad_pressed(uintptr_t base,int32_t screen){return pad_pressed(base,screen);}
+U3H uint8_t *u3h_active_page_object(uintptr_t base){return active_page_object(base);}
+U3H void u3h_fr_qa_push(uintptr_t base,void *q){fr_qa_push(base,(FrQa*)q);}
 /* ===== end of contributor exports ===== */
 /* (keep these three lines unchanged) */
 /* (-) */
@@ -14791,7 +13912,6 @@ U3H void u3h_fw_line(const char *a,uint32_t hex,int dig,const char *b,int32_t v)
 U3H const char *u3h_fw_sess(uintptr_t base,uint8_t *ss){return fw_sess(base,ss);}
 U3H uint32_t u3h_fw_game_ra(uintptr_t base,uintptr_t ra,uintptr_t fp){return fw_game_ra(base,ra,fp);}
 U3H int32_t u3h_fw_host_link(uintptr_t base){return fw_host_link(base);}
-U3H void u3h_cg_log(const char *a,int32_t v){cg_log(a,v);}
 U3H void *u3h_fl_state(void){return fl_state;}
 U3H void u3h_ng_stamp(uintptr_t base,void *s,uint8_t *md){ng_stamp(base,(ProfileState*)s,md);}
 U3H void u3h_lnb_marks(uint8_t *guest_wait,uint8_t *host_playing,uint8_t *at_start,uint64_t *followed){*guest_wait=lnb_guest_wait;*host_playing=lnb_host_playing;*at_start=lnb_at_start;*followed=lnb_followed;}

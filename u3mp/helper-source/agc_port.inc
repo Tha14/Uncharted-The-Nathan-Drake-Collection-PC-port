@@ -339,119 +339,55 @@ static uint8_t *find_art_group(uintptr_t base,const char *name);   /* u3_lan_pro
 /* f_a12834(bs, v, n, -): PS3 bit order (MSB first in 32-bit words), as PS4 0x1272b50 writes them. PS3 asserts on overflow
  * (f_2cf8f8 budget checks before every write); here an overflow sets repl_err119 and stops writing. */
 static uint32_t repl_err119 EXT_BSS;
-static void bsw119(uint8_t *bs,uint32_t val,uint32_t n){
- uint32_t pos=*(uint32_t*)(bs+8);if(pos+n>*(uint32_t*)(bs+0xc)){repl_err119=1;return;}
- uint32_t *w=*(uint32_t**)bs;uint32_t v=(uint32_t)((uint64_t)val<<(32-n)),sh=pos&31,room=32-sh;
- uint32_t *p=w+(pos>>5);*p=(uint32_t)(*p&(uint32_t)((uint64_t)0xffffffffu<<room))|(uint32_t)(v>>sh);
- if(room<n)p[1]=(uint32_t)((uint64_t)v<<room);
- *(uint32_t*)(bs+8)=pos+n;}
+static void bsw119(uint8_t *bs,uint32_t val,uint32_t n){u3x_bsw(bs,val,n);}   /* v7.212 C++ */
 /* f_a12d50(bs, v): position, 1.19 0xa12d50..0xa12f74 (r30 = 0x1173c90: 255, 127, 512, 256): |x|<255 && |y|<127 && |z|<255
  * -> bit 0, x*512 (18 bits), y*256 (17), z*512 (18) (fctiwz); else bit 1 and the three floats raw (32 each). */
-static uint32_t fabs119(uint32_t f){return f&0x7fffffffu;}
+static uint32_t fabs119(uint32_t f){return u3x_fabs(f);}   /* v7.212 C++ */
 /* PPC fctiwz: truncation with saturation (>= 2^31 -> 0x7fffffff, <= -2^31 -> 0x80000000, NaN -> 0x80000000); x86 cvttss2si
  * returns 0x80000000 for every out-of-range value, which differs in the low bits the packer keeps (1-frame anims: x/0). */
 static uint32_t ppc_ctiwz119(uint32_t f){
  return u3x_ppc_ctiwz(f);}   /* v7.199 C++ */
-static void bsw_vec119(uint8_t *bs,const uint32_t *v){
- if(f_lt(fabs119(v[0]),0x437f0000u)&&f_lt(fabs119(v[1]),0x42fe0000u)&&f_lt(fabs119(v[2]),0x437f0000u)){
-  bsw119(bs,0,1);bsw119(bs,ppc_ctiwz119(f_mul(v[0],0x44000000u)),18);
-  bsw119(bs,ppc_ctiwz119(f_mul(v[1],0x43800000u)),17);bsw119(bs,ppc_ctiwz119(f_mul(v[2],0x44000000u)),18);}
- else{bsw119(bs,1,1);bsw119(bs,v[0],32);bsw119(bs,v[1],32);bsw119(bs,v[2],32);}}
+static void bsw_vec119(uint8_t *bs,const uint32_t *v){u3x_bsw_vec(bs,v);}   /* v7.212 C++ */
 /* the BoundFrame writer f_2bbf5c = PS4 0x7befc0(bs, frame) (writes into the zeroed buffer: see anim_pack119) */
-static void bsw_frame119(uintptr_t base,uint8_t *bs,uint8_t *f){
- if(repl_err119)return;
- if(*(uint32_t*)(bs+8)+0x200>*(uint32_t*)(bs+0xc)){repl_err119=1;return;}   /* PS4's writer traps on overflow; PS3 asserts first */
- ((void(*)(uint8_t*,uint8_t*))(base+0x7befc0u))(bs,f);}
+static void bsw_frame119(uintptr_t base,uint8_t *bs,uint8_t *f){u3x_bsw_frame(base,bs,f);}   /* v7.212 C++ */
 /* quaternion / locator math for the attach branch (Locator = {pos x,y,z,w; quat x,y,z,w}) */
-static void q_mul119(uint32_t *o,const uint32_t *a,const uint32_t *b){
- uint32_t x=f_add(f_add(f_mul(a[3],b[0]),f_mul(a[0],b[3])),f_sub(f_mul(a[1],b[2]),f_mul(a[2],b[1])));
- uint32_t y=f_add(f_add(f_mul(a[3],b[1]),f_mul(a[1],b[3])),f_sub(f_mul(a[2],b[0]),f_mul(a[0],b[2])));
- uint32_t z=f_add(f_add(f_mul(a[3],b[2]),f_mul(a[2],b[3])),f_sub(f_mul(a[0],b[1]),f_mul(a[1],b[0])));
- uint32_t w=f_sub(f_sub(f_mul(a[3],b[3]),f_mul(a[0],b[0])),f_add(f_mul(a[1],b[1]),f_mul(a[2],b[2])));
- o[0]=x;o[1]=y;o[2]=z;o[3]=w;}
-static void q_rot119(uint32_t *o,const uint32_t *q,const uint32_t *v){   /* q v q^-1 */
- uint32_t p[4]={v[0],v[1],v[2],0},c[4]={q[0]^0x80000000u,q[1]^0x80000000u,q[2]^0x80000000u,q[3]},t[4],r[4];
- q_mul119(t,q,p);q_mul119(r,t,c);o[0]=r[0];o[1]=r[1];o[2]=r[2];o[3]=0;}
-static void loc_mul119(uint32_t *o,const uint32_t *a,const uint32_t *b){   /* a o b (Locator TransformLocator) */
- uint32_t r[4],q[4];q_rot119(r,a+4,b);q_mul119(q,a+4,b+4);
- o[0]=f_add(a[0],r[0]);o[1]=f_add(a[1],r[1]);o[2]=f_add(a[2],r[2]);o[3]=0;for(int i=0;i<4;i++)o[4+i]=q[i];}
-static void loc_rel119(uint32_t *o,const uint32_t *a,const uint32_t *b){   /* a^-1 o b: 1.19 f_22f78(out, a, b) */
- uint32_t c[4]={a[4]^0x80000000u,a[5]^0x80000000u,a[6]^0x80000000u,a[7]},d[4]={f_sub(b[0],a[0]),f_sub(b[1],a[1]),f_sub(b[2],a[2]),0},r[4],q[4];
- q_rot119(r,c,d);q_mul119(q,c,b+4);for(int i=0;i<3;i++)o[i]=r[i];o[3]=0;for(int i=0;i<4;i++)o[4+i]=q[i];}
+static void q_mul119(uint32_t *o,const uint32_t *a,const uint32_t *b){u3x_q_mul(o,a,b);}   /* v7.212 C++ */
+static void q_rot119(uint32_t *o,const uint32_t *q,const uint32_t *v){u3x_q_rot(o,q,v);}   /* v7.212 C++ */
+static void loc_mul119(uint32_t *o,const uint32_t *a,const uint32_t *b){u3x_loc_mul(o,a,b);}   /* v7.212 C++ */
+static void loc_rel119(uint32_t *o,const uint32_t *a,const uint32_t *b){u3x_loc_rel(o,a,b);}   /* v7.212 C++ */
 /* 1.19 f_953e48: world locator of a BoundFrame = parent o local; the parent is the binding's locator when the handle is
  * valid (PS4 frame +8 handle / +0x10 id, binding +0x00 pos / +0x10 quat, as 0x1196230 refreshes it), else the cached
  * parent (+0x20 / +0x30). Local +0x40 / +0x50. */
-static void bf_world119(uintptr_t base,uint8_t *f,uint32_t *o){
- uint32_t par[8],loc[8];uint8_t *b=bf_handle_valid(base,f)?**(uint8_t***)(f+8):0;
- for(int i=0;i<8;i++){par[i]=b?*(uint32_t*)(b+4*i):*(uint32_t*)(f+0x20+4*i);loc[i]=*(uint32_t*)(f+0x40+4*i);}
- loc_mul119(o,par,loc);}
+static void bf_world119(uintptr_t base,uint8_t *f,uint32_t *o){u3x_bf_world(base,f,o);}   /* v7.212 C++ */
 /* 1.19 f_854d14(player) as PS4 inlines it (0x3d14eb..0x3d159d): binding = vt+0x248(obj, 0) (PS3 vt+0x120); while obj:
  * if WORD obj+0x128 bit 0x800 (PS3 u64 obj+0xd0 bit 20) return binding; binding = the binding of obj's BoundFrame
  * (obj+0xb8 / +0xc0, PS3 f_85df94 = obj+0x70); obj = 0x10c5010(obj) (PS3 f_85ea6c, the binding's owner). 0 at the end. */
-static uint8_t *bind_root119(uintptr_t base,uint8_t *obj){
- uint8_t *b=((uint8_t*(*)(uint8_t*,uint32_t))(*(uintptr_t**)obj)[0x248/8])(obj,0);
- for(int g=0;obj&&g<64;g++){
-  if(*(uint16_t*)(obj+0x128)&0x800)return b;
-  b=bf_handle_valid(base,obj+0xb0)?**(uint8_t***)(obj+0xb8):0;
-  obj=((uint8_t*(*)(uint8_t*))(base+0x10c5010u))(obj);}
- return 0;}
+static uint8_t *bind_root119(uintptr_t base,uint8_t *obj){return u3x_bind_root(base,obj);}   /* v7.212 C++ */
 /* 1.19 f_9555d0(out, 0, sid, obj, no args) = PS4 0x1197380; the answer value is the first word */
-static uint64_t ev_query119(uintptr_t base,uint32_t sid,uint8_t *obj){
- uint64_t a0[3]={0,0,0},a1[3]={0,0,0},a2[3]={0,0,0},a3[3]={0,0,0};uint64_t r[4] __attribute__((aligned(16)))={0,0,0,0};
- ((void(*)(void*,void*,uint32_t,void*,void*,void*,void*,void*))(base+0x1197380u))(r,0,sid,obj,a0,a1,a2,a3);
- return r[0];}
+static uint64_t ev_query119(uintptr_t base,uint32_t sid,uint8_t *obj){return u3x_ev_query(base,sid,obj);}   /* v7.212 C++ */
 /* 1.19 f_3097d0(mgr, id): the net player with that id (np code f_367278 = np_code), 0 for id 0 */
-static uint8_t *np_by_id119(uintptr_t base,uint32_t id){
- if(!id)return 0;for(int i=0;i<10;i++){uint8_t *q=(uint8_t*)(base+0x17cb060u+0x390)+(size_t)i*0x9c0;if(np_code(q)==id)return q;}
- return 0;}
+static uint8_t *np_by_id119(uintptr_t base,uint32_t id){return u3x_np_by_id(base,id);}   /* v7.212 C++ */
 /* 1.19 f_8abdc4(table, key): binary search of {u32 count; entries {u32 sid, ptr}} (PS3 8-byte entries, PS4 16-byte entries
  * {u32 sid; u64 ptr} at +8, as PS4 0x6ba9d0 reads them); same loop bounds (64-bit unsigned) as PS3. */
-static int32_t tab_find119(uint8_t *t,uint32_t key){
- uint32_t n=*(uint32_t*)t;uint8_t *e=*(uint8_t**)(t+8);uint64_t lo=0,hi=(uint64_t)(uint32_t)(n-1);
- for(int g=0;g<64;g++){uint64_t mid=(lo+hi)>>1;if(mid>=n||!e)break;uint32_t v=*(uint32_t*)(e+mid*16);
-  if(key<v)hi=mid-1;else{lo=mid+1;if(key<=v)return (int32_t)mid;}
-  if(lo>hi)break;}
- return -1;}
-static uint8_t *art_tab119(uint8_t *g){uint8_t *a=g?*(uint8_t**)(g+0x30):0;return a?*(uint8_t**)(a+0x10):0;}   /* PS3 g+0x2c -> +0xc */
-static uint32_t sid119(uintptr_t base,const char *s){
- if(!s||!*s)return 0;return ((uint32_t(*)(int,const char*,int))*(uintptr_t*)(base+0x1702720u))(0,s,1);}
+static int32_t tab_find119(uint8_t *t,uint32_t key){return u3x_tab_find(t,key);}   /* v7.212 C++ */
+static uint8_t *art_tab119(uint8_t *g){return u3x_art_tab(g);}   /* v7.212 C++ */
+static uint32_t sid119(uintptr_t base,const char *s){return u3x_sid(base,s);}   /* v7.212 C++ */
 /* 1.19 f_2d9270(&table, &index, anim id, anim, tables): the anim in the 8 player tables (a table counts only when its
  * art group id, PS4 +0x18 / PS3 +4, is the sid of the anim's group name, PS4 anim +0x38 / PS3 +0x30); else in the art
  * group of that name (table = that sid). */
 static int anim_lookup119(uintptr_t base,uint32_t *tab,int32_t *idx,uint32_t id,uint8_t *anim,uint8_t **tabs){
- for(uint32_t i=0;i<8;i++){uint8_t *g=tabs[i];if(!g)continue;
-  if(anim&&*(uint32_t*)(g+0x18)!=sid119(base,*(const char**)(anim+0x38)))continue;
-  uint8_t *t=art_tab119(g);int32_t k=t?tab_find119(t,id):-1;
-  if(k!=-1){*idx=k;*tab=i;return 1;}}
- const char *nm=anim?*(const char**)(anim+0x38):0;
- if(!nm)return 0;
- uint8_t *g=find_art_group(base,nm);uint8_t *t=art_tab119(g);int32_t k=t?tab_find119(t,id):-1;
- if(k==-1)return 0;
- *idx=k;*tab=sid119(base,nm);return 1;}
+ return u3x_anim_lookup(base,tab,idx,id,anim,tabs);}   /* v7.212 C++ */
 /* 1.19 f_7f9c80 / f_7f7590: a streaming chunk anim -> the streamed (root) anim and the stream's phase. PS4 reworked the
  * stream records (anim-streaming.cpp, list 0x1d46090 / count 0x1d46088); its forward lookup 0xfd4c60 goes root id -> slot u
  * (ids[u][k] == id, index[u][k] = a) -> chunk table (**rec+0x48)[a][chunk][u], storing the phase at rec+0x20 (PS3 rec+0x10).
  * The inverse walks the same tables; the root anim is PS4 0xfd62a0(chunk skel +0x40, clip id, root id) = PS3 f_7fb034
  * (as PS4's AnimStreamLoginBuffer 0xfd49d4 calls it). Returns 0 for any anim that is not a chunk, as PS3. */
-static uint8_t *stream_root119(uintptr_t base,uint8_t *x,uint32_t *phase){
- int32_t n=*(int32_t*)(base+0x1d46088u);
- for(int32_t i=0;i<n&&i<0x32;i++){uint8_t *r=*(uint8_t**)(base+0x1d46090u+8*(size_t)i);if(!r)continue;
-  uint32_t nu=*(uint32_t*)r;uint8_t *def=*(uint8_t**)(r+0x30);uint8_t *t0=*(uint8_t**)(r+0x48);if(!def||!t0)continue;
-  uint32_t *cnt=*(uint32_t**)def;uint32_t **ids=*(uint32_t***)(def+8),**ix=*(uint32_t***)(def+0x10);uint32_t *mx=*(uint32_t**)(def+0x20);
-  uint8_t **t1=*(uint8_t***)t0;if(!cnt||!ids||!ix||!mx||!t1)continue;
-  for(uint32_t u=0;u<nu;u++)for(uint32_t k=0;k<cnt[u];k++){uint32_t a=ix[u][k];uint8_t **P=(uint8_t**)t1[a];if(!P)continue;
-   for(uint32_t c=0;c<=mx[a];c++){uint8_t **row=(uint8_t**)P[c];if(row&&row[u]==x){
-    *phase=*(uint32_t*)(r+0x20);
-    return ((uint8_t*(*)(uint32_t,uint32_t,uint32_t))(base+0xfd62a0u))(*(uint32_t*)(x+0x40),*(uint32_t*)(*(uint8_t**)(x+0x28)+4),ids[u][k]);}}}}
- return 0;}
+static uint8_t *stream_root119(uintptr_t base,uint8_t *x,uint32_t *phase){return u3x_stream_root(base,x,phase);}   /* v7.212 C++ */
 /* 1.19 f_2bf8d0(layer marker): 0 for the listed layer ids (and 0xa4c69580), else 1 */
 static int layer_counts119(uint32_t u){
  static const uint32_t ex[]={0x2eaa36bc,0xb49deb95,0xd7d78739,0x2dcf3713,0x89207057,0x7efa5a21,0x4f0cff90,0xdd631c58,0xd8376565,
   0x0cc6cf18,0x0f4a46d3,0xa4c69580};
- if((uint32_t)(u+0x46d2949du)<=4)return 0;
- if(u>=0xb4e30afau&&u<=0xb4e30b08u)return 0;
- for(unsigned i=0;i<sizeof(ex)/4;i++)if(u==ex[i])return 0;
- return 1;}
+ return u3x_layer_counts(u,ex,sizeof(ex)/4);}   /* v7.212 C++ */
 /* PS3 command types -> PS4 (CreateAnimCmds 0xfbe270 / emitters 0xfc68d0, 0xfcdaa0, 0xfd2360): 2->3, 3->4, 6->8 (anim u64 @+4,
  * layer @+0xc, frame @+0x10), 0x16->0x1b (same + @+0x14), 9->0xc (layer @+4), 10->0xd (layer @+4), 7->9 (@+4..+0x10, f @+0x14),
  * 8->0xa (@+4), 0x14->0x19 (layer id @+4), 0x15->0x1a. PS3 0xc (callback-emitted) has no PS4 producer. */
@@ -471,145 +407,7 @@ static uint32_t anim_pack_body119(uintptr_t base,uint8_t *msg,uint8_t *bs,uint8_
 static uint32_t anim_pack119(uintptr_t base,uint8_t *msg,uint8_t *bs,uint8_t *actor,uint8_t **tabs,int param5,int param6){
  uint8_t *buf=0;return anim_pack_body119(base,msg,bs,actor,tabs,param5,param6,&buf);}   /* v7.98: buf is kept */
 static uint32_t anim_pack_body119(uintptr_t base,uint8_t *msg,uint8_t *bs,uint8_t *actor,uint8_t **tabs,int param5,int param6,uint8_t **buf){
- if(!actor||!tabs){X.ec[66]++;return 0;}                 /* PS3 asserts both */
- uint8_t *mk=(uint8_t*)(base+0x16e79f0u);              /* 1.19 *(0x13257f0)+0x98 = 1.10 DAT_0131a308: marker cmds on */
- *mk=1;
- uint8_t *ctrl=*(uint8_t**)(actor+0x138);              /* f_8557ec: AnimControl (PS3 actor+0xdc) */
- if(!ctrl){*mk=0;return 0;}
- /* 1.19 debug +0x1f (f_961aec) is a stripped debug option on PS4: off */
- /* command buffer: PS3 0x2000 bytes on the stack (0x800 words); PS4's own caller 0xdbcf90 takes 0x8000 bytes (0x2000 words,
-  * the commands carry 8-byte pointers) from the current allocator and frees it after use; here heap 0x14 (pushed by the
-  * sender), freed with 0xda0dc0 as PS4 frees heap blocks (message dtor 0x71f190).
-  * v7.98: that 32 KB block per packed actor per tick failed once the game's net data filled heap 0x14 (second match,
-  * "Allocation failed: 32768 bytes ... Wrapped Malloc [F:32576 T:343040]"); one block from plat_alloc, kept. */
- static uint8_t *cmd_mem119 EXT_BSS;
- if(!cmd_mem119)cmd_mem119=(uint8_t*)plat_alloc(0x8000);
- uint8_t *repl_cmds119=cmd_mem119;
- if(!repl_cmds119){X.ec[74]++;*mk=0;return 0;}
- *buf=repl_cmds119;
- uint8_t cb[0x20] __attribute__((aligned(16)));for(int i=0;i<0x20;i++)cb[i]=0;
- *(uint8_t**)cb=repl_cmds119;*(uint32_t*)(cb+8)=0x2000;   /* {buf, cap, pos 0, count 0, count ptr 0} as 0xdbcf90 */
- ((void(*)(uint8_t*,uint8_t*))(base+0xfbe270u))(ctrl,cb);   /* f_7dd094 = AnimControl::CreateAnimCmds */
- uint32_t ncmd=*(uint32_t*)(cb+0xc);if(ncmd>0x2000)ncmd=0x2000;
- if(X.ec[0]&4096)loop_src119(repl_cmds119,ncmd);         /* c009 loopback: the anim commands the packer reads */
- uint8_t *end=repl_cmds119+(size_t)ncmd*4;
- bsw119(bs,0,1);                                        /* mode bit: debug "data-independent" packets (stripped, 0) */
- uint8_t *f=repl_frame119[0];for(int i=0;i<0x60;i++)f[i]=actor[0xb0+i];   /* f_952d24: the actor's BoundFrame (PS3 +0x70) */
- /* attached (event 0x660778e0) and to whom (0xfbd8cf95, a net player id): the frame becomes relative to that player's char */
- if(!(uint8_t)ev_query119(base,0x660778e0u,actor))bsw119(bs,0,1);
- else{uint32_t id=(uint32_t)ev_query119(base,0xfbd8cf95u,actor);
-  if(!id)bsw119(bs,0,1);
-  else{bsw119(bs,1,1);bsw119(bs,id,13);
-   uint8_t *q=np_by_id119(base,id);uint8_t *pc=q?handle_obj(q+0x10):0;
-   if(pc){uint32_t A[8],P[8],R[8];
-    bf_world119(base,pc+0xb0,P);bf_world119(base,f,A);loc_rel119(R,P,A);   /* f_953e48 x2, f_22f78 */
-    /* f_953ac4(frame, rel) then f_953650(frame, 0) leave the frame unbound with local = rel; PS4: SetBinding 0x1196230
-     * (world-preserving) to 0, then local = rel (same end state). */
-    ((void(*)(uint8_t*,uint8_t*))(base+0x1196230u))(f,0);
-    for(int i=0;i<8;i++)*(uint32_t*)(f+0x40+4*i)=R[i];}
-   else X.ec[67]++;}}                                   /* PS3 reads the null char's frame here (no defined result) */
- bsw_frame119(base,bs,f);
- if(*(uint32_t*)(msg+0x148)&1){                         /* player: camera frame, FOV byte, aim point */
-  uint8_t *pl=actor;                                    /* f_4251f4 (is-Player check; only the player filler sets flag 1) */
-  int32_t scr=*(int32_t*)(pl+0x1c68);                   /* PS3 +0x13b8 */
-  uint8_t *cm=(scr>=0&&scr<2)?cam_mgr(base,scr):0;      /* f_819a38 (PS3 traps on a stale handle) */
-  if(!cm){X.ec[68]++;*mk=0;return 0;}
-  uint8_t *cf=repl_frame119[1];for(int i=0;i<0x60;i++)cf[i]=0;
-  *(uint32_t*)cf=0x7fccccccu;*(uint32_t*)(cf+4)=0x7fccccccu;*(uint32_t*)(cf+0x3c)=F_ONE;
-  for(int i=0;i<8;i++)*(uint32_t*)(cf+0x40+4*i)=*(uint32_t*)(cm+0x4c0+4*i);   /* f_819ee8: camera locator (PS3 +0x420) */
-  uint8_t *b=bind_root119(base,pl);                     /* f_854d14 */
-  if(b)((void(*)(uint8_t*,uint8_t*))(base+0x1196230u))(cf,b);   /* f_953c38(out, loc, binding): bound, same world */
-  bsw_frame119(base,bs,cf);
-  uint8_t *rc=*(uint8_t**)(cm+0xc0);                    /* PS3 cam+0x74: render camera (table 0x1334760 + screen*0x200) */
-  bsw119(bs,rc?ppc_ctiwz119(*(uint32_t*)(rc+0x30))&0xff:0,8);   /* FOV, fctiwz, low byte */
-  uint32_t *lo=(uint32_t*)repl_loc119;for(int i=0;i<16;i++)lo[i]=0;
-  ((void(*)(uint32_t*,uint8_t*,uint32_t))(*(uintptr_t**)pl)[0x170/8])(lo,pl,0x3a83fc57u);   /* PS3 vt+0xb4 */
-  bsw_vec119(bs,lo);}
- /* pass 1: the anims (unique (table, index) pairs) and the per-anim reference list */
- uint32_t al[64],tl[64],refs[64];uint16_t lc[36];int32_t nA=0,nR=0,lay=-1,skip=0,cnt=0;
- for(int i=0;i<64;i++){al[i]=0;tl[i]=0;refs[i]=0;}for(int i=0;i<36;i++)lc[i]=0;
- for(uint8_t *c=repl_cmds119;c<end;c+=(size_t)*(uint16_t*)(c+2)*4){
-  uint16_t ty=*(uint16_t*)c;if(!*(uint16_t*)(c+2))break;
-  if(ty==C4_LEND)break;
-  if(ty==C4_ANIM||ty==C4_MANIM){
-   if(skip||cnt>=param6)continue;
-   uint8_t *an=*(uint8_t**)(c+4),*u;uint32_t ph=0;u=stream_root119(base,an,&ph);if(!u)u=an;
-   uint32_t t=0;int32_t k=-1;
-   if(!anim_lookup119(base,&t,&k,*(uint32_t*)(u+0x18),u,tabs)||k==-1||(k&0xfffff000)){   /* PS3 traps (tw 31): nothing is sent */
-    X.ec[75]++;X.ec[76]=*(uint32_t*)(u+0x18);*mk=0;return 0;}
-   int32_t j=0;for(;j<nA;j++)if(al[j]==(uint32_t)k&&tl[j]==t)break;
-   if(j==nA&&nA<64){al[nA]=(uint32_t)k;tl[nA]=t;nA++;}
-   if(nR<64)refs[nR++]=(uint32_t)j;}
-  else if(ty==C4_SNAP){
-   if(skip||cnt>=param6)continue;
-   uint8_t *t0=art_tab119(tabs[0]);int32_t k=t0?tab_find119(t0,param5?0x86dfee10u:0x1a1c52d3u):-1;
-   if(k==-1){X.ec[75]++;X.ec[76]=param5?0x86dfee10u:0x1a1c52d3u;*mk=0;return 0;}   /* PS3 traps */
-   int32_t j=0;for(;j<nA;j++)if(al[j]==(uint32_t)k&&tl[j]==0)break;
-   if(j==nA&&nA<64){al[nA]=(uint32_t)k;tl[nA]=0;nA++;}
-   if(nR<64)refs[nR++]=(uint32_t)j;}
-  else if(ty==C4_LMARK){lay++;skip=1;if(layer_counts119(*(uint32_t*)(c+4))){skip=0;cnt=0;}}
-  else if(ty==C4_LCOUNT){cnt++;if(lay>=0&&lay<36)lc[lay]++;}}
- if(nR>0x3f||nA>=0x20){X.ec[70]++;*mk=0;return 0;}     /* PS3 traps */
- uint32_t ib=nA<3?1:nA<5?2:nA<9?3:nA<0x11?4:5;
- int direct=(nA==nR);
- bsw119(bs,(uint32_t)nA,5);bsw119(bs,(uint32_t)direct,1);
- for(int32_t i=0;i<nA;i++)bsw119(bs,al[i],12);
- {int same=1;for(int32_t i=0;i<nA;i++)if(tl[i]!=tl[0])same=0;
-  if(same){bsw119(bs,1,1);if(tl[0]<7)bsw119(bs,tl[0],3);else{bsw119(bs,7,3);bsw119(bs,tl[0],32);}}
-  else{bsw119(bs,0,1);for(int32_t i=0;i<nA;i++){if(tl[i]<7)bsw119(bs,tl[i],3);else{bsw119(bs,7,3);bsw119(bs,tl[i],32);}}}}
- /* pass 2: the command stream (2-bit codes: 2 = anim, 3 = control + 3-bit sub-code) */
- int32_t li=0,ri=0,dep=0,lbc=-1;uint32_t lid=0,cc=0;skip=0;
- for(uint8_t *c=repl_cmds119;c<end;c+=(size_t)*(uint16_t*)(c+2)*4){
-  uint16_t ty=*(uint16_t*)c;if(!*(uint16_t*)(c+2))break;
-  if(ty==C4_LEND)break;
-  if(ty==C4_LBEGIN)continue;
-  int32_t u17=(int32_t)cc;
-  if(ty==C4_ANIM||ty==C4_MANIM){
-   if(skip||u17>=param6)continue;
-   if(dep>5)X.ec[69]++;                                 /* f_2cf898 */
-   li=*(int32_t*)(c+0xc);
-   if(ty==C4_ANIM)bsw119(bs,2,2);else{bsw119(bs,3,2);bsw119(bs,5,3);}
-   if(!direct){uint32_t r=ri<64?refs[ri]:0;bsw119(bs,r,ib);if(r>=(uint32_t)nA)X.ec[69]++;}
-   uint8_t *an=*(uint8_t**)(c+4);uint32_t ph=*(uint32_t*)(c+0x10),sp=0;uint8_t *u=stream_root119(base,an,&sp);
-   if(u){uint32_t fr=f_i2f(*(uint16_t*)(*(uint8_t**)(u+0x28)+0x22));ph=f_mul(sp,f_sub(fr,F_ONE));}else u=an;
-   uint32_t frames=*(uint16_t*)(*(uint8_t**)(u+0x28)+0x22),ffr=f_i2f((int32_t)frames),nb,sc;
-   if(frames<9){nb=4;sc=0x41700000u;}else if(frames>0x40){nb=16;sc=0x477fff00u;}else{nb=8;sc=0x437f0000u;}
-   uint32_t q=ppc_ctiwz119(f_div(f_mul(ph,sc),f_sub(ffr,F_ONE)));
-   dep++;bsw119(bs,q&0xffff,nb);ri++;}
-  else if(ty==C4_SNAP){
-   if(skip||u17>=param6)continue;
-   if(dep>5)X.ec[69]++;
-   li=*(int32_t*)(c+4);bsw119(bs,2,2);
-   if(!direct){uint32_t r=ri<64?refs[ri]:0;bsw119(bs,r,ib);if(r>=(uint32_t)nA)X.ec[69]++;}
-   dep++;bsw119(bs,0,4);ri++;}
-  else if(ty==C4_NONE){
-   if(skip||u17>=param6)continue;
-   if(dep>5)X.ec[69]++;
-   li=*(int32_t*)(c+4);bsw119(bs,3,2);bsw119(bs,3,3);dep++;}
-  else if(ty==C4_BLEND){
-   if(skip||dep<2||(u17>=param6&&(lbc<0||lbc>=36||(uint32_t)u17!=lc[lbc])))continue;
-   int one=(*(uint32_t*)(c+0x14)==F_ONE);bsw119(bs,(uint32_t)one,2);
-   uint32_t a=*(uint32_t*)(c+4),b=*(uint32_t*)(c+8),d=*(uint32_t*)(c+0xc);
-   if(b<a)bsw119(bs,1,1);else if(a<b)bsw119(bs,0,1);else X.ec[69]++;
-   if(d==a){bsw119(bs,1,1);if(a<b)dep--;}
-   else if(d==b){bsw119(bs,0,1);if(b<a)dep--;}
-   else X.ec[69]++;
-   li=(int32_t)d;if(dep>5)X.ec[69]++;
-   uint32_t m=*(uint32_t*)(c+0x10);bsw119(bs,m==2?1:m==6?2:0,2);
-   uint32_t fw=*(uint32_t*)(c+0x14);if(fw!=F_ONE)bsw119(bs,ppc_ctiwz119(f_mul(fw,0x437f0000u))&0xff,8);}
-  else if(ty==C4_BLEND2){
-   if(skip||u17>=param6)continue;
-   if(dep>5)X.ec[69]++;
-   bsw119(bs,3,2);bsw119(bs,0,3);uint32_t dd=(uint32_t)(li-*(int32_t*)(c+4));if(dd&0xfffffffcu)X.ec[69]++;
-   bsw119(bs,dd,2);}
-  else{
-   if(ty==C4_LCOUNT)cc++;
-   if(ty==C4_LMARK){
-    if(lid==0x7339d08cu||*(uint32_t*)(c+4)==0x7339d08cu){bsw119(bs,3,2);bsw119(bs,2,3);}
-    cc=0;lbc++;skip=!layer_counts119(*(uint32_t*)(c+4));lid=*(uint32_t*)(c+4);}}}
- bsw119(bs,3,2);bsw119(bs,1,3);
- *mk=0;
- return *(uint32_t*)(bs+8);}                            /* f_a12414: bits written */
+ return u3x_anim_pack_body(base,msg,bs,actor,tabs,param5,param6,buf);}   /* v7.212 C++ */
 /* 1.19 f_3054e8(mgr, item): the item's index in the 20-entry weapon table (PS3 1.19 0xdb92a0; PS4 0x13a6170 is the 1.10
  * 19-entry table, so 1.19's is embedded), else 0x14 + its index in DC list 0x9e354807 (f_6ddea4 -> PS4 0x11f2e30), else 0 */
 static const uint32_t wtab119[20]={0,0xb934b2b2,0xdf95da88,0x11a89844,0xe54acfed,0x08be7587,0xc58ae515,0x472bca9a,0x16980e31,
@@ -645,15 +443,10 @@ static void weapons119(uintptr_t base,uint8_t *msg,uint8_t *pl){
  uint8_t *cv=*(uint8_t**)(pl+0x5f8);                    /* PS3 +0x444 vt+0x34 / vt+0x38 */
  if((uint8_t)(uintptr_t)vget119(cv,0x68))*(uint32_t*)(msg+0x20c)=((uint8_t)(uintptr_t)vget119(cv,0x70))?2:1;}
 /* 1.19 f_958ba8(char, sid) as PS4 inlines it (0x9fb2ff): char+0x80 (PS3 +0x54) -> *p -> +0x10 -> +0x18 == sid */
-static int has_eff119(uint8_t *c,uint32_t sid){uint8_t **p=*(uint8_t***)(c+0x80);if(!p||!*p)return 0;return *(uint32_t*)(*(uint8_t**)(*p+0x10)+0x18)==sid;}
+static int has_eff119(uint8_t *c,uint32_t sid){return u3x_has_eff(c,sid);}   /* v7.212 C++ */
 /* 1.19 f_30a2d4(mgr, char): the net player of a character (MP only): Player -> local np of its screen; NetCharacter
  * (0xf2c86c22) -> the np whose code is char+0x3f8 (PS3 +0x2e8; PS4 apply 0x683a00 does the same match) */
-static uint8_t *char_np119(uintptr_t base,uint8_t *c){
- if(!c||!*(uint8_t*)(base+0x17d5c61u))return 0;
- uint32_t ty=*(uint32_t*)(c+0x30);
- if(ty==0xa5a63e9bu){int32_t s=*(int32_t*)(c+0x1c68);return (s>=0&&s<2)?*(uint8_t**)(base+0x17cb060u+0x370+8*(size_t)s):0;}
- if(ty==0xf2c86c22u&&*(uint32_t*)(c+0x3f8))return np_by_id119(base,*(uint32_t*)(c+0x3f8));
- return 0;}
+static uint8_t *char_np119(uintptr_t base,uint8_t *c){return u3x_char_np(base,c);}   /* v7.212 C++ */
 /* Component vtables (PS3 vtable -> PS4 vtable from the Player init factories 1.10 f_580bc0 / PS4 0xbd53f0; each used slot is
  * matched by function body): +0x520 0x10f7a68->0x16a0b70 (0x38->0x70 GetWeapon, 0x3c->0x78, 0x30->0x60, 0xc8->0x198),
  * +0x528 0x10e8c28->0x1689f50 (0x64->0xc8), +0x548 0x10ea708->0x168c8b0 (0x4c->0x98), +0x550 0x1105d28->0x16e1230 (0x3c->0x80),
@@ -663,56 +456,7 @@ static uint8_t *char_np119(uintptr_t base,uint8_t *c){
 /* 1.19 f_2db504(msg, player): the player filler. Returns the packer's bit count (the message is sent when non-zero). */
 static void loop119(uintptr_t base,uint8_t *actor,uint8_t **tabs,uint8_t *msg,uint32_t bits);   /* c009 */
 static uint32_t player_fill119(uintptr_t base,ProfileState *s,uint8_t *msg,uint8_t *pl){
- uint32_t *fl=(uint32_t*)(msg+0x148);
- *fl|=1;
- uint8_t *t198=*(uint8_t**)(pl+0x198);                  /* f_83b30c as PS4 inlines it (0x6ae473..0x6ae494) */
- if(*(uint64_t*)(base+0x1b24ee0u+0x3450)&&t198&&*(int32_t*)(t198+0x50)==3){
-  *fl|=4;if(!(uint8_t)(uintptr_t)vget119(*(uint8_t**)(pl+0x598),0xa8))*fl|=8;}   /* +0x414 vt+0x54 */
- if(!has_eff119(pl,0x5ec9a3e7u)&&!has_eff119(pl,0xe9be68acu)){
-  uint8_t *mv=*(uint8_t**)(pl+0x550);                   /* +0x3f0 vt+0x3c -> vt+0x80 */
-  if((int32_t)(uintptr_t)vget119(mv,0x80)==1)*fl|=2;else if((int32_t)(uintptr_t)vget119(mv,0x80)==2)*fl|=0x20;}   /* PS3 f_829010 +0xc94 = PS4 0x1074160 +0xdb4 */
- if(pl[0x1338]||has_eff119(pl,0xd69dcc37u)||has_eff119(pl,0x3eaffc07u)||has_eff119(pl,0x16b32adeu))*fl|=0x40;   /* f_94d510(+0xbf0) = +0xe1c byte; PS4 0x9fb2f1 */
- int32_t scr=*(int32_t*)(pl+0x1c68);
- uint8_t *np=(scr>=0&&scr<2)?*(uint8_t**)(base+0x17cb060u+0x370+8*(size_t)scr):0;   /* f_305be8 / f_3025a0 (Player) */
- *(uint32_t*)(msg+0x14c)=np?np_code(np):0;               /* f_2ca208 */
- *(uint32_t*)(msg+0x150)=*(uint32_t*)(pl+0x3c0);
- *(uint32_t*)(msg+0x14)=f_mul(f_i2f(net_now(base)),F_1_300);
- *(uint32_t*)(msg+0x154)=*(uint32_t*)(pl+0x3a8);
- for(int i=0;i<4;i++)*(uint32_t*)(msg+0x160+4*i)=*(uint32_t*)(pl+0x3b0+4*i);
- *(uint32_t*)(msg+0x158)=(uint32_t)(uintptr_t)vget119(*(uint8_t**)(pl+0x548),0x98);   /* +0x3ec vt+0x4c */
- {uint8_t *c=*(uint8_t**)(pl+0x538);if(c)for(int i=0;i<0x60;i++)msg[0x170+i]=c[0x140+i];}   /* f_444e94 = comp(+0x3e4)+0x80; f_952c84 */
- msg[0x1de]=np?np[0x430]:0;                             /* 1.19 np+0x310 (1.10 +0x3d0) = PS4 np+0x430: the process 0x718350 matches
-                                                         * the sender's np by msg+0x14c and (char)np+0x430 == msg+0x1de */
- *(uint16_t*)(msg+0x1dc)=(uint16_t)(uintptr_t)vget119(*(uint8_t**)(pl+0x310),0x70);
- {uint8_t *t=vget119(*(uint8_t**)(pl+0x668),0x60);      /* +0x47c vt+0x30 */
-  if(t){msg[0x1e0]=1;*(uint32_t*)(msg+0x1e4)=*(uint32_t*)(t+0x98);*(uint32_t*)(msg+0x1e8)=*(uint32_t*)(t+0x9ac);*(uint32_t*)(msg+0x1ec)=*(uint32_t*)(t+0x9b0);}}
- uint8_t bs[0x10] __attribute__((aligned(16)));          /* f_a123c0 / f_a123d8(bs, msg+0x18, 300): {buf, pos 0, 2400 bits} */
- for(int i=0;i<300;i++)msg[0x18+i]=0;                   /* PS4's writers keep stale bits at word starts (x86 shift by 32); PS3's do not */
- *(uint8_t**)bs=msg+0x18;*(uint32_t*)(bs+8)=0;*(uint32_t*)(bs+0xc)=300*8;
- repl_err119=0;
- uint32_t bits=anim_pack119(base,msg,bs,pl,*(uint8_t***)(pl+0x1c20),1,3);   /* PS3 player+0x137c */
- if(repl_err119){X.ec[71]++;bits=0;}
- *(uint32_t*)(msg+0x144)=bits;
- loop119(base,pl,*(uint8_t***)(pl+0x1c20),msg,bits);     /* c009 loopback (U3MP_REPL119_LOOP=1) */
- *(uint32_t*)(msg+0x1d0)=*(uint32_t*)(pl+0x39c);
- *(uint32_t*)(msg+0x1d4)=np?*(uint32_t*)(np+0x398):0;    /* 1.19 np+0x280 (1.10 +0x340); PS4 process copies msg+0x1d4 -> np+0x398 */
- *(uint16_t*)(msg+0x1dc)=(uint16_t)(uintptr_t)vget119(*(uint8_t**)(pl+0x310),0x70);
- *(uint32_t*)(msg+0x1d8)=np?*(uint32_t*)(np+0x5a4):0;    /* 1.19 np+0x41c (1.10 +0x4dc); process copies msg+0x1d8 -> np+0x5a4 */
- weapons119(base,msg,pl);
- int on=0;
- {const char *str=(const char*)vget119(*(uint8_t**)(pl+0x520),0x78);   /* +0x3d8 vt+0x3c */
-  if(str&&str[0])on=1;
-  else{uint32_t v=call_f32_119(base+0x689d20u,base+0x17c3b78u,0x974e6226u,(uintptr_t)char_np119(base,pl),0);   /* f_2a5ff0 */
-   on=f_le(F_ONE,v);}}
- if(!(netgame_type(base,s)==0xe)&&on){                  /* f_30d8f4 */
-  uint64_t d1=base+0x17b39f0u,d2=base+0x17b3138u;       /* 1.19 0x121aed0 / 0x1219810 (1.10 0x120a650 / 0x1208f90) */
-  int cam=((uint8_t*(*)(int32_t,uint64_t*))(base+0x4ef790u))(scr,&d1)||((uint8_t*(*)(int32_t,uint64_t*))(base+0x4ef790u))(scr,&d2);   /* f_1d7e74 */
-  if(cam){uint8_t buf[0x40] __attribute__((aligned(16)));for(int i=0;i<0x40;i++)buf[i]=0;
-   uint8_t *tc=((uint8_t*(*)(uint8_t*,uint8_t*,uint32_t))(*(uintptr_t**)*(uint8_t**)(pl+0x528))[0xc8/8])(*(uint8_t**)(pl+0x528),buf,0);   /* +0x3dc vt+0x64 */
-   uint8_t *tq=tc?char_np119(base,tc):0;
-   if(tq){*(int32_t*)(tq+0x9a8)=*(int32_t*)(*(uint8_t**)(base+0x17c3580u)+0xc)+900;   /* 1.10 np+0x89c / +0x8a0 */
-    *(uint32_t*)(tq+0x9ac)=np?np_code(np):0;*(uint32_t*)(msg+0x210)=np_code(tq);X.ec[72]++;}}}
- return *(uint32_t*)(msg+0x144);}
+ return u3x_player_fill(base,s,msg,pl);}   /* v7.212 C++ */
 /* 1.19 f_2f6910(player, mask): build, fill and send the state message. Allocation as PS4 0x6ae2cf..0x6ae305 (alloc context
  * 0xda1590(&0x14, file) / 0xd9e990(0x240, &0x14, 16), PS3 tag 0x1b), the PS4 inline ctor (0x6ae308..0x6ae45e = 1.19
  * f_2c5a98), send 0x7336e0 (f_30c554), release (+0xa refcount, vt+8), context pop 0xda18b0 (f_725008(0)). The 1.19 debug
