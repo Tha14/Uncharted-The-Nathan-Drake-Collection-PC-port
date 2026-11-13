@@ -11,9 +11,10 @@
 // work/backup-pak23-levels/<overlay>/. Rows hidden by a higher overlay ($RECIPE_SHADOWED) are not built.
 // The PS3 sources: ps3idx.tsv (every pak23 level pak of the player's PS3 archives, in source priority) and one extract
 // per row (a GOTY disc stands in for the DLC map packs); both caches are dropped when the PS3 inputs change.
-// In C++: empty (dctools/ps4writer.cpp), ingame (dctools/ps4ingame.cpp), vischeat, windoff, hud (dctools/texcodec.cpp). The methods
-// not in C++ yet run their converter script in the converter tree (scratch/pak23-levels-work/pt-<version>, assembled
-// with a size manifest): stage (lib/convert_one.py; data/overrides/<overlay>/<name>.json: gobo), sky.
+// In C++: empty (dctools/ps4writer.cpp), ingame (dctools/ps4ingame.cpp), vischeat, windoff, hud (dctools/texcodec.cpp),
+// stage (dctools/ps4stage.cpp with the survey of the retail paks in scratch/pak23-levels-work/res; data/overrides/
+// <overlay>/<name>.json: gobo). The sky rows still run lib/build_skies.py in the paktools-sky converter tree
+// (scratch/pak23-levels-work/pt-sky, assembled with a size manifest).
 // Replaces levels.py for these families (the retired lab and maps-batch families are not supported).
 #include "u3fix.hpp"
 #include "proc.hpp"
@@ -23,6 +24,7 @@
 #include "windoff.hpp"
 #include "ndpak.hpp"
 #include "texcodec.hpp"
+#include "ps4stage.hpp"
 #include "ps4writer.hpp"
 
 #include <algorithm>
@@ -78,11 +80,39 @@ fs::path anim_list() {   // data/ps4_anim_actors.json: retail actor33 paks with 
     }
     return out;
 }
-fs::path default_lightmaps() {   // the two retail default lightmap textures, from the player's PS4 copy
+// the two retail default lightmap textures (from the player's PS4 copy), which the stage converter always carries
+std::shared_ptr<std::vector<stage::BundleTex>> default_lightmap_texels() {
+    static std::mutex lock;
+    static std::shared_ptr<std::vector<stage::BundleTex>> v;
+    std::lock_guard<std::mutex> g(lock);
+    if (!v) v = std::make_shared<std::vector<stage::BundleTex>>(stage::default_lightmaps(ps4main() / "pak23" / "ps4"));
+    return v;
+}
+// the same for the sky converter tree (its stage/default_lightmaps.json, as make_default_lightmaps.py wrote it: the
+// VRAM placement words +0x08 / +0x38 as recorded in the converted map the copies were taken from)
+fs::path default_lightmaps() {
     const fs::path out = g_tmp / "default_lightmaps.json";
     if (!fs::exists(out)) {
         fs::create_directories(g_tmp);
-        run({g_python, g_paktools + "/stage/make_default_lightmaps.py", P(ps4main() / "pak23" / "ps4"), P(out)});
+        static const uint32_t place[2][2] = {{0x0b7000, 0x3700}, {0x0b8800, 0x3870}};
+        std::string s = "{\"mats\": [], \"tex\": [";
+        const auto &t = *default_lightmap_texels();
+        for (size_t i = 0; i < t.size(); i++) {
+            Bytes d = t[i].desc;
+            for (int k = 0; k < 4; k++) d.at(8 + k) = uint8_t(place[i][0] >> (8 * k));
+            d.at(0x38) = uint8_t(place[i][1]);
+            d.at(0x39) = uint8_t(place[i][1] >> 8);
+            auto hex = [](const Bytes &b) {
+                static const char *H = "0123456789abcdef";
+                std::string o;
+                for (uint8_t c : b) { o += H[c >> 4]; o += H[c & 15]; }
+                return o;
+            };
+            s += std::string(i ? ", " : "") + "{\"pak\": \"" + t[i].pak + "\", \"path\": \"" + t[i].path + "\", \"desc\": \"" + hex(d) +
+                 "\", \"texels\": \"" + hex(t[i].texels) + "\"}";
+        }
+        s += "], \"techs\": {}}";
+        write_file_replace(out, Bytes(s.begin(), s.end()));
     }
     return out;
 }
@@ -146,10 +176,7 @@ fs::path paktools(const std::string &ver) {
 
 fs::path res_dir() {   // the mkplan survey of the retail PS4 pak23
     const fs::path d = g_tmp / "res";
-    if (!fs::exists(d / "ps4tex.tsv")) {
-        const fs::path pt = paktools("f525859");
-        run({g_python, g_here + "/lib/mkres.py", P(d), P(ps4main() / "pak23" / "ps4")}, {{"PYTHONPATH", P(pt)}});
-    }
+    if (!fs::exists(d / "ps4tex.tsv")) stage::make_res(d, ps4main() / "pak23" / "ps4");   // C++ (dctools/stageplan.cpp)
     return d;
 }
 
@@ -352,28 +379,22 @@ fs::path build(const Row &row, const std::map<std::pair<std::string, std::string
         write_file_replace(op, ps4ingame_convert(ps3_source(row, idx), g_anim));
         return op;
     }
-    if (m != "stage" && m != "ingame" && m != "vischeat") throw Stop("method " + m + " is not supported");
-    const fs::path pt = paktools(ver);
-    Env env = {{"PYTHONPATH", P(pt) + ";" + P(pt / "stage")}, {"U3_TEXDICT", P(texdict)}};
-    for (const auto &[k, v] : opts) env[k] = v;
+    if (m != "stage") throw Stop("method " + m + " is not supported");
+    // C++ (dctools/ps4stage.cpp); 'mb' = paramfix + cubefix. No converter option sets environment values any more.
+    if (!opts.empty()) throw Stop("stage option " + opts.begin()->first + " is not supported");
+    stage::Options o;
+    o.res = res_dir();
+    o.pak_dir = pak4;
+    o.texdict = texdict;
+    o.plan_dir = g_tmp / "plans" / upath(row.at("overlay")) / upath(ver + opts_s);
+    o.mapbuild = flags.count("mb") != 0;
+    o.default_lightmaps = default_lightmap_texels();
     // data/overrides/<overlay>/<name>.json: 'gobo' = gobo textures taken from another retail pak (co-op Syria)
     const fs::path ovf = upath(g_here + "/data/overrides/" + row.at("overlay") + "/" + row.at("name") + ".json");
     json::Value ov;
     if (fs::exists(ovf)) ov = read_json(ovf);
-    if (const json::Value *g = ov.get("gobo"); g && g->truthy()) {
-            const fs::path od2 = g_tmp / "overrides" / upath(row.at("overlay"));
-            fs::create_directories(od2);
-            std::string s;
-            dump_compact(s, *g);
-            const fs::path f = od2 / upath(row.at("name") + ".gobo.json");
-            write_text(f, s);
-            env["U3_GOBO"] = P(f);
-        }
-    const fs::path sp = ps3_source(row, idx);
-    std::vector<std::string> cmd = {g_python, g_here + "/lib/convert_one.py", P(pt), m, P(sp), P(op), m == "stage" ? P(res_dir()) : "-", P(pak4),
-                                    P(g_tmp / "plans" / upath(row.at("overlay")) / upath(ver + opts_s))};
-    if (flags.count("mb")) cmd.push_back("--mapbuild");
-    run(cmd, env);
+    if (const json::Value *g = ov.get("gobo"); g && g->truthy()) o.gobo = g;
+    write_file_replace(op, stage::stage_convert(ps3_source(row, idx), o));
     return op;
 }
 
@@ -497,7 +518,7 @@ int levels(const std::vector<std::string> &argv) {
         if (r.at("method") == "stage" || r.at("method") == "sky") { res_dir(); break; }
     std::set<std::string> vers;
     for (const Row &r : todo)
-        if (r.at("method") != "empty" && r.at("method") != "ingame" && r.at("method") != "vischeat" && r.at("method") != "windoff" && r.at("method") != "hud") vers.insert(version_of(r));   // the methods that still run a converter script
+        if (r.at("method") == "sky") vers.insert(version_of(r));   // the one method that still runs a converter script
     for (const Row &r : todo)
         if (r.at("method") == "ingame") {
             g_anim = anim_actor_names(ps4main() / "actor33" / "ps4", upath(g_here + "/data/conv_anim_actors.json"));
