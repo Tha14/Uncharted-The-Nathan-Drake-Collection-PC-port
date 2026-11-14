@@ -18,7 +18,7 @@
    "--project",
    "{{PROJECT}}",
    "--dcconv",
-   "{{PAKTOOLS}}/../dcconv",
+   "{{DCCONV}}",
    "--ps4",
    "{{PS4}}",
    "--ps3-disc",

@@ -20,7 +20,7 @@
    "--job",
    "{{JOB}}",
    "--schema",
-   "{{PAKTOOLS}}/../dcconv/schema-oldconv.json",
+   "{{DCCONV}}/schema-oldconv.json",
    "--ps4",
    "{{PS4}}",
    "--ps3-disc",

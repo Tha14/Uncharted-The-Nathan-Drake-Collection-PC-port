@@ -396,9 +396,9 @@ std::set<std::string> pc_levels(const fs::path &registry) {
 
 // the description of a net18.bin version in tools/dcconv/net18-versions.json ("accepted": {sha256: text}); the log only
 std::string accepted_net18(const std::string &sha) {
-    const char *pk = std::getenv("PAKTOOLS");
-    if (!pk || !*pk) return "version list not found";
-    fs::path p = upath(pk) / ".." / "dcconv" / "net18-versions.json";
+    const char *dc = std::getenv("DCCONV");   // tools/dcconv, set by the recipe driver
+    if (!dc || !*dc) return "version list not found";
+    fs::path p = upath(dc) / "net18-versions.json";
     std::error_code ec;
     if (!fs::is_regular_file(p, ec)) return "version list not found";
     Bytes b = read_file(p);

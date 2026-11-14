@@ -2,7 +2,6 @@
  "id": "skin-textures",
  "title": "Weapon skin textures rebuilt 1024x1024 from PS3 (skin-batch/apply_skins.py)",
  "kind": "unavailable",
- "job": "skin-batch",
  "family": "overlay-r3/actor33",
  "needs": [
   "ps3_disc",

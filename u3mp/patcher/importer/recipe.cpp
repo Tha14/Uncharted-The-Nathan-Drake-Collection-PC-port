@@ -450,8 +450,7 @@ std::vector<std::pair<std::string, std::string>> Inputs::placeholders(const fs::
             {"PS3_DATA2", k("data2")},
             {"PS3_DLCMAPS", k("dlcmaps")},
             {"PS3_U2", u2 ? fwd(*u2) : ""},
-            {"PAKTOOLS", fwd(tools_dir() / "paktools")},
-            {"TRANSFER_TOOLS", fwd(tools_dir() / "transfer-tools")},
+            {"DCCONV", fwd(tools_dir() / "dcconv")},
             {"RECOVERED", fwd(out / "scratch")}};
 }
 
@@ -1002,8 +1001,7 @@ Value step_script(const Value &s, const Inputs &inp, const fs::path &out, const 
         return std::string();
     };
     std::vector<std::pair<std::string, std::string>> env = base_env;
-    env.push_back({"PKT", vget("PAKTOOLS")});
-    env.push_back({"PAKTOOLS", vget("PAKTOOLS")});
+    env.push_back({"DCCONV", vget("DCCONV")});
     for (const auto &[k, v] : values) env.push_back({"RECIPE_" + k, v});
     const std::string jds = fwd(jd);
     for (const Value &cmdv : s.get("commands")->items) {
