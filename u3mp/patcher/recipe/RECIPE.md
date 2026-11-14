@@ -44,8 +44,9 @@ them (a hidden pak that a visible `copy` row needs is still built), the manifest
 `u3import --verify-output` counts them as `hidden` instead of `missing` and gives the match rate over the files the game
 loads. `--all-files` builds them as well (only for comparing every file with the manifest). No later step reads or
 patches a hidden pak (checked 2026-11-06: the only writers of those paths are the two builders).
-Worker processes: `--jobs N`, default logical cores - 2 (`RECIPE_JOBS` for the u3fix level, actor and sound-bank
-steps).
+Worker processes: `--jobs N`, default logical cores - 2 (`RECIPE_JOBS` for the u3fix actor and sound-bank
+steps). The level step uses all logical cores by default; `RECIPE_LEVELS_JOBS` (or `--jobs` on `u3fix levels`)
+tunes it.
 The level converter (stage, ingame, vischeat, empty, hud, windoff) is C++ in `tools/fixes/dctools` (u3fix.exe levels);
 the sky rows too (dctools/ps4stage.cpp sky_convert).
 

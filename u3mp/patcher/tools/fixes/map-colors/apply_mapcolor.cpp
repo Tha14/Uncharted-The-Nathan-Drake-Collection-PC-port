@@ -290,9 +290,10 @@ int map_colors(const std::vector<std::string> &argv) {
         if (!a.has("--apply")) continue;
         fs::create_directories(upath(backup));
         const fs::path bk = upath(backup) / upath(n);
-        if (!fs::exists(bk) || md5_hex(read_file(bk)) != md5_hex(d)) fs::copy_file(f, bk, fs::copy_options::overwrite_existing);
+        const std::string md5 = md5_hex(d);
+        if (!fs::exists(bk) || md5_hex(read_file(bk)) != md5) write_file_replace(bk, d);
         json::Value e = json::Value::object();
-        e.fields.push_back({"md5_before", json::Value::text(md5_hex(read_file(bk)))});
+        e.fields.push_back({"md5_before", json::Value::text(md5)});
         json::Value ed;
         ed.kind = json::Value::Array;
         for (const Edit &x : L) ed.items.push_back(edit_json(x));

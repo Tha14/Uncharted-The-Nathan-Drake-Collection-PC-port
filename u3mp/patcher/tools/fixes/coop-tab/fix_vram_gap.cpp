@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <fstream>
 
 namespace u3 {
 namespace {
@@ -20,22 +21,48 @@ struct Gap {
     int64_t end, vram_base, gap;
 };
 // last page end, VRAM start, gap; false when it is not a PS4 pak this understands
-bool analyse(const Bytes &d, Gap &g) {
-    if (d.size() < 0x2c || rd16le(d, 0) != 0x0a79) return false;
+bool analyse_header(const Bytes &h, uint64_t file_size, const Bytes *table, Gap &g) {
+    if (h.size() < 0x2c || rd16le(h, 0) != 0x0a79) return false;
     // header: u16 magic, u16 flags, u32 header size, login page, login offset, page count (+0x10), page table (+0x14),
     // fixup count, fixup offset, VRAM size (+0x20), VRAM page, VRAM offset
-    const uint32_t page_ct = rd32le(d, 0x10), page_ent_off = rd32le(d, 0x14), vram_size = rd32le(d, 0x20);
-    if (page_ct == 0 || page_ct > 4096 || uint64_t(page_ent_off) + 12ull * page_ct > d.size()) return false;
+    const uint32_t page_ct = rd32le(h, 0x10), page_ent_off = rd32le(h, 0x14), vram_size = rd32le(h, 0x20);
+    if (page_ct == 0 || page_ct > 4096 || uint64_t(page_ent_off) + 12ull * page_ct > file_size) return false;
+    if (!table || table->size() < 12ull * page_ct) return false;
     int64_t end = 0;
     for (uint32_t i = 0; i < page_ct; i++) {
-        const uint64_t off = rd32le(d, page_ent_off + 12ull * i), size = rd32le(d, page_ent_off + 12ull * i + 4);
-        if (off + size > d.size()) return false;
+        const uint64_t off = rd32le(*table, 12ull * i), size = rd32le(*table, 12ull * i + 4);
+        if (off + size > file_size) return false;
         end = std::max<int64_t>(end, int64_t(off + size));
     }
     g.end = end;
-    g.vram_base = int64_t(d.size()) - int64_t(vram_size);
+    g.vram_base = int64_t(file_size) - int64_t(vram_size);
     g.gap = g.vram_base - end;
     return true;
+}
+bool analyse(const Bytes &d, Gap &g) {
+    if (d.size() < 0x2c) return false;
+    const uint32_t page_ct = rd32le(d, 0x10), page_ent_off = rd32le(d, 0x14);
+    if (page_ct == 0 || page_ct > 4096 || uint64_t(page_ent_off) + 12ull * page_ct > d.size()) return false;
+    const Bytes h(d.begin(), d.begin() + 0x2c);
+    const Bytes t(d.begin() + page_ent_off, d.begin() + page_ent_off + 12ull * page_ct);
+    return analyse_header(h, d.size(), &t, g);
+}
+bool analyse_file(const fs::path &p, Gap &g) {
+    std::error_code ec;
+    const uintmax_t sz = fs::file_size(p, ec);
+    if (ec || sz < 0x2c) return false;
+    std::ifstream f(p, std::ios::binary);
+    if (!f) return false;
+    Bytes h(0x2c);
+    f.read(reinterpret_cast<char *>(h.data()), std::streamsize(h.size()));
+    if (f.gcount() != std::streamsize(h.size())) return false;
+    const uint32_t page_ct = rd32le(h, 0x10), page_ent_off = rd32le(h, 0x14);
+    if (page_ct == 0 || page_ct > 4096 || uint64_t(page_ent_off) + 12ull * page_ct > sz) return false;
+    Bytes t(12ull * page_ct);
+    f.seekg(std::streamoff(page_ent_off));
+    f.read(reinterpret_cast<char *>(t.data()), std::streamsize(t.size()));
+    if (f.gcount() != std::streamsize(t.size())) return false;
+    return analyse_header(h, sz, &t, g);
 }
 
 json::Value *field(json::Value &obj, const std::string &k) { return obj.get(k); }
@@ -95,19 +122,27 @@ int vram_gap(const std::vector<std::string> &argv) {
         for (const std::string &f : names) {
             if (f.size() < 4 || f.compare(f.size() - 4, 4, ".pak") != 0) continue;
             const std::string path = dd.path + "\\" + f;
-            const Bytes d = read_file(upath(path));
             Gap g;
             scanned++;
-            if (!analyse(d, g) || g.gap == 0) continue;
+            if (!analyse_file(upath(path), g) || g.gap == 0) continue;
             if (g.gap < 0 || g.gap > 15) {
                 bad++;
                 std::printf("%-45s gap %lld: not a padding gap, left alone\n", f.c_str(), (long long)g.gap);
                 continue;
             }
             found++;
+            if (!apply) {
+                const uintmax_t sz = fs::file_size(upath(path));
+                std::printf("%-45s last page ends %s, VRAM at %s: %lld pad bytes -> removed (%llu -> %lld bytes)\n", f.c_str(), pyhex(uint64_t(g.end)).c_str(),
+                            pyhex(uint64_t(g.vram_base)).c_str(), (long long)g.gap, (unsigned long long)sz, (long long)(int64_t(sz) - g.gap));
+                continue;
+            }
+            const Bytes d = read_file(upath(path));
+            Gap real;
+            if (!analyse(d, real) || real.end != g.end || real.vram_base != g.vram_base) throw Stop("changed during scan: " + f);
+            g = real;
             std::printf("%-45s last page ends %s, VRAM at %s: %lld pad bytes -> removed (%zu -> %lld bytes)\n", f.c_str(), pyhex(uint64_t(g.end)).c_str(),
                         pyhex(uint64_t(g.vram_base)).c_str(), (long long)g.gap, d.size(), (long long)(int64_t(d.size()) - g.gap));
-            if (!apply) continue;
             Bytes out(d.begin(), d.begin() + g.end);
             out.insert(out.end(), d.begin() + g.vram_base, d.end());
             Gap check;
@@ -115,7 +150,8 @@ int vram_gap(const std::vector<std::string> &argv) {
             const std::string rel = dd.rel + "\\" + f, dst = bk + "\\" + rel;
             fs::create_directories(upath(dst).parent_path());
             if (!fs::exists(upath(dst))) {
-                copy2(upath(path), upath(dst));
+                write_file_replace(upath(dst), d);
+                fs::last_write_time(upath(dst), fs::last_write_time(upath(path)));
                 json::Value e = json::Value::object();
                 e.set("md5_before", json::Value::text(md5_hex(d)));
                 m.set(rel, e);

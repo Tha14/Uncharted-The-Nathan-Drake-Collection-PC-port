@@ -193,6 +193,51 @@ int run_to_file(const std::vector<std::string> &cmd, const fs::path &out) {
     return int(code);
 }
 
+int run_to_lines(const std::vector<std::string> &cmd, const std::function<void(const std::string &)> &on_line) {
+    std::wstring line = command_line(cmd), block = env_block({});
+    SECURITY_ATTRIBUTES sa{sizeof sa, nullptr, TRUE};
+    HANDLE out_r = nullptr, out_w = nullptr;
+    if (!CreatePipe(&out_r, &out_w, &sa, 0)) throw Stop("cannot create a pipe");
+    SetHandleInformation(out_r, HANDLE_FLAG_INHERIT, 0);
+    STARTUPINFOW si{};
+    si.cb = sizeof si;
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    si.hStdOutput = out_w;
+    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+    PROCESS_INFORMATION pi{};
+    if (!CreateProcessW(nullptr, line.data(), nullptr, nullptr, TRUE, CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW, block.data(), nullptr, &si, &pi)) {
+        CloseHandle(out_r);
+        CloseHandle(out_w);
+        throw Stop("cannot start " + cmd[0]);
+    }
+    CloseHandle(out_w);
+    std::string buf;
+    char tmp[65536];
+    DWORD n;
+    while (ReadFile(out_r, tmp, sizeof tmp, &n, nullptr) && n) {
+        buf.append(tmp, n);
+        size_t a = 0;
+        for (size_t k; (k = buf.find('\n', a)) != std::string::npos; a = k + 1) {
+            size_t e = k;
+            if (e > a && buf[e - 1] == '\r') e--;
+            on_line(buf.substr(a, e - a));
+        }
+        buf.erase(0, a);
+    }
+    if (!buf.empty()) {
+        if (buf.back() == '\r') buf.pop_back();
+        on_line(buf);
+    }
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD code = 1;
+    GetExitCodeProcess(pi.hProcess, &code);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    CloseHandle(out_r);
+    return int(code);
+}
+
 std::string text_file(const fs::path &p) {   // read in text mode
     const Bytes b = read_file(p);
     std::string s(b.begin(), b.end());

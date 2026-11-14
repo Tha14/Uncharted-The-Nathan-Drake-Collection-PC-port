@@ -78,7 +78,9 @@ fs::path extract(const std::string &src, const std::string &name) {
     auto e = o.by_name.find(name);
     if (e == o.by_name.end()) throw Stop("KeyError: '" + name + "'");
     fs::create_directories(d);
-    write_file_replace(f, o.a->read(e->second + 1));
+    Bytes b = o.a->read(e->second + 1);
+    write_file_replace(f, b);
+    provide_read_cache(f, std::move(b));
     return f;
 }
 
@@ -98,14 +100,29 @@ fs::path stm_dir() {   // the PS3 disc's animstream4.psarc, extracted
 
 fs::path template_pak(const std::string &t, bool solo) {
     const fs::path tp = upath(ret()) / upath(t + ".pak");
-    if (!solo) return tp;
+    if (!solo) {
+        prefetch_read(tp);
+        return tp;
+    }
     const fs::path d = a_tmp / "tsolo" / upath(t);   // ps4actor reads the retail material GUIDs of the template's folder
     std::lock_guard<std::mutex> lock(a_extract_lock);
     if (!fs::exists(d / upath(t + ".pak"))) {
         fs::create_directories(d);
         fs::copy_file(tp, d / upath(t + ".pak"), fs::copy_options::overwrite_existing);
     }
+    prefetch_read(d / upath(t + ".pak"));
     return d / upath(t + ".pak");
+}
+
+void backup_file(const fs::path &from, const fs::path &to, const Bytes *data = nullptr) {   // a hard link is enough until the target is replaced
+    if (fs::exists(to)) return;
+    fs::create_directories(to.parent_path());
+    std::error_code ec;
+    fs::create_hard_link(from, to, ec);
+    if (ec) {
+        if (data) write_file_replace(to, *data);
+        else copy2(from, to);
+    }
 }
 
 // mode -> ps4actor.convert keyword arguments and PS4ACTOR_* variables
@@ -154,9 +171,7 @@ std::vector<std::string> post_list(const std::string &post) {
     return v;
 }
 
-fs::path build(const Job &r) {
-    const fs::path out = a_tmp / "out" / upath(r.at("overlay")) / upath(r.at("name"));
-    fs::create_directories(out.parent_path());
+Bytes build(const Job &r) {
     const std::string &m = r.at("method");
     if (m == "wpnmods") {   // template: '<retail pak>|<retail sibling skin>|<skin,...>'
         const std::string &t = r.at("template");
@@ -167,15 +182,16 @@ fs::path build(const Job &r) {
         size_t a = 0;
         for (size_t k = 0; k <= sk.size(); k++)
             if (k == sk.size() || sk[k] == ',') { skins.push_back(sk.substr(a, k - a)); a = k + 1; }
+        prefetch_read(upath(ret()) / upath(r.at("name")));
+        for (const std::string &sk : skins) prefetch_read(upath(ret()) / upath(sk + ".pak"));
         Bytes d = mats::wpnmods(upath(ret()) / upath(r.at("name")), extract(r.at("source"), r.at("name")), t.substr(b1 + 1, b2 - b1 - 1), skins,
                                 std::stoi(r.at("cap")), 2);
         if (r.at("post").find("cb3fix") != std::string::npos) d = actor::cb3fix(d);
-        write_file_replace(out, d);
-        return out;
+        return d;
     }
     if (m == "convert_net") {
-        write_file_replace(out, mats::convert_net(extract("pak23:", "net.pak"), upath(a_ps4 + "/u3data/build/main/pak23/ps4/menu.pak")));
-        return out;
+        prefetch_read(upath(a_ps4 + "/u3data/build/main/pak23/ps4/menu.pak"));
+        return mats::convert_net(extract("pak23:", "net.pak"), upath(a_ps4 + "/u3data/build/main/pak23/ps4/menu.pak"));
     }
     if (m != "ps4actor" && m != "anim" && m != "rename") throw Stop("method " + m + " is not supported");
     const std::string &source = r.at("source");
@@ -188,6 +204,7 @@ fs::path build(const Job &r) {
         if (r.at("mode").find("stm") != std::string::npos) dirs.push_back(stm_dir());
         d = anim::convert_pak(ps3, dirs);
     } else if (m == "rename") {   // a retail PS4 actor under the MP name
+        prefetch_read(upath(ret()) / upath(r.at("template") + ".pak"));
         d = actor::rename(upath(ret()) / upath(r.at("template") + ".pak"), r.at("template"), r.at("name").substr(0, r.at("name").size() - 4));
     } else {   // dctools/ps4actor.cpp
         actor::Kw kw;
@@ -212,12 +229,16 @@ fs::path build(const Job &r) {
                 size_t a = 0;
                 for (size_t q = 0; q <= val.size(); q++)
                     if (q == val.size() || val[q] == ':') {
-                        if (q > a) o.donors.push_back(upath(ret()) / upath(val.substr(a, q - a) + ".pak"));
+                        if (q > a) {
+                            o.donors.push_back(upath(ret()) / upath(val.substr(a, q - a) + ".pak"));
+                            prefetch_read(o.donors.back());
+                        }
                         a = q + 1;
                     }
             } else if (k == "PS4ACTOR_SKEL3") {   // '<source>/<name>.pak': the PS3 pak whose skeleton a LOD pak uses
                 const size_t s = val.find('/');
                 o.skel3 = extract(val.substr(0, s), val.substr(s + 1));
+                prefetch_read(*o.skel3);
             } else if (k == "PS4ACTOR_SB_EXACT") o.sb_exact = val == "1";
             else if (k == "PS4ACTOR_SB_DROP") o.sb_drop = val == "1";
             else if (k == "PS4ACTOR_FILL_STREAMS") o.fill_streams = val == "1";
@@ -226,7 +247,10 @@ fs::path build(const Job &r) {
             else if (k == "PS4ACTOR_CB3_MIN") o.cb3_min = std::stoi(val);
             else if (k == "PS4ACTOR_DROP_MAT") o.drop_mat = val;
             else if (k == "_rename") kw.rename = val;
-            else if (k == "_skel") kw.skel_tmpl = upath(ret()) / upath(val + ".pak");
+            else if (k == "_skel") {
+                kw.skel_tmpl = upath(ret()) / upath(val + ".pak");
+                prefetch_read(*kw.skel_tmpl);
+            }
             else throw Stop("unknown actor setting " + k);
         }
         d = actor::convert(ps3, template_pak(r.at("template"), r.at("post").find("|solo") != std::string::npos), kw, o);
@@ -239,8 +263,7 @@ fs::path build(const Job &r) {
         else if (p == "flatfix" || p == "cubetype") d = actor::vdesc_fix(d, p);
         else throw Stop("unknown post pass " + p);
     }
-    write_file_replace(out, d);
-    return out;
+    return d;
 }
 
 std::set<std::pair<std::string, std::string>> shadowed_set() {
@@ -303,6 +326,11 @@ int setup(const Args &a) {
     if (fs::exists(a_tmp / "hk" / "hk2010_ps3.json") && fs::exists(a_tmp / "hk" / "hk2011_ps4.json"))
         hk::load_tables(a_tmp / "hk" / "hk2010_ps3.json", a_tmp / "hk" / "hk2011_ps4.json");
     const char *rj = std::getenv("RECIPE_JOBS");
+    const char *rc = std::getenv("RECIPE_CACHE_MB");
+    const size_t cache_mb = a.val.count("--cache-mb") ? size_t(std::stoul(a.get("--cache-mb", "0")))
+                                                      : (rc && *rc ? size_t(std::stoul(rc)) : size_t(2048));
+    set_read_cache_mb(cache_mb);
+    if (cache_mb) std::printf("read cache: %zu MB\n", cache_mb);
     return a.val.count("--jobs") ? std::stoi(a.get("--jobs", "1")) : (rj && *rj ? std::atoi(rj) : int(std::max(1u, std::thread::hardware_concurrency())));
 }
 
@@ -310,7 +338,7 @@ int setup(const Args &a) {
 
 int actors(const std::vector<std::string> &argv) {
     const Args a(argv, {"--apply", "--allow-equivalent"},
-                 {"--project", "--job", "--ps4", "--ps3-disc", "--ps3-update", "--ps3-data2", "--overlays", "--only", "--jobs"});
+                 {"--project", "--job", "--ps4", "--ps3-disc", "--ps3-update", "--ps3-data2", "--overlays", "--only", "--jobs", "--cache-mb"});
     const int jobs = setup(a);
     const fs::path work = upath(a.need("--project")) / "work";
     static const std::map<std::string, std::string> OVL = {{"port", "overlay-port"}, {"r2", "overlay-r2"}, {"r3", "overlay-r3"}, {"mp", "overlay-mp"}};
@@ -377,58 +405,81 @@ int actors(const std::vector<std::string> &argv) {
         }
         todo.push_back({r, dst});
     }
-    std::vector<std::string> out(todo.size()), err(todo.size());
+    std::vector<std::string> err(todo.size());
+    std::vector<Bytes> early(todo.size());
+    std::vector<std::string> early_hash(todo.size());
     // wpnmods / convert_net (their own processes, shared temp files) and the animstream extract first, here
     bool stm = false;
     for (const Todo &t : todo)
         if (t.r.at("method") == "anim" && t.r.at("mode").find("stm") != std::string::npos) stm = true;
     if (stm) stm_dir();
-    {
-        for (size_t i = 0; i < todo.size(); i++) {
-            const std::string &m = todo[i].r.at("method");
-            if (m != "wpnmods" && m != "convert_net") continue;
-            try { out[i] = utf8(build(todo[i].r)); } catch (const std::exception &e) { err[i] = std::string(e.what()).substr(0, 200); }
+    for (size_t i = 0; i < todo.size(); i++) {
+        const std::string &m = todo[i].r.at("method");
+        if (m != "wpnmods" && m != "convert_net") continue;
+        try {
+            early[i] = build(todo[i].r);
+            early_hash[i] = sha256_hex(early[i]);
+        } catch (const std::exception &e) {
+            err[i] = std::string(e.what()).substr(0, 200);
         }
     }
-    std::atomic<size_t> next{0};
-    std::vector<std::thread> pool;
-    for (int w = 0; w < std::max(1, std::min<int>(jobs, int(todo.size()))); w++)
-        pool.emplace_back([&] {
-            for (size_t i; (i = next++) < todo.size();) {
-                const std::string &m = todo[i].r.at("method");
-                if (m == "wpnmods" || m == "convert_net") continue;
-                try { out[i] = utf8(build(todo[i].r)); } catch (const std::exception &e) { err[i] = std::string(e.what()).substr(0, 200); }
+    const size_t batch = std::max<size_t>(8, size_t(std::max(1, jobs)) + 4);
+    for (size_t start = 0; start < todo.size(); start += batch) {
+        const size_t end = std::min(todo.size(), start + batch);
+        std::set<std::string> tpls;
+        for (size_t i = start; i < end; i++) {
+            const Job &r = todo[i].r;
+            const std::string &m = r.at("method");
+            if ((m == "ps4actor" || m == "rename") && r.at("template") != "-") tpls.insert(r.at("template"));
+        }
+        for (const std::string &t : tpls) prefetch_read(upath(ret()) / upath(t + ".pak"));
+        std::vector<Bytes> bout(end - start);
+        std::vector<std::string> bhash(end - start);
+        std::atomic<size_t> next{start};
+        std::vector<std::thread> pool;
+        for (int w = 0; w < std::max(1, std::min<int>(jobs, int(end - start))); w++)
+            pool.emplace_back([&] {
+                for (size_t i; (i = next++) < end;) {
+                    const std::string &m = todo[i].r.at("method");
+                    if (m == "wpnmods" || m == "convert_net") continue;
+                    try {
+                        bout[i - start] = build(todo[i].r);
+                        bhash[i - start] = sha256_hex(bout[i - start]);
+                    } catch (const std::exception &e) {
+                        err[i] = std::string(e.what()).substr(0, 200);
+                    }
+                }
+            });
+        for (auto &t : pool) t.join();
+        for (size_t i = start; i < end; i++) {   // installed in jobs.tsv order
+            const Job &r = todo[i].r;
+            const bool pre = r.at("method") == "wpnmods" || r.at("method") == "convert_net";
+            const Bytes &b = pre ? early[i] : bout[i - start];
+            const std::string &h = pre ? early_hash[i] : bhash[i - start];
+            if (!err[i].empty() || b.empty()) {
+                fail++;
+                std::printf("FAIL %s %s %s\n", r.at("overlay").c_str(), r.at("name").c_str(), err[i].c_str());
+                continue;
             }
-        });
-    for (auto &t : pool) t.join();
-    for (size_t i = 0; i < todo.size(); i++) {   // installed in jobs.tsv order
-        const Job &r = todo[i].r;
-        if (!err[i].empty() || out[i].empty()) {
-            fail++;
-            std::printf("FAIL %s %s %s\n", r.at("overlay").c_str(), r.at("name").c_str(), err[i].c_str());
-            continue;
-        }
-        const std::string h = sha_file(upath(out[i]));
-        if (h != r.at("sha256") && (r.at("status") == "identical" || r.at("status") == "base")) {
-            built_diff++;
-            std::printf("DIFF %s %s %s != %s\n", r.at("overlay").c_str(), r.at("name").c_str(), h.substr(0, 16).c_str(), r.at("sha256").substr(0, 16).c_str());
-            continue;
-        }
-        if (!a.has("--apply")) {
-            std::printf("would install %s %s\n", r.at("overlay").c_str(), r.at("name").c_str());
-            continue;
-        }
-        const fs::path &dst = todo[i].dst;
-        fs::create_directories(dst.parent_path());
-        if (fs::exists(dst)) {
-            const fs::path bk = work / "backup-actor33" / upath(r.at("overlay")) / upath(r.at("name"));
-            if (!fs::exists(bk)) {
-                fs::create_directories(bk.parent_path());
-                copy2(dst, bk);
+            if (h != r.at("sha256") && (r.at("status") == "identical" || r.at("status") == "base")) {
+                built_diff++;
+                std::printf("DIFF %s %s %s != %s\n", r.at("overlay").c_str(), r.at("name").c_str(), h.substr(0, 16).c_str(), r.at("sha256").substr(0, 16).c_str());
+                continue;
             }
+            if (!a.has("--apply")) {
+                std::printf("would install %s %s\n", r.at("overlay").c_str(), r.at("name").c_str());
+                continue;
+            }
+            const fs::path &dst = todo[i].dst;
+            fs::create_directories(dst.parent_path());
+            if (fs::exists(dst)) {
+                const fs::path bk = work / "backup-actor33" / upath(r.at("overlay")) / upath(r.at("name"));
+                backup_file(dst, bk);
+            }
+            write_file_replace(dst, b);
+            installed++;
         }
-        write_file_replace(dst, read_file(upath(out[i])));
-        installed++;
+        std::vector<Bytes>().swap(bout);
     }
     const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     std::printf("actor33: same %d, installed %d, built_diff %d, fail %d, skipped %d, %.0f s%s\n", same, installed, built_diff, fail, skipped, secs,
@@ -448,7 +499,7 @@ int actors(const std::vector<std::string> &argv) {
 int rebuild_am(const std::vector<std::string> &argv) {
     if (argv.empty() || (argv[0] != "am" && argv[0] != "hats" && argv[0] != "igc2")) throw Stop("usage: u3fix rebuild-am am|hats|igc2 --project P ...");
     const std::string kind = argv[0];
-    const Args a(std::vector<std::string>(argv.begin() + 1, argv.end()), {}, {"--project", "--job", "--ps4", "--ps3-disc", "--ps3-update", "--ps3-data2", "--only", "--jobs"});
+    const Args a(std::vector<std::string>(argv.begin() + 1, argv.end()), {}, {"--project", "--job", "--ps4", "--ps3-disc", "--ps3-update", "--ps3-data2", "--only", "--jobs", "--cache-mb"});
     const int jobs = setup(a);
     const std::string folder = kind == "am" ? "actor-materials" : kind == "hats" ? "hat-colour" : "airport-igc2";
     const fs::path outd = upath(a.need("--project")) / "scratch" / upath(folder) / "out";
@@ -497,13 +548,14 @@ int rebuild_am(const std::vector<std::string> &argv) {
         }
         throw Stop("no PS3 source for " + name);
     };
-    auto build_one = [&](const Row &r) {
-        const fs::path dst = outd / upath(r.name + ".pak");
+    auto build_one = [&](const Row &r) -> Bytes {
         Bytes d;
+        const fs::path tpl0 = upath(ret()) / upath(r.tmpl + ".pak");
+        prefetch_read(tpl0);
         if (kind == "am" && r.src == "retail") {   // the retail template renamed (mkretail)
-            d = actor::cb3fix(actor::rename(upath(ret()) / upath(r.tmpl + ".pak"), r.tmpl, r.name));
+            d = actor::cb3fix(actor::rename(tpl0, r.tmpl, r.name));
         } else {
-            const fs::path p3 = newest(r.name), tpl = upath(ret()) / upath(r.tmpl + ".pak");
+            const fs::path p3 = newest(r.name), tpl = tpl0;
             actor::Kw kw;
             kw.max_tex = std::stoi(r.cap);
             actor::Options o;
@@ -516,32 +568,51 @@ int rebuild_am(const std::vector<std::string> &argv) {
                 }
             d = actor::cb3fix(stage::cubefix_pak(actor::convert(p3, tpl, kw, o), p3));
         }
-        fs::create_directories(outd);
-        write_file_replace(dst, d);
+        return d;
     };
     const auto t0 = std::chrono::steady_clock::now();
+    fs::create_directories(outd);
     std::vector<int> state(rows.size(), 0);   // 0 already at the hash, 1 built OK, 2 differs, 3 failed
     std::vector<std::string> msg(rows.size());
-    std::atomic<size_t> next{0};
-    std::vector<std::thread> pool;
-    for (int w = 0; w < std::max(1, std::min<int>(jobs, int(rows.size()))); w++)
-        pool.emplace_back([&] {
-            for (size_t i; (i = next++) < rows.size();) {
-                const Row &r = rows[i];
-                const fs::path dst = outd / upath(r.name + ".pak");
-                if (fs::exists(dst) && sha_file(dst) == r.sha) continue;
-                try {
-                    build_one(r);
-                    const std::string got = sha_file(dst);
-                    state[i] = got == r.sha ? 1 : 2;
-                    msg[i] = got == r.sha ? "" : got.substr(0, 16) + " != " + r.sha.substr(0, 16);
-                } catch (const std::exception &e) {
-                    state[i] = 3;
-                    msg[i] = std::string(e.what()).substr(0, 300);
+    const size_t batch = std::max<size_t>(8, size_t(std::max(1, jobs)) + 4);
+    for (size_t start = 0; start < rows.size(); start += batch) {
+        const size_t end = std::min(rows.size(), start + batch);
+        std::set<std::string> tpls;
+        for (size_t i = start; i < end; i++) tpls.insert(rows[i].tmpl);
+        for (const std::string &t : tpls) prefetch_read(upath(ret()) / upath(t + ".pak"));
+        std::vector<Bytes> bout(end - start);
+        std::atomic<size_t> next{start};
+        std::vector<std::thread> pool;
+        for (int w = 0; w < std::max(1, std::min<int>(jobs, int(end - start))); w++)
+            pool.emplace_back([&] {
+                for (size_t i; (i = next++) < end;) {
+                    const Row &r = rows[i];
+                    const fs::path dst = outd / upath(r.name + ".pak");
+                    if (fs::exists(dst) && sha_file(dst) == r.sha) continue;
+                    try {
+                        Bytes d = build_one(r);
+                        const std::string got = sha256_hex(d);
+                        state[i] = got == r.sha ? 1 : 2;
+                        msg[i] = got == r.sha ? "" : got.substr(0, 16) + " != " + r.sha.substr(0, 16);
+                        bout[i - start] = std::move(d);
+                    } catch (const std::exception &e) {
+                        state[i] = 3;
+                        msg[i] = std::string(e.what()).substr(0, 300);
+                    }
                 }
+            });
+        for (auto &t : pool) t.join();
+        for (size_t i = start; i < end; i++) {   // written in jobs-hats.tsv order
+            if (state[i] == 0 || state[i] == 3) continue;
+            try {
+                write_file_replace(outd / upath(rows[i].name + ".pak"), bout[i - start]);
+            } catch (const std::exception &e) {
+                state[i] = 3;
+                msg[i] = std::string(e.what()).substr(0, 300);
             }
-        });
-    for (auto &t : pool) t.join();
+        }
+        std::vector<Bytes>().swap(bout);
+    }
     int n_ok = 0, n_built = 0, bad = 0;
     for (size_t i = 0; i < rows.size(); i++) {
         const Row &r = rows[i];
@@ -577,9 +648,10 @@ int install_am(const std::vector<std::string> &argv) {
         return 1;
     };
     auto size_of = [](const fs::path &p) { return (unsigned long long)fs::file_size(p); };
-    auto put = [](const fs::path &from, const fs::path &to) {   // shutil.copy2 and the hash check after it
-        copy2(from, to);
-        if (sha_file(to) != sha_file(from)) throw Stop("AssertionError: copy of " + utf8(from));
+    auto restore = [](const fs::path &from, const fs::path &to) {   // not copy_file: the backup may share the inode
+        const Bytes b = read_file(from);
+        write_file_replace(to, b);
+        fs::last_write_time(to, fs::last_write_time(from));
     };
     if (kind == "igc2") {
         const fs::path bak = work / "backup-igc2";
@@ -589,10 +661,11 @@ int install_am(const std::vector<std::string> &argv) {
             if (a.has("--restore")) {
                 if (!fs::exists(b)) return fail("no backup " + win_path(utf8(b)));
                 std::printf("%s restore %s over %s\n", n.c_str(), sha_file(b).substr(0, 16).c_str(), sha_file(d).substr(0, 16).c_str());
-                put(b, d);
+                restore(b, d);
                 continue;
             }
-            if (sha_file(s) != want) return fail("source hash mismatch " + win_path(utf8(s)));
+            const Bytes sb = read_file(s);
+            if (sha256_hex(sb) != want) return fail("source hash mismatch " + win_path(utf8(s)));
             std::printf("%s current %s %llu -> new %s %llu\n", n.c_str(), sha_file(d).substr(0, 16).c_str(), size_of(d), want.substr(0, 16).c_str(), size_of(s));
             if (!a.has("--apply")) {
                 std::printf("  dry run: no change\n");
@@ -600,10 +673,10 @@ int install_am(const std::vector<std::string> &argv) {
             }
             fs::create_directories(bak);
             if (!fs::exists(b)) {
-                copy2(d, b);
+                backup_file(d, b);
                 std::printf("  backup %s\n", win_path(utf8(b)).c_str());
             }
-            put(s, d);
+            write_file_replace(d, sb);
             std::printf("  installed\n");
         }
         return 0;
@@ -645,7 +718,7 @@ int install_am(const std::vector<std::string> &argv) {
             const fs::path d = dst / n, b = bak / n;
             if (had) {
                 if (!fs::exists(b)) return fail("missing backup " + win_path(utf8(b)));
-                put(b, d);
+                restore(b, d);
                 std::printf("%s restored\n", n.c_str());
             } else if (fs::exists(d)) {
                 if (!mh) throw Stop("KeyError: " + n);
@@ -668,17 +741,21 @@ int install_am(const std::vector<std::string> &argv) {
     };
     for (const auto &[n, h] : man) {
         const fs::path s = src / n, d = dst / n, b = bak / n;
-        if (!fs::exists(s) || sha_file(s) != h) return fail("out/ pak missing or changed since manifest: " + n);
-        const std::string cur = fs::exists(d) ? sha_file(d).substr(0, 16) : kind == "am" ? "not in overlay-r3" : "not in overlay-r3 (overlay-port copy is used now)";
+        if (!fs::exists(s)) return fail("out/ pak missing or changed since manifest: " + n);
+        const Bytes sb = read_file(s);
+        if (sha256_hex(sb) != h) return fail("out/ pak missing or changed since manifest: " + n);
+        const bool has_old = fs::exists(d);
+        const Bytes old = has_old ? read_file(d) : Bytes();
+        const std::string cur = has_old ? sha256_hex(old).substr(0, 16) : kind == "am" ? "not in overlay-r3" : "not in overlay-r3 (overlay-port copy is used now)";
         std::printf("%s: %s -> %s (%llu bytes)\n", n.c_str(), cur.c_str(), h.substr(0, 16).c_str(), size_of(s));
         if (!a.has("--apply")) continue;
         fs::create_directories(bak);
         if (std::find_if(st.begin(), st.end(), [&](const auto &x) { return x.first == n; }) == st.end()) {   // the first apply records the original
-            st.push_back({n, fs::exists(d)});
-            if (st.back().second) copy2(d, b);
+            st.push_back({n, has_old});
+            if (has_old) backup_file(d, b, &old);
             write_state();
         }
-        put(s, d);
+        write_file_replace(d, sb);
     }
     std::printf("%s\n", a.has("--apply") ? "installed" : "dry run: no change");
     return 0;

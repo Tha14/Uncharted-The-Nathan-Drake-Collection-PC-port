@@ -215,7 +215,7 @@ int map_lighting(const std::vector<std::string> &argv) {
             if (!w.desc.empty()) std::printf("   %s %s\n", pyhex(w.off).c_str(), w.desc.c_str());
         if (!apply) continue;
         fs::create_directories(upath(bak));
-        if (!fs::exists(upath(bak) / upath(name))) fs::copy_file(path, upath(bak) / upath(name));
+        if (!fs::exists(upath(bak) / upath(name))) write_file_replace(upath(bak) / upath(name), d);
         for (const Write &w : W) {
             if (w.off + w.old.size() > d.size() || !std::equal(w.old.begin(), w.old.end(), d.begin() + std::ptrdiff_t(w.off)))
                 throw Stop("unexpected bytes in " + name + " at " + pyhex(w.off));
