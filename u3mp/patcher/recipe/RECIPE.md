@@ -54,13 +54,13 @@ the sky rows too (dctools/ps4stage.cpp sky_convert).
 
 | file | what |
 |---|---|
-| `manifest.tsv` / `manifest.json` | reference: overlay, path, size, sha256, mtime of all 15 541 overlay files (`make_manifest.py`) |
-| `provenance.tsv` | per file: class and source (`provenance.py`, from the hash tables below) |
+| `manifest.tsv` / `manifest.json` | reference: overlay, path, size, sha256, mtime of all 15 541 overlay files (`recipe_tools make_manifest`, recipe_tools.cpp) |
+| `provenance.tsv` | per file: class and source (`recipe_tools provenance`, from the hash tables below) |
 | `lists/*.tsv` | copy lists of the copy steps (destination, archive, entry, size, sha256); `levels-*.txt`, `hat-colour-only.txt` name lists |
 | `steps/ORDER.txt`, `steps/NNN-<id>.json` | the step registry (see `ADDING-A-FIX.md`); `make_steps.py` regenerates the initial set |
 | `gather_tools.py` | tool collector (the driver and the verifier are C++: `../importer`, `u3import --recipe` / `--verify-output`) |
 | `GAPS.md` | what cannot be regenerated and why |
-| `retail-ps4-hashes.tsv`, `retail-ps4-psarc-entries.tsv`, `retail-ps4-u2data-sound.tsv`, `ps3-hashes/*.tsv`, `backup-hashes-*.tsv`, `transfer-hashes.tsv`, `stage-assets-hashes.tsv` | hash tables used for the provenance (names and hashes only, no data; `hash_tree.py`, `psarc_hash.py`) |
+| `retail-ps4-hashes.tsv`, `retail-ps4-psarc-entries.tsv`, `retail-ps4-u2data-sound.tsv`, `ps3-hashes/*.tsv`, `backup-hashes-*.tsv`, `transfer-hashes.tsv`, `stage-assets-hashes.tsv` | hash tables used for the provenance (names and hashes only, no data; `recipe_tools hash_tree`, `recipe_tools psarc_hash`) |
 | `transcript-mining/` | how the session transcripts were mined for every overlay write (`SUMMARY.md`, `overlay-writes.tsv`, `inline-writes/`) |
 
 ## Families and provenance (reference overlays, 2026-11-03)
