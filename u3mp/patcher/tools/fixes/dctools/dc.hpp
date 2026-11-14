@@ -45,7 +45,8 @@ Bytes read_file(const fs::path &p);
 void set_read_cache_mb(size_t mb);   // bounded RAM cache of read_file() contents (0 = off); shared by all threads
 bool prefetch_read(const fs::path &p);   // read p into that cache without returning a copy
 bool have_read_cache(const fs::path &p);   // is p already in that cache (a prefetched or provided copy)?
-bool provide_read_cache(const fs::path &p, Bytes data);   // cache data for p without touching the disk
+bool provide_read_cache(const fs::path &p, Bytes data, bool pin = false);   // cache data for p without touching the disk;
+    // pin: p has no copy on disk, so the file stays until its generation is discarded (it may exceed the limit)
 void clear_read_cache();   // drop every cached file (the prefetcher refills for the next batch)
 uint64_t read_cache_new_generation();   // start a prefetch generation; prefetch_read() tags its files with it
 void read_cache_discard_before(uint64_t gen);   // drop files of older generations (generation 0 is kept)

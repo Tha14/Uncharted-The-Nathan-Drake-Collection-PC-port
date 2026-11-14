@@ -476,11 +476,20 @@ int levels(const std::vector<std::string> &argv) {
             const std::string &m = r.at("method");
             if (m == "stage" || m == "ingame" || m == "vischeat" || m == "hud") {   // straight from the psarc, no scratch file
                 const fs::path p = g_tmp / "ps3" / upath(r.at("archive")) / upath(r.at("src") + ".pak");
-                if (!have_read_cache(p)) {
-                    try {
-                        provide_read_cache(p, ps3_entry(r, idx));
-                    } catch (...) {
+                // pinned in this batch's generation: the cache never drops it while the batch converts (there is no
+                // scratch copy to fall back to); provided again even when an earlier batch has it, since that one's
+                // generation is discarded before this batch runs. A pak too big for the cache goes to the scratch file.
+                try {
+                    Bytes d = ps3_entry(r, idx);
+                    if (d.size() > (uint64_t(cache_mb) << 20)) {
+                        if (!fs::exists(p)) {
+                            fs::create_directories(p.parent_path());
+                            write_file_replace(p, d);
+                        }
+                    } else {
+                        provide_read_cache(p, std::move(d), true);
                     }
+                } catch (...) {   // a missing source fails its row in ps3_source, with the reason
                 }
             } else if (m == "sky") {
                 prefetch_read(g_tmp / "ps3" / upath(r.at("archive")) / upath(r.at("src") + ".pak"));

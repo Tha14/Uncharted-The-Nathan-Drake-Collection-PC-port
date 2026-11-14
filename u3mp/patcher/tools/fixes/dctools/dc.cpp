@@ -18,22 +18,30 @@ namespace {
 struct CacheEntry {
     std::shared_ptr<Bytes> data;
     uint64_t used = 0, gen = 0;
+    bool pinned = false;   // no copy on disk: never evicted, only dropped by generation (read_cache_discard_before) or clear
 };
 std::mutex g_cache_m;
 std::unordered_map<std::string, CacheEntry> g_cache;
 uint64_t g_cache_bytes = 0, g_cache_limit = 0, g_cache_tick = 0;
 std::atomic<uint64_t> g_cache_gen{0};
 
-void cache_add_locked(const std::string &k, std::shared_ptr<Bytes> d, uint64_t gen) {
-    g_cache_bytes += d->size();
-    g_cache[k] = {std::move(d), ++g_cache_tick, gen};
-    while (g_cache_bytes > g_cache_limit && !g_cache.empty()) {
-        auto old = g_cache.begin();
+// drops the least recently used files until the cache fits its limit. A pinned file is never dropped here: a reader
+// may still need it and there is no copy on disk to fall back to, so pinned files can hold the cache above the limit.
+void evict_locked() {
+    while (g_cache_bytes > g_cache_limit) {
+        auto old = g_cache.end();
         for (auto it = g_cache.begin(); it != g_cache.end(); ++it)
-            if (it->second.used < old->second.used) old = it;
+            if (!it->second.pinned && (old == g_cache.end() || it->second.used < old->second.used)) old = it;
+        if (old == g_cache.end()) return;
         g_cache_bytes -= old->second.data->size();
         g_cache.erase(old);
     }
+}
+
+void cache_add_locked(const std::string &k, std::shared_ptr<Bytes> d, uint64_t gen, bool pinned = false) {
+    g_cache_bytes += d->size();
+    g_cache[k] = {std::move(d), ++g_cache_tick, gen, pinned};
+    evict_locked();
 }
 
 void cache_drop_locked(const fs::path &p) {
@@ -53,13 +61,7 @@ void set_read_cache_mb(size_t mb) {
         g_cache_bytes = 0;
         return;
     }
-    while (g_cache_bytes > g_cache_limit && !g_cache.empty()) {
-        auto old = g_cache.begin();
-        for (auto it = g_cache.begin(); it != g_cache.end(); ++it)
-            if (it->second.used < old->second.used) old = it;
-        g_cache_bytes -= old->second.data->size();
-        g_cache.erase(old);
-    }
+    evict_locked();
 }
 
 bool prefetch_read(const fs::path &p) {
@@ -96,7 +98,7 @@ bool have_read_cache(const fs::path &p) {
     return g_cache_limit && g_cache.count(utf8(p)) != 0;
 }
 
-bool provide_read_cache(const fs::path &p, Bytes data) {
+bool provide_read_cache(const fs::path &p, Bytes data, bool pin) {
     auto d = std::make_shared<Bytes>(std::move(data));
     std::lock_guard<std::mutex> l(g_cache_m);
     if (!g_cache_limit || d->size() > g_cache_limit) return false;
@@ -105,7 +107,7 @@ bool provide_read_cache(const fs::path &p, Bytes data) {
         g_cache_bytes -= it->second.data->size();
         g_cache.erase(it);
     }
-    cache_add_locked(k, std::move(d), g_cache_gen.load());
+    cache_add_locked(k, std::move(d), g_cache_gen.load(), pin);
     return true;
 }
 
