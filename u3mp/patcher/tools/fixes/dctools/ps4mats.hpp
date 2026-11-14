@@ -20,7 +20,29 @@
 
 namespace u3::mats {
 
-Bytes convert_net(const fs::path &ps3, const fs::path &menu_ref);
+// a PS3 net material: its name and texture slots (an index into the texture list, or none); a texture: hash and name
+struct NetMat {
+    std::string name;
+    std::vector<std::optional<uint32_t>> textures;
+};
+struct NetTex {
+    uint32_t hash;
+    std::string name;
+};
+// convert_net options; the defaults are the Uncharted 3 net.pak conversion. The Uncharted 2 menu images: the materials
+// and textures given (its PS3 material table differs), the effect of a named reference material, one effect hash per
+// material, colour maps UNORM.
+struct NetOptions {
+    std::string effect_material = "general/menu/menu-logo:naughtydog";
+    bool srgb_color = true;
+    std::map<std::string, std::string> material_effect;   // material name -> effect hash (else the effect material's)
+    const std::vector<NetMat> *mats = nullptr;            // given: used instead of reading the PS3 material table
+    const std::vector<NetTex> *mtex = nullptr;
+    const std::vector<PakTexture> *textures = nullptr;    // given: the PS3 textures to convert (else all of the pak)
+    size_t *materials_written = nullptr;
+};
+
+Bytes convert_net(const fs::path &ps3, const fs::path &menu_ref, const NetOptions &o = {});
 Bytes wpnmods(const fs::path &ps4, const fs::path &ps3, const std::string &src_skin, const std::vector<std::string> &skins, int max_tex,
               int stream_flags);
 

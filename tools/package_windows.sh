@@ -116,7 +116,7 @@ u3_import() {   # Uncharted 3's importer, its recipe and tools, and the newest m
     # u3mp/bin, which the importer puts on PATH. Static, no DLL of ours. Without it those steps fail: stop here.
     local fx=u3mp/patcher/tools/fixes
     clang++ -std=c++20 -O2 -municode -static -s -Wl,--gc-sections -Wl,--no-insert-timestamp -I"$fx/dctools" -Ilauncher/native \
-        "$fx/dctools/u3fix.cpp" "$fx/dctools/dc.cpp" "$fx/dctools/eula_box.cpp" "$fx/no-lab/remove_lab.cpp" \
+        "$fx/dctools/u3fix.cpp" "$fx/dctools/fixlib.cpp" "$fx/dctools/dc.cpp" "$fx/dctools/eula_box.cpp" "$fx/no-lab/remove_lab.cpp" \
         "$fx/no-rpcn-menu/remove_rpcn_page.cpp" "$fx/netgame-order/netgame_order.cpp" "$fx/wall-emblem-test/emblem_cap3.cpp" \
         "$fx/enemy-stall/apply_ss_option_defaults.cpp" \
         "$fx/coop-chars/apply_coop_desc_fix.cpp" "$fx/coop-tab/fix_vram_gap.cpp" "$fx/airport-igc3/airport_igc3.cpp" \
@@ -136,7 +136,7 @@ u3_import() {   # Uncharted 3's importer, its recipe and tools, and the newest m
     # it links the launcher's own prepare / module link code for the base image
     local im=u3mp/patcher/importer
     clang++ -std=c++20 -O2 -municode -static -s -Wl,--gc-sections -Wl,--no-insert-timestamp -I"$im" -I"$fx/dctools" -Ilauncher/native \
-        "$im/u3import.cpp" "$im/recipe.cpp" "$im/mpimage.cpp" "$im/ps3keep.cpp" "$im/common.cpp" "$fx/dctools/psarc.cpp" "$fx/dctools/dc.cpp" \
+        "$im/u3import.cpp" "$im/recipe.cpp" "$im/mpimage.cpp" "$im/ps3keep.cpp" "$im/common.cpp" "$fx/dctools/psarc.cpp" "$fx/dctools/dc.cpp" "$fx/dctools/fixlib.cpp" \
         launcher/native/prepare.cpp launcher/native/link.cpp launcher/native/system.cpp \
         -lbcrypt -lshell32 -lole32 -luuid -ladvapi32 -o "$out/u3mp/bin/u3import.exe"
     # ffmpeg (the EULA pages, sound banks with MP3 samples) and, when installed, GNU objdump (the characters' Havok

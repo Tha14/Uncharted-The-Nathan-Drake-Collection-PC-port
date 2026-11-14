@@ -77,8 +77,9 @@ Vis read(const Pak &p, const PakItem &it) {
     };
     Vis m;
     for (uint32_t k = 0; k < 0x2a; k++) m.W.push_back(p.pu32(pg, o + 4 * k));
-    if (m.W[0] != 9) throw Stop(u3::fmt("NotImplementedError: VIS_INFO_1 version %u", m.W[0]));
-    const uint32_t nreg = m.W[1], ndict = m.W[0x90 / 4], ng = m.W[0x98 / 4], nh = m.W[0xa4 / 4];
+    // version 9 (Uncharted 3); version 7 (Uncharted 2) is the same without the H table: the header ends after {nG, G*}
+    if (m.W[0] != 9 && m.W[0] != 7) throw Stop(u3::fmt("NotImplementedError: VIS_INFO_1 version %u", m.W[0]));
+    const uint32_t nreg = m.W[1], ndict = m.W[0x90 / 4], ng = m.W[0x98 / 4], nh = m.W[0] == 7 ? 0 : m.W[0xa4 / 4];
     m.nwords = m.W[0x8c / 4];
     for (int k = 0; k < 4; k++) {
         const uint64_t base = 0x10 + 0x20 * k;
@@ -167,8 +168,12 @@ std::vector<std::shared_ptr<Blob>> build_parts(const Vis &m, size_t limit) {
     };
     auto hd = obj("vis_hdr");
     auto regb = obj("vis_regions");
-    auto hb = obj("vis_H");
-    for (uint32_t sid_ : m.H) hb->u32(sid_).u32(AA).u64(0);
+    const bool v7 = m.W[0] == 7;
+    std::shared_ptr<Blob> hb;
+    if (!v7) {
+        hb = obj("vis_H");
+        for (uint32_t sid_ : m.H) hb->u32(sid_).u32(AA).u64(0);
+    }
     struct Parts {
         std::shared_ptr<Blob> planes, nodes, faces;
     };
@@ -248,7 +253,7 @@ std::vector<std::shared_ptr<Blob>> build_parts(const Vis &m, size_t limit) {
         }
         objs.insert(objs.end(), gbits.begin(), gbits.end());
     }
-    hd->u32(9).u32(m.regions.size()).ptr(regb);
+    hd->u32(m.W[0]).u32(m.regions.size()).ptr(regb);
     hd->u32(m.W[3]).u32(0);
     for (int k = 0; k < 4; k++) {
         hd->ptr(bufs[k]);
@@ -256,9 +261,12 @@ std::vector<std::shared_ptr<Blob>> build_parts(const Vis &m, size_t limit) {
         if (k < 3) hd->u32(0);
     }
     hd->u32(m.dict.size()).ptr(db);
-    hd->u32(m.G.size()).u32(AA).ptr(gb).ptr(hb);
-    hd->u32(m.H.size()).u32(AA);
-    if (hd->size() != 0xe0) throw Stop("AssertionError: vis header");
+    hd->u32(m.G.size()).u32(AA).ptr(gb);
+    if (!v7) {
+        hd->ptr(hb);
+        hd->u32(m.H.size()).u32(AA);
+    }
+    if (hd->size() != (v7 ? 0xd0u : 0xe0u)) throw Stop("AssertionError: vis header");
     std::vector<std::shared_ptr<Blob>> out = {std::make_shared<Blob>("vis_info")};
     for (const auto &o : objs) {
         auto cur = out.back();

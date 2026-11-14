@@ -512,7 +512,60 @@ public:
         }
         return b;
     }
+    // Uncharted 2 region scripts: two {u32 sid, ptr lambda} entries (U3: one entry). A lambda is {ptr body, u32 sid}
+    // (PS4 {ptr body, pad}); a body {ptr code, ptr consts, u32 hash, u32 tag} (PS4 {ptr code, ptr consts, u32 hash, pad
+    // x3}). The code is copied as it is, except that a last word equal to the body's tag becomes padding on PS4; the
+    // constants widen from 4 to 8 bytes as in U3.
+    BlobP script_u2(const Addr &a) {
+        if (auto it = memo.find(a); it != memo.end()) return it->second;
+        auto b = fresh(a, "script");
+        for (uint64_t k = 0; k < 2; k++) {
+            b->u32(u32(a, 8 * k)).u32(PADW);
+            const OAddr x = ptr(a, 8 * k + 4);
+            ptr_or_null(*b, x ? lambda_u2(*x) : nullptr);
+        }
+        return b;
+    }
+    BlobP lambda_u2(const Addr &x) {
+        if (auto it = memo.find(x); it != memo.end()) return it->second;
+        auto lb = fresh(x, "lambda");
+        const OAddr body = ptr(x, 0);
+        ptr_or_null(*lb, body ? body_u2(*body) : nullptr);
+        lb->u32(PADW).u32(PADW);
+        return lb;
+    }
+    BlobP body_u2(const Addr &y) {
+        if (auto it = memo.find(y); it != memo.end()) return it->second;
+        auto bb = fresh(y, "lambda-body");
+        const OAddr code = ptr(y, 0), consts = ptr(y, 4);
+        const uint32_t hash = u32(y, 8), tag = u32(y, 12);
+        BlobP cb, kb;
+        if (code) {
+            // the code runs up to the constants when they follow it on the same page, else to the next boundary
+            const bool to_consts = consts && consts->first == code->first && consts->second > code->second;
+            Bytes cd = raw(*code, 0, to_consts ? consts->second - code->second : extent(*code));
+            if (cd.size() >= 4) {
+                const size_t e = cd.size();
+                if ((uint32_t(cd[e - 4]) << 24 | uint32_t(cd[e - 3]) << 16 | uint32_t(cd[e - 2]) << 8 | cd[e - 1]) == tag)
+                    std::fill(cd.end() - 4, cd.end(), uint8_t(0xaa));
+            }
+            cb = fresh(code, "code");
+            cb->raw(cd);
+        }
+        if (consts) {
+            kb = fresh(consts, "consts");
+            for (uint64_t c = 0; c < extent(*consts) / 4; c++) {
+                if (p.is_ptr(consts->first, uint32_t(consts->second + 4 * c))) ptr_or_null(*kb, string(ptr(*consts, 4 * c)));
+                else kb->u32(u32(*consts, 4 * c)).u32(0);
+            }
+        }
+        ptr_or_null(*bb, cb);
+        ptr_or_null(*bb, kb);
+        bb->u32(hash).u32(PADW).u32(PADW).u32(PADW);
+        return bb;
+    }
     BlobP script(const Addr &a) {
+        if (g_u2) return script_u2(a);
         if (auto it = memo.find(a); it != memo.end()) return it->second;
         auto b = fresh(a, "script");
         const Addr x = need(ptr(a, 4), "lambda");
@@ -752,6 +805,185 @@ size_t w_tr3(FW &w, const Tr3 &t) {
     return o;
 }
 
+// ---- Uncharted 2 FEATURE_DB_2: two element arrays and two trees (U3: three and three)
+//   PS3 0x1c {ptr A, nA, ptr B, nB, u32 u, ptr T0, ptr T1}
+//   PS4 0x40 {ptr A, nA, pad, ptr B, nB, pad, u32 u, 0, ptr T0, ptr T1, pad pad}
+//   A elements 0x40 bytes (words 14, 15 are u16 pairs, as U3), B elements 0x34 (U3 0x38; word 12 a u16 pair); the tree
+//   nodes as U3.
+const std::pair<size_t, std::set<size_t>> ELEM_U2[2] = {{0x40, {14, 15}}, {0x34, {12}}};
+Tr3 read_fdb_u2(const Conv &r, const Addr &a) {
+    Tr3 t;
+    t.u = r.u32(a, 0x10);
+    for (int k = 0; k < 2; k++) {
+        const uint32_t cnt = r.u32(a, 8ull * k + 4);
+        Bytes data;
+        if (cnt) data = r.raw(r.need(r.ptr(a, 8ull * k), "feature array"), 0, ELEM_U2[k].first * cnt);
+        t.arrs.push_back({cnt, data});
+    }
+    for (uint64_t o : {0x14ull, 0x18ull}) {
+        const OAddr x = r.ptr(a, o);
+        t.trees.push_back(x ? std::optional<Node>(read_node(r, *x)) : std::nullopt);
+    }
+    return t;
+}
+size_t w_fdb_u2(FW &w, const Tr3 &t) {
+    w.pad();
+    const size_t o = w.reserve(0x40);
+    for (int k = 0; k < 2; k++) w.put32(o + 0x10 * k + 0xc, PADW);
+    w.put32(o + 0x20, t.u);
+    w.put32(o + 0x38, PADW);
+    w.put32(o + 0x3c, PADW);
+    for (int k = 0; k < 2; k++) {
+        const auto &[cnt, data] = t.arrs[size_t(k)];
+        w.put32(o + 0x10 * k + 8, cnt);
+        if (!cnt) continue;
+        const size_t a = w.pos();
+        const auto &[sz, pairs] = ELEM_U2[k];
+        for (size_t i = 0; i < cnt; i++) {
+            const size_t b0 = std::min(sz * i, data.size()), e0 = std::min(sz * (i + 1), data.size());
+            w.b->raw(swap_words(Bytes(data.begin() + std::ptrdiff_t(b0), data.begin() + std::ptrdiff_t(e0)), pairs));
+        }
+        w.pad();
+        w.ptr_at(o + 0x10 * k, a);
+    }
+    for (size_t k = 0; k < t.trees.size(); k++)
+        if (t.trees[k]) w.ptr_at(o + 0x28 + 8 * k, w_node(w, *t.trees[k]));
+    return o;
+}
+
+// ---- Uncharted 2 NAV_MESH_1: no 'NavM' header (U3 has one). Offsets are item relative.
+//   PS3 header 0x80 (u32 words)                PS4 header 0xa0
+//     w0-3 origin                                +00 w0-3
+//     w4 verts*  w5 nVerts  w6                   +10 verts*  +18 w5  +1c w6
+//     w7 name*                                   +20 name*
+//     w13 polys*                                 +28 polys*
+//     w8-11 extent                               +30 w8-11
+//     w12 {u16 nPolys, u8 nPortals, u8}          +40 the same (the u16 swapped, the bytes as they are)
+//     w15 info*  w16 portals* (or 0)             +50 info*  +58 portals*
+//     w18 sid                                    +94 w18
+//     w24-27 rotation                            +70 w24-27
+//   every other header word is 0. Poly 0x50 -> 0x60: {u16 a, u16 b, f32, 0, 0, 4 x {f32 x, y, z, u8[4]}} ->
+//   {u16 a, u16 b, f32, v0 bytes, v1 bytes, 16 zero bytes, 4 x {f32 x, y, z, 0}} (v2 / v3 bytes must be 0; v0 byte 2
+//   holds flag bits whose order PS4 reverses, as U3). Portal 0x10 -> 0x18: {u32 sid, 0, 0, u8[4]} -> {u32 sid, 0, u64 0,
+//   u8[4], 0}. Info 0x50 -> 0x54: 12 floats, 6 u16, u32 nBytes, bytes*, 3 zero words; the bytes are copied. Vertices:
+//   4 floats each. PS4 order: header, vertices, name, polys, info, bytes, portals.
+BlobP nav_blob_u2(const Pak &p, const PakItem &it) {
+    const uint32_t pg = it.page;
+    const uint64_t o = it.data_off(), end = o + it.size;
+    if (it.size < 0x80) throw NavMeshUnsupported(fmt("NAV_MESH_1 of %s bytes", pyhex(it.size).c_str()));
+    uint32_t W[32];
+    for (int k = 0; k < 32; k++) W[k] = p.pu32(pg, o + 4ull * k);
+    if (W[0] == 0x4e61764d) throw NavMeshUnsupported("NAV_MESH_1 with a NavM header (U3 layout) in a U2 pak");
+    static const std::set<int> PTRS = {4, 7, 13, 15, 16}, WORDS = {0, 1, 2, 3, 5, 6, 8, 9, 10, 11, 12, 18, 24, 25, 26, 27};
+    std::map<int, uint64_t> T;
+    for (int k = 0; k < 32; k++) {
+        const auto r = p.resolve(pg, uint32_t(o + 4ull * k));
+        if (r) {
+            if (!PTRS.count(k) || r->first != pg) throw NavMeshUnsupported(fmt("nav header word %d is a pointer", k));
+            T[k] = r->second;
+        } else if (W[k] && !WORDS.count(k))
+            throw NavMeshUnsupported(fmt("nav header word %d = %s", k, pyhex(W[k]).c_str()));
+    }
+    for (int k : PTRS)
+        if (!T.count(k) && W[k]) throw NavMeshUnsupported(fmt("nav header word %d = %s (not a pointer)", k, pyhex(W[k]).c_str()));
+    const uint64_t base = p.pbase(pg);
+    auto B = [&](uint64_t a, uint64_t n) {
+        if (a < o || a + n > end) throw NavMeshUnsupported("nav data outside the item");
+        return Bytes(p.d.begin() + std::ptrdiff_t(base + a), p.d.begin() + std::ptrdiff_t(base + a + n));
+    };
+    const uint32_t npolys = W[12] >> 16, nportals = (W[12] >> 8) & 0xff;
+    std::optional<Bytes> verts, polys, portals, info, bytes;
+    std::optional<std::string> name;
+    if (T.count(4)) verts = B(T[4], 16ull * W[5]);
+    if (T.count(7)) name = p.pstr(pg, T[7]);
+    if (T.count(13)) polys = B(T[13], 0x50ull * npolys);
+    if (T.count(16) != (nportals != 0)) throw NavMeshUnsupported(fmt("nav portal count %u / pointer mismatch", nportals));
+    if (T.count(16)) portals = B(T[16], 0x10ull * nportals);
+    if (T.count(15)) {
+        info = B(T[15], 0x50);
+        const auto r = p.resolve(pg, uint32_t(T[15] + 0x40));
+        const uint32_t nb = be32(*info, 0x3c);
+        for (size_t i = 0x44; i < 0x50; i++)
+            if ((*info)[i]) throw NavMeshUnsupported("nav info tail words non-zero");
+        for (uint64_t k = 0; k < 0x40; k += 4)
+            if (p.resolve(pg, uint32_t(T[15] + k))) throw NavMeshUnsupported(fmt("nav info word %d is a pointer", int(k / 4)));
+        if (r) {
+            if (r->first != pg) throw NavMeshUnsupported("nav bytes on another page");
+            bytes = B(r->second, nb);
+        } else if (be32(*info, 0x40) != 0)
+            throw NavMeshUnsupported("nav info word 16 not a pointer");
+    }
+    auto b = std::make_shared<Blob>("navmesh");
+    Bytes H(0xa0, 0);
+    auto put = [&](size_t off, int k, int n = 1) {
+        for (int i = 0; i < n; i++) wr32le(&H[off + 4 * size_t(i)], W[k + i]);
+    };
+    put(0x00, 0, 4);
+    put(0x18, 5, 2);
+    put(0x30, 8, 4);
+    H[0x40] = uint8_t(W[12] >> 16);   // the u16 count, little endian
+    H[0x41] = uint8_t(W[12] >> 24);
+    H[0x42] = uint8_t(W[12] >> 8);    // the two bytes as they are
+    H[0x43] = uint8_t(W[12]);
+    put(0x70, 24, 4);
+    put(0x94, 18);
+    b->raw(H);
+    std::vector<std::pair<size_t, size_t>> rel;
+    if (verts) {
+        rel.push_back({0x10, b->size()});
+        b->raw(sw(*verts, 4));
+    }
+    if (name) {
+        rel.push_back({0x20, b->size()});
+        b->cstr(utf8_of(*name));
+        b->pad(16, 0xaa);
+    }
+    auto part = [](const Bytes &q, size_t a, size_t n) { return Bytes(q.begin() + std::ptrdiff_t(a), q.begin() + std::ptrdiff_t(a + n)); };
+    if (polys) {
+        rel.push_back({0x28, b->size()});
+        for (uint32_t i = 0; i < polys->size() / 0x50; i++) {
+            const Bytes q = part(*polys, 0x50ull * i, 0x50);
+            auto zero = [&](size_t a, size_t n) {
+                for (size_t j = a; j < a + n; j++)
+                    if (q[j]) return false;
+                return true;
+            };
+            if (!zero(8, 8) || !zero(0x3c, 4) || !zero(0x4c, 4)) throw NavMeshUnsupported(fmt("nav poly %u: unknown non-zero words", i));
+            Bytes w0 = part(q, 0x1c, 4);
+            uint8_t f = 0;   // the flag bits in reverse order
+            for (int bit = 0; bit < 8; bit++)
+                if (w0[2] & (1 << bit)) f |= uint8_t(0x80 >> bit);
+            w0[2] = f;
+            b->raw(sw(part(q, 0, 4), 2)).raw(sw(part(q, 4, 4), 4)).raw(w0).raw(part(q, 0x2c, 4)).raw(Bytes(16, 0));
+            for (size_t k = 0; k < 4; k++) b->raw(sw(part(q, 0x10 + 0x10 * k, 12), 4)).raw(Bytes(4, 0));
+        }
+    }
+    if (info) {
+        rel.push_back({0x50, b->size()});
+        const size_t io = b->size();
+        b->raw(sw(part(*info, 0, 0x30), 4)).raw(sw(part(*info, 0x30, 0xc), 2)).raw(sw(part(*info, 0x3c, 4), 4));
+        b->u64(0);
+        b->raw(sw(part(*info, 0x44, 0xc), 4));
+        b->pad(16, 0xaa);
+        if (bytes) {
+            b->relocs.push_back({io + 0x40, b, int64_t(b->size())});
+            b->raw(*bytes);
+        }
+    }
+    if (portals) {
+        b->pad(16, 0xaa);
+        rel.push_back({0x58, b->size()});
+        for (uint32_t i = 0; i < portals->size() / 0x10; i++) {
+            const Bytes q = part(*portals, 0x10ull * i, 0x10);
+            for (size_t j = 4; j < 12; j++)
+                if (q[j]) throw NavMeshUnsupported(fmt("nav portal %u: unknown non-zero words", i));
+            b->raw(sw(part(q, 0, 4), 4)).raw(Bytes(12, 0)).raw(part(q, 12, 4)).raw(Bytes(4, 0));
+        }
+    }
+    for (const auto &[pos, t] : rel) b->relocs.push_back({pos, b, int64_t(t)});
+    return b;
+}
+
 }  // namespace
 
 std::set<std::string> anim_actor_names(const fs::path &retail_actor33, const fs::path &conv_json) {
@@ -774,7 +1006,7 @@ Bytes ps4ingame_convert(const fs::path &src, const std::set<std::string> &anim_a
     return ps4ingame_convert(Pak(src), anim_arts, extra);
 }
 
-Bytes ps4ingame_convert(const Pak &p, const std::set<std::string> &anim_arts, const std::vector<ExtraSpawner> &extra) {
+Bytes ps4ingame_convert(const Pak &p, const std::set<std::string> &anim_arts, const std::vector<ExtraSpawner> &extra, bool drop_nav) {
     if (!p.ps3) throw Stop("AssertionError: not a PS3 pak");
     Conv c(p, anim_arts, extra);
     PakWriter w;
@@ -793,7 +1025,7 @@ Bytes ps4ingame_convert(const Pak &p, const std::set<std::string> &anim_arts, co
     std::map<std::string, Made> items;
     std::vector<std::tuple<std::string, PakItem, BlobP>> other;
     for (const std::string &t : conv_order)
-        for (const PakItem &it : p.items_of(t)) {
+        for (const PakItem &it : drop_nav && t == "NAV_MESH_1" ? std::vector<PakItem>{} : p.items_of(t)) {
             auto root = std::make_shared<Blob>(t);
             c.blocks.clear();
             const Addr a{it.page, it.data_off()};
@@ -814,11 +1046,12 @@ Bytes ps4ingame_convert(const Pak &p, const std::set<std::string> &anim_arts, co
             } else if (t == "SPAWNER_GROUP") c.spawner_group(it, root);
             else if (t == "REGION_TREE") c.region_tree(it, root);
             else if (t == "NAV_MESH_1") {
-                other.push_back({t, it, nav_blob(p, it)});
+                other.push_back({t, it, g_u2 ? nav_blob_u2(p, it) : nav_blob(p, it)});
                 continue;
             } else if (t == "FEATURE_DB_2") {
                 FW fw;
-                w_tr3(fw, read_tr3(c, a));
+                if (g_u2) w_fdb_u2(fw, read_fdb_u2(c, a));
+                else w_tr3(fw, read_tr3(c, a));
                 fw.pad(8, 0);
                 other.push_back({t, it, fw.b});
                 continue;
@@ -841,7 +1074,18 @@ Bytes ps4ingame_convert(const Pak &p, const std::set<std::string> &anim_arts, co
         m.root->pad(4, 0xaa);
         made.push_back(page.item(t, m.root, utf8_of(m.it.name)));
     }
-    // (other item types are left out, as convert_one.py's IGNORE_OTHERS)
+    // other item types are left out (U3, as its recipe converter did); the Uncharted 2 import stops on them instead
+    if (g_u2) {
+        std::vector<std::string> others;
+        for (const PakItem &it : p.items)
+            if (std::find(order.begin(), order.end(), it.type) == order.end() && it.type != "PAK_LOGIN_TABLE" && it.type != "VRAM_DESC_TABLE")
+                others.push_back("'" + it.type + "'");
+        if (!others.empty()) {
+            std::string s;
+            for (size_t i = 0; i < others.size(); i++) s += (i ? ", " : "") + others[i];
+            throw Stop("AssertionError: [" + s + "]");
+        }
+    }
     Page &p1 = w.page();
     std::vector<std::shared_ptr<PakWItem>> login = made;
     std::stable_sort(login.begin(), login.end(), [](const auto &a, const auto &b) { return a->type < b->type; });

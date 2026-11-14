@@ -12,7 +12,6 @@
 namespace u3::mats {
 namespace {
 
-const std::string PS4_COOK_PREFIX = "d:/dev/CP9/Data/U3/CookData/ND/build/texture2/";
 const std::string PS3_COOK_MARK = "texture1/";
 
 std::string u8(const std::string &latin1) { return bg::utf8_of(latin1); }
@@ -27,14 +26,8 @@ std::string short_of(const std::string &full3) {
 std::shared_ptr<PtrTarget> unowned(PtrTarget &t) { return std::shared_ptr<PtrTarget>(std::shared_ptr<PtrTarget>(), &t); }
 
 // PS3 MATERIAL_TABLE_1 (version 0x79): materials with their texture slots (texture-table index or none) and the textures
-struct Mat3 {
-    std::string name;
-    std::vector<std::optional<uint32_t>> textures;
-};
-struct Tex3 {
-    uint32_t hash;
-    std::string name;
-};
+using Mat3 = NetMat;
+using Tex3 = NetTex;
 void read_materials(const Pak &p, std::vector<Mat3> &out, std::vector<Tex3> &texs) {
     if (!p.ps3) throw Stop("AssertionError: expected a PS3 pak");
     const auto mts = p.items_of("MATERIAL_TABLE_1");
@@ -70,13 +63,14 @@ void read_materials(const Pak &p, std::vector<Mat3> &out, std::vector<Tex3> &tex
 }  // namespace
 
 // ------------------------------------------------------------------------------------------------ net.pak
-Bytes convert_net(const fs::path &ps3_path, const fs::path &ref_path) {
+Bytes convert_net(const fs::path &ps3_path, const fs::path &ref_path, const NetOptions &o) {
     const Pak src(ps3_path), ref(ref_path);
     if (!src.ps3 || ref.ps3) throw Stop("AssertionError: expected a PS3 pak and a PS4 reference");
     std::vector<Mat3> mats;
     std::vector<Tex3> mtex;
-    read_materials(src, mats, mtex);
-    const std::vector<PakTexture> texs = src.textures();
+    if (o.mats && o.mtex) mats = *o.mats, mtex = *o.mtex;
+    else read_materials(src, mats, mtex);
+    const std::vector<PakTexture> texs = o.textures ? *o.textures : src.textures();
     std::set<uint32_t> hashes;
     for (const PakTexture &t : texs) hashes.insert(t.hash);
     for (const Tex3 &t : mtex)
@@ -114,11 +108,11 @@ Bytes convert_net(const fs::path &ps3_path, const fs::path &ref_path) {
         uint32_t fmt4;
         if (f3->kind == "DXT1") {
             const bool alphaish = has(shrt, "-trans") || has(shrt, "_trans") || has(shrt, "-alpha") || has(shrt, "_alpha") || has(shrt, "-mask");
-            fmt4 = trans || (unused && alphaish) ? 0x47 : 0x48;
+            fmt4 = trans || (unused && alphaish) || !o.srgb_color ? 0x47 : 0x48;
         } else if (f3->kind == "DXT5")
-            fmt4 = trans ? 0x4d : 0x4e;
+            fmt4 = trans || !o.srgb_color ? 0x4d : 0x4e;
         else if (f3->kind == "DXT3")
-            fmt4 = 0x4b;
+            fmt4 = o.srgb_color ? 0x4b : 0x4a;
         else
             throw Stop("NotImplementedError: " + f3->kind);
         while (vram.size() % 0x100) vram.push_back(0);
@@ -127,7 +121,7 @@ Bytes convert_net(const fs::path &ps3_path, const fs::path &ref_path) {
         auto nameb = std::make_shared<Blob>("texname");
         nameb->cstr(u8(shrt));
         auto name_item = p0.item("RAW_DATA", nameb);
-        const std::string full4 = PS4_COOK_PREFIX + shrt;
+        const std::string full4 = cook_prefix() + shrt;
         auto db = std::make_shared<Blob>("vramdesc");
         db->u64(0).u64(voff).u32(tiled.size()).u32(t.hash);
         db->u32(1).u32(fmt4);
@@ -155,7 +149,7 @@ Bytes convert_net(const fs::path &ps3_path, const fs::path &ref_path) {
     // ---------------- the effects, verbatim from the PS4 reference
     auto [span, span_items] = actor::extract_effect_span(ref);
     p0.span(span);
-    // the shader, effect hash and features of the reference's 'menu-logo' material
+    // the shader, effect hash and features of the reference's effect material (U3: 'menu-logo')
     std::string shader, effect_hash;
     std::vector<std::string> eparams;
     {
@@ -168,7 +162,7 @@ Bytes convert_net(const fs::path &ps3_path, const fs::path &ref_path) {
         bool found = false;
         for (uint32_t i = 0; i < n && !found; i++) {
             const uint64_t m = mo + 0x48ull * i;
-            if (before(ref.pstr(pg, bg::need(ref, pg, m).second), ',') != "general/menu/menu-logo:naughtydog") continue;
+            if (before(ref.pstr(pg, bg::need(ref, pg, m).second), ',') != o.effect_material) continue;
             shader = ref.pstr(pg, bg::need(ref, pg, m + 8).second);
             effect_hash = ref.pstr(pg, bg::need(ref, pg, m + 0x18).second);
             const uint32_t np = ref.pu32(pg, m + 0x30);
@@ -176,7 +170,7 @@ Bytes convert_net(const fs::path &ps3_path, const fs::path &ref_path) {
                 for (uint32_t k = 0; k < np; k++) eparams.push_back(ref.pstr(pg, bg::need(ref, pg, pl->second + 8ull * k).second));
             found = true;
         }
-        if (!found) throw Stop("KeyError: 'general/menu/menu-logo:naughtydog'");
+        if (!found) throw Stop("KeyError: '" + o.effect_material + "'");
     }
     // ---------------- geometry (materials only)
     auto strs = std::make_shared<Blob>("geostrings");
@@ -209,7 +203,8 @@ Bytes convert_net(const fs::path &ps3_path, const fs::path &ref_path) {
             bindb->i32(-1).u32(0).u64(0);
         }
         matb->ptr(strs, S(m.name)).ptr(strs, S(shader)).ptr(eparams.empty() ? nullptr : paramsb, 0);
-        matb->ptr(strs, S(effect_hash)).u64(0).ptr(bindb, int64_t(boff));
+        const auto me = o.material_effect.find(m.name);
+        matb->ptr(strs, S(me != o.material_effect.end() ? me->second : effect_hash)).u64(0).ptr(bindb, int64_t(boff));
         matb->u64(eparams.size()).u64(2).u64(0);
         nmat_out++;
     }
@@ -225,6 +220,7 @@ Bytes convert_net(const fs::path &ps3_path, const fs::path &ref_path) {
     gb->u64(0).ptr(nullptr);   // instances
     gb->u64(tex_entries.size()).ptr(texb);
     gb->u64(nmat_out).ptr(matb);
+    if (o.materials_written) *o.materials_written = nmat_out;
     gb->u64(0).u64(0);
     auto geo = p0.item("GEOMETRY_1", gb);
     // ---------------- page 1 + login (retail menu.pak order: the EFFECT_TABLE before GEOMETRY_1)
@@ -426,7 +422,7 @@ Bytes wpnmods(const fs::path &ps4, const fs::path &ps3, const std::string &src_s
         const uint64_t voff = vram.size();
         vram.insert(vram.end(), n.tiled.begin(), n.tiled.end());
         auto db = std::make_shared<Blob>("vramdesc");
-        const std::string full4 = PS4_COOK_PREFIX + n.shrt;
+        const std::string full4 = cook_prefix() + n.shrt;
         db->u64(0).u64(voff).u32(n.tiled.size()).u32(n.hash);
         db->u32(1).u32(n.fmt).u32(n.fmt == 0x48 || n.fmt == 0x4b || n.fmt == 0x4e ? 0x010f0000 : 0x01000000);
         db->u32(n.mips).u32(n.w).u32(n.h).u32(0).u32(uint32_t(stream_flags));

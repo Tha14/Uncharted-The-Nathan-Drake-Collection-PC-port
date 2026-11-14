@@ -662,7 +662,9 @@ std::vector<std::pair<Ref, std::optional<std::string>>> water_objects(const Pak 
     if (its.empty()) return {};
     const PakItem &it = its[0];
     const uint32_t ver = p.pu32(it.page, it.data_off()), n = p.pu32(it.page, it.data_off() + 4);
-    if (ver != 5) throw Stop(fmt("AssertionError: WATER_DATA version %u", ver));
+    // Uncharted 3: version 5, 0xf0-byte objects; Uncharted 2: version 3, 0x70-byte objects (material hash at +4 in both)
+    if (ver != (g_u2 ? 3u : 5u)) throw Stop(fmt(g_u2 ? "ValueError: U2 WATER_DATA version %u (expected 3)" : "AssertionError: WATER_DATA version %u", ver));
+    const uint64_t stride = g_u2 ? 0x70 : 0xf0;
     const ORef arr = res(p, it.page, it.data_off() + 8);
     std::map<uint32_t, std::string> mh;   // PS3 material entry hash (+0x14) -> material name
     if (const auto mts = p.items_of("MATERIAL_TABLE_1"); !mts.empty()) {
@@ -678,7 +680,7 @@ std::vector<std::pair<Ref, std::optional<std::string>>> water_objects(const Pak 
     }
     std::vector<std::pair<Ref, std::optional<std::string>>> out;
     for (uint32_t k = 0; k < n; k++) {
-        const Ref o{need(arr).first, need(arr).second + 0xf0ull * k};
+        const Ref o{need(arr).first, need(arr).second + stride * k};
         auto f = mh.find(p.pu32(o.first, o.second + 4));
         out.push_back({o, f == mh.end() ? std::nullopt : std::optional<std::string>(f->second)});
     }

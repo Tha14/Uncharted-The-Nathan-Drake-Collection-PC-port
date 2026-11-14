@@ -10,6 +10,9 @@
 #include "ndpak.hpp"
 #include "ps4writer.hpp"
 
+#include <functional>
+#include <optional>
+
 namespace u3::skel {
 
 struct JH {
@@ -20,7 +23,12 @@ struct JH {
     bool has_s = false;
     Bytes s_cnt;
     std::vector<std::pair<Bytes, Bytes>> s_groups;   // (floats, bytes) per group
+    // Uncharted 2 props with a ragdoll or a skeleton mapper: the PS3 Havok packfile behind the D block (read through
+    // d_packfile), and the converted PS4 wrapper + packfile written right after the D block (+0x90 points at it)
+    std::optional<Bytes> pf, pf4;
 };
+// Uncharted 2 (u3::g_u2): a D block other than {3, 0...} is read by this hook (none: the conversion stops as before)
+inline std::function<std::optional<Bytes>(const Pak &, const PakItem &)> d_packfile;
 JH read_jh(const Pak &p, const PakItem &it);
 std::shared_ptr<Blob> build_jh(const JH &m);
 

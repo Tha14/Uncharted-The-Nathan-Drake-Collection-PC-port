@@ -81,7 +81,8 @@ void log(const std::string &line) {
     std::fputc('\n', stdout);
     std::fflush(stdout);
 }
-void event(const Value &kw) { log("@U3MP " + dumps(kw)); }
+const char *g_event_prefix = "@U3MP ";
+void event(const Value &kw) { log(g_event_prefix + dumps(kw)); }
 Value obj(std::initializer_list<std::pair<std::string, Value>> kv) {
     Value v = Value::object();
     for (const auto &[k, x] : kv) v.set(k, x);
@@ -502,8 +503,3 @@ std::string find_program(const std::vector<fs::path> &dirs, const std::string &n
 }
 
 }  // namespace u3imp
-
-// dctools' psarc.cpp names its paths with u3::upath (defined in u3fix.cpp, which u3import does not link)
-namespace u3 {
-fs::path upath(const std::string &s) { return u3imp::P(s); }
-}  // namespace u3

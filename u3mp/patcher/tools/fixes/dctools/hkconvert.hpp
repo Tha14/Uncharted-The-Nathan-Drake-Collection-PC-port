@@ -15,6 +15,9 @@ namespace u3::hk {
 
 // the tables (the json files of a folder), loaded once
 void load_tables(const fs::path &ps3_json, const fs::path &ps4_json);
+// Uncharted 2 (u3::g_u2): the Havok 6.1 PS3 / 2011.3 PS4 tables {"db3": ..., "db4": ..., "sig4": {class: signature}} made from the
+// player's executables (u2mp importer havok.cpp); replaces tables loaded before
+void load_tables_u2(const std::string &json_text);
 Bytes convert_packfile(const Bytes &b3);
 
 }  // namespace u3::hk

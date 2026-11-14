@@ -44,10 +44,8 @@ Member mk(const char *name, const char *t, const char *sub = "VOID", int64_t off
     return m;
 }
 
-DB load_db(const fs::path &p) {
+DB load_db_value(const json::Value &v) {
     DB db;
-    if (!fs::exists(p)) return db;
-    const json::Value v = read_json(p);
     for (const auto &[c, d] : v.fields) {
         ClassInfo ci;
         if (const json::Value *x = d.get("parent"); x && x->kind == json::Value::String) ci.parent = x->s;
@@ -70,14 +68,34 @@ DB load_db(const fs::path &p) {
     }
     return db;
 }
+DB load_db(const fs::path &p) {
+    if (!fs::exists(p)) return DB();
+    return load_db_value(read_json(p));
+}
+// Uncharted 2: PS4 class signatures read from the retail packfiles (they extend and override SIG4)
+std::map<std::string, uint32_t> g_sig4_extra;
+void install(std::shared_ptr<DB> db3, std::shared_ptr<DB> db4);
 
 }  // namespace
 
 void load_tables(const fs::path &ps3_json, const fs::path &ps4_json) {
     std::lock_guard<std::mutex> lock(g_lock);
     if (g_db3) return;
-    auto db3 = std::make_shared<DB>(load_db(ps3_json));
-    auto db4 = std::make_shared<DB>(load_db(ps4_json));
+    install(std::make_shared<DB>(load_db(ps3_json)), std::make_shared<DB>(load_db(ps4_json)));
+}
+
+void load_tables_u2(const std::string &json_text) {
+    json::Value v;
+    if (!json::parse(json_text, v)) throw Stop("hkconvert: the Uncharted 2 Havok tables are not JSON");
+    std::lock_guard<std::mutex> lock(g_lock);
+    g_sig4_extra.clear();
+    if (const json::Value *s = v.get("sig4"))
+        for (const auto &[k, x] : s->fields) g_sig4_extra[k] = uint32_t(x.i);
+    install(std::make_shared<DB>(load_db_value(*v.get("db3"))), std::make_shared<DB>(load_db_value(*v.get("db4"))));
+}
+
+namespace {
+void install(std::shared_ptr<DB> db3, std::shared_ptr<DB> db4) {
     DB &D3 = *db3, &D4 = *db4;
     // PS4 classes whose member arrays are run-time initialised (.bss), layouts checked against retail
     const std::map<std::string, std::vector<Member>> OVERRIDE4 = {
@@ -136,6 +154,7 @@ void load_tables(const fs::path &ps3_json, const fs::path &ps4_json) {
     g_db3 = db3;
     g_db4 = db4;
 }
+}  // namespace
 
 namespace {
 
@@ -186,6 +205,7 @@ std::vector<Member> all_members(const DB &db, const std::string &cls) {
     return ms;
 }
 int64_t msize(const DB &db, const Member &m, int ps) {
+    if (g_u2 && m.type == "VARIANT") return 2 * int64_t(ps) * std::max<int64_t>(1, m.carr);
     const std::string &t = m.type;
     int64_t s;
     if (scalar_size(t)) s = scalar_size(t);
@@ -318,6 +338,11 @@ struct Packfile {
 Val read_struct(const Packfile &pf, const DB &db, const std::string &cls, uint64_t o);
 
 Val read_value(const Packfile &pf, const DB &db, const Member &m, uint64_t o) {
+    if (g_u2 && m.type == "VARIANT") {   // Havok 6.1 hkVariant {ptr object, ptr class} (hkRootLevelContainer): read as a pointer
+        Member m2 = m;
+        m2.type = "POINTER";
+        return read_value(pf, db, m2, o);
+    }
     if (m.carr) {
         Member m1 = m;
         m1.carr = 0;
@@ -522,6 +547,10 @@ void write_value(Writer &w, size_t base, const Member &m, const Val &v, std::deq
 void write_struct(Writer &w, size_t o, const std::string &cls, const Val &v, std::deque<Deferred> &deferred) {
     const DB &DB4 = *g_db4;
     if (v.k != Val::Map) throw Stop("TypeError: a struct value that is not a dict");
+    if (g_u2)   // members the 6.1 object lacks: arrays written empty with DONT_DEALLOCATE, as retail has them
+        for (const std::string &c : chain(DB4, cls))
+            for (const Member &m : cls_of(DB4, c).members)
+                if (m.type == "ARRAY" && !dget(*v.d, m.name) && !m.carr && !(m.flags & 0x400)) w.put(o + size_t(m.off) + 12, 0x80000000u, 4);
     for (const std::string &c : chain(DB4, cls))
         for (const Member &m : cls_of(DB4, c).members) {
             if (const Val *x = dget(*v.d, m.name)) write_value(w, o, m, *x, deferred);
@@ -547,7 +576,7 @@ void flush_deferred(Writer &w, std::deque<Deferred> &deferred) {
         Deferred d = deferred.front();
         deferred.pop_front();
         if (d.is_str) {
-            w.align(16);
+            if (!g_u2) w.align(16);   // Uncharted 2: a string follows the previous data unaligned (padded after)
             w.loc.push_back({uint32_t(d.o), uint32_t(w.D.size())});
             w.D.insert(w.D.end(), d.s.begin(), d.s.end());
             w.D.push_back(0);
@@ -565,7 +594,7 @@ void flush_deferred(Writer &w, std::deque<Deferred> &deferred) {
             w.glob = d.mark;
             for (size_t i = 0; i < d.v.l.size(); i++) write_value(w, a + size_t(s) * i, em, d.v.l[i], sub);
             w.glob = saved;
-            w.align(16);
+            if (!g_u2) w.align(16);   // Uncharted 2: array data is not padded after
             deferred.insert(deferred.begin(), sub.begin(), sub.end());
         }
     }
@@ -689,6 +718,174 @@ std::vector<Obj> transform_objects(std::vector<Obj> objs) {
     return out;
 }
 
+// ------------------------------------------------------------------------------------------------ Uncharted 2: Havok 6.1
+// The Havok 6.1 (U2 PS3) -> 2010/2011 object model changes, run before the 2010 -> 2011 ones:
+//   motions: 6.1 had STABILIZED_SPHERE (3) / STABILIZED_BOX (5) types, gone in 2011; damping values become hkHalf (the
+//            upper 16 bits of the float), time and gravity factors 1.0
+//   rigid bodies: callback delay and shape-key field renamed; the broad-phase quality type as retail has it
+//   extended mesh shapes: subparts get typeAndFlags, the index striding enum +1 (2011 inserted INDICES_INT8), a
+//            transform holding the shape scaling; cachedNumChildShapes unset
+//   ragdoll / limited hinge constraints: the 2011 setupStabilization atom (disabled); ball-socket atoms the 2011 solver
+//            settings; mesh subpart storage materials {filterInfo, restitution 0, friction 1.0, userData}
+//   hkaBone: a 6.1 object -> an inline struct of hkaSkeleton.bones; hkaSkeletonMapperData: a 6.1 object -> the 2011
+//            hkaSkeletonMapper {mapping}
+uint32_t half_of(double f) {   // hkHalf: the upper 16 bits of the float
+    const float x = float(f);
+    uint32_t b;
+    std::memcpy(&b, &x, 4);
+    return b >> 16;
+}
+const uint32_t HALF_ONE = 0x3f80;
+Val *dmap(Val *v) { return v && v->k == Val::Map ? v : nullptr; }
+__int128 dint(Dict &d, const char *k, __int128 dflt) {
+    const Val *x = dget(d, k);
+    return x && x->k == Val::Int ? x->i : dflt;
+}
+void motion_61(Val *mv) {
+    if (!dmap(mv)) return;
+    Dict &m = *mv->d;
+    static const std::map<int, int> MOTION_TYPE = {{0, 0}, {1, 1}, {2, 2}, {3, 2}, {4, 3}, {5, 3}, {6, 4}, {7, 5}, {8, 6}, {9, 7}};
+    if (Val *t = dget(m, "type"); t && t->k == Val::Int && t->i >= 0 && t->i < 10) t->i = MOTION_TYPE.at(int(t->i));
+    if (Val *ms = dmap(dget(m, "motionState"))) {
+        for (const char *k : {"linearDamping", "angularDamping"})
+            if (Val *x = dget(*ms->d, k); x && x->k == Val::Real) *x = Val::integer(half_of(x->r));
+        dset(*ms->d, "timeFactor", Val::integer(HALF_ONE));
+    }
+    dset(m, "gravityFactor", Val::integer(HALF_ONE));
+}
+void subpart_61(Val *sv) {
+    Dict &s = *sv->d;
+    const __int128 tf = (dint(s, "type", 0) & 1) | ((dint(s, "materialIndexStridingType", 0) & 3) << 1) | (dint(s, "numMaterials", 0) << 3);
+    dset(s, "typeAndFlags", Val::integer(tf));
+    if (Val *st = dget(s, "stridingType"); st && st->k == Val::Int && st->i) st->i += 1;
+    Val t;
+    t.k = Val::List;
+    for (int k = 0; k < 12; k++) t.l.push_back(Val::real(k < 7 ? 0.0 : 1.0));
+    dset(s, "transform", t);
+}
+std::vector<Obj> transform_61(std::vector<Obj> objs) {
+    static const std::set<std::string> MOTIONS = {"hkpMotion",       "hkpKeyframedRigidMotion", "hkpMaxSizeMotion",    "hkpBoxMotion",
+                                                  "hkpSphereMotion", "hkpThinBoxMotion",        "hkpFixedRigidMotion", "hkpCharacterMotion"};
+    static const std::map<int, int> QUALITY = {{0, 0}, {1, 1}, {2, 1}, {3, 4}, {4, 4}};
+    const uint32_t stab_bits = 0x5f7ffff0;   // the retail 2011 default maxAngle
+    float stab;
+    std::memcpy(&stab, &stab_bits, 4);
+    std::map<ObjId, const Obj *> byid;
+    for (const Obj &o : objs) byid[o.id] = &o;
+    std::set<ObjId> drop;
+    std::vector<Obj> out;
+    for (Obj &o : objs) {
+        Dict &v = *o.v.d;
+        if (MOTIONS.count(o.cls)) motion_61(&o.v);
+        if (o.cls == "hkpRigidBody") {
+            motion_61(dget(v, "motion"));
+            auto pop = [&](const char *k, Val dflt) {
+                for (size_t i = 0; i < v.size(); i++)
+                    if (v[i].first == k) {
+                        Val x = v[i].second;
+                        v.erase(v.begin() + std::ptrdiff_t(i));
+                        return x;
+                    }
+                return dflt;
+            };
+            dset(v, "contactPointCallbackDelay", pop("processContactCallbackDelay", Val::integer(0xffff)));
+            dset(v, "numShapeKeysInContactPointProperties", pop("numUserDatasInContactPointProperties", Val::integer(0)));
+            if (Val *col = dmap(dget(v, "collidable")))
+                if (Val *bp = dmap(dget(*col->d, "broadPhaseHandle")))
+                    if (Val *q = dget(*bp->d, "objectQualityType"); q && q->k == Val::Int) {
+                        const __int128 x = q->i;
+                        if (x >= 0 && x <= 4) q->i = QUALITY.at(int(x));
+                        else q->i = (0 < x && x < 0x8000) ? x + 1 : x;
+                    }
+        }
+        if (o.cls == "hkpStorageExtendedMeshShape") {
+            Val sc;
+            if (Val *s = dget(v, "scaling"); s && s->k == Val::List && !s->l.empty()) sc = *s;
+            else {
+                sc.k = Val::List;
+                for (int k = 0; k < 4; k++) sc.l.push_back(Val::real(1.0));
+            }
+            std::vector<Val *> subs = {dget(v, "embeddedTrianglesSubpart")};
+            if (Val *ts = dget(v, "trianglesSubparts"); ts && ts->k == Val::List)
+                for (Val &x : ts->l) subs.push_back(&x);
+            for (Val *s : subs)
+                if (dmap(s)) {
+                    subpart_61(s);
+                    Val *t = dget(*s->d, "transform");
+                    // transform[8:12] = scaling (a list slice assignment: the length follows the scaling)
+                    std::vector<Val> nl(t->l.begin(), t->l.begin() + 8);
+                    nl.insert(nl.end(), sc.l.begin(), sc.l.end());
+                    if (t->l.size() > 12) nl.insert(nl.end(), t->l.begin() + 12, t->l.end());
+                    t->l = nl;
+                }
+            dset(v, "cachedNumChildShapes", Val::integer(-0x80000000ll));
+        }
+        if ((o.cls == "hkpRagdollConstraintData" || o.cls == "hkpLimitedHingeConstraintData") && dmap(dget(v, "atoms"))) {
+            Val st;
+            st.k = Val::Map;
+            st.d = std::make_shared<Dict>();
+            dset(*st.d, "type", Val::integer(23));
+            dset(*st.d, "enabled", Val::integer(0));
+            dset(*st.d, "maxAngle", Val::real(double(stab)));
+            dset(*dget(v, "atoms")->d, "setupStabilization", st);
+        }
+        if (Val *at = dmap(dget(v, "atoms")))
+            if (Val *bs = dmap(dget(*at->d, "ballSocket"))) {
+                dset(*bs->d, "solvingMethod", Val::integer(1));
+                dset(*bs->d, "velocityStabilizationFactor", Val::integer(0x30));
+                dset(*bs->d, "inertiaStabilizationFactor", Val::real(0.0));
+            }
+        if (o.cls == "hkpStorageExtendedMeshShapeMeshSubpartStorage") {
+            Val w;
+            if (Val *x = dget(v, "materials"); x && x->k == Val::List) w = *x;
+            Val ms;
+            ms.k = Val::List;
+            for (size_t i = 0; i + 1 < w.l.size(); i += 2) {
+                Val m;
+                m.k = Val::Map;
+                m.d = std::make_shared<Dict>();
+                dset(*m.d, "filterInfo", w.l[i]);
+                dset(*m.d, "restitution", Val::integer(0));
+                dset(*m.d, "friction", Val::integer(HALF_ONE));
+                dset(*m.d, "userData", w.l[i + 1]);
+                ms.l.push_back(m);
+            }
+            dset(v, "materials", ms);
+        }
+        if (o.cls == "hkaSkeleton") {
+            Val bones;
+            bones.k = Val::List;
+            if (Val *b = dget(v, "bones"); b && b->k == Val::List)
+                for (const Val &x : b->l) {
+                    if (x.k == Val::Obj && byid.count(x.o)) {
+                        Val c;
+                        c.k = Val::Map;
+                        c.d = std::make_shared<Dict>(*byid[x.o]->v.d);   // a copy of the bone object fields
+                        bones.l.push_back(c);
+                        drop.insert(x.o);
+                    } else if (x.k == Val::Map)
+                        bones.l.push_back(x);
+                }
+            dset(v, "bones", bones);
+        }
+        if (o.cls == "hkaSkeletonMapperData") {
+            Obj n;
+            n.id = o.id;
+            n.cls = "hkaSkeletonMapper";
+            n.v.k = Val::Map;
+            n.v.d = std::make_shared<Dict>();
+            dset(*n.v.d, "mapping", o.v);
+            out.push_back(n);
+            continue;
+        }
+        out.push_back(o);
+    }
+    std::vector<Obj> kept;
+    for (Obj &o : out)
+        if (!drop.count(o.id)) kept.push_back(std::move(o));
+    return kept;
+}
+
 void flat(const GlobList &l, std::vector<std::pair<size_t, ObjId>> &out) {
     for (const GlobEntry &e : l) {
         if (e.is_list) flat(*e.list, out);
@@ -712,7 +909,7 @@ Bytes convert_packfile(const Bytes &b3) {
         if (!DB3.count(cls) || !DB4.count(cls)) throw Stop("KeyError: 'class " + cls + " not in the reflection tables'");
         objs.push_back({ObjId{0, a}, cls, read_struct(pf, DB3, cls, a)});
     }
-    objs = transform_objects(objs);
+    objs = transform_objects(g_u2 ? transform_61(std::move(objs)) : std::move(objs));
     std::map<ObjId, const Obj *> byid;
     for (const Obj &o : objs) byid[o.id] = &o;   // a repeated id: the last wins
     std::vector<ObjId> order;
@@ -736,6 +933,7 @@ Bytes convert_packfile(const Bytes &b3) {
         w.D.resize(w.D.size() + size_t(cls_of(DB4, ob.cls).size), 0);
         std::deque<Deferred> deferred;
         write_struct(w, o, ob.cls, ob.v, deferred);
+        if (g_u2) w.align(16);   // Uncharted 2: an object is padded to 16 before its arrays and strings
         flush_deferred(w, deferred);
     }
     w.align(16);
@@ -751,9 +949,10 @@ Bytes convert_packfile(const Bytes &b3) {
     Bytes cn;
     std::map<std::string, uint32_t> cnoff;
     for (const std::string &c : classes) {
+        auto sx = g_sig4_extra.find(c);
         auto sg = SIG4.find(c);
-        if (sg == SIG4.end()) throw Stop("KeyError: 'no PS4 signature for " + c + "'");
-        put32(cn, sg->second);
+        if (sx == g_sig4_extra.end() && sg == SIG4.end()) throw Stop("KeyError: 'no PS4 signature for " + c + "'");
+        put32(cn, sx != g_sig4_extra.end() ? sx->second : sg->second);
         cn.push_back(0x09);
         cnoff[c] = uint32_t(cn.size());
         cn.insert(cn.end(), c.begin(), c.end());
@@ -763,7 +962,10 @@ Bytes convert_packfile(const Bytes &b3) {
     if (w.virt.empty() && !pf.objclass.count(pf.contents)) throw Stop("IndexError: no objects");
     const std::string contents_cls = pf.objclass.count(pf.contents) ? pf.objclass.at(pf.contents) : w.virt[0].second;
     auto lsort = w.loc;
-    std::sort(lsort.begin(), lsort.end());
+    if (g_u2)   // Uncharted 2: the local fixups in the order their targets were written
+        std::stable_sort(lsort.begin(), lsort.end(), [](const auto &a, const auto &b) { return a.second < b.second; });
+    else
+        std::sort(lsort.begin(), lsort.end());
     Bytes lf, gf, vf;
     for (const auto &[s, d] : lsort) {
         put32(lf, s);

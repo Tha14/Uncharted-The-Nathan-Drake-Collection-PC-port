@@ -41,11 +41,55 @@ struct Mod {
         if (o + 8 > d.size()) throw Stop("struct.error: unpack_from requires a buffer of at least 8 bytes");
         return rd64le(d, o);
     }
+    // Uncharted 2: the root table's offset, its type header word and its first word
+    uint64_t root = 0;
+    uint32_t root_hdr = 0, root_word0 = 0;
     bool is_slot(uint64_t o) const { return std::binary_search(slots.begin(), slots.end(), o); }
+    // Uncharted 2 module header (U3 has its symbol table right after a 0x18-byte header, a type per entry):
+    //   PS3 'DC00': +8 u32 reloc, +0x10 u32 root; root = {u32 1, u32 count, {u32 sid, u32 ptr}[count]}, its type word
+    //               before it; at reloc {u32 count, u32 slot offset[count]}
+    //   PS4 '00CD': +8 u64 reloc, +0x10 u64 root; root entries {u32 sid, u32 0, u64 ptr}; at reloc {u32 byte count,
+    //               bitmap: bit k of byte i marks the 8-byte slot (8i + k) * 8}
+    // Each symbol's sid is also its 'type', so an object a symbol names is keyed by that symbol.
+    void parse_u2() {
+        reloc = be ? u32(8) : ptr(8);
+        root = be ? u32(0x10) : ptr(0x10);
+        if (!(0x14 <= root && root < reloc && reloc + 4 <= d.size()))
+            throw Stop(u3::fmt("ValueError: bad U2 DC header (root 0x%llx reloc 0x%llx size 0x%llx)", (unsigned long long)root, (unsigned long long)reloc,
+                               (unsigned long long)d.size()));
+        root_hdr = u32(root - 4);
+        root_word0 = u32(root);
+        const uint32_t n = u32(root + 4);
+        const uint64_t es = ps == 4 ? 8 : 16;
+        for (uint32_t i = 0; i < n; i++) {
+            const uint64_t o = root + 8 + i * es;
+            const uint32_t s = u32(o);
+            syms.push_back({s, s, ps == 4 ? u32(o + 4) : ptr(o + 8)});
+        }
+        data_start = root + 8 + n * es;
+        const uint32_t cnt = u32(reloc);
+        if (be) {
+            if (reloc + 4 + 4ull * cnt > d.size()) throw Stop("ValueError: relocation list past the end of the module");
+            for (uint32_t i = 0; i < cnt; i++) slots.push_back(u32(reloc + 4 + 4ull * i));
+        } else {
+            const uint64_t b0 = reloc + 4, b1 = std::min<uint64_t>(reloc + 4 + cnt, d.size());
+            for (uint64_t bi = b0; bi < b1; bi++)
+                for (int k = 0; k < 8; k++)
+                    if (d[bi] >> k & 1) slots.push_back(((bi - b0) * 8 + uint64_t(k)) * 8);
+        }
+        std::sort(slots.begin(), slots.end());
+        slots.erase(std::unique(slots.begin(), slots.end()), slots.end());
+        for (uint64_t s : slots)
+            if (s >= data_start) dslots.push_back(s);
+    }
     explicit Mod(const Bytes &data) : d(data) {
         if (d.size() >= 4 && std::equal(d.begin(), d.begin() + 4, "DC00")) be = true, ps = 4;
         else if (d.size() >= 4 && std::equal(d.begin(), d.begin() + 4, "00CD")) be = false, ps = 8;
         else throw Stop("ValueError: not a DC module");
+        if (g_u2) {
+            parse_u2();
+            return;
+        }
         reloc = be ? u32(8) : ptr(8);
         const uint32_t n = u32(0x14);
         const uint64_t es = 8 + uint64_t(ps);
@@ -157,6 +201,9 @@ Graph graph(const Mod &m, const std::function<bool(size_t, const std::string &, 
         if (cand[i] && decide(i, fk, *cand[i])) {
             g.objs[i].hdr = cand[i];
             keys[i] = u3::fmt("H%08x", *cand[i]);
+            // Uncharted 2: generic containers ('array': a count and its elements inline, 'map') are laid out by where they hang,
+            // so they are keyed by type and the field that refers to them
+            if (g_u2 && (*cand[i] == 0x1ed2e0a2 || *cand[i] == 0x16094dd2)) keys[i] = *keys[i] + "/" + fk;
         } else
             keys[i] = fk;
     };
@@ -416,14 +463,15 @@ std::optional<Evidence> align_object(const Mod &a, const Mod &b, const AMap &M, 
     const auto t4it = M.find(ob.t);
     if (t4it == M.end() || !e4o) return std::nullopt;
     const int64_t t4 = t4it->second, e4 = *e4o;
-    const int64_t s4 = hdr ? t4 - 8 : t4;
+    const int64_t hw4 = g_u2 ? 4 : 8;   // a PS4 type header: U3 [0][type], U2 [type]
+    const int64_t s4 = hdr ? t4 - hw4 : t4;
     if (e4 < t4) return std::nullopt;
     Evidence ev{s4, e4, 0, "", std::nullopt, {}};
     int64_t o = s3;
     if (hdr) {
-        Bytes want{0, 0, 0, 0};
+        Bytes want = g_u2 ? Bytes{} : Bytes{0, 0, 0, 0};
         for (int k = 0; k < 4; k++) want.push_back(uint8_t(*hdr >> (8 * k)));
-        if (slice(b.d, s4, s4 + 8) != want) return std::nullopt;
+        if (slice(b.d, s4, s4 + hw4) != want) return std::nullopt;
         ev.units.push_back({0, {{0, KT}}});
         o += 4;
     }
@@ -499,7 +547,7 @@ std::optional<Evidence> align_object(const Mod &a, const Mod &b, const AMap &M, 
         const int64_t r4 = d.begin()->first;
         const uint8_t ks = d.begin()->second;
         if (r4 == DEL) continue;
-        last = std::max(last, r4 + ((ks & (KP | KT)) ? 8 : 4));
+        last = std::max(last, r4 + ((ks & (g_u2 ? KP : KP | KT)) ? 8 : 4));
     }
     ev.kind = "units";
     ev.end4 = s4 + last;
@@ -890,22 +938,24 @@ struct Learner {
         return K.back().second;
     }
 
-    void add_pair(const Bytes &d3, const Bytes &d4, bool allow_del) {
+    // false when the two pointer graphs differ (nothing learned)
+    bool add_pair(const Bytes &d3, const Bytes &d4, bool allow_del) {
         const Mod a(d3), b(d4);
         const auto Mo = anchors(a, b);
         if (!Mo) {
             stats["pair-graph-differs"]++;
-            return;
+            return false;
         }
         const AMap &M = *Mo;
         const std::vector<int64_t> objs_t = targets(a);
         auto hdr_ok = [&](uint32_t h, int64_t t) {
             auto it = M.find(t);
             bool ok = false;
-            if (it != M.end() && it->second >= 8) {
-                Bytes want{0, 0, 0, 0};
+            const int64_t hw4 = g_u2 ? 4 : 8;
+            if (it != M.end() && it->second >= hw4) {
+                Bytes want = g_u2 ? Bytes{} : Bytes{0, 0, 0, 0};
                 for (int k = 0; k < 4; k++) want.push_back(uint8_t(h >> (8 * k)));
-                ok = slice(b.d, it->second - 8, it->second) == want;
+                ok = slice(b.d, it->second - hw4, it->second) == want;
             }
             if (it != M.end() && !ok) nohdr[h]++;
             return ok;
@@ -929,7 +979,7 @@ struct Learner {
         std::vector<std::optional<int64_t>> starts4;
         for (const Obj &ob : g.objs) {
             auto it = M.find(ob.t);
-            starts4.push_back(it == M.end() ? std::nullopt : std::optional<int64_t>(ob.hdr ? it->second - 8 : it->second));
+            starts4.push_back(it == M.end() ? std::nullopt : std::optional<int64_t>(ob.hdr ? it->second - (g_u2 ? 4 : 8) : it->second));
         }
         stats["pairs"]++;
         std::vector<Bytes> pref;
@@ -953,6 +1003,114 @@ struct Learner {
                 if (auto t = tailkey(g.keys[i], n)) kl.push_back(*t);
             for (const std::string &ks : kl) one(ks, ev, ob, a, b, M, nx);
         }
+        return true;
+    }
+
+    // Uncharted 2: a pair whose pointer graphs differ (PS4 built from another PS3 version, or the PS3 server module
+    // against the PS4 net.bin). Every symbol both define is walked in parallel, an object's pointer slots paired in
+    // order when both have as many; the objects reached that way whose layout aligns are learned, the others are left
+    // out (not counted as failures). Returns the number of objects learned.
+    static AMap partial_anchors(const Mod &a, const Mod &b) {
+        auto tg = [](const Mod &m) {
+            std::set<int64_t> s;
+            for (const auto &x : m.syms) s.insert(int64_t(x.v));
+            for (uint64_t x : m.dslots) s.insert(int64_t(m.ptr(x)));
+            return std::vector<int64_t>(s.begin(), s.end());
+        };
+        const std::vector<int64_t> ta = tg(a), tb = tg(b);
+        // the data slots of the object at t: up to the next target (or the relocation table)
+        auto slots_of = [](const Mod &m, const std::vector<int64_t> &t_, int64_t t) {
+            const auto i = std::upper_bound(t_.begin(), t_.end(), t);
+            const int64_t e = i != t_.end() ? *i : int64_t(m.reloc);
+            const size_t sa = size_t(std::lower_bound(m.dslots.begin(), m.dslots.end(), uint64_t(std::max<int64_t>(t, 0))) - m.dslots.begin());
+            const size_t sb = size_t(std::lower_bound(m.dslots.begin(), m.dslots.end(), uint64_t(std::max<int64_t>(e, 0))) - m.dslots.begin());
+            return std::vector<uint64_t>(m.dslots.begin() + std::ptrdiff_t(sa), m.dslots.begin() + std::ptrdiff_t(std::max(sa, sb)));
+        };
+        std::map<uint32_t, uint64_t> sb;
+        for (const auto &x : b.syms) sb[x.s] = x.v;
+        std::map<int64_t, int64_t> M;
+        std::set<int64_t> bad;
+        std::vector<std::pair<int64_t, int64_t>> stack;
+        for (const auto &x : a.syms)
+            if (auto it = sb.find(x.s); it != sb.end()) stack.push_back({int64_t(x.v), int64_t(it->second)});
+        while (!stack.empty()) {
+            const auto [x, y] = stack.back();
+            stack.pop_back();
+            if (!(int64_t(a.data_start) <= x && x < int64_t(a.reloc) && int64_t(b.data_start) <= y && y < int64_t(b.reloc))) continue;
+            if (auto it = M.find(x); it != M.end()) {
+                if (it->second != y) bad.insert(x);
+                continue;
+            }
+            M[x] = y;
+            const auto s3 = slots_of(a, ta, x), s4 = slots_of(b, tb, y);
+            if (s3.size() != s4.size()) continue;
+            for (size_t k = 0; k < s3.size(); k++) {
+                const int64_t p = int64_t(s3[k]), q = int64_t(s4[k]);
+                if (auto it = M.find(p); it != M.end() && it->second != q) bad.insert(p);
+                M[p] = q;
+                stack.push_back({int64_t(a.ptr(s3[k])), int64_t(b.ptr(s4[k]))});
+            }
+        }
+        for (int64_t x : bad) M.erase(x);
+        M[int64_t(a.data_start)] = int64_t(b.data_start);
+        M[int64_t(a.reloc)] = int64_t(b.reloc);
+        return AMap(M.begin(), M.end());
+    }
+    int64_t add_partial(const Bytes &d3, const Bytes &d4) {
+        const Mod a(d3), b(d4);
+        const AMap M = partial_anchors(a, b);
+        const std::vector<int64_t> objs_t = targets(a);
+        auto decide = [&](size_t i, const std::string &fk, uint32_t h) {
+            const auto it = M.find(objs_t[i]);
+            bool ok = false;
+            if (it != M.end() && it->second >= 4) {
+                Bytes want;
+                for (int k = 0; k < 4; k++) want.push_back(uint8_t(h >> (8 * k)));
+                ok = slice(b.d, it->second - 4, it->second) == want;
+            }
+            if (it != M.end()) {
+                const auto t1 = tailkey(fk, 1);
+                std::set<std::string> ks{fk, t1 ? *t1 : fk};
+                for (const std::string &k_ : ks) {
+                    auto hi = hdrtab_idx.find(k_);
+                    if (hi == hdrtab_idx.end()) {
+                        hdrtab_idx[k_] = hdrtab.size();
+                        hdrtab.push_back({k_, {0, 0}});
+                        hi = hdrtab_idx.find(k_);
+                    }
+                    hdrtab[hi->second].second[ok ? 0 : 1]++;
+                }
+            }
+            return ok;
+        };
+        const Graph g = graph(a, decide);
+        std::vector<std::optional<int64_t>> starts4;
+        for (const Obj &ob : g.objs) {
+            auto it = M.find(ob.t);
+            starts4.push_back(it == M.end() ? std::nullopt : std::optional<int64_t>(ob.hdr ? it->second - 4 : it->second));
+        }
+        std::vector<Bytes> pref;
+        {
+            const auto mc = prefixes.most_common();
+            for (size_t i = 0; i < std::min<size_t>(8, mc.size()); i++) pref.push_back(Bytes(mc[i].first.begin(), mc[i].first.end()));
+        }
+        int64_t n = 0;
+        for (size_t i = 0; i < g.objs.size(); i++) {
+            const Obj &ob = g.objs[i];
+            const std::optional<int64_t> nx = i + 1 < g.objs.size() ? starts4[i + 1] : std::optional<int64_t>(int64_t(b.reloc));
+            if (!starts4[i] || !nx || *nx < *starts4[i]) continue;
+            const auto ev = align_object(a, b, M, ob, nx, pref, false);
+            if (!ev) continue;
+            if (ob.hdr) hdrs[*ob.hdr]++;
+            std::vector<std::string> kl{g.keys[i]};
+            for (int k = 2; k >= 1; k--)
+                if (auto t = tailkey(g.keys[i], k)) kl.push_back(*t);
+            for (const std::string &ks : kl) one(ks, ev, ob, a, b, M, nx);
+            n++;
+        }
+        stats["partial-pairs"]++;
+        stats["partial-obj-ok"] += n;
+        return n;
     }
 
     void one(const std::string &ks, const std::optional<Evidence> &ev, const Obj &ob, const Mod &a, const Mod &b, const AMap &M, std::optional<int64_t> nx) {
@@ -988,7 +1146,7 @@ struct Learner {
         stats["obj-ok"]++;
         k.n++;
         k.kinds[ev->kind]++;
-        const int64_t s4 = ev->s4 + (ob.hdr ? 8 : 0);
+        const int64_t s4 = ev->s4 + (ob.hdr ? (g_u2 ? 4 : 8) : 0);
         int64_t al_ = 1;
         while (al_ < 16 && pymod(s4, al_ * 2) == 0) al_ *= 2;
         k.align = std::min(k.align, al_);
@@ -1172,6 +1330,28 @@ std::string learn(const std::vector<std::pair<Bytes, Bytes>> &pairs, const std::
     return s;
 }
 
+
+std::string learn_u2(const std::vector<std::tuple<std::string, Bytes, Bytes>> &pairs, const std::vector<std::tuple<std::string, Bytes, Bytes>> &partial,
+                     const std::function<void(const std::string &)> &log) {
+    Learner L;
+    for (const auto &[name, d3, d4] : pairs) {
+        try {
+            if (!L.add_pair(d3, d4, false)) L.add_partial(d3, d4);
+        } catch (const std::exception &ex) {
+            L.stats["pair-error"]++;
+            log("u2dc: " + name + ": " + ex.what());
+        }
+    }
+    for (const auto &[name, d3, d4] : partial) {
+        try {
+            log(u3::fmt("u2dc: %s: %lld objects learned (partial pair)", name.c_str(), (long long)L.add_partial(d3, d4)));
+        } catch (const std::exception &ex) {
+            L.stats["pair-error"]++;
+            log("u2dc: " + name + ": " + ex.what());
+        }
+    }
+    return L.finish(pairs.size());
+}
 // ------------------------------------------------------------------------------------------------ conversion
 namespace {
 
@@ -1186,7 +1366,7 @@ struct SPart {
     int64_t size = 0;
 };
 struct Ent {
-    std::optional<int64_t> n, bad, align, endround, hl, w3;
+    std::optional<int64_t> n, bad, align, endround, hl, w3, n3max;
     std::string kind;
     std::optional<std::vector<SUnit>> units;
     std::optional<std::array<int64_t, 3>> period;
@@ -1234,6 +1414,7 @@ Ent parse_ent(const json::Value &e) {
     opt("endround", t.endround);
     opt("hl", t.hl);
     opt("w3", t.w3);
+    opt("n3max", t.n3max);
     if (const json::Value *k = e.get("kind")) t.kind = k->s;
     if (const json::Value *u = e.get("units")) t.units = parse_units(*u);
     if (const json::Value *p = e.get("period")) t.period = std::array<int64_t, 3>{ival(p->items.at(0)), ival(p->items.at(1)), ival(p->items.at(2))};
@@ -1261,10 +1442,11 @@ struct Plan {
 std::vector<SUnit> generic_units(const Mod &m, int64_t s3, int64_t e3, const std::optional<uint32_t> &hdr) {
     std::vector<SUnit> out;
     int64_t r4 = 0, o = s3;
-    if (hdr) out.push_back({0, 0, 'T', false}), r4 = 8, o += 4;
+    const int64_t hb = g_u2 && hdr ? 4 : 0;   // U2: the 4-byte type header; the body is 8-aligned, not the header
+    if (hdr) out.push_back({0, 0, 'T', false}), r4 = g_u2 ? 4 : 8, o += 4;
     for (; o + 4 <= e3; o += 4) {
         if (m.is_slot(uint64_t(o))) {
-            r4 = al(r4, 8);
+            r4 = al(r4 - hb, 8) + hb;
             out.push_back({o - s3, r4, 'P', false});
             r4 += 8;
         } else {
@@ -1416,7 +1598,7 @@ Bytes Converter::convert(const Bytes &d3, std::map<std::string, int64_t> *rep_) 
         if (kind == "tmpl" && !ent->hl) kind = "units";
         if (kind == "tmpl") {
             const int64_t nb = e3 - s3 - *ent->hl, w3 = ent->w3.value_or(0);
-            const int64_t hl4 = hl ? 8 : 0;
+            const int64_t hl4 = hl ? (g_u2 ? 4 : 8) : 0;
             auto gp = ent->groups.find(std::to_string(floordiv(nb, 4)));
             if (gp != ent->groups.end() && *ent->hl == hl) {
                 if (hl) pl.units.push_back({0, 0, 'T', false});
@@ -1497,11 +1679,35 @@ Bytes Converter::convert(const Bytes &d3, std::map<std::string, int64_t> *rep_) 
             units = generic_units(m, s3, e3, ob.hdr);
         }
         for (const SUnit &u : units)
-            if ((u.kd == 'P' || u.kd == 'Q') && pymod(u.rel4, 8) == 0) pl.align = std::max<int64_t>(pl.align, 8);
+            if ((u.kd == 'P' || u.kd == 'Q') && pymod(u.rel4 - (g_u2 && ob.hdr ? 4 : 0), 8) == 0) pl.align = std::max<int64_t>(pl.align, 8);
         pl.kind = "units";
         pl.units = std::move(units);
         plans.push_back(std::move(pl));
     }
+    // Uncharted 2: PS3 objects carry the zero padding up to the next object, PS4 drops it. An object of a fixed-size key (one
+    // learned size) that is longer by less than 16 zero bytes is cut back to that size before its layout is extended.
+    if (g_u2)
+        for (Plan &pl : plans) {
+            const auto it = I.S.find(pl.key);
+            if (it == I.S.end() || (pl.kind != "units" && pl.kind != "tmpl")) continue;
+            const Ent &ent = it->second;
+            if (ent.period || ent.span.size() != 1) continue;
+            const int64_t nn = ent.n3max.value_or(0), s3 = pl.s3, e3 = pl.e3;
+            if (nn && 0 < e3 - s3 - nn && e3 - s3 - nn < 16 && !any_nonzero(m.d, s3 + nn, e3)) {
+                const std::vector<SUnit> ref = ent.units ? *ent.units : std::vector<SUnit>{};
+                std::set<int64_t> have;
+                for (const SUnit &u : ref) have.insert(u.rel3);
+                bool all = true;
+                for (int64_t r = 0; r < nn - 3 && all; r += 4) all = have.count(r) != 0;
+                if (pl.kind == "units" && !ref.empty() && all) {
+                    pl.units.clear();
+                    for (const SUnit &u : ref)
+                        if (u.rel3 < nn) pl.units.push_back(u);
+                    pl.e3 = s3 + nn;
+                    rep["pad-trimmed"]++;
+                }
+            }
+        }
     // ---- layout
     const size_t n = m.syms.size();
     int64_t prev_end = 0x18 + 16 * int64_t(n);
@@ -1509,7 +1715,8 @@ Bytes Converter::convert(const Bytes &d3, std::map<std::string, int64_t> *rep_) 
     const char *em = std::getenv("DCCONV_END");
     const std::string mode = em ? em : "span";
     for (Plan &pl : plans) {
-        const int64_t hd = pl.hdr ? 8 : 0, hl3 = pl.hdr ? 4 : 0, hl4 = pl.hdr ? 8 : 0;
+        const int64_t hw4 = g_u2 ? 4 : 8;   // the PS4 type header: U3 [0][type], U2 [type]
+        const int64_t hd = pl.hdr ? hw4 : 0, hl3 = pl.hdr ? 4 : 0, hl4 = pl.hdr ? hw4 : 0;
         const int64_t s4 = al(prev_end + hd, pl.align) - hd;
         pl.s4 = s4;
         const Bytes body = slice(m.d, pl.s3 + hl3, pl.e3);
@@ -1538,7 +1745,7 @@ Bytes Converter::convert(const Bytes &d3, std::map<std::string, int64_t> *rep_) 
             std::optional<int64_t> mx;
             for (const SUnit &u : pl.units) {
                 if (u.flag && slice(m.d, pl.s3 + u.rel3, pl.s3 + u.rel3 + 4) == Bytes{0, 0, 0, 0}) continue;
-                const int64_t v = u.rel4 + ((u.kd == 'P' || u.kd == 'T' || u.kd == 'Q') ? 8 : 4);
+                const int64_t v = u.rel4 + ((u.kd == 'P' || (u.kd == 'T' && !g_u2) || u.kd == 'Q') ? 8 : 4);
                 mx = mx ? std::max(*mx, v) : v;
             }
             end = s4 + (mx ? *mx : hl4);
@@ -1585,13 +1792,16 @@ Bytes Converter::convert(const Bytes &d3, std::map<std::string, int64_t> *rep_) 
     for (const Plan &pl : plans) {
         const int64_t s3 = pl.s3, s4 = pl.s4;
         if (pl.hdr && pl.kind != "units") {
-            w32(s4, 0);
-            w32(s4 + 4, *pl.hdr);
+            if (g_u2) w32(s4, *pl.hdr);
+            else {
+                w32(s4, 0);
+                w32(s4 + 4, *pl.hdr);
+            }
         }
         if (pl.kind == "tmpl")
             for (const auto &[q, v] : pl.fills) put(s4 + q, v, 4);
         if (pl.kind != "units" && pl.kind != "tmpl") {
-            put(s4 + (pl.hdr ? 8 : 0), pl.bytes, int64_t(pl.bytes.size()));
+            put(s4 + (pl.hdr ? (g_u2 ? 4 : 8) : 0), pl.bytes, int64_t(pl.bytes.size()));
             continue;
         }
         for (const SUnit &u : pl.units) {
@@ -1602,8 +1812,11 @@ Bytes Converter::convert(const Bytes &d3, std::map<std::string, int64_t> *rep_) 
             if (w.size() < 4 && u.kd != 'Q' && u.kd != 'q') throw Stop("struct.error: unpack requires a buffer of 4 bytes");
             const uint32_t be = w.size() == 4 ? (uint32_t(w[0]) << 24 | uint32_t(w[1]) << 16 | uint32_t(w[2]) << 8 | w[3]) : 0;
             if (u.kd == 'T') {
-                w32(o4, 0);
-                w32(o4 + 4, be);
+                if (g_u2) w32(o4, be);
+                else {
+                    w32(o4, 0);
+                    w32(o4 + 4, be);
+                }
             } else if (u.kd == 'P') {
                 if (m.is_slot(uint64_t(o3))) {
                     auto it = M.find(int64_t(m.ptr(uint64_t(o3))));
