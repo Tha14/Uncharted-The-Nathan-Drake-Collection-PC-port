@@ -433,13 +433,29 @@ std::vector<std::string> convert_stage(const Context &c, const Pak &p, const fs:
     o.light_table = light_table;
     o.collision = collision;
     o.water = water;
+    size_t approx = 0;
+    std::string summary;
+    o.approx = &approx;
+    o.plan_summary = &summary;
+    o.exclude = {S(out.filename())};   // the retail pak of the output's name
     const Bytes data = u3::stage::stage_convert(src, o);
     const fs::path tmp = S(out) + ".tmp";
     write_bytes(tmp, data);
     std::error_code ec;
+    if (const auto errs = stage_check(tmp); !errs.empty()) {
+        fs::remove(tmp, ec);
+        std::string s;
+        for (size_t i = 0; i < errs.size() && i < 4; i++) s += (i ? "; " : "") + errs[i];
+        throw std::runtime_error("RuntimeError: stagecheck: " + s);
+    }
     fs::rename(tmp, out, ec);
     if (ec) throw std::runtime_error("cannot write " + S(out) + ": " + ec.message());
-    return {};
+    return {summary, fmt("%zu approximations", approx)};
 }
+
+// ------------------------------------------------------------------------------------------------ for validate.cpp
+BlobP u2_light_table(const Pak &p) { return light_table(p); }
+std::vector<BlobP> u2_collision(const Pak &p) { return collision(p); }
+BlobP u2_water(const Pak &p) { return water(p, [](const std::string &n) { return u3::stage::ps4key(n); }); }
 
 }  // namespace u2imp

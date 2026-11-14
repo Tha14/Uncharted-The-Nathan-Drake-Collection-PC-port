@@ -3,7 +3,8 @@
 //
 //   u2import --ps4 <PS4 game folder> --ps3 <PS3 base folder> [--ps3-dlc <PS3 DLC folder>] --out <folder>
 //            [--ps3-data <PS3 game-data folder>] [--groups A,B,C,D,E] [--speech-langs english,french,...] [--dlc-ruins]
-//            [--drop-navmesh] [--only REGEX] [--ps3-elf EBOOT.elf] [--objdump PATH] [--ffmpeg PATH] [--force] [--update]
+//            [--drop-navmesh] [--only REGEX] [--ps3-elf EBOOT.elf] [--objdump PATH] [--ffmpeg PATH] [--force] [--update] [--validate]
+//        u2import --validate-twins --ps4 <folder> --ps3 <folder> [--ps3-dlc <folder>] --work <folder>   (maintainers)
 //   u2import --shipped-id          the fingerprint of the installed import (the launcher compares it with state.json)
 //
 //   --ps4      the Collection's game folder (holds u2data/) or u2data itself
@@ -184,7 +185,7 @@ Value sorted_keys(const Value &v) {
 
 struct Args {
     std::string ps4, ps3, ps3_dlc, ps3_data, out, groups = "A,B,C,D,E", speech_langs, list, only, ffmpeg, ps3_elf, objdump;
-    bool dlc_ruins = false, no_dlc_ruins = false, drop_navmesh = false, no_verify = false, update = false, force = false;
+    bool dlc_ruins = false, no_dlc_ruins = false, drop_navmesh = false, no_verify = false, update = false, force = false, validate = false;
 };
 
 struct Row {
@@ -602,6 +603,7 @@ int Importer::run() {
     std::string fl;
     for (const std::string &f : failed) fl += (fl.empty() ? "" : ", ") + f;
     lg(fmt("done in %.0f s: %s; steps failed: %s", seconds_since(t0), cl.c_str(), fl.empty() ? "none" : fl.c_str()));
+    if (a.validate) state.set("validation", validate(*ps3, *ps4, ctx, work / "validate", [this](const std::string &s) { lg(s); }));
     state.set("recipe_id", str(shipped_id_text()));
     Value fa = Value::object();
     fa.kind = Value::Array;
@@ -894,7 +896,7 @@ void Importer::net_images() {
     const Bytes data = c[0]->read();
     const std::string src_sha = sha1_hex(data);
     const fs::path o = out_path("pak22/ps4/" + out_name);
-    if (!done_before(key, src_sha) || text_of(item(key)->get("netimg")) != NETIMG_VERSION) {
+    if (!done_before(key, src_sha) || !item(key)->get("netimg") || item(key)->get("netimg")->kind != Value::Int || item(key)->get("netimg")->i != NETIMG_VERSION) {
         const fs::path src = work / "ps3-net.pak";
         std::error_code ec;
         fs::create_directories(work, ec);
@@ -912,7 +914,7 @@ void Importer::net_images() {
         fs::remove(src, ec);
         if (names.empty()) return;
         record(key, "A", "pak22/ps4/" + out_name,
-               {{"src", str(c[0]->source)}, {"src_sha1", str(src_sha)}, {"note", str(fmt("%zu menu images", names.size()))}, {"netimg", str(NETIMG_VERSION)}});
+               {{"src", str(c[0]->source)}, {"src_sha1", str(src_sha)}, {"note", str(fmt("%zu menu images", names.size()))}, {"netimg", num(NETIMG_VERSION)}});
         lg(fmt("ok      %s <- %s (%.1fs) %zu menu images", key.c_str(), c[0]->source.c_str(), seconds_since(t), names.size()));
     }
     if (isfile(o)) {
@@ -1131,6 +1133,31 @@ int wmain(int argc, wchar_t **argv) {
             log(shipped_id_text());
             return 0;
         }
+        if (const auto r = dev_command(v)) return *r;   // the maintainers' converter commands (devtools.cpp)
+        // the launcher: u2import --overlay <game folder> <overlay folder> [--update <update folder>]; prints the overlay folder
+        if (!v.empty() && v[0] == "--overlay") {
+            if (v.size() < 3) {
+                std::fputs("usage: u2import --overlay <game folder> <overlay folder> [--update <folder>]\n", stderr);
+                return 2;
+            }
+            std::optional<fs::path> upd;
+            if (v.size() >= 5 && v[3] == "--update" && !v[4].empty()) upd = P(v[4]);
+            log(S(build_overlay(P(v[1]), P(v[2]), upd)));
+            return 0;
+        }
+        // maintainers: u2import --validate-twins --ps4 <folder> --ps3 <folder> [--ps3-dlc <folder>] --work <folder>
+        if (!v.empty() && v[0] == "--validate-twins") {
+            std::map<std::string, std::string> o;
+            for (size_t i = 1; i + 1 < v.size(); i += 2) o[v[i]] = v[i + 1];
+            if (o["--ps4"].empty() || o["--ps3"].empty() || o["--work"].empty()) {
+                std::fputs("usage: u2import --validate-twins --ps4 <folder> --ps3 <folder> [--ps3-dlc <folder>] --work <folder>\n", stderr);
+                return 2;
+            }
+            const PS3 ps3(o["--ps3"], o["--ps3-dlc"]);
+            const PS4 ps4(o["--ps4"]);
+            twin_validate(ps3, ps4, P(o["--work"]));
+            return 0;
+        }
         Args a;
         a.list = S(patcher_dir().parent_path() / "docs" / "import-list.tsv");
         const std::map<std::string, std::string *> vals = {{"--ps4", &a.ps4},         {"--ps3", &a.ps3},       {"--ps3-dlc", &a.ps3_dlc}, {"--ps3-data", &a.ps3_data},
@@ -1138,15 +1165,15 @@ int wmain(int argc, wchar_t **argv) {
                                                            {"--list", &a.list},       {"--only", &a.only},     {"--ffmpeg", &a.ffmpeg},
                                                            {"--ps3-elf", &a.ps3_elf}, {"--objdump", &a.objdump}};
         const std::map<std::string, bool *> flags = {{"--dlc-ruins", &a.dlc_ruins}, {"--no-dlc-ruins", &a.no_dlc_ruins}, {"--drop-navmesh", &a.drop_navmesh},
-                                                     {"--no-verify", &a.no_verify}, {"--update", &a.update},             {"--force", &a.force}};
+                                                     {"--no-verify", &a.no_verify}, {"--update", &a.update},             {"--force", &a.force},
+                                                     {"--validate", &a.validate}};
         for (size_t i = 0; i < v.size(); i++) {
             if (flags.count(v[i])) *flags.at(v[i]) = true;
             else if (vals.count(v[i]) && i + 1 < v.size()) {
                 std::string *target = vals.at(v[i]);
                 *target = v[++i];
             }
-            else if (v[i] == "--validate") {   // the reference-pair checks are a maintainer tool now (u2mp/tools)
-            } else {
+            else {
                 std::fprintf(stderr, "u2import: unknown argument %s\n", v[i].c_str());
                 return 2;
             }

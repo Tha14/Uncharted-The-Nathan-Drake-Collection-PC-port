@@ -50,7 +50,7 @@ by team) - only a safety net.
 
 ## What is left (the real fix, for the lead)
 
-1. **Import** (u2mp_import.py, new rows): convert `1-<map>-pak-ingame10.pak` from the PS3 game data with the
+1. **Import** (u2import, new rows): convert `1-<map>-pak-ingame10.pak` from the PS3 game data with the
    existing `-ingame10` converter (u2ingame; item types are the same as the data paks: SPAWNER_GROUP,
    REGION_TREE, SPLINE_TABLE, FEATURE_DB_2, LEVEL_INFO_1, TAG_INT) to `pak22/ps4/<map>-pak-ingame10.pak`
    (the PS4 name, without "1-"), and add to `pak22_ps4.txt` for each map (stage too, its PS4 file exists):

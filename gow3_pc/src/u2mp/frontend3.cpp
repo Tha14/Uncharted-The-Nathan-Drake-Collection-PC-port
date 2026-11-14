@@ -1,37 +1,21 @@
-// u2mp frontend3: matchmaking (PAGE_MULTIPLAYER_MATCHMAKING, the vote screen) and the party leader's
-// "back out" callbacks, ported from PS3 1.10 onto the PC session layer (session.cpp). Audit and
-// design: u2mp/docs/PORT-FRONTEND3.md. Addresses are PS4 1.02 image offsets, PS3 1.10 in comments.
+// u2mp frontend3: matchmaking on the PC session layer.
 //
-// PS3: the party leader's Start Match in matchmaking mode (0x43aab0) sent party mailbox 0x114, and
-// after the 5 s "Starting in" popup START_MATCHMAKING (0x43e99c, cb 4055f45f): mailbox 0x107 to the
-// party (members follow: 0x43a444), menu reset, NET_SM 19, ShowPage(PAGE_MULTIPLAYER_MATCHMAKING).
-// That page's handler is the matchmaking state machine 0x4b0a58 (net-matchmaking.cpp, 0x34e8 bytes;
-// PS4 0x64e910 = ret): Matching2 room search / join / create (19 -> 5/6/7/9/14 or 3 -> 16), the
-// gather wait in SERVER_LOBBY (16), then the vote: the host picks two net games (0x4b0868, mailbox
-// 0x112), everyone votes (LIST_MATCHMAKING_VOTE 0x4b0670, mailbox 0x10a), the host sends the winner
-// (0x109) and the "Game starting in" countdown ends in the match (PlayTask).
+// The PS4 build lost the matchmaking page handler (it is a bare ret), the vote broadcast and the party
+// mailboxes, but kept the page's widgets: the status line, the two vote rows and the player rows, all
+// of which read game memory. This file drives that memory from a small state machine:
+//   - the party leader starts matchmaking and tells the members (session messages),
+//   - the host gathers players (on LAN a short wait; online it first finds or makes a room with
+//     strangers through online.cpp),
+//   - the host picks two net games of the chosen playlist, runs a vote, sends the winner,
+//   - counts down and creates the match.
+// Members follow the host's messages. It also replaces the vote row callback and the two "leader backs
+// out" callbacks, and asks "Leave Matchmaking?" when the player presses back.
 //
-// PC: the party is the match (no Matching2, no strangers to find), so the search / join / create
-// part has nothing to do; the rest is the PS3 flow over session messages:
-//   leader: Start Match -> leader_start(): message kMmStart (0x107), START_MATCHMAKING 0x5eba40
-//           (intact on PS4: menu reset, NET_SM 19, ShowPage(PAGE_MULTIPLAYER_MATCHMAKING)).
-//   host:   19/16 gather ("Searching for players...", netInfo+0x34 = 1) until every member's page
-//           is up (kMmReady) or 10 s; vote (NET_SM 20, phase 2, "Voting ends in", 15 s = PS3 4500
-//           ticks): two games of the chosen playlist (kMmVoteOptions = 0x112); votes (kMmVote =
-//           0x10a, the host relays them); winner (kMmResult = 0x109): SetNetGame, phase 3 "Game
-//           starting in" (10 s); at 2 s left the host creates the match (session::create_match, the
-//           custom-game path; the members follow it with the existing kFollow).
-//   member: 19/17 -> kMmReady; vote options -> NET_SM 21 (CLIENT_VOTE_SCREEN); result -> phase 3.
-// The page widgets are PS4's own and intact: status (cond 89, 0x65a900: netInfo+0x34 phase,
-// netInfo+0x20 deadline in net-clock ticks, the playlist), vote rows (cond 90, 0x65ae50: the vote
-// block 0x113db50 = PS3 0xf21dcc), players (cond 6..15, session.cpp roster).
-// After a matchmaking match Leave::Enter (0x5f00d0) pushes this page again with netInfo+0x34 = 1 and
-// NET_SM 16 (host) / 17 (members): the party votes on the next game, as on PS3.
-#include <cstdio>
+// Reimplemented from the behaviour description u2mp/docs/spec/frontend.md.
+
+#include <bit>
 #include <cstdlib>
 #include <cstring>
-#include <string>
-#include <utility>
 #include <vector>
 
 #include "frontend3.h"
@@ -43,387 +27,504 @@
 namespace u2mp {
 namespace {
 
-// ---- guest data -----------------------------------------------------------------------------
-constexpr uint64_t kNetState = 0x14ce97c;     // PS3 NET_SM 0xf11764
-constexpr uint64_t kNetInfo = 0x104f1c8;      // PS3 0xf1fa48
-constexpr uint64_t NI_CREATED_BY_ME = 0x08, NI_ERROR = 0x1c, NI_DEADLINE = 0x20, NI_PHASE = 0x34;
-constexpr uint64_t kNgm = 0x113b760;          // g_netGameManager (PS3 0xf1dc80)
-constexpr uint64_t NGM_GAME = 0x1ca0;
-constexpr uint64_t kVoteBlock = 0x113db50;    // PS3 0xf21dcc
-constexpr uint64_t kTipIndex = 0x113ddac;     // the status line's tip (DC b25ab071), PS3 0xf22630 cycle
-constexpr uint32_t kTips = 0xb25ab071;
-// menu manager fields
-constexpr uint64_t MENU_TOP = 0x1010, MENU_PAGES = 0x9d0, PAGE_ID = 0x10;
-constexpr uint64_t MENU_CALLBACK_COUNT = 0x18ec, MENU_CALLBACKS = 0x18f0, MENU_CALLBACK_SIZE = 0x18;
-constexpr uint32_t kMaxCallbacks = 128;
-constexpr uint64_t MENU_BOX = 0x17d0;         // the message box descriptor (PS3 menu+2536)
-// functions
-constexpr uint64_t fPopPage = 0x5cc6f0, fSetNetGame = 0x63dc30, fDcLookup = 0xa15e70,
-                   fStartMatchmaking = 0x5eba40,   // cb 4055f45f (PS3 0x43e99c), intact part
-                   fPlayerInfo = 0x64e810;         // PS3 0x4af240 (progression.cpp hooks it)
-// replaced
-constexpr uint64_t pMatchmaking = 0x64e910;   // PAGE_MULTIPLAYER_MATCHMAKING (PS3 0x4b0a58)
-constexpr uint64_t cbVote = 0x64e8e0;         // LIST_MATCHMAKING_VOTE (PS3 0x4b0670)
-constexpr uint64_t cbLeaderBack1 = 0x5eba80;  // bbb649ef (PS3 0x439a88)
-constexpr uint64_t cbLeaderBack2 = 0x5eba30;  // bf6ce4d5 (PS3 0x439b04)
-// ids
-constexpr uint32_t kPageMatchmaking = 0xe35f0f1a, kMessageBoxPage = 0x719e9fec;
-constexpr uint32_t kTextLeaveMatchmaking = 0xcca090f2, kTextYes = 0x0260a263, kTextNo = 0x075bc82d;
-constexpr uint32_t kCbLeaveYes = sid("U2MP_MATCHMAKING_LEAVE");   // ours (PS3 used 24df6961)
-constexpr uint32_t kCbLeaveNo = 0x2a2d147e;                       // PS3's, registered nowhere
-static_assert(sid("PAGE_MULTIPLAYER_MATCHMAKING") == kPageMatchmaking, "page id");
-// NET_SM
-enum : int32_t { kStateServerLobby = 16, kStateClientLobby = 17, kStateChooseHostJoin = 18,
-                 kStateStartMatchmaking = 19, kStateServerVote = 20, kStateClientVote = 21 };
-// netInfo+0x34 (PS3 0x4a9c64): 1 searching / gathering, 2 voting, 3 game starting
-enum : int32_t { kPhaseSearch = 1, kPhaseVote = 2, kPhaseStart = 3 };
-// times in net-clock ticks (300 per second)
-constexpr uint32_t kTicks = 300, kGatherMin = 3 * kTicks, kGatherMax = 10 * kTicks, kVoteTicks = 4500,
-                   kStartTicks = 10 * kTicks, kStartAt = 2 * kTicks, kTipTicks = 8 * kTicks,
-                   // online gather (PS3 0xb40710 "time out %i players"): wait for strangers, then vote
-                   kOnlineGather = 20 * kTicks, kOnlineGatherMax = 40 * kTicks, kResearchMin = 45 * kTicks;
-constexpr uint64_t kNpd = 0x11474f8, NPD_PLAYLIST = 0x104;   // NetPlayerData: the chosen playlist
-// session messages (session::kFrontendMessages and up); PS3 mailbox code in the comment
-enum : uint8_t { kMmStart = 0x10,        // 0x107 leader -> party: follow into matchmaking
-                 kMmReady = 0x11,        // member -> host: my matchmaking page is up
-                 kMmVoteOptions = 0x12,  // 0x112 host -> all: {s16 game a, s16 game b, u32 ticks left}
-                 kMmVote = 0x13,         // 0x10a a vote {u8 choice}; the host relays it
-                 kMmResult = 0x14,       // 0x109 host -> all: {s16 game, u32 ticks left}
-                 kMmLeave = 0x15,        // matchmaking ends for the party
-                 kLeaderBack = 0x16 };   // 0x115 the leader backed out
-// 0x17 = frontend6::kStartingMessage (0x114, the "Starting in" popup)
-static_assert(frontend6::kStartingMessage == kLeaderBack + 1, "session message numbers");
+// ---- where things are in the image ----
+constexpr uint64_t kNetSm = 0x14ce97c;          // s32 network state machine state
+constexpr uint64_t kNetInfo = 0x104f1c8;
+constexpr uint64_t kInfoCreatedByMe = 0x08;     // u8: host text vs member tips on the status line
+constexpr uint64_t kInfoError = 0x1c;           // u8: host gone / kicked
+constexpr uint64_t kInfoDeadline = 0x20;        // u32 clock ticks, the status line countdown
+constexpr uint64_t kInfoPhase = 0x34;           // s32: 0 none, 1 gathering, 2 voting, 3 starting
+constexpr uint64_t kNgm = 0x113b760;
+constexpr uint64_t kNgmCurrentGame = 0x1ca0;    // s16, -1 none
+constexpr uint64_t kVote = 0x113db50;           // 0x18-byte block the vote rows read
+constexpr uint64_t kTipIndex = 0x113ddac;
+constexpr uint64_t kNetPlayerData = 0x11474f8;
+constexpr uint64_t kPlaylistId = 0x104;         // u32 in NetPlayerData
 
-template <typename T> T &G(uint64_t offset) { return *image.at<T>(offset); }
-template <typename F> F guest(uint64_t offset) { return reinterpret_cast<F>(image.base + offset); }
+constexpr uint64_t kMenuTopIndex = 0x1010;
+constexpr uint64_t kMenuPageStack = 0x9d0;
+constexpr uint64_t kMenuMessageBox = 0x17d0;
+constexpr uint64_t kMenuCallbackCount = 0x18ec;
+constexpr uint64_t kMenuCallbacks = 0x18f0;
+constexpr uint32_t kMenuCallbackMax = 128;
 
-struct VoteBlock {   // PS3 0x4b0700 / 0x4b0868; PS4 readers 0x64e8e0, 0x65ae50
-    uint8_t active, closed, pad[2];
-    int32_t mine;    // -1: not voted (rows enabled while +4 > 1 unsigned)
-    int32_t game[2]; // *net-games* indexes (read as s16)
-    int32_t count[2];
+// Guest functions.
+constexpr uint64_t kPopPage = 0x5cc6f0;
+constexpr uint64_t kSetNetGame = 0x63dc30;
+constexpr uint64_t kDcLookup = 0xa15e70;
+constexpr uint64_t kStartMatchmaking = 0x5eba40;
+constexpr uint64_t kPublishPlayerInfo = 0x64e810;
+
+// Hooked entry points.
+constexpr uint64_t kPageHandler = 0x64e910;
+constexpr uint64_t kVoteRow = 0x64e8e0;
+constexpr uint64_t kLeaderBackA = 0x5eba80;
+constexpr uint64_t kLeaderBackB = 0x5eba30;
+
+// Ids.
+constexpr uint32_t kMatchmakingPage = 0xe35f0f1a;
+constexpr uint32_t kMessageBoxPage = 0x719e9fec;
+constexpr uint32_t kNetGamesTable = 0x3b9a067d;
+constexpr uint32_t kTipsTable = 0xb25ab071;
+constexpr uint32_t kLeaveYesId = sid("U2MP_MATCHMAKING_LEAVE");
+static_assert(kLeaveYesId == 0x7d1ecad7u, "leave callback id");
+
+// NET_SM values.
+constexpr int32_t kSmServerLobby = 16;
+constexpr int32_t kSmClientLobby = 17;
+constexpr int32_t kSmChooseHostJoin = 18;
+constexpr int32_t kSmStartMatchmaking = 19;
+constexpr int32_t kSmServerVote = 20;
+constexpr int32_t kSmClientVote = 21;
+
+// Clock ticks (300 per second).
+constexpr uint32_t kGatherMin = 900;
+constexpr uint32_t kGatherMax = 3000;
+constexpr uint32_t kVoteTime = 4500;
+constexpr uint32_t kStartCountdown = 3000;
+constexpr int32_t kCreateAt = 600;
+constexpr uint32_t kTipPeriod = 2400;
+constexpr uint32_t kOnlineGather = 6000;
+constexpr uint32_t kOnlineGatherMax = 12000;
+constexpr uint32_t kResearchMin = 13500;
+constexpr uint32_t kRetryAfterFailure = 900;
+
+// Session message types.
+enum : uint8_t {
+    kMsgStart = 0x10,
+    kMsgReady = 0x11,
+    kMsgVoteOptions = 0x12,
+    kMsgVote = 0x13,
+    kMsgResult = 0x14,
+    kMsgLeave = 0x15,
+    kMsgLeaderBack = 0x16,
 };
-static_assert(sizeof(VoteBlock) == 0x18, "vote block");
-VoteBlock &vote_block() { return G<VoteBlock>(kVoteBlock); }
 
-// ---- the machine's own state (PS3 0xf22638.. flags) ---------------------------------------------
+// ---- game memory, little-endian and unaligned-safe ----
+template <typename T> T get(uint64_t offset) {
+    T v;
+    std::memcpy(&v, image.base + offset, sizeof v);
+    return v;
+}
+template <typename T> void put(uint64_t offset, T v) { std::memcpy(image.base + offset, &v, sizeof v); }
+template <typename T> T get_at(uintptr_t address) {
+    T v;
+    std::memcpy(&v, reinterpret_cast<const void *>(address), sizeof v);
+    return v;
+}
+template <typename T> void put_at(uintptr_t address, T v) {
+    std::memcpy(reinterpret_cast<void *>(address), &v, sizeof v);
+}
+
+// Message bodies: little-endian fields appended after the type byte.
+void append_s16(std::vector<uint8_t> &b, int16_t v) {
+    b.push_back(uint8_t(uint16_t(v)));
+    b.push_back(uint8_t(uint16_t(v) >> 8));
+}
+void append_u32(std::vector<uint8_t> &b, uint32_t v) {
+    for (int i = 0; i < 4; ++i) b.push_back(uint8_t(v >> (8 * i)));
+}
+int16_t read_s16(const uint8_t *p) { return int16_t(uint16_t(p[0] | (p[1] << 8))); }
+uint32_t read_u32(const uint8_t *p) {
+    return uint32_t(p[0]) | (uint32_t(p[1]) << 8) | (uint32_t(p[2]) << 16) | (uint32_t(p[3]) << 24);
+}
+
+// ---- guest calls ----
+void pop_page() {
+    using Fn = void(U2MP_GUEST *)(void *);
+    reinterpret_cast<Fn>(image.base + kPopPage)(image.base + addr::menu_manager);
+}
+void set_net_game(int16_t index) {
+    using Fn = void(U2MP_GUEST *)(void *, int16_t, const void *, int32_t);
+    reinterpret_cast<Fn>(image.base + kSetNetGame)(image.base + kNgm, index, nullptr, 10);
+}
+// A DC table: {s32 count, s32 pad, u8 *records}.
+const uint8_t *dc_lookup(uint32_t id) {
+    using Fn = void *(U2MP_GUEST *)(uint32_t);
+    return static_cast<const uint8_t *>(reinterpret_cast<Fn>(image.base + kDcLookup)(id));
+}
+void start_matchmaking_page(void *call) {
+    using Fn = void(U2MP_GUEST *)(void *, void *, void *);
+    reinterpret_cast<Fn>(image.base + kStartMatchmaking)(call, nullptr, nullptr);
+}
+void publish_player_info() {
+    using Fn = void(U2MP_GUEST *)();
+    reinterpret_cast<Fn>(image.base + kPublishPlayerInfo)();
+}
+
+// ---- the machine (host memory) ----
 struct Machine {
-    bool running = false;          // between start and leave / match creation
-    bool leave_requested = false;  // PS3 0xf22638: "Leave Matchmaking?" answered yes
-    bool ready_sent = false;       // member: kMmReady sent
-    bool created = false;          // host: the match was created
-    uint32_t gather_since = 0;
-    uint32_t ready_slots = 0;      // host: transport slots whose page is up (bit 0 = host)
+    bool running = false;
+    bool leave_requested = false;
+    bool ready_sent = false;
+    bool created = false;
+    uint32_t gather_start = 0;
+    uint32_t ready_bits = 0;     // bit n: transport slot n said it is ready
     uint32_t next_tip = 0;
-    int32_t logged_state = -1;
-    int32_t last_phase = 0;
-    // online (strangers, online.cpp): our gather room, when to look for another room, retry pacing
-    bool online_room = false;
+    int32_t logged_sm = -1;      // NET_SM the last log line showed
+    int32_t seen_phase = 0;
+    bool online_room = false;    // online: we host a room and gather strangers in it
     uint32_t research_at = 0;
     uint32_t retry_at = 0;
 };
-Machine mm;
-bool hooks_installed = false;
+Machine m;
+bool page_installed = false;
 
-int32_t net_state() { return G<int32_t>(kNetState); }
-void set_net_state(int32_t s) { G<int32_t>(kNetState) = s; }
-uint32_t now() { return session::net_ticks(); }
-uint32_t ticks_left() {
-    const int32_t left = int32_t(G<uint32_t>(kNetInfo + NI_DEADLINE) - now());
-    return left > 0 ? uint32_t(left) : 0u;
-}
-void set_deadline(uint32_t ticks) { G<uint32_t>(kNetInfo + NI_DEADLINE) = now() + ticks; }
+void reset_machine() { m = Machine{}; }
+
+uint32_t clock_now() { return session::net_ticks(); }
+
+int32_t net_sm() { return get<int32_t>(kNetSm); }
+void set_net_sm(int32_t v) { put<int32_t>(kNetSm, v); }
+int32_t phase() { return get<int32_t>(kNetInfo + kInfoPhase); }
+void set_phase(int32_t v) { put<int32_t>(kNetInfo + kInfoPhase, v); }
+int16_t current_net_game() { return get<int16_t>(kNgm + kNgmCurrentGame); }
 
 uint32_t top_page() {
-    const uint64_t menu = addr::menu_manager;
-    const int32_t top = G<int32_t>(menu + MENU_TOP);
+    const uintptr_t menu = uintptr_t(image.base + addr::menu_manager);
+    const int32_t top = get_at<int32_t>(menu + kMenuTopIndex);
     if (top < 0 || top > 0x40) return 0;
-    const uint64_t page = G<uint64_t>(menu + MENU_PAGES + 8 * uint64_t(top));
-    return page ? *reinterpret_cast<const uint32_t *>(uintptr_t(page) + PAGE_ID) : 0;
-}
-void pop_page() { guest<void(U2MP_GUEST *)(void *)>(fPopPage)(image.at<void>(addr::menu_manager)); }
-void set_net_game(int16_t index) {
-    guest<void(U2MP_GUEST *)(void *, int16_t, const void *, int)>(fSetNetGame)(image.at<void>(kNgm), index, nullptr, 10);
+    const uint64_t page = get_at<uint64_t>(menu + kMenuPageStack + 8 * uint64_t(top));
+    if (!page) return 0;
+    return get_at<uint32_t>(uintptr_t(page) + 0x10);
 }
 
-struct DcTable { int32_t count; int32_t pad; uint8_t *records; };
-DcTable *dc_lookup(uint32_t id) { return guest<DcTable *(U2MP_GUEST *)(uint32_t)>(fDcLookup)(id); }
+uint32_t ticks_left() {
+    const int32_t left = int32_t(get<uint32_t>(kNetInfo + kInfoDeadline) - clock_now());
+    return left > 0 ? uint32_t(left) : 0;
+}
+void set_deadline(uint32_t ticks) { put<uint32_t>(kNetInfo + kInfoDeadline, clock_now() + ticks); }
 
-void send(int slot, std::vector<uint8_t> body, int except = -1) { session::send_message(slot, body, except); }
-void put16(std::vector<uint8_t> &b, int16_t v) { b.insert(b.end(), reinterpret_cast<uint8_t *>(&v), reinterpret_cast<uint8_t *>(&v) + 2); }
-void put32(std::vector<uint8_t> &b, uint32_t v) { b.insert(b.end(), reinterpret_cast<uint8_t *>(&v), reinterpret_cast<uint8_t *>(&v) + 4); }
-int16_t get16(const uint8_t *p) { int16_t v; std::memcpy(&v, p, 2); return v; }
-uint32_t get32(const uint8_t *p) { uint32_t v; std::memcpy(&v, p, 4); return v; }
+void clear_vote() { std::memset(image.base + kVote, 0, 0x18); }
 
-// ---- vote (PS3 0x4b0868 host, 0x4b0700 members) --------------------------------------------------
-// PS3 0x49bdb8 (PS4 0x64a440) picked two games of the playlist from its game list; our playlists
-// (menus.cpp) are sets of game types, so: two different *net-games* records of the playlist's types,
-// DLC maps only when imported.
-bool pick_vote_games(int16_t &a, int16_t &b) {
-    std::vector<int32_t> types;
-    DcTable *games = dc_lookup(0x3b9a067d);
-    if (!games || !games->records || games->count <= 0) return false;
-    const bool any = !playlist_game_types(types);
-    std::vector<int16_t> pool;
-    for (int32_t i = 0; i < games->count; ++i) {
-        const int32_t type = *reinterpret_cast<const int32_t *>(games->records + 0x90 * i + 0x0c);
-        bool ok = any;
-        for (int32_t t : types) ok = ok || t == type;
-        if (ok && dlc_net_game_available(i)) pool.push_back(int16_t(i));
-    }
-    if (pool.empty()) return false;
-    a = pool[size_t(std::rand()) % pool.size()];
-    b = a;
-    if (pool.size() > 1)
-        while (b == a) b = pool[size_t(std::rand()) % pool.size()];
-    return true;
+// Vote block fields.
+uint8_t vote_active() { return get<uint8_t>(kVote + 0x00); }
+uint8_t vote_closed() { return get<uint8_t>(kVote + 0x01); }
+int32_t vote_mine() { return get<int32_t>(kVote + 0x04); }
+int32_t vote_game(int option) { return get<int32_t>(kVote + 0x08 + 4 * option); }
+int32_t vote_count(int option) { return get<int32_t>(kVote + 0x10 + 4 * option); }
+void add_vote(int option) { put<int32_t>(kVote + 0x10 + 4 * option, vote_count(option) + 1); }
+
+// Members only see the matchmaking page through START_MATCHMAKING; it is shown once.
+void ensure_page() {
+    if (top_page() != kMatchmakingPage) start_matchmaking_page(nullptr);
 }
 
-void open_vote(int16_t a, int16_t b, uint32_t left) {
-    VoteBlock &v = vote_block();
-    v = VoteBlock{};
-    v.active = 1;
-    v.mine = -1;
-    v.game[0] = a;
-    v.game[1] = b;
-    G<int32_t>(kNetInfo + NI_PHASE) = kPhaseVote;
-    set_deadline(left);
-    frontend6::preload_net_game(true, true, true);   // PS3 0x4b0840 (member) / 0x4b0a28 (host)
-}
+int reply_target() { return session::is_host() ? -1 : 0; }
 
-void start_vote() {   // host: SERVER_LOBBY -> SERVER_VOTE_SCREEN (PS3 0x4b35c0)
-    int16_t a = 0, b = 0;
-    if (!pick_vote_games(a, b)) {
-        a = b = G<int16_t>(kNgm + NGM_GAME) >= 0 ? G<int16_t>(kNgm + NGM_GAME) : 0;
-        log("matchmaking: no game of the playlist found, voting on net game %d", a);
-    }
-    open_vote(a, b, kVoteTicks);
-    set_net_state(kStateServerVote);
-    std::vector<uint8_t> m{kMmVoteOptions};
-    put16(m, a);
-    put16(m, b);
-    put32(m, kVoteTicks);
-    send(-1, m);
-    log("matchmaking: vote between net games %d and %d (%u players)", a, b, unsigned(session::member_count()));
-}
-
-void apply_result(int16_t game, uint32_t left) {
-    VoteBlock &v = vote_block();
-    v.closed = 1;
-    set_net_game(game);
-    G<int32_t>(kNetInfo + NI_PHASE) = kPhaseStart;
-    set_deadline(left);
-    frontend6::preload_net_game(true, true, false);   // PS3 0x4affe0 (host) / 0x4b1fd4 (member): the winner's levels
-}
-
-void finish_vote() {   // host: the winner (PS3 mailbox 0x109)
-    VoteBlock &v = vote_block();
-    const int winner = v.count[0] > v.count[1] ? 0 : v.count[1] > v.count[0] ? 1 : std::rand() % 2;
-    const int16_t game = int16_t(v.game[winner]);
-    apply_result(game, kStartTicks);
-    std::vector<uint8_t> m{kMmResult};
-    put16(m, game);
-    put32(m, kStartTicks);
-    send(-1, m);
-    log("matchmaking: votes %d / %d, net game %d wins", v.count[0], v.count[1], game);
-}
-
-// ---- leave ----------------------------------------------------------------------------------------
-void leave(bool tell) {
-    if (tell) send(session::is_host() ? -1 : 0, {kMmLeave});
-    log("matchmaking: leaving%s", tell ? "" : " (the party left)");
-    online::mm_leave();   // a stranger's room: back to a party of our own
-    vote_block() = VoteBlock{};
-    G<int32_t>(kNetInfo + NI_PHASE) = 0;
-    G<uint32_t>(kNetInfo + NI_DEADLINE) = 0;
-    set_net_state(kStateChooseHostJoin);
-    if (top_page() == kMessageBoxPage) pop_page();   // a "Leave Matchmaking?" box still up
-    if (top_page() == kPageMatchmaking) pop_page();
-    mm = Machine{};
-}
-
-// The yes button of "Leave Matchmaking?" (PS3 24df6961 = 0x4af4fc: [0xf22638] = 1).
-U2MP_GUEST void leave_yes(void *) { mm.leave_requested = true; }
-
-void register_leave_callback() {
-    const uint64_t menu = addr::menu_manager;
-    uint32_t &count = G<uint32_t>(menu + MENU_CALLBACK_COUNT);
-    for (uint32_t i = 0; i < count && i < kMaxCallbacks; ++i)
-        if (G<uint32_t>(menu + MENU_CALLBACKS + i * MENU_CALLBACK_SIZE) == kCbLeaveYes) return;
-    if (count >= kMaxCallbacks) {
-        log("matchmaking: menu callback table full, Leave Matchmaking answers are not seen");
-        return;
-    }
-    const uint64_t e = menu + MENU_CALLBACKS + count * MENU_CALLBACK_SIZE;
-    G<uint32_t>(e) = kCbLeaveYes;
-    G<uint64_t>(e + 8) = uint64_t(uintptr_t(&leave_yes));
-    G<uint64_t>(e + 0x10) = 0;
-    ++count;
-}
-
-// PS3 0x42a3e8(menu, cca090f2, 0260a263, 24df6961, 075bc82d, 2a2d147e): the two-button box
-// (PS4 layout as 0x5e4270 writes it).
-void ask_leave() {
-    register_leave_callback();
-    uint8_t *box = G<uint8_t *>(addr::menu_manager + MENU_BOX);
-    if (!box) {
-        mm.leave_requested = true;
-        return;
-    }
-    const uint32_t words[] = {1, kTextYes, 0x11d8e78a, kTextNo, 0x1519fa3d, kCbLeaveYes, kCbLeaveNo};   // +0x40..+0x58
-    std::memcpy(box + 0x08, &kTextLeaveMatchmaking, 4);
-    std::memcpy(box + 0x40, words, sizeof words);
-    show_page(kMessageBoxPage);
-}
-
-// ---- the page handler (PS3 0x4b0a58) ----------------------------------------------------------------
 void begin(bool host) {
-    mm = Machine{};
-    mm.running = true;
-    mm.gather_since = now();
-    mm.ready_slots = 1;
-    mm.next_tip = now() + kTipTicks;
-    vote_block() = VoteBlock{};
-    G<int32_t>(kNetInfo + NI_PHASE) = kPhaseSearch;
-    G<uint8_t>(kNetInfo + NI_CREATED_BY_ME) = host ? 1 : 0;   // status: "Searching for players..." / tips
-    mm.last_phase = kPhaseSearch;
+    reset_machine();
+    const uint32_t now = clock_now();
+    m.running = true;
+    m.gather_start = now;
+    m.ready_bits = 1;   // slot 0, the host itself, counts as ready from the start
+    m.next_tip = now + kTipPeriod;
+    clear_vote();
+    set_phase(1);
+    put<uint8_t>(kNetInfo + kInfoCreatedByMe, host ? 1 : 0);
+    m.seen_phase = 1;
     log("matchmaking: started (%s)", host ? "host" : "member");
 }
 
-void cycle_tip() {
-    if (int32_t(now() - mm.next_tip) < 0) return;
-    mm.next_tip = now() + kTipTicks;
-    const DcTable *tips = dc_lookup(kTips);
-    if (tips && tips->count > 0) G<int32_t>(kTipIndex) = (G<int32_t>(kTipIndex) + 1) % tips->count;
+void open_vote(int16_t a, int16_t b, uint32_t ticks) {
+    put<uint8_t>(kVote + 0x00, 1);
+    put<uint8_t>(kVote + 0x01, 0);
+    put<uint8_t>(kVote + 0x02, 0);
+    put<uint8_t>(kVote + 0x03, 0);
+    put<int32_t>(kVote + 0x04, -1);
+    put<int32_t>(kVote + 0x08, int32_t(a));
+    put<int32_t>(kVote + 0x0c, int32_t(b));
+    put<int32_t>(kVote + 0x10, 0);
+    put<int32_t>(kVote + 0x14, 0);
+    set_phase(2);
+    set_deadline(ticks);
+    // Both options start loading so the winner is ready sooner.
+    frontend6::preload_net_game(true, true, true);
 }
 
-void update() {
-    const int32_t st = net_state();
-    const int32_t phase = G<int32_t>(kNetInfo + NI_PHASE);
-    if (st != mm.logged_state) {
-        log("matchmaking: NET_SM %d, phase %d", st, phase);
-        mm.logged_state = st;
+void apply_result(int16_t game, uint32_t ticks) {
+    put<uint8_t>(kVote + 0x01, 1);
+    set_net_game(game);
+    set_phase(3);
+    set_deadline(ticks);
+    frontend6::preload_net_game(true, true, false);
+}
+
+// ---- host: choosing and running the vote ----
+
+// Two net games of the chosen playlist whose maps this PC has. False when none qualifies.
+bool pick_two_games(int16_t &a, int16_t &b) {
+    const uint8_t *table = dc_lookup(kNetGamesTable);
+    if (!table) return false;
+    const int32_t count = get_at<int32_t>(uintptr_t(table));
+    const uint64_t records = get_at<uint64_t>(uintptr_t(table) + 8);
+    if (!records || count <= 0) return false;
+
+    std::vector<int32_t> types;
+    const bool any_type = !playlist_game_types(types);
+    std::vector<int32_t> pool;
+    for (int32_t i = 0; i < count; ++i) {
+        const int32_t type = get_at<int32_t>(uintptr_t(records) + 0x90 * uint64_t(i) + 0x0c);
+        bool accepted = any_type;
+        for (int32_t t : types)
+            if (t == type) accepted = true;
+        if (accepted && dlc_net_game_available(i)) pool.push_back(i);
     }
-    // Back from a matchmaking match: Leave::Enter (0x5f00d0) pushed this page again with phase 1 and
-    // NET_SM 16 / 17. A new round (PS3: the same room votes on the next game).
-    if (mm.running && mm.last_phase == kPhaseStart && phase == kPhaseSearch) {
-        log("matchmaking: back from the match, next round");
-        mm = Machine{};
+    if (pool.empty()) return false;
+
+    const size_t n = pool.size();
+    a = int16_t(pool[size_t(std::rand()) % n]);
+    b = a;
+    if (n > 1) {
+        do b = int16_t(pool[size_t(std::rand()) % n]);
+        while (b == a);
     }
-    mm.last_phase = phase;
-    if (mm.created) return;
-    if (G<uint8_t>(kNetInfo + NI_ERROR)) {   // host gone / kicked: the lobby shows the error box
-        leave(false);
+    return true;
+}
+
+void start_vote() {
+    int16_t a = 0, b = 0;
+    if (!pick_two_games(a, b)) {
+        const int16_t current = current_net_game();
+        a = b = current >= 0 ? current : 0;
+        log("matchmaking: no game of the playlist found, voting on net game %d", a);
+    }
+    open_vote(a, b, kVoteTime);
+    set_net_sm(kSmServerVote);
+    std::vector<uint8_t> body{kMsgVoteOptions};
+    append_s16(body, a);
+    append_s16(body, b);
+    append_u32(body, kVoteTime);
+    session::send_message(-1, body);
+    log("matchmaking: vote between net games %d and %d (%u players)", a, b, unsigned(session::member_count()));
+}
+
+void end_vote() {
+    const int32_t c0 = vote_count(0), c1 = vote_count(1);
+    int winner;
+    if (c0 > c1) winner = 0;
+    else if (c1 > c0) winner = 1;
+    else winner = std::rand() % 2;
+    const int16_t game = int16_t(vote_game(winner));
+    apply_result(game, kStartCountdown);
+    std::vector<uint8_t> body{kMsgResult};
+    append_s16(body, game);
+    append_u32(body, kStartCountdown);
+    session::send_message(-1, body);
+    log("matchmaking: votes %d / %d, net game %d wins", c0, c1, game);
+}
+
+// ---- leaving ----
+
+void leave(bool tell) {
+    if (tell) session::send_message(reply_target(), {kMsgLeave});
+    log("matchmaking: leaving%s", tell ? "" : " (the party left)");
+    online::mm_leave();
+    clear_vote();
+    set_phase(0);
+    put<uint32_t>(kNetInfo + kInfoDeadline, 0);
+    set_net_sm(kSmChooseHostJoin);
+    // Close the question box if it is still up, then the matchmaking page under it.
+    if (top_page() == kMessageBoxPage) pop_page();
+    if (top_page() == kMatchmakingPage) pop_page();
+    reset_machine();
+}
+
+// The box's "Yes": only flags the request; the next update does the leaving.
+U2MP_GUEST void leave_yes(void *) { m.leave_requested = true; }
+
+// Adds the Yes callback to the menu's callback table once, so the box's answer reaches us.
+void register_leave_yes() {
+    const uintptr_t menu = uintptr_t(image.base + addr::menu_manager);
+    const uint32_t count = get_at<uint32_t>(menu + kMenuCallbackCount);
+    const uint32_t seen = count < kMenuCallbackMax ? count : kMenuCallbackMax;
+    for (uint32_t i = 0; i < seen; ++i)
+        if (get_at<uint32_t>(menu + kMenuCallbacks + 0x18 * uint64_t(i)) == kLeaveYesId) return;
+    if (count >= kMenuCallbackMax) {
+        log("matchmaking: menu callback table full, Leave Matchmaking answers are not seen");
         return;
     }
-    if (mm.leave_requested) {
-        leave(true);
+    const uintptr_t entry = menu + kMenuCallbacks + 0x18 * uint64_t(count);
+    put_at<uint32_t>(entry + 0x00, kLeaveYesId);
+    put_at<uint64_t>(entry + 0x08, uint64_t(reinterpret_cast<uintptr_t>(&leave_yes)));
+    put_at<uint64_t>(entry + 0x10, 0);
+    put_at<uint32_t>(menu + kMenuCallbackCount, count + 1);
+}
+
+void ask_leave() {
+    register_leave_yes();
+    const uintptr_t menu = uintptr_t(image.base + addr::menu_manager);
+    const uint64_t box = get_at<uint64_t>(menu + kMenuMessageBox);
+    if (!box) {
+        // No box to ask with: take the back press as the answer.
+        m.leave_requested = true;
         return;
     }
-    const bool host = session::is_host();
-    if (!mm.running) begin(host);
-    if (!host) {
-        if (!mm.ready_sent && (st == kStateStartMatchmaking || st == kStateClientLobby)) {
-            send(0, {kMmReady});
-            mm.ready_sent = true;
+    const uintptr_t d = uintptr_t(box);
+    put_at<uint32_t>(d + 0x08, 0xcca090f2);   // "Leave Matchmaking?"
+    put_at<uint32_t>(d + 0x40, 1);
+    put_at<uint32_t>(d + 0x44, 0x0260a263);   // "Yes"
+    put_at<uint32_t>(d + 0x48, 0x11d8e78a);
+    put_at<uint32_t>(d + 0x4c, 0x075bc82d);   // "No"
+    put_at<uint32_t>(d + 0x50, 0x1519fa3d);
+    put_at<uint32_t>(d + 0x54, kLeaveYesId);
+    put_at<uint32_t>(d + 0x58, 0x2a2d147e);   // "No": an id nobody registers, so it does nothing
+    show_page(kMessageBoxPage);
+}
+
+// ---- per-frame update (page event 6) ----
+
+int matchmaking_min_players() {
+    // Read once; a test setting for small online rooms.
+    static const int value = [] {
+        const char *s = std::getenv("UNCHARTED_U2MP_MM_MIN");
+        if (!s) return 2;
+        const int v = std::atoi(s);
+        return v >= 1 && v <= 10 ? v : 2;
+    }();
+    return value;
+}
+
+void host_start_matchmaking_step() {
+    if (!online::mm_online()) {
+        set_net_sm(kSmServerLobby);
+        return;
+    }
+    switch (online::mm_step()) {
+    case online::kMmIdle:
+        if (int32_t(clock_now() - m.retry_at) >= 0) {
+            const uint32_t playlist = get<uint32_t>(kNetPlayerData + kPlaylistId);
+            log("matchmaking: looking for players online (playlist 0x%x)", playlist);
+            online::mm_begin(playlist);
         }
-        if (G<int32_t>(kNetInfo + NI_PHASE) == kPhaseSearch) cycle_tip();
-        return;
-    }
-    switch (st) {
-    case kStateStartMatchmaking:   // PS3 0x4b0f48: search a room, join it (5 -> 6 -> 7) or create one (3)
-        if (online::mm_online()) {
-            switch (online::mm_step()) {
-            case online::kMmIdle:
-                if (int32_t(now() - mm.retry_at) >= 0) {
-                    const uint32_t playlist = G<uint32_t>(kNpd + NPD_PLAYLIST);
-                    log("matchmaking: looking for players online (playlist 0x%x)", playlist);
-                    online::mm_begin(playlist);
-                }
-                break;
-            case online::kMmHosting:   // our own room: gather (16)
-                mm.online_room = true;
-                mm.gather_since = now();
-                mm.research_at = now() + kResearchMin + uint32_t(std::rand() % 15) * kTicks;
-                set_net_state(kStateServerLobby);
-                break;
-            case online::kMmJoined:    // another player's room: its host takes us in (kMmStart)
-                break;
-            case online::kMmFailed:
-                online::mm_reset();
-                mm.retry_at = now() + 3 * kTicks;
-                break;
-            default:
-                break;   // searching / joining / creating
-            }
-            break;
-        }
-        set_net_state(kStateServerLobby);   // LAN: the party is the room
         break;
-    case kStateServerLobby: {      // PS3 "GATHER": wait for the players
-        int ready = 0;
-        for (uint32_t s = 0; s < 32; ++s) ready += (mm.ready_slots >> s) & 1;
-        const uint32_t waited = now() - mm.gather_since;
-        if (mm.online_room) {
-            const int players = session::member_count();
-            static const int min_players = [] {
-                const char *v = std::getenv("UNCHARTED_U2MP_MM_MIN");
-                const int n = v ? std::atoi(v) : 2;
-                return n >= 1 && n <= 10 ? n : 2;
-            }();
-            if (players >= 10 || (players >= min_players && ((waited >= kOnlineGather && ready >= players) || waited >= kOnlineGatherMax))) {
-                start_vote();
-            } else if (players < min_players && int32_t(now() - mm.research_at) >= 0) {
-                log("matchmaking: %d player(s) after %u s: looking for another room", players, waited / kTicks);
-                online::mm_research();
-                mm.online_room = false;
-                set_net_state(kStateStartMatchmaking);
-            }
-            break;
-        }
-        if (waited >= kGatherMax || (waited >= kGatherMin && ready >= session::member_count())) start_vote();
+    case online::kMmHosting: {
+        m.online_room = true;
+        const uint32_t now = clock_now();
+        m.gather_start = now;
+        m.research_at = now + kResearchMin + uint32_t(std::rand() % 15) * 300;
+        set_net_sm(kSmServerLobby);
         break;
     }
-    case kStateServerVote:
-        if (G<int32_t>(kNetInfo + NI_PHASE) == kPhaseVote && ticks_left() == 0) finish_vote();
-        else if (G<int32_t>(kNetInfo + NI_PHASE) == kPhaseStart && ticks_left() <= kStartAt) {
-            // PS3 0x4b354c -> 0x4b1bf8: the host starts the game task. Here: the custom-game create
-            // path (session.cpp), which the members follow; netInfo+0x34 stays set as on PS3 (the
-            // ranked stats in Leave::Enter and the return to this page read it).
-            mm.created = true;
-            log("matchmaking: starting net game %d", G<int16_t>(kNgm + NGM_GAME));
-            session::create_match();
-            G<int32_t>(kNetInfo + NI_PHASE) = kPhaseStart;
-        }
+    case online::kMmJoined:
+        break;
+    case online::kMmFailed:
+        online::mm_reset();
+        m.retry_at = clock_now() + kRetryAfterFailure;
         break;
     default:
         break;
     }
 }
 
-U2MP_GUEST void matchmaking_page(uint8_t *ev) {
+void host_gather_step() {
+    const uint32_t now = clock_now();
+    const int ready = std::popcount(m.ready_bits);
+    const uint32_t waited = now - m.gather_start;
+    if (m.online_room) {
+        const int players = session::member_count();
+        const int minimum = matchmaking_min_players();
+        if (players >= 10 ||
+            (players >= minimum && ((waited >= kOnlineGather && ready >= players) || waited >= kOnlineGatherMax))) {
+            start_vote();
+        } else if (players < minimum && int32_t(now - m.research_at) >= 0) {
+            log("matchmaking: %d player(s) after %u s: looking for another room", players, waited / 300);
+            online::mm_research();
+            m.online_room = false;
+            set_net_sm(kSmStartMatchmaking);
+        }
+        return;
+    }
+    if (waited >= kGatherMax || (waited >= kGatherMin && ready >= session::member_count())) start_vote();
+}
+
+void host_vote_step() {
+    const int32_t p = phase();
+    if (p == 2 && ticks_left() == 0) {
+        end_vote();
+    } else if (p == 3 && int32_t(ticks_left()) <= kCreateAt) {
+        m.created = true;
+        log("matchmaking: starting net game %d", current_net_game());
+        session::create_match();
+        set_phase(3);   // create_match may have cleared it; the status line keeps "starting"
+    }
+}
+
+void member_tip_step() {
+    const uint32_t now = clock_now();
+    if (int32_t(now - m.next_tip) < 0) return;
+    m.next_tip = now + kTipPeriod;
+    const uint8_t *tips = dc_lookup(kTipsTable);
+    if (!tips) return;
+    const int32_t count = get_at<int32_t>(uintptr_t(tips));
+    if (count <= 0) return;
+    const int32_t next = int32_t(uint32_t(get<int32_t>(kTipIndex)) + 1u);
+    put<int32_t>(kTipIndex, next % count);
+}
+
+void update() {
+    const int32_t st = net_sm();
+    const int32_t ph = phase();
+    if (st != m.logged_sm) {
+        log("matchmaking: NET_SM %d, phase %d", st, ph);
+        m.logged_sm = st;
+    }
+    if (m.running && m.seen_phase == 3 && ph == 1) {
+        log("matchmaking: back from the match, next round");
+        reset_machine();
+    }
+    m.seen_phase = ph;
+    if (m.created) return;
+    if (get<uint8_t>(kNetInfo + kInfoError)) {
+        leave(false);
+        return;
+    }
+    if (m.leave_requested) {
+        leave(true);
+        return;
+    }
+    const bool host = session::is_host();
+    if (!m.running) begin(host);
+
+    if (!host) {
+        if (!m.ready_sent && (st == kSmStartMatchmaking || st == kSmClientLobby)) {
+            session::send_message(0, {kMsgReady});
+            m.ready_sent = true;
+        }
+        if (phase() == 1) member_tip_step();
+        return;
+    }
+    switch (st) {
+    case kSmStartMatchmaking: host_start_matchmaking_step(); break;
+    case kSmServerLobby: host_gather_step(); break;
+    case kSmServerVote: host_vote_step(); break;
+    default: break;
+    }
+}
+
+// ---- hooked entry points ----
+
+U2MP_GUEST void page_handler(uint8_t *ev) {
     if (!ev) return;
-    switch (*reinterpret_cast<uint32_t *>(ev)) {
-    case 0:   // closed (PS3: SetNetGame(-1), flags and vote block cleared, 0x4af240 publish)
-        // Not while the match is being started from here (the voted net game must stay) or while
-        // the "Leave Matchmaking?" box is above the page.
-        if (mm.created || G<int32_t>(kNetInfo + NI_PHASE) == kPhaseStart || top_page() == kMessageBoxPage) break;
-        mm = Machine{};
-        vote_block() = VoteBlock{};
+    switch (get_at<uint32_t>(uintptr_t(ev))) {
+    case 0:   // closed
+        if (m.created || phase() == 3 || top_page() == kMessageBoxPage) return;
+        reset_machine();
+        clear_vote();
         set_net_game(-1);
-        guest<void(U2MP_GUEST *)()>(fPlayerInfo)();
+        publish_player_info();
         break;
     case 1:   // shown
-        register_leave_callback();
+        register_leave_yes();
         break;
     case 2:
-    case 3: {   // back (PS3 0x4b0d3c): ask first; once answered let it through in 18 / 19
-        const int32_t st = net_state();
-        if (!mm.leave_requested) {
+    case 3: {   // back: hold it while we ask, let it through once leaving is under way
+        const int32_t st = net_sm();
+        if (!m.leave_requested) {
             ask_leave();
             ev[0x10] = 1;
         } else {
-            ev[0x10] = (st == kStateStartMatchmaking || st == kStateChooseHostJoin) ? 0 : 1;
+            ev[0x10] = (st == kSmStartMatchmaking || st == kSmChooseHostJoin) ? 0 : 1;
         }
         break;
     }
@@ -435,135 +536,156 @@ U2MP_GUEST void matchmaking_page(uint8_t *ev) {
     }
 }
 
-// LIST_MATCHMAKING_VOTE (PS4 0x64e8e0 kept the local count; PS3 0x4b0670 also sent mailbox 0x10a
-// {room, vote} to the match members through 0x4af160).
-U2MP_GUEST void vote(uint8_t *arg) {
+U2MP_GUEST void vote_row(uint8_t *arg) {
     if (!arg) return;
-    VoteBlock &v = vote_block();
-    if (!v.active || v.closed || v.mine == 0 || v.mine == 1) return;   // the rows are disabled then
-    const uint8_t choice = *reinterpret_cast<const uint32_t *>(arg + 4) != 0 ? 1 : 0;
-    v.mine = choice;
-    ++v.count[choice];
-    send(session::is_host() ? -1 : 0, {kMmVote, choice});
-    log("matchmaking: voted for net game %d", v.game[choice]);
+    if (!vote_active() || vote_closed()) return;
+    const int32_t mine = vote_mine();
+    if (mine == 0 || mine == 1) return;
+    const int choice = get_at<uint32_t>(uintptr_t(arg) + 4) ? 1 : 0;
+    put<int32_t>(kVote + 0x04, choice);
+    add_vote(choice);
+    session::send_message(reply_target(), {kMsgVote, uint8_t(choice)});
+    log("matchmaking: voted for net game %d", vote_game(choice));
 }
 
-// bbb649ef / bf6ce4d5 (PS3 0x439a88 / 0x439b04): the leader cancels the "Starting in" countdown.
-// PS3: when the party host, mailbox 0x115 to the members (whose popup handler 0x439b80 pops it)
-// and Matching2 room hidden; then PopPage. PS4 kept the PopPage.
 U2MP_GUEST void leader_back(void *, void *, void *) {
-    if (session::is_host()) send(-1, {kLeaderBack});
+    if (session::is_host()) session::send_message(-1, {kMsgLeaderBack});
     pop_page();
 }
 
-void ensure_page() {
-    if (top_page() == kPageMatchmaking) return;
-    guest<void(U2MP_GUEST *)(void *, void *, void *)>(fStartMatchmaking)(nullptr, nullptr, nullptr);
+// ---- install checks ----
+
+// s32 from the image, false when it lies outside the image.
+bool image_s32(uint64_t offset, int32_t &v) {
+    if (offset > image.size || 4 > image.size - offset) return false;
+    v = get<int32_t>(offset);
+    return true;
+}
+bool image_u32(uint64_t offset, uint32_t &v) {
+    int32_t s;
+    if (!image_s32(offset, s)) return false;
+    v = uint32_t(s);
+    return true;
 }
 
-// Checks `lea rdi,[rip+menu manager]; jmp PopPage` (the two PS4 leader-back callbacks).
-bool is_pop_callback(uint64_t at) {
+bool vote_row_intact() {
+    static const unsigned char head[] = {0x83, 0x7f, 0x04, 0x00, 0x0f, 0x95, 0xc0,
+                                         0x0f, 0xb6, 0xc0, 0x48, 0x8d, 0x0d};
+    int32_t d;
+    return image.matches(kVoteRow, head, sizeof head) && image_s32(kVoteRow + 13, d) &&
+           kVoteRow + 17 + uint64_t(int64_t(d)) == kVote;
+}
+
+// lea rdi,[menu]; jmp PopPage
+bool leader_back_intact(uint64_t at) {
     static const unsigned char lea[] = {0x48, 0x8d, 0x3d};
-    if (!image.matches(at, lea, sizeof lea) || image.base[at + 7] != 0xe9) return false;
-    int32_t d1 = 0, d2 = 0;
-    std::memcpy(&d1, image.base + at + 3, 4);
-    std::memcpy(&d2, image.base + at + 8, 4);
-    return at + 7 + int64_t(d1) == addr::menu_manager && at + 12 + int64_t(d2) == fPopPage;
+    static const unsigned char jmp[] = {0xe9};
+    int32_t lea_d, jmp_d;
+    return image.matches(at, lea, sizeof lea) && image.matches(at + 7, jmp, sizeof jmp) &&
+           image_s32(at + 3, lea_d) && at + 7 + uint64_t(int64_t(lea_d)) == addr::menu_manager &&
+           image_s32(at + 8, jmp_d) && at + 12 + uint64_t(int64_t(jmp_d)) == kPopPage;
+}
+
+bool start_matchmaking_intact() {
+    static const unsigned char head[] = {0x55, 0x48, 0x89, 0xe5, 0x53, 0x50, 0x48, 0x8d, 0x1d};
+    uint32_t state, page;
+    return image.matches(kStartMatchmaking, head, sizeof head) && image_u32(kStartMatchmaking + 0x1b, state) &&
+           state == 0x13 && image_u32(kStartMatchmaking + 0x20, page) && page == kMatchmakingPage;
 }
 
 }  // namespace
 
-// ---- frontend3.h ----------------------------------------------------------------------------------
 namespace matchmaking {
 
-bool installed() { return hooks_installed; }
-
-void on_peer_joined(uint8_t slot) {
-    if (!mm.running || !session::is_host() || top_page() != kPageMatchmaking) return;
-    // A player reached our matchmaking room: into the page, and into the vote if one is open (PS3 0x4b1e44).
-    send(slot, {kMmStart});
-    const int32_t phase = G<int32_t>(kNetInfo + NI_PHASE);
-    const VoteBlock &v = vote_block();
-    if (phase == kPhaseVote && v.active) {
-        std::vector<uint8_t> m{kMmVoteOptions};
-        put16(m, int16_t(v.game[0]));
-        put16(m, int16_t(v.game[1]));
-        put32(m, ticks_left());
-        send(slot, m);
-    } else if (phase == kPhaseStart) {
-        std::vector<uint8_t> m{kMmResult};
-        put16(m, G<int16_t>(kNgm + NGM_GAME));
-        put32(m, ticks_left());
-        send(slot, m);
-    }
-    log("matchmaking: slot %u joined the room (phase %d)", slot, phase);
-}
-
-void on_migrated(bool host) {
-    log("matchmaking: the room has a new host (%s)", host ? "this PC" : "another player");
-    mm = Machine{};
-    vote_block() = VoteBlock{};
-    G<int32_t>(kNetInfo + NI_PHASE) = kPhaseSearch;
-    online::mm_reset();
-    set_net_state(host ? kStateStartMatchmaking : kStateClientLobby);
-}
+bool installed() { return page_installed; }
 
 void leader_start() {
     if (!session::is_host()) return;
     log("matchmaking: the leader starts matchmaking (%d players)", session::member_count());
-    send(-1, {kMmStart});
-    mm = Machine{};
-    guest<void(U2MP_GUEST *)(void *, void *, void *)>(fStartMatchmaking)(nullptr, nullptr, nullptr);
+    session::send_message(-1, {kMsgStart});
+    reset_machine();
+    start_matchmaking_page(nullptr);
 }
 
-void on_message(uint8_t from, const uint8_t *d, size_t n) {
-    if (!n) return;
+void on_peer_joined(uint8_t slot) {
+    if (!m.running || !session::is_host() || top_page() != kMatchmakingPage) return;
+    // Bring the newcomer to where the room is: the page, then the vote or its result.
+    session::send_message(slot, {kMsgStart});
+    const int32_t p = phase();
+    if (p == 2 && vote_active()) {
+        std::vector<uint8_t> body{kMsgVoteOptions};
+        append_s16(body, int16_t(vote_game(0)));
+        append_s16(body, int16_t(vote_game(1)));
+        append_u32(body, ticks_left());
+        session::send_message(slot, body);
+    } else if (p == 3) {
+        std::vector<uint8_t> body{kMsgResult};
+        append_s16(body, current_net_game());
+        append_u32(body, ticks_left());
+        session::send_message(slot, body);
+    }
+    log("matchmaking: slot %u joined the room (phase %d)", unsigned(slot), p);
+}
+
+void on_migrated(bool host) {
+    log("matchmaking: the room has a new host (%s)", host ? "this PC" : "another player");
+    reset_machine();
+    clear_vote();
+    set_phase(1);
+    online::mm_reset();
+    set_net_sm(host ? kSmStartMatchmaking : kSmClientLobby);
+}
+
+void on_message(uint8_t from, const uint8_t *data, size_t size) {
+    if (size == 0) return;
     const bool host = session::is_host();
-    switch (d[0]) {
-    case kMmStart:   // PS3 0x43a444 on mailbox 0x107: menu reset, NET_SM 19, the matchmaking page
-        if (!host) {
-            mm = Machine{};
-            ensure_page();
+    switch (data[0]) {
+    case kMsgStart:
+        if (host) return;
+        reset_machine();
+        ensure_page();
+        break;
+    case kMsgReady:
+        if (host && from <= 31) m.ready_bits |= 1u << from;
+        break;
+    case kMsgVoteOptions: {
+        if (host || size < 9) return;
+        const int16_t a = read_s16(data + 1), b = read_s16(data + 3);
+        ensure_page();
+        if (!m.running) begin(false);
+        open_vote(a, b, read_u32(data + 5));
+        set_net_sm(kSmClientVote);
+        log("matchmaking: vote between net games %d and %d", a, b);
+        break;
+    }
+    case kMsgVote: {
+        if (size < 2 || data[1] > 1) return;
+        const uint8_t choice = data[1];
+        if (vote_active() && !vote_closed()) add_vote(choice);
+        // The host passes every vote on, so each member's rows show the same counts.
+        if (host) session::send_message(-1, {kMsgVote, choice}, from);
+        break;
+    }
+    case kMsgResult: {
+        if (host || size < 7) return;
+        const int16_t game = read_s16(data + 1);
+        apply_result(game, read_u32(data + 3));
+        log("matchmaking: net game %d chosen", game);
+        break;
+    }
+    case kMsgLeave:
+        if (!m.running && top_page() != kMatchmakingPage) return;
+        if (host) {
+            if (m.online_room) log("matchmaking: a player left matchmaking");   // strangers come and go
+            else leave(true);
+        } else if (from == 0) {
+            leave(false);
         }
         break;
-    case kMmReady:
-        if (host && from <= 31) mm.ready_slots |= 1u << from;
-        break;
-    case kMmVoteOptions:   // PS3 0x4b1e44: 0x4b0700, NET_SM 21
-        if (!host && n >= 9) {
-            ensure_page();
-            if (!mm.running) begin(false);
-            open_vote(get16(d + 1), get16(d + 3), get32(d + 5));
-            set_net_state(kStateClientVote);
-            log("matchmaking: vote between net games %d and %d", get16(d + 1), get16(d + 3));
-        }
-        break;
-    case kMmVote:   // PS3 0x4b1df0: count[vote]++
-        if (n >= 2 && d[1] <= 1) {
-            VoteBlock &v = vote_block();
-            if (v.active && !v.closed) ++v.count[d[1]];
-            if (host) send(-1, {kMmVote, d[1]}, from);   // the other members see it too
-        }
-        break;
-    case kMmResult:   // PS3 0x4b1f34: SetNetGame, phase 3, the countdown
-        if (!host && n >= 7) {
-            apply_result(get16(d + 1), get32(d + 3));
-            log("matchmaking: net game %d chosen", get16(d + 1));
-        }
-        break;
-    case kMmLeave:
-        if (!mm.running && top_page() != kPageMatchmaking) break;
-        if (host && mm.online_room) {   // online a member who backs out only leaves (strangers stay)
-            log("matchmaking: a player left matchmaking");
-            break;
-        }
-        if (host) leave(true);   // a member left: matchmaking ends for the party (PC: party = match)
-        else if (from == 0) leave(false);
-        break;
-    case kLeaderBack:   // PS3 0x439b80: the member's "Starting in" popup closes
+    case kMsgLeaderBack:
         if (!host && from == 0 && (frontend6::popup_up() || top_page() == kMessageBoxPage)) pop_page();
         break;
-    case frontend6::kStartingMessage:   // PS3 0x43a444 on mailbox 0x114: the "Starting in" popup (frontend6.cpp)
+    case frontend6::kStartingMessage:
         if (!host && from == 0) frontend6::member_starting();
         break;
     default:
@@ -574,38 +696,40 @@ void on_message(uint8_t from, const uint8_t *d, size_t n) {
 }  // namespace matchmaking
 
 void install_frontend3(int &installed) {
-    // PAGE_MULTIPLAYER_MATCHMAKING 0x64e910: ret.
-    if (!is_ret_stub(pMatchmaking))
+    if (!is_ret_stub(kPageHandler)) {
         log("PAGE_MULTIPLAYER_MATCHMAKING at 0x%llx: not the stripped handler this port expects, left alone",
-            (unsigned long long)pMatchmaking);
-    else if (replace_function(pMatchmaking, 5, reinterpret_cast<void *>(&matchmaking_page), "PAGE_MULTIPLAYER_MATCHMAKING")) {
-        ++installed;
-        hooks_installed = true;
+            static_cast<unsigned long long>(kPageHandler));
+    } else if (replace_function(kPageHandler, 5, reinterpret_cast<void *>(&page_handler),
+                                "PAGE_MULTIPLAYER_MATCHMAKING")) {
+        installed += 1;
+        page_installed = true;
     }
-    // LIST_MATCHMAKING_VOTE 0x64e8e0: cmp dword [rdi+4],0; setne al; movzx eax,al; lea rcx,[vote block]
-    static const unsigned char vote_bytes[] = {0x83, 0x7f, 0x04, 0x00, 0x0f, 0x95, 0xc0, 0x0f, 0xb6, 0xc0, 0x48, 0x8d, 0x0d};
-    int32_t disp = 0;
-    if (image.matches(cbVote, vote_bytes, sizeof vote_bytes)) std::memcpy(&disp, image.base + cbVote + 13, 4);
-    if (!image.matches(cbVote, vote_bytes, sizeof vote_bytes) || cbVote + 17 + int64_t(disp) != kVoteBlock)
-        log("LIST_MATCHMAKING_VOTE at 0x%llx: not the function this port expects, left alone", (unsigned long long)cbVote);
-    else if (replace_function(cbVote, 5, reinterpret_cast<void *>(&vote), "LIST_MATCHMAKING_VOTE"))
-        ++installed;
-    // The leader's back-out callbacks.
-    for (const auto &c : {std::pair<uint64_t, const char *>{cbLeaderBack1, "leader back (bbb649ef)"},
-                          std::pair<uint64_t, const char *>{cbLeaderBack2, "leader back (bf6ce4d5)"}}) {
-        if (!is_pop_callback(c.first))
-            log("%s at 0x%llx: not the function this port expects, left alone", c.second, (unsigned long long)c.first);
-        else if (replace_function(c.first, 5, reinterpret_cast<void *>(&leader_back), c.second))
-            ++installed;
+
+    if (!vote_row_intact()) {
+        log("LIST_MATCHMAKING_VOTE at 0x%llx: not the function this port expects, left alone",
+            static_cast<unsigned long long>(kVoteRow));
+    } else if (replace_function(kVoteRow, 5, reinterpret_cast<void *>(&vote_row), "LIST_MATCHMAKING_VOTE")) {
+        installed += 1;
     }
-    // START_MATCHMAKING 0x5eba40 is called, not replaced: push rbp; mov rbp,rsp; push rbx; push rax;
-    // lea rbx,[menu]; mov rdi,rbx; call 0x5cd1e0; mov [NET_SM],0x13
-    static const unsigned char start_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x53, 0x50, 0x48, 0x8d, 0x1d};
-    if (!image.matches(fStartMatchmaking, start_bytes, sizeof start_bytes) || G<uint32_t>(fStartMatchmaking + 0x1b) != 0x13 ||
-        G<uint32_t>(fStartMatchmaking + 0x20) != kPageMatchmaking) {
+
+    const struct { uint64_t at; const char *name; } backs[] = {
+        {kLeaderBackA, "leader back (bbb649ef)"},
+        {kLeaderBackB, "leader back (bf6ce4d5)"},
+    };
+    for (const auto &b : backs) {
+        if (!leader_back_intact(b.at)) {
+            log("%s at 0x%llx: not the function this port expects, left alone", b.name,
+                static_cast<unsigned long long>(b.at));
+        } else if (replace_function(b.at, 5, reinterpret_cast<void *>(&leader_back), b.name)) {
+            installed += 1;
+        }
+    }
+
+    // We call START_MATCHMAKING but do not patch it: it must still set NET_SM 19 and show our page.
+    if (!start_matchmaking_intact()) {
         log("START_MATCHMAKING at 0x%llx differs: matchmaking off (Start Match plays the party's game)",
-            (unsigned long long)fStartMatchmaking);
-        hooks_installed = false;
+            static_cast<unsigned long long>(kStartMatchmaking));
+        page_installed = false;
     }
 }
 

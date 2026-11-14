@@ -619,7 +619,7 @@ const PlanMat *Plan::get(const std::string &n) const {
     return nullptr;
 }
 
-Plan make_plan(const fs::path &ps3path, const fs::path &res, const fs::path &water_templates) {
+Plan make_plan(const fs::path &ps3path, const fs::path &res, const fs::path &water_templates, const std::vector<std::string> &also_exclude) {
     std::optional<json::Value> wtpl;
     static const std::regex FOLIAGE("plant|leaf|leaves|vine|card(?!board)|grass|moss|brom|bush|fern|ivy|palm-frond|frond|shrub|weed|reed|"
                                     "flower|hedge|branch|twig|canopy|willow|banyan");
@@ -631,7 +631,8 @@ Plan make_plan(const fs::path &ps3path, const fs::path &res, const fs::path &wat
     std::string stage = utf8(ps3path.filename());
     stage = stage.substr(0, stage.size() - 4);
     plan.stage = stage;
-    const std::set<std::string> exclude = {stage + ".pak"};
+    std::set<std::string> exclude(also_exclude.begin(), also_exclude.end());   // and the stage itself
+    exclude.insert(stage + ".pak");
     const std::shared_ptr<Survey> S = load_survey(res);
     const std::vector<bg::Proto> C = bg::collection(p);
     std::vector<std::string> names;

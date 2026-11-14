@@ -35,13 +35,24 @@ std::string learn(const std::vector<std::pair<Bytes, Bytes>> &pairs, const std::
 std::string learn_u2(const std::vector<std::tuple<std::string, Bytes, Bytes>> &pairs, const std::vector<std::tuple<std::string, Bytes, Bytes>> &partial,
                      const std::function<void(const std::string &)> &log);
 
+// the conversion report: a count per event, the events in the order they first occurred
+struct Counts {
+    std::map<std::string, int64_t> n;
+    std::vector<std::string> order;
+    int64_t &operator[](const std::string &k) {
+        const auto [it, added] = n.try_emplace(k, 0);
+        if (added) order.push_back(k);
+        return it->second;
+    }
+};
+
 class Converter {
 public:
     // schemas (JSON texts), highest priority first: a key's whole entry comes from the first schema that has it;
     // opcode maps, string prefixes and header types are merged
     explicit Converter(const std::vector<std::string> &schemas);
     ~Converter();
-    Bytes convert(const Bytes &ps3, std::map<std::string, int64_t> *rep = nullptr) const;
+    Bytes convert(const Bytes &ps3, Counts *rep = nullptr) const;
 
 private:
     struct Impl;

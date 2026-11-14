@@ -196,6 +196,8 @@ struct SpanTarget {
 
 }  // namespace
 
+std::vector<std::string> ps3_block_materials(const U2Src &s, const Ref &proto) { return block_materials(s, proto); }
+
 // ------------------------------------------------------------------------------------------------ U2 source view
 U2Src::U2Src(const fs::path &path) : p(path) {
     if (!p.ps3) return;
@@ -841,18 +843,20 @@ size_t scope3_cbuffers(const Bytes &d) {
     return out.size();
 }
 }  // namespace
-void fix_cbuffer_capacity(Bytes &d) {
+size_t fix_cbuffer_capacity(Bytes &d) {
     const Pak q(d, "converted");
     const size_t need = scope3_cbuffers(q.d);
     const auto gs = q.items_of("GEOMETRY_1");
-    if (gs.empty()) return;
+    if (gs.empty()) return 0;
+    size_t raised = 0;
     const ORef pl = bg::res(q, gs[0].page, gs[0].data_off() + 0x20);
     const uint64_t n = rd64le(q.d, q.pbase(gs[0].page) + gs[0].data_off() + 0x18);
     for (uint64_t i = 0; i < (pl ? n : 0); i++) {
         const Ref r = bg::need(q, pl->first, pl->second + 8 * i);
         const uint64_t off = q.pbase(r.first) + r.second + 0x30;
-        if (rd32le(q.d, off) < need) wr32le(&d[off], uint32_t(need));
+        if (rd32le(q.d, off) < need) wr32le(&d[off], uint32_t(need)), raised++;
     }
+    return raised;
 }
 
 }  // namespace u2imp

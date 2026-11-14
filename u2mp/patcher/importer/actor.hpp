@@ -35,11 +35,23 @@ struct U2Src {
 };
 
 std::set<std::string> ps3_material_names(const U2Src &s);
+// the material of each block of a PS3 prototype (a name without '/' gets the folder u2mp/unnamed)
+std::vector<std::string> ps3_block_materials(const U2Src &s, const Ref &proto);
 uint32_t skeleton_sid(const Pak &p);
 
 // the PS3 actor converted on a PS4 template -> out_path (cbuffer capacities raised)
 void convert_actor_pak(const fs::path &ps3_path, const fs::path &tmpl_path, const fs::path &out_path);
-void fix_cbuffer_capacity(Bytes &pak);
+size_t fix_cbuffer_capacity(Bytes &pak);   // the number of prototypes raised
+// what the PS4 loader resolves (actors.cpp): every problem found, [] = fine
+std::vector<std::string> ps4check(const Pak &p);
+
+// ------------------------------------------------------------------------------------------------ for validate.cpp
+fs::path skin_template(const fs::path &ps3_path, const fs::path &actor_dir, const std::string &exclude);   // actors.cpp
+std::vector<std::string> actor_check(const fs::path &path);
+BlobP u2_light_table(const Pak &p);                     // stage.cpp: the U2 item layouts
+std::vector<BlobP> u2_collision(const Pak &p);
+BlobP u2_water(const Pak &p);
+std::vector<std::string> u2_collision_problems(const Pak &q, const PakItem &it);   // stagecheck.cpp
 
 // ------------------------------------------------------------------------------------------------ actorparts.cpp
 struct ArtgroupU2 {
@@ -98,8 +110,18 @@ void havok_configure(const Context &c);
 Bytes havok_convert(const Bytes &pf3);
 
 // ------------------------------------------------------------------------------------------------ twin.cpp
-// a skin built from its PS4 campaign twin: notes, or why not (no twin build)
-std::variant<std::vector<std::string>, std::string> twin_build(const fs::path &ps3_mp, const fs::path &ps3_twin, const fs::path &ps4_twin, const fs::path &out);
+// what a twin build did (the import note is note(); --validate-twins reports them all)
+struct TwinStats {
+    std::string twin;
+    size_t submeshes = 0, swapped = 0, loose = 0;
+    double share = 0;   // of the LOD0 triangles, rounded to 3 places
+    size_t materials = 0, twin_materials = 0, artgroup_keys_fixed = 0, textures_added = 0, geometry_textures_added = 0, size = 0,
+           cbuffer_capacity_raised = 0;
+    std::string note() const;
+    Value json() const;
+};
+// a skin built from its PS4 campaign twin: what it did, or why not (no twin build)
+std::variant<TwinStats, std::string> twin_build(const fs::path &ps3_mp, const fs::path &ps3_twin, const fs::path &ps4_twin, const fs::path &out);
 void rekey_artgroup(const fs::path &path);
 extern const std::map<std::string, std::string> TWINS;
 

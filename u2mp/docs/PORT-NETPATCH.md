@@ -50,10 +50,10 @@ LoadNetPatch do not exist on PS4.
   relocations: `{u32 bytes, bitmap}`, bit k of byte i = 8-byte slot (8i+k)*8.
 - Object type headers stay **4 bytes** on PS4 (U3: 8 bytes `[0][type]`); the body alignment decides any padding.
 
-## Conversion (u2mp/patcher/u2conv/u2dc.py)
+## Conversion (u2mp/patcher/importer/netpatch.cpp)
 
-The U3 converter `u3mp/patcher/tools/dcconv/dcconv.py` is loaded as a private, text-edited copy (nothing in
-u3mp changes): U2 header parser, 4-byte headers, pointers after a 4-byte header, `array` / `map` keyed by type
+The U3 DC converter (dctools `dcconv`) runs with its Uncharted 2 differences (`u3::g_u2`; `u3import.exe` never sets it):
+U2 header parser, 4-byte headers, pointers after a 4-byte header, `array` / `map` keyed by type
 + referring field (their layout depends on the element type), PS3 trailing zero padding trimmed for fixed-size
 keys. Symbols are keyed by their own sid, so net-patch9 objects reuse the layouts of the same PS4 symbols.
 Training: the 111 PS3 `dc1.psarc` / PS4 `dc1/ps4` module pairs (88 with the same graph learned whole, 23
@@ -72,7 +72,7 @@ Quality (2026-11-08):
   word (types only net uses), which the net-patch9~net.bin training now teaches.
 - `0x8cf8e1cc` (and its 5 strings) use learned layouts: `weapon-set` learned from 25 instances, 0 failures.
 
-Import: `u2mp_import.py` step `net_patch()` (after the spawn paks): source `<title>DATA2/USRDIR/net-patch9.bin`
+Import: step net-patch (after the spawn paks): source `<title>DATA2/USRDIR/net-patch9.bin`
 searched like `ps3_data_pak22` (`--ps3-data`, NPUA80698DATA2 first, then any DATA2), output
 `u2data/build/main/dc1/ps4/net-patch9.bin`, schema cached in `work/dc`. First run learns the schema (~3 min).
 Test import written to `scratch/u2mp/import-test/u2data/build/main/dc1/ps4/net-patch9.bin` (190918 bytes).

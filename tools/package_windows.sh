@@ -6,7 +6,7 @@
 #   Uncharted Launcher.exe   what players start (tools/windows_starter/starter.cpp)
 #   launcher-qt\             the launcher's window (Qt 6), launcher\native\ its core and the game starter
 #   gow3_pc\                 the game runtime with its DLLs and its scripts
-#   u2mp\, u3mp\             the multiplayer importers (Python scripts, tables, the helper builds, ffmpeg, objdump)
+#   u2mp\, u3mp\             the multiplayer importers (u2import.exe, u3import.exe, u3fix.exe, tables, the helper builds, ffmpeg, objdump)
 #   python\                  the Python the importers run with (Pillow, numpy when installed)
 #   tools\                   the update installer and the base game's file list
 #   licenses\                the licenses of everything bundled
@@ -76,12 +76,22 @@ runtime() {   # the game runtime, without debug information, and what it loads
     for dll in "$out"/gow3_pc/out/*.dll; do note_msys_file clang64 "$dll"; done
 }
 
-u2_import() {   # Uncharted 2's importer: scripts and its list of what it makes (it reads the player's own game)
-    mkdir -p "$out/u2mp/docs"
-    cp -r u2mp/patcher "$out/u2mp/patcher"
+u2_import() {   # Uncharted 2's importer and its list of what it makes (it reads the player's own game)
+    mkdir -p "$out/u2mp/docs" "$out/u2mp/bin"
     cp u2mp/README.md "$out/u2mp/"
     cp u2mp/docs/import-list.tsv "$out/u2mp/docs/"
-    drop_caches "$out/u2mp"
+    # u2import.exe (u2mp/patcher/importer): the import, the menu overlay and the launcher's version check; it links the
+    # Uncharted 3 importer's helpers and converters (from u3mp/patcher: the bank envelope table; u3mp/bin: ffmpeg, objdump)
+    local fx=u3mp/patcher/tools/fixes im=u3mp/patcher/importer u2=u2mp/patcher/importer
+    clang++ -std=c++20 -O2 -municode -static -s -Wl,--gc-sections -Wl,--no-insert-timestamp -I"$u2" -I"$im" -I"$fx/dctools" -Ilauncher/native \
+        "$u2/u2import.cpp" "$u2/sources.cpp" "$u2/sound.cpp" "$u2/registry.cpp" "$u2/texts.cpp" "$u2/levels.cpp" "$u2/stage.cpp" \
+        "$u2/netimg.cpp" "$u2/netpatch.cpp" "$u2/actor.cpp" "$u2/actorparts.cpp" "$u2/actors.cpp" "$u2/havok.cpp" "$u2/twin.cpp" \
+        "$u2/overlay.cpp" "$u2/stagecheck.cpp" "$u2/validate.cpp" "$u2/devtools.cpp" "$im/common.cpp" "$fx/dctools/psarc.cpp" "$fx/dctools/dc.cpp" "$fx/dctools/proc.cpp" "$fx/dctools/fixlib.cpp" \
+        "$fx/sound-banks/convert_banks.cpp" "$fx/dctools/ndpak.cpp" "$fx/dctools/ps4writer.cpp" "$fx/dctools/ps4ingame.cpp" \
+        "$fx/dctools/ps4stage.cpp" "$fx/dctools/stageplan.cpp" "$fx/dctools/ps3bg.cpp" "$fx/dctools/visinfo.cpp" "$fx/dctools/collision.cpp" \
+        "$fx/dctools/texcodec.cpp" "$fx/dctools/hkconvert.cpp" "$fx/dctools/ps3fp.cpp" "$fx/dctools/ps4mats.cpp" "$fx/dctools/ps4actor.cpp" \
+        "$fx/dctools/anim.cpp" "$fx/dctools/skel.cpp" "$fx/dctools/fgcoll.cpp" "$fx/dctools/dcconv.cpp" \
+        -lbcrypt -lshell32 -lole32 -luuid -ladvapi32 -o "$out/u2mp/bin/u2import.exe"
 }
 
 u3_import() {   # Uncharted 3's importer, its recipe and tools, and the newest multiplayer helper build
@@ -162,9 +172,18 @@ launcher_core() {   # the launcher's native code: its core, the game starter, th
     CLANG64="$msys/clang64" bash launcher/native/build.sh
     cp launcher/native/uncharted_native.dll launcher/native/game_starter.exe "$out/launcher/native/"
     cp launcher/native/apply_update.exe "$out/tools/"
-    # files older launchers look for before they install an update; each one hands over to the native program
-    cp launcher/uncharted_launcher.pyw launcher/updater.py "$out/launcher/"
-    cp tools/apply_update.py tools/probe_uncharted.py tools/game_files_102.json.gz "$out/tools/"
+    cp tools/game_files_102.json.gz "$out/tools/"
+    # Older launchers: up to 0.10.63 they install an update by running the new package's python\pythonw.exe on
+    # tools\apply_update.py, and old shortcuts run it on launcher\uncharted_launcher.pyw. python\pythonw.exe is the
+    # bridge (launcher/native/bridge.cpp), which runs tools\apply_update.exe or "Uncharted Launcher.exe" instead; no
+    # Python takes part in a launcher update. Launchers up to 0.10.73 also check that these four files exist before
+    # they install an update: placeholders, nothing reads them.
+    mkdir -p "$out/python"
+    cp launcher/native/pythonw_bridge.exe "$out/python/pythonw.exe"
+    local f
+    for f in launcher/uncharted_launcher.pyw launcher/updater.py tools/apply_update.py tools/probe_uncharted.py; do
+        printf 'Placeholder for launchers up to 0.10.73, which check that this file exists before they install an\r\nupdate. It is not a program and nothing reads it.\r\n' > "$out/$f"
+    done
     cp launcher/assets/uncharted.ico launcher/assets/icon.png "$out/launcher/assets/"
 }
 
@@ -253,7 +272,7 @@ texts() {
 python_for_imports() {
     local to=$out/python f
     mkdir -p "$to/Lib/site-packages"
-    for f in "$py_home"/python.exe "$py_home"/pythonw.exe "$py_home"/python3*.dll "$py_home"/vcruntime140*.dll \
+    for f in "$py_home"/python.exe "$py_home"/python3*.dll "$py_home"/vcruntime140*.dll \
             "$py_home"/LICENSE.txt; do
         [[ -f $f ]] && cp -p "$f" "$to/"
     done

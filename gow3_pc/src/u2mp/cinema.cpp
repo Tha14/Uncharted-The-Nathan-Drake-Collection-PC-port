@@ -1,11 +1,17 @@
-// u2mp cinema (theater): recording and playback, ported from PS3 1.10 cinema.cpp onto the parts the
-// PS4 1.02 build kept. See cinema.h; the evidence for every address is in u2mp/docs/CINEMA.md.
+// u2mp cinema (theater): the game side of match recording and playback.
 //
-// Addresses are Uncharted 2 PS4 1.02 image offsets, PS3 1.10 originals in the comments. Every
-// address that is patched is checked first (bytes, ret stub or vtable slot value).
+// The PS4 build still has the replay task, the stream reader, the code that writes the stream
+// start and the cinema list query, but the parts around them are gone. This file puts them back:
+// it gives the replay stream a buffer, records every net event sent or received during an online
+// match into it, streams it to a file (cinema_store.cpp), drives the cinema menus over those files
+// and feeds a chosen file back into the stream for the game's replay task to play.
+//
+// Reimplemented from the behaviour description u2mp/docs/spec/cinema.md.
 #include "cinema.h"
 
 #include <chrono>
+#include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -18,559 +24,631 @@
 
 extern "C" const char *runtime_file_user_dir(void);
 
-namespace u2mp::cinema {
+namespace u2mp {
+
 namespace {
 
-// ---- guest data -----------------------------------------------------------------------------
-constexpr uint64_t kCinema = 0x113a990;      // cinema manager (PS3 0xf1b590)
-constexpr uint64_t kStream = 0x113a258;      // replay stream {data, bits, maxBits, bytes} (PS3 0xf119b4)
-constexpr uint64_t kNgm = 0x113b760;         // g_netGameManager (PS3 0xf1dc80)
-constexpr uint64_t kNetInfo = 0x104f1c8;     // PS3 0xf1fa48
-constexpr uint64_t kLocalList = 0x104f1b9;   // u8, 1 = the list shows local files (PS3 0xe1552c)
-constexpr uint64_t kRemoteRow = 0x14cfeb0;   // remote list row (cond 69 query)
-constexpr uint64_t kListRow = 0x14ce098;     // row LIST_CINEMA was pressed on (PS3 0xf10b78)
-constexpr uint64_t kClock = 0x113a040;       // -> net clock, +0xc frame counter (PS3 [0xf116d4]+12)
+using cinema::get32;
+using cinema::get64;
+using cinema::put32;
+using cinema::put64;
+using cinema::Stream;
 
-// cinema manager fields (PS3 offset + 0x10 from +0x94 on)
-constexpr uint64_t C_FILE = 0x00, C_READING = 0x94, C_EOF = 0x95, C_FLAGS = 0x9c, C_SELECTED = 0x1a4,
-                   C_COUNT = 0x1a8, C_ENTRIES = 0x1b0, C_REMOTE_COUNT = 0x1b8, C_REMOTE_ENTRIES = 0x1c0,
-                   C_HEADER = 0x1c8;
-constexpr uint64_t NGM_GAME = 0x1ca0, NGM_OVERRIDES = 0x21b4, NI_MODE = 0x2c4;
-constexpr int32_t kModeCinema = 3;
+// ---------------------------------------------------------------------------------------------
+// Where things live in the game image (image offsets).
 
-// guest functions we call
-constexpr uint64_t fPopPage = 0x5cc6f0, fSetNetGame = 0x63dc30, fMenuReset = 0x5cd1e0, fFindTask = 0xa572d0,
-                   fPlayTask = 0xa5be10;
-// functions we replace or hook
-constexpr uint64_t hPump = 0x608c40;            // PS3 0x463ce8 (file I/O was FIOS; replaced whole)
-constexpr uint64_t hReceiveHook = 0x5e9d80;     // M+0x150 no-op = PS3 recorder 0x440c38
-constexpr uint64_t hSend = 0x644ab0;            // NetGameManager::SendNetEvent (PS3 0x493728)
-constexpr uint64_t hSessionSend = 0x66a3d0;     // NetSession::SendNetEvent (PS3 0x4d3754)
-constexpr uint64_t hShowResultsEnter = 0x5f0ea0;   // ret stub (PS3 0x443e40 called finish 0x464464)
-constexpr uint64_t hProgressPage = 0x5e3f60;    // PAGE_PROGRESS handler (PS3 0x4336e4)
-constexpr uint64_t hCinemaPage = 0x5e4060;      // PAGE_CINEMA handler (PS3 0x43367c)
-constexpr uint64_t hListCinema = 0x5e4080;      // LIST_CINEMA (PS3 0x435248)
-constexpr uint64_t hRefreshToList = 0x5e4490;   // bf6960e8 / c9f003a8 (PS3 0x432c8c)
-constexpr uint64_t hToggleList = 0x5e45d0;      // fb637366 (PS3 0x432c00)
-constexpr uint64_t hProtect = 0x5e41d0, hUnprotect = 0x5e41e0;   // ret stubs (PS3 0x433644, 0x43360c)
-constexpr uint64_t hDeleteConfirmed = 0x5e41f0; // 7bb3c875 (PS3 0x433588)
-constexpr uint64_t hUpload = 0x5e42d0;          // BUTTON_CINEMA_UPLOAD (PS3 0x433240)
-constexpr uint64_t hStartCinema = 0x5e45a0;     // BUTTON_MULTIPLAYER_STARTCINEMA (PS3 0x432ea4)
-constexpr uint64_t hQuerySet = 0x657e7a;        // cond 69 query, op 9 (set) (PS3 0x4bb170)
-constexpr uint64_t kQueryDone = 0x657bea;       // its common exit
-// state vtable slots: {slot, expected function}
-constexpr uint64_t sWaitReadyExit = 0x100abd0, fWaitReadyExit = 0x5f2830;     // PS3 0x443f00
-constexpr uint64_t sOnlineLeaveEnter = 0x100a9c8, fOnlineLeaveEnter = 0x5f00d0; // PS3 0x445608
-constexpr uint64_t sRePlayingExit = 0x100a7a0, fRePlayingExit = 0x5e8740;     // PS3 0x436028
-constexpr uint64_t sReplayLeaveEnter = 0x100a6d8, fReplayLeaveEnter = 0x5e5520; // PS3 0x434848
+constexpr uint64_t kCinema = 0x113a990;        // cinema manager
+constexpr uint64_t kStream = 0x113a258;        // the replay stream
+constexpr uint64_t kClockPtr = 0x113a040;      // pointer to the net clock object
+constexpr uint64_t kNetGameManager = 0x113b760;
+constexpr uint64_t kNetMode = 0x104f1c8 + 0x2c4;
+constexpr uint64_t kShowsLocal = 0x104f1b9;    // 1 = the list shows local files
+constexpr uint64_t kRemoteRow = 0x14cfeb0;
+constexpr uint64_t kPressedRow = 0x14ce098;
 
-constexpr uint32_t kPageProgress = sid("PAGE_PROGRESS");
-constexpr uint32_t kPageList = sid("PAGE_MULTIPLAYER_CINEMA_LIST");
-constexpr uint32_t kPageCinema = sid("PAGE_CINEMA");
-constexpr uint32_t kTaskSet = 0x9f2aeafb, kTaskReplay = sid("replay");
-static_assert(kPageProgress == 0x1d84d11eu && kPageList == 0x735c4dbeu && kPageCinema == 0xca9509a0u &&
-                  kTaskReplay == 0xad76460eu, "string ids");
+// Offsets inside the cinema manager.
+namespace cm {
+constexpr uint64_t kOpen = 0x00;
+constexpr uint64_t kReading = 0x94;
+constexpr uint64_t kEof = 0x95;
+constexpr uint64_t kFlags = 0x9c;               // protect, delete, unprotect, upload (+ 4 spare)
+constexpr uint64_t kSelected = 0x1a4;
+constexpr uint64_t kCount = 0x1a8;
+constexpr uint64_t kEntries = 0x1b0;
+constexpr uint64_t kServerCount = 0x1b8;
+constexpr uint64_t kServerEntries = 0x1c0;
+constexpr uint64_t kHeader = 0x1c8;
+}  // namespace cm
 
-template <typename T> T &G(uint64_t offset) { return *image.at<T>(offset); }
-uint8_t *P(uint64_t offset) { return image.at<uint8_t>(offset); }
-template <typename F> F guest(uint64_t offset) { return reinterpret_cast<F>(image.base + offset); }
-using StateFn = void(U2MP_GUEST *)(void *);
+constexpr uint64_t kNgmGame = 0x1ca0;           // s16 net game index
+constexpr uint64_t kNgmOverrides = 0x21b4;
+constexpr uint64_t kMenuMessageBox = 0x17d0;
+
+// Game functions this file calls.
+constexpr uint64_t fPopPage = 0x5cc6f0;
+constexpr uint64_t fSetNetGame = 0x63dc30;
+constexpr uint64_t fMenuReset = 0x5cd1e0;
+constexpr uint64_t fFindTask = 0xa572d0;
+constexpr uint64_t fPlayTask = 0xa5be10;
+
+// Page, task and message ids.
+constexpr uint32_t kPageProgress = 0x1d84d11e;
+constexpr uint32_t kPageCinemaList = 0x735c4dbe;
+constexpr uint32_t kPageCinema = 0xca9509a0;
+constexpr uint32_t kPageMessage = 0x719e9fec;
+constexpr uint32_t kTaskSet = 0x9f2aeafb;
+constexpr uint32_t kTaskReplay = 0xad76460e;
+static_assert(sid("replay") == kTaskReplay, "replay task id");
+constexpr uint32_t kNoFilesMessage = 0x2760b1fd;
+constexpr uint32_t kNoFilesParams[7] = {0, 0xc6467f2d, 0x11d8e78a, 0, 0x1519fa3d, 0, 0};
+
+constexpr uint32_t kStreamBits = 0x100000;     // the buffer's 128 KB in bits
+constexpr uint32_t kRecordLimit = 0x1fc00;     // bytes; leaves room for the end marker and payload
+constexpr size_t kSpare = 64;                  // the game's readers peek one word past the end
+
+// ---------------------------------------------------------------------------------------------
+// Host state.
+
+alignas(64) uint8_t g_buffer[cinema::kBufferBytes + kSpare];
+alignas(16) uint8_t g_local[cinema::kMaxFiles * cinema::kEntrySize];
+alignas(16) uint8_t g_server[cinema::kMaxFiles * cinema::kEntrySize];   // the server list stays empty
+
+cinema::Writer g_writer;
+cinema::Reader g_reader;
+bool g_recording = false;
+bool g_record_enabled = true;
+bool g_can_record = false;
+std::chrono::steady_clock::time_point g_started;
+
+// What PAGE_PROGRESS should do once it reaches its "done" event: set by the menu actions that
+// open it, consumed once.
+struct PageRequest {
+    bool pending = false;
+    bool load_first = false;
+    uint32_t next_page = 0;
+};
+PageRequest g_request;
+
+// Originals reached through trampolines or saved vtable slots.
 using SendFn = uint64_t(U2MP_GUEST *)(void *, void *, uint64_t);
-using WriteFn = void(U2MP_GUEST *)(void *, void *);
+using StateFn = void(U2MP_GUEST *)(void *);
+SendFn g_send_original = nullptr;
+SendFn g_session_send_original = nullptr;
+StateFn g_wait_ready_exit = nullptr;
+StateFn g_online_leave_enter = nullptr;
+StateFn g_replaying_exit = nullptr;
+StateFn g_replay_leave_enter = nullptr;
 
-// ---- our state ------------------------------------------------------------------------------
-alignas(64) uint32_t buffer[(kBufferBytes + 64) / 4];   // spare words: the readers look one word ahead
-alignas(16) uint8_t local_entries[kMaxFiles * kEntrySize];
-alignas(16) uint8_t remote_entries[kMaxFiles * kEntrySize];   // no server: always empty
-Writer writer;
-Reader reader;
-bool recording_now = false, record_enabled = true, can_record = false;
-std::chrono::steady_clock::time_point record_start;
-struct Request { bool pending = false; bool load_first = false; uint32_t next = 0; } request;
-StateFn orig_waitready_exit, orig_online_leave_enter, orig_replaying_exit, orig_replay_leave_enter;
-SendFn orig_send, orig_session_send;
+// ---------------------------------------------------------------------------------------------
+// Small accessors.
 
-std::string dir() {
-    const char *u = runtime_file_user_dir();
-    return std::string(u && *u ? u : ".") + "/u2mp/cinema";
+uint8_t *game(uint64_t offset) { return image.base + offset; }
+uint8_t *cinema_mgr(uint64_t field) { return game(kCinema + field); }
+Stream *stream() { return reinterpret_cast<Stream *>(game(kStream)); }
+void *menu_manager() { return game(addr::menu_manager); }
+uint32_t *buffer_words() { return reinterpret_cast<uint32_t *>(g_buffer); }
+
+int32_t list_count() { return int32_t(get32(cinema_mgr(cm::kCount))); }
+int32_t selected() { return int32_t(get32(cinema_mgr(cm::kSelected))); }
+void set_selected(int32_t v) { put32(cinema_mgr(cm::kSelected), uint32_t(v)); }
+bool in_range(int32_t i) { return i >= 0 && i < list_count(); }
+uint8_t *local_entry(int32_t i) { return g_local + size_t(i) * cinema::kEntrySize; }
+std::string entry_name(int32_t i) { return reinterpret_cast<const char *>(local_entry(i) + cinema::entry::kName); }
+
+std::string store_dir() {
+    const char *user = runtime_file_user_dir();
+    return std::string(user && *user ? user : ".") + "/u2mp/cinema";
 }
 
-Stream &stream() { return G<Stream>(kStream); }
+void clear_buffer() { std::memset(g_buffer, 0, sizeof g_buffer); }
 
-// PS3 NetInit attached a 128 KB buffer (0x448d68). PS4 has no NetInit and its static initializer
-// (0x5ef970) leaves data = NULL, so WaitReady::Exit (0x5f2830) would write to address 0. Called
-// lazily because that initializer runs after install.
-void ensure_stream() {
-    Stream &s = stream();
-    if (s.data == buffer && s.max_bits == kBufferBytes * 8) return;
-    std::memset(buffer, 0, sizeof buffer);
-    s = Stream{buffer, 0, uint32_t(kBufferBytes * 8), 0};
+// ---------------------------------------------------------------------------------------------
+// Steps shared by the hooks.
+
+// Gives the replay stream this module's buffer, unless it already has it.
+void attach_stream() {
+    Stream *s = stream();
+    if (s->data == buffer_words() && s->max_bits == kStreamBits) return;
+    clear_buffer();
+    s->data = buffer_words();
+    s->bits = 0;
+    s->max_bits = kStreamBits;
+    s->bytes = 0;
 }
 
-void ensure_lists() {
-    const uint64_t local = uint64_t(uintptr_t(local_entries)), remote = uint64_t(uintptr_t(remote_entries));
-    if (G<uint64_t>(kCinema + C_ENTRIES) != local) {
-        G<uint64_t>(kCinema + C_ENTRIES) = local;
-        G<int32_t>(kCinema + C_COUNT) = 0;
-        G<int32_t>(kCinema + C_SELECTED) = 0;
+// Points the cinema manager at the host list storage. A fresh attach starts with an empty list.
+void attach_lists() {
+    if (get64(cinema_mgr(cm::kEntries)) != uint64_t(uintptr_t(g_local))) {
+        put64(cinema_mgr(cm::kEntries), uint64_t(uintptr_t(g_local)));
+        put32(cinema_mgr(cm::kCount), 0);
+        put32(cinema_mgr(cm::kSelected), 0);
     }
-    G<uint64_t>(kCinema + C_REMOTE_ENTRIES) = remote;
-    G<int32_t>(kCinema + C_REMOTE_COUNT) = 0;
+    put64(cinema_mgr(cm::kServerEntries), uint64_t(uintptr_t(g_server)));
+    put32(cinema_mgr(cm::kServerCount), 0);
 }
 
-int32_t count() { return G<int32_t>(kCinema + C_COUNT); }
-int32_t selected() { return G<int32_t>(kCinema + C_SELECTED); }
-uint8_t *entry_at(int32_t i) { return local_entries + size_t(i) * kEntrySize; }
-std::string entry_name(int32_t i) { return reinterpret_cast<const char *>(entry_at(i) + entry::kName); }
-
-uint32_t frame_clock() {
-    const uint64_t clock = G<uint64_t>(kClock);
-    return clock ? *reinterpret_cast<const uint32_t *>(uintptr_t(clock) + 0xc) : 0;
-}
-
-void pop_page() { guest<void(U2MP_GUEST *)(void *)>(fPopPage)(P(addr::menu_manager)); }
-
-// The "no cinema files" box, as 0x5e41f0 shows it (PS3 0x42a3e8 with 2760b1fd / c6467f2d).
-void message_no_files() {
-    uint8_t *box = *reinterpret_cast<uint8_t **>(P(addr::menu_manager + 0x17d0));
-    if (!box) return;
-    put32(box + 0x08, 0x2760b1fd);
-    const uint32_t words[] = {0, 0xc6467f2d, 0x11d8e78a, 0, 0x1519fa3d, 0, 0};   // +0x40..+0x58
-    std::memcpy(box + 0x40, words, sizeof words);
-    show_page(0x719e9fec);
-}
-
-// PS3 0x4630a0: the flags the cinema page's controls read (+0x9c protect, +0x9d delete,
-// +0x9e unprotect, +0x9f upload).
+// Enables the buttons that make sense for the selected file.
 void update_flags() {
-    std::memset(P(kCinema + C_FLAGS), 0, 8);
+    uint8_t *flags = cinema_mgr(cm::kFlags);
+    std::memset(flags, 0, 8);
     const int32_t i = selected();
-    if (i < 0 || i >= count()) return;
-    if ((get32(entry_at(i) + entry::kMode) & kModeWritable) == kModeWritable) {
-        P(kCinema + C_FLAGS)[0] = 1;
-        P(kCinema + C_FLAGS)[1] = 1;
+    if (!in_range(i)) return;
+    const uint32_t mode = get32(local_entry(i) + cinema::entry::kMode);
+    if ((mode & cinema::kModeWritable) == cinema::kModeWritable) {
+        flags[0] = 1;   // protect
+        flags[1] = 1;   // delete
     } else {
-        P(kCinema + C_FLAGS)[2] = 1;
+        flags[2] = 1;   // unprotect
     }
-    P(kCinema + C_FLAGS)[3] = 1;   // never in the (absent) server list
+    flags[3] = 1;       // upload
 }
 
-// PS3 0x4631d8 (refresh), into the game's local list.
+// Rebuilds the local list from the store directory and keeps the selection on a valid row.
 void refresh() {
-    ensure_lists();
-    const std::string d = dir();
-    ensure_dir(d);
-    const std::vector<File> files = cinema::list(d);
-    std::memset(local_entries, 0, sizeof local_entries);
-    for (size_t i = 0; i < files.size(); ++i) fill_entry(files[i], entry_at(int32_t(i)));
+    attach_lists();
+    const std::string dir = store_dir();
+    cinema::ensure_dir(dir);
+    const std::vector<cinema::File> files = cinema::list(dir);
+    std::memset(g_local, 0, sizeof g_local);
+    for (size_t i = 0; i < files.size(); ++i) cinema::fill_entry(files[i], local_entry(int32_t(i)));
     const int32_t n = int32_t(files.size());
-    G<int32_t>(kCinema + C_COUNT) = n;
-    if (selected() >= n || selected() < 0) G<int32_t>(kCinema + C_SELECTED) = n ? n - 1 : 0;
-    G<uint8_t>(kLocalList) = 1;
+    put32(cinema_mgr(cm::kCount), uint32_t(n));
+    const int32_t sel = selected();
+    if (sel >= n || sel < 0) set_selected(n > 0 ? n - 1 : 0);
+    *game(kShowsLocal) = 1;
     update_flags();
 }
 
-// PS3 0x463738 (load): select a recording, take its header, preselect its net game.
+// Makes row `index` the current recording: its header becomes the cinema header and its net
+// game is selected so the menu shows the right map and mode.
 bool load(int32_t index) {
-    ensure_lists();
-    if (index < 0 || index >= count()) return false;
-    G<int32_t>(kCinema + C_SELECTED) = index;
-    const uint8_t *header = entry_at(index) + entry::kHeader;
-    std::memcpy(P(kCinema + C_HEADER), header, kHeaderSize);
-    const int32_t game = int16_t(get32(header + hdr::kGame));
-    guest<void(U2MP_GUEST *)(void *, int32_t, const void *, int32_t)>(fSetNetGame)(P(kNgm), game, nullptr, 10);
+    attach_lists();
+    if (!in_range(index)) return false;
+    set_selected(index);
+    uint8_t *header = cinema_mgr(cm::kHeader);
+    std::memcpy(header, local_entry(index) + cinema::entry::kHeader, cinema::kHeaderSize);
+    const int32_t game_index = int16_t(uint16_t(get32(header + cinema::hdr::kGame) & 0xffff));
+    using SetNetGameFn = void(U2MP_GUEST *)(void *, int32_t, void *, int32_t);
+    reinterpret_cast<SetNetGameFn>(game(fSetNetGame))(game(kNetGameManager), game_index, nullptr, 10);
     update_flags();
     return true;
 }
 
-// ---- recording ------------------------------------------------------------------------------
-// PS3 0x440c38: { u32 time, u8 type, Write payload } for every event sent or received.
+void pop_page() { reinterpret_cast<void(U2MP_GUEST *)(void *)>(game(fPopPage))(menu_manager()); }
+
+// "No recordings" message box, shown only when the menu has a message box to fill.
+void no_files_message() {
+    const uint64_t box = get64(static_cast<uint8_t *>(menu_manager()) + kMenuMessageBox);
+    if (!box) return;
+    auto *b = reinterpret_cast<uint8_t *>(uintptr_t(box));
+    put32(b + 0x08, kNoFilesMessage);
+    for (int i = 0; i < 7; ++i) put32(b + 0x40 + 4 * i, kNoFilesParams[i]);
+    show_page(kPageMessage);
+}
+
+uint32_t frame_clock() {
+    const uint64_t clock = get64(game(kClockPtr));
+    if (!clock) return 0;
+    return get32(reinterpret_cast<const uint8_t *>(uintptr_t(clock)) + 0xc);
+}
+
+void close_playback() {
+    if (!g_reader.is_open()) return;
+    g_reader.close();
+    put32(cinema_mgr(cm::kOpen), 0);
+    *cinema_mgr(cm::kReading) = 0;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Recording.
+
 void record(void *event) {
-    if (!recording_now || !event) return;
-    Stream &s = stream();
-    if (s.data != buffer || (s.bits + 7) / 8 > 0x1fc00) return;   // PS3 skips at 0x1fc00 bytes
-    const uint32_t t = frame_clock();
-    BitStream b{s.data, s.bits, s.max_bits, 0};
-    write_bits(b, t ? t : 1, 32);   // 0 is the end marker
+    if (!g_recording || !event) return;
+    Stream *s = stream();
+    if (s->data != buffer_words()) return;
+    if ((s->bits + 7u) / 8u > kRecordLimit) return;
+    BitStream b{s->data, s->bits, s->max_bits, 0};
+    const uint32_t clock = frame_clock();
+    write_bits(b, clock ? clock : 1, 32);   // time 0 marks the end of the stream
     write_bits(b, static_cast<const uint8_t *>(event)[8], 8);
-    s.bits = b.bits;
-    const uint64_t vtable = *static_cast<const uint64_t *>(event);
-    reinterpret_cast<WriteFn>(*reinterpret_cast<const uint64_t *>(uintptr_t(vtable) + 0x18))(event, &s);
+    s->bits = b.bits;
+    // The event serializes its own payload into the same stream.
+    const uint64_t vtable = get64(static_cast<const uint8_t *>(event));
+    const uint64_t write = get64(reinterpret_cast<const uint8_t *>(uintptr_t(vtable)) + 0x18);
+    reinterpret_cast<void(U2MP_GUEST *)(void *, void *)>(uintptr_t(write))(event, s);
 }
 
 void finish_recording() {
-    if (!recording_now) return;
-    recording_now = false;
-    Stream &s = stream();
-    BitStream b{s.data, s.bits, s.max_bits, 0};
-    write_bits(b, 0, 32);
-    s.bits = b.bits;
-    uint8_t *header = P(kCinema + C_HEADER);
-    const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
-                                                                          record_start).count();
-    put32(header + hdr::kDuration, uint32_t(seconds));
-    const bool ok = writer.finish(s, header);
-    s.bits = 0;
-    s.bytes = 0;
-    std::memset(buffer, 0, sizeof buffer);
-    G<int32_t>(kCinema + C_FILE) = 0;
-    log("cinema: recording %s (%lld s)", ok ? "saved" : "failed, removed", static_cast<long long>(seconds));
+    if (!g_recording) return;
+    g_recording = false;
+    Stream *s = stream();
+    BitStream b{s->data, s->bits, s->max_bits, 0};
+    write_bits(b, 0, 32);   // end marker
+    s->bits = b.bits;
+    const long long seconds =
+        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - g_started).count();
+    uint8_t *header = cinema_mgr(cm::kHeader);
+    put32(header + cinema::hdr::kDuration, uint32_t(seconds));
+    const bool ok = g_writer.finish(*s, header);
+    s->bits = 0;
+    s->bytes = 0;
+    clear_buffer();
+    put32(cinema_mgr(cm::kOpen), 0);
+    log("cinema: recording %s (%lld s)", ok ? "saved" : "failed, removed", seconds);
 }
 
-// PS3 0x4638cc(cinema, 0), which WaitReady::Exit called before writing the stream start.
-void begin_recording() {
-    if (!record_enabled || !can_record) return;
+void start_recording() {
+    if (!g_record_enabled || !g_can_record) return;
     finish_recording();
-    reader.close();
-    const std::string d = dir();
-    if (!ensure_dir(d)) {
-        log("cinema: cannot create %s, match not recorded", d.c_str());
+    g_reader.close();
+    const std::string dir = store_dir();
+    if (!cinema::ensure_dir(dir)) {
+        log("cinema: cannot create %s, match not recorded", dir.c_str());
         return;
     }
-    if (!make_room(d)) {
-        log("cinema: all %d recordings are protected, match not recorded", kMaxFiles);
+    if (!cinema::make_room(dir)) {
+        log("cinema: all %d recordings are protected, match not recorded", cinema::kMaxFiles);
         return;
     }
-    uint8_t *header = P(kCinema + C_HEADER);
+    uint8_t *header = cinema_mgr(cm::kHeader);
+    const uint8_t *ngm = game(kNetGameManager);
+    int16_t game_index;
+    std::memcpy(&game_index, ngm + kNgmGame, sizeof game_index);
     const std::time_t now = std::time(nullptr);
-    put32(header + hdr::kMagicOff, kMagic);
-    put32(header + hdr::kGame, uint32_t(int32_t(G<int16_t>(kNgm + NGM_GAME))));
-    put32(header + hdr::kDuration, 0);
-    put64(header + hdr::kTime, uint64_t(now));
-    std::memcpy(header + hdr::kOverrides, P(kNgm + NGM_OVERRIDES), hdr::kOverridesSize);
-    const std::string path = d + "/" + new_name(d, now);
-    if (!writer.open(path)) {
+    put32(header + cinema::hdr::kMagicOff, cinema::kMagic);
+    put32(header + cinema::hdr::kGame, uint32_t(int32_t(game_index)));
+    put32(header + cinema::hdr::kDuration, 0);
+    put64(header + cinema::hdr::kTime, uint64_t(now));
+    std::memcpy(header + cinema::hdr::kOverrides, ngm + kNgmOverrides, cinema::hdr::kOverridesSize);
+    const std::string path = dir + "/" + cinema::new_name(dir, now);
+    if (!g_writer.open(path)) {
         log("cinema: cannot write %s, match not recorded", path.c_str());
         return;
     }
-    G<uint8_t>(kCinema + C_READING) = 0;
-    G<uint8_t>(kCinema + C_EOF) = 0;
-    G<int32_t>(kCinema + C_FILE) = 1;
-    recording_now = true;
-    record_start = std::chrono::steady_clock::now();
+    *cinema_mgr(cm::kReading) = 0;
+    *cinema_mgr(cm::kEof) = 0;
+    put32(cinema_mgr(cm::kOpen), 1);
+    g_recording = true;
+    g_started = std::chrono::steady_clock::now();
     log("cinema: recording to %s", path.c_str());
 }
 
-// ---- playback -------------------------------------------------------------------------------
-void close_read() {
-    if (!reader.is_open()) return;
-    reader.close();
-    G<int32_t>(kCinema + C_FILE) = 0;
-    G<uint8_t>(kCinema + C_READING) = 0;
-}
+// ---------------------------------------------------------------------------------------------
+// Playback.
 
-// PS3 0x4638cc(cinema, 1), which RePlay::Enter called before waiting for the first bytes.
-bool open_for_read() {
-    ensure_stream();
-    ensure_lists();
-    close_read();
-    Stream &s = stream();
-    std::memset(buffer, 0, sizeof buffer);
-    s.bits = 0;
-    s.bytes = 0;
+bool open_for_reading() {
+    attach_stream();
+    attach_lists();
+    close_playback();
+    clear_buffer();
+    Stream *s = stream();
+    s->bits = 0;
+    s->bytes = 0;
     const int32_t i = selected();
-    if (i >= 0 && i < count()) {
-        const std::string path = dir() + "/" + entry_name(i);
-        if (reader.open(path, P(kCinema + C_HEADER))) {
-            G<uint8_t>(kCinema + C_READING) = 1;
-            G<uint8_t>(kCinema + C_EOF) = 0;
-            G<int32_t>(kCinema + C_FILE) = 1;
-            reader.fill(s);
+    if (in_range(i)) {
+        const std::string path = store_dir() + "/" + entry_name(i);
+        if (g_reader.open(path, cinema_mgr(cm::kHeader))) {
+            *cinema_mgr(cm::kReading) = 1;
+            *cinema_mgr(cm::kEof) = 0;
+            put32(cinema_mgr(cm::kOpen), 1);
+            g_reader.fill(*s);
             log("cinema: playing %s", path.c_str());
             return true;
         }
         log("cinema: cannot read %s", path.c_str());
     }
-    // RePlay::Enter (0x5e9630) waits for bytes, then leaves the task when the first word is not 5.
-    s.bytes = 4;
-    G<uint8_t>(kCinema + C_EOF) = 1;
+    // Give the reader a stream that ends at once, so the replay task leaves cleanly.
+    s->bytes = 4;
+    *cinema_mgr(cm::kEof) = 1;
     return false;
 }
 
-// ---- hooks ----------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+// Entry points the game reaches.
+
 U2MP_GUEST uint64_t pump(void *) {
-    Stream &s = stream();
-    if (s.data != buffer) return 0;
-    if (recording_now) writer.flush(s);
-    else if (reader.is_open()) {
-        reader.fill(s);
-        G<uint8_t>(kCinema + C_EOF) = reader.eof() ? 1 : 0;
+    Stream *s = stream();
+    if (s->data != buffer_words()) return 0;
+    if (g_recording) {
+        g_writer.flush(*s);
+    } else if (g_reader.is_open()) {
+        g_reader.fill(*s);
+        *cinema_mgr(cm::kEof) = g_reader.eof() ? 1 : 0;
     }
     return 0;
 }
 
-U2MP_GUEST void receive_hook(void *event, float) { record(event); }
-U2MP_GUEST uint64_t send_hook(void *ngm, void *event, uint64_t mask) {
+U2MP_GUEST uint64_t send_net_event(void *ngm, void *event, uint64_t mask) {
     record(event);
-    return orig_send(ngm, event, mask);
-}
-U2MP_GUEST uint64_t session_send_hook(void *session, void *event, uint64_t mask) {
-    record(event);
-    return orig_session_send(session, event, mask);
+    return g_send_original(ngm, event, mask);
 }
 
-U2MP_GUEST void waitready_exit(void *state) {
-    ensure_stream();   // the original writes the stream start
-    orig_waitready_exit(state);
-    begin_recording();
+U2MP_GUEST uint64_t session_send_net_event(void *session, void *event, uint64_t mask) {
+    record(event);
+    return g_session_send_original(session, event, mask);
 }
+
+U2MP_GUEST void receive_hook(void *event, float) { record(event); }
+
+U2MP_GUEST void wait_ready_exit(void *state) {
+    attach_stream();   // the original writes the stream start into it
+    g_wait_ready_exit(state);
+    start_recording();
+}
+
 U2MP_GUEST void show_results_enter(void *) { finish_recording(); }
+
 U2MP_GUEST void online_leave_enter(void *state) {
     finish_recording();
-    orig_online_leave_enter(state);
-}
-U2MP_GUEST void replaying_exit(void *state) {
-    orig_replaying_exit(state);
-    close_read();
-}
-U2MP_GUEST void replay_leave_enter(void *state) {
-    close_read();
-    orig_replay_leave_enter(state);
+    g_online_leave_enter(state);
 }
 
-// PAGE_PROGRESS (PS3 0x4336e4). PS3 ran the refresh on a thread and this page waited for it;
-// ours is synchronous. Events 2..4 refresh the control flags, 6 is the per-frame update.
-U2MP_GUEST void progress_page(int32_t *event) {
-    ensure_lists();
-    const int32_t e = *event;
-    if (e >= 2 && e <= 4) {
+U2MP_GUEST void replaying_exit(void *state) {
+    g_replaying_exit(state);
+    close_playback();
+}
+
+U2MP_GUEST void replay_leave_enter(void *state) {
+    close_playback();
+    g_replay_leave_enter(state);
+}
+
+U2MP_GUEST void page_progress(int32_t *event) {
+    attach_lists();
+    const int32_t ev = *event;
+    if (ev == 2 || ev == 3 || ev == 4) {
         update_flags();
         return;
     }
-    if (e != 6) return;
-    Request r = request;
-    request = Request{};
-    if (!r.pending) {
-        // BUTTON_MULTIPLAYER_CINEMA: the mode dispatcher (0x5ecb80, PS3 0x443248) set mode 3,
-        // SetNetGame(-1) and showed this page; PS3 then refreshed, loaded file 0 and went on to
-        // the list (0x432d0c).
-        if (G<int32_t>(kNetInfo + NI_MODE) != kModeCinema) return;
-        r = Request{true, true, kPageList};
+    if (ev != 6) return;
+    PageRequest req = g_request;
+    g_request = PageRequest{};
+    if (!req.pending) {
+        // Entering the cinema list from elsewhere: load the newest file and show the list.
+        if (int32_t(get32(game(kNetMode))) != 3) return;
+        req = PageRequest{true, true, kPageCinemaList};
     }
     refresh();
-    if (r.load_first) load(0);
+    if (req.load_first) load(0);
     pop_page();
-    if (r.next) show_page(r.next);
-    if (count() == 0) message_no_files();
+    if (req.next_page) show_page(req.next_page);
+    if (list_count() == 0) no_files_message();
 }
 
-// PAGE_CINEMA (PS3 0x43367c popped it when sceNpManagerGetStatus was not "online"; PS4 inlined
-// that as an unconditional pop). We are always online.
-U2MP_GUEST void cinema_page(int32_t *) {}
+U2MP_GUEST void page_cinema(int32_t *, uint64_t) {}
 
 U2MP_GUEST void list_cinema(int32_t *control) {
-    ensure_lists();
-    const int32_t row = control[1];
-    G<int32_t>(kListRow) = row;
-    if (row < 0 || row >= count()) return;
+    attach_lists();
+    const int32_t row = int32_t(get32(reinterpret_cast<const uint8_t *>(control) + 4));
+    put32(game(kPressedRow), uint32_t(row));
+    if (!in_range(row)) return;
     if (row != selected()) load(row);
     show_page(kPageCinema);
 }
 
-U2MP_GUEST void refresh_to_list(void *) {
-    request = Request{true, false, kPageList};
-    show_page(kPageProgress);
-}
-U2MP_GUEST void toggle_list(void *) {   // local/server switch: there is no server
-    request = Request{true, false, 0};
+U2MP_GUEST void cinema_refresh(void *) {
+    g_request = PageRequest{true, false, kPageCinemaList};
     show_page(kPageProgress);
 }
 
-void protect(bool on) {
-    ensure_lists();
+U2MP_GUEST void list_toggle(void *) {
+    g_request = PageRequest{true, false, 0};
+    show_page(kPageProgress);
+}
+
+void change_protection(bool protect) {
+    attach_lists();
     const int32_t i = selected();
-    if (i < 0 || i >= count()) return;
-    if (!set_protected(dir(), entry_name(i), on)) {
-        log("cinema: cannot change protection of %s", entry_name(i).c_str());
+    if (!in_range(i)) return;
+    const std::string name = entry_name(i);
+    if (!cinema::set_protected(store_dir(), name, protect)) {
+        log("cinema: cannot change protection of %s", name.c_str());
         return;
     }
-    put32(entry_at(i) + entry::kMode, on ? kModeProtected : kModeWritable);
+    put32(local_entry(i) + cinema::entry::kMode, protect ? cinema::kModeProtected : cinema::kModeWritable);
     update_flags();
 }
-U2MP_GUEST void protect_button(void *) { protect(true); }
-U2MP_GUEST void unprotect_button(void *) { protect(false); }
+
+U2MP_GUEST void protect_button(void *) { change_protection(true); }
+U2MP_GUEST void unprotect_button(void *) { change_protection(false); }
 
 U2MP_GUEST void delete_confirmed(void *) {
-    ensure_lists();
+    attach_lists();
     const int32_t i = selected();
-    if (i >= 0 && i < count()) {
-        if (!cinema::remove(dir(), entry_name(i))) log("cinema: cannot delete %s", entry_name(i).c_str());
-        else if (i > 0) G<int32_t>(kCinema + C_SELECTED) = i - 1;
+    if (in_range(i)) {
+        const std::string name = entry_name(i);
+        if (!cinema::remove(store_dir(), name)) log("cinema: cannot delete %s", name.c_str());
+        else if (i > 0) set_selected(i - 1);
     }
     refresh();
-    if (count() > 0) load(selected());
+    if (list_count() > 0) load(selected());
     pop_page();
-    if (count() == 0) message_no_files();
+    if (list_count() == 0) no_files_message();
 }
 
-// PS3 uploaded to Naughty Dog's server, then friends got a pointer to it (0x43402c). PC: the button sends the
-// file itself to a friend over RPCN (remaining.cpp picks the friend, online.cpp sends).
 U2MP_GUEST void upload_button(void *) { cinema_pick_friend(); }
 
 U2MP_GUEST void start_cinema(void *) {
     finish_recording();
-    if (!open_for_read()) return;   // nothing to play: stay on the page
-    guest<void(U2MP_GUEST *)(void *)>(fMenuReset)(P(addr::menu_manager));
-    void *task = guest<void *(U2MP_GUEST *)(uint32_t, uint32_t)>(fFindTask)(kTaskSet, kTaskReplay);
-    guest<void(U2MP_GUEST *)(void *)>(fPlayTask)(task);
+    if (!open_for_reading()) return;
+    reinterpret_cast<void(U2MP_GUEST *)(void *)>(game(fMenuReset))(menu_manager());
+    void *task = reinterpret_cast<void *(U2MP_GUEST *)(uint32_t, uint32_t)>(game(fFindTask))(kTaskSet, kTaskReplay);
+    reinterpret_cast<void(U2MP_GUEST *)(void *)>(game(fPlayTask))(task);
 }
 
-// cond 69 query, op 9: PS3 loaded the chosen file (0x4bb170 -> 0x463738); PS4 dropped that.
-U2MP_GUEST void query_set(int32_t value, uint32_t local) {
-    if (!local) {
-        G<int32_t>(kRemoteRow) = value;
+// Called from the patched list query with the row value and whether the local list is shown.
+U2MP_GUEST void list_query_set(int32_t value, uint32_t local) {
+    if (local == 0) {
+        put32(game(kRemoteRow), uint32_t(value));
         return;
     }
     if (value != selected()) load(value);
 }
 
-// ---- patching helpers -----------------------------------------------------------------------
-unsigned char *near_code(size_t bytes) { return near_stub(bytes); }   // the shared pool (install.cpp)
+// ---------------------------------------------------------------------------------------------
+// Install helpers. Each returns true when its hook is in place.
 
-bool rel32(const unsigned char *from_next, const void *to, int32_t &out) {
-    const int64_t d = int64_t(uintptr_t(to)) - int64_t(uintptr_t(from_next));
-    if (d < INT32_MIN || d > INT32_MAX) return false;
-    out = int32_t(d);
-    return true;
-}
+template <typename F> void *host(F f) { return reinterpret_cast<void *>(f); }
 
-// Hooks a function whose first `length` bytes are whole position-independent instructions:
-// they move to a trampoline (then jmp back), the entry jumps to `host`. `original` = trampoline.
-bool detour(uint64_t offset, const unsigned char *expect, unsigned length, void *host, void **original,
-            const char *name) {
-    if (length < 5 || !image.executable(offset, length) || !image.matches(offset, expect, length)) {
-        log("cinema: %s at 0x%llx differs, not hooked", name, static_cast<unsigned long long>(offset));
+bool checked_replace(uint64_t offset, const std::vector<uint8_t> &expected, void *fn, const char *name) {
+    if (!image.matches(offset, expected.data(), expected.size())) {
+        log("cinema: %s at 0x%llx differs, not replaced", name, (unsigned long long)offset);
         return false;
     }
-    unsigned char *tramp = near_code(length + 14), *stub = near_code(12);
-    if (!tramp || !stub) return false;
-    unsigned char *code = image.base + offset;
-    std::memcpy(tramp, code, length);
-    const uint64_t back = uint64_t(uintptr_t(code + length)), target = uint64_t(uintptr_t(host));
-    tramp[length] = 0xff;   // jmp [rip+0]; dq back
-    tramp[length + 1] = 0x25;
-    std::memset(tramp + length + 2, 0, 4);
-    std::memcpy(tramp + length + 6, &back, 8);
-    stub[0] = 0x48;   // mov rax, host; jmp rax
-    stub[1] = 0xb8;
-    std::memcpy(stub + 2, &target, 8);
-    stub[10] = 0xff;
-    stub[11] = 0xe0;
-    int32_t rel;
-    if (!rel32(code + 5, stub, rel)) return false;
-    *original = tramp;
+    return replace_function(offset, unsigned(expected.size()), fn, name);
+}
+
+bool ret_stub_replace(uint64_t offset, void *fn, const char *name) {
+    if (!is_ret_stub(offset)) {
+        log("cinema: %s at 0x%llx is not a ret stub, not replaced", name, (unsigned long long)offset);
+        return false;
+    }
+    return replace_function(offset, 16, fn, name);
+}
+
+bool fits_rel32(int64_t delta) { return delta >= INT32_MIN && delta <= INT32_MAX; }
+
+void put_rel32(uint8_t *at, int64_t delta) {
+    const int32_t rel = int32_t(delta);
+    std::memcpy(at, &rel, 4);
+}
+
+int64_t distance(const void *to, const void *from) { return int64_t(uintptr_t(to)) - int64_t(uintptr_t(from)); }
+
+// Both SendNetEvent functions start with the same 17-byte prologue; it is moved into a
+// trampoline so the original stays callable after the hook.
+bool detour(uint64_t offset, void *fn, SendFn &original, const char *name) {
+    static const uint8_t prologue[17] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41,
+                                         0x55, 0x41, 0x54, 0x53, 0x48, 0x83, 0xec, 0x58};
+    if (!image.executable(offset, sizeof prologue) || !image.matches(offset, prologue, sizeof prologue)) {
+        log("cinema: %s at 0x%llx differs, not hooked", name, (unsigned long long)offset);
+        return false;
+    }
+    uint8_t *trampoline = near_stub(31);
+    uint8_t *jump = near_stub(12);
+    if (!trampoline || !jump) return false;
+    uint8_t *code = game(offset);
+    std::memcpy(trampoline, prologue, sizeof prologue);
+    const uint8_t indirect[6] = {0xff, 0x25, 0, 0, 0, 0};   // jmp [rip+0]
+    std::memcpy(trampoline + 17, indirect, 6);
+    put64(trampoline + 23, uint64_t(uintptr_t(code + 17)));
+    jump[0] = 0x48;   // mov rax, imm64
+    jump[1] = 0xb8;
+    put64(jump + 2, uint64_t(uintptr_t(fn)));
+    jump[10] = 0xff;  // jmp rax
+    jump[11] = 0xe0;
+    const int64_t delta = distance(jump, code + 5);
+    if (!fits_rel32(delta)) return false;
+    original = reinterpret_cast<SendFn>(trampoline);
     code[0] = 0xe9;
-    std::memcpy(code + 1, &rel, 4);
-    std::memset(code + 5, 0xcc, length - 5);
-    log("cinema: %s at 0x%llx hooked", name, static_cast<unsigned long long>(offset));
+    put_rel32(code + 1, delta);
+    std::memset(code + 5, 0xcc, sizeof prologue - 5);
+    log("cinema: %s at 0x%llx hooked", name, (unsigned long long)offset);
     return true;
 }
 
-template <typename F> bool swap_slot(uint64_t slot, uint64_t expected, F host, F &original, const char *name) {
-    uint64_t &value = G<uint64_t>(slot);
-    if (slot + 8 > image.size || value != uint64_t(uintptr_t(image.base)) + expected) {
-        log("cinema: %s slot 0x%llx differs, not hooked", name, static_cast<unsigned long long>(slot));
+// Swaps a state's vtable slot; the plain host address goes in so later modules can chain it.
+bool swap_slot(uint64_t slot, uint64_t expected, void *fn, StateFn &original, const char *name) {
+    if (slot + 8 > image.size || get64(game(slot)) != uint64_t(uintptr_t(image.base)) + expected) {
+        log("cinema: %s slot 0x%llx differs, not hooked", name, (unsigned long long)slot);
         return false;
     }
-    original = reinterpret_cast<F>(uintptr_t(value));
-    value = uint64_t(uintptr_t(host));
-    log("cinema: %s (slot 0x%llx) -> C++", name, static_cast<unsigned long long>(slot));
+    original = reinterpret_cast<StateFn>(uintptr_t(get64(game(slot))));
+    put64(game(slot), uint64_t(uintptr_t(fn)));
+    log("cinema: %s (slot 0x%llx) -> C++", name, (unsigned long long)slot);
     return true;
 }
 
-// The cond 69 query's op-9 case (test cl,cl; jne done; mov [kRemoteRow], r8d; jmp done) becomes
-// a call to query_set(value = r8d, local = cl) and the jump to the common exit.
-bool patch_query_set() {
-    static const unsigned char expect[] = {0x84, 0xc9, 0x0f, 0x85, 0x68, 0xfd, 0xff, 0xff, 0x44, 0x89,
-                                           0x05, 0x27, 0x80, 0xe7, 0x00, 0xe9, 0x5c, 0xfd, 0xff, 0xff};
-    if (!image.executable(hQuerySet, sizeof expect) || !image.matches(hQuerySet, expect, sizeof expect)) {
-        log("cinema: list query at 0x%llx differs, not patched", static_cast<unsigned long long>(hQuerySet));
+// The list query's "op 9 set" case lost its local-list branch; route it through list_query_set
+// and continue where the game's case ends.
+bool patch_list_query() {
+    constexpr uint64_t site = 0x657e7a, resume = 0x657bea;
+    static const uint8_t expected[20] = {0x84, 0xc9, 0x0f, 0x85, 0x68, 0xfd, 0xff, 0xff, 0x44, 0x89,
+                                         0x05, 0x27, 0x80, 0xe7, 0x00, 0xe9, 0x5c, 0xfd, 0xff, 0xff};
+    if (!image.executable(site, sizeof expected) || !image.matches(site, expected, sizeof expected)) {
+        log("cinema: list query at 0x%llx differs, not patched", (unsigned long long)site);
         return false;
     }
-    unsigned char *stub = near_code(32);
+    uint8_t *stub = near_stub(32);
     if (!stub) return false;
-    const uint64_t host = uint64_t(uintptr_t(&query_set));
-    unsigned char *s = stub;
-    const unsigned char head[] = {0x44, 0x89, 0xc7, 0x0f, 0xb6, 0xf1, 0x48, 0xb8};   // mov edi,r8d; movzx esi,cl; mov rax,
-    std::memcpy(s, head, sizeof head);
-    s += sizeof head;
-    std::memcpy(s, &host, 8);
-    s += 8;
-    *s++ = 0xff;   // call rax (rsp is 16-aligned in the query's body)
-    *s++ = 0xd0;
-    *s++ = 0xe9;   // jmp kQueryDone
-    int32_t rel;
-    if (!rel32(s + 4, image.base + kQueryDone, rel)) return false;
-    std::memcpy(s, &rel, 4);
-    unsigned char *code = image.base + hQuerySet;
-    if (!rel32(code + 5, stub, rel)) return false;
+    const uint8_t args[6] = {0x44, 0x89, 0xc7, 0x0f, 0xb6, 0xf1};   // mov edi, r8d; movzx esi, cl
+    std::memcpy(stub, args, 6);
+    stub[6] = 0x48;   // mov rax, imm64
+    stub[7] = 0xb8;
+    put64(stub + 8, uint64_t(uintptr_t(host(list_query_set))));
+    stub[16] = 0xff;  // call rax
+    stub[17] = 0xd0;
+    stub[18] = 0xe9;  // jmp back into the query
+    const int64_t back = distance(game(resume), stub + 23);
+    uint8_t *code = game(site);
+    const int64_t there = distance(stub, code + 5);
+    if (!fits_rel32(back) || !fits_rel32(there)) return false;
+    put_rel32(stub + 19, back);
     code[0] = 0xe9;
-    std::memcpy(code + 1, &rel, 4);
-    std::memset(code + 5, 0xcc, sizeof expect - 5);
+    put_rel32(code + 1, there);
+    std::memset(code + 5, 0xcc, sizeof expected - 5);
     log("cinema: list query set -> C++");
     return true;
 }
 
-template <size_t N> bool replace_checked(uint64_t at, const unsigned char (&expect)[N], void *host, const char *name) {
-    if (!image.matches(at, expect, N)) {
-        log("cinema: %s at 0x%llx differs, not replaced", name, static_cast<unsigned long long>(at));
-        return false;
-    }
-    return replace_function(at, N, host, name);
-}
-
-bool replace_stub(uint64_t at, void *host, const char *name) {
-    if (!is_ret_stub(at)) {
-        log("cinema: %s at 0x%llx is not a ret stub, not replaced", name, static_cast<unsigned long long>(at));
-        return false;
-    }
-    return replace_function(at, 16, host, name);
-}
+// The 16-byte frame-pointer prologue several of the replaced functions share.
+const std::vector<uint8_t> kFramePrologue = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
+                                             0x41, 0x55, 0x41, 0x54, 0x53, 0x48, 0x83, 0xec};
 
 }  // namespace
 
+// ---------------------------------------------------------------------------------------------
+// Public functions.
+
+namespace cinema {
+
 void record_event(void *event) { record(event); }
-bool recording() { return recording_now; }
+
+bool recording() { return g_recording; }
 
 bool read_selected(std::vector<uint8_t> &bytes, std::string &name) {
-    ensure_lists();
+    attach_lists();
     const int32_t i = selected();
-    if (i < 0 || i >= count()) return false;
+    if (!in_range(i)) return false;
     name = entry_name(i);
-    std::FILE *f = std::fopen((dir() + "/" + name).c_str(), "rb");
+    std::FILE *f = std::fopen((store_dir() + "/" + name).c_str(), "rb");
     if (!f) return false;
-    std::fseek(f, 0, SEEK_END);
-    const long n = std::ftell(f);
-    std::fseek(f, 0, SEEK_SET);
-    bool ok = n >= long(kHeaderSize) && n < (64l << 20);
-    if (ok) {
-        bytes.resize(size_t(n));
-        ok = std::fread(bytes.data(), 1, bytes.size(), f) == bytes.size();
+    long size = -1;
+    if (std::fseek(f, 0, SEEK_END) == 0) size = std::ftell(f);
+    const bool acceptable = size >= long(kHeaderSize) && size < 0x4000000L;
+    bool complete = false;
+    if (acceptable) {
+        bytes.resize(size_t(size));
+        complete = std::fseek(f, 0, SEEK_SET) == 0 && std::fread(bytes.data(), 1, bytes.size(), f) == bytes.size();
     }
     std::fclose(f);
-    return ok && valid_header(bytes.data());
+    return acceptable && complete && valid_header(bytes.data());
 }
 
-// PS3 0x43302c + thread 0x433360: make room, save under the sender's file name, refresh the list.
 int add_received(const uint8_t *data, size_t size, const std::string &wanted) {
     if (!data || size < kHeaderSize || !valid_header(data)) return -1;
-    const std::string d = dir();
-    if (!ensure_dir(d)) return -1;
-    if (!make_room(d)) return 0;   // PS3 box 1e21ccb1 "no free slots"
-    std::string name = wanted;
-    bool safe = !name.empty() && name.size() < 64 && name.find_first_of("/\\:") == std::string::npos && name[0] != '.';
+    const std::string dir = store_dir();
+    if (!ensure_dir(dir)) return -1;
+    if (!make_room(dir)) return 0;
+    // Only a plain, unused file name from the sender is kept; anything else gets a fresh name.
+    bool safe = !wanted.empty() && wanted.size() < 64 && wanted.find_first_of("/\\:") == std::string::npos &&
+                wanted[0] != '.';
     if (safe) {
-        std::FILE *t = std::fopen((d + "/" + name).c_str(), "rb");
-        if (t) { std::fclose(t); safe = false; }   // taken: a new name
+        if (std::FILE *existing = std::fopen((dir + "/" + wanted).c_str(), "rb")) {
+            std::fclose(existing);
+            safe = false;
+        }
     }
-    if (!safe || name.size() < 9 || name.compare(name.size() - 9, 9, kExtension) != 0)
-        name = new_name(d, std::time(nullptr));
-    std::FILE *f = std::fopen((d + "/" + name).c_str(), "wb");
+    const std::string ext = kExtension;
+    const bool has_ext = wanted.size() >= ext.size() && wanted.compare(wanted.size() - ext.size(), ext.size(), ext) == 0;
+    const std::string name = (safe && wanted.size() >= 9 && has_ext) ? wanted : new_name(dir, std::time(nullptr));
+    const std::string path = dir + "/" + name;
+    std::FILE *f = std::fopen(path.c_str(), "wb");
     if (!f) return -1;
-    const bool ok = std::fwrite(data, 1, size, f) == size;
+    const bool written = std::fwrite(data, 1, size, f) == size;
     std::fclose(f);
-    if (!ok) {
-        std::remove((d + "/" + name).c_str());
+    if (!written) {
+        std::remove(path.c_str());
         return -1;
     }
     refresh();
@@ -578,83 +656,84 @@ int add_received(const uint8_t *data, size_t size, const std::string &wanted) {
     return 1;
 }
 
-}  // namespace u2mp::cinema
+}  // namespace cinema
 
-namespace u2mp {
+// ---------------------------------------------------------------------------------------------
+// Install.
 
 void install_cinema(int &installed) {
-    using namespace cinema;
     const char *env = std::getenv("UNCHARTED_U2MP_CINEMA");
-    record_enabled = !(env && env[0] == '0');
-    auto count_if = [&](bool ok) {
-        if (ok) ++installed;
-        return ok;
-    };
+    g_record_enabled = !(env && env[0] == '0');
 
-    // Shared: the stream pump (file I/O for both directions).
-    static const unsigned char pump_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
-                                               0x41, 0x55, 0x41, 0x54, 0x53, 0x48, 0x81, 0xe4};
-    if (!count_if(replace_checked(hPump, pump_bytes, reinterpret_cast<void *>(&pump), "cinema pump"))) {
+    if (!checked_replace(0x608c40,
+                         {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54, 0x53, 0x48, 0x81, 0xe4},
+                         host(pump), "cinema pump")) {
         log("cinema: not installed (the stream pump differs)");
         return;
     }
+    ++installed;
 
-    // Recording.
-    static const unsigned char send_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41,
-                                               0x55, 0x41, 0x54, 0x53, 0x48, 0x83, 0xec, 0x58};
-    void *orig = nullptr;
-    const bool send_ok = count_if(detour(hSend, send_bytes, sizeof send_bytes, reinterpret_cast<void *>(&send_hook),
-                                         &orig, "SendNetEvent"));
-    if (send_ok) orig_send = reinterpret_cast<SendFn>(orig);
-    if (count_if(detour(hSessionSend, send_bytes, sizeof send_bytes, reinterpret_cast<void *>(&session_send_hook),
-                        &orig, "NetSession::SendNetEvent")))
-        orig_session_send = reinterpret_cast<SendFn>(orig);
-    const bool recv_ok = count_if(replace_stub(hReceiveHook, reinterpret_cast<void *>(&receive_hook), "cinema receive hook"));
-    const bool start_ok = count_if(swap_slot(sWaitReadyExit, fWaitReadyExit, static_cast<StateFn>(&waitready_exit),
-                                             orig_waitready_exit, "WaitReady::Exit"));
-    count_if(replace_stub(hShowResultsEnter, reinterpret_cast<void *>(&show_results_enter), "ShowResults::Enter"));
-    count_if(swap_slot(sOnlineLeaveEnter, fOnlineLeaveEnter, static_cast<StateFn>(&online_leave_enter),
-                       orig_online_leave_enter, "online Leave::Enter"));
-    can_record = send_ok && recv_ok && start_ok;
-    if (!can_record) log("cinema: recording off (a recorder hook is missing)");
+    const bool send_ok = detour(0x644ab0, host(send_net_event), g_send_original, "SendNetEvent");
+    if (send_ok) ++installed;
+    if (detour(0x66a3d0, host(session_send_net_event), g_session_send_original, "NetSession::SendNetEvent"))
+        ++installed;
+    const bool recv_ok = ret_stub_replace(0x5e9d80, host(receive_hook), "cinema receive hook");
+    if (recv_ok) ++installed;
+    const bool start_ok = swap_slot(0x100abd0, 0x5f2830, host(wait_ready_exit), g_wait_ready_exit, "WaitReady::Exit");
+    if (start_ok) ++installed;
+    if (ret_stub_replace(0x5f0ea0, host(show_results_enter), "ShowResults::Enter")) ++installed;
+    if (swap_slot(0x100a9c8, 0x5f00d0, host(online_leave_enter), g_online_leave_enter, "online Leave::Enter"))
+        ++installed;
+
+    g_can_record = send_ok && recv_ok && start_ok;
+    if (!g_can_record) log("cinema: recording off (a recorder hook is missing)");
     if (!start_ok) log("cinema: WARNING the replay stream has no buffer; WaitReady::Exit writes to NULL");
 
-    // Playback and the cinema menus.
-    count_if(swap_slot(sRePlayingExit, fRePlayingExit, static_cast<StateFn>(&replaying_exit), orig_replaying_exit,
-                       "RePlaying::Exit"));
-    count_if(swap_slot(sReplayLeaveEnter, fReplayLeaveEnter, static_cast<StateFn>(&replay_leave_enter),
-                       orig_replay_leave_enter, "replay Leave::Enter"));
-    static const unsigned char progress_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
-                                                   0x41, 0x55, 0x41, 0x54, 0x53, 0x50, 0x8b, 0x07};
-    count_if(replace_checked(hProgressPage, progress_bytes, reinterpret_cast<void *>(&progress_page), "PAGE_PROGRESS"));
-    static const unsigned char cinema_page_bytes[] = {0x83, 0x3f, 0x06, 0x75, 0x0c, 0x48, 0x8d, 0x3d, 0xd4,
-                                                      0x25, 0xb5, 0x00, 0xe9, 0x7f, 0x86, 0xfe, 0xff, 0xc3};
-    count_if(replace_checked(hCinemaPage, cinema_page_bytes, reinterpret_cast<void *>(&cinema_page), "PAGE_CINEMA"));
-    static const unsigned char list_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
-                                               0x41, 0x55, 0x41, 0x54, 0x53, 0x48, 0x83, 0xec};
-    count_if(replace_checked(hListCinema, list_bytes, reinterpret_cast<void *>(&list_cinema), "LIST_CINEMA"));
-    static const unsigned char refresh_bytes[] = {0x48, 0x8d, 0x3d, 0xa9, 0x21, 0xb5, 0x00, 0xbe,
-                                                  0x1e, 0xd1, 0x84, 0x1d, 0x31, 0xd2, 0xe9, 0xed};
-    count_if(replace_checked(hRefreshToList, refresh_bytes, reinterpret_cast<void *>(&refresh_to_list),
-                             "cinema refresh"));
-    static const unsigned char toggle_bytes[] = {0x48, 0x8d, 0x05, 0xe2, 0xab, 0xa6, 0x00, 0x80,
-                                                 0x30, 0x01, 0x48, 0x8d, 0x3d, 0x5f, 0x20, 0xb5};
-    count_if(replace_checked(hToggleList, toggle_bytes, reinterpret_cast<void *>(&toggle_list), "cinema list toggle"));
-    count_if(replace_stub(hProtect, reinterpret_cast<void *>(&protect_button), "BUTTON_CINEMA_PROTECT"));
-    count_if(replace_stub(hUnprotect, reinterpret_cast<void *>(&unprotect_button), "BUTTON_CINEMA_UNPROTECT"));
-    static const unsigned char delete_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x53, 0x50, 0x48, 0x8d,
-                                                 0x1d, 0x43, 0x24, 0xb5, 0x00, 0x48, 0x89, 0xdf};
-    count_if(replace_checked(hDeleteConfirmed, delete_bytes, reinterpret_cast<void *>(&delete_confirmed),
-                             "cinema delete"));
-    static const unsigned char upload_bytes[] = {0x48, 0x8d, 0x05, 0xb9, 0x66, 0xb5, 0x00, 0x8b,
-                                                 0x80, 0xb8, 0x01, 0x00, 0x00, 0x48, 0x8d, 0x0d};
-    count_if(replace_checked(hUpload, upload_bytes, reinterpret_cast<void *>(&upload_button), "BUTTON_CINEMA_UPLOAD"));
-    static const unsigned char start_bytes[] = {0x55, 0x48, 0x89, 0xe5, 0x48, 0x8d, 0x3d, 0x95,
-                                                0x20, 0xb5, 0x00, 0xe8, 0x30, 0x8c, 0xfe, 0xff};
-    count_if(replace_checked(hStartCinema, start_bytes, reinterpret_cast<void *>(&start_cinema),
-                             "BUTTON_MULTIPLAYER_STARTCINEMA"));
-    count_if(patch_query_set());
-    log("cinema: recording %s; files in <user dir>/u2mp/cinema", can_record && record_enabled ? "on" : "off");
+    if (swap_slot(0x100a7a0, 0x5e8740, host(replaying_exit), g_replaying_exit, "RePlaying::Exit")) ++installed;
+    if (swap_slot(0x100a6d8, 0x5e5520, host(replay_leave_enter), g_replay_leave_enter, "replay Leave::Enter"))
+        ++installed;
+
+    struct Replacement {
+        uint64_t offset;
+        std::vector<uint8_t> bytes;   // empty: a stripped ret stub
+        void *fn;
+        const char *name;
+    };
+    const Replacement menus[] = {
+        {0x5e3f60,
+         {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x55, 0x41, 0x54, 0x53, 0x50, 0x8b, 0x07},
+         host(page_progress), "PAGE_PROGRESS"},
+        {0x5e4060,
+         {0x83, 0x3f, 0x06, 0x75, 0x0c, 0x48, 0x8d, 0x3d, 0xd4, 0x25, 0xb5, 0x00, 0xe9, 0x7f, 0x86, 0xfe, 0xff, 0xc3},
+         host(page_cinema), "PAGE_CINEMA"},
+        {0x5e4080, kFramePrologue, host(list_cinema), "LIST_CINEMA"},
+        {0x5e4490,
+         {0x48, 0x8d, 0x3d, 0xa9, 0x21, 0xb5, 0x00, 0xbe, 0x1e, 0xd1, 0x84, 0x1d, 0x31, 0xd2, 0xe9, 0xed},
+         host(cinema_refresh), "cinema refresh"},
+        {0x5e45d0,
+         {0x48, 0x8d, 0x05, 0xe2, 0xab, 0xa6, 0x00, 0x80, 0x30, 0x01, 0x48, 0x8d, 0x3d, 0x5f, 0x20, 0xb5},
+         host(list_toggle), "cinema list toggle"},
+        {0x5e41d0, {}, host(protect_button), "BUTTON_CINEMA_PROTECT"},
+        {0x5e41e0, {}, host(unprotect_button), "BUTTON_CINEMA_UNPROTECT"},
+        {0x5e41f0,
+         {0x55, 0x48, 0x89, 0xe5, 0x53, 0x50, 0x48, 0x8d, 0x1d, 0x43, 0x24, 0xb5, 0x00, 0x48, 0x89, 0xdf},
+         host(delete_confirmed), "cinema delete"},
+        {0x5e42d0,
+         {0x48, 0x8d, 0x05, 0xb9, 0x66, 0xb5, 0x00, 0x8b, 0x80, 0xb8, 0x01, 0x00, 0x00, 0x48, 0x8d, 0x0d},
+         host(upload_button), "BUTTON_CINEMA_UPLOAD"},
+        {0x5e45a0,
+         {0x55, 0x48, 0x89, 0xe5, 0x48, 0x8d, 0x3d, 0x95, 0x20, 0xb5, 0x00, 0xe8, 0x30, 0x8c, 0xfe, 0xff},
+         host(start_cinema), "BUTTON_MULTIPLAYER_STARTCINEMA"},
+    };
+    for (const Replacement &r : menus) {
+        const bool ok = r.bytes.empty() ? ret_stub_replace(r.offset, r.fn, r.name)
+                                        : checked_replace(r.offset, r.bytes, r.fn, r.name);
+        if (ok) ++installed;
+    }
+
+    if (patch_list_query()) ++installed;
+
+    log("cinema: recording %s; files in <user dir>/u2mp/cinema", g_can_record && g_record_enabled ? "on" : "off");
 }
 
 }  // namespace u2mp

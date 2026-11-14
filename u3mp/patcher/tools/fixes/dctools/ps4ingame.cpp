@@ -986,6 +986,8 @@ BlobP nav_blob_u2(const Pak &p, const PakItem &it) {
 
 }  // namespace
 
+std::shared_ptr<Blob> nav_mesh_u2(const Pak &p, const PakItem &it) { return nav_blob_u2(p, it); }
+
 std::set<std::string> anim_actor_names(const fs::path &retail_actor33, const fs::path &conv_json) {
     std::set<std::string> s;
     if (fs::is_directory(retail_actor33))

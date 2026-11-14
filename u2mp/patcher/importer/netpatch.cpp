@@ -151,14 +151,33 @@ Bytes convert_net_patch(const Context &c, const Bytes &data, std::string &note) 
         write_text(S(cache) + ".tmp", schema);
         fs::rename(S(cache) + ".tmp", cache, ec);
     }
-    std::map<std::string, int64_t> rep;
+    u3::dcconv::Counts rep;
     const Bytes out = u3_to_u2(u3::dcconv::Converter({schema}).convert(data, &rep), data);
     const auto [nsym, nptr] = check_module(out);
+    // the fallbacks among the report's events, in the order they first occurred
+    static const std::set<std::string> FALLBACKS = {"key-unknown", "layout-extend-failed", "slot-not-ptr", "ptr-target-missing", "sym-target-missing"};
     std::string fb;
-    for (const char *k : {"key-unknown", "layout-extend-failed", "slot-not-ptr", "ptr-target-missing", "sym-target-missing"})
-        if (rep[k]) fb += (fb.empty() ? "" : ", ") + fmt("'%s': %lld", k, (long long)rep[k]);
+    for (const std::string &k : rep.order)
+        if (FALLBACKS.count(k) && rep.n.at(k)) fb += (fb.empty() ? "" : ", ") + fmt("'%s': %lld", k.c_str(), (long long)rep.n.at(k));
     note = fmt("%zu symbols, %zu pointers; fallbacks %s", nsym, nptr, fb.empty() ? "none" : ("{" + fb + "}").c_str());
     return out;
 }
+
+// ------------------------------------------------------------------------------------------------ for devtools.cpp
+std::vector<std::tuple<std::string, Bytes, Bytes>> dc_pairs(const PS3 &ps3, const fs::path &dcdir) {
+    std::vector<std::string> names;
+    std::error_code ec;
+    for (const auto &e : fs::directory_iterator(dcdir, ec))
+        if (ends(S(e.path().filename()), ".bin")) names.push_back(S(e.path().filename()));
+    std::sort(names.begin(), names.end());
+    std::vector<std::tuple<std::string, Bytes, Bytes>> pairs;
+    for (const std::string &f : names)
+        if (const auto c = ps3.candidates("dc1/" + f); !c.empty()) pairs.push_back({f, c[0]->read(), read_bytes(dcdir / P(f))});
+    return pairs;
+}
+Bytes dc_convert(const std::string &schema, const Bytes &ps3, u3::dcconv::Counts *rep) {
+    return u3_to_u2(u3::dcconv::Converter({schema}).convert(ps3, rep), ps3);
+}
+std::pair<size_t, size_t> dc_check(const Bytes &ps4) { return check_module(ps4); }
 
 }  // namespace u2imp

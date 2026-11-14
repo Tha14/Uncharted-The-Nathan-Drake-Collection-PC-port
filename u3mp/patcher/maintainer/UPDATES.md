@@ -6,7 +6,7 @@ changed.
 
 ## What the player's launcher does
 
-1. **UPDATE** (launcher/updater.py) installs the newest release of
+1. **UPDATE** (launcher/native/updater.cpp, installed by tools/apply_update.exe) installs the newest release of
    `fidalgojoao/Uncharted-The-Nathan-Drake-Collection-PC-port` that has an `Uncharted-windows.zip` asset with a
    GitHub SHA-256 digest. Saves, settings and the shader cache (`analysis\`) are kept, and so is the multiplayer
    data folder (it lives outside the program folder).

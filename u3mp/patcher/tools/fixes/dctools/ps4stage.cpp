@@ -603,10 +603,13 @@ Bytes bc1_invert(const Bytes &blob) {
 }
 
 std::shared_ptr<Blob> convert_light_table(const Pak &p, AutoPages &P, const std::function<std::optional<std::vector<std::string>>(const std::vector<uint32_t> &)> &gobo,
-                                          std::shared_ptr<PakWItem> &item, bool tunnel_probes = false);
+                                          std::shared_ptr<PakWItem> &item, bool tunnel_probes = false, size_t *approx = nullptr);
 std::shared_ptr<Blob> water_blob(const Pak &p, const std::function<std::string(const std::string &)> &matkey);
 
 Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, const Bundle &bundle, const Options &opt, Uni &U, bool build) {
+    auto approx = [&] {   // counted in the writing pass (each pass has its own report)
+        if (build && opt.approx) ++*opt.approx;
+    };
     Resources R;
     R.bundle = &bundle;
     // the records by (pak, key) in first-seen order, the last record of a key winning (a dict)
@@ -751,7 +754,10 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
             kind = "DXT5";
         } else
             out = cube_texels(t, texels, bpb);
-        if (!out) return nullptr;
+        if (!out) {
+            approx();   // a cube map with short PS3 data: skipped
+            return nullptr;
+        }
         const uint32_t fmt4 = kind == "DXT1" ? 0x48 : kind == "DXT5" ? 0x4e : 0x4b;
         const uint32_t hsh = sidu(after_prefix(path_ndb));
         const Bytes d = desc_bytes(hsh, 2, fmt4, 0x060f0000, t.mips, t.width, t.height, flag);
@@ -802,6 +808,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
             mips_ = n;
             kind = "DXT5";
             bpb = 16;
+            approx();   // PS3 A8R8G8B8 re-encoded as BC3
         }
         const uint32_t rm_ = t.gcmRemapCtl & 0xffff;
         if (comp && rm_ != 0xaae4 && (kind == "DXT5" || kind == "DXT3")) {
@@ -825,6 +832,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
             texels = out;
             kind = "DXT5";
             bpb = 16;
+            approx();   // the PS3 remap applied (BC3 re-encode)
         }
         Bytes tiled = tc::ps3_to_ps4_texels(texels, w_, h_, mips_, bpb);
         if (invert) {   // the sky converter: a blend map of the opposite polarity (BC1 only)
@@ -847,7 +855,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
         const uint32_t cls = (fmt4 == 0x47 || fmt4 == 0x48) ? 4 : 5;
         return add_texture_desc(path_ndb, d, tiled, gtex_bytes(hsh, starts_with(shrt, "lightmaps/") ? 0x1000 : 0x400, cls));
     };
-    auto cap_raw_texture = [](const Bytes &desc, const Bytes &texels, Bytes &d_out, Bytes &t_out) {
+    auto cap_raw_texture = [&](const Bytes &desc, const Bytes &texels, Bytes &d_out, Bytes &t_out) {
         d_out = desc;
         t_out = texels;
         const uint64_t cap = 4u << 20;
@@ -862,6 +870,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
             n++;
         }
         if (!n) return;
+        approx();   // retail uncompressed: the top mips dropped (VRAM cap)
         set32(d_out, 0x24, mips - n);
         set32(d_out, 0x28, std::max(1u, w >> n));
         set32(d_out, 0x2c, std::max(1u, h >> n));
@@ -946,6 +955,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
             const std::string path_ndb = cook_prefix() + "lightmaps/" + stage + "/" + base + "/" + hx + ".ndb";
             lm_entries[base] = convert_ps3_texture(t, path_ndb, "lightmaps/" + stage + "/" + base, 3, false);
         }
+    if (!lm_entries.empty() && !(lm_entries.count("indirect.rgbmax.tga") && lm_entries.count("indirect.rgbmaxdelta.tga"))) approx();   // incomplete set
     auto lightmap_entry = [&](const std::string &pname) -> TexP {
         const char *lm = pname == "g_tLightMap" ? "indirect.rgbmax.tga" : pname == "g_tLightMap1" ? "indirect.rgbmaxdelta.tga" : nullptr;
         if (!lm) return nullptr;
@@ -965,8 +975,10 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
     // water surfaces (WATER_DATA): their materials join the material table through one dummy prototype each
     std::vector<std::string> water_mats;
     const auto wobjs = bg::water_objects(p);
-    for (const std::string &m : bg::water_materials(p))
+    const auto all_water_mats = bg::water_materials(p);
+    for (const std::string &m : all_water_mats)
         if (plan.get(m)) water_mats.push_back(m);
+    if (!wobjs.empty() && water_mats.size() < all_water_mats.size()) approx();   // water materials missing from the plan
     for (const std::string &n : water_mats) add_name(n);
     // the sky converter: the last template material's spec maps and detail flag (read by exact materials after it), the
     // blend softness of vertex-colour-only blends, the PS3 fragment programs
@@ -1131,8 +1143,14 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
             const std::string u8k = bg::utf8_of(k3);
             const std::string hx = md5_hex(Bytes(u8k.begin(), u8k.end()));
             mw.name = k3 + "," + hx.substr(0, 8) + "-" + hx.substr(8, 4) + "-" + hx.substr(12, 4) + "-" + hx.substr(16, 4) + "-" + hx.substr(20, 12) + "," + rec0.shader;
+            approx();   // a template material re-bound to the PS3 material's textures
         }
         if (!pe->ps3params.empty()) {
+            // PS3 params the template has no slot for
+            bool miss = false;
+            for (const auto &[k, v] : pe->ps3params)
+                miss = miss || std::none_of(mw.rec.params.begin(), mw.rec.params.end(), [&](const MatParam &mp) { return mp.name == k; });
+            if (miss && !pe->exact) approx();
             // the PS3 material's own constants overwrite the template's
             for (MatParam &mp : mw.rec.params) {
                 const std::vector<double> *v3 = bg::param(pe->ps3params, mp.name);
@@ -1364,6 +1382,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
         }
         bool skinned = njoints > 0;
         for (const Block &b : blocks) skinned = skinned && b.has_skin;
+        if (njoints && !skinned) approx();   // a skinned prototype written static
         const Ref t = bg::need(p, hdr.first, hdr.second + 0x10);
         std::vector<uint32_t> gflags;
         for (size_t s = 0; s < pr.groups.size(); s++) gflags.push_back(p.u32(p.pbase(t.first) + t.second + 0x10 * s + 0xc));
@@ -1379,6 +1398,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                 seen.insert(groups[i].mat);
             }
         }
+        if (groups.size() < pr.groups.size()) approx();   // LOD1+ groups dropped like retail
         ProtoW P_;
         P_.name = pname;
         for (size_t gi = 0; gi < groups.size(); gi++) {
@@ -1424,6 +1444,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                             for (size_t i = 0; i < nr->rows; i++)
                                 for (size_t c = 0; c < 3; c++) n3.at(i, c) = nr->at(i, c);
                             parts.push_back(bg::gen_tangents(*ps, n3, last_attr(*b, 0x11), b->tris));
+                            approx();   // generated tangents
                         } else {
                             Mat d(b->nv, size_t(am.nc));
                             if (aid == 2 || aid == 0x15)
@@ -1763,6 +1784,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
             fl[6] = (b38 & 1) ? 1 : 0;
             fl[7] = (b38 & 2) ? 1 : 0;
             fl[10] = (b38 & 0x20) ? 1 : 0;
+            if ((b1 & ~0x0eu) | ((b38 & ~0x63u) << 8)) approx();   // unmapped PS3 prototype flag bits
             flagsb->raw(fl);
         }
         const size_t soff = snl->size();
@@ -1856,7 +1878,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
     if (opt.light_table) {
         if (auto lb = opt.light_table(p)) light = P.item("LIGHT_TABLE_1", lb);
     } else
-        convert_light_table(p, P, gobo, light, (opt.sky || opt.fixes) && stage == "ldn-train-multi-tunnel");
+        convert_light_table(p, P, gobo, light, (opt.sky || opt.fixes) && stage == "ldn-train-multi-tunnel", build ? opt.approx : nullptr);
     // texture table
     std::vector<TexP> order = tex_order;
     std::stable_sort(order.begin(), order.end(), [](const TexP &a, const TexP &b) { return a->hash < b->hash; });
@@ -1948,7 +1970,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
 // after the header. Big-endian words; the word at +0x30 of records / lights / sun is 4 raw bytes. Blocks 16-aligned in
 // header order, 0xaa fill.
 std::shared_ptr<Blob> convert_light_table(const Pak &p, AutoPages &P, const std::function<std::optional<std::vector<std::string>>(const std::vector<uint32_t> &)> &gobo,
-                                          std::shared_ptr<PakWItem> &item, bool tunnel_probes) {
+                                          std::shared_ptr<PakWItem> &item, bool tunnel_probes, size_t *approx) {
     const auto its = p.items_of("LIGHT_TABLE_1");
     if (its.empty()) return nullptr;   // sky levels: retail PS4 sky paks carry no LIGHT_TABLE_1 either
     const PakItem &it = its[0];
@@ -2023,7 +2045,10 @@ std::shared_ptr<Blob> convert_light_table(const Pak &p, AutoPages &P, const std:
             gobo_names = *names;
         }
     }
-    if (n18 && gobo_names.empty()) n18 = 0;
+    if (n18 && gobo_names.empty()) {   // gobo (projector) lights dropped: no gobo texture match
+        if (approx) ++*approx;
+        n18 = 0;
+    }
     if (auto d = block(0x3c)) parts[0x58] = words(*d);
     if (auto d = block(0x48)) parts[0x70] = words(head(*d, 16ull * u(0x24)));
     if (auto d = block(0x4c)) parts[0x78] = words(head(*d, 12ull * u(0x1c)));
@@ -2375,8 +2400,15 @@ Bytes convert_two_pass(const fs::path &ps3, const std::string &lv, const Plan &p
 }  // namespace
 
 Bytes stage_convert(const fs::path &ps3, const Options &o) {
-    Plan plan = make_plan(ps3, o.res, o.fixes ? o.water_templates : fs::path());   // fixes: water templates scored (batch98)
+    Plan plan = make_plan(ps3, o.res, o.fixes ? o.water_templates : fs::path(), o.exclude);   // fixes: water templates scored (batch98)
     const std::string lv = plan.stage;
+    if (o.plan_summary) {
+        size_t ne = 0;
+        std::set<std::string> paks;
+        for (const auto &[n, e] : plan.mats) ne += e.exact, paks.insert(e.pak);
+        *o.plan_summary = fmt("%s: %zu materials, %zu exact, %zu fallback; %zu source paks; %zu textures requested", lv.c_str(), plan.mats.size(), ne,
+                              plan.mats.size() - ne, paks.size(), plan.req_tex.size());
+    }
     fs::create_directories(o.plan_dir);
     {
         const std::string pj = plan_json(plan);
