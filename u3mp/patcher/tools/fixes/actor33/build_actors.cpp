@@ -119,15 +119,13 @@ fs::path template_pak(const std::string &t, bool solo) {
     return d / upath(t + ".pak");
 }
 
-void backup_file(const fs::path &from, const fs::path &to, const Bytes *data = nullptr) {   // a hard link is enough until the target is replaced
+// a real copy, never a hard link: later steps install and restore with copy2 (copy_file), which writes into the
+// existing file, so a hard-linked backup would change with it
+void backup_file(const fs::path &from, const fs::path &to, const Bytes *data = nullptr) {
     if (fs::exists(to)) return;
     fs::create_directories(to.parent_path());
-    std::error_code ec;
-    fs::create_hard_link(from, to, ec);
-    if (ec) {
-        if (data) write_file_replace(to, *data);
-        else copy2(from, to);
-    }
+    if (data) write_file_replace(to, *data);
+    else copy2(from, to);
 }
 
 // mode -> ps4actor.convert keyword arguments and PS4ACTOR_* variables
@@ -648,7 +646,7 @@ int install_am(const std::vector<std::string> &argv) {
         return 1;
     };
     auto size_of = [](const fs::path &p) { return (unsigned long long)fs::file_size(p); };
-    auto restore = [](const fs::path &from, const fs::path &to) {   // not copy_file: the backup may share the inode
+    auto restore = [](const fs::path &from, const fs::path &to) {   // the backup's bytes, its time stamp kept
         const Bytes b = read_file(from);
         write_file_replace(to, b);
         fs::last_write_time(to, fs::last_write_time(from));
