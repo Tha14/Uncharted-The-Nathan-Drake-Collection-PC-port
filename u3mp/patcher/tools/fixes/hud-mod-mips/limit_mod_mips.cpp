@@ -29,8 +29,8 @@ int hud_mod_mips(const std::vector<std::string> &argv) {
     static const char *NAMES[] = {"net/clipsize.tga",   "net/reload-speed.tga", "net/major-damage.tga",       "net/major-damage_trans.tga",
                                   "net/accuracy.tga",   "net/max-ammo.tga",     "net/blindfire-accuracy.tga", "net/scope-zoom.tga"};
     const uint32_t MIPS = 2;
-    const Pak p(path);
-    Bytes data = p.d;
+    Pak p(path);
+    Bytes &data = p.d;
     int changed = 0, found = 0;
     for (const PakTexture &t : p.textures()) {
         const size_t k = t.path.rfind("/art/");
