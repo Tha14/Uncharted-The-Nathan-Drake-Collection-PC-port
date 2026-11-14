@@ -21,6 +21,8 @@ Bytes sw4(const Bytes &x) {   // byte-swap every u32 (a short tail is reversed t
     return o;
 }
 
+}  // namespace
+
 // bytes of a stream up to and including its end code
 size_t huff_len(const Bytes &stream, const std::vector<std::pair<uint32_t, uint32_t>> &dic, size_t &nout) {
     if (dic.empty()) throw Stop("IndexError: empty vis dictionary");
@@ -44,6 +46,8 @@ size_t huff_len(const Bytes &stream, const std::vector<std::pair<uint32_t, uint3
         }
     throw Stop(u3::fmt("ValueError: vis stream without end code (%zu bytes, %zu decoded)", stream.size(), nout));
 }
+
+namespace {
 
 struct VNode {
     uint32_t a;

@@ -437,6 +437,12 @@ std::vector<std::string> convert_stage(const Context &c, const Pak &p, const fs:
     const fs::path tmp = S(out) + ".tmp";
     write_bytes(tmp, data);
     std::error_code ec;
+    if (const auto errs = stage_check(tmp); !errs.empty()) {
+        fs::remove(tmp, ec);
+        std::string s;
+        for (size_t i = 0; i < errs.size() && i < 4; i++) s += (i ? "; " : "") + errs[i];
+        throw std::runtime_error("RuntimeError: stagecheck: " + s);
+    }
     fs::rename(tmp, out, ec);
     if (ec) throw std::runtime_error("cannot write " + S(out) + ": " + ec.message());
     return {};

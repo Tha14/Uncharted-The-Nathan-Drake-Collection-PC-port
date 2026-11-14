@@ -20,6 +20,10 @@
 
 namespace u3 {
 
+// bytes of a Huffman-coded leaf stream up to and including its end code (nout: the bytes it decodes to); dic = the
+// (left, right) symbol pairs, root last; throws when the stream has no end code
+size_t huff_len(const Bytes &stream, const std::vector<std::pair<uint32_t, uint32_t>> &dic, size_t &nout);
+
 // [item blob, extra blobs...] for the first VIS_INFO_1 of a PS3 pak (empty when it has none)
 std::vector<std::shared_ptr<Blob>> vis_blobs(const Pak &p, size_t limit = 0x100000);
 

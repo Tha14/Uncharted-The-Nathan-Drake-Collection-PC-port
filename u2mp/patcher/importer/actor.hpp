@@ -42,6 +42,8 @@ uint32_t skeleton_sid(const Pak &p);
 // the PS3 actor converted on a PS4 template -> out_path (cbuffer capacities raised)
 void convert_actor_pak(const fs::path &ps3_path, const fs::path &tmpl_path, const fs::path &out_path);
 void fix_cbuffer_capacity(Bytes &pak);
+// what the PS4 loader resolves (actors.cpp): every problem found, [] = fine
+std::vector<std::string> ps4check(const Pak &p);
 
 // ------------------------------------------------------------------------------------------------ actorparts.cpp
 struct ArtgroupU2 {

@@ -6,6 +6,7 @@
 //   registry.cpp   pak22_ps4.txt and banks.txt of the overlay
 //   texts.cpp      the text banks completed with the multiplayer strings
 //   levels/stage/netimg/netpatch/actor*/havok/twin.cpp   the converters of levels, menu images, the net-patch DC module, actors
+//   stagecheck.cpp the check of each converted stage pak
 //   overlay.cpp    the menu overlay (main menu with a Multiplayer button)
 //
 // Uses the Uncharted 3 importer's helpers (u3mp/patcher/importer/common.cpp: files, hashes, JSON, logging) and the
@@ -106,6 +107,9 @@ std::map<int, std::pair<std::optional<Bytes>, TextCounts>> texts_complete(const 
 // ------------------------------------------------------------------------------------------------ the import's paths
 fs::path patcher_dir();      // u2mp/patcher (u2import.exe is in u2mp/bin)
 fs::path launcher_root();    // the folder holding u2mp and u3mp
+
+// stagecheck.cpp: the problems of a converted stage pak ([] = keep it)
+std::vector<std::string> stage_check(const fs::path &path);
 
 // overlay.cpp: the menu overlay (main menu with a Multiplayer button) in `out`, made or kept; throws with the reason
 fs::path build_overlay(const fs::path &game, const fs::path &out, const std::optional<fs::path> &update);
