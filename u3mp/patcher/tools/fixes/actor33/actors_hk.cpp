@@ -17,8 +17,10 @@
 #include "u3fix.hpp"
 
 #include <deque>
+#include <exception>
 #include <fstream>
 #include <regex>
+#include <thread>
 
 namespace u3 {
 namespace {
@@ -227,7 +229,7 @@ std::vector<Rec> scan_ps3(const Elf &x) {
     return recs;
 }
 
-std::vector<Rec> scan_ps4(const Elf &x, const fs::path &dis) {
+std::vector<Rec> scan_ps4(const Elf &x, const std::vector<std::string> &cmd) {
     std::vector<Rec> recs;
     std::deque<std::string> lines;
     static const std::regex re_lea(R"(lea\s+(\w+),\[rip[^\]]*\]\s+# (0x[0-9a-f]+))"), re_mi(R"(mov\s+(?:\w+ PTR )?\[rsp(?:\+(0x[0-9a-f]+))?\],(0x[0-9a-f]+)$)"),
@@ -237,11 +239,7 @@ std::vector<Rec> scan_ps4(const Elf &x, const fs::path &dis) {
                                                            {"r9d", "r9"},  {"eax", "rax"}, {"ebx", "rbx"}, {"ebp", "rbp"}};
     auto nrm = [&](const std::string &a) { auto it = low.find(a); return it == low.end() ? a : it->second; };
     auto hexv = [](const std::string &h) { return uint64_t(std::stoull(h, nullptr, 16)); };
-    std::ifstream f(dis, std::ios::binary);
-    if (!f) throw Stop("cannot read " + utf8(dis));
-    std::string ln;
-    while (std::getline(f, ln)) {
-        if (!ln.empty() && ln.back() == '\r') ln.pop_back();
+    auto take = [&](const std::string &ln) {
         if (ln.find("call   0x122c40") != std::string::npos) {
             std::map<std::string, uint64_t> r;
             std::map<int64_t, uint64_t> st;
@@ -293,10 +291,11 @@ std::vector<Rec> scan_ps4(const Elf &x, const fs::path &dis) {
             while (keep.size() > 400) keep.pop_front();
             lines.swap(keep);
         } else {
-            lines.push_back(ln + "\n");
+            lines.push_back(ln);
             if (lines.size() > 400) lines.pop_front();
         }
-    }
+    };
+    if (run_to_lines(cmd, take)) throw Stop("objdump failed (GNU binutils objdump is needed for the PS4 tables)");
     return recs;
 }
 
@@ -360,15 +359,29 @@ int actors_hk(const std::vector<std::string> &argv) {
             const uint64_t ph = Bx.rd(0x20, 8);
             if (Bx.rd(size_t(ph), 4) != 1 || Bx.rd(size_t(ph) + 16, 8) != 0) throw Stop("AssertionError: first PT_LOAD is not the text segment at 0");
             const uint64_t of = Bx.rd(size_t(ph) + 8, 8), fsz = Bx.rd(size_t(ph) + 32, 8);
-            const fs::path text = tmp / "text.bin", dis = tmp / "ps4.dis";
+            const fs::path text = tmp / "text.bin";
             write_file_replace(text, Bytes(Bx.d.begin() + std::ptrdiff_t(of), Bx.d.begin() + std::ptrdiff_t(std::min<uint64_t>(of + fsz, Bx.d.size()))));
             std::string objdump = a.get("--objdump", "");
             if (objdump.empty()) objdump = "objdump";
-            if (run_to_file({objdump, "-D", "-b", "binary", "-m", "i386:x86-64", "-M", "intel", utf8(text)}, dis))
-                throw Stop("objdump failed (GNU binutils objdump is needed for the PS4 tables)");
-            const std::vector<Rec> ra = scan_ps3(A);
+            const std::vector<std::string> cmd = {objdump, "-D", "-b", "binary", "-m", "i386:x86-64", "-M", "intel", "--no-show-raw-insn", utf8(text)};
+            std::vector<Rec> ra, rb;
+            std::exception_ptr pe, oe;
+            std::thread ts([&] {
+                try {
+                    ra = scan_ps3(A);
+                } catch (...) {
+                    pe = std::current_exception();
+                }
+            });
+            try {
+                rb = scan_ps4(Bx, cmd);
+            } catch (...) {
+                oe = std::current_exception();
+            }
+            ts.join();
+            if (oe) std::rethrow_exception(oe);
+            if (pe) std::rethrow_exception(pe);
             std::printf("ps3 recs %zu\n", ra.size());
-            const std::vector<Rec> rb = scan_ps4(Bx, dis);
             std::printf("ps4 recs %zu\n", rb.size());
             for (const auto &[name, val] : std::vector<std::pair<std::string, json::Value>>{{"hk2010_ps3.json", finish(A, ra)}, {"hk2011_ps4.json", finish(Bx, rb)}}) {
                 std::string o;
@@ -376,7 +389,6 @@ int actors_hk(const std::vector<std::string> &argv) {
                 write_file_replace(tmp / name, Bytes(o.begin(), o.end()));
             }
             std::error_code ec;
-            fs::remove(dis, ec);
             fs::remove(text, ec);
             std::vector<std::string> bad;
             for (const auto &[k, v] : REF)
