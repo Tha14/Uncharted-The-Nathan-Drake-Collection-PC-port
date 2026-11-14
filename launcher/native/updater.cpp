@@ -9,7 +9,7 @@
 //   2. download     fetch that zip into update\ and verify its size and SHA-256; when the connection hangs or drops,
 //                   reconnect and resume from the last byte received (HTTP Range)
 //   3. stage        unzip it into update\staged and verify it (required files present, VERSION matches)
-//   4. start_apply  launch the installer that ships inside the new version (once Python's tools\apply_update.py),
+//   4. start_apply  launch the installer that ships inside the new version (tools\apply_update.exe),
 //                   which holds off until this launcher has exited, exchanges the program folders with rollback on failure,
 //                   and starts the new launcher
 // analysis\ (saves, settings, logs, shader cache) is never modified. Setting UNCHARTED_UPDATE_API makes the check read
@@ -610,20 +610,11 @@ std::wstring command_line(const std::vector<std::wstring> &args) {
     return result;
 }
 
-// Launches the installer of the staged version, normally its tools\apply_update.exe. Older packages that lack the
-// exe get their bundled Python running tools\apply_update.py instead. Either one waits for this process to end.
+// Launches the installer of the staged version, its tools\apply_update.exe (stage checks that it is there: REQUIRED),
+// which waits for this process to end.
 void start_apply(const std::wstring &root, const std::wstring &staged) {
     const std::wstring installer = join(join(staged, L"tools"), L"apply_update.exe");
-    const std::wstring pid = std::to_wstring(GetCurrentProcessId());
-    std::wstring cmd;
-    const DWORD a = GetFileAttributesW(installer.c_str());
-    if (a != INVALID_FILE_ATTRIBUTES && !(a & FILE_ATTRIBUTE_DIRECTORY)) {
-        cmd = command_line({installer, L"--root", root, L"--wait-pid", pid});
-    } else {
-        const std::wstring python = join(join(staged, L"python"), L"pythonw.exe");
-        const std::wstring script = join(join(staged, L"tools"), L"apply_update.py");
-        cmd = command_line({python, L"-I", script, L"--root", root, L"--wait-pid", pid});
-    }
+    const std::wstring cmd = command_line({installer, L"--root", root, L"--wait-pid", std::to_wstring(GetCurrentProcessId())});
     std::vector<wchar_t> buf(cmd.begin(), cmd.end());
     buf.push_back(0);
     STARTUPINFOW si{};

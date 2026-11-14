@@ -172,9 +172,18 @@ launcher_core() {   # the launcher's native code: its core, the game starter, th
     CLANG64="$msys/clang64" bash launcher/native/build.sh
     cp launcher/native/uncharted_native.dll launcher/native/game_starter.exe "$out/launcher/native/"
     cp launcher/native/apply_update.exe "$out/tools/"
-    # files older launchers look for before they install an update; each one hands over to the native program
-    cp launcher/uncharted_launcher.pyw launcher/updater.py "$out/launcher/"
-    cp tools/apply_update.py tools/probe_uncharted.py tools/game_files_102.json.gz "$out/tools/"
+    cp tools/game_files_102.json.gz "$out/tools/"
+    # Older launchers: up to 0.10.63 they install an update by running the new package's python\pythonw.exe on
+    # tools\apply_update.py, and old shortcuts run it on launcher\uncharted_launcher.pyw. python\pythonw.exe is the
+    # bridge (launcher/native/bridge.cpp), which runs tools\apply_update.exe or "Uncharted Launcher.exe" instead; no
+    # Python takes part in a launcher update. Launchers up to 0.10.73 also check that these four files exist before
+    # they install an update: placeholders, nothing reads them.
+    mkdir -p "$out/python"
+    cp launcher/native/pythonw_bridge.exe "$out/python/pythonw.exe"
+    local f
+    for f in launcher/uncharted_launcher.pyw launcher/updater.py tools/apply_update.py tools/probe_uncharted.py; do
+        printf 'Placeholder for launchers up to 0.10.73, which check that this file exists before they install an\r\nupdate. It is not a program and nothing reads it.\r\n' > "$out/$f"
+    done
     cp launcher/assets/uncharted.ico launcher/assets/icon.png "$out/launcher/assets/"
 }
 
@@ -263,7 +272,7 @@ texts() {
 python_for_imports() {
     local to=$out/python f
     mkdir -p "$to/Lib/site-packages"
-    for f in "$py_home"/python.exe "$py_home"/pythonw.exe "$py_home"/python3*.dll "$py_home"/vcruntime140*.dll \
+    for f in "$py_home"/python.exe "$py_home"/python3*.dll "$py_home"/vcruntime140*.dll \
             "$py_home"/LICENSE.txt; do
         [[ -f $f ]] && cp -p "$f" "$to/"
     done
