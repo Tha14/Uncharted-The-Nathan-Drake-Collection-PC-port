@@ -24,7 +24,6 @@
 namespace u3::stage {
 namespace {
 
-const std::string PS4_PREFIX = "d:/dev/CP9/Data/U3/CookData/ND/build/texture2/";
 const size_t PAGE_LIMIT = 0x1c0000;
 const uint32_t PAD32 = 0xaaaaaaaa;
 const uint32_t MAX_BLOCKS = 20;   // PS4 splits a PS3 material group every 20 blocks
@@ -47,9 +46,9 @@ size_t tsize(int ty) { return ty == 6 ? 12 : ty == 0x22 ? 4 : 8; }
 bool starts_with(const std::string &s, const std::string &e) { return s.compare(0, e.size(), e) == 0; }
 bool ends_with(const std::string &s, const std::string &e) { return s.size() >= e.size() && s.compare(s.size() - e.size(), e.size(), e) == 0; }
 bool has(const std::string &s, const char *x) { return s.find(x) != std::string::npos; }
-std::string after_prefix(const std::string &s) {   // s.split(PS4_PREFIX, 1)[-1]
-    const size_t k = s.find(PS4_PREFIX);
-    return k == std::string::npos ? s : s.substr(k + PS4_PREFIX.size());
+std::string after_prefix(const std::string &s) {   // s.split(cook_prefix(), 1)[-1]
+    const size_t k = s.find(cook_prefix());
+    return k == std::string::npos ? s : s.substr(k + cook_prefix().size());
 }
 uint32_t sidu(const std::string &latin1) { return sid(bg::utf8_of(latin1)); }
 
@@ -443,7 +442,9 @@ struct AutoPages {
         if (phase) n += phase->first;
         room((n + 15) & ~size_t(15));
         auto it = cur->item(type, data, name);
-        if (phase) it->phase = phase;
+        // the Uncharted 2 import keeps the room but places the item 16-aligned only, as its earlier converter did (the U2
+        // maps were tested with that)
+        if (phase && !g_u2) it->phase = phase;
         return it;
     }
 };
@@ -893,7 +894,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
         else {
             std::string b = t3->path.substr(t3->path.rfind('/') == std::string::npos ? 0 : t3->path.rfind('/') + 1);
             b = b.substr(0, b.find('.'));
-            full = PS4_PREFIX + shrt + "/" + b;
+            full = cook_prefix() + shrt + "/" + b;
         }
         return convert_ps3_texture(*t3, full + ".ndb", shrt, 3, std::nullopt);
     };
@@ -928,7 +929,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
         }
         const std::string shrt = "art/generated/u3mp/flat-" + kind + ".tga";
         const Bytes tiled = tc::ps3_to_ps4_texels(lin, 64, 64, mips_, 8);
-        const std::string path_ndb = PS4_PREFIX + shrt + "/" + u3::fmt("%016llX", (unsigned long long)sidu(shrt)) + ".ndb";
+        const std::string path_ndb = cook_prefix() + shrt + "/" + u3::fmt("%016llX", (unsigned long long)sidu(shrt)) + ".ndb";
         const uint32_t hsh = sidu(after_prefix(path_ndb));
         const Bytes d = desc_bytes(hsh, 1, srgb ? 0x48 : 0x47, srgb ? 0x010f0000 : 0x01000000, mips_, 64, 64, 3);
         TexP e = add_texture_desc(path_ndb, d, tiled, gtex_bytes(hsh, 0x400, 4));
@@ -942,7 +943,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
             const std::string base = s.substr(s.rfind('/') == std::string::npos ? 0 : s.rfind('/') + 1);
             std::string hx = t.path.substr(t.path.rfind('/') == std::string::npos ? 0 : t.path.rfind('/') + 1);
             hx = hx.substr(0, hx.find('.'));
-            const std::string path_ndb = PS4_PREFIX + "lightmaps/" + stage + "/" + base + "/" + hx + ".ndb";
+            const std::string path_ndb = cook_prefix() + "lightmaps/" + stage + "/" + base + "/" + hx + ".ndb";
             lm_entries[base] = convert_ps3_texture(t, path_ndb, "lightmaps/" + stage + "/" + base, 3, false);
         }
     auto lightmap_entry = [&](const std::string &pname) -> TexP {
@@ -1088,7 +1089,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                     const PakTexture *t3_ = ps3tex_get(s_);
                     if (!t3_ || has(s_, "generated/u3mp/flat-")) continue;
                     const std::string sinv = ends_with(s_, ".tga") ? s_.substr(0, s_.size() - 4) + "-polinv.tga" : s_ + "-polinv";
-                    const TexP einv = convert_ps3_texture(*t3_, PS4_PREFIX + sinv + "/" + u3::fmt("%016llX", (unsigned long long)sidu(sinv)) + ".ndb", sinv, 3,
+                    const TexP einv = convert_ps3_texture(*t3_, cook_prefix() + sinv + "/" + u3::fmt("%016llX", (unsigned long long)sidu(sinv)) + ".ndb", sinv, 3,
                                                           std::nullopt, true);
                     if (einv) bd.e = einv;
                 }
@@ -1111,7 +1112,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                     std::string stem = s0_.substr(s0_.rfind('/') == std::string::npos ? 0 : s0_.rfind('/') + 1);
                     if (ends_with(stem, ".tga")) stem = stem.substr(0, stem.size() - 4);
                     const std::string sb_ = "art/generated/u3mp/b104/" + stem + "-" + bs->chan + "blend" + (bs->gamma ? "-lin" : "") + (inv_ ? "-inv" : "") + ".tga";
-                    const std::string path_ = PS4_PREFIX + sb_ + "/" + u3::fmt("%016llX", (unsigned long long)sidu(sb_)) + ".ndb";
+                    const std::string path_ = cook_prefix() + sb_ + "/" + u3::fmt("%016llX", (unsigned long long)sidu(sb_)) + ".ndb";
                     TexP eb_;
                     if (auto te = tex_entries.find(path_.substr(0, path_.size() - 4)); te != tex_entries.end()) eb_ = te->second;
                     else {
@@ -1124,8 +1125,9 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                     bd.e = eb_;
                 }
             const size_t sl = n.rfind('/');
-            if (sl == std::string::npos) throw Stop("IndexError: material name without a directory");
-            const std::string k3 = n.substr(0, sl) + ":" + n.substr(sl + 1);
+            if (sl == std::string::npos && !g_u2) throw Stop("IndexError: material name without a directory");
+            // U2: the unnamed facility-multi material gets a key of the usual 'dir:variant' form
+            const std::string k3 = sl != std::string::npos ? n.substr(0, sl) + ":" + n.substr(sl + 1) : "levels/u2-unnamed:" + (n.empty() ? std::string("material") : n);
             const std::string u8k = bg::utf8_of(k3);
             const std::string hx = md5_hex(Bytes(u8k.begin(), u8k.end()));
             mw.name = k3 + "," + hx.substr(0, 8) + "-" + hx.substr(8, 4) + "-" + hx.substr(12, 4) + "-" + hx.substr(16, 4) + "-" + hx.substr(20, 12) + "," + rec0.shader;
@@ -1234,6 +1236,7 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
                 set64(b->b, size_t(pp.pos), 0);
             }
         }
+        // U3: each copied item keeps its retail offset modulo 0x100 (Uncharted 2: see item())
         for (size_t k = 0; k < clos.size(); k++) P.item(clos[k].type, blobs[k], bg::utf8_of(clos[k].name), std::make_pair(size_t(0x100), size_t(clos[k].off % 0x100)));
         if (std::find(shaderfiles.begin(), shaderfiles.end(), rec->shader) == shaderfiles.end()) shaderfiles.push_back(rec->shader);
         fx_items[h] = {blobs.at(0), rec->fx_eoff, uint32_t(std::find(shaderfiles.begin(), shaderfiles.end(), rec->shader) - shaderfiles.begin()), rec->fx_x};
@@ -1825,12 +1828,15 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
     di->ptr(di, 0x10).u32(PAD32).u32(PAD32);
     di->cstr(bg::utf8_of(stage));
     auto debug_info = P.item("DEBUG_INFO_1", di);
-    auto af = blob("afm");
-    af->u32(0).u32(PAD32).u64(0).u64(0);
-    auto afm = P.item("ATTACHED_FG_MAPPING", af);
-    auto tf = blob("tagfloat");
-    tf->u32(0);
-    auto tagf = P.item("TAG_FLOAT", tf);
+    std::shared_ptr<PakWItem> afm, tagf;   // retail U2 stages have neither
+    if (!g_u2) {
+        auto af = blob("afm");
+        af->u32(0).u32(PAD32).u64(0).u64(0);
+        afm = P.item("ATTACHED_FG_MAPPING", af);
+        auto tf = blob("tagfloat");
+        tf->u32(0);
+        tagf = P.item("TAG_FLOAT", tf);
+    }
     // each PS3 projector entry names its gobo texture by the PS3 texture hash; the texture is converted into the pak
     auto gobo = [&](const std::vector<uint32_t> &hashes) -> std::optional<std::vector<std::string>> {
         std::map<uint32_t, std::string> byh;
@@ -1847,7 +1853,10 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
         return names;
     };
     std::shared_ptr<PakWItem> light;
-    convert_light_table(p, P, gobo, light, (opt.sky || opt.fixes) && stage == "ldn-train-multi-tunnel");
+    if (opt.light_table) {
+        if (auto lb = opt.light_table(p)) light = P.item("LIGHT_TABLE_1", lb);
+    } else
+        convert_light_table(p, P, gobo, light, (opt.sky || opt.fixes) && stage == "ldn-train-multi-tunnel");
     // texture table
     std::vector<TexP> order = tex_order;
     std::stable_sort(order.begin(), order.end(), [](const TexP &a, const TexP &b) { return a->hash < b->hash; });
@@ -1863,7 +1872,13 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
     auto ttab = P.item("TEXTURE_TABLE", ttb);
     // background collision (PS3 ND mesh -> Havok 2011.3 hkpBvCompressedMeshShape)
     std::vector<std::shared_ptr<PakWItem>> colls;
-    for (const auto &cb : havok_bg_blobs(p, opt.sky || opt.fixes)) colls.push_back(P.item("COLLISION_DATA_HAVOK_BG", cb));
+    if (opt.collision)
+        for (const auto &cb : opt.collision(p)) {
+            colls.push_back(P.item("COLLISION_DATA_HAVOK_BG", cb));
+            colls.back()->phase = std::make_pair(size_t(0x80), size_t(0));
+        }
+    else
+        for (const auto &cb : havok_bg_blobs(p, opt.sky || opt.fixes)) colls.push_back(P.item("COLLISION_DATA_HAVOK_BG", cb));
     // occlusion (VIS_INFO_1)
     std::shared_ptr<PakWItem> vis;
     if (!p.items_of("VIS_INFO_1").empty()) {
@@ -1876,10 +1891,11 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
     // water surfaces (WATER_DATA)
     std::shared_ptr<PakWItem> water;
     if (!wobjs.empty() && !water_mats.empty()) {
-        auto wb = water_blob(p, [&](const std::string &n) {
+        auto key = [&](const std::string &n) {
             const std::string k = matrec.count(n) ? matrec[n].name : ps4key(n);
             return k.substr(0, k.find(','));
-        });
+        };
+        auto wb = opt.water ? opt.water(p, key) : water_blob(p, key);
         if (wb) water = P.item("WATER_DATA", wb);
     }
     // LEVEL_OFFSET_1 (3 floats) kept 1:1, after LEVEL_INFO_1
@@ -1895,14 +1911,24 @@ Bytes convert_once(const Pak &p, const std::string &stage, const Plan &plan, con
     // login page; retail order: LEVEL_INFO_1 (LEVEL_OFFSET_1) DEBUG_INFO_1 LEVEL_PATS_1 EFFECT_TABLE TEXTURE_TABLE GEOMETRY_1
     // VIS_INFO_1 LIGHT_TABLE_1 ATTACHED_FG_MAPPING COLLISION_DATA_HAVOK_BG (WATER_DATA) TAG_FLOAT
     std::vector<std::shared_ptr<PakWItem>> targets = {level_info};
-    if (loff) targets.push_back(loff);
-    for (const auto &x : {debug_info, level_pats, et_item, ttab, geo}) targets.push_back(x);
-    if (vis) targets.push_back(vis);
-    if (light) targets.push_back(light);
-    targets.push_back(afm);
-    for (const auto &c : colls) targets.push_back(c);
-    if (water) targets.push_back(water);
-    targets.push_back(tagf);
+    if (g_u2) {   // retail U2 (village-multi-wide, sky-village-multi): VIS_INFO_1 before GEOMETRY_1, no AFM / TAG_FLOAT
+        for (const auto &x : {level_pats, debug_info, et_item, ttab}) targets.push_back(x);
+        if (loff) targets.push_back(loff);
+        if (vis) targets.push_back(vis);
+        targets.push_back(geo);
+        if (light) targets.push_back(light);
+        for (const auto &c : colls) targets.push_back(c);
+        if (water) targets.push_back(water);
+    } else {
+        if (loff) targets.push_back(loff);
+        for (const auto &x : {debug_info, level_pats, et_item, ttab, geo}) targets.push_back(x);
+        if (vis) targets.push_back(vis);
+        if (light) targets.push_back(light);
+        targets.push_back(afm);
+        for (const auto &c : colls) targets.push_back(c);
+        if (water) targets.push_back(water);
+        targets.push_back(tagf);
+    }
     std::vector<std::shared_ptr<PakWItem>> descs;
     for (const TexP &e : order) descs.push_back(e->desc);
     Page &p1 = w.page();

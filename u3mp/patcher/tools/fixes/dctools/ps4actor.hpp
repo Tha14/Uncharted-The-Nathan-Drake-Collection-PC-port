@@ -66,7 +66,6 @@ std::pair<std::shared_ptr<struct RawSpan>, std::vector<PakItem>> extract_effect_
 // ---- pieces shared with the other actor builders (wall-emblem/make_emblem.cpp)
 inline constexpr uint32_t PAD32 = 0xaaaaaaaa;
 inline constexpr size_t PAGE_LIMIT = 0x180000;   // (a margin: tables filled after item() grow past the estimate)
-inline const std::string PS4_COOK_PREFIX = "d:/dev/CP9/Data/U3/CookData/ND/build/texture2/";
 
 // a template material of a PS4 pak's GEOMETRY_1 (name, shader, features, constants, texture bindings)
 struct TMat {

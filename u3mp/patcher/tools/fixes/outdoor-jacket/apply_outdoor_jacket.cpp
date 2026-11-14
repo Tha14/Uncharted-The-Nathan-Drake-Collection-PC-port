@@ -40,7 +40,6 @@ const std::string NAME = "mp-kit-hunter-torso-jacket-a";
 const std::string SOURCE_SHA256 = "da899e8572e1063cf86883405f64221a2a74a784bc0f536e53bbd23a59e8e701";
 const std::string REPAIRED_SHA256 = "a28e8d1bf48ccd338ea7598fa67a91a2c717d539c412460872e4b08680f2c22c";
 const std::string PS3_SHA256 = "756cbe1838b89ae987d07f51142b2730e0e1594862dbc2c402e6c09d41bc2529";
-const std::string PS4_COOK_PREFIX = "d:/dev/CP9/Data/U3/CookData/ND/build/texture2/";
 const std::string MATERIAL = "objects/characters/mp-kit/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-a-00/default";
 const std::string COLOR = "art/objects/characters/mp-kit/textures/torso-outer/treasure-hunter/mp-kit-treasure-hunter-torso-out-jacket-a-00-color.tga/8CAC6BC4B9B5E83C.ndb";
 const std::string DECAY = "art/objects/multiplayer/loading-menu/loading-menu-cloth/texture/loading-menu-cloth-decay-color.tga/CCE61591FCB9F4F9.ndb";
@@ -263,7 +262,7 @@ Bytes build_repair(const Bytes &source, const Bytes &ps3) {
 
     auto strings = pages[0]->append(std::make_shared<Blob>("jacket-strings"));
     const size_t shrt = strings->cstr(COLOR), bind_short = strings->cstr(COLOR.substr(0, COLOR.rfind('/'))),
-                 full = strings->cstr(PS4_COOK_PREFIX + COLOR.substr(0, COLOR.size() - 4));
+                 full = strings->cstr(cook_prefix() + COLOR.substr(0, COLOR.size() - 4));
     Bytes vram(p.d.begin() + p.vram_base, p.d.end());
     const size_t voff = (vram.size() + 255) & ~size_t(255);
     w.vram = vram;
@@ -272,7 +271,7 @@ Bytes build_repair(const Bytes &source, const Bytes &ps3) {
     auto db = std::make_shared<Blob>("jacket-color");
     db->u64(0).u64(voff).u32(uint32_t(tiled.size())).u32(sid(COLOR)).u32(1).u32(0x48);
     db->u32(0x010F0000).u32(9).u32(256).u32(256).u32(0).u32(3).ptr(db, 0x40);
-    db->cstr(PS4_COOK_PREFIX + COLOR);
+    db->cstr(cook_prefix() + COLOR);
     auto desc = extra.item("VRAM_DESC", db);
     auto vt = std::make_shared<Blob>("vram-table");
     const auto vdt = p.vram_desc_table();
@@ -316,7 +315,7 @@ Bytes build_repair(const Bytes &source, const Bytes &ps3) {
     std::optional<uint64_t> color_row;
     for (uint64_t i = 0; i < 4; i++) {
         const Ref r = bg::need(p, tr.first, tr.second + i * 0x28);
-        if (p.pstr(r.first, r.second) == PS4_COOK_PREFIX + DECAY.substr(0, DECAY.size() - 4)) color_row = i;
+        if (p.pstr(r.first, r.second) == cook_prefix() + DECAY.substr(0, DECAY.size() - 4)) color_row = i;
     }
     require(color_row.has_value(), "old geometry color entry");
     auto gt = clone(tr, 4 * 0x28);

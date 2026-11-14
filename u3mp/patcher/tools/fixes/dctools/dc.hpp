@@ -25,6 +25,14 @@ namespace u3 {
 namespace fs = std::filesystem;
 using Bytes = std::vector<uint8_t>;
 
+// the game the converters write for: Uncharted 3 (u3fix.exe), or Uncharted 2 when u2conv.exe sets g_u2 at its start
+// (before any thread). U2 differs in the PS4 texture cook path and in some item layouts (u2mp/docs/IMPORT.md).
+inline bool g_u2 = false;
+inline const std::string &cook_prefix() {
+    static const std::string u3 = "d:/dev/CP9/Data/U3/CookData/ND/build/texture2/", u2 = "d:/dev/CP9/Data/U2/CookData/ND/build/texture2/";
+    return g_u2 ? u2 : u3;
+}
+
 // a step stops with this message (exit 1, nothing written)
 struct Stop : std::runtime_error {
     using std::runtime_error::runtime_error;

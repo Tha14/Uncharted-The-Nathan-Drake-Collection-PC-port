@@ -844,7 +844,7 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
         nameb->cstr(u8(shrt));
         auto e = std::make_shared<TexE>();
         e->name = p0.item("RAW_DATA", nameb);
-        const std::string full4 = PS4_COOK_PREFIX + shrt;
+        const std::string full4 = cook_prefix() + shrt;
         auto db = std::make_shared<Blob>("vramdesc");
         db->u64(0).u64(voff).u32(uint32_t(tiled.size())).u32(hash_);
         db->u32(1).u32(fmt4);
@@ -890,7 +890,7 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
         else throw Stop("NotImplementedError: " + f3->kind);
         x.shrt = shrt;
         x.hash = t.hash;
-        x.full = PS4_COOK_PREFIX + shrt;
+        x.full = cook_prefix() + shrt;
         x.w = tw;
         x.h = th;
         x.mips = tm;
@@ -956,8 +956,8 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
             tcache_none[tfull] = true;
             return nullptr;
         }
-        const size_t k = tfull.find(PS4_COOK_PREFIX);
-        const std::string shrt = k != std::string::npos ? tfull.substr(k + PS4_COOK_PREFIX.size()) : tfull;
+        const size_t k = tfull.find(cook_prefix());
+        const std::string shrt = k != std::string::npos ? tfull.substr(k + cook_prefix().size()) : tfull;
         TexP e = add_texture(shrt, t->hash, t->format, t->width, t->height, t->mips, P.vram_bytes(t->vramOffset, t->vramSize), t->unk34, t->unk20);
         e->full = tfull;
         tcache[tfull] = e;

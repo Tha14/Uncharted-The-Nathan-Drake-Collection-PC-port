@@ -20,6 +20,8 @@
 #include "dc.hpp"
 
 #include <functional>
+#include <map>
+#include <tuple>
 
 namespace u3::dcconv {
 
@@ -28,6 +30,10 @@ size_t slot_count(const Bytes &module);
 
 // learn a schema from (PS3, PS4) module pairs; returns its JSON text (the format of dcconv.py learn)
 std::string learn(const std::vector<std::pair<Bytes, Bytes>> &pairs, const std::function<void(const std::string &)> &log);
+// Uncharted 2 (u3::g_u2): named pairs; a pair whose graphs differ, and every `partial` pair, is learned partially (the objects
+// reached from the symbols both define)
+std::string learn_u2(const std::vector<std::tuple<std::string, Bytes, Bytes>> &pairs, const std::vector<std::tuple<std::string, Bytes, Bytes>> &partial,
+                     const std::function<void(const std::string &)> &log);
 
 class Converter {
 public:

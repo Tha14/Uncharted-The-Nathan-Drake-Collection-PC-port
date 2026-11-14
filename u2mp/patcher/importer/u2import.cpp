@@ -1117,6 +1117,7 @@ std::string shipped_id_text() {
 
 int wmain(int argc, wchar_t **argv) {
     g_event_prefix = "@U2MP ";
+    u3::g_u2 = true;   // the Uncharted 3 converters write for Uncharted 2 (set before any thread starts)
     SetConsoleOutputCP(CP_UTF8);
     std::vector<std::string> v;
     for (int i = 1; i < argc; i++) {

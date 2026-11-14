@@ -110,7 +110,10 @@ std::optional<std::string> param_role(const std::string &p) {
 
 std::string ps4key(const std::string &n) {
     const size_t k = n.rfind('/');
-    if (k == std::string::npos) throw Stop("ValueError: not enough values to unpack (expected 2, got 1)");
+    if (k == std::string::npos) {
+        if (g_u2) return n;   // U2: facility-multi has one material group with an empty name, planned like any other
+        throw Stop("ValueError: not enough values to unpack (expected 2, got 1)");
+    }
     return n.substr(0, k) + ":" + n.substr(k + 1);
 }
 
@@ -202,7 +205,7 @@ void make_res(const fs::path &out, const fs::path &pak_dir) {
     std::vector<std::string> names;
     for (const auto &e : fs::directory_iterator(pak_dir)) {
         const std::string fn = utf8(e.path().filename());
-        if (ends_with(fn, ".pak") && !ends_with(fn, "-ingame12.pak")) names.push_back(fn);
+        if (ends_with(fn, ".pak") && !ends_with(fn, g_u2 ? "-ingame10.pak" : "-ingame12.pak")) names.push_back(fn);   // level data paks: no materials
     }
     std::sort(names.begin(), names.end());
     std::string mats, tex;
@@ -249,6 +252,7 @@ struct SMat {
     std::vector<std::pair<std::string, std::string>> b;
     // derived (the fallback scoring)
     bool prime = false, water = false;
+    bool u2bg = false;   // U2 fallback candidate: a background material (GEOMETRY_1 flag bit 0 clear), not hair / eye / skin
     unsigned r4 = 0, c4 = 0;   // role / class bits
     bool tmus1a = false, wind = false, leaf = false;
     size_t fsid = 0;   // feature set id
@@ -377,6 +381,8 @@ std::shared_ptr<Survey> load_survey(const fs::path &res) {
                 for (const json::Value &x : b->items) sm->b.push_back({latin1_of(x.items.at(0).s), latin1_of(x.items.at(1).s)});
             sm->prime = sm->s == "prime-shader.fx";
             sm->water = sm->s == "water.fx";
+            const json::Value *fl = m.get("fl");
+            sm->u2bg = !(fl && (fl->i & 1)) && sm->s != "hair.fx" && sm->s != "eye.fx" && sm->s != "skin.fx";
             for (const auto &bd : sm->b)
                 if (auto r = param_role(bd.first); r && *r != "lightmap" && *r != "env") sm->r4 |= role_bit(*r);
             std::set<std::string> fset(sm->f.begin(), sm->f.end());
@@ -863,7 +869,8 @@ Plan make_plan(const fs::path &ps3path, const fs::path &res, const fs::path &wat
             if (k.kdir == m.fdir) dirsc = 8;
             else if (starts_with(k.k, m.top)) dirsc = 1 + std::max(0, common - 2);
             for (const SEnt &c : k.ents) {
-                if (exclude.count(c.pak) || !c.m->prime) continue;
+                // U3: prime-shader materials only; U2 PS4 level materials mostly keep their own shaders
+                if (exclude.count(c.pak) || !(g_u2 ? c.m->u2bg : c.m->prime)) continue;
                 const SMat &sm = *c.m;
                 int score = popc(m.r3 & sm.r4) * 2 - popc(sm.r4 & ~m.r3) - popc(m.r3 & ~sm.r4);
                 score += ((m.c3 & C_CUT) != 0) == ((sm.c4 & C_CUT) != 0) ? 12 : -12;

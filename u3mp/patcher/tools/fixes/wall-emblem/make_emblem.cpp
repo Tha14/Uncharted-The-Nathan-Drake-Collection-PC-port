@@ -305,7 +305,7 @@ Built build_actor(const Inputs &in, const std::string &art, const Patch &pt) {
         nb->cstr(shrt);
         auto e = std::make_shared<Tex>();
         e->name = p0.item("RAW_DATA", nb);
-        e->full = PS4_COOK_PREFIX + shrt;
+        e->full = cook_prefix() + shrt;
         auto db = std::make_shared<Blob>("vramdesc");
         db->u64(0).u64(off).u32(uint32_t(tiled.size())).u32(h);
         db->u32(1).u32(fmt).u32(unk20 ? *unk20 : (fmt == 0x48 || fmt == 0x4b || fmt == 0x4e) ? 0x010f0000 : 0x01000000);
@@ -351,8 +351,8 @@ Built build_actor(const Inputs &in, const std::string &art, const Patch &pt) {
     if (ti == in.maptx.end()) throw Stop("TypeError: colour map " + cb->full + " not in air-multi.pak");
     const PakTexture &t = ti->second;
     const std::string full = t.path;
-    const size_t pk = full.find(PS4_COOK_PREFIX);
-    const std::string shrt = pk != std::string::npos ? full.substr(pk + PS4_COOK_PREFIX.size()) : full;
+    const size_t pk = full.find(cook_prefix());
+    const std::string shrt = pk != std::string::npos ? full.substr(pk + cook_prefix().size()) : full;
     const Bytes tvram = in.MAP.vram_bytes(t.vramOffset, t.vramSize);
     TexP ecol = add(shrt, t.hash, t.format, t.width, t.height, t.mips, tvram, t.unk34, t.unk20);
     ecol->full = full;

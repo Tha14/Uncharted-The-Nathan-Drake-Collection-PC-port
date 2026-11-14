@@ -130,7 +130,10 @@ JH read_jh(const Pak &p, const PakItem &it) {
         const Bytes dd = slice(p.d, p.pbase(d->first) + d->second, p.pbase(d->first) + d->second + 0x5c);
         bool zeros = true;
         for (size_t k = 4; k < dd.size(); k++) zeros = zeros && !dd[k];
-        if (be32(dd, 0) != 3 || !zeros) throw Stop("NotImplementedError: JOINT_HIERARCHY D block differs from {3, 0...}");
+        if (be32(dd, 0) != 3 || !zeros) {
+            if (g_u2 && d_packfile) m.pf = d_packfile(p, it);
+            if (!m.pf) throw Stop("NotImplementedError: JOINT_HIERARCHY D block differs from {3, 0...}");
+        }
     }
     m.d = d.has_value();
     const ORef B = bg::res(p, pg, o + 0xc);
@@ -177,7 +180,13 @@ std::shared_ptr<Blob> build_jh(const JH &m) {
     }
     if (m.d) {
         ptr_here(0x28);
+        const size_t d_off = b->size();
         b->raw(D_TEMPLATE());
+        if (m.pf4) {   // Uncharted 2: the converted packfile behind the D block
+            b->pad(16, 0xaa);
+            rel.push_back({d_off + 0x90, b->size()});
+            b->raw(*m.pf4);
+        }
     }
     if (m.b) {
         ptr_here(0x10);

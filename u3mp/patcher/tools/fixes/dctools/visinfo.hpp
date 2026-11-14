@@ -1,4 +1,5 @@
-// dctools/visinfo.hpp: VIS_INFO_1 (occlusion / PVS) of Uncharted 3 levels, PS3 (32-bit BE) -> PS4 (64-bit LE); the
+// dctools/visinfo.hpp: VIS_INFO_1 (occlusion / PVS) of Uncharted 3 levels (version 9; Uncharted 2 version 7 = the same
+// without the H table, header 0xa0 -> 0xd0), PS3 (32-bit BE) -> PS4 (64-bit LE); the
 // latest converter's visinfo.py in C++ (its default: the PVS bit streams are kept in the PS3 word order, as the
 // retail PS4 paks do).
 //
