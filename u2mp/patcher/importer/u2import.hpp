@@ -5,7 +5,10 @@
 //   sound.cpp      XVAG streams and SCREAM banks
 //   registry.cpp   pak22_ps4.txt and banks.txt of the overlay
 //   texts.cpp      the text banks completed with the multiplayer strings
-//   the converters of skins, actors, levels, menu images and the net-patch DC module: u2mp/patcher/u2conv
+//   levels/stage/netimg/netpatch/actor*/havok/twin.cpp   the converters of levels, menu images, the net-patch DC module, actors
+//   stagecheck.cpp the check of each converted stage pak
+//   overlay.cpp    the menu overlay (main menu with a Multiplayer button)
+//   validate.cpp / devtools.cpp   --validate, and the maintainers' commands (--validate-twins in twin.cpp)
 //
 // Uses the Uncharted 3 importer's helpers (u3mp/patcher/importer/common.cpp: files, hashes, JSON, logging) and the
 // Uncharted 3 converters (u3mp/patcher/tools/fixes/dctools) with their Uncharted 2 differences (u3::g_u2).
@@ -76,7 +79,8 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------------ sound.cpp
-Bytes xvag_convert(const Bytes &d);
+const uint32_t XVAG_INTERLEAVE = 0x155;   // the PS4 block: frames per channel
+Bytes xvag_convert(const Bytes &d, uint32_t interleave = XVAG_INTERLEAVE);
 std::string find_ffmpeg(const std::string &arg);
 Bytes bank_convert(const Bytes &ps3, const std::string &ffmpeg, std::string &note);
 
@@ -105,5 +109,21 @@ std::map<int, std::pair<std::optional<Bytes>, TextCounts>> texts_complete(const 
 // ------------------------------------------------------------------------------------------------ the import's paths
 fs::path patcher_dir();      // u2mp/patcher (u2import.exe is in u2mp/bin)
 fs::path launcher_root();    // the folder holding u2mp and u3mp
+
+// stagecheck.cpp: the problems of a converted stage pak ([] = keep it)
+std::vector<std::string> stage_check(const fs::path &path);
+
+// validate.cpp: --validate, the converters checked on the files both platforms have; the report (also <work>/validation.json)
+struct Context;
+json::Value validate(const PS3 &ps3, const PS4 &ps4, const Context &ctx, const fs::path &work, const std::function<void(const std::string &)> &lg);
+// twin.cpp: --validate-twins, the retail mp-hero skins with a PS4 twin built from PS3 and compared with retail
+// (<work>/twin-validation.json)
+json::Value twin_validate(const PS3 &ps3, const PS4 &ps4, const fs::path &work);
+
+// devtools.cpp: --dc, --hk-tables, --twin-build, --psarc (maintainers); the exit code, or nullopt for other arguments
+std::optional<int> dev_command(const std::vector<std::string> &v);
+
+// overlay.cpp: the menu overlay (main menu with a Multiplayer button) in `out`, made or kept; throws with the reason
+fs::path build_overlay(const fs::path &game, const fs::path &out, const std::optional<fs::path> &update);
 
 }  // namespace u2imp

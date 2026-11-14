@@ -1,1302 +1,1317 @@
-// u2mp session layer: what the PS3 game's NetInit, Matching2 sessions and lobby code did, rebuilt for
-// PCs over net::Transport. Blueprint and every address: u2mp/docs/SESSION-INTERFACE.md (PS4 1.02
-// image offsets; PS3 1.10 originals in the comments).
+// u2mp session: the party and match session layer of the Uncharted 2 multiplayer port.
 //
-// Roles: the PC that opens Multiplayer without UNCHARTED_U2MP_JOIN hosts the party (and later the
-// match); the others join it by address (UNCHARTED_U2MP_JOIN=ip[:port]). Party and match use one
-// transport: the party leader is the match host.
+// The PS4 build of the game lost the PS3 multiplayer bootstrap, the party and match sessions, the
+// lobby roster queries, Start Match, Leave Multiplayer and the per-frame network update. This file
+// stands in for all of them on PC: it owns the module's one transport (one PC hosts, the others join
+// it by LAN address or over the online link), keeps the party member list and copies it into the
+// game's session objects and player trackers, replaces the five stripped menu functions, drives the
+// network once per game frame (from a menu page handler and from the wrapped match state updates),
+// owns the net clock the game reads, and logs diagnostics along the match start path.
 //
-// Net ids: host 1, a client in transport slot s has s + 1 (also its connection-record key).
-#include <algorithm>
-#include <array>
-#include <atomic>
+// Reimplemented from the behaviour description u2mp/docs/spec/session.md.
+
 #include <chrono>
 #include <cstdio>
-#include <utility>
 #include <cstdlib>
 #include <cstring>
 #include <map>
 #include <string>
-
-extern "C" int runtime_file_translate(const char *guest, char *out, size_t size);
 #include <vector>
 
 #include "frontend3.h"
 #include "frontend6.h"
 #include "gamenet.h"
-#include "progression.h"
 #include "net.h"
 #include "online.h"
+#include "progression.h"
 #include "session_api.h"
 #include "u2mp_internal.h"
 #include "unlocks.h"
 #include "voice.h"
 
+extern "C" int runtime_file_translate(const char *guest, char *out, size_t size);
+
 namespace u2mp::session {
+void install(int &installed);
+}
+
+namespace u2mp {
 namespace {
 
-// ---- guest data -----------------------------------------------------------------------------
-constexpr uint64_t kNetState = 0x14ce97c;     // PS3 NET_SM (0xf11764); IsOnline = state > 1
-constexpr uint64_t kParty = 0x105efb8;        // party session (PS3 0xf2c8a0)
-constexpr uint64_t kMatch = 0x1065b08;        // g_matchSession (PS3 0xf20c48)
-constexpr uint64_t kNetInfo = 0x104f1c8;      // PS3 0xf1fa48
-constexpr uint64_t kNgm = 0x113b760;          // g_netGameManager (PS3 0xf1dc80)
-// session fields
-constexpr uint64_t S_CTX = 0x10, S_ME = 0xb00, S_HOST = 0xb04, S_MEMBERS = 0x228, S_MEMBER_SIZE = 0xd0;
-constexpr uint64_t SM_VALID = 0x09, SM_ID = 0x10, SM_KEY = 0x18;
-constexpr uint64_t M_CREATED = 0x99, M_CREATE_RESULT = 0x9c, M_JOINED = 0xb8, M_JOIN_RESULT = 0xbc,
-                   M_JOIN_ROOM = 0xc0, M_LEFT = 0xc8;
-// net info fields
-constexpr uint64_t NI_CREATED_BY_ME = 0x08, NI_ERROR = 0x1c, NI_FROM_MATCHMAKING = 0x34, NI_MODE = 0x2c4;
-// NetGameManager
-constexpr uint64_t NGM_LOCAL = 0x00, NGM_HOST = 0x08, NGM_TRACKERS = 0x10, NGM_TRACKER_SIZE = 0x2c0,
-                   NGM_GAME = 0x1ca0;
-constexpr uint64_t T_NAME = 0x20, T_NETID = 0x120, T_MEMBER28 = 0x238, T_KEY = 0x23c, T_EXCLUDED = 0x26c,
-                   T_CONNECTED = 0x275, T_TALKS_TO_ALL = 0x27c;
-constexpr int kTrackers = 10;
-// functions
-constexpr uint64_t fPopPage = 0x5cc6f0, fClearNetPlayers = 0x63db90, fTrackerClear = 0x662a30,
-                   fHostCreate = 0x5eb830, fCreateEvent = 0x6180f0, fMessageApply = 0x62dc50,
-                   fRequestPackage = 0x56ad90, kPackageTable = 0x1130390;
-// menu page-event handlers (dispatcher 0x5cd5c0): count at menu+0x24f0, entries at menu+0x24f8 (0x18
-// each: u32 page id, 0 = every page; fn at +8; arg at +0x10), at most 32. A handler gets
-// {u32 event, u32 page, u64 arg, ...}; event 6 is the per-frame update.
-constexpr uint64_t MENU_HANDLER_COUNT = 0x24f0, MENU_HANDLERS = 0x24f8, MENU_HANDLER_SIZE = 0x18;
-constexpr uint32_t kMaxPageHandlers = 32, kEventUpdate = 6;
-// TaskManagerOnline states (vtable, Update at +0x18; SESSION-INTERFACE.md 3.2): the match keeps
-// the network going through them while no menu page is updated.
-struct StateUpdate { uint64_t slot, update; };
-constexpr StateUpdate kStateUpdates[] = {
-    {0x100ac40 + 0x18, 0x5f2ea0}, {0x100ac00 + 0x18, 0x5f2dc0}, {0x100abc0 + 0x18, 0x5f26d0},
-    {0x100ab80 + 0x18, 0x5f14d0}, {0x100ab40 + 0x18, 0x5f1390}, {0x100ab00 + 0x18, 0x5f1000},
-    {0x100aa80 + 0x18, 0x5f0ec0}, {0x100aa40 + 0x18, 0x5f0b30}, {0x100aa00 + 0x18, 0x5f0a90},
-    {0x100a9c0 + 0x18, 0x5eff30}};
-constexpr size_t kStateCount = sizeof(kStateUpdates) / sizeof(*kStateUpdates);
-// stubs we replace
-constexpr uint64_t cbMultiplayer = 0x5eb160, qPartyRows = 0x659bb0, qPlayerRows = 0x659bc0,
-                   cbStartMatch = 0x5eb780, cbLeaveMultiplayer = 0x5eb180;
-// NET_SM values
-enum : int32_t { kStateOff = 0, kCreateGameWait = 3, kClientWaitPartyHost = 12, kServerLobby = 16,
-                 kClientLobby = 17, kChooseHostJoin = 18, kLeaveGame = 35 };
-// mailbox codes (NetEventMessage, type 46)
-enum : uint32_t { kMsgPartyHostJoined = 0x10e, kMsgMode = 0x110 };
+// ---- game memory ------------------------------------------------------------------------------------
+// Image offsets of the objects and values this file reads or writes.
+constexpr uint64_t kNetSm = 0x14ce97c;
+constexpr uint64_t kPartySession = 0x105efb8;
+constexpr uint64_t kMatchSession = 0x1065b08;
+constexpr uint64_t kNetInfo = 0x104f1c8;
+constexpr uint64_t kNgm = 0x113b760;
+constexpr uint64_t kNpd = 0x11474f8;
+constexpr uint64_t kPackageTable = 0x1130390;
+constexpr uint64_t kNetImageTable = 0x1130078;
+constexpr uint64_t kGameFrame = 0x11162c4;
+constexpr uint64_t kNetClockPtr = 0x113a040;
+constexpr uint64_t kAbortByte = 0x113a270;
+constexpr uint64_t kMatchOver = 0x104f1c0;
+constexpr uint64_t kMatchOverCompanion = 0x14ce978;
+constexpr uint64_t kIdleTimer = 0x14cec0c;
+constexpr uint64_t kCustomChoiceCount = 0x113ddb0;
+constexpr uint64_t kLevelListHead = 0x1534140;
+constexpr uint64_t kAbortSlot = 0x103fa70;
+constexpr uint64_t kAbortOriginal = 0x5e9f10;
 
+// Guest functions.
+constexpr uint64_t kPopPage = 0x5cc6f0;
+constexpr uint64_t kClearNetPlayers = 0x63db90;
+constexpr uint64_t kClearTracker = 0x662a30;
+constexpr uint64_t kCreateEvent = 0x6180f0;
+constexpr uint64_t kMessageApply = 0x62dc50;
+constexpr uint64_t kSendEventAll = 0x644ab0;
+constexpr uint64_t kRequestPackage = 0x56ad90;
+constexpr uint64_t kPackagesLoaded = 0x56ce50;
+constexpr uint64_t kLoaderBusy = 0xa18010;
+constexpr uint64_t kLookup = 0xa15e70;
+constexpr uint64_t kPresentPlayers = 0x63ffb0;
+constexpr uint64_t kSetNetGame = 0x63dc30;
+constexpr uint64_t kMenuReset = 0x5cd1e0;
+constexpr uint64_t kTeamColor = 0x64aeb0;
+constexpr uint64_t kOwnerChanged = 0x5e9f30;
+
+// Ids and page ids.
+constexpr uint32_t kNetGamesId = 0x3b9a067d;
+constexpr uint32_t kLevelsId = 0x0dec97a4;
+constexpr uint32_t kRankTableId = 0xc85e199d;
+constexpr uint32_t kPageMultiplayer = 0x53cbb5f2;
+constexpr uint32_t kPageJoining = 0x1af4bdd2;
+constexpr uint32_t kPageLeavingGame = 0xb808d03c;
+constexpr uint32_t kPageHostCreate = 0x471007a1;
+constexpr uint64_t kHostCreateHandler = 0x6093f0;
+constexpr uint32_t kWaitText = 0x69deab50;
+constexpr uint32_t kNetPackage = 0x4240ef2e;
+constexpr uint32_t kNetU2mpPackage = 0x5e516de8;
+constexpr uint32_t kIconTalking = 0xffa98ec5;
+constexpr uint32_t kIconMuted = 0x7a5f5bf1;
 constexpr uint16_t kDefaultPort = 27210;
-constexpr uint64_t kRoomContext = 0x55324d50000001ull;   // any non-zero session context
+constexpr uint64_t kCtx = 0x55324d50000001ull;   // any non-zero session context; this one is ours
 
-template <typename T> T &G(uint64_t offset) { return *image.at<T>(offset); }
-uint64_t guest(uint64_t offset) { return uint64_t(uintptr_t(image.base)) + offset; }
-template <typename F> F fn(uint64_t offset) { return reinterpret_cast<F>(image.base + offset); }
+static_assert(sid("PAGE_MULTIPLAYER_JOINING") == kPageJoining, "page id");
+static_assert(sid("net") == kNetPackage && sid("net-u2mp") == kNetU2mpPackage, "package ids");
 
-// ---- session state --------------------------------------------------------------------------
+// Session message types (the byte after the layer tag).
+enum : uint8_t { kInfo = 1, kRoster = 2, kMode = 3, kFollow = 4, kKick = 5, kTeams = 6, kIds = 8 };
+
+// ---- raw memory helpers -----------------------------------------------------------------------------
+template <typename T> T get(const uint8_t *p) { T v; std::memcpy(&v, p, sizeof v); return v; }
+template <typename T> void put(uint8_t *p, T v) { std::memcpy(p, &v, sizeof v); }
+uint8_t *g(uint64_t offset) { return image.base + offset; }
+uint8_t *ptr_at(const uint8_t *p) { return reinterpret_cast<uint8_t *>(get<uint64_t>(p)); }
+uint64_t addr_of(const void *p) { return reinterpret_cast<uint64_t>(p); }
+int32_t net_sm() { return get<int32_t>(g(kNetSm)); }
+void set_net_sm(int32_t v) { put<int32_t>(g(kNetSm), v); }
+uint8_t *menu() { return g(addr::menu_manager); }
+uint8_t *ngm() { return g(kNgm); }
+int16_t current_game() { return get<int16_t>(ngm() + 0x1ca0); }
+
+template <typename Fn> Fn guest(uint64_t offset) { return reinterpret_cast<Fn>(image.base + offset); }
+
+uint8_t *lookup(uint32_t id) {
+    return guest<uint8_t *(U2MP_GUEST *)(uint32_t)>(kLookup)(id);
+}
+
+// A script table {s32 count; pad; records}: the record pointer, or NULL if the table is unusable.
+struct Table {
+    int32_t count = 0;
+    uint8_t *records = nullptr;
+};
+Table table_of(uint8_t *t) {
+    Table out;
+    if (!t) return out;
+    out.count = get<int32_t>(t);
+    out.records = ptr_at(t + 8);
+    return out;
+}
+
+bool coop_type(int32_t type) { return type == 4 || type == 8 || type == 9 || type == 12; }
+
+// ---- module state -----------------------------------------------------------------------------------
+constexpr int kSlots = int(net::kMaxPeers) + 1;
+
 struct Member {
     bool used = false;
     uint32_t net_id = 0;
     std::string name;
-    uint8_t rank = 0;   // rank badge index (PS3 room member data +8, roster query 0x4bc728)
-    uint8_t team = 0;   // custom game team preference 1 / 2, 0 none (PS3 room member data +9)
+    uint8_t rank = 0;
+    uint8_t team = 0;
 };
-Member members[net::kMaxPeers + 1];   // by transport slot; slot 0 = the host
+
+Member members[kSlots];
 net::Transport transport;
-bool active = false, hosting = false, in_match_setup = false;
+bool active = false;
+bool hosting = false;
 uint32_t my_id = 0;
 std::string my_name = "Drake";
+uint32_t host_id = 1;
 int32_t sent_mode = -1;
-int32_t last_state = 0;
-char roster_text[net::kMaxPeers + 1][64];
-unsigned frames = 0;
-bool kicked = false;   // the host kicked us: leave the party after this pump
-bool lost_host = false;   // the host is gone: close the transport after this pump (PS3 teardown 0x4386d0)
-uint8_t sent_rank = 0xff;   // the rank this PC last published
-uint8_t sent_team = 0xff;   // the team preference this PC last published
+int32_t last_sm = 0;
+uint32_t frames = 0;
+bool kicked = false;
+bool host_lost = false;
+uint8_t sent_rank = 0xff;
+uint8_t sent_team = 0xff;
 double next_rate_log = 0;
+double last_clock = -1;
+bool rehost_pending = false;
+std::map<uint32_t, std::string> npids;   // net id -> NpId (ordered, so the smallest id is found first)
+int closed_frames = 0;
+uint8_t *clock_object = nullptr;
+std::chrono::steady_clock::time_point clock_base;
+int last_state = -1;
+int64_t next_online_log = 0;
+char row_text[kSlots][64];
 
-// The host's net id: 1, except after a host migration in a match, where every player keeps its net id
-// (trackers, scores) and the new host keeps its own (PORT-ONLINE.md 5b).
-uint32_t host_net_id = 1;
-bool rehost_pending = false;   // a migrated match: listener slot 6 once the new host is reached
-std::map<uint32_t, std::string> npid_of_id;   // online: net id -> NpId (kIds from the host)
-uint32_t id_of_slot(uint8_t slot) { return slot ? uint32_t(slot) + 1 : host_net_id; }
-
-void set_state(int32_t s) { G<int32_t>(kNetState) = s; }
-int32_t state() { return G<int32_t>(kNetState); }
-
-// This PC's rank badge index: PS3 0x0cfa58 over the cash in NetPlayerData (+0xd8) and the rank table
-// c85e199d (+0x50 count, +0x58 thresholds), as the profile panel and progression.cpp compute it.
-uint8_t local_rank() {
-    struct Table { uint8_t pad[0x50]; int32_t count; int32_t pad2; int32_t *thresholds; };
-    const auto *t = fn<const Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70)(0xc85e199d);
-    if (!t || t->count <= 1 || !t->thresholds) return 0;
-    const int32_t money = G<int32_t>(0x11474f8 + 0xd8), last = t->count - 1;
-    for (int32_t i = 0; i < last; ++i)
-        if (t->thresholds[i] <= money && t->thresholds[i + 1] > money) return uint8_t(std::min(i, 255));
-    return uint8_t(std::min(last, 255));
+void clear_members() {
+    for (Member &m : members) m = Member();
 }
 
-// This PC's custom game team preference: NetPlayerData +0x114, written by the PAGE_LOBBY team
-// carousel 0x657a6b (values 1 and 2, as PS3's room member data +9 that the roster query read).
-uint8_t local_team() {
-    const int32_t t = G<int32_t>(0x11474f8 + 0x114);
-    return t == 1 || t == 2 ? uint8_t(t) : 0;
+uint32_t slot_net_id(int slot) { return slot == 0 ? host_id : uint32_t(slot) + 1; }
+
+// The row-th used member in slot order, or -1.
+int slot_of_row(int row) {
+    if (row < 0) return -1;
+    for (int s = 0; s < kSlots; ++s)
+        if (members[s].used && row-- == 0) return s;
+    return -1;
 }
 
-void session_set(uint64_t s, uint64_t ctx, uint32_t me, uint32_t host) {
-    G<uint64_t>(s + S_CTX) = ctx;
-    G<uint32_t>(s + S_ME) = me;
-    G<uint32_t>(s + S_HOST) = host;
+std::string cut(const std::string &s, size_t n) { return s.size() > n ? s.substr(0, n) : s; }
+
+// ---- sessions and trackers --------------------------------------------------------------------------
+void set_session(uint64_t session, uint64_t context, uint32_t me, uint32_t host) {
+    uint8_t *s = g(session);
+    put<uint64_t>(s + 0x10, context);
+    put<uint32_t>(s + 0xb00, me);
+    put<uint32_t>(s + 0xb04, host);
 }
 
-void session_members(uint64_t s) {
-    int i = 0;
-    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) {
-        const uint64_t m = s + S_MEMBERS + uint64_t(i) * S_MEMBER_SIZE;
-        if (!members[slot].used) continue;
-        if (i >= kTrackers) break;
-        G<uint8_t>(m + SM_VALID) = 1;
-        G<uint32_t>(m + SM_ID) = members[slot].net_id;
-        G<uint32_t>(m + SM_KEY) = members[slot].net_id;
-        ++i;
+void publish(uint64_t session) {
+    // The game's session holds only 10 member records; an 11th member never reaches it.
+    uint8_t *records = g(session) + 0x228;
+    int written = 0;
+    for (int s = 0; s < kSlots && written < 10; ++s) {
+        if (!members[s].used) continue;
+        uint8_t *r = records + written * 0xd0;
+        r[9] = 1;
+        put<uint32_t>(r + 0x10, members[s].net_id);
+        put<uint32_t>(r + 0x18, members[s].net_id);
+        ++written;
     }
-    for (; i < kTrackers; ++i) {
-        const uint64_t m = s + S_MEMBERS + uint64_t(i) * S_MEMBER_SIZE;
-        G<uint8_t>(m + SM_VALID) = 0;
-        G<uint32_t>(m + SM_ID) = 0;
-        G<uint32_t>(m + SM_KEY) = 0;
-    }
-}
-
-void session_clear(uint64_t s) {
-    session_set(s, 0, 0, 0);
-    for (int i = 0; i < kTrackers; ++i) {
-        const uint64_t m = s + S_MEMBERS + uint64_t(i) * S_MEMBER_SIZE;
-        G<uint8_t>(m + SM_VALID) = 0;
-        G<uint32_t>(m + SM_ID) = 0;
+    for (int i = written; i < 10; ++i) {
+        uint8_t *r = records + i * 0xd0;
+        r[9] = 0;
+        put<uint32_t>(r + 0x10, 0);
+        put<uint32_t>(r + 0x18, 0);
     }
 }
 
-// Port of AddOrUpdateNetPlayer (PS3 0x49ada8; PS4 0x642370 is dead and copies its name from NULL):
-// the tracker with this net id, or the first free one.
-void add_net_player(uint32_t net_id, const std::string &name, bool local) {
-    const uint64_t ngm = kNgm;
-    int slot = -1;
-    for (int i = 0; i < kTrackers && slot < 0; ++i) {
-        const uint64_t t = ngm + NGM_TRACKERS + uint64_t(i) * NGM_TRACKER_SIZE;
-        if (G<char>(t + T_NAME) && G<uint32_t>(t + T_NETID) == net_id) slot = i;
+void clear_session(uint64_t session) {
+    set_session(session, 0, 0, 0);
+    uint8_t *records = g(session) + 0x228;
+    for (int i = 0; i < 10; ++i) {
+        records[i * 0xd0 + 9] = 0;
+        put<uint32_t>(records + i * 0xd0 + 0x10, 0);
     }
-    for (int i = 0; i < kTrackers && slot < 0; ++i)
-        if (!G<char>(ngm + NGM_TRACKERS + uint64_t(i) * NGM_TRACKER_SIZE + T_NAME)) slot = i;
-    if (slot < 0) {
+}
+
+void refresh_sessions() {
+    publish(kPartySession);
+    if (get<uint64_t>(g(kMatchSession) + 0x10) != 0) publish(kMatchSession);
+}
+
+void add_tracker(uint32_t net_id, const std::string &name, bool local) {
+    uint8_t *base = ngm() + 0x10;
+    int index = -1;
+    for (int i = 0; i < 10 && index < 0; ++i) {
+        uint8_t *t = base + i * 0x2c0;
+        if (t[0x20] != 0 && get<uint32_t>(t + 0x120) == net_id) index = i;
+    }
+    for (int i = 0; i < 10 && index < 0; ++i)
+        if (base[i * 0x2c0 + 0x20] == 0) index = i;
+    if (index < 0) {
         log("no free player slot for %s", name.c_str());
         return;
     }
-    const uint64_t t = ngm + NGM_TRACKERS + uint64_t(slot) * NGM_TRACKER_SIZE;
-    fn<void(U2MP_GUEST *)(void *)>(fTrackerClear)(image.at<void>(t));
-    std::snprintf(image.at<char>(t + T_NAME), 64, "%s", name.empty() ? "Player" : name.c_str());
-    G<uint32_t>(t + T_NETID) = net_id;
-    G<uint32_t>(t + T_MEMBER28) = 0;
-    G<int32_t>(t + T_KEY) = local ? -1 : int32_t(net_id);
-    G<uint8_t>(t + T_EXCLUDED) = 0;
-    G<uint8_t>(t + T_CONNECTED) = 1;      // what ConnectionDone's Apply did (PS3 0x43dcd8)
-    G<uint8_t>(t + T_TALKS_TO_ALL) = 1;   // every client reaches the others through the host
-    if (local) G<uint64_t>(ngm + NGM_LOCAL) = guest(t);
-    if (net_id == host_net_id) G<uint64_t>(ngm + NGM_HOST) = guest(t);
-    log("player %s: net id %u, slot %d%s", name.c_str(), net_id, slot, local ? " (local)" : "");
+    uint8_t *t = base + index * 0x2c0;
+    guest<void(U2MP_GUEST *)(void *)>(kClearTracker)(t);
+    const std::string shown = name.empty() ? std::string("Player") : cut(name, 63);
+    std::memcpy(t + 0x20, shown.c_str(), shown.size() + 1);
+    put<uint32_t>(t + 0x120, net_id);
+    put<uint32_t>(t + 0x238, 0);
+    put<int32_t>(t + 0x23c, local ? -1 : int32_t(net_id));
+    t[0x26c] = 0;
+    t[0x275] = 1;
+    t[0x27c] = 1;
+    if (local) put<uint64_t>(ngm(), addr_of(t));
+    if (net_id == host_id) put<uint64_t>(ngm() + 8, addr_of(t));
+    log("player %s: net id %u, slot %d%s", name.c_str(), net_id, index, local ? " (local)" : "");
 }
 
-void fill_net_players() {
-    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot)
-        if (members[slot].used) add_net_player(members[slot].net_id, members[slot].name, members[slot].net_id == my_id);
+void fill_trackers() {
+    for (int s = 0; s < kSlots; ++s)
+        if (members[s].used) add_tracker(members[s].net_id, members[s].name, members[s].net_id == my_id);
+}
+
+// ---- net events -------------------------------------------------------------------------------------
+using EventDtor = void(U2MP_GUEST *)(void *);
+using EventApply = void(U2MP_GUEST *)(void *, void *);
+
+uint8_t *create_event(int32_t type) {
+    return guest<uint8_t *(U2MP_GUEST *)(int32_t)>(kCreateEvent)(type);
 }
 
 void release_event(uint8_t *ev) {
-    if (--ev[0x0a] == 0) {   // refcount; vtable slot 1 = deleting destructor
-        auto vt = *reinterpret_cast<uint64_t **>(ev);
-        reinterpret_cast<void(U2MP_GUEST *)(void *)>(vt[1])(ev);
+    // Events are reference counted; the last reference runs the deleting destructor.
+    if (--ev[0x0a] == 0) reinterpret_cast<EventDtor>(get<uint64_t>(ptr_at(ev) + 0x08))(ev);
+}
+
+void player_left(uint32_t net_id) {
+    if (net_id == 0) return;
+    uint8_t *ev = create_event(79);
+    if (!ev) return;
+    put<uint32_t>(ev + 0xc, net_id);
+    guest<void(U2MP_GUEST *)(void *, void *, uint32_t)>(kSendEventAll)(ngm(), ev, 0xffffffffu);
+    reinterpret_cast<EventApply>(get<uint64_t>(ptr_at(ev) + 0x20))(ev, nullptr);
+    release_event(ev);
+}
+
+// The game's party mailbox: a NetEventMessage applied as if it came from `sender`.
+std::vector<uint8_t> mailbox_payload;
+void mailbox_post(uint32_t code, uint32_t sender, const uint8_t *data, size_t size) {
+    uint8_t *ev = create_event(46);
+    if (!ev) return;
+    mailbox_payload.assign(data, data + size);
+    alignas(16) uint8_t connection[0x200] = {};
+    put<uint32_t>(connection + 0x160, sender);
+    put<uint32_t>(ev + 0xc, code);
+    put<uint64_t>(ev + 0x10, addr_of(mailbox_payload.data()));
+    put<uint32_t>(ev + 0x18, uint32_t(size));
+    guest<void(U2MP_GUEST *)(void *, void *)>(kMessageApply)(ev, connection);
+    // The payload is ours: the event must not point at it once we let go.
+    put<uint64_t>(ev + 0x10, 0);
+    put<uint32_t>(ev + 0x18, 0);
+    release_event(ev);
+}
+
+// ---- local player facts -----------------------------------------------------------------------------
+int local_rank() {
+    uint8_t *t = lookup(kRankTableId);
+    if (!t) return 0;
+    int32_t count = get<int32_t>(t + 0x50);
+    uint8_t *thresholds = ptr_at(t + 0x58);
+    if (count <= 1 || !thresholds) return 0;
+    int32_t money = get<int32_t>(g(kNpd) + 0xd8);
+    int32_t last = count - 1;
+    for (int32_t i = 0; i < last; ++i) {
+        int32_t lo = get<int32_t>(thresholds + 4 * i), hi = get<int32_t>(thresholds + 4 * (i + 1));
+        if (lo <= money && money < hi) return i < 255 ? i : 255;
+    }
+    return last < 255 ? last : 255;
+}
+
+int local_team() {
+    int32_t team = get<int32_t>(g(kNpd) + 0x114);
+    return team == 1 || team == 2 ? team : 0;
+}
+
+// ---- menu ---------------------------------------------------------------------------------------------
+uint32_t top_page_id() {
+    int32_t top = get<int32_t>(menu() + 0x1010);
+    if (top < 0 || top > 0x40) return 0;
+    uint8_t *page = ptr_at(menu() + 0x9d0 + 8 * top);
+    return page ? get<uint32_t>(page + 0x10) : 0;
+}
+
+bool multiplayer_page_open() {
+    int32_t top = get<int32_t>(menu() + 0x1010);
+    if (top < 0 || top >= 200) return true;
+    for (int32_t i = 0; i <= top; ++i) {
+        uint8_t *page = ptr_at(menu() + 0x9d0 + 8 * i);
+        if (page && get<uint32_t>(page + 0x10) == kPageMultiplayer) return true;
+    }
+    return false;
+}
+
+void finish_leaving_game() {
+    // The LEAVING_GAME page waits for "left the room", which nothing on PC sets otherwise.
+    uint8_t *match = g(kMatchSession);
+    if (top_page_id() == kPageLeavingGame && match[0xc8] == 0) {
+        log("leaving the match: LEAVING_GAME may close (match +0xc8 = 1)");
+        put<int32_t>(g(kNetInfo) + 0x34, 0);
+        match[0xc8] = 1;
     }
 }
 
-// PS3 member-left handler 0x43d9e0 sent NetEventPlayerLeft (type 79; PS4 Apply 0x619db0 frees the
-// player's tracker). Nothing on PS4 sends it: the host does, to everyone, and applies it itself.
-void player_left(uint32_t net_id) {
-    if (!net_id) return;
-    auto *ev = fn<uint8_t *(U2MP_GUEST *)(int)>(fCreateEvent)(79);
-    if (!ev) return;
-    *reinterpret_cast<uint32_t *>(ev + 0x0c) = net_id;
-    fn<void(U2MP_GUEST *)(void *, void *, uint32_t)>(0x644ab0)(image.at<void>(kNgm), ev, 0xffffffffu);
-    auto vt = *reinterpret_cast<uint64_t **>(ev);
-    reinterpret_cast<void(U2MP_GUEST *)(void *, void *)>(vt[4])(ev, nullptr);   // Apply locally
-    release_event(ev);
+// ---- packages -----------------------------------------------------------------------------------------
+uint8_t *find_package(uint32_t id) {
+    uint8_t *table = g(kPackageTable);
+    uint8_t *buckets = ptr_at(table + 0x10);
+    int32_t count = get<int32_t>(table + 0x4c);
+    if (!buckets || count <= 0) return nullptr;
+    uint32_t h = 0x811c9dc5u;
+    for (int i = 0; i < 4; ++i) {
+        h ^= (id >> (8 * i)) & 0xff;
+        h *= 0x01000193u;
+    }
+    uint8_t *node = ptr_at(buckets + 8 * (h % uint32_t(count)));
+    while (node && get<uint32_t>(node + 0x10) != id) node = ptr_at(node);
+    if (!node || node == ptr_at(buckets + 8 * uint64_t(count))) return nullptr;
+    return ptr_at(node + 0x18);
 }
 
-// Delivers a mailbox message as if a peer had sent a NetEventMessage (type 46; Apply 0x62dc50
-// copies the payload and records the sender from the connection's +0x160).
-void mailbox_post(uint32_t code, uint32_t sender, const void *data, uint32_t size) {
-    auto *ev = fn<uint8_t *(U2MP_GUEST *)(int)>(fCreateEvent)(46);
-    if (!ev) return;
-    std::vector<uint8_t> payload(static_cast<const uint8_t *>(data), static_cast<const uint8_t *>(data) + size);
-    *reinterpret_cast<uint32_t *>(ev + 0x0c) = code;
-    *reinterpret_cast<uint64_t *>(ev + 0x10) = uint64_t(uintptr_t(payload.data()));
-    *reinterpret_cast<uint32_t *>(ev + 0x18) = size;
-    alignas(16) uint8_t connection[0x200] = {};
-    *reinterpret_cast<uint32_t *>(connection + 0x160) = sender;
-    fn<void(U2MP_GUEST *)(void *, void *)>(fMessageApply)(ev, connection);
-    *reinterpret_cast<uint64_t *>(ev + 0x10) = 0;   // the payload was ours
-    *reinterpret_cast<uint32_t *>(ev + 0x18) = 0;
-    release_event(ev);
+uint8_t *request_package(const char *name) {
+    uint8_t *pkg = guest<uint8_t *(U2MP_GUEST *)(void *, const char *, int32_t)>(kRequestPackage)(
+        g(kPackageTable), name, 0);
+    if (pkg) pkg[0x18] |= 0x40;   // what the game's own requests set
+    return pkg;
 }
 
-// ---- our session messages (transport tag kSessionMessage) ------------------------------------
-enum : uint8_t { kInfo = 1, kRoster = 2, kMode = 3, kFollow = 4, kKick = 5,
-                 kIds = 8,       // host -> clients, online: {net id, len, NpId}... (who succeeds whom in a migration)
-                 kTeams = 6 };   // host -> clients: {slot, team}... (PS3 room member data +9)
-// types >= session::kFrontendMessages (frontend3.h) belong to frontend3.cpp (matchmaking)
-
-void send_session(int slot, std::vector<uint8_t> body, int except = -1) {
-    body.insert(body.begin(), gamenet::kSessionMessage);
-    if (slot >= 0) transport.send(uint8_t(slot), true, body.data(), body.size());
-    else if (except < 0) transport.broadcast(true, body.data(), body.size());
-    else
-        for (uint8_t s = 1; s <= net::kMaxPeers; ++s)
-            if (members[s].used && s != except) transport.send(s, true, body.data(), body.size());
+uint8_t *keep_net_package() {
+    if (const char *extra = extra_net_package()) request_package(extra);
+    return request_package("net");
 }
 
-// kInfo: {len, name, rank, team} (client -> host; a host of an older build reads up to rank).
+void preload_packages() {
+    const char *env = std::getenv("UNCHARTED_U2MP_PRELOAD");
+    if (env && std::strcmp(env, "0") == 0) return;
+    // The weapons and animation packages the PS3 game loaded on entering Multiplayer.
+    static const char *const names[] = {
+        "beretta-pistol", "beretta-pistol-magazine", "colt-defender-pistol", "colt-defender-magazine",
+        "desert-eagle", "desert-eagle-magazine", "dragunov-magazine", "dragunov-rifle", "fn-fal-clip",
+        "fn-fal-rifle", "m4-rifle", "m4-rifle-magazine", "shotgun", "spas12-shotgun", "machine-gun",
+        "machine-gun-clip", "rpg", "anim-proto-multiplayer", "anim-proto-shield", "anim-proto-carry-objects",
+        "m32-grenade-launcher"};
+    int requested = 0, present = 0, missing = 0;
+    for (const char *name : names) {
+        if (find_package(sid(name))) ++present;
+        else if (request_package(name)) ++requested;
+        else ++missing;
+    }
+    log("package preload (PS3 0xe155d0): %d requested, %d already present, %d not created", requested, present,
+        missing);
+}
+
+// ---- messages -----------------------------------------------------------------------------------------
+void send_raw(int slot, const std::vector<uint8_t> &body, int except) {
+    std::vector<uint8_t> msg;
+    msg.reserve(body.size() + 1);
+    msg.push_back(gamenet::kSessionMessage);
+    msg.insert(msg.end(), body.begin(), body.end());
+    if (slot >= 0) {
+        transport.send(uint8_t(slot), true, msg.data(), msg.size());
+    } else if (except < 0) {
+        transport.broadcast(true, msg.data(), msg.size());
+    } else {
+        for (int s = 1; s <= int(net::kMaxPeers); ++s)
+            if (members[s].used && s != except) transport.send(uint8_t(s), true, msg.data(), msg.size());
+    }
+}
+
 void send_info() {
-    std::vector<uint8_t> b{kInfo, uint8_t(std::min<size_t>(my_name.size(), 31))};
-    b.insert(b.end(), my_name.begin(), my_name.begin() + b[1]);
-    sent_rank = local_rank();
+    std::string name = cut(my_name, 31);
+    std::vector<uint8_t> b{kInfo, uint8_t(name.size())};
+    b.insert(b.end(), name.begin(), name.end());
+    sent_rank = uint8_t(local_rank());
+    sent_team = uint8_t(local_team());
     b.push_back(sent_rank);
-    sent_team = local_team();
     b.push_back(sent_team);
-    const uint32_t fp = unlocks_skin_fingerprint();   // a host of an older build reads up to the team
+    uint32_t fp = unlocks_skin_fingerprint();
     for (int i = 0; i < 4; ++i) b.push_back(uint8_t(fp >> (8 * i)));
-    send_session(0, b);
-}
-
-// kTeams (host -> clients): the members' team preferences, a message of its own so that the roster
-// format stays as it was.
-void broadcast_teams() {
-    std::vector<uint8_t> b{kTeams};
-    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot)
-        if (members[slot].used) {
-            b.push_back(slot);
-            b.push_back(members[slot].team);
-        }
-    send_session(-1, b);
+    send_raw(0, b, -1);
 }
 
 void broadcast_roster() {
     std::vector<uint8_t> b{kRoster};
-    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) {   // {slot, len, rank, name}
-        if (!members[slot].used) continue;
-        b.push_back(slot);
-        const std::string &n = members[slot].name;
-        b.push_back(uint8_t(std::min<size_t>(n.size(), 31)));
-        b.push_back(members[slot].rank);
-        b.insert(b.end(), n.begin(), n.begin() + std::min<size_t>(n.size(), 31));
+    for (int s = 0; s < kSlots; ++s) {
+        if (!members[s].used) continue;
+        std::string name = cut(members[s].name, 31);
+        b.push_back(uint8_t(s));
+        b.push_back(uint8_t(name.size()));
+        b.push_back(members[s].rank);
+        b.insert(b.end(), name.begin(), name.end());
     }
-    send_session(-1, b);
+    send_raw(-1, b, -1);
     if (!online::active()) return;
+    // Online, clients also need everyone's NpId to map room members to net ids.
+    npids.clear();
     std::vector<uint8_t> ids{kIds};
-    npid_of_id.clear();
-    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) {
-        if (!members[slot].used) continue;
+    for (int s = 0; s < kSlots; ++s) {
+        if (!members[s].used) continue;
         std::string npid;
         net::Address a;
-        if (slot == 0) npid = online::my_npid_text();
-        else if (transport.peer_address(slot, a)) npid = online::npid_at(a);
+        if (s == 0) npid = online::my_npid_text();
+        else if (transport.peer_address(uint8_t(s), a)) npid = online::npid_at(a);
         if (npid.empty()) continue;
-        npid_of_id[members[slot].net_id] = npid;
-        ids.push_back(uint8_t(members[slot].net_id));
-        ids.push_back(uint8_t(std::min<size_t>(npid.size(), 16)));
-        ids.insert(ids.end(), npid.begin(), npid.begin() + std::min<size_t>(npid.size(), 16));
+        uint32_t id = members[s].net_id;
+        npids[id] = npid;
+        std::string shown = cut(npid, 16);
+        ids.push_back(uint8_t(id));
+        ids.push_back(uint8_t(shown.size()));
+        ids.insert(ids.end(), shown.begin(), shown.end());
     }
-    send_session(-1, ids);
+    send_raw(-1, ids, -1);
 }
 
-void refresh_sessions() {
-    session_members(kParty);
-    if (G<uint64_t>(kMatch + S_CTX)) session_members(kMatch);
-}
-
-void on_session_message(uint8_t from, const uint8_t *d, size_t n) {
-    if (!n) return;
-    switch (d[0]) {
-    case kInfo:   // client -> host: its name
-        if (hosting && from >= 1 && from <= net::kMaxPeers && n >= 2) {
-            members[from].name.assign(reinterpret_cast<const char *>(d + 2), std::min<size_t>(d[1], n - 2));
-            if (n >= size_t(2) + d[1] + 1) members[from].rank = d[2 + d[1]];
-            if (n >= size_t(2) + d[1] + 2) members[from].team = d[3 + d[1]];
-            if (n >= size_t(2) + d[1] + 6) {   // the client's skin table fingerprint (unlocks.cpp)
-                uint32_t fp = 0;
-                for (int i = 0; i < 4; ++i) fp |= uint32_t(d[4 + d[1] + i]) << (8 * i);
-                const uint32_t mine = unlocks_skin_fingerprint();
-                if (fp && mine && fp != mine) {
-                    log("party: %s's skin table differs (fingerprint %08x, ours %08x): a different import; "
-                        "skins may show as others", members[from].name.c_str(), fp, mine);
-                    show_notice((members[from].name + " has a different Uncharted 2 multiplayer import. Their "
-                                 "character skins may show differently. Both players should run the importer "
-                                 "again.").c_str());
-                }
-            }
-            refresh_sessions();
-            broadcast_roster();
-            broadcast_teams();
-        }
-        break;
-    case kRoster:   // host -> clients: everyone in the party
-        if (!hosting) {
-            uint8_t teams[net::kMaxPeers + 1];
-            for (size_t i = 0; i <= net::kMaxPeers; ++i) teams[i] = members[i].team;
-            for (auto &m : members) m = Member{};
-            for (size_t at = 1; at + 3 <= n;) {
-                const uint8_t slot = d[at], len = d[at + 1], rank = d[at + 2];
-                if (slot > net::kMaxPeers || at + 3 + len > n) break;
-                const uint8_t team = teams[slot];   // kTeams sets it
-                members[slot] = Member{true, id_of_slot(slot), std::string(reinterpret_cast<const char *>(d + at + 3), len), rank, team};
-                at += 3 + len;
-            }
-            refresh_sessions();
-        }
-        break;
-    case kTeams:   // host -> clients: {slot, team}...
-        if (!hosting)
-            for (size_t at = 1; at + 2 <= n; at += 2)
-                if (d[at] <= net::kMaxPeers) members[d[at]].team = d[at + 1];
-        break;
-    case kMode:   // host -> clients: the multiplayer mode (PAGE_LOBBY takes it from message 0x110)
-        if (!hosting && n >= 5) {
-            int32_t mode;
-            std::memcpy(&mode, d + 1, 4);
-            mailbox_post(kMsgMode, 1, &mode, 4);
-        }
-        break;
-    case kKick:   // host -> one client: kicked (PS3 KickoutRoomMember 0x4d8a98)
-        if (!hosting && from == 0) {
-            log("party: the host kicked us");
-            G<uint8_t>(kNetInfo + NI_ERROR) = 1;   // every multiplayer page falls back to the error box
-            kicked = true;
-        }
-        break;
-    case kFollow:   // host -> clients: the host created the match; join it (PS3: party follow)
-        if (!hosting) {
-            log("following the host into the match");
-            if (n >= 9) {   // online: {kFollow, u64 match room id} (PS3: member data +0 / mailbox 0x10e)
-                uint64_t room = 0;
-                std::memcpy(&room, d + 1, 8);
-                online::follow_match_room(room);
-            }
-            netinit_match();
-            G<uint8_t>(kNetInfo + NI_CREATED_BY_ME) = 0;
-            fn<void(U2MP_GUEST *)(void *)>(fClearNetPlayers)(image.at<void>(kNgm));
-            session_set(kMatch, kRoomContext, my_id, 1);
-            session_members(kMatch);
-            G<int32_t>(kMatch + M_JOIN_RESULT) = 0;
-            G<uint8_t>(kMatch + M_LEFT) = 0;
-            G<uint64_t>(kMatch + M_JOIN_ROOM) = kRoomContext;
-            G<uint8_t>(kMatch + M_JOINED) = 1;
-            fill_net_players();
-            show_page(sid("PAGE_MULTIPLAYER_JOINING"));
-            set_state(kClientWaitPartyHost);
-            const uint8_t yes = 1;
-            mailbox_post(kMsgPartyHostJoined, 1, &yes, 1);   // JOINING 12 -> 14 -> 17
-        }
-        break;
-    case kIds:   // host -> clients: net id -> NpId (a migration picks the new host by the room's new owner)
-        if (!hosting) {
-            npid_of_id.clear();
-            for (size_t at = 1; at + 2 <= n;) {
-                const uint8_t id = d[at], len = d[at + 1];
-                if (at + 2 + len > n) break;
-                npid_of_id[id] = std::string(reinterpret_cast<const char *>(d + at + 2), len);
-                at += 2 + len;
-            }
-        }
-        break;
-    case kOnlineMessage:   // online.cpp (the party follows its leader into another room)
-        online::on_message(from, d + 1, n - 1);
-        break;
-    default:   // matchmaking, vote, leader back-out (frontend3.cpp)
-        if (d[0] >= kFrontendMessages) matchmaking::on_message(from, d, n);
-        break;
+void broadcast_teams() {
+    std::vector<uint8_t> b{kTeams};
+    for (int s = 0; s < kSlots; ++s) {
+        if (!members[s].used) continue;
+        b.push_back(uint8_t(s));
+        b.push_back(members[s].team);
     }
+    send_raw(-1, b, -1);
 }
 
-// {kFollow} (LAN) or {kFollow, u64 match room id} (online: the members join the room too).
+void broadcast_mode(int32_t mode) {
+    std::vector<uint8_t> b{kMode};
+    for (int i = 0; i < 4; ++i) b.push_back(uint8_t(uint32_t(mode) >> (8 * i)));
+    send_raw(-1, b, -1);
+}
+
 std::vector<uint8_t> follow_body() {
     std::vector<uint8_t> b{kFollow};
-    if (const uint64_t room = online::match_room()) {
-        b.resize(9);
-        std::memcpy(b.data() + 1, &room, 8);
-    }
+    if (uint64_t room = online::match_room())
+        for (int i = 0; i < 8; ++i) b.push_back(uint8_t(room >> (8 * i)));
     return b;
+}
+
+void on_info(uint8_t from, const uint8_t *d, size_t size) {
+    if (!hosting || from < 1 || from > 10 || size < 2) return;
+    Member &m = members[from];
+    size_t len = d[1];
+    m.name.assign(reinterpret_cast<const char *>(d + 2), len < size - 2 ? len : size - 2);
+    if (size >= 3 + len) m.rank = d[2 + len];
+    if (size >= 4 + len) m.team = d[3 + len];
+    if (size >= 8 + len) {
+        uint32_t theirs = get<uint32_t>(d + 4 + len);
+        uint32_t mine = unlocks_skin_fingerprint();
+        if (theirs != 0 && mine != 0 && theirs != mine) {
+            log("party: %s's skin table differs (fingerprint %08x, ours %08x): a different import; skins may show "
+                "as others",
+                m.name.c_str(), theirs, mine);
+            std::string notice = m.name +
+                                 " has a different Uncharted 2 multiplayer import. Their character skins may show "
+                                 "differently. Both players should run the importer again.";
+            show_notice(notice.c_str());
+        }
+    }
+    refresh_sessions();
+    broadcast_roster();
+    broadcast_teams();
+}
+
+void on_roster(const uint8_t *d, size_t size) {
+    if (hosting) return;
+    // A roster carries no teams; those come with Teams messages and must survive a new roster.
+    uint8_t teams[kSlots];
+    for (int s = 0; s < kSlots; ++s) teams[s] = members[s].team;
+    clear_members();
+    size_t at = 1;
+    while (size - at >= 3) {
+        uint8_t slot = d[at], len = d[at + 1], rank = d[at + 2];
+        if (slot > 10 || at + 3 + len > size) break;
+        Member &m = members[slot];
+        m.used = true;
+        m.net_id = slot_net_id(slot);
+        m.name.assign(reinterpret_cast<const char *>(d + at + 3), len);
+        m.rank = rank;
+        m.team = teams[slot];
+        at += 3 + len;
+    }
+    refresh_sessions();
+}
+
+void on_teams(const uint8_t *d, size_t size) {
+    if (hosting) return;
+    for (size_t at = 1; size - at >= 2; at += 2)
+        if (d[at] <= 10) members[d[at]].team = d[at + 1];
+}
+
+void on_follow(const uint8_t *d, size_t size) {
+    if (hosting) return;
+    log("following the host into the match");
+    if (size >= 9) online::follow_match_room(get<uint64_t>(d + 1));
+    netinit_match();
+    g(kNetInfo)[0x08] = 0;
+    guest<void(U2MP_GUEST *)(void *)>(kClearNetPlayers)(ngm());
+    set_session(kMatchSession, kCtx, my_id, 1);
+    publish(kMatchSession);
+    uint8_t *match = g(kMatchSession);
+    put<int32_t>(match + 0xbc, 0);
+    match[0xc8] = 0;
+    put<uint64_t>(match + 0xc0, kCtx);
+    match[0xb8] = 1;
+    fill_trackers();
+    show_page(kPageJoining);
+    set_net_sm(12);
+    const uint8_t joined = 1;
+    mailbox_post(0x10e, 1, &joined, 1);
+}
+
+void on_ids(const uint8_t *d, size_t size) {
+    if (hosting) return;
+    npids.clear();
+    for (size_t at = 1; size - at >= 2;) {
+        uint8_t id = d[at], len = d[at + 1];
+        if (at + 2 + len > size) break;
+        npids[id] = std::string(reinterpret_cast<const char *>(d + at + 2), len);
+        at += 2 + len;
+    }
+}
+
+void on_session_message(uint8_t from, const uint8_t *d, size_t size) {
+    if (size == 0) return;
+    uint8_t type = d[0];
+    if (type >= session::kFrontendMessages) {
+        matchmaking::on_message(from, d, size);
+        return;
+    }
+    switch (type) {
+    case kInfo: on_info(from, d, size); break;
+    case kRoster: on_roster(d, size); break;
+    case kTeams: on_teams(d, size); break;
+    case kMode:
+        if (!hosting && size >= 5) mailbox_post(0x110, 1, d + 1, 4);
+        break;
+    case kKick:
+        if (!hosting && from == 0) {
+            log("party: the host kicked us");
+            g(kNetInfo)[0x1c] = 1;
+            kicked = true;   // the transport closes on the next frame, outside the receive loop
+        }
+        break;
+    case kFollow: on_follow(d, size); break;
+    case kIds: on_ids(d, size); break;
+    case session::kOnlineMessage: online::on_message(from, d + 1, size - 1); break;
+    default: break;
+    }
+}
+
+void on_transport_message(uint8_t slot, const uint8_t *data, size_t size) {
+    if (size == 0) return;
+    switch (data[0]) {
+    case gamenet::kGamePacket: gamenet::receive(slot, data + 1, size - 1); break;
+    case gamenet::kSessionMessage: on_session_message(slot, data + 1, size - 1); break;
+    case gamenet::kVoice: voice::receive(slot, data + 1, size - 1); break;
+    default: break;
+    }
 }
 
 void on_peer(uint8_t slot, bool joined) {
     if (hosting) {
-        if (joined) {
-            members[slot] = Member{true, id_of_slot(slot), "Player " + std::to_string(slot + 1)};
-            gamenet::attach(slot, id_of_slot(slot), true);
-            log("party: peer in slot %u joined", slot);
-            if (online::active()) {
-                online::on_host_reached(id_of_slot(slot));
-                // Online, players also arrive while the custom game lobby is up (join list): PS3 took them
-                // through JOINING 12 -> 14 -> 17 into CLIENT_LOBBY; the follow does the same here.
-                if (G<uint8_t>(kMatch + M_CREATED) && state() == kServerLobby) {
-                    log("online: slot %u joined while the lobby is up: sending the follow", slot);
-                    send_session(slot, follow_body());
+        if (slot < kSlots) {
+            Member &m = members[slot];
+            if (joined) {
+                uint32_t id = slot_net_id(slot);
+                m = Member{true, id, "Player " + std::to_string(slot + 1), 0, 0};
+                gamenet::attach(slot, id, true);
+                log("party: peer in slot %u joined", unsigned(slot));
+                if (online::active()) {
+                    online::on_host_reached(id);
+                    // Someone who arrives while the match lobby is up must be told to follow too.
+                    if (g(kMatchSession)[0x99] != 0 && net_sm() == 16) {
+                        log("online: slot %u joined while the lobby is up: sending the follow", unsigned(slot));
+                        send_raw(slot, follow_body(), -1);
+                    }
+                    matchmaking::on_peer_joined(slot);
                 }
-                matchmaking::on_peer_joined(slot);   // a stranger reached our matchmaking room
+            } else {
+                log("party: %s left", m.name.c_str());
+                player_left(m.net_id);
+                m = Member();
+                gamenet::detach(slot);
             }
-        } else {
-            log("party: %s left", members[slot].name.c_str());
-            player_left(members[slot].net_id);
-            members[slot] = Member{};
-            gamenet::detach(slot);
         }
         refresh_sessions();
         broadcast_roster();
         return;
     }
     if (slot != 0) return;
-    if (joined) {   // we reached the host
-        my_id = id_of_slot(transport.local_slot());
-        session_set(kParty, kRoomContext, my_id, host_net_id);
-        gamenet::attach(0, host_net_id, true);
+    if (joined) {
+        my_id = slot_net_id(transport.local_slot());
+        set_session(kPartySession, kCtx, my_id, host_id);
+        gamenet::attach(0, host_id, true);
         send_info();
         log("party: joined the host as net id %u", my_id);
         online::on_host_reached(my_id);
-        if (rehost_pending) {   // a migrated match: the new host's reset round (PS3 slot 6 0x440334)
+        if (rehost_pending) {
+            // A match migration finishes once the new host is reached: the round restarts under it.
             rehost_pending = false;
-            session_set(kMatch, kRoomContext, my_id, host_net_id);
-            session_members(kMatch);
-            fn<void(U2MP_GUEST *)(void *)>(0x5e9f30)(nullptr);
-            log("match migration: reached the new host (net id %u); the round restarts under it", host_net_id);
+            set_session(kMatchSession, kCtx, my_id, host_id);
+            publish(kMatchSession);
+            guest<void(U2MP_GUEST *)(void *)>(kOwnerChanged)(nullptr);
+            log("match migration: reached the new host (net id %u); the round restarts under it", host_id);
         }
-    } else if (online::host_change_expected()) {   // online: the party follows its leader to another room
+        return;
+    }
+    if (online::host_change_expected()) {
         log("online: the old host closed the link; following the leader to its new room");
         gamenet::detach(0);
-    } else if (online::on_host_lost()) {   // online, not in a match: the room's next owner leads the party
+    } else if (online::on_host_lost()) {
         log("party: lost the host; the room's new owner takes over");
         gamenet::detach(0);
-    } else {        // host gone: every multiplayer page falls back to the error box
+    } else {
         log("party: lost the host");
         gamenet::detach(0);
-        G<uint8_t>(kNetInfo + NI_ERROR) = 1;
-        // PS3 PAGE_MULTIPLAYER event 3 ran the teardown 0x4386d0 on this error; PS4 lost it, so
-        // `active` stayed true over a dead transport and the next Multiplayer skipped
-        // start_transport. Closed after this pump, as for a kick (not inside it).
-        lost_host = true;
+        g(kNetInfo)[0x1c] = 1;
+        host_lost = true;
     }
 }
 
+// ---- transport start ----------------------------------------------------------------------------------
 bool start_transport() {
-    if (const char *n = std::getenv("UNCHARTED_U2MP_NAME"); n && *n) my_name.assign(n, std::min<size_t>(std::strlen(n), 31));
+    const char *env_name = std::getenv("UNCHARTED_U2MP_NAME");
+    if (env_name && *env_name) my_name = cut(env_name, 31);
     uint16_t port = kDefaultPort;
-    if (const char *p = std::getenv("UNCHARTED_U2MP_PORT"); p && std::atoi(p) > 0) port = uint16_t(std::atoi(p));
+    if (const char *p = std::getenv("UNCHARTED_U2MP_PORT")) {
+        int v = std::atoi(p);
+        if (v > 0) port = uint16_t(v);
+    }
     transport.on_peer = on_peer;
-    transport.on_message = [](uint8_t slot, const uint8_t *d, size_t n) {
-        if (!n) return;
-        if (d[0] == gamenet::kGamePacket) gamenet::receive(slot, d + 1, n - 1);
-        else if (d[0] == gamenet::kSessionMessage) on_session_message(slot, d + 1, n - 1);
-        else if (d[0] == gamenet::kVoice) voice::receive(slot, d + 1, n - 1);
-    };
+    transport.on_message = on_transport_message;
     gamenet::set_transport(&transport);
     voice::set_transport(&transport);
-    for (auto &m : members) m = Member{};
-    if (net::Link *link = online::start()) {   // online (u2_online.exe): the party is hosted on the online link
+    clear_members();
+
+    if (net::Link *link = online::start()) {
         if (!transport.host_link(link)) return false;
         hosting = true;
         my_id = 1;
-        host_net_id = 1;
-        members[0] = Member{true, 1, my_name, local_rank()};
+        host_id = 1;
+        members[0] = Member{true, 1, my_name, uint8_t(local_rank()), 0};
         log("online: hosting a party on the online link as %s", my_name.c_str());
         return true;
     }
     const char *join = std::getenv("UNCHARTED_U2MP_JOIN");
     if (join && *join) {
-        net::Address host;
-        if (!net::Address::parse(join, port, host) || !transport.join(host)) {
+        net::Address address;
+        if (!net::Address::parse(join, port, address) || !transport.join(address)) {
             log("cannot join %s", join);
             return false;
         }
         hosting = false;
         my_id = 0;
-        log("joining the party at %s", host.text().c_str());
-    } else {
-        if (!transport.host(port)) {
-            log("cannot listen on UDP port %u", port);
-            return false;
-        }
-        hosting = true;
-        my_id = 1;
-        members[0] = Member{true, 1, my_name, local_rank()};
-        log("hosting a party on UDP port %u", port);
+        log("joining the party at %s", address.text().c_str());
+        return true;
     }
+    if (!transport.host(port)) {
+        log("cannot listen on UDP port %u", unsigned(port));
+        return false;
+    }
+    hosting = true;
+    my_id = 1;
+    members[0] = Member{true, 1, my_name, uint8_t(local_rank()), 0};
+    log("hosting a party on UDP port %u", unsigned(port));
     return true;
 }
 
-// ---- per frame ----------------------------------------------------------------------------------
-// The menu's top page id (menu +0x1010 top index, +0x9d0 page records, record +0x10 id).
-uint32_t top_page_id() {
-    const uint64_t menu = addr::menu_manager;
-    const int32_t top = G<int32_t>(menu + 0x1010);
-    if (top < 0 || top > 0x40) return 0;
-    const uint64_t page = G<uint64_t>(menu + 0x9d0 + 8 * uint64_t(top));
-    return page ? *reinterpret_cast<const uint32_t *>(uintptr_t(page) + 0x10) : 0;
-}
+// ---- page handler -------------------------------------------------------------------------------------
+U2MP_GUEST void page_handler(uint32_t *event);
 
-// PAGE_MULTIPLAYER_LEAVING_GAME (handler 0x5eb7d0, PS3 0x43ea8c) waits for match+0xc8 ("left the
-// room": PS3 0x4d26b0(match) != 1 after the Matching2 LeaveRoom 0x4d8540 that "Leave Game" 0x44026c
-// and the error paths started). PS4 lost the LeaveRoom and nothing sets the byte, so the page never
-// closed (Leave Game from the pause menu, an error in the client wait page 0x609d00, Leave::Enter's
-// error path). The PC has no room to leave: the byte is set while the page is up. The game then
-// clears the players, pops and goes to NET_SM 18 (netInfo+0x34 cleared first: back in the lobby; the
-// party stays together, the PC's match is the party's).
-constexpr uint32_t kPageLeavingGame = 0xb808d03c;
-static_assert(sid("PAGE_MULTIPLAYER_LEAVING_GAME") == kPageLeavingGame, "page id");
-void finish_leaving_game() {
-    if (top_page_id() != kPageLeavingGame || G<uint8_t>(kMatch + M_LEFT)) return;
-    log("leaving the match: LEAVING_GAME may close (match +0xc8 = 1)");
-    G<int32_t>(kNetInfo + NI_FROM_MATCHMAKING) = 0;
-    G<uint8_t>(kMatch + M_LEFT) = 1;
-}
+uint8_t *handler_entry(uint32_t i) { return menu() + 0x24f8 + uint64_t(i) * 0x18; }
 
-void tick();
-void host_create();
-void log_match_choice();
-
-// Page-event handler for every page (page id 0): event 6 every frame while a menu page is up.
-// Multiplayer left without LEAVE_MULTIPLAYER (the page closed by Back, or replaced by the main menu):
-// PS3 always tore down on the way out (0x4386d0); PS4 kept NET_SM at 18, so the campaign started next
-// ran with multiplayer on and asserted (NetEventPlayVox "no me NetPlayerTracker"). In the idle party state
-// with PAGE_MULTIPLAYER no longer on the menu page stack (menu +0x9d0 pages, top index +0x1010, page id
-// +0x10; as PopPage 0x5cc6f0 reads it) for half a second, the teardown runs.
-constexpr uint32_t kPageMultiplayer = sid("PAGE_MULTIPLAYER");
-static_assert(kPageMultiplayer == 0x53cbb5f2u, "PAGE_MULTIPLAYER id");
-constexpr uint64_t MENU_PAGES = 0x9d0, MENU_PAGE_TOP = 0x1010, PAGE_ID = 0x10;
-constexpr int kMenuPagesMax = int((MENU_PAGE_TOP - MENU_PAGES) / 8);
-bool multiplayer_page_open() {
-    const uint64_t menu = addr::menu_manager;
-    const int32_t top = G<int32_t>(menu + MENU_PAGE_TOP);
-    if (top < 0 || top >= kMenuPagesMax) return true;   // not a stack we understand: leave it alone
-    for (int32_t i = 0; i <= top; ++i) {
-        const uint64_t page = G<uint64_t>(menu + MENU_PAGES + 8 * uint64_t(i));
-        if (page && *reinterpret_cast<const uint32_t *>(uintptr_t(page + PAGE_ID)) == kPageMultiplayer) return true;
+void register_handler() {
+    uint32_t count = get<uint32_t>(menu() + 0x24f0);
+    uint64_t fn = addr_of(reinterpret_cast<void *>(&page_handler));
+    for (uint32_t i = 0; i < count; ++i)
+        if (get<uint64_t>(handler_entry(i) + 8) == fn) return;
+    if (count >= 32) {
+        log("menu page handler table full: no per-frame updates in menus");
+        return;
     }
-    return false;
+    uint8_t *e = handler_entry(count);
+    put<uint32_t>(e, 0);   // page 0: called for every page
+    put<uint64_t>(e + 8, fn);
+    put<uint64_t>(e + 0x10, 0);
+    put<uint32_t>(menu() + 0x24f0, count + 1);
+    log("per-frame page handler registered (%u handlers)", count + 1);
 }
-int frames_without_mp_page = 0;
-void teardown(bool pop);
 
-U2MP_GUEST void page_event(uint32_t *event) {
-    if (!event || event[0] != kEventUpdate) return;
-    finish_leaving_game();   // also after the transport closed (host lost: the client wait page's error path)
-    if (active && state() == kChooseHostJoin && !multiplayer_page_open()) {
-        if (++frames_without_mp_page >= 30) {
-            frames_without_mp_page = 0;
+void unregister_handler() {
+    uint32_t count = get<uint32_t>(menu() + 0x24f0);
+    uint64_t fn = addr_of(reinterpret_cast<void *>(&page_handler));
+    for (uint32_t i = 0; i < count; ++i) {
+        if (get<uint64_t>(handler_entry(i) + 8) != fn) continue;
+        for (uint32_t j = i + 1; j < count; ++j) std::memcpy(handler_entry(j - 1), handler_entry(j), 0x18);
+        put<uint32_t>(menu() + 0x24f0, count - 1);
+        return;
+    }
+}
+
+// ---- teardown -----------------------------------------------------------------------------------------
+void teardown(bool pop) {
+    log("leaving multiplayer");
+    unregister_handler();
+    for (int s = 0; s < kSlots; ++s) gamenet::detach(uint8_t(s));
+    voice::stop();
+    transport.close();
+    online::on_transport_closed("Multiplayer left");
+    active = false;
+    clear_session(kPartySession);
+    clear_session(kMatchSession);
+    put<int32_t>(g(kNetInfo) + 0x2c4, 0);
+    put<int16_t>(ngm() + 0x1ca0, -1);
+    guest<void(U2MP_GUEST *)(void *)>(kClearNetPlayers)(ngm());
+    progression_publish();
+    set_net_sm(0);
+    clear_members();
+    if (pop) guest<void(U2MP_GUEST *)(void *)>(kPopPage)(menu());
+}
+
+// ---- net clock ----------------------------------------------------------------------------------------
+uint32_t own_ticks() {
+    using namespace std::chrono;
+    static const steady_clock::time_point origin = steady_clock::now();
+    steady_clock::time_point since = clock_object ? clock_base : origin;
+    int64_t us = duration_cast<microseconds>(steady_clock::now() - since).count();
+    return uint32_t(us * 3 / 10000);   // 300 ticks per second
+}
+
+void update_net_clock() {
+    uint8_t *slot = g(kNetClockPtr);
+    if (!clock_object) {
+        if (get<uint64_t>(slot) != 0) return;   // the game's own (or someone else's) clock: leave it
+        auto *object = static_cast<uint8_t *>(netheap_alloc(0x40, 16));
+        if (!object) return;
+        std::memset(object, 0, 0x40);
+        clock_base = std::chrono::steady_clock::now();
+        clock_object = object;
+        put<uint64_t>(slot, addr_of(object));
+        log("net clock created (300 ticks per second)");
+    }
+    if (get<uint64_t>(slot) == addr_of(clock_object)) put<int32_t>(clock_object + 0xc, int32_t(own_ticks()));
+}
+
+// ---- per-frame work -----------------------------------------------------------------------------------
+void skip_net_fade() {
+    // Net images fade in from the package's login frame; in menus that reads as a 1 s flicker.
+    int32_t now = get<int32_t>(g(kGameFrame));
+    for (uint32_t id : {kNetPackage, kNetU2mpPackage}) {
+        uint8_t *pkg = find_package(id);
+        if (!pkg || get<int32_t>(pkg + 0x30) != 7) continue;
+        int32_t age = int32_t(uint32_t(now) - uint32_t(get<int32_t>(pkg + 0x924)));
+        if (age < 300) put<int32_t>(pkg + 0x924, int32_t(uint32_t(now) - 300u));
+    }
+}
+
+void check_net_package() {
+    static int32_t logged_state = -100;
+    static bool logged_table_null = false;
+    static uint32_t logged_count = 0xffffffffu;
+    int32_t sm = net_sm();
+    bool menus = sm == 18 || sm == 3 || sm == 12;
+    uint8_t *pkg = menus ? keep_net_package() : find_package(kNetPackage);
+    int32_t state = pkg ? get<int32_t>(pkg + 0x30) : -1;
+    uint8_t *table = ptr_at(g(kNetImageTable));
+    uint32_t count = table ? get<uint16_t>(table + 2) : 0;
+    bool table_null = table == nullptr;
+    if (state != logged_state || table_null != logged_table_null || count != logged_count)
+        log("net package: %s, state %d, flags 0x%x; net image table %s, %u images", pkg ? "present" : "missing",
+            state, pkg ? unsigned(get<uint16_t>(pkg + 0x18)) : 0u, table ? "set" : "NULL", count);
+    logged_state = state;
+    logged_table_null = table_null;
+    logged_count = count;
+}
+
+void frame_work() {
+    if (active || clock_object) update_net_clock();
+    online::frame();
+    if (!active) return;
+    double now = gamenet::clock();
+    if (now == last_clock) return;   // the page handler and the state wrappers share one frame
+    last_clock = now;
+
+    transport.pump(now);
+    gamenet::frame(now);
+    voice::frame();
+    transport.pump(now);
+
+    if (kicked || host_lost) {
+        const char *why = kicked ? "kicked" : "host lost";
+        log("party: closing the transport (%s); Multiplayer starts a new one", why);
+        kicked = host_lost = false;
+        for (int s = 0; s < kSlots; ++s) gamenet::detach(uint8_t(s));
+        voice::stop();
+        transport.close();
+        online::on_transport_closed(why);
+        active = false;
+        clear_members();
+        return;
+    }
+
+    ++frames;
+    skip_net_fade();
+    finish_leaving_game();
+    if (frames % 60 == 1) check_net_package();
+    if (now >= next_rate_log) {
+        if (next_rate_log > 0) log("frame hook: %u calls in 10 s", frames);
+        frames = 0;
+        next_rate_log = now + 10;
+    }
+
+    if (frames % 120 == 7) {
+        int r = local_rank();
+        int t = local_team();
+        if (hosting && members[0].used && members[0].rank != r) {
+            members[0].rank = uint8_t(r);
+            broadcast_roster();
+        } else if (!hosting && my_id != 0 && (r != sent_rank || t != sent_team)) {
+            send_info();
+        }
+        if (hosting && members[0].used && members[0].team != t) {
+            members[0].team = uint8_t(t);
+            broadcast_teams();
+        }
+    }
+
+    if (hosting) {
+        int32_t mode = get<int32_t>(g(kNetInfo) + 0x2c4);
+        if (mode != sent_mode) {
+            sent_mode = mode;
+            broadcast_mode(mode);
+        }
+    }
+
+    int32_t s = net_sm();
+    if (s != last_sm) {
+        log("net state %d -> %d", last_sm, s);
+        if (s == 16) netinit_dump("state 16");
+        if (s == 3) netinit_dump("state 3");
+        // Back from a left match to the lobby: the host create page must wait for a new room.
+        if (hosting && s == 3 && last_sm == 35) g(kMatchSession)[0x99] = 0;
+        last_sm = s;
+    }
+}
+
+U2MP_GUEST void page_handler(uint32_t *event) {
+    if (!event || event[0] != 6) return;   // 6: per-frame update
+    finish_leaving_game();
+    if (active && net_sm() == 18 && !multiplayer_page_open()) {
+        // The player backed out of the party menus without Leave Multiplayer (PS3 tore down here too).
+        if (++closed_frames >= 30) {
+            closed_frames = 0;
             log("PAGE_MULTIPLAYER closed without Leave Multiplayer: multiplayer teardown (PS3 0x4386d0)");
             teardown(false);
             return;
         }
     } else {
-        frames_without_mp_page = 0;
+        closed_frames = 0;
     }
-    tick();
+    frame_work();
 }
 
-// ---- the "net" package (MP menu art: mode buttons, game types, map cards, playlists, badges) ----
-// Its images form the net image table 0x1130008+0x70, which 0x554090 (every frame) takes from the
-// package "net" (sid 4240ef2e) once it is logged in (package +0x30 == 7), else NULL: then every type 3
-// image of the multiplayer menus (mode buttons 0x655f11, game type 0x656864, map 0x656ac8) finds
-// nothing, is drawn with size 0, and the rich rows of PAGE_LOBBY collapse onto one line. The game's
-// own request (PAGE_MULTIPLAYER_CONNECTING 0x5ed839) marks the package with flag 0x40 right after
-// RequestPackage (as the hud request 0x4b8c7f does); our request did not (the likely reason the menu
-// images were missing; check_net_package logs what the table holds). Requested on entry and again
-// every second while the menus are up (RequestPackage returns the package when it exists).
-constexpr uint64_t PKG_FLAGS = 0x18, PKG_STATE = 0x30, kNetImageTable = 0x1130008 + 0x70;
-uint8_t *request_package(const char *name) {
-    auto *pkg = fn<uint8_t *(U2MP_GUEST *)(void *, const char *, int)>(fRequestPackage)(image.at<void>(kPackageTable),
-                                                                                    name, 0);
-    if (pkg) pkg[PKG_FLAGS] |= 0x40;
-    return pkg;
-}
-// With it the imported "net-u2mp" (the PS3 menu images PS4's net.pak lacks, menuimages.cpp), when present.
-uint8_t *keep_net_package() {
-    static const char net_package[] = "net";
-    if (const char *extra = extra_net_package()) request_package(extra);
-    return request_package(net_package);
-}
-// The package table lookup without a request (as 0x5540b9: FNV-1a over the id's bytes; buckets
-// +0x10, bucket count +0x4c, node {+0 next, +0x10 id, +0x18 package}, buckets[count] = end node).
-const uint8_t *find_package(uint32_t id) {
-    const uint64_t buckets = G<uint64_t>(kPackageTable + 0x10);
-    const int32_t count = G<int32_t>(kPackageTable + 0x4c);
-    if (!buckets || count <= 0) return nullptr;
-    uint32_t h = 0x811c9dc5u;
-    for (int i = 0; i < 4; ++i) h = (h ^ ((id >> (8 * i)) & 0xff)) * 0x1000193u;
-    const auto *table = reinterpret_cast<const uint64_t *>(uintptr_t(buckets));
-    uint64_t node = table[h % uint32_t(count)];
-    while (node && *reinterpret_cast<const uint32_t *>(uintptr_t(node) + 0x10) != id)
-        node = *reinterpret_cast<const uint64_t *>(uintptr_t(node));
-    if (!node || node == table[count]) return nullptr;
-    return reinterpret_cast<const uint8_t *>(uintptr_t(*reinterpret_cast<const uint64_t *>(uintptr_t(node) + 0x18)));
-}
-// Keeps the package while the multiplayer menus are up (in a match the level owns memory; there it
-// is only looked at), and logs what the test needs to tell why menu images are missing.
-void skip_net_fade() {
-    // Net images fade in over 300 frames from the package's login frame (0x5bca18: frame counter
-    // 0x1116180+0x144 minus package +0x924). PS3 kept the package loaded, so the Multiplayer page
-    // showed its icons at once; here the package loads when Multiplayer is entered, and the icons
-    // faded in seconds later. Once logged in, the fade counts as done.
-    for (const char *name : {"net", "net-u2mp"}) {
-        auto *p = const_cast<uint8_t *>(find_package(sid(name)));
-        if (!p || *reinterpret_cast<const int32_t *>(p + PKG_STATE) != 7) continue;
-        const int32_t now = G<int32_t>(0x1116180 + 0x144);
-        auto &login = *reinterpret_cast<int32_t *>(p + 0x924);
-        if (now - login < 300) login = now - 300;
-    }
-}
-void check_net_package(bool menus) {
-    static int32_t last_state = -100;
-    static uint64_t last_table = ~0ull;
-    static uint32_t last_count = ~0u;
-    const uint8_t *pkg = menus ? keep_net_package() : find_package(sid("net"));
-    const int32_t st = pkg ? *reinterpret_cast<const int32_t *>(pkg + PKG_STATE) : -1;
-    const uint64_t table = G<uint64_t>(kNetImageTable);
-    const uint32_t count = table ? *reinterpret_cast<const uint16_t *>(uintptr_t(table) + 2) : 0;
-    if (st != last_state || (table != 0) != (last_table != 0) || count != last_count) {
-        log("net package: %s, state %d, flags 0x%x; net image table %s, %u images", pkg ? "present" : "missing", st,
-            pkg ? unsigned(*reinterpret_cast<const uint16_t *>(pkg + PKG_FLAGS)) : 0u, table ? "set" : "NULL", count);
-        last_state = st;
-        last_table = table;
-        last_count = count;
-    }
+// ---- match state wrappers -----------------------------------------------------------------------------
+struct StateSlot {
+    uint64_t slot;
+    uint64_t original;
+};
+constexpr StateSlot kStates[10] = {
+    {0x100ac58, 0x5f2ea0},   // EstablishConnection
+    {0x100ac18, 0x5f2dc0},   // LoadLevels
+    {0x100abd8, 0x5f26d0},   // WaitReady
+    {0x100ab98, 0x5f14d0},   // Playing
+    {0x100ab58, 0x5f1390},   // PreResetting
+    {0x100ab18, 0x5f1000},   // Resetting
+    {0x100aa98, 0x5f0ec0},   // ResettingReady
+    {0x100aa58, 0x5f0b30},   // ShowResults
+    {0x100aa18, 0x5f0a90},   // ShowRoundResults
+    {0x100a9d8, 0x5eff30},   // Leave
+};
+enum { kEstablish = 0, kLoadLevels = 1, kWaitReady = 2, kLeave = 9 };
+using UpdateFn = uint64_t(U2MP_GUEST *)(void *);
+UpdateFn originals[10];
+
+void leave_reason(const char *when) {
+    uint8_t *host = ptr_at(ngm() + 8);
+    log("%s: abort byte %u, host tracker %s, host excluded %u", when, unsigned(*g(kAbortByte)),
+        host ? "set" : "NULL", host ? unsigned(host[0x26c]) : 0u);
+    int32_t players = guest<int32_t(U2MP_GUEST *)(void *)>(kPresentPlayers)(ngm());
+    uint8_t *npd = g(kNpd);
+    log("%s: leave flag %u, error box kind %d state %d, idle %.1f s, players %d, room %d", when,
+        unsigned(*g(kMatchOver)), get<int32_t>(npd + 0x44), get<int32_t>(npd + 0x6c0),
+        double(get<float>(g(kIdleTimer))), players, net_sm());
 }
 
-// PS3 PAGE_MULTIPLAYER_CONNECTING (0x445020, at 0x4454ac) also requested the packages of the name
-// list at 0xe155d0 that were not loaded yet (0xaf220), each with the flag the "net" request sets
-// (PS3 +0x10 |= 0x200 << 32, PS4 +0x18 |= 0x40 as 0x5ed843): the multiplayer weapons and the
-// multiplayer animation sets. PS4 has no copy of the list (none of its strings is referenced); all
-// 21 packages exist in the PS4 data (pak22_ps4.txt, actor27). UNCHARTED_U2MP_PRELOAD=0 skips it.
-void preload_ps3_packages() {
-    static const char *const kNames[] = {
-        "beretta-pistol", "beretta-pistol-magazine", "colt-defender-pistol", "colt-defender-magazine",
-        "desert-eagle", "desert-eagle-magazine", "dragunov-magazine", "dragunov-rifle", "fn-fal-clip",
-        "fn-fal-rifle", "m4-rifle", "m4-rifle-magazine", "shotgun", "spas12-shotgun", "machine-gun",
-        "machine-gun-clip", "rpg", "anim-proto-multiplayer", "anim-proto-shield", "anim-proto-carry-objects",
-        "m32-grenade-launcher"};
-    if (const char *v = std::getenv("UNCHARTED_U2MP_PRELOAD"); v && std::strcmp(v, "0") == 0) return;
-    int requested = 0, present = 0, failed = 0;
-    for (const char *name : kNames) {
-        if (find_package(sid(name))) {
-            ++present;
-            continue;
-        }
-        if (request_package(name)) ++requested;
-        else ++failed;
-    }
-    log("package preload (PS3 0xe155d0): %d requested, %d already present, %d not created", requested, present, failed);
-}
-
-void register_frame_handler() {
-    const uint64_t menu = addr::menu_manager;
-    uint32_t &count = G<uint32_t>(menu + MENU_HANDLER_COUNT);
-    for (uint32_t i = 0; i < count; ++i)
-        if (G<uint64_t>(menu + MENU_HANDLERS + i * MENU_HANDLER_SIZE + 8) == uint64_t(uintptr_t(&page_event))) return;
-    if (count >= kMaxPageHandlers) {
-        log("menu page handler table full: no per-frame updates in menus");
-        return;
-    }
-    const uint64_t e = menu + MENU_HANDLERS + count * MENU_HANDLER_SIZE;
-    G<uint32_t>(e) = 0;
-    G<uint64_t>(e + 8) = uint64_t(uintptr_t(&page_event));
-    G<uint64_t>(e + 0x10) = 0;
-    ++count;
-    log("per-frame page handler registered (%u handlers)", count);
-}
-
-void unregister_frame_handler() {
-    const uint64_t menu = addr::menu_manager;
-    uint32_t &count = G<uint32_t>(menu + MENU_HANDLER_COUNT);
+void log_wait_list(int list, bool skip_flagged) {
+    uint8_t *table = g(kPackageTable);
+    uint64_t at = list == 0 ? 0x5a98 : 0x5aa8;
+    uint32_t count = get<uint32_t>(table + at);
+    uint8_t *entries = ptr_at(table + at + 8);
+    if (!entries) return;
+    if (count > 256) count = 256;
     for (uint32_t i = 0; i < count; ++i) {
-        const uint64_t e = menu + MENU_HANDLERS + i * MENU_HANDLER_SIZE;
-        if (G<uint64_t>(e + 8) != uint64_t(uintptr_t(&page_event))) continue;
-        for (uint32_t j = i; j + 1 < count; ++j)
-            std::memcpy(image.at<void>(menu + MENU_HANDLERS + j * MENU_HANDLER_SIZE),
-                        image.at<void>(menu + MENU_HANDLERS + (j + 1) * MENU_HANDLER_SIZE), MENU_HANDLER_SIZE);
-        --count;
-        return;
+        uint8_t *e = entries + i * 0x10;
+        uint32_t id = get<uint32_t>(e + 8), flags = get<uint32_t>(e + 0xc);
+        if (skip_flagged && (flags & 1)) continue;
+        uint8_t *pkg = find_package(id);
+        if (pkg && get<int32_t>(pkg + 0x30) == 7 && (get<uint16_t>(pkg + 0x18) & 0x80)) continue;
+        log("load levels: list %d package %08x (flags %x): %s, state %d, package flags 0x%x", list, id, flags,
+            pkg ? "present" : "missing", pkg ? get<int32_t>(pkg + 0x30) : -1,
+            pkg ? unsigned(get<uint16_t>(pkg + 0x18)) : 0u);
     }
 }
 
-// The match states' Update, wrapped: original, then the network.
-using StateUpdateFn = uint64_t(U2MP_GUEST *)(void *state);
-StateUpdateFn original_update[kStateCount];
-// Diagnostics: which TaskManagerOnline state runs (logged when it changes, and every 10 s).
-std::atomic<int> last_online_state{-1};
-uint64_t next_online_log = 0;
-// LoadLevels waits for 0x64b770(ngm, task): every package loaded (0x56ce50 on the package table),
-// the task's level (task+0x80 -> +0x88 -> +0x28) and the net game's second level (record +0x78) at
-// state 8 in the level list 0x1534140 (node +0 next, +0x10 state, +0x98 id), and 0xa18010 false.
-// Logs each part (test run 19 stayed in LoadLevels).
-//
-// Test run 21: the wait list holds the package "<map>-pak" (the name of the net game's level record,
-// *levels* 0dec97a4 +0x18, e.g. ice-cave-multi-pak) next to the map and its sky. No registry defines
-// those names (PS3 1.10's pak22.txt defines 5 of 13, as empty level groups; PS4 none) and no file
-// exists, so the package is never created and LoadLevels waits forever. Its entry in the first list
-// gets the list's own skip flag (bit 1, which 0x56ce50 honours there) while no such package exists;
-// the map and sky packages are still waited for.
-void skip_missing_level_pak() {
-    struct Table { int32_t count; int32_t pad; uint8_t *records; };
-    auto lookup = fn<Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70);
-    Table *games = lookup(0x3b9a067d), *levels = lookup(0x0dec97a4);
-    const int16_t game = G<int16_t>(kNgm + NGM_GAME);
-    if (!games || !levels || !games->records || !levels->records || game < 0 || game >= games->count) return;
-    const uint32_t level_id = *reinterpret_cast<const uint32_t *>(games->records + 0x90 * game + 4);
+void load_levels_diagnostics(uint8_t *state) {
+    leave_reason("load levels");
+    uint32_t task_level = 0;
+    if (uint8_t *task = ptr_at(state + 8))
+        if (uint8_t *a = ptr_at(task + 0x80))
+            if (uint8_t *b = ptr_at(a + 0x88)) task_level = get<uint32_t>(b + 0x28);
+    bool packages = guest<bool(U2MP_GUEST *)(void *)>(kPackagesLoaded)(g(kPackageTable));
+    bool busy = guest<bool(U2MP_GUEST *)()>(kLoaderBusy)();
+    uint32_t second = 0;
+    Table games = table_of(lookup(kNetGamesId));
+    int16_t game = current_game();
+    if (games.records && game >= 0 && game < games.count) second = get<uint32_t>(games.records + game * 0x90 + 0x78);
+
+    char text[512];
+    size_t used = 0;
+    text[0] = 0;
+    uint8_t *head = g(kLevelListHead);
+    uint8_t *node = ptr_at(head);
+    for (int n = 0; n < 24 && node && node != head; ++n, node = ptr_at(node)) {
+        if (used >= 496) break;
+        int w = std::snprintf(text + used, sizeof text - used, " %08x:%d", get<uint32_t>(node + 0x98),
+                              get<int32_t>(node + 0x10));
+        if (w > 0) used += size_t(w) < sizeof text - used ? size_t(w) : sizeof text - used - 1;
+    }
+    log("load levels: packages loaded %d, busy %d, task level %08x, second level %08x; levels%s", int(packages),
+        int(busy), task_level, second, text);
+    if (!packages) {
+        log_wait_list(0, true);
+        log_wait_list(1, false);
+    }
+}
+
+void missing_level_package() {
+    static uint32_t waited_id = 0;
+    static std::chrono::steady_clock::time_point waited_since;
+    static bool file_present = false;
+    static uint32_t last_told = 0;   // the id of the last 20 s log (0 none)
+
+    Table games = table_of(lookup(kNetGamesId));
+    Table levels = table_of(lookup(kLevelsId));
+    int16_t game = current_game();
+    if (!games.records || !levels.records || game < 0 || game >= games.count) return;
+    uint32_t level = get<uint32_t>(games.records + game * 0x90 + 4);
     const char *name = nullptr;
-    for (int32_t i = 0; i < levels->count; ++i)
-        if (*reinterpret_cast<const uint32_t *>(levels->records + 0x38 * i) == level_id)
-            name = *reinterpret_cast<const char *const *>(levels->records + 0x38 * i + 0x18);
-    if (!name) return;
-    const size_t n = std::strlen(name);
-    if (n < 4 || std::strcmp(name + n - 4, "-pak") != 0) return;
-    const uint32_t id = sid(name);
-    if (find_package(id)) return;
-    // The import writes the server spawn data as pak22/ps4/<map>-pak-ingame10.pak and registers the level:
-    // then the package is only not created *yet* (assets audit 2026-11-09), so it is waited for - up to 20 s,
-    // in case no registry entry creates it (older import), which would bring back the run-21 hang (review).
-    {
-        static uint32_t seen_id = 0;
-        static bool file_exists = false;
-        static std::chrono::steady_clock::time_point first;
-        if (seen_id != id) {
-            seen_id = id;
-            first = std::chrono::steady_clock::now();
-            char host[1024];
-            const std::string guest = std::string("/app0/u2data/build/main/pak22/ps4/") + name + "-ingame10.pak";
-            file_exists = false;
-            if (runtime_file_translate(guest.c_str(), host, sizeof host) == 0)
-                if (std::FILE *f = std::fopen(host, "rb")) {
-                    std::fclose(f);
-                    file_exists = true;
-                }
+    bool found = false;
+    for (int32_t i = 0; i < levels.count; ++i) {
+        uint8_t *r = levels.records + i * 0x38;
+        if (get<uint32_t>(r) == level) {
+            found = true;
+            name = reinterpret_cast<const char *>(ptr_at(r + 0x18));
         }
-        if (file_exists && std::chrono::steady_clock::now() - first < std::chrono::seconds(20)) return;
-        if (file_exists) {
-            static uint32_t timed_out = 0;
-            if (timed_out != id) {
-                timed_out = id;
-                log("load levels: %s has a file but no package after 20 s (not registered?): not waited for", name);
+    }
+    if (!found || !name) return;
+    size_t len = std::strlen(name);
+    if (len < 4 || std::strcmp(name + len - 4, "-pak") != 0) return;
+    uint32_t id = sid(name);
+    if (find_package(id)) return;
+
+    auto now = std::chrono::steady_clock::now();
+    if (id != waited_id) {
+        waited_id = id;
+        waited_since = now;
+        std::string guest_path = std::string("/app0/u2data/build/main/pak22/ps4/") + name + "-ingame10.pak";
+        char host[1024];
+        file_present = false;
+        if (runtime_file_translate(guest_path.c_str(), host, sizeof host) == 0) {
+            if (FILE *f = std::fopen(host, "rb")) {
+                file_present = true;
+                std::fclose(f);
             }
         }
     }
-    const uint64_t table = uint64_t(uintptr_t(image.at<uint8_t>(0x1130390)));
-    const uint32_t count = *reinterpret_cast<const uint32_t *>(uintptr_t(table + 0x5a98));
-    auto *e = *reinterpret_cast<uint8_t **>(uintptr_t(table + 0x5aa0));
-    for (uint32_t i = 0; e && i < count && i < 256; ++i, e += 0x10) {
-        auto &fl = *reinterpret_cast<uint32_t *>(e + 0xc);
-        if (*reinterpret_cast<const uint32_t *>(e + 8) == id && !(fl & 1)) {
-            fl |= 1;
-            log("load levels: %s is defined nowhere (no registry entry, no file): not waited for", name);
+    if (file_present) {
+        if (now - waited_since < std::chrono::seconds(20)) return;
+        if (id != last_told) {
+            last_told = id;
+            log("load levels: %s has a file but no package after 20 s (not registered?): not waited for", name);
         }
     }
-}
-constexpr uint64_t kAbortSlot = 0x103fa40 + 0x30, kAbortByte = 0x113a270;
-using AbortFn = U2MP_GUEST void (*)(void *);
-AbortFn original_abort = nullptr;
-U2MP_GUEST void abort_logged(void *self) {
-    const uint64_t ra = uint64_t(uintptr_t(__builtin_return_address(0))), base = uint64_t(uintptr_t(image.base));
-    log("match abort (0x113a270 = 1) from %s0x%llx, session %p", ra >= base && ra < base + image.size ? "guest " : "",
-        (unsigned long long)(ra >= base && ra < base + image.size ? ra - base : ra), self);
-    original_abort(self);
-}
-// What LoadLevels / WaitReady test before going to Leave: the abort byte, the host tracker (ngm+8)
-// and its excluded flag (+0x26c).
-void log_leave_reason(const char *when) {
-    const uint64_t host = G<uint64_t>(kNgm + NGM_HOST);
-    log("%s: abort byte %u, host tracker %s, host excluded %u", when, unsigned(G<uint8_t>(kAbortByte)),
-        host ? "set" : "NULL", host ? unsigned(*reinterpret_cast<const uint8_t *>(uintptr_t(host) + 0x26c)) : 0u);
-    // Playing::Update (0x5f14d0) exits (run 39): leave flag 0x104f1c0, error box 0x11474f8 (+0x44 kind,
-    // +0x6c0 state), idle timer 0x14cec0c (kick at 120 s, 0x5ec010), present players 0x63ffb0(0x113b760).
-    const int players = fn<int(U2MP_GUEST *)(void *)>(0x63ffb0)(image.at<void>(0x113b760));
-    log("%s: leave flag %u, error box kind %d state %d, idle %.1f s, players %d, room %d", when,
-        unsigned(G<uint8_t>(0x104f1c0)), G<int32_t>(0x11474f8 + 0x44), G<int32_t>(0x11474f8 + 0x6c0),
-        double(G<float>(0x14cec0c)), players, G<int32_t>(0x14ce97c));
-}
-void log_load_levels(void *state) {
-    log_leave_reason("load levels");
-    auto *task = *reinterpret_cast<uint8_t **>(static_cast<uint8_t *>(state) + 8);
-    uint32_t task_level = 0;
-    if (task) {
-        auto *a = *reinterpret_cast<uint8_t **>(task + 0x80);
-        auto *b = a ? *reinterpret_cast<uint8_t **>(a + 0x88) : nullptr;
-        if (b) task_level = *reinterpret_cast<uint32_t *>(b + 0x28);
+    // The loader would wait forever for a package nothing can produce: mark its wait entry skipped.
+    uint8_t *table = g(kPackageTable);
+    uint32_t count = get<uint32_t>(table + 0x5a98);
+    uint8_t *entries = ptr_at(table + 0x5aa0);
+    if (!entries) return;
+    if (count > 256) count = 256;
+    for (uint32_t i = 0; i < count; ++i) {
+        uint8_t *e = entries + i * 0x10;
+        uint32_t flags = get<uint32_t>(e + 0xc);
+        if (get<uint32_t>(e + 8) != id || (flags & 1)) continue;
+        put<uint32_t>(e + 0xc, flags | 1);
+        log("load levels: %s is defined nowhere (no registry entry, no file): not waited for", name);
     }
-    const bool packages = fn<bool(U2MP_GUEST *)(void *)>(0x56ce50)(image.at<void>(0x1130390));
-    const bool busy = fn<bool(U2MP_GUEST *)()>(0xa18010)();
-    uint32_t second = 0;
-    struct Table { int32_t count; int32_t pad; uint8_t *records; };
-    auto *games = fn<Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70)(0x3b9a067d);
-    const int16_t game = G<int16_t>(kNgm + NGM_GAME);
-    if (games && games->records && game >= 0 && game < games->count)
-        second = *reinterpret_cast<uint32_t *>(games->records + 0x90 * game + 0x78);
-    char list[512] = "";
-    size_t used = 0;
-    const uint64_t head = uint64_t(uintptr_t(image.at<uint8_t>(0x1534140)));
-    uint64_t node = G<uint64_t>(0x1534140);
-    for (int n = 0; node && node != head && n < 24; ++n, node = *reinterpret_cast<uint64_t *>(uintptr_t(node))) {
-        const auto *p = reinterpret_cast<const uint8_t *>(uintptr_t(node));
-        used += size_t(std::snprintf(list + used, sizeof list - used, " %08x:%d", *reinterpret_cast<const uint32_t *>(p + 0x98),
-                                     *reinterpret_cast<const int32_t *>(p + 0x10)));
-        if (used >= sizeof list - 16) break;
+}
+
+int64_t steady_ms() {
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+}
+
+uint64_t state_update(int index, void *state) {
+    int64_t ms = steady_ms();
+    bool changed = last_state != index;
+    last_state = index;
+    if (changed || ms >= next_online_log) {
+        next_online_log = ms + 10000;
+        log("online state: update 0x%llx (vtable slot 0x%llx)", (unsigned long long)kStates[index].original,
+            (unsigned long long)(kStates[index].slot - 0x18));
+        if (index == kLoadLevels) load_levels_diagnostics(static_cast<uint8_t *>(state));
+        if (index == kLeave) leave_reason("leave");
     }
-    log("load levels: packages loaded %d, busy %d, task level %08x, second level %08x; levels%s", packages, busy,
-        task_level, second, list);
-    // 0x56ce50: two request lists of the package table ({count +0x5a98, entries +0x5aa0} and {+0x5aa8,
-    // +0x5ab0}, 0x10 bytes: +8 package id, +0xc flags; flag 1 = skip in the first list): each package
-    // must exist with state 7 and flags & 0x80. Logs the ones that fail (id = sid of the package name).
-    const uint64_t table = uint64_t(uintptr_t(image.at<uint8_t>(0x1130390)));
-    for (int l = 0; l < 2 && !packages; ++l) {
-        const uint32_t count = *reinterpret_cast<const uint32_t *>(uintptr_t(table + (l ? 0x5aa8 : 0x5a98)));
-        const auto *e = *reinterpret_cast<const uint8_t *const *>(uintptr_t(table + (l ? 0x5ab0 : 0x5aa0)));
-        for (uint32_t i = 0; e && i < count && i < 256; ++i, e += 0x10) {
-            const uint32_t id = *reinterpret_cast<const uint32_t *>(e + 8), fl = *reinterpret_cast<const uint32_t *>(e + 0xc);
-            if (l == 0 && (fl & 1)) continue;
-            const uint8_t *p = find_package(id);
-            const int32_t st = p ? *reinterpret_cast<const int32_t *>(p + PKG_STATE) : -1;
-            const uint32_t pf = p ? *reinterpret_cast<const uint16_t *>(p + PKG_FLAGS) : 0;
-            if (!p || st != 7 || !(pf & 0x80))
-                log("load levels: list %d package %08x (flags %x): %s, state %d, package flags 0x%x", l, id, fl,
-                    p ? "present" : "missing", st, pf);
+    if (index == kLoadLevels) missing_level_package();
+    if (index == kEstablish) {
+        uint8_t over = *g(kMatchOver), companion = *g(kMatchOverCompanion);
+        if (over || companion) {
+            // A previous match's end flags would end the new one at once.
+            log("match setup: match-over flag was %u (0x14ce978 %u), cleared", unsigned(over), unsigned(companion));
+            *g(kMatchOver) = 0;
+            *g(kMatchOverCompanion) = 0;
         }
     }
-}
-template <size_t I> U2MP_GUEST uint64_t state_update(void *state) {
-    const uint64_t now_ms = uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count());
-    if (last_online_state.exchange(int(I)) != int(I) || now_ms >= next_online_log) {
-        next_online_log = now_ms + 10000;
-        log("online state: update 0x%llx (vtable slot 0x%llx)", (unsigned long long)kStateUpdates[I].update,
-            (unsigned long long)(kStateUpdates[I].slot - 0x18));
-        if (kStateUpdates[I].update == 0x5f2dc0) log_load_levels(state);
-        if (kStateUpdates[I].update == 0x5eff30) log_leave_reason("leave");
-    }
-    if (kStateUpdates[I].update == 0x5f2dc0) skip_missing_level_pak();
-    // Test runs 39-40: the match-over byte 0x104f1c0 is 1 in the image's data and only Leave::Enter
-    // (0x5f00bb, with 0x14ce978) and the replay Leave clear it, so the first match of a session saw it
-    // set and Playing went to Leave at once (later matches were fine). Clear both while the match is
-    // being set up, as Leave::Enter leaves them for the next match.
-    if (kStateUpdates[I].update == 0x5f2ea0 && (G<uint8_t>(0x104f1c0) || G<uint8_t>(0x14ce978))) {
-        log("match setup: match-over flag was %u (0x14ce978 %u), cleared", unsigned(G<uint8_t>(0x104f1c0)),
-            unsigned(G<uint8_t>(0x14ce978)));
-        G<uint8_t>(0x104f1c0) = 0;
-        G<uint8_t>(0x14ce978) = 0;
-    }
-    // Test run 24: LoadLevels::Enter (0x5f2e50 -> 0x640fc0) resets the NetGameManager, so the players
-    // Start Match registered are gone (ngm+8, the host tracker, NULL) and LoadLevels / WaitReady go to
-    // Leave. PS3's session layer registered them again; here the party's members are put back while
-    // the match is being set up (EstablishConnection, LoadLevels, WaitReady).
-    if (active && (kStateUpdates[I].update == 0x5f2ea0 || kStateUpdates[I].update == 0x5f2dc0 ||
-                   kStateUpdates[I].update == 0x5f26d0) &&
-        !G<uint64_t>(kNgm + NGM_HOST)) {
+    if (active && (index == kEstablish || index == kLoadLevels || index == kWaitReady) &&
+        get<uint64_t>(ngm() + 8) == 0) {
         log("match setup: the net players were cleared, registering the party again");
-        fill_net_players();
+        fill_trackers();
     }
-    const uint64_t result = original_update[I](state);
-    tick();
+    uint64_t result = originals[index](state);
+    frame_work();
     return result;
 }
-template <size_t... I> constexpr std::array<void *, sizeof...(I)> make_state_updates(std::index_sequence<I...>) {
-    return {reinterpret_cast<void *>(&state_update<I>)...};
-}
-const std::array<void *, kStateCount> state_update_fns = make_state_updates(std::make_index_sequence<kStateCount>{});
 
-// The network memory context (0x14): the allocator (0xb332a0) takes context n's heap from the table at
-// [0x104ae00] + n*8. PS3 had a network heap (ALLOCATION_NETWORK_HEAP); PS4 never creates it, so the
-// slot is null and every network allocation (PlayerInfo 0x6144b0 and others) faults. Point it at the
-// default heap (the one context 0x46 resolves to, 0x11c6630+0x198); frees use the same table.
-void ensure_network_heap() {
-    constexpr uint64_t kAllocTablePtr = 0x104ae00, kDefaultHeap = 0x11c6630 + 0x198, kNetContext = 0x14;
-    const uint64_t table = G<uint64_t>(kAllocTablePtr);
-    if (!table) return;
-    auto *slot = reinterpret_cast<uint64_t *>(uintptr_t(table) + kNetContext * 8);
-    if (*slot) return;
-    const uint64_t heap = G<uint64_t>(kDefaultHeap);
-    if (!heap) {
-        log("network heap: no default heap to share");
+template <int I> U2MP_GUEST uint64_t state_wrapper(void *state) { return state_update(I, state); }
+
+using WrapperFn = uint64_t(U2MP_GUEST *)(void *);
+constexpr WrapperFn kWrappers[10] = {state_wrapper<0>, state_wrapper<1>, state_wrapper<2>, state_wrapper<3>,
+                                     state_wrapper<4>, state_wrapper<5>, state_wrapper<6>, state_wrapper<7>,
+                                     state_wrapper<8>, state_wrapper<9>};
+
+U2MP_GUEST void abort_wrapper(void *self) {
+    uint64_t caller = addr_of(__builtin_return_address(0));
+    uint64_t base = addr_of(image.base);
+    bool in_image = caller >= base && caller < base + image.size;
+    log("match abort (0x113a270 = 1) from %s0x%llx, session %p", in_image ? "guest " : "",
+        (unsigned long long)(in_image ? caller - base : caller), self);
+    guest<void(U2MP_GUEST *)(void *)>(kAbortOriginal)(self);
+}
+
+// ---- Start Match --------------------------------------------------------------------------------------
+void match_choice_diagnostics() {
+    int16_t game = current_game();
+    log("match choice: mode %d, custom choice list %d entries, net game %d", get<int32_t>(g(kNetInfo) + 0x2c4),
+        get<int32_t>(g(kCustomChoiceCount)), int(game));
+    uint8_t *raw = lookup(kNetGamesId);
+    Table games = table_of(raw);
+    if (!raw || game < 0 || game >= games.count || !games.records) {
+        log("match choice: net game %d is not in *net-games* (%d records)", int(game), raw ? games.count : -1);
         return;
     }
-    *slot = heap;
-    log("network heap: context 0x14 now uses the default heap");
+    uint8_t *record = games.records + game * 0x90;
+    uint32_t level = get<uint32_t>(record + 4);
+    int32_t type = get<int32_t>(record + 0x0c);
+    const char *name = "?";
+    if (uint8_t *raw_levels = lookup(kLevelsId)) {
+        Table levels = table_of(raw_levels);
+        for (int32_t i = 0; levels.records && i < levels.count; ++i) {
+            uint8_t *r = levels.records + i * 0x38;
+            if (get<uint32_t>(r) != level) continue;
+            if (const char *n = reinterpret_cast<const char *>(ptr_at(r + 0x18))) name = n;
+            break;
+        }
+    }
+    log("match choice: game type %d, level id %08x, package %s", type, level, name);
 }
 
-// ---- restored callbacks and queries ------------------------------------------------------------
+void host_create() {
+    g(kNetInfo)[0x08] = 1;
+    guest<void(U2MP_GUEST *)(void *)>(kClearNetPlayers)(ngm());
+    put<int32_t>(g(kNetInfo) + 0x34, 0);
+    guest<void(U2MP_GUEST *)(void *)>(kMenuReset)(menu());
+    put<uint32_t>(ptr_at(menu() + 0x1828) + 8, kWaitText);
+    // The host create page's own handler (stripped from the PS4 menu set-up) waits for the room.
+    uint32_t count = get<uint32_t>(menu() + 0x24f0);
+    uint8_t *entry = nullptr;
+    for (uint32_t i = 0; i < count && !entry; ++i)
+        if (get<uint32_t>(handler_entry(i)) == kPageHostCreate) entry = handler_entry(i);
+    if (!entry && count < 32) {
+        entry = handler_entry(count);
+        put<uint32_t>(menu() + 0x24f0, count + 1);
+    }
+    if (entry) {
+        put<uint32_t>(entry, kPageHostCreate);
+        put<uint64_t>(entry + 8, addr_of(g(kHostCreateHandler)));
+        put<uint64_t>(entry + 0x10, 0);
+    }
+    register_handler();
+    show_page(kPageHostCreate);
+    set_net_sm(3);
+}
 
-// BUTTON_MULTIPLAYER (PS3 0x43b150 -> bootstrap 0x438bc8 -> NetInit 0x447a5c, which ended with
-// SetNetState(18)). PS4 0x5eb160 was a bare ret.
-U2MP_GUEST void multiplayer_button(void *, void *, void *) {
+void create_match_now() {
+    log("Start Match: creating the match");
+    g(kMatchSession)[0xc8] = 0;
+    match_choice_diagnostics();
+    netinit_match();
+    netinit_dump("before create");
+    host_create();
+    netinit_dump("after create");
+    set_session(kMatchSession, kCtx, 1, 1);
+    publish(kMatchSession);
+    fill_trackers();
+    put<int32_t>(g(kMatchSession) + 0x9c, 0);
+    if (online::create_match_room()) return;   // online_match_ready() finishes it
+    g(kMatchSession)[0x99] = 1;
+    send_raw(-1, follow_body(), -1);
+}
+
+void pick_matchmaking_game() {
+    Table games = table_of(lookup(kNetGamesId));
+    if (!games.records || games.count <= 0) return;
+    int32_t chosen = playlist_pick_type();
+    int16_t game = current_game();
+    int32_t type = chosen >= 0 ? chosen : get<int32_t>(games.records + (game < 0 ? 0 : game) * 0x90 + 0x0c);
+    std::vector<int32_t> candidates;
+    for (int32_t i = 0; i < games.count; ++i)
+        if (get<int32_t>(games.records + i * 0x90 + 0x0c) == type && dlc_net_game_available(i)) candidates.push_back(i);
+    if (candidates.empty()) return;
+    int32_t pick = candidates[size_t(std::rand()) % candidates.size()];
+    guest<void(U2MP_GUEST *)(void *, int16_t, void *, int32_t)>(kSetNetGame)(ngm(), int16_t(pick), nullptr, 10);
+    log("matchmaking: net game %d of %zu of type %d", pick, candidates.size(), type);
+}
+
+// ---- replaced menu functions --------------------------------------------------------------------------
+U2MP_GUEST void button_multiplayer(void *, void *, void *) {
     log("Multiplayer selected");
-    netheap_install();   // context 0x14: a heap of its own (netheap.cpp)
-    netinit_prepare();   // what PS3 NetGameManager::Init / NetInit built (netinit.cpp)
-    netpatch_load();     // the server live-data module net-patch9 (weapon sets ...; PS3 NetInit 0x447a5c)
+    netheap_install();
+    netinit_prepare();
+    netpatch_load();
     if (!active) {
         if (!start_transport()) {
-            G<uint8_t>(kNetInfo + NI_ERROR) = 1;
-            show_page(sid("PAGE_MULTIPLAYER"));   // shows the network error box and goes back
+            g(kNetInfo)[0x1c] = 1;
+            show_page(kPageMultiplayer);
             return;
         }
         active = true;
     }
-    G<uint8_t>(kNetInfo + NI_ERROR) = 0;
-    G<int32_t>(kNetInfo + NI_FROM_MATCHMAKING) = 0;
-    G<int16_t>(kNgm + NGM_GAME) = -1;
-    if (hosting) session_set(kParty, kRoomContext, 1, 1);   // party leader
-    else session_set(kParty, kRoomContext, my_id ? my_id : 0xfff, 1);
-    session_members(kParty);
+    g(kNetInfo)[0x1c] = 0;
+    put<int32_t>(g(kNetInfo) + 0x34, 0);
+    put<int16_t>(ngm() + 0x1ca0, -1);
+    if (hosting) set_session(kPartySession, kCtx, 1, 1);
+    else set_session(kPartySession, kCtx, my_id ? my_id : 0xfff, 1);
+    publish(kPartySession);
     sent_mode = -1;
-    set_state(kChooseHostJoin);   // IsOnline: state > 1
-    register_frame_handler();
-    // PS3 showed PAGE_MULTIPLAYER_CONNECTING while NetInit ran; its PS4 handler waits for the "net"
-    // package forever (the request never reaches the loader). Request it here and go straight on.
+    set_net_sm(18);
+    register_handler();
     keep_net_package();
-    preload_ps3_packages();
-    show_page(sid("PAGE_MULTIPLAYER"));
+    preload_packages();
+    show_page(kPageMultiplayer);
 }
 
-// Party rows PARTY_PLAYER0..9 (PS3 roster query 0x4bc728) and the match/post-game rows PLAYER0..9
-// (cond 6..15): the query object is {+0 op, +4 value, +0x40 text, +0x48 table arg}. The party rows
-// are two sets: PAGE_MULTIPLAYER cond 16..25 (arg 0..9) and PAGE_LOBBY cond 26..35 (arg 10..19);
-// PS3 takes the row as arg % 10 (0x4bc780), so both pages list the same party.
-void roster_query(uint8_t *query) {
-    const uint32_t op = *reinterpret_cast<uint32_t *>(query);
-    const uint64_t row = *reinterpret_cast<uint64_t *>(query + 0x48) % 10;
-    int seen = 0;
-    const Member *m = nullptr;
-    uint8_t mslot = 0;
-    for (uint8_t slot = 0; slot <= net::kMaxPeers && !m; ++slot)
-        if (members[slot].used && uint64_t(seen++) == row) { m = &members[slot]; mslot = slot; }
-    if (op == 7) *reinterpret_cast<uint32_t *>(query + 4) = m ? 1 : 0;
-    else if (op == 3) {
-        // PS3 0x4bc9f0: image 0 (+4 == 0) is the member's rank badge, type 0x27 (menuimages.cpp draws
-        // it) with the rank at +0x18 (PS3 +16); image 1 is the voice icon (below).
-        if (m && *reinterpret_cast<uint32_t *>(query + 4) == 1) {
-            // PS3 0x4bca08 / 0x4bcb38: a member whose voice is on shows general/net/mic/default while
-            // cellVoice reports energy (attribute 1001), a muted member general/net/mic/mute, else
-            // nothing. PC: voice.cpp (heard in the last 300 ms, local mute). Type 3 net image as PS4
-            // builds it (0x655f11): +0x1c {id, selector 1 = net}, +0x24 index -1 (looked up by id).
-            const uint32_t icon = voice::talking(m->net_id) ? 0xffa98ec5u   // sid("general/net/mic/default")
-                                  : voice::muted(m->net_id) ? 0x7a5f5bf1u   // sid("general/net/mic/mute")
-                                                            : 0u;
-            if (icon) {
-                *reinterpret_cast<uint32_t *>(query + 0x08) = 3;
-                *reinterpret_cast<uint64_t *>(query + 0x10) = 0;
-                *reinterpret_cast<uint32_t *>(query + 0x18) = 0;
-                *reinterpret_cast<uint64_t *>(query + 0x1c) = uint64_t(icon) | (uint64_t(1) << 32);
-                *reinterpret_cast<int32_t *>(query + 0x24) = -1;
-                *reinterpret_cast<uint32_t *>(query + 0x28) = 0;
-                *reinterpret_cast<int32_t *>(query + 0x2c) = -1;
-                *reinterpret_cast<float *>(query + 0x30) = 1.0f;
-            }
+U2MP_GUEST void roster_query(uint8_t *q) {
+    uint32_t op = get<uint32_t>(q);
+    uint64_t arg = get<uint64_t>(q + 0x48);
+    int slot = slot_of_row(int(arg % 10));
+    const Member *m = slot >= 0 ? &members[slot] : nullptr;
+    switch (op) {
+    case 7: put<uint32_t>(q + 4, m ? 1 : 0); break;
+    case 3: {
+        uint32_t value = get<uint32_t>(q + 4);
+        if (m && value == 1) {
+            uint32_t icon = 0;
+            if (voice::talking(m->net_id)) icon = kIconTalking;
+            else if (voice::muted(m->net_id)) icon = kIconMuted;
+            if (!icon) break;
+            put<uint32_t>(q + 8, 3);
+            put<uint64_t>(q + 0x10, 0);
+            put<uint32_t>(q + 0x18, 0);
+            put<uint32_t>(q + 0x1c, icon);
+            put<uint32_t>(q + 0x20, 1);
+            put<int32_t>(q + 0x24, -1);
+            put<uint32_t>(q + 0x28, 0);
+            put<int32_t>(q + 0x2c, -1);
+            put<float>(q + 0x30, 1.0f);
+        } else if (m && value == 0) {
+            put<uint32_t>(q + 8, 0x27);   // rank badge
+            put<uint64_t>(q + 0x10, 0);
+            put<uint32_t>(q + 0x18, m->rank);
+            put<uint64_t>(q + 0x1c, 0);
+            put<int32_t>(q + 0x24, -1);
+            put<uint32_t>(q + 0x28, 0);
+            put<int32_t>(q + 0x2c, -1);
+            put<float>(q + 0x30, 1.0f);
         }
-        if (m && *reinterpret_cast<uint32_t *>(query + 4) == 0) {
-            *reinterpret_cast<uint32_t *>(query + 0x08) = 0x27;
-            *reinterpret_cast<uint64_t *>(query + 0x10) = 0;
-            *reinterpret_cast<uint32_t *>(query + 0x18) = m->rank;
-            *reinterpret_cast<uint64_t *>(query + 0x1c) = 0;
-            *reinterpret_cast<int32_t *>(query + 0x24) = -1;
-            *reinterpret_cast<uint32_t *>(query + 0x28) = 0;
-            *reinterpret_cast<int32_t *>(query + 0x2c) = -1;
-            *reinterpret_cast<float *>(query + 0x30) = 1.0f;
+        break;
+    }
+    case 17: {
+        if (!m || arg <= 9 || get<int32_t>(g(kNetInfo) + 0x2c4) != 2 || (m->team != 1 && m->team != 2)) break;
+        Table games = table_of(lookup(kNetGamesId));
+        int16_t game = current_game();
+        if (!games.records || game < 0 || game >= games.count) break;
+        if (coop_type(get<int32_t>(games.records + game * 0x90 + 0x0c))) break;
+        static int colour_ok = -1;   // -1 unchecked, 0 differs, 1 matches
+        if (colour_ok < 0) {
+            static const unsigned char a[] = {0x89, 0xcb, 0x41, 0x89, 0xd6, 0x49, 0x89, 0xf5, 0x49, 0x89, 0xfc};
+            static const unsigned char b[] = {0xc7, 0x05, 0xc7, 0x3f, 0xe8, 0x00, 0x4b, 0x2a, 0x02, 0x6a};
+            colour_ok = image.matches(0x64aec1, a, sizeof a) && image.matches(0x64af57, b, sizeof b) ? 1 : 0;
+            if (!colour_ok) log("party rows: GetTeamColor 0x64aeb0 differs, no team colours");
         }
-    } else if (op == 17) {
-        // PS3 0x4bc934: the team colour, only on PAGE_LOBBY's rows (table arg 10..19) of a custom game
-        // (netInfo mode 2) whose game type is a team type (0x4a0bcc: not 4, 8, 9, 12), from the member's
-        // team (room member data +9: 1 -> team 0, 2 -> team 1) through GetTeamColor 0x495cf0 (PS4
-        // 0x64aeb0(out, ngm, team, variant), colour at out+0xc): (colour & 0xffffff) | 0x20000000 into
-        // the query colour (PS3 +44, PS4 +0x3c).
-        const uint64_t arg = *reinterpret_cast<uint64_t *>(query + 0x48);
-        if (!m || arg <= 9 || G<int32_t>(kNetInfo + NI_MODE) != 2 || (m->team != 1 && m->team != 2)) return;
-        struct Table { int32_t count; int32_t pad; uint8_t *records; };
-        const auto *games = fn<Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70)(0x3b9a067d);   // *net-games*
-        const int16_t game = G<int16_t>(kNgm + NGM_GAME);
-        if (!games || !games->records || game < 0 || game >= games->count) return;
-        const int32_t type = *reinterpret_cast<const int32_t *>(games->records + 0x90 * size_t(game) + 0x0c);
-        if (type == 4 || type == 8 || type == 9 || type == 12) return;   // free for all
-        // GetTeamColor 0x64aeb0: its argument moves (team edx, variant ecx) and the team table init.
-        static const bool team_colour_ok = [] {
-            static const unsigned char args[] = {0x89, 0xcb, 0x41, 0x89, 0xd6, 0x49, 0x89, 0xf5, 0x49, 0x89, 0xfc};
-            static const unsigned char table[] = {0xc7, 0x05, 0xc7, 0x3f, 0xe8, 0x00, 0x4b, 0x2a, 0x02, 0x6a};
-            const bool ok = image.matches(0x64aec1, args, sizeof args) && image.matches(0x64af57, table, sizeof table);
-            if (!ok) log("party rows: GetTeamColor 0x64aeb0 differs, no team colours");
-            return ok;
-        }();
-        if (!team_colour_ok) return;
+        if (!colour_ok) break;
         alignas(16) uint8_t out[0x20] = {};
-        fn<void(U2MP_GUEST *)(void *, void *, int32_t, int32_t)>(0x64aeb0)(out, image.at<void>(kNgm), m->team - 1, 0);
-        uint32_t colour;
-        std::memcpy(&colour, out + 0xc, 4);
-        *reinterpret_cast<uint32_t *>(query + 0x3c) = (colour & 0xffffffu) | 0x20000000u;
-    } else if (op == 1) {
-        std::snprintf(roster_text[mslot], sizeof roster_text[mslot], "%s", m ? m->name.c_str() : "");
-        *reinterpret_cast<uint64_t *>(query + 0x40) = m ? uint64_t(uintptr_t(roster_text[mslot])) : uint64_t(uintptr_t(""));
-    } else
-        *reinterpret_cast<uint32_t *>(query + 4) = 0;
+        guest<void(U2MP_GUEST *)(void *, void *, int32_t, int32_t)>(kTeamColor)(out, ngm(), int32_t(m->team) - 1, 0);
+        put<uint32_t>(q + 0x3c, (get<uint32_t>(out + 0xc) & 0xffffff) | 0x20000000u);
+        break;
+    }
+    case 1: {
+        static const char empty[1] = {0};
+        char *buffer = row_text[m ? slot : 0];
+        std::string name = m ? cut(m->name, 63) : std::string();
+        std::memcpy(buffer, name.c_str(), name.size() + 1);
+        put<uint64_t>(q + 0x40, m ? addr_of(buffer) : addr_of(empty));
+        break;
+    }
+    default: put<uint32_t>(q + 4, 0); break;
+    }
 }
-U2MP_GUEST void party_rows(uint8_t *query) { roster_query(query); }
-U2MP_GUEST void player_rows(uint8_t *query) { roster_query(query); }
 
-// BUTTON_MULTIPLAYER_STARTMATCH (PS4 0x5eb780 was a bare ret; the query enables it for the party
-// leader only). PS3: lobby -> CREATE_GAME_WAIT (0x444bb0 = PS4 0x5eb830, intact) -> room created.
-void create_match_now();
-U2MP_GUEST void start_match(void *, void *, void *) {
+U2MP_GUEST void button_start_match(void *, void *, void *) {
     if (!hosting) return;
-    // Matchmaking (mode 1): PS3 0x43aab0 -> START_MATCHMAKING -> the matchmaking page 0x4b0a58
-    // (PS4 0x64e910 = ret), ported in frontend3.cpp (gather, vote, countdown; it then calls
-    // create_match). Without that port: the host picks a random game of the playlist here
-    // (PS3's random pick 0x49bb00 has no PS4 pair; SetNetGame 0x63dc30).
-    // PS3 0x43aab0 first sent party mailbox 0x114 and showed the 5 s "Starting in [A]..." popup; its
-    // done callback (4055f45f / e2707dbe) starts matchmaking or creates the game (frontend6.cpp).
-    if (G<int32_t>(kNetInfo + NI_MODE) == 1 && matchmaking::installed()) {
+    int32_t mode = get<int32_t>(g(kNetInfo) + 0x2c4);
+    if (mode == 1 && matchmaking::installed()) {
         if (!frontend6::leader_starting(true)) matchmaking::leader_start();
         return;
     }
-    if (G<int32_t>(kNetInfo + NI_MODE) == 1) {
-        struct Table { int32_t count; int32_t pad; uint8_t *records; };
-        auto *table = fn<Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70)(0x3b9a067d);
-        const int16_t current = G<int16_t>(kNgm + NGM_GAME);
-        if (table && table->count > 0 && table->records) {
-            const int32_t chosen = playlist_pick_type();   // the playlist's game types (menus.cpp)
-            const int32_t type = chosen >= 0 ? chosen
-                                             : *reinterpret_cast<int32_t *>(table->records + 0x90 * (current >= 0 ? current : 0) + 0x0c);
-            std::vector<int16_t> same;
-            for (int32_t i = 0; i < table->count; ++i)
-                if (*reinterpret_cast<int32_t *>(table->records + 0x90 * i + 0x0c) == type && dlc_net_game_available(i))
-                    same.push_back(int16_t(i));   // DLC maps only when imported (dlc.cpp)
-            if (!same.empty()) {
-                const int16_t pick = same[size_t(std::rand()) % same.size()];
-                fn<void(U2MP_GUEST *)(void *, int16_t, const void *, int)>(0x63dc30)(image.at<void>(kNgm), pick, nullptr, 10);
-                log("matchmaking: net game %d of %zu of type %d", pick, same.size(), type);
-            }
-        }
+    if (mode == 1) {
+        pick_matchmaking_game();
     } else if (frontend6::leader_starting(false)) {
-        return;   // the popup's done callback e2707dbe creates the match
+        return;   // the "Starting in" popup creates the match when it runs out
     }
     create_match_now();
 }
 
-// Host: the match of the current net game (the custom-game create path); the party follows.
-void create_match_now() {
-    log("Start Match: creating the match");
-    G<uint8_t>(kMatch + M_LEFT) = 0;
-    log_match_choice();
-    netinit_match();
-    netinit_dump("before create");
-    host_create();
-    netinit_dump("after create");   // state 3, page handler 0x6093f0
-    session_set(kMatch, kRoomContext, 1, 1);
-    session_members(kMatch);
-    fill_net_players();
-    G<int32_t>(kMatch + M_CREATE_RESULT) = 0;
-    in_match_setup = true;
-    // Online: PS3 waited for CreateJoinRoom (0x4d421c) before 0x6093f0 saw +0x99; online.cpp makes the
-    // match room and calls online_match_ready() with it.
-    if (online::create_match_room()) return;
-    G<uint8_t>(kMatch + M_CREATED) = 1;   // 0x6093f0: 3 -> 10 -> 16 -> PlayTask("deathmatch")
-    send_session(-1, follow_body());
-}
-
-// Diagnostics: what Start Match is about to start (mode, the custom choice list, the net game and its level).
-void log_match_choice() {
-    struct Table { int32_t count; int32_t pad; uint8_t *records; };
-    auto lookup = fn<Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70);
-    const int32_t mode = G<int32_t>(kNetInfo + NI_MODE);
-    const int32_t choices = G<int32_t>(0x113ddb0);
-    const int16_t game = G<int16_t>(kNgm + NGM_GAME);
-    log("match choice: mode %d, custom choice list %d entries, net game %d", mode, choices, game);
-    Table *games = lookup(0x3b9a067d);   // *net-games*
-    if (!games || game < 0 || game >= games->count || !games->records) {
-        log("match choice: net game %d is not in *net-games* (%d records)", game, games ? games->count : -1);
-        return;
-    }
-    const uint8_t *rec = games->records + 0x90 * game;
-    const uint32_t level_id = *reinterpret_cast<const uint32_t *>(rec + 4);
-    const int32_t type = *reinterpret_cast<const int32_t *>(rec + 0x0c);
-    const char *level = "?";
-    if (Table *levels = lookup(0x0dec97a4))
-        for (int32_t i = 0; levels->records && i < levels->count; ++i) {
-            const uint8_t *l = levels->records + 0x38 * i;
-            if (*reinterpret_cast<const uint32_t *>(l) == level_id) {
-                const char *name = *reinterpret_cast<const char *const *>(l + 0x18);
-                if (name) level = name;
-                break;
-            }
-        }
-    log("match choice: game type %d, level id %08x, package %s", type, level_id, level);
-}
-
-// The custom game create path (PS3 0x444bb0 = PS4 0x5eb830) without its room-attribute pick: that
-// part reads a list (0x14ce990 count / 0x14ce9b8 array) the PS3 network init filled; on PS4 it is
-// empty and 0x5eb830 dereferences null. The rest is the same, in the same order.
-void host_create() {
-    G<uint8_t>(kNetInfo + NI_CREATED_BY_ME) = 1;
-    fn<void(U2MP_GUEST *)(void *)>(fClearNetPlayers)(image.at<void>(kNgm));
-    G<int32_t>(kNetInfo + NI_FROM_MATCHMAKING) = 0;
-    const uint64_t menu = addr::menu_manager;
-    fn<void(U2MP_GUEST *)(void *)>(0x5cd1e0)(image.at<void>(menu));        // menu reset
-    G<uint32_t>(G<uint64_t>(menu + 0x1828) - uint64_t(uintptr_t(image.base)) + 8) = 0x69deab50;   // wait text
-    constexpr uint32_t kHostPage = 0x471007a1;
-    uint32_t &count = G<uint32_t>(menu + MENU_HANDLER_COUNT);
-    uint64_t entry = 0;
-    for (uint32_t i = 0; i < count && !entry; ++i)
-        if (G<uint32_t>(menu + MENU_HANDLERS + i * MENU_HANDLER_SIZE) == kHostPage) entry = menu + MENU_HANDLERS + i * MENU_HANDLER_SIZE;
-    if (!entry && count < kMaxPageHandlers) entry = menu + MENU_HANDLERS + (count++) * MENU_HANDLER_SIZE;
-    if (entry) {
-        G<uint32_t>(entry) = kHostPage;
-        G<uint64_t>(entry + 8) = guest(0x6093f0);
-        G<uint64_t>(entry + 0x10) = 0;
-    }
-    register_frame_handler();   // in case the reset cleared it
-    show_page(kHostPage);
-    set_state(kCreateGameWait);
-}
-
-// The multiplayer teardown (PS3 0x4386d0: score / cinema / party / session / sockets / signaling / voice
-// shut down, net player data freed, then NET_SM 0). LEAVE_MULTIPLAYER runs it (PS4 0x5eb180 only popped the
-// page), and so does page_event when PAGE_MULTIPLAYER was closed another way (pop = false then).
-void teardown(bool pop) {
-    log("leaving multiplayer");
-    unregister_frame_handler();
-    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) gamenet::detach(slot);
-    voice::stop();
-    transport.close();
-    online::on_transport_closed("Multiplayer left");
-    active = false;
-    session_clear(kParty);
-    session_clear(kMatch);
-    G<int32_t>(kNetInfo + NI_MODE) = 0;
-    G<int16_t>(kNgm + NGM_GAME) = -1;
-    fn<void(U2MP_GUEST *)(void *)>(fClearNetPlayers)(image.at<void>(kNgm));
-    progression_publish();   // unlocks bought in the menus since the last match
-    set_state(kStateOff);
-    for (auto &m : members) m = Member{};
-    if (pop) fn<void(U2MP_GUEST *)(void *)>(fPopPage)(image.at<void>(addr::menu_manager));
-}
 U2MP_GUEST void leave_multiplayer(void *, void *, void *) { teardown(true); }
-
-// Once per game frame (menu page handler or match state update, whichever runs first).
-double last_tick = -1;
-// The net clock (PS3 [0xf116d4], "Net Clock = %f": frames at +0xc, times a float = seconds; PS4
-// pointer 0x113a040). PS4 has ~40 readers of [ptr]+0xc and one reset of byte +0 (0x5e8b22), and
-// nothing that creates it: WaitReady (0x5f276c) read through NULL (test run 27). Its unit is 1/300 s:
-// PS3 "Net Clock = %f" prints +0xc times 1/300 (0xdb04c0), PS4's readers convert the same way (the
-// matchmaking status 0x65aab5 multiplies by 1/300 at 0xe62628), and remaining.cpp's kClockRate is
-// 300. Ours counts 300 ticks per real second from its creation (it used to count frames, 60 per
-// second, so every countdown read from it ran five times too slow).
-constexpr uint64_t kNetClock = 0x113a040;
-uint8_t *net_clock = nullptr;
-std::chrono::steady_clock::time_point net_clock_base;
-uint32_t own_ticks() {
-    static const std::chrono::steady_clock::time_point origin = std::chrono::steady_clock::now();
-    const auto since = std::chrono::steady_clock::now() - (net_clock ? net_clock_base : origin);
-    return uint32_t(std::chrono::duration_cast<std::chrono::microseconds>(since).count() * 3 / 10000);
-}
-void update_net_clock() {
-    if (!net_clock) {
-        if (G<uint64_t>(kNetClock)) return;   // something else made one
-        net_clock = static_cast<uint8_t *>(netheap_alloc(0x40, 16));
-        if (!net_clock) return;
-        std::memset(net_clock, 0, 0x40);
-        net_clock_base = std::chrono::steady_clock::now();
-        G<uint64_t>(kNetClock) = uint64_t(uintptr_t(net_clock));
-        log("net clock created (300 ticks per second)");
-    }
-    if (G<uint64_t>(kNetClock) == uint64_t(uintptr_t(net_clock)))
-        *reinterpret_cast<int32_t *>(net_clock + 0xc) = int32_t(own_ticks());
-}
-
-void tick() {
-    // before the active test: once made, the clock keeps running after the host is lost (not made outside MP)
-    if (active || net_clock) update_net_clock();
-    online::frame();   // room service events (no-op while online is off)
-    if (!active) return;
-    const double now = gamenet::clock();
-    if (now == last_tick) return;   // already done this frame
-    last_tick = now;
-    transport.pump(now);
-    gamenet::frame(now);
-    voice::frame();
-    transport.pump(now);
-    if (kicked || lost_host) {   // not inside the pump: closing resets the connections it walks
-        log("party: closing the transport (%s); Multiplayer starts a new one", kicked ? "kicked" : "host lost");
-        const char *why = kicked ? "kicked" : "host lost";
-        kicked = false;
-        lost_host = false;
-        for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) gamenet::detach(slot);
-        voice::stop();
-    transport.close();
-        online::on_transport_closed(why);
-        active = false;
-        for (auto &m : members) m = Member{};
-        return;
-    }
-    ++frames;
-    skip_net_fade();
-    finish_leaving_game();   // in a match the menu handler may not run
-    if (frames % 60 == 1) {
-        const int32_t st = state();
-        check_net_package(st == kChooseHostJoin || st == kCreateGameWait || st == kClientWaitPartyHost);
-    }
-    if (now >= next_rate_log) {   // proves the hook runs every frame (expect ~60 per second)
-        if (next_rate_log > 0) log("frame hook: %u calls in 10 s", frames);
-        frames = 0;
-        next_rate_log = now + 10;
-    }
-    if (frames % 120 == 7) {   // the rank badge of the party rows (PS3: room member data +8)
-        const uint8_t r = local_rank();
-        const uint8_t t = local_team();   // and the team colour (PS3: room member data +9)
-        if (hosting && members[0].used && members[0].rank != r) {
-            members[0].rank = r;
-            broadcast_roster();
-        } else if (!hosting && my_id && (r != sent_rank || t != sent_team)) {
-            send_info();
-        }
-        if (hosting && members[0].used && members[0].team != t) {
-            members[0].team = t;
-            broadcast_teams();
-        }
-    }
-    if (hosting) {   // the party leader's mode reaches the members (PS3: party data)
-        const int32_t mode = G<int32_t>(kNetInfo + NI_MODE);
-        if (mode != sent_mode) {
-            sent_mode = mode;
-            std::vector<uint8_t> b{kMode, 0, 0, 0, 0};
-            std::memcpy(b.data() + 1, &mode, 4);
-            send_session(-1, b);
-        }
-    }
-    const int32_t s = state();
-    if (s != last_state) {
-        log("net state %d -> %d", last_state, s);
-        if (s == kServerLobby || s == kCreateGameWait) netinit_dump(s == kServerLobby ? "state 16" : "state 3");
-        if (hosting && s == kCreateGameWait && last_state == kLeaveGame)
-            G<uint8_t>(kMatch + M_CREATED) = 0;   // back in the lobby: wait for the next Start Match
-        last_state = s;
-    }
-}
 
 }  // namespace
 
-// ---- session_api.h ----------------------------------------------------------------------------
+// ---- public interface -----------------------------------------------------------------------------------
+const uint8_t *package_by_id(uint32_t id) { return find_package(id); }
+
+namespace session {
+
 bool member_at(int row, uint32_t &net_id, std::string &name) {
-    int seen = 0;
-    for (const Member &m : members)
-        if (m.used && seen++ == row) {
-            net_id = m.net_id;
-            name = m.name;
-            return true;
-        }
-    return false;
+    int slot = slot_of_row(row);
+    if (slot < 0) return false;
+    net_id = members[slot].net_id;
+    name = members[slot].name;
+    return true;
 }
 
 bool member_name(uint32_t net_id, std::string &name) {
@@ -1308,15 +1323,37 @@ bool member_name(uint32_t net_id, std::string &name) {
     return false;
 }
 
+uint32_t member_rank(uint32_t net_id) {
+    for (const Member &m : members)
+        if (m.used && m.net_id == net_id) return m.rank;
+    return 0;
+}
+
 uint32_t local_id() { return active ? my_id : 0; }
 
+bool is_host() { return active && hosting; }
+
+int member_count() {
+    if (!active) return 0;
+    int n = 0;
+    for (const Member &m : members) n += m.used;
+    return n;
+}
+
+std::string local_name() {
+    const char *env = std::getenv("UNCHARTED_U2MP_NAME");
+    if (env && *env) return cut(env, 31);
+    return my_name;
+}
+
+int rank() { return local_rank(); }
+
 void send_message(int slot, const std::vector<uint8_t> &body, int except) {
-    if (active && !body.empty()) send_session(slot, body, except);
+    if (active && !body.empty()) send_raw(slot, body, except);
 }
 
 uint32_t net_ticks() {
-    const uint64_t clock = G<uint64_t>(kNetClock);
-    if (clock) return *reinterpret_cast<const uint32_t *>(uintptr_t(clock) + 0xc);
+    if (uint8_t *object = ptr_at(g(kNetClockPtr))) return get<uint32_t>(object + 0xc);
     return own_ticks();
 }
 
@@ -1324,25 +1361,60 @@ void create_match() {
     if (active && hosting) create_match_now();
 }
 
+bool kick(uint32_t net_id) {
+    if (!active || !hosting || net_id < 2 || net_id > 11 || !members[net_id - 1].used) return false;
+    log("party: kicking %s (net id %u)", members[net_id - 1].name.c_str(), net_id);
+    send_raw(int(net_id - 1), {kKick}, -1);
+    return true;
+}
+
+bool member_address(uint32_t net_id, net::Address &out) {
+    if (!active || !hosting || net_id < 2 || net_id > 11) return false;
+    return transport.peer_address(uint8_t(net_id - 1), out);
+}
+
+uint32_t net_id_of(const std::string &npid) {
+    for (const auto &entry : npids)
+        if (entry.second == npid) return entry.first;
+    return 0;
+}
+
+void set_local_name(const std::string &name) {
+    if (name.empty()) return;
+    std::string n = cut(name, 31);
+    if (n == my_name && local_name() == n) return;
+    my_name = n;
+    _putenv_s("UNCHARTED_U2MP_NAME", n.c_str());
+    log("player name: %s (RPCN)", n.c_str());
+    if (!active) return;
+    if (hosting && members[0].used) {
+        members[0].name = n;
+        refresh_sessions();
+        broadcast_roster();
+    } else if (!hosting && my_id != 0) {
+        send_info();
+    }
+}
+
 void online_reopen(net::Link *link, const net::Address *owner) {
-    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) gamenet::detach(slot);
+    for (int s = 0; s < kSlots; ++s) gamenet::detach(uint8_t(s));
     transport.close();
-    for (auto &m : members) m = Member{};
-    kicked = lost_host = false;
-    host_net_id = 1;
+    clear_members();
+    kicked = host_lost = false;
+    host_id = 1;
     rehost_pending = false;
     if (!owner) {
         hosting = transport.host_link(link);
         my_id = 1;
-        members[0] = Member{true, 1, my_name, local_rank()};
-        session_set(kParty, kRoomContext, 1, 1);
-        session_members(kParty);
+        members[0] = Member{true, 1, my_name, uint8_t(local_rank()), 0};
+        set_session(kPartySession, kCtx, 1, 1);
+        publish(kPartySession);
         log("online: transport switch: hosting a new party on the online link");
     } else {
         hosting = false;
         my_id = 0;
-        session_set(kParty, kRoomContext, 0xfff, 1);
-        session_members(kParty);
+        set_session(kPartySession, kCtx, 0xfff, 1);
+        publish(kPartySession);
         transport.join_link(link, *owner);
         log("online: transport switch: joining the room owner over the online link");
     }
@@ -1356,30 +1428,8 @@ void online_match_ready(uint64_t room_id) {
         return;
     }
     log("online: Start Match goes on (match room %llx)", (unsigned long long)room_id);
-    G<uint8_t>(kMatch + M_CREATED) = 1;   // 0x6093f0: 3 -> 10 -> 16 -> PlayTask("deathmatch")
-    send_session(-1, follow_body());
-}
-
-void set_local_name(const std::string &name) {
-    if (name.empty()) return;
-    const std::string n = name.substr(0, 31);
-    if (n == my_name && local_name() == n) return;
-    my_name = n;
-    _putenv_s("UNCHARTED_U2MP_NAME", n.c_str());   // local_name() and progression read it
-    log("player name: %s (RPCN)", n.c_str());
-    if (!active) return;
-    if (hosting && members[0].used) {
-        members[0].name = n;
-        refresh_sessions();
-        broadcast_roster();
-    } else if (!hosting && my_id) {
-        send_info();
-    }
-}
-
-bool member_address(uint32_t net_id, net::Address &out) {
-    if (!active || !hosting || net_id < 2 || net_id > net::kMaxPeers + 1) return false;
-    return transport.peer_address(uint8_t(net_id - 1), out);
+    g(kMatchSession)[0x99] = 1;
+    send_raw(-1, follow_body(), -1);
 }
 
 void online_migrated(bool host, bool mm) {
@@ -1388,144 +1438,103 @@ void online_migrated(bool host, bool mm) {
         matchmaking::on_migrated(host);
         return;
     }
-    G<uint8_t>(kMatch + M_CREATED) = 0;
-    session_clear(kMatch);
-}
-
-uint32_t net_id_of(const std::string &npid) {
-    for (const auto &e : npid_of_id)
-        if (e.second == npid) return e.first;
-    return 0;
-}
-
-// Host migration in a running match (PS3: WaitReady turned OWNER_AUTO_GRANT on; RoomOwnerChanged -> slot 6
-// 0x440334 = PS4 0x5e9f30: NGM host = the owner's tracker, event 0x15f1cf05 -> the reset round under the new
-// host). Off in co-op (PS3 0x4a5548: game types 4, 8, 9, 12) and before the match runs.
-bool match_migration_ok() {
-    if (!active || hosting || !online::active()) return false;
-    if (const char *v = std::getenv("UNCHARTED_U2MP_HOST_MIGRATION"); v && *v == '0') return false;
-    if (state() != 26) return false;   // NET_SM UPDATE: the match is running
-    struct Table { int32_t count; int32_t pad; uint8_t *records; };
-    const auto *games = fn<Table *(U2MP_GUEST *)(uint32_t)>(0xa15e70)(0x3b9a067d);   // *net-games*
-    const int16_t game = G<int16_t>(kNgm + NGM_GAME);
-    if (games && games->records && game >= 0 && game < games->count) {
-        const int32_t type = *reinterpret_cast<const int32_t *>(games->records + 0x90 * size_t(game) + 0x0c);
-        if (type == 4 || type == 8 || type == 9 || type == 12) return false;
-    }
-    return true;
-}
-
-void online_rehost(net::Link *link, const net::Address *owner, uint32_t new_host) {
-    const uint32_t old_host = host_net_id;
-    log("match migration: host net id %u left; net id %u hosts now%s", old_host, new_host, owner ? "" : " (this PC)");
-    for (uint8_t slot = 0; slot <= net::kMaxPeers; ++slot) gamenet::detach(slot);
-    transport.close();
-    for (auto &m : members) m = Member{};
-    kicked = lost_host = false;
-    host_net_id = new_host;
-    if (!owner) {
-        hosting = transport.host_link(link);
-        transport.reserve_slot(uint8_t(my_id - 1));   // newcomers never get our old slot (= our net id)
-        members[0] = Member{true, my_id, my_name, local_rank(), local_team()};
-    } else {
-        hosting = false;
-        transport.join_link(link, *owner, uint8_t(my_id - 1));   // the same slot = the same net id
-    }
-    session_set(kParty, kRoomContext, my_id, new_host);
-    session_set(kMatch, kRoomContext, my_id, new_host);
-    player_left(old_host);   // the old host's tracker goes (PS3 NetEventPlayerLeft)
-    active = true;
-    sent_mode = -1;
-    if (!owner) {
-        session_members(kMatch);
-        fn<void(U2MP_GUEST *)(void *)>(0x5e9f30)(nullptr);   // NGM host = us, the reset round starts
-    } else {
-        rehost_pending = true;
-    }
+    g(kMatchSession)[0x99] = 0;
+    clear_session(kMatchSession);
 }
 
 void online_host_gone() {
     if (!active || hosting) return;
     log("party: lost the host (nobody took over)");
-    G<uint8_t>(kNetInfo + NI_ERROR) = 1;
-    lost_host = true;
+    g(kNetInfo)[0x1c] = 1;
+    host_lost = true;
 }
 
-uint32_t member_rank(uint32_t net_id) {
-    for (const Member &m : members)
-        if (m.used && m.net_id == net_id) return m.rank;
-    return 0;
-}
-
-bool is_host() { return active && hosting; }
-
-std::string local_name() {
-    if (const char *n = std::getenv("UNCHARTED_U2MP_NAME"); n && *n) return std::string(n).substr(0, 31);
-    return my_name;
-}
-
-int member_count() {
-    int n = 0;
-    if (active)
-        for (const Member &m : members) n += m.used ? 1 : 0;
-    return n;
-}
-
-bool kick(uint32_t net_id) {
-    if (!active || !hosting || net_id < 2 || net_id > net::kMaxPeers + 1) return false;
-    const uint8_t slot = uint8_t(net_id - 1);
-    if (!members[slot].used) return false;
-    log("party: kicking %s (net id %u)", members[slot].name.c_str(), net_id);
-    send_session(slot, {kKick});
+bool match_migration_ok() {
+    if (!active || hosting || !online::active()) return false;
+    const char *env = std::getenv("UNCHARTED_U2MP_HOST_MIGRATION");
+    if (env && env[0] == '0') return false;
+    if (net_sm() != 26) return false;
+    Table games = table_of(lookup(kNetGamesId));
+    int16_t game = current_game();
+    if (games.records && game >= 0 && game < games.count && coop_type(get<int32_t>(games.records + game * 0x90 + 0x0c)))
+        return false;
     return true;
 }
 
-void install(int &installed) {
-    if (!gamenet::install()) return;
-    struct { uint64_t at; void *fn; const char *name; } hooks[] = {
-        {cbMultiplayer, reinterpret_cast<void *>(&multiplayer_button), "BUTTON_MULTIPLAYER"},
-        {qPartyRows, reinterpret_cast<void *>(&party_rows), "party roster query"},
-        {qPlayerRows, reinterpret_cast<void *>(&player_rows), "player roster query"},
-        {cbStartMatch, reinterpret_cast<void *>(&start_match), "BUTTON_MULTIPLAYER_STARTMATCH"},
-        {cbLeaveMultiplayer, reinterpret_cast<void *>(&leave_multiplayer), "LEAVE_MULTIPLAYER"},
-    };
-    // LEAVE_MULTIPLAYER is not a stub: lea rdi, [menu manager]; jmp PopPage.
-    static const unsigned char leave_bytes[] = {0x48, 0x8d, 0x3d};
-    for (auto &h : hooks) {
-        const bool expected = h.at == cbLeaveMultiplayer ? image.matches(h.at, leave_bytes, sizeof leave_bytes)
-                                                         : is_ret_stub(h.at);
-        if (!expected) {
-            log("%s at 0x%llx: not the stripped function this port expects, left alone", h.name,
-                (unsigned long long)h.at);
-            continue;
-        }
-        if (replace_function(h.at, 5, h.fn, h.name)) ++installed;
+void online_rehost(net::Link *link, const net::Address *owner, uint32_t new_host_net_id) {
+    uint32_t old = host_id;
+    log("match migration: host net id %u left; net id %u hosts now%s", old, new_host_net_id,
+        owner ? "" : " (this PC)");
+    for (int s = 0; s < kSlots; ++s) gamenet::detach(uint8_t(s));
+    transport.close();
+    clear_members();
+    kicked = host_lost = false;
+    host_id = new_host_net_id;
+    if (!owner) {
+        hosting = transport.host_link(link);
+        transport.reserve_slot(uint8_t(my_id - 1));   // our old slot keeps our net id for us
+        uint8_t r = uint8_t(local_rank());
+        uint8_t t = uint8_t(local_team());
+        members[0] = Member{true, my_id, my_name, r, t};
+    } else {
+        hosting = false;
+        transport.join_link(link, *owner, uint8_t(my_id - 1));
     }
-    const uint64_t base = uint64_t(uintptr_t(image.base));
-    bool states_ok = true;
-    for (const auto &s : kStateUpdates) states_ok = states_ok && G<uint64_t>(s.slot) == base + s.update;
-    if (!states_ok) {
-        log("match state vtables differ: no per-frame network during matches");
-        return;
-    }
-    for (size_t i = 0; i < kStateCount; ++i) {
-        original_update[i] = reinterpret_cast<StateUpdateFn>(base + kStateUpdates[i].update);
-        G<uint64_t>(kStateUpdates[i].slot) = uint64_t(uintptr_t(state_update_fns[i]));
-    }
-    log("match state updates wrapped (%zu states)", kStateCount);
-    ++installed;
-    // Diagnostics (test run 22: LoadLevels -> Leave): the match session's slot 6 (vtable 0x103fa40
-    // +0x30 = 0x5e9f10) sets the abort byte 0x113a270; log who calls it.
-    if (G<uint64_t>(kAbortSlot) == base + 0x5e9f10) {
-        original_abort = reinterpret_cast<AbortFn>(base + 0x5e9f10);
-        G<uint64_t>(kAbortSlot) = uint64_t(uintptr_t(&abort_logged));
+    set_session(kPartySession, kCtx, my_id, new_host_net_id);
+    set_session(kMatchSession, kCtx, my_id, new_host_net_id);
+    player_left(old);
+    active = true;
+    sent_mode = -1;
+    if (!owner) {
+        publish(kMatchSession);
+        guest<void(U2MP_GUEST *)(void *)>(kOwnerChanged)(nullptr);
+    } else {
+        rehost_pending = true;   // finished by the joined event of the new host
     }
 }
 
-int rank() { return local_rank(); }
+// ---- install ------------------------------------------------------------------------------------------
+void install(int &installed) {
+    if (!gamenet::install()) return;
 
-}  // namespace u2mp::session
+    struct Replacement {
+        uint64_t offset;
+        const char *name;
+        void *host;
+    };
+    const Replacement replacements[] = {
+        {0x5eb160, "BUTTON_MULTIPLAYER", reinterpret_cast<void *>(&button_multiplayer)},
+        {0x659bb0, "party roster query", reinterpret_cast<void *>(&roster_query)},
+        {0x659bc0, "player roster query", reinterpret_cast<void *>(&roster_query)},
+        {0x5eb780, "BUTTON_MULTIPLAYER_STARTMATCH", reinterpret_cast<void *>(&button_start_match)},
+        {0x5eb180, "LEAVE_MULTIPLAYER", reinterpret_cast<void *>(&leave_multiplayer)},
+    };
+    static const unsigned char lea_rdi[] = {0x48, 0x8d, 0x3d};
+    for (const Replacement &r : replacements) {
+        bool expected = r.offset == 0x5eb180 ? image.matches(r.offset, lea_rdi, sizeof lea_rdi) : is_ret_stub(r.offset);
+        if (!expected) {
+            log("%s at 0x%llx: not the stripped function this port expects, left alone", r.name,
+                (unsigned long long)r.offset);
+            continue;
+        }
+        if (replace_function(r.offset, 5, r.host, r.name)) ++installed;
+    }
 
-namespace u2mp {
-const uint8_t *package_by_id(uint32_t id) { return session::find_package(id); }
+    for (const StateSlot &s : kStates)
+        if (get<uint64_t>(g(s.slot)) != addr_of(g(s.original))) {
+            log("match state vtables differ: no per-frame network during matches");
+            return;
+        }
+    for (size_t i = 0; i < 10; ++i) {
+        originals[i] = reinterpret_cast<UpdateFn>(g(kStates[i].original));
+        put<uint64_t>(g(kStates[i].slot), addr_of(reinterpret_cast<void *>(kWrappers[i])));
+    }
+    log("match state updates wrapped (%zu states)", size_t(10));
+    ++installed;
+
+    if (get<uint64_t>(g(kAbortSlot)) == addr_of(g(kAbortOriginal)))
+        put<uint64_t>(g(kAbortSlot), addr_of(reinterpret_cast<void *>(&abort_wrapper)));
+}
+
+}  // namespace session
 }  // namespace u2mp

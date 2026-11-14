@@ -1528,9 +1528,9 @@ Converter::Converter(const std::vector<std::string> &schemas) : p(std::make_uniq
 }
 Converter::~Converter() = default;
 
-Bytes Converter::convert(const Bytes &d3, std::map<std::string, int64_t> *rep_) const {
-    std::map<std::string, int64_t> own;
-    std::map<std::string, int64_t> &rep = rep_ ? *rep_ : own;
+Bytes Converter::convert(const Bytes &d3, Counts *rep_) const {
+    Counts own;
+    Counts &rep = rep_ ? *rep_ : own;
     const Mod m(d3);
     if (!m.be) throw Stop("ValueError: input is not a PS3 module");
     const Impl &I = *p;

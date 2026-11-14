@@ -132,7 +132,7 @@ struct Choice {
     fs::path tmpl;
     size_t shared, total;
 };
-Choice choose_template(const fs::path &ps3_path, const fs::path &actor_dir) {
+Choice choose_template(const fs::path &ps3_path, const fs::path &actor_dir, const std::string &exclude = "") {
     const U2Src src(ps3_path);
     const uint32_t sk = skeleton_sid(src.p);
     const std::set<std::string> keys = material_keys(src);
@@ -140,7 +140,7 @@ Choice choose_template(const fs::path &ps3_path, const fs::path &actor_dir) {
     std::optional<std::tuple<size_t, size_t, long long>> best;
     std::string name;
     for (const auto &[n, t] : template_index(actor_dir, false)) {
-        if (t.skel != sk) continue;
+        if (t.skel != sk || n == exclude) continue;
         const auto score = std::make_tuple(common(keys, t.mats), common_prefix(n, base), -(long long)t.size);
         if (!best || score > *best) best = score, name = n;
     }
@@ -205,36 +205,40 @@ std::vector<std::string> convert_prop(const fs::path &ps3_path, const fs::path &
 }
 
 // ------------------------------------------------------------------------------------------------ the loader's view
-// what the PS4 loader resolves (ps4check): pak structure, the VRAM descriptors (format, tiled size, id = id of the
-// short path, type 1), the texture table, the effect table, every material effect and texture binding of GEOMETRY_1;
-// plus the prototypes' scope-3 cbuffer capacity. Unknown item types and env-reflection cube maps are retail too.
-std::vector<std::string> check(const fs::path &path) {
-    const Pak p(path);
+}  // namespace
+
+// what the PS4 loader resolves: pak structure, known item types, the VRAM descriptors (format, tiled size, id = id of
+// the short path, type 1), the texture table, the effect table (version 6 or 7, entries pointing at EFFECT items), and
+// every texture entry, material effect and texture binding of GEOMETRY_1 (version 0x10)
+std::vector<std::string> ps4check(const Pak &p) {
+    static const std::set<std::string> KNOWN = {"TEXTURE_TABLE", "VRAM_DESC", "RAW_DATA", "EFFECT_TABLE", "EFFECT", "GEOMETRY_1", "LEVEL_INFO_1",
+                                                "LEVEL_PATS_1", "DEBUG_INFO_1", "ATTACHED_FG_MAPPING", "TAG_FLOAT", "TAG_INT", "SPLINE_TABLE"};
     std::vector<std::string> errs = p.validate();
-    std::map<uint32_t, bool> by_hash;
+    for (const PakItem &it : p.items)
+        if (!KNOWN.count(it.type)) errs.push_back("unknown item type " + it.type);
+    std::set<uint32_t> by_hash;
     for (const PakTexture &t : p.textures()) {
         const auto f = tc::DXGI.find(t.format);
         if (f == tc::DXGI.end()) {
-            errs.push_back(fmt("unknown format %#x %s", t.format, t.path.c_str()));
+            errs.push_back(fmt("unknown format 0x%x %s", t.format, t.path.c_str()));
             continue;
         }
         const bool comp = starts(f->second.first, "BC");
         const uint64_t exp = tc::ps4_tiled_size(t.width, t.height, t.mips, f->second.second, comp);
-        if (exp != t.vramSize && t.path.find("-env-reflection") == std::string::npos)
-            errs.push_back(fmt("tiled size %#x != %#llx for %s", t.vramSize, (unsigned long long)exp, t.path.c_str()));
+        if (exp != t.vramSize) errs.push_back(fmt("tiled size 0x%x != 0x%llx for %s", t.vramSize, (unsigned long long)exp, t.path.c_str()));
         const size_t k = t.path.find("texture2/");
         const std::string shrt = k == std::string::npos ? t.path : t.path.substr(k + 9);
         if (u3::sid(bg::utf8_of(shrt)) != t.hash) errs.push_back("hash != sid(short) " + shrt);
         if (t.type != 1) errs.push_back(fmt("type %u", t.type));
-        by_hash[t.hash] = true;
+        by_hash.insert(t.hash);
     }
     for (const PakItem &tt : p.items_of("TEXTURE_TABLE")) {
         const uint64_t b = tt.data_off();
         const uint32_t n = p.pu32(tt.page, b);
-        const Ref hp = bg::need(p, tt.page, b + 8), np_ = bg::need(p, tt.page, b + 0x10), dp = bg::need(p, tt.page, b + 0x18);
+        const ORef hp = bg::res(p, tt.page, b + 8), np_ = bg::res(p, tt.page, b + 0x10), dp = bg::res(p, tt.page, b + 0x18);
         for (uint32_t i = 0; i < n; i++) {
-            const uint32_t h = p.pu32(hp.first, hp.second + 4ull * i);
-            const Ref nm = bg::need(p, np_.first, np_.second + 8ull * i), d = bg::need(p, dp.first, dp.second + 8ull * i);
+            const uint32_t h = p.pu32(bg::need(hp).first, hp->second + 4ull * i);
+            const Ref nm = bg::need(p, bg::need(np_).first, np_->second + 8ull * i), d = bg::need(p, bg::need(dp).first, dp->second + 8ull * i);
             const uint32_t dh = rd32le(p.d, p.pbase(d.first) + d.second + 0x14);
             if (dh != h || u3::sid(bg::utf8_of(p.pstr(nm.first, nm.second))) != h) errs.push_back(fmt("TEXTURE_TABLE entry %u inconsistent", i));
         }
@@ -244,43 +248,44 @@ std::vector<std::string> check(const fs::path &path) {
         const uint64_t b = et.data_off();
         const uint32_t n = p.pu32(et.page, b), ver = p.pu32(et.page, b + 4);
         if (ver != 6 && ver != 7) errs.push_back(fmt("EFFECT_TABLE version %u", ver));
-        const Ref arr = bg::need(p, et.page, b + 8);
+        const ORef arr = bg::res(p, et.page, b + 8);
+        const Ref fx = bg::need(p, et.page, b + 0x10);   // the effect names
+        const uint32_t nfx = p.pu32(fx.first, fx.second);
+        for (uint32_t k = 0; k < nfx; k++) (void)bg::need(p, fx.first, fx.second + 8 + 8ull * k);
         for (uint32_t i = 0; i < n; i++) {
-            const uint64_t e = arr.second + 0x18ull * i;
-            const Ref ep = bg::need(p, arr.first, e);
+            const uint64_t e = bg::need(arr).second + 0x18ull * i;
+            const Ref ep = bg::need(p, arr->first, e);
             if (p.item_at(ep.first, uint32_t(ep.second - 0x20)).type != "EFFECT") errs.push_back(fmt("effect entry %u does not point at an EFFECT", i));
-            eff.insert(rd64le(p.d, p.pbase(arr.first) + e + 0x10));
+            eff.insert(rd64le(p.d, p.pbase(arr->first) + e + 0x10));
         }
     }
     for (const PakItem &g : p.items_of("GEOMETRY_1")) {
         const uint32_t pg = g.page;
         const uint64_t b = g.data_off();
-        if (p.pu32(pg, b) != 0x10) errs.push_back(fmt("GEOMETRY_1 version %#x", p.pu32(pg, b)));
+        if (p.pu32(pg, b) != 0x10) errs.push_back(fmt("GEOMETRY_1 version 0x%x", p.pu32(pg, b)));
         const uint32_t ntex = p.pu32(pg, b + 0x38);
+        const ORef tp = bg::res(p, pg, b + 0x40);
         std::set<uint32_t> texmap;
-        if (ntex) {
-            const Ref tp = bg::need(p, pg, b + 0x40);
-            for (uint32_t i = 0; i < ntex; i++) {
-                const uint64_t e = tp.second + 0x28ull * i;
-                const Ref fr = bg::need(p, tp.first, e);
-                const std::string full = p.pstr(fr.first, fr.second);
-                const uint32_t h = p.pu32(tp.first, e + 8);
-                texmap.insert(u3::sid(bg::utf8_of(full)));
-                if (!by_hash.count(h)) errs.push_back(fmt("geometry texture %s (%08x) not in this pak", full.c_str(), h));
-            }
+        for (uint32_t i = 0; i < ntex; i++) {
+            const uint64_t e = bg::need(tp).second + 0x28ull * i;
+            const Ref fr = bg::need(p, tp->first, e);
+            const std::string full = p.pstr(fr.first, fr.second);
+            const uint32_t h = p.pu32(tp->first, e + 8);
+            texmap.insert(u3::sid(bg::utf8_of(full)));
+            if (!by_hash.count(h)) errs.push_back(fmt("geometry texture %s (%08x) not in this pak", full.c_str(), h));
         }
         const uint32_t nmat = p.pu32(pg, b + 0x48);
-        const Ref mp = bg::need(p, pg, b + 0x50);
+        const ORef mp = bg::res(p, pg, b + 0x50);
         for (uint32_t i = 0; i < nmat; i++) {
-            const uint64_t m = mp.second + 0x48ull * i;
-            const Ref nr = bg::need(p, mp.first, m);
+            const uint64_t m = bg::need(mp).second + 0x48ull * i;
+            const Ref nr = bg::need(p, mp->first, m);
             const std::string name = p.pstr(nr.first, nr.second);
-            if (const ORef eh = bg::res(p, mp.first, m + 0x18)) {
+            if (const ORef eh = bg::res(p, mp->first, m + 0x18)) {
                 const uint64_t h = std::stoull(p.pstr(eh->first, eh->second), nullptr, 16);
                 if (!eff.count(h)) errs.push_back(fmt("material %s: effect %016llX missing", name.c_str(), (unsigned long long)h));
             }
-            const uint32_t nb = p.pu32(mp.first, m + 0x38);
-            const ORef bp = bg::res(p, mp.first, m + 0x28);
+            const uint32_t nb = p.pu32(mp->first, m + 0x38);
+            const ORef bp = bg::res(p, mp->first, m + 0x28);
             for (uint32_t k = 0; k < nb; k++) {
                 const Ref fr = bg::need(p, bg::need(bp).first, bp->second + 0x28ull * k + 0x10);
                 const std::string full = p.pstr(fr.first, fr.second);
@@ -288,6 +293,18 @@ std::vector<std::string> check(const fs::path &path) {
             }
         }
     }
+    return errs;
+}
+
+namespace {
+
+// ps4check without what retail U2 PS4 skins show too (unknown item types, the tiled size of env-reflection cube maps),
+// plus the prototypes' scope-3 cbuffer capacity
+std::vector<std::string> check(const fs::path &path) {
+    const Pak p(path);
+    std::vector<std::string> errs;
+    for (const std::string &e : ps4check(p))
+        if (!starts(e, "unknown item type") && !(starts(e, "tiled size") && e.find("-env-reflection") != std::string::npos)) errs.push_back(e);
     // prototypes stating fewer scope-3 cbuffers than the pak declares
     Bytes copy = p.d;
     fix_cbuffer_capacity(copy);
@@ -341,7 +358,7 @@ Converted convert_actor(const Context &c, const Entry &entry, const fs::path &sr
                 const fs::path tsrc = c.work / "src" / P(basename(cands[0]->key));
                 const Bytes td = cands[0]->read();
                 if (!(fs::is_regular_file(tsrc, ec) && fs::file_size(tsrc, ec) == td.size())) write_bytes(tsrc, td);
-                std::variant<std::vector<std::string>, std::string> r;
+                std::variant<TwinStats, std::string> r;
                 try {
                     r = twin_build(src, tsrc, c.ps4->files.at("actor27/" + t->second + ".pak"), tmp);
                 } catch (const std::exception &e) {   // the PS3 conversion still works: noted, not fatal
@@ -349,12 +366,12 @@ Converted convert_actor(const Context &c, const Entry &entry, const fs::path &sr
                     fs::remove(S(tmp) + ".conv", ec);
                     r = std::string("twin build error ") + std::string(e.what()).substr(0, 200);
                 }
-                if (const auto *notes = std::get_if<std::vector<std::string>>(&r)) {
+                if (const auto *st = std::get_if<TwinStats>(&r)) {
                     const auto errs = check(tmp);
                     if (errs.empty()) {
                         fs::rename(tmp, out, ec);
                         if (ec) throw std::runtime_error("cannot write " + S(out) + ": " + ec.message());
-                        return {rel, *notes};
+                        return {rel, {st->note()}};
                     }
                     fs::remove(tmp, ec);
                     std::string s;
@@ -374,5 +391,11 @@ Converted convert_actor(const Context &c, const Entry &entry, const fs::path &sr
     notes.push_back(fmt("template %s (%zu of %zu materials by name)", S(ch.tmpl.filename()).c_str(), ch.shared, ch.total));
     return {rel, notes};
 }
+
+// ------------------------------------------------------------------------------------------------ for validate.cpp
+fs::path skin_template(const fs::path &ps3_path, const fs::path &actor_dir, const std::string &exclude) {
+    return choose_template(ps3_path, actor_dir, exclude).tmpl;
+}
+std::vector<std::string> actor_check(const fs::path &path) { return check(path); }
 
 }  // namespace u2imp

@@ -1,8 +1,8 @@
 # PORT-RENDER: the first-frame crash of a match (test runs 35-38)
 
 Code: `gow3_pc/src/u2mp/render.cpp` (`install_render`, chained from `install_nullsites`, so install.cpp
-needs no new line), `u2mp/patcher/u2conv/u2actor.py` (`fix_cbuffer_capacity`, `cbuffer_capacity_errors`),
-`u2mp/patcher/u2conv/u2twin.py` (calls it after a twin build). Addresses are Uncharted 2 PS4 1.02 image
+needs no new line), `u2mp/patcher/importer/actor.cpp` (`fix_cbuffer_capacity`) and `actors.cpp` (the capacity check),
+`twin.cpp` (calls it after a twin build). Addresses are Uncharted 2 PS4 1.02 image
 offsets.
 
 ## Symptom
@@ -55,7 +55,7 @@ The converted mp-hero.pak declares exactly 4 scope-3 cbuffers (records `{ptr mem
 | 0x33d5c036 | 0xf1b17bc2 | 0x10 | -> run 36 entry[0].res |
 | 0x08d9a770 | 0x6f1c0396 (`general`) | 0x60 | -> run 36 entry[0].buffer |
 
-and every prototype states capacity 2: ps4actor.py (the U3 actor converter, `protob.u32(2).u32(1)`)
+and every prototype states capacity 2: ps4actor (the U3 actor converter, `protob.u32(2).u32(1)`)
 writes a fixed 2. Retail U2 actors state the number of distinct scope-3 cbuffers of their pak: of 1139
 retail actor27 paks, 1138 have max(prototype+0x30) equal to that number (mp-hero-elena 4, costume-hero-nd
 4, mp-hero-merc 3, 9mm-casing 3) and none has less (sullivan.pak states 4 for 5 records). Of the 103
@@ -86,7 +86,7 @@ nothing PS3 registered that PS4 stripped: PS3 1.10 has no equivalent, the cause 
 below the number of distinct scope-3 cbuffer records of the pak gets that number (one u32 in place, no
 relocation). `u2twin.build` calls it again on its output (the twin's LOD0 words are the retail ones for
 the twin's materials, but a skin keeps converted materials and LOD1-3 keep the converter's value).
-`u2actor.check`, run after every actor, skin, twin and prop conversion (and by `validate.py skins`),
+`u2actor.check`, run after every actor, skin, twin and prop conversion (and by `--validate` skins),
 fails a pak whose prototypes state fewer.
 
 ### Engine (any asset that still states too few)
@@ -111,8 +111,8 @@ cbuffer key and id.
 
 ## Re-run
 
-All actor27 imports (skins, twins, props). The step hash covers u2actor.py / u2twin.py, but files are
-skipped per item by `done_before` unless `ACTOR_VERSION` in u2mp_import.py changes, so that constant has
+All actor27 imports (skins, twins, props). The step hash covers the importer, but files are
+skipped per item by `done_before` unless `ACTOR_VERSION` in u2import.cpp changes, so that constant has
 to be bumped (e.g. `'u2ag2'`), or the import run with `--force`. Levels (pak22) need nothing.
 
 ## Review notes (2026-11-08)

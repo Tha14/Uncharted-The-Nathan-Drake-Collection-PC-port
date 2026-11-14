@@ -1,289 +1,311 @@
-// u2mp spawn: where the multiplayer players spawn (u2mp/docs/PORT-SPAWN.md).
+// u2mp spawn: lets GetSpawnLocator find a spawner even when the level's spawner package is missing.
 //
-// GetSpawnLocator 0x662fa0 (PS3 0x4c8568, net-player-tracker.cpp) is bool (Locator *out, u32 spawner
-// id, int mode). It asks 0x644130 (PS3 0x49cee8) for the package of the net game's level record (the
-// "<map>-pak" package, e.g. gompa-multi-pak) and binary-searches that package's spawner group
-// (+0x9a0; PS3 +0x4e4 via 0xb6e10) for the id. Missing -> "Missing spawner '%s' trying to spawn
-// player" and int 0x41 (0x6630dc).
+// GetSpawnLocator (image 0x662fa0) asks for the package named by the net game's level record
+// ("<map>-pak") and looks the wanted spawner id up in that package's spawner group. Those packages
+// are often not installed, and the lookup then asserts. We take over that one call: it returns the
+// first package whose spawner group really holds the id (the level package, the map package, then
+// every loaded package). When none does, we pick a sensible spawner ourselves (an online spawner, a
+// map spawner, or one at the origin) and return a package of our own whose group holds exactly
+// {id -> that spawner}. The game then builds the locator from it as usual.
 //
-// The id is a spawner sid chosen by the initial spawn 0x644220 (PS3 0x4a1eb0) / respawn 0x642d20
-// (PS3 0x4a6008): spawners of the "<map>-pak" package tagged online-spawner (5bfae217) = 1, team
-// (d50bc34b) = the tracker's team (+0x134) or -1, start-spawner (33364361) at match start. Both inline
-// the same "<map>-pak" lookup and return 0 when that package is not loaded.
-//
-// The "<map>-pak" packages ("<map>-pak-ingame", file <map>-pak-ingame10.pak: the online-spawner-*,
-// net-flag*, net-territory-*, ss-battle-manager-* spawners of each map) are not part of the PS3 disc
-// or of PS4: PS3 downloaded them from the server (net-patch9.bin maps "<map>-pak" to the package
-// "1-<map>-pak-ingame"; the files sit in the PS3 game data BCES00757DATA2/USRDIR/build/main/pak22/
-// 1-<map>-pak-ingame10.pak). Only stage-multi-pak-ingame10.pak ships on PS4 (not in pak22_ps4.txt).
-// The map packages ("<map>", "<map>-ingame") hold no online spawners at all. The real fix is the
-// import (PORT-SPAWN.md); this file makes the lookup never assert:
-//
-// 0x662fd0 (call 0x644130, the only caller) -> spawn_package(ngm, id): a package whose spawner group
-// holds the id ("<map>-pak", then the map, then any loaded package). When none has it, a package of
-// our own whose group holds one entry {id, fallback spawner}, the fallback being, in order, an
-// online-spawner of the "<map>-pak" package, of any loaded package, a pickup / npc spawner of the map,
-// any spawner of the map, or a spawner of our own at the origin. The guest then computes the locator
-// from that spawner (0x4bdfe0) as usual.
+// Reimplemented from the behaviour description u2mp/docs/spec/gameplay.md.
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include "u2mp_internal.h"
 
 namespace u2mp {
+void install_spawn(int &installed);
+
 namespace {
 
-constexpr uint64_t kPackageTable = 0x1130390, kNgm = 0x113b760, kNgmGame = 0x1ca0, kDcLookup = 0xa15e70;
-constexpr uint64_t kGetSpawnLocatorCall = 0x662fd0, kLevelRecordPackage = 0x644130;
-constexpr uint32_t kNetGames = 0x3b9a067d, kLevels = 0x0dec97a4;
-// spawner tags (sid of the names); team d50bc34b is not used here: GetSpawnLocator has no tracker
-constexpr uint32_t kTagOnlineSpawner = 0x5bfae217, kTagStartSpawner = 0x33364361;
-constexpr size_t kGroup = 0x9a0;   // package -> spawner group (PS3 level +0x4e4)
+constexpr uint64_t kCallSite = 0x662fd0;
+constexpr uint64_t kLevelPackage = 0x644130;    // the call's original target
+constexpr uint64_t kNgm = 0x113b760;
+constexpr uint64_t kGameIndex = kNgm + 0x1ca0;
+constexpr uint64_t kPackageTable = 0x1130390;
+constexpr uint64_t kLookupPointer = 0xa15e70;
 
-// PS4 SPAWNER_GROUP (u3mp paktools ps4ingame.py): {u64 0, Spawner **all, u32 n, pad, Entry *sorted, u32 n}
-struct Entry {
-    uint32_t id;
-    uint32_t pad;
-    const uint8_t *spawner;
-};
-struct Group {
-    uint64_t zero;
-    const uint8_t *const *all;
-    int32_t count;
-    uint32_t pad;
-    const Entry *sorted;
-    int32_t sorted_count;
-    uint32_t pad2;
-};
-static_assert(offsetof(Group, all) == 8 && offsetof(Group, count) == 0x10 && offsetof(Group, sorted) == 0x18 &&
-                  offsetof(Group, sorted_count) == 0x20, "spawner group layout (0x662fe5, 0x6443a8)");
-// PS4 spawner: pos +0, quat +0x10, name +0x20, sid +0x28, parent +0x60 (0x4bdfe0), tags +0x68
-// ({Tag *entries, u32 n}, 0x6443ee), tag {u32 key, pad, Value *}, value {u16 type, u16 size, pad, data *}.
-constexpr size_t kSpawnerName = 0x20, kSpawnerId = 0x28, kSpawnerTags = 0x68, kSpawnerSize = 0x90;
-constexpr int32_t kMaxCount = 100000;
+constexpr uint32_t kNetGames = sid("*net-games*");
+constexpr uint32_t kLevels = 0x0dec97a4;    // id of the *levels* table (not the plain CRC of its name)
+constexpr uint32_t kOnlineSpawner = sid("online-spawner");
+constexpr uint32_t kStartSpawner = sid("start-spawner");
+static_assert(kNetGames == 0x3b9a067du, "net-games id");
+static_assert(kOnlineSpawner == 0x5bfae217u && kStartSpawner == 0x33364361u, "tag keys");
 
-const Group *group_of(const uint8_t *pkg) {
-    return pkg ? *reinterpret_cast<const Group *const *>(pkg + kGroup) : nullptr;
+constexpr uint64_t kGroupOfPackage = 0x9a0;
+constexpr int32_t kMaxGroupCount = 100000;
+constexpr int32_t kMaxTagCount = 4096;
+constexpr int32_t kMaxBuckets = 1 << 20;
+constexpr int kMaxNodesPerBucket = 4096;
+
+template <typename T> T peek(const unsigned char *p) {
+    T v;
+    std::memcpy(&v, p, sizeof v);
+    return v;
 }
+const unsigned char *pointer_at(const unsigned char *p) {
+    return reinterpret_cast<const unsigned char *>(peek<uint64_t>(p));
+}
+template <typename T> void poke(unsigned char *p, T v) { std::memcpy(p, &v, sizeof v); }
 
-const uint8_t *find_in(const uint8_t *pkg, uint32_t id) {
-    const Group *g = group_of(pkg);
-    if (!g || !g->sorted || g->sorted_count <= 0 || g->sorted_count > kMaxCount) return nullptr;
-    int32_t lo = 0, hi = g->sorted_count;   // the guest's own search (0x662fee): sorted by id
-    while (lo < hi) {
-        const int32_t mid = lo + (hi - lo) / 2;
-        if (g->sorted[mid].id < id) lo = mid + 1;
-        else hi = mid;
+// Our stand-in package: only its spawner group pointer (+0x9a0) is ever set.
+alignas(16) unsigned char own_package[0x9b0];
+alignas(16) unsigned char own_group[0x28];
+alignas(16) unsigned char own_entry[16];
+alignas(16) unsigned char origin_spawner[0x90];
+const char kOriginName[] = "u2mp-origin";
+
+uint32_t turn = 0;                 // rotates fallback picks so players do not all stack on one spawner
+uint32_t last_logged_id = 0xffffffffu;
+std::string last_logged_level;
+
+// The spawner with `id` in the package's sorted spawner list, or NULL.
+const unsigned char *find_in_package(const unsigned char *package, uint32_t id) {
+    const unsigned char *group = pointer_at(package + kGroupOfPackage);
+    if (!group) return nullptr;
+    const unsigned char *entries = pointer_at(group + 0x18);
+    const int32_t count = peek<int32_t>(group + 0x20);
+    if (!entries || count <= 0 || count > kMaxGroupCount) return nullptr;
+    // Lower bound: the first entry whose id is not below the wanted id.
+    size_t low = 0, high = size_t(count);
+    while (low < high) {
+        const size_t mid = low + (high - low) / 2;
+        if (peek<uint32_t>(entries + 16 * mid) < id) low = mid + 1;
+        else high = mid;
     }
-    return lo < g->sorted_count && g->sorted[lo].id == id ? g->sorted[lo].spawner : nullptr;
+    if (low == size_t(count) || peek<uint32_t>(entries + 16 * low) != id) return nullptr;
+    return pointer_at(entries + 16 * low + 8);
 }
 
-// An int tag of a spawner (type 1), `fallback` when absent.
-int32_t int_tag(const uint8_t *sp, uint32_t key, int32_t fallback) {
-    struct Value { uint16_t type, size; uint32_t pad; const int32_t *data; };
-    struct Tag { uint32_t key, pad; const Value *value; };
-    struct Tags { const Tag *entries; int32_t count; };
-    const Tags *t = *reinterpret_cast<const Tags *const *>(sp + kSpawnerTags);
-    if (!t || !t->entries || t->count <= 0 || t->count > 4096) return fallback;
-    for (int32_t i = 0; i < t->count; ++i) {
-        const Tag &e = t->entries[i];
-        if (e.key != key) continue;
-        if (!e.value || e.value->type != 1 || !e.value->data) return fallback;
-        return *e.value->data;
-    }
-    return fallback;
-}
-
-const char *spawner_name(const uint8_t *sp) {
-    const char *n = *reinterpret_cast<const char *const *>(sp + kSpawnerName);
-    return n ? n : "?";
-}
-
-// Every package in the table (buckets +0x10, bucket count +0x4c, node {next, ?, u32 id +0x10,
-// package +0x18}, buckets[count] = end node; as session.cpp find_package / 0x6441b5).
-template <typename F> void for_each_package(F &&f) {
-    const uint64_t buckets = *image.at<uint64_t>(kPackageTable + 0x10);
-    const int32_t count = *image.at<int32_t>(kPackageTable + 0x4c);
-    if (!buckets || count <= 0 || count > 1 << 20) return;
-    const auto *table = reinterpret_cast<const uint64_t *>(uintptr_t(buckets));
-    const uint64_t end = table[count];
+// Calls `test(package)` for every loaded package until it returns non-NULL; returns that result.
+template <typename Test> const unsigned char *walk_packages(Test test) {
+    const unsigned char *table = image.at<unsigned char>(kPackageTable);
+    const unsigned char *buckets = pointer_at(table + 0x10);
+    const int32_t count = peek<int32_t>(table + 0x4c);
+    if (!buckets || count <= 0 || count > kMaxBuckets) return nullptr;
+    const unsigned char *end_marker = pointer_at(buckets + 8 * uint64_t(count));
     for (int32_t b = 0; b < count; ++b) {
-        int guard = 0;
-        for (uint64_t node = table[b]; node && node != end && guard < 4096; ++guard) {
-            const auto *n = reinterpret_cast<const uint8_t *>(uintptr_t(node));
-            if (const uint8_t *pkg = *reinterpret_cast<const uint8_t *const *>(n + 0x18))
-                if (f(*reinterpret_cast<const uint32_t *>(n + 0x10), pkg)) return;
-            node = *reinterpret_cast<const uint64_t *>(n);
+        const unsigned char *node = pointer_at(buckets + 8 * uint64_t(b));
+        for (int visited = 0; node && node != end_marker && visited < kMaxNodesPerBucket; ++visited) {
+            const unsigned char *package = pointer_at(node + 0x18);
+            if (package) {
+                if (const unsigned char *found = test(package)) return found;
+            }
+            node = pointer_at(node);
         }
-    }
-}
-
-// The net game's level record name (*levels* +0x18, "<map>-pak") and its package id (+0x20), as
-// 0x644130 / 0x6442b8 read them.
-bool level_record(const char *&name, uint32_t &id) {
-    struct Table { int32_t count; int32_t pad; uint8_t *records; };
-    auto lookup = reinterpret_cast<Table *(U2MP_GUEST *)(uint32_t)>(image.base + kDcLookup);
-    Table *games = lookup(kNetGames), *levels = lookup(kLevels);
-    const int16_t game = *image.at<int16_t>(kNgm + kNgmGame);
-    if (!games || !levels || !games->records || !levels->records || game < 0 || game >= games->count) return false;
-    const uint32_t level_id = *reinterpret_cast<const uint32_t *>(games->records + 0x90 * game + 4);
-    for (int32_t i = 0; i < levels->count; ++i) {
-        const uint8_t *rec = levels->records + 0x38 * i;
-        if (*reinterpret_cast<const uint32_t *>(rec) != level_id) continue;
-        name = *reinterpret_cast<const char *const *>(rec + 0x18);
-        id = *reinterpret_cast<const uint32_t *>(rec + 0x20);
-        return name != nullptr;
-    }
-    return false;
-}
-
-// Online spawners of a package (tag online-spawner = 1); start spawners first when `start`.
-const uint8_t *pick_online(const uint8_t *pkg, unsigned turn, bool start) {
-    const Group *g = group_of(pkg);
-    if (!g || !g->all || g->count <= 0 || g->count > kMaxCount) return nullptr;
-    for (int pass = start ? 0 : 1; pass < 2; ++pass) {
-        int32_t n = 0;
-        for (int32_t i = 0; i < g->count; ++i)
-            if (const uint8_t *sp = g->all[i])
-                if (int_tag(sp, kTagOnlineSpawner, 0) == 1 && (pass || int_tag(sp, kTagStartSpawner, 0) == 1)) ++n;
-        if (!n) continue;
-        int32_t want = int32_t(turn % unsigned(n));
-        for (int32_t i = 0; i < g->count; ++i)
-            if (const uint8_t *sp = g->all[i])
-                if (int_tag(sp, kTagOnlineSpawner, 0) == 1 && (pass || int_tag(sp, kTagStartSpawner, 0) == 1) &&
-                    want-- == 0)
-                    return sp;
     }
     return nullptr;
 }
 
-// A spawner of the map whose name starts with one of the prefixes (pickups and npc spawners stand on
-// walkable ground), else the first spawner.
-const uint8_t *pick_any(const uint8_t *pkg, unsigned turn) {
-    const Group *g = group_of(pkg);
-    if (!g || !g->all || g->count <= 0 || g->count > kMaxCount) return nullptr;
+struct LevelRecord {
+    const char *name;
+    uint32_t package_id;
+};
+
+using LookupFn = const unsigned char *(U2MP_GUEST *)(uint32_t);
+
+// The *levels* record of the current net game's level.
+bool level_record(LevelRecord &out) {
+    const LookupFn lookup = reinterpret_cast<LookupFn>(image.base + kLookupPointer);
+    const unsigned char *net_games = lookup(kNetGames);
+    const unsigned char *levels = lookup(kLevels);
+    if (!net_games || !levels) return false;
+    const unsigned char *games = pointer_at(net_games + 8);
+    const unsigned char *level_records = pointer_at(levels + 8);
+    if (!games || !level_records) return false;
+    const int16_t game = peek<int16_t>(image.base + kGameIndex);
+    if (game < 0 || game >= peek<int32_t>(net_games)) return false;
+    const uint32_t level_id = peek<uint32_t>(games + 0x90 * uint64_t(game) + 4);
+    const int32_t level_count = peek<int32_t>(levels);
+    for (int32_t i = 0; i < level_count; ++i) {
+        const unsigned char *record = level_records + 0x38 * uint64_t(i);
+        if (peek<uint32_t>(record) != level_id) continue;
+        out.name = reinterpret_cast<const char *>(pointer_at(record + 0x18));
+        out.package_id = peek<uint32_t>(record + 0x20);
+        return out.name != nullptr;   // only the first matching record counts
+    }
+    return false;
+}
+
+// An int tag of the spawner, 0 when it is missing or not an int.
+int32_t int_tag(const unsigned char *spawner, uint32_t key) {
+    const unsigned char *list = pointer_at(spawner + 0x68);
+    if (!list) return 0;
+    const unsigned char *entries = pointer_at(list);
+    const int32_t count = peek<int32_t>(list + 8);
+    if (!entries || count <= 0 || count > kMaxTagCount) return 0;
+    for (int32_t i = 0; i < count; ++i) {
+        const unsigned char *entry = entries + 16 * uint64_t(i);
+        if (peek<uint32_t>(entry) != key) continue;
+        const unsigned char *value = pointer_at(entry + 8);
+        if (!value || peek<uint16_t>(value) != 1) return 0;
+        const unsigned char *data = pointer_at(value + 8);
+        return data ? peek<int32_t>(data) : 0;
+    }
+    return 0;
+}
+
+const char *spawner_name(const unsigned char *spawner) {
+    const char *name = reinterpret_cast<const char *>(pointer_at(spawner + 0x20));
+    return name ? name : "?";
+}
+
+// The non-NULL entries of the package's spawner list ("all"), in order; `first` gets entry 0.
+// Only called after group_usable(package).
+std::vector<const unsigned char *> all_spawners(const unsigned char *package, const unsigned char **first) {
+    const unsigned char *group = pointer_at(package + kGroupOfPackage);
+    const unsigned char *all = pointer_at(group + 0x08);
+    const int32_t count = peek<int32_t>(group + 0x10);
+    *first = pointer_at(all);
+    std::vector<const unsigned char *> list;
+    for (int32_t i = 0; i < count; ++i) {
+        if (const unsigned char *s = pointer_at(all + 8 * uint64_t(i))) list.push_back(s);
+    }
+    return list;
+}
+
+bool group_usable(const unsigned char *package) {
+    if (!package) return false;
+    const unsigned char *group = pointer_at(package + kGroupOfPackage);
+    if (!group) return false;
+    const int32_t count = peek<int32_t>(group + 0x10);
+    return pointer_at(group + 0x08) && count > 0 && count <= kMaxGroupCount;
+}
+
+const unsigned char *rotate(const std::vector<const unsigned char *> &candidates, uint32_t t) {
+    return candidates.empty() ? nullptr : candidates[t % candidates.size()];
+}
+
+// A spawner meant for online play; at match start (`start`) preferably a start spawner.
+const unsigned char *online_pick(const unsigned char *package, uint32_t t, bool start) {
+    if (!group_usable(package)) return nullptr;
+    const unsigned char *first;
+    const std::vector<const unsigned char *> all = all_spawners(package, &first);
+    if (start) {
+        std::vector<const unsigned char *> starts;
+        for (const unsigned char *s : all)
+            if (int_tag(s, kOnlineSpawner) == 1 && int_tag(s, kStartSpawner) == 1) starts.push_back(s);
+        if (!starts.empty()) return rotate(starts, t);
+    }
+    std::vector<const unsigned char *> online;
+    for (const unsigned char *s : all)
+        if (int_tag(s, kOnlineSpawner) == 1) online.push_back(s);
+    return rotate(online, t);
+}
+
+// Any reasonable spawner of a map package, by name prefix in order of preference.
+const unsigned char *map_pick(const unsigned char *package, uint32_t t) {
+    if (!group_usable(package)) return nullptr;
+    const unsigned char *first;
+    const std::vector<const unsigned char *> all = all_spawners(package, &first);
     for (const char *prefix : {"pickup-", "npc-", "online-", "continue-player"}) {
-        const size_t len = std::strlen(prefix);
-        int32_t n = 0;
-        for (int32_t i = 0; i < g->count; ++i)
-            if (g->all[i] && std::strncmp(spawner_name(g->all[i]), prefix, len) == 0) ++n;
-        if (!n) continue;
-        int32_t want = int32_t(turn % unsigned(n));
-        for (int32_t i = 0; i < g->count; ++i)
-            if (g->all[i] && std::strncmp(spawner_name(g->all[i]), prefix, len) == 0 && want-- == 0) return g->all[i];
+        std::vector<const unsigned char *> matches;
+        const size_t length = std::strlen(prefix);
+        for (const unsigned char *s : all)
+            if (std::strncmp(spawner_name(s), prefix, length) == 0) matches.push_back(s);
+        if (!matches.empty()) return rotate(matches, t);
     }
-    return g->all[0];
+    return first;
 }
 
-// Our own package: only +0x9a0 is read (0x662fd5), pointing at a group with one entry.
-alignas(16) uint8_t own_package[kGroup + 0x10];
-alignas(16) Group own_group;
-alignas(16) Entry own_entry;
-// A spawner of our own at the origin (identity rotation, no parent, no tags), the last resort.
-alignas(16) uint8_t own_spawner[kSpawnerSize];
-const char own_spawner_name[] = "u2mp-origin";
-
-const uint8_t *own_package_with(uint32_t id, const uint8_t *spawner) {
-    own_entry = Entry{id, 0, spawner};
-    own_group = Group{};
-    own_group.sorted = &own_entry;
-    own_group.sorted_count = 1;
-    const Group *g = &own_group;
-    std::memcpy(own_package + kGroup, &g, sizeof g);
-    return own_package;
+const unsigned char *make_origin_spawner() {
+    std::memset(origin_spawner, 0, sizeof origin_spawner);
+    poke<float>(origin_spawner + 0x1c, 1.0f);   // identity quaternion (0, 0, 0, 1) at +0x10
+    poke<uint64_t>(origin_spawner + 0x20, uint64_t(uintptr_t(kOriginName)));
+    return origin_spawner;
 }
 
-const uint8_t *origin_spawner() {
-    std::memset(own_spawner, 0, sizeof own_spawner);
-    const float quat[4] = {0.0f, 0.0f, 0.0f, 1.0f};
-    std::memcpy(own_spawner + 0x10, quat, sizeof quat);
-    const char *name = own_spawner_name;
-    std::memcpy(own_spawner + kSpawnerName, &name, sizeof name);
-    return own_spawner;
+int32_t spawner_count(const unsigned char *package) {
+    if (!package) return 0;
+    const unsigned char *group = pointer_at(package + kGroupOfPackage);
+    return group ? peek<int32_t>(group + 0x10) : 0;
 }
 
-// Replaces the call 0x662fd0 (rdi = NetGameManager, esi = spawner id, edx = mode still hold
-// GetSpawnLocator's arguments there: 0x662fb1..0x662fc9 only copy them).
-U2MP_GUEST const uint8_t *spawn_package(void *, uint32_t id, int32_t mode) {
-    static unsigned turn = 0;
-    static uint32_t said_id = ~0u;
-    static std::string said_level;
-    const char *name = nullptr;
-    uint32_t pak_id = 0;
-    const bool have_record = level_record(name, pak_id);
-    const uint8_t *pak = have_record ? package_by_id(pak_id) : nullptr;
-    std::string map;
-    if (have_record) {
-        const size_t n = std::strlen(name);
-        map = n > 4 && std::strcmp(name + n - 4, "-pak") == 0 ? std::string(name, n - 4) : std::string(name);
+U2MP_GUEST const unsigned char *spawner_package(void *ngm, uint32_t id, int32_t mode) {
+    (void)ngm;
+    LevelRecord level{};
+    const bool have_level = level_record(level);
+    const unsigned char *pak = have_level ? package_by_id(level.package_id) : nullptr;
+
+    std::string map_name;
+    if (have_level) {
+        map_name = level.name;
+        if (map_name.size() > 4 && map_name.compare(map_name.size() - 4, 4, "-pak") == 0)
+            map_name.resize(map_name.size() - 4);
     }
-    const uint8_t *map_pkg = map.empty() ? nullptr : package_by_id(sid(map.c_str()));
-    if (have_record && said_level != name) {
-        said_level = name;
-        const Group *pg = group_of(pak), *mg = group_of(map_pkg);
-        log("spawn: level %s %s (%d spawners), map %s %s (%d spawners)", name, pak ? "loaded" : "missing",
-            pg ? pg->count : 0, map.c_str(), map_pkg ? "loaded" : "missing", mg ? mg->count : 0);
+    const unsigned char *map_package = map_name.empty() ? nullptr : package_by_id(sid(map_name.c_str()));
+
+    if (have_level && last_logged_level != level.name) {
+        last_logged_level = level.name;
+        log("spawn: level %s %s (%d spawners), map %s %s (%d spawners)", level.name, pak ? "loaded" : "missing",
+            spawner_count(pak), map_name.c_str(), map_package ? "loaded" : "missing", spawner_count(map_package));
         if (!pak)
-            log("spawn: %s holds the multiplayer spawners (online-spawner-*); it is not installed, players "
-                "spawn at fallback spawners", name);
+            log("spawn: %s holds the multiplayer spawners (online-spawner-*); it is not installed, players spawn at "
+                "fallback spawners",
+                level.name);
     }
-    // 1. The id where the game looks (0x644130's package), then the map, then any loaded package.
-    if (pak && find_in(pak, id)) return pak;
-    if (map_pkg && find_in(map_pkg, id)) return map_pkg;
-    const uint8_t *found = nullptr;
-    for_each_package([&](uint32_t, const uint8_t *pkg) {
-        if (find_in(pkg, id)) found = pkg;
-        return found != nullptr;
-    });
-    if (found) return found;
-    // 2. Fallback spawner (never the assert at 0x6630dc).
-    const unsigned t = turn++;
+
+    if (pak && find_in_package(pak, id)) return pak;
+    if (map_package && find_in_package(map_package, id)) return map_package;
+    if (const unsigned char *found =
+            walk_packages([id](const unsigned char *p) { return find_in_package(p, id) ? p : nullptr; }))
+        return found;
+
+    // Nobody has it: choose a stand-in spawner.
+    const uint32_t t = turn++;
     const bool start = mode == 0;
-    const char *how = "online spawner of the level";
-    const uint8_t *sp = pick_online(pak, t, start);
-    if (!sp) {
-        how = "online spawner of a loaded package";
-        for_each_package([&](uint32_t, const uint8_t *pkg) {
-            sp = pick_online(pkg, t, start);
-            return sp != nullptr;
-        });
+    const char *method = "online spawner of the level";
+    const unsigned char *spawner = online_pick(pak, t, start);
+    if (!spawner) {
+        method = "online spawner of a loaded package";
+        spawner = walk_packages([t, start](const unsigned char *p) { return online_pick(p, t, start); });
     }
-    if (!sp) {
-        how = "map spawner";
-        sp = pick_any(map_pkg, t);
+    if (!spawner) {
+        method = "map spawner";
+        spawner = map_pick(map_package, t);
     }
-    if (!sp) {
-        how = "own spawner at the origin";
-        sp = origin_spawner();
+    if (!spawner) {
+        method = "own spawner at the origin";
+        spawner = make_origin_spawner();
     }
-    if (said_id != id) {
-        said_id = id;
-        log("spawn: spawner %08x (mode %d) is in no loaded package; using %s %s (%08x)", id, mode, how,
-            spawner_name(sp), *reinterpret_cast<const uint32_t *>(sp + kSpawnerId));
+
+    if (id != last_logged_id) {
+        last_logged_id = id;
+        log("spawn: spawner %08x (mode %d) is in no loaded package; using %s %s (%08x)", id, mode, method,
+            spawner_name(spawner), peek<uint32_t>(spawner + 0x28));
     }
-    return own_package_with(id, sp);
+
+    std::memset(own_entry, 0, sizeof own_entry);
+    poke<uint32_t>(own_entry, id);
+    poke<uint64_t>(own_entry + 8, uint64_t(uintptr_t(spawner)));
+    std::memset(own_group, 0, sizeof own_group);
+    poke<uint64_t>(own_group + 0x18, uint64_t(uintptr_t(own_entry)));
+    poke<int32_t>(own_group + 0x20, 1);
+    poke<uint64_t>(own_package + kGroupOfPackage, uint64_t(uintptr_t(own_group)));
+    return own_package;
 }
 
 }  // namespace
 
 void install_spawn(int &installed) {
-    // 0x662fc9: lea rdi,[rip+..] (NetGameManager 0x113b760); 0x662fd0: call 0x644130;
-    // 0x662fd5: mov r9,[rax+0x9a0]
-    static const unsigned char before[] = {0x48, 0x8d, 0x3d};
-    static const unsigned char after[] = {0x4c, 0x8b, 0x88, 0xa0, 0x09, 0x00, 0x00};
-    int32_t rel = 0;
-    std::memcpy(&rel, image.base + 0x662fc9 + 3, 4);
-    if (!image.matches(0x662fc9, before, sizeof before) || 0x662fd0 + int64_t(rel) != int64_t(kNgm) ||
-        !image.matches(0x662fd5, after, sizeof after)) {
+    // GetSpawnLocator must pass the NetGameManager to the call and read the group at result+0x9a0.
+    static const unsigned char lea_rdi[] = {0x48, 0x8D, 0x3D};
+    static const unsigned char reads_group[] = {0x4C, 0x8B, 0x88, 0xA0, 0x09, 0x00, 0x00};
+    int32_t lea_rel;
+    std::memcpy(&lea_rel, image.base + 0x662fcc, 4);
+    if (!image.matches(0x662fc9, lea_rdi, sizeof lea_rdi) || int64_t(kCallSite) + lea_rel != int64_t(kNgm) ||
+        !image.matches(0x662fd5, reads_group, sizeof reads_group)) {
         log("spawn: GetSpawnLocator (662fa0) bytes differ, left alone");
         return;
     }
-    if (retarget_call(kGetSpawnLocatorCall, kLevelRecordPackage, reinterpret_cast<void *>(&spawn_package),
-                      "GetSpawnLocator spawner package (662fd0)")) {
-        log("spawn: GetSpawnLocator (662fa0) looks the spawner up in every loaded package, with a fallback");
-        ++installed;
-    }
+    if (!retarget_call(kCallSite, kLevelPackage, reinterpret_cast<void *>(&spawner_package),
+                       "GetSpawnLocator spawner package (662fd0)"))
+        return;
+    log("spawn: GetSpawnLocator (662fa0) looks the spawner up in every loaded package, with a fallback");
+    installed += 1;
 }
 
 }  // namespace u2mp

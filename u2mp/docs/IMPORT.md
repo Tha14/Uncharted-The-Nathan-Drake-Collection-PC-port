@@ -1,9 +1,9 @@
 # Uncharted 2 multiplayer: the PS3 -> PS4 asset import
 
-`u2mp/patcher/u2mp_import.py` builds, on the player's PC, an overlay with every multiplayer asset the PS4
-Collection lacks. It takes them from the player's own PS3 copy and converts them to the PS4 format. Nothing
-game-derived is in the repo or the release. The import list (`u2mp/docs/import-list.tsv`) holds only names, sizes
-and SHA-1 hashes. The import never runs the game.
+`u2import.exe` (C++, sources in `u2mp/patcher/importer`) builds, on the player's PC, an overlay with every
+multiplayer asset the PS4 Collection lacks. It takes them from the player's own PS3 copy and converts them to the PS4
+format. Nothing game-derived is in the repo or the release. The import list (`u2mp/docs/import-list.tsv`) holds only
+names, sizes and SHA-1 hashes. The import never runs the game.
 
 Rule: **if the PS4 game has an asset (skin, map, picture, sound ...), the PS4 one is kept**. Every import-list row is
 checked against the PS4 game first (file present; for music: the PS4 music settings name it; for speech: the PS4
@@ -11,12 +11,27 @@ speech archive of that language has the line).
 
 ## Running it
 
+The launcher runs it (`u2mp\bin\u2import.exe` of the package). By hand:
+
 ```
-python u2mp/patcher/u2mp_import.py --ps4 "<CUSA02320 folder>" --ps3 "<NPUA80698 folder>"
-       [--ps3-dlc "<RPCS3 dev_hdd0/game/BCUS98123/USRDIR>"] --out "<overlay folder>"
-       [--ps3-data "<RPCS3 dev_hdd0/game/<id>DATA2>"] [--groups A,B,C,D,E]
-       [--speech-langs english,french,sam-spanish,brazilian] [--dlc-ruins | --no-dlc-ruins]
-       [--drop-navmesh] [--validate] [--force] [--only REGEX] [--ps3-elf EBOOT.elf] [--objdump PATH]
+u2import --ps4 "<CUSA02320 folder>" --ps3 "<NPUA80698 folder>"
+         [--ps3-dlc "<RPCS3 dev_hdd0/game/BCUS98123/USRDIR>"] --out "<overlay folder>"
+         [--ps3-data "<RPCS3 dev_hdd0/game/<id>DATA2>"] [--groups A,B,C,D,E]
+         [--speech-langs english,french,sam-spanish,brazilian] [--dlc-ruins | --no-dlc-ruins]
+         [--drop-navmesh] [--validate] [--force] [--only REGEX] [--ps3-elf EBOOT.elf] [--objdump PATH] [--ffmpeg PATH]
+u2import --overlay <game folder> <overlay folder> [--update <update folder>]   the menu overlay (the launcher)
+u2import --shipped-id                                                          the import's fingerprint (the launcher)
+```
+
+Maintainer commands of the same program (the import never runs them):
+
+```
+u2import --validate-twins --ps4 <folder> --ps3 <folder> [--ps3-dlc <folder>] --work <folder>
+u2import --dc learn|test <ps3 base> <ps4 game> <schema.json> [net-patch9.bin]
+u2import --dc convert <schema.json> <ps3 module.bin> <out.bin>   |   u2import --dc info <module.bin>
+u2import --hk-tables --ps3-elf <EBOOT.elf> --ps4 <game folder> --out <u2hkclasses.json> [--objdump <path>]
+u2import --twin-build <ps3 mp skin.pak> <ps3 twin.pak> <ps4 twin.pak> <out.pak>
+u2import --psarc list <file.psarc>   |   u2import --psarc extractall <file.psarc> <folder>
 ```
 
 * PS3 sources: the GOTY release NPUA80698 1.10 (base archives + `all-patches.psarc`) for game data, the map packs
@@ -37,11 +52,10 @@ python u2mp/patcher/u2mp_import.py --ps4 "<CUSA02320 folder>" --ps3 "<NPUA80698 
   skipped. Failed and unsupported items are tried again on every run.
 * Inputs are verified by the SHA-1 in the import list. A mismatch is reported as `missing`, unless
   `--no-verify` is given.
-* Needs Python 3 with numpy for skins and levels; sound works without it. Needs ffmpeg for sound banks with MP3
-  samples (searched in `u3mp/bin`, msys64, PATH). The U3 converter `u3mp/patcher/tools` must sit next to `u2mp`
-  (the launcher package has both), or `U2MP_PAKTOOLS` must point at its `paktools`.
-* `u2conv/validate.py` re-runs the converters on files both platforms have and compares the results with retail
-  PS4 (`--validate` on the import does the same).
+* Needs ffmpeg for sound banks with MP3 samples (`--ffmpeg`, the package's `u3mp/bin`, msys64, PATH) and GNU objdump
+  for the Havok class tables (`--objdump`, `u3mp/bin`, msys64, PATH). Nothing else: no Python.
+* `--validate` re-runs the converters on files both platforms have and compares the results with retail PS4
+  (`<out>/work/validate/validation.json` and `state.json`).
 
 Item statuses in `state.json`: `ok` (converted and installed), `ps4` (the PS4 game has it), `skipped`
 (not needed: language without a PS4 counterpart, music the PS4 settings do not use, group F), `missing`
@@ -50,41 +64,44 @@ below), `failed` (a converter or check raised; see import.log).
 
 ## Files
 
-| file | what |
-|---|---|
-| `patcher/u2mp_import.py` | driver: sources, PS4-first check, conversion per type, registries, state |
-| `patcher/u2conv/sources.py` | PS3 archive / DLC index (precedence dlc-patch7 > 5 > 3 > 2 > patch > dlc-map2 > dlc-map1 > base), PS4 index |
-| `patcher/u2conv/xvag.py` | XVAG (PS-ADPCM) PS3 -> PS4 |
-| `patcher/u2conv/u2bank.py` | sound banks via the U3 SBlk converter |
-| `patcher/u2conv/u2paktools.py` | loads the U3 pak converters (`u3mp/patcher/tools/paktools`) with the U2 differences |
-| `patcher/u2conv/u2light.py` | LIGHT_TABLE_1, U2 layout |
-| `patcher/u2conv/u2vis.py` | VIS_INFO_1 version 7 |
-| `patcher/u2conv/u2actor.py` | skins and props: U2 item names on the U3 actor converter, kinds, PS4 prop twins, template choice, checks |
-| `patcher/u2conv/u2actorparts.py` | U2 ARTGROUP_DATA / PACKAGE_ITEM_LOOKUP / LEVEL_PATS_1 / SOUND_BANK_TABLE, prop skeleton ids, login order |
-| `patcher/u2conv/u2anim.py` | ANIM (U3 clip converter + the U2 float channels), animation-only paks |
-| `patcher/u2conv/u2skel.py` | JOINT_HIERARCHY (U3 skel.py + the U2 D-block packfile) |
-| `patcher/u2conv/u2actorcoll.py` | COLLISION_DATA_FOREGROUND, COLLISION_HAVOK_JOINTED, D-block packfile wrapper |
-| `patcher/u2conv/u2havok.py` | Havok packfiles 6.1.0 (PS3) -> 2011.3 (PS4) on the U3 hkconvert |
-| `patcher/u2conv/u2hkgen.py` | builds the Havok class tables on the player's PC (work/u2hkclasses.json) |
-| `patcher/u2conv/u2twin.py` | skins built from the PS4 campaign actor (twin) + the converted MP parts; `validate` against the retail pairs |
-| `patcher/u2conv/u2level.py` | level paks: stage (geometry) and data (-ingame10 / -npc) |
-| `patcher/u2conv/u2coll.py` | COLLISION_DATA_HAVOK_BG version 3 (background collision) |
-| `patcher/u2conv/u2water.py` | WATER_DATA version 3 |
-| `patcher/u2conv/u2nav.py` | NAV_MESH_1 (U2 layout) |
-| `patcher/u2conv/u2text.py` | text banks: the PS4 bank plus the PS3 strings it lacks (DLC map titles) |
-| `patcher/u2conv/u2ingame.py` | region scripts and FEATURE_DB_2 of U2 data paks |
-| `patcher/u2conv/registry.py` | pak22_ps4.txt / banks.txt |
-| `patcher/u2conv/validate.py` | reference-pair checks |
+`u2mp/patcher/importer` (the part names in the rest of this document, such as `u2actor` or `u2twin`, are the names
+the converters had when they were Python modules; the table says where each is now):
 
-The U3 converter files are used as they are on disk. Where U2 differs, `u2paktools` / `u2actor` either patch a
-module attribute or load a private copy of the U3 source with a few asserted text edits (`_STAGE_EDITS`,
-`_MKPLAN_EDITS`, `u2actor._EDITS`). If an edit point no longer matches, the import stops with an error instead of
-converting differently.
+| file | what | part |
+|---|---|---|
+| `u2import.cpp` | driver: arguments, the steps, the import list, PS4-first check, conversion per type, state | |
+| `sources.cpp` | PS3 archive / DLC index (precedence dlc-patch7 > 5 > 3 > 2 > patch > dlc-map2 > dlc-map1 > base), PS4 index | sources |
+| `sound.cpp` | XVAG (PS-ADPCM) PS3 -> PS4; sound banks via the U3 SBlk converter (`u3mp/patcher/tools/fixes/sound-banks`) | xvag, u2bank |
+| `registry.cpp` | pak22_ps4.txt / banks.txt | registry |
+| `texts.cpp` | text banks: the PS4 bank plus the PS3 strings it lacks (DLC map titles) | u2text |
+| `levels.cpp` | level paks: stage (geometry) and data (-ingame10 / -npc) | u2level |
+| `stage.cpp` | stage paks on the U3 stage converter; LIGHT_TABLE_1, COLLISION_DATA_HAVOK_BG version 3 and WATER_DATA version 3 in the U2 layout | u2light, u2coll, u2water |
+| `stagecheck.cpp` | the check of every converted stage pak | stagecheck |
+| `actor.cpp`, `actor.hpp` | skins and props: U2 item names on the U3 actor converter, kinds, template choice | u2actor |
+| `actorparts.cpp` | U2 ARTGROUP_DATA / PACKAGE_ITEM_LOOKUP / LEVEL_PATS_1 / SOUND_BANK_TABLE, prop skeleton ids, login order | u2actorparts |
+| `actors.cpp` | the actor27 rows: kinds, PS4 prop twins, templates, the loader check | u2actor |
+| `havok.cpp` | the Havok class tables built on the player's PC (work/u2hkclasses.json) | u2hkgen, u2havok |
+| `twin.cpp` | skins built from the PS4 campaign actor (twin) + the converted MP parts; `--validate-twins` | u2twin |
+| `netimg.cpp` | the PS3 menu images the PS4 net.pak lacks (`pak22/ps4/net-u2mp.pak`) | u2netimg |
+| `netpatch.cpp` | `dc1/ps4/net-patch9.bin` on the U3 DC converter | u2dc |
+| `overlay.cpp` | the menu overlay (main menu with a Multiplayer button) | u2mp_overlay |
+| `validate.cpp` | `--validate`: the reference-pair checks | validate |
+| `devtools.cpp` | the maintainer commands (`--dc`, `--hk-tables`, `--twin-build`, `--psarc`) | |
+
+The U3 converters (`u3mp/patcher/tools/fixes/dctools`) do the rest with their Uncharted 2 differences switched on by
+`u3::g_u2`: the U2 cook path, stage login order and items (`ps4stage`), level materials (`stageplan`), VIS_INFO_1
+version 7 (`visinfo`), region scripts, FEATURE_DB_2 and NAV_MESH_1 (`ps4ingame`), ANIM channels (`anim`), the D-block
+packfile of JOINT_HIERARCHY (`skel`), the Havok 6.1 -> 2011 changes (`hkconvert`), the U2 DC module header (`dcconv`).
+`u3import.exe` never sets `g_u2`.
+
+The import was first written in Python and moved to C++ on 2026-11-14. Every output of a full GOTY import, the
+`--validate` report and the twin validation are byte-identical to the Python versions' (except the 3 sound banks the
+last Python run could no longer convert).
 
 ## Format differences found (U2 pak22 / actor27 vs U3 pak23 / actor33)
 
 The container is the same: 0x0a79 paks, PS3 big-endian with 32-bit pointers, PS4 little-endian with 64-bit
-pointers, and the same page and fixup tables (`ndpak.py` reads both). What differs:
+pointers, and the same page and fixup tables (`ndpak` reads both). What differs:
 
 | area | U2 (PS3 -> PS4) | U3 | where |
 |---|---|---|---|
@@ -106,7 +123,7 @@ pointers, and the same page and fixup tables (`ndpak.py` reads both). What diffe
 | big paks | fixup directory entries {page, offset, count}: 'page' = 0x80000-byte chunk of the header block (more than 65536 fixups); PS4 writes one table | same | u2paktools (ndpak edit) |
 | text banks | PS4 networking banks lack 233 PS3 strings, among them the DLC map titles | | u2text |
 | sound banks | SBlk v4 (as U3) -> v13 | same | U3 bnkconv |
-| XVAG | PS4 keeps 4 PS-ADPCM music tracks: header little-endian, version 2, fmat +8 bytes {1, channels}, word 4 = interleave, data in per-channel blocks | U3 PS4 reads PS3 XVAGs as they are | xvag.py |
+| XVAG | PS4 keeps 4 PS-ADPCM music tracks: header little-endian, version 2, fmat +8 bytes {1, channels}, word 4 = interleave, data in per-channel blocks | U3 PS4 reads PS3 XVAGs as they are | xvag |
 
 Texture formats (DXT1/5 -> BC1/3, PS4 8x8 tiling, streamed low mips) and the shader / material ids work the same as in
 U3. Converted paks keep their textures in the pak (no texturedict1 stream). Retail U2 PS4 paks keep only low mips
@@ -116,9 +133,9 @@ in the pak, so converted paks are larger than retail.
 
 | type | how | checked against |
 |---|---|---|
-| streams / music (`.xvag`) | `xvag.py`: container rewrite, ADPCM frames kept, no re-encode | 146/148/149/150_JungleExplore: byte-identical with the retail interleave |
-| speech (`pnk-*`, `rka-*`) | `xvag.py` -> `sound1/speech/<ps4 language>/<line>.xvag` (loose). PS3 english/french -> same; spanish -> sam-spanish; portuguese -> brazilian (NPUA80698 is the North American release); the other 6 PS3 languages have no PS4 counterpart | the format as above (the PS4 speech lines are ATRAC9, no PS-ADPCM pair) |
-| music | only tracks the PS4 `dc1/ps4/music-settings.bin` names and the PS4 folder lacks, written loose to `sound1/music/<name the settings use>.xvag`: 23 = MP_Win1-3 / MP_Lose1-3 (the match-end stingers), 15 `*_Coop1/2/3`, and PS3 407/428 `BrutalComboMambo_LOOP1/2ALTSTART`, which the PS4 settings name as 336/338 but PS4 does not ship. A PS3 track is matched by its name, else by its title after the track number (`u2mp_import.music_name`; PS4 renumbered the tracks). The PS3 873/892/901 `*_Coop3` are on PS4 renumbered as 620/610/609 and stay PS4 (skipped). The settings hold no other name that neither PS4 nor the overlay has; there is no music list to register (the game opens the track by name) | as above |
+| streams / music (`.xvag`) | `xvag` (sound.cpp): container rewrite, ADPCM frames kept, no re-encode | 146/148/149/150_JungleExplore: byte-identical with the retail interleave |
+| speech (`pnk-*`, `rka-*`) | `xvag` -> `sound1/speech/<ps4 language>/<line>.xvag` (loose). PS3 english/french -> same; spanish -> sam-spanish; portuguese -> brazilian (NPUA80698 is the North American release); the other 6 PS3 languages have no PS4 counterpart | the format as above (the PS4 speech lines are ATRAC9, no PS-ADPCM pair) |
+| music | only tracks the PS4 `dc1/ps4/music-settings.bin` names and the PS4 folder lacks, written loose to `sound1/music/<name the settings use>.xvag`: 23 = MP_Win1-3 / MP_Lose1-3 (the match-end stingers), 15 `*_Coop1/2/3`, and PS3 407/428 `BrutalComboMambo_LOOP1/2ALTSTART`, which the PS4 settings name as 336/338 but PS4 does not ship. A PS3 track is matched by its name, else by its title after the track number (`music_name` in u2import.cpp; PS4 renumbered the tracks). The PS3 873/892/901 `*_Coop3` are on PS4 renumbered as 620/610/609 and stay PS4 (skipped). The settings hold no other name that neither PS4 nor the overlay has; there is no music list to register (the game opens the track by name) | as above |
 | sound banks | U3 `bnkconv` (SBlk v4 -> v13, MP3 samples re-encoded to PS-ADPCM via ffmpeg + vagenc) -> `sound1/banks/ps4/`; new names appended to `sound1/config/ps4/banks.txt` | banks both have: same header counts, different samples (retail U2 PS4 banks were rebuilt from source) |
 | skins (`mp-hero-*`) | with a PS4 campaign twin: `u2twin` (below: the PS4 mesh and materials, MP parts converted). Otherwise `u2actor`: U3 `ps4actor` geometry and texture conversion; materials, effects and joint table from a retail PS4 mp-hero with the same skeleton (all MP heroes use skeleton 0x27e57f43) that shares the most material names | twin builds: the 15 retail pairs (below); the 16 retail skins converted with another template: see Validation |
 | props, anims, Havok actors | `u2actor.convert_prop` (section "Props and animated actors"): props through the skin path plus skeleton, anims, collision, sound banks; animation paks and loose ragdolls on their own | the actor27 reference pairs, below |
@@ -151,7 +168,7 @@ What differs from U3 / the skin path (all found on the PS3/PS4 actor27 pairs):
 |---|---|---|
 | ANIM | U3 clip (ICE -> OrbisAnim, `anim.convert_clip`) and header; the float channels sit in an ANIM_RAWCHANNELS item on PS3 and inside the ANIM on PS4: {n, f32 rate, ptr entry[n]}, entry {sid, ptr D}, D = two keys {quat, scale, trans} (0x58), ptr samples, u16 {stride, ?, ?, count}, samples f32 (`u2anim`) | 11,114 ANIMs: 5,585 byte-identical, 5,529 identical apart from the 8 uninitialised bytes of the clip tail pad |
 | animation paks | `anim.convert_pak` with the U2 ANIM reader and the U2 artgroup / lookup | 132 pairs: same items and sizes |
-| JOINT_HIERARCHY | U3 `skel.py`; props with a ragdoll keep a Havok packfile behind the D block (PS3 D +0x4c, PS4 +0x90; wrapper {size, 1, 0...} PS3 0x10 / PS4 0x20 with the 8 magic bytes) (`u2skel`) | 949 pairs: 861 identical apart from uninitialised pad bytes, 68 ragdolls differ only in the packfile floats below, 20 not reachable (character bases with another skeleton blob variant; not needed) |
+| JOINT_HIERARCHY | U3 `skel`; props with a ragdoll keep a Havok packfile behind the D block (PS3 D +0x4c, PS4 +0x90; wrapper {size, 1, 0...} PS3 0x10 / PS4 0x20 with the 8 magic bytes) (`u2skel`) | 949 pairs: 861 identical apart from uninitialised pad bytes, 68 ragdolls differ only in the packfile floats below, 20 not reachable (character bases with another skeleton blob variant; not needed) |
 | FG skeleton | FOREGROUND_SECTION_2 +8 = PS3 FG +8, +0xc = skeleton blob +4, joint table = the JH joint sids | 937 / 944 pairs |
 | COLLISION_DATA_FOREGROUND | {0x1001, n, parts}; part as U3; hk block {size, 1, trailer} + packfile (PS4 header 0x30, +0x2c = magic word); trailer 3 x {elements, count}, element records 0x40 / **0x34** (U3 0x38) (`u2actorcoll`) | 660 items: 659 byte-identical (1: an uninitialised word in the retail packfile) |
 | COLLISION_HAVOK_JOINTED | {0x2001, 0, 0, 0} + the D-block wrapper + packfile | 3 pairs: same layout and sizes, packfile floats as below |
@@ -183,7 +200,7 @@ most of it). Without the EBOOT.elf, the PS4 executable or objdump the actors wit
 
 Checks on the 55: every prop passes ps4check; the animation paks and the ponytail parse. Not verified in game.
 
-## Skins from the PS4 campaign (`u2conv/u2twin.py`)
+## Skins from the PS4 campaign (`u2twin`, twin.cpp)
 
 Rule: PS4 assets first. Most MP skins are, on PS3, a campaign character (`costume-hero-*`, `hero-heist`,
 `hero-parka`, `lieutenant` ...) that the PS4 Collection also ships, remastered. The import builds such a skin from
@@ -220,7 +237,7 @@ The twin's buffers go to new pages; the converter's replaced LOD0 buffers stay i
 A skin goes the PS3 way when it has no PS4 twin (`u2twin.TWINS`, names only), the twin shares no LOD0 submesh, or
 the twin build fails (logged, `PS3 (<why>)`).
 
-Validation (`python u2mp/patcher/u2conv/u2twin.py validate ...`: the 15 retail PS4 skins that have a PS4 twin,
+Validation (`u2import --validate-twins ...`: the 15 retail PS4 skins that have a PS4 twin,
 built from their PS3 files and compared with retail):
 
 | result | |
@@ -232,7 +249,7 @@ built from their PS3 files and compared with retail):
 | LOD1-3 submesh / index counts | equal to retail 13/15 (chloe-variation and pirate differ by one strip) |
 | ps4check | clean 15/15 |
 
-Import (`u2mp_import.py`, group A): a skin with a PS4 twin is built by `u2twin`, else converted from PS3 as before;
+Import (group A): a skin with a PS4 twin is built by `u2twin`, else converted from PS3 as before;
 the log says which (`twin costume-hero-x: 14/15 LOD0 submeshes from PS4 (88% of triangles), 13/15 materials from
 PS4` or `PS3 (<why>); template ...`). `SKIN_VERSION` in the driver redoes skins built by an older rule on resume.
 Test run (2026-11-07, `--only mp-hero`, 49 skins):
@@ -288,7 +305,7 @@ Test run (2026-11-07, `--only mp-hero`, 49 skins):
   pieces PS4 lacks: `ruins-multi-wide`, `sky-ruins-multi`, `ruins-multi-npc` (+ -ingame10), the DLC props and
   `ruins-multi.bnk`; the PS4 net.bin (like the GOTY one) names them for the Ruins map. See "Known gaps" 11.
 
-## Validation (reference pairs, 2026-11-07, `validate.py`)
+## Validation (reference pairs, 2026-11-07, `--validate`)
 
 | check | result |
 |---|---|
@@ -324,7 +341,7 @@ What this means for play: the five DLC maps now have every level pak, registry e
 offers them (dlc.cpp). Not tried in game. Level materials without a retail twin use the closest retail material
 (facility-multi: 150 of 170).
 
-Result of 2026-11-08 (after the coverage audit; resumed run, 11 s; `python` = any Python 3 with numpy):
+Result of 2026-11-08 (after the coverage audit; resumed run, 11 s; the Python import of then):
 * **ok 1,635, ps4 11, skipped 2,139, unsupported 0, failed 0, missing 0**; every step ok; status `imported`.
   3,770 import-list rows (ok 1,621, ps4 10, skipped 2,139) plus the step items: 12 spawn paks (ok) and
   `stage-multi-pak-ingame10` (ps4), `net-u2mp.pak`, `net-patch9.bin`.
