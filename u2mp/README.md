@@ -23,7 +23,7 @@ the game yet**; the host unit tests pass.
 
 | Part | Where | State |
 |---|---|---|
-| Multiplayer in the main menu (with and without saves) | `patcher/u2mp_overlay.py` | checked in game (layout) |
+| Multiplayer in the main menu (with and without saves) | `patcher/importer/overlay.cpp` | checked in game (layout) |
 | Module: build check, hooks | `gow3_pc/src/u2mp/install.cpp` | built |
 | Network core: UDP, acks, reliable/unreliable, 10 peers | `net.cpp` | unit test passes |
 | Game packet layer (PS3 header/acks, the game's own pack/unpack) | `gamenet.cpp` | built |
@@ -36,7 +36,7 @@ the game yet**; the host unit tests pass.
 | Menus: profile name, party status, playlists, friends / players met | `menus.cpp` | built ([docs/MENUS.md](docs/MENUS.md)) |
 | DLC maps listed only when imported | `dlc.cpp` | built ([docs/DLC.md](docs/DLC.md)) |
 | Voice chat (Opus, push-to-talk or open mic, mute per player) | `voice.cpp` | unit test passes |
-| Asset import from the PS3 copy, PS4 first: skins (34 from PS4 campaign costumes), props and animated actors, the Fort, DLC maps, sounds, music, texts | `patcher/u2mp_import.py`, `patcher/u2conv/` | full run 1,621 ok, 0 failed ([docs/IMPORT.md](docs/IMPORT.md)) |
+| Asset import from the PS3 copy, PS4 first: skins (34 from PS4 campaign costumes), props and animated actors, the Fort, DLC maps, sounds, music, texts | `patcher/importer/` (`u2import.exe`) | full run 1,621 ok, 0 failed ([docs/IMPORT.md](docs/IMPORT.md)) |
 
 ## How it runs
 
@@ -69,13 +69,14 @@ the game yet**; the host unit tests pass.
 
 | Folder | What |
 |---|---|
-| `patcher/` | What the launcher runs on the player's PC (`u2mp_overlay.py`). |
+| `patcher/importer/` | What the launcher runs on the player's PC: `u2import.exe` (the asset import and the menu overlay). |
 | `tools/` | Research scripts (PS3/PS4 disassembly, function matching, inventories). |
 | `docs/` | Findings. |
 | `../gow3_pc/src/u2mp/` | The C++ module; tests in `../gow3_pc/tests/test_u2mp_*.cpp` (`ninja -C out/gpu u2mp-net-test u2mp-events-test u2mp-progression-test u2mp-cinema-test`). |
 
 Code that runs inside the game is **C++**, built into the runtime (`gow3_pc`); the C runtime calls it
-through `extern "C"` entry points. Python only for the launcher-side steps before the game starts.
+through `extern "C"` entry points. The launcher-side steps before the game starts (asset import, menu overlay) are
+C++ too (`u2import.exe`).
 
 ## Next
 

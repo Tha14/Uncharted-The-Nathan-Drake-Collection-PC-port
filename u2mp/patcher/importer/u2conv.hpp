@@ -1,5 +1,5 @@
-// importer/u2conv.hpp: the converters of the Uncharted 2 import that work on paks and DC modules (u2mp/patcher/u2conv),
-// as the import calls them.
+// importer/u2conv.hpp: the converters of the Uncharted 2 import that work on paks and DC modules (levels, stage, actors,
+// menu images, the net-patch module), as the import calls them.
 #pragma once
 #include "u2import.hpp"
 

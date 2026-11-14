@@ -17,7 +17,7 @@ Uncharted 2 multiplayer notes or code were used. Code: `gow3_pc/src/u2mp/menus.c
    columns, labels and condition numbers on both**, and the page records keep the same panel query
    (`+0x58..+0x5c` on PS4: action 22, condition 97..101/130/137, help-bar id). The only menu.bin
    difference that matters is the missing Multiplayer button in the main menus, which
-   `u2mp/patcher/u2mp_overlay.py` already adds. Nothing else is patched in menu.bin.
+   the menu overlay (`u2import --overlay`, overlay.cpp) already adds. Nothing else is patched in menu.bin.
 2. **Query table.** Query controls call `fn(query)` from the table at `0x105e370` (PS3
    `0xe15b50..0xe16168`, 12-byte entries `{cond, OPD, arg}`): 132 entries, the same conditions in the
    same order on both, ended by `fn == 0`, read on every call by the helpers `0x65f4e0..0x660660`
@@ -185,7 +185,7 @@ Restored: the page title MENU_TITLE_TROPHIES (85ed01cc "TROPHIES") and the butto
 
 Unchanged here; see `CINEMA.md`.
 
-## 4. Texts (TextDb::Find hook, texts.cpp; import u2text.py; details in TEXTS.md)
+## 4. Texts (TextDb::Find hook, texts.cpp; import texts.cpp; details in TEXTS.md)
 
 The multiplayer code and menu.bin use 26 text ids that no PS4 text bank has (the PS3 game got them from
 title updates and its server; they are in the BCUS dlc-patch7 networking bank, which is not a source):
@@ -310,7 +310,7 @@ types (type, value, image id, found, box). Check in game: mode icons, game type 
 separate rows on the custom game page, playlist card, rank badge 28 and the booster pair on the
 Multiplayer panel, Profile page contents, store skin pictures.
 
-## 8. Menu images PS4 dropped: net-u2mp.pak (u2netimg.py, 2026-11-07)
+## 8. Menu images PS4 dropped: net-u2mp.pak (import netimg.cpp, 2026-11-07)
 
 Run 15 still missed two ids on the Multiplayer page: `e2c34a4a` = `general/net/mode-buttons/leaderboards`
 and `067e1f80` = `.../trophies`. The PS4 net.pak has no such materials. Compared material by material
@@ -320,8 +320,8 @@ museum, sts, sge, wtr), rank-badges/default2 (ranks above 63), the-lab playlist,
 player photos / icons of the PS3-only skins (store rows without a picture).
 
 The import converts only those (the rule: what PS4 has stays the PS4 one) into
-`pak22/ps4/net-u2mp.pak` with the Uncharted 3 net converter (`paktools/convert_net.py`), with three U2
-differences in `u2conv/u2netimg.py`: the U2 PS3 MATERIAL_TABLE_1 (two tables, texture hashes in a shared
+`pak22/ps4/net-u2mp.pak` with the Uncharted 3 net converter (dctools `ps4mats` convert_net), with three U2
+differences in `u2mp/patcher/importer/netimg.cpp`: the U2 PS3 MATERIAL_TABLE_1 (two tables, texture hashes in a shared
 array on another page, no name array), a few textures that share one path under several hashes get a
 unique name, and each material takes the effect of a PS4 net material of its set (the PS4 net.pak is
 the effect reference). The registry gets a `net-u2mp` level / package entry.
