@@ -91,6 +91,24 @@ bool prefetch_read(const fs::path &p) {
     return true;
 }
 
+bool have_read_cache(const fs::path &p) {
+    std::lock_guard<std::mutex> l(g_cache_m);
+    return g_cache_limit && g_cache.count(utf8(p)) != 0;
+}
+
+bool provide_read_cache(const fs::path &p, Bytes data) {
+    auto d = std::make_shared<Bytes>(std::move(data));
+    std::lock_guard<std::mutex> l(g_cache_m);
+    if (!g_cache_limit || d->size() > g_cache_limit) return false;
+    const std::string k = utf8(p);
+    if (auto it = g_cache.find(k); it != g_cache.end()) {
+        g_cache_bytes -= it->second.data->size();
+        g_cache.erase(it);
+    }
+    cache_add_locked(k, std::move(d), g_cache_gen.load());
+    return true;
+}
+
 std::string fmt(const char *f, ...) {
     va_list a, b;
     va_start(a, f);

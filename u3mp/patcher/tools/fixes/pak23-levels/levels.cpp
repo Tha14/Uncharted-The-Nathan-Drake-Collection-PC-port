@@ -190,17 +190,23 @@ std::map<std::pair<std::string, std::string>, std::vector<std::string>> ps3_inde
     return idx;
 }
 
+Bytes ps3_entry(const Row &row, const std::map<std::pair<std::string, std::string>, std::vector<std::string>> &idx) {
+    const std::string &arch = row.at("archive"), &src = row.at("src");
+    auto it = idx.find({src, arch});
+    if (it == idx.end() && arch.rfind("dlc-map", 0) == 0) it = idx.find({src, "goty-dlc"});   // a GOTY disc without the DLC map packs
+    if (it == idx.end()) throw Stop("PS3 source " + src + " not in " + arch);
+    Psarc a(upath(it->second[5]));
+    return a.read(size_t(std::stoull(it->second[3])));
+}
+
 fs::path ps3_source(const Row &row, const std::map<std::pair<std::string, std::string>, std::vector<std::string>> &idx) {
     const std::string &arch = row.at("archive"), &src = row.at("src");
     if (arch == "labsrc") throw Stop("the Lab sources belong to the retired lab family");
     const fs::path d = g_tmp / "ps3" / upath(arch), p = d / upath(src + ".pak");
+    if (have_read_cache(p)) return p;   // extracted straight into the RAM cache by the prefetcher
     if (!fs::exists(p)) {
-        auto it = idx.find({src, arch});
-        if (it == idx.end() && arch.rfind("dlc-map", 0) == 0) it = idx.find({src, "goty-dlc"});   // a GOTY disc without the DLC map packs
-        if (it == idx.end()) throw Stop("PS3 source " + src + " not in " + arch);
         fs::create_directories(d);
-        Psarc a(upath(it->second[5]));
-        write_file_replace(p, a.read(size_t(std::stoull(it->second[3]))));
+        write_file_replace(p, ps3_entry(row, idx));
     }
     return p;
 }
@@ -431,11 +437,19 @@ int levels(const std::vector<std::string> &argv) {
         return 0;
     }
     std::fflush(stdout);
+    const auto t_scan = std::chrono::steady_clock::now();
+    const char *rc = std::getenv("RECIPE_CACHE_MB");
+    const size_t cache_mb = a.val.count("--cache-mb") ? size_t(std::stoul(a.get("--cache-mb", "0")))
+                                                      : (rc && *rc ? size_t(std::stoul(rc)) : size_t(3072));
+    set_read_cache_mb(cache_mb);
+    if (cache_mb) std::printf("read cache: %zu MB\n", cache_mb);
     const auto idx = ps3_index();
-    for (const Row &r : todo) {   // PS3 sources first (one reader at a time)
+    for (const Row &r : todo) {   // PS3 sources first (one reader at a time); with the RAM cache the prefetch pass extracts them
         const std::string &m = r.at("method");
-        if (m == "stage" || m == "ingame" || m == "vischeat" || m == "hud" || m == "sky") ps3_source(r, idx);
+        if ((m == "stage" || m == "ingame" || m == "vischeat" || m == "hud" || m == "sky") && (!cache_mb || m == "sky"))
+            ps3_source(r, idx);
     }
+    const auto t_extract = std::chrono::steady_clock::now();
     for (const Row &r : todo)
         if (r.at("method") == "stage" || r.at("method") == "sky") { res_dir(); break; }
     for (const Row &r : todo)
@@ -443,11 +457,10 @@ int levels(const std::vector<std::string> &argv) {
             g_anim = anim_actor_names(ps4main() / "actor33" / "ps4", upath(g_here + "/data/conv_anim_actors.json"));
             break;
         }
-    const char *rc = std::getenv("RECIPE_CACHE_MB");
-    const size_t cache_mb = a.val.count("--cache-mb") ? size_t(std::stoul(a.get("--cache-mb", "0")))
-                                                      : (rc && *rc ? size_t(std::stoul(rc)) : size_t(3072));
-    set_read_cache_mb(cache_mb);
-    if (cache_mb) std::printf("read cache: %zu MB\n", cache_mb);
+    const auto t_survey = std::chrono::steady_clock::now();
+    std::printf("prepared in %.0f s (scan %.0f, extract %.0f, survey %.0f)\n",
+                std::chrono::duration<double>(t_survey - t0).count(), std::chrono::duration<double>(t_scan - t0).count(),
+                std::chrono::duration<double>(t_extract - t_scan).count(), std::chrono::duration<double>(t_survey - t_extract).count());
     std::vector<std::string> error(todo.size());
     int bad = 0;
     json::Value report;
@@ -461,8 +474,17 @@ int levels(const std::vector<std::string> &argv) {
         for (size_t i = s; i < e; i++) {
             const Row &r = todo[i];
             const std::string &m = r.at("method");
-            if (m == "stage" || m == "ingame" || m == "vischeat" || m == "hud" || m == "sky")
+            if (m == "stage" || m == "ingame" || m == "vischeat" || m == "hud") {   // straight from the psarc, no scratch file
+                const fs::path p = g_tmp / "ps3" / upath(r.at("archive")) / upath(r.at("src") + ".pak");
+                if (!have_read_cache(p)) {
+                    try {
+                        provide_read_cache(p, ps3_entry(r, idx));
+                    } catch (...) {
+                    }
+                }
+            } else if (m == "sky") {
                 prefetch_read(g_tmp / "ps3" / upath(r.at("archive")) / upath(r.at("src") + ".pak"));
+            }
             if (m == "windoff") prefetch_read(pak4 / upath(r.at("src") + ".pak"));
             else if (m == "hud") prefetch_read(pak4 / "hud.pak");
             else if (m == "stage" || m == "sky") prefetch_read(pak4 / upath(r.at("name") + ".pak"));
