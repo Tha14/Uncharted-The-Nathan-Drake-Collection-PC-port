@@ -30,3 +30,4 @@ launcher/native/pythonw_bridge.exe
 launcher/native/game_starter.exe
 # fetched and built tools (tools/fetch_aa_files.sh, tools/build_ffmpeg.sh)
 downloads/
+u2mp/bin/

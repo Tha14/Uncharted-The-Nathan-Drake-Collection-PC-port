@@ -35,7 +35,8 @@ std::string fmt(const char *f, ...);
 
 // ------------------------------------------------------------------------------------------------ output
 void log(const std::string &line);             // a line on stdout (flushed)
-void event(const Value &kw);                   // "@U3MP " + json.dumps(kw)
+extern const char *g_event_prefix;             // "@U3MP " (u2import.exe: "@U2MP ")
+void event(const Value &kw);                   // g_event_prefix + json.dumps(kw)
 Value obj(std::initializer_list<std::pair<std::string, Value>> kv);
 Value str(const std::string &s);
 Value num(long long v);
