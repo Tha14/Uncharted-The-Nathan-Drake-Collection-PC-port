@@ -1,63 +1,72 @@
-// u2mp clan tag: the profile page's BUTTON_CLANTAG. PS3 0x441440 opened the on-screen keyboard and the profile
-// page 0x4443f8 polled it every frame (event 6 stored the tag after the censor check). PC: the runtime's text
-// input in the game window (the one sceImeDialog uses: keyboard Enter or Cross accepts, Esc or Circle cancels),
-// started by the button and polled by the same page event. The tag is NetPlayerData +0x1a8 (8 bytes, shown by
-// the label query 0x6609e0), saved and published with the rest of the profile (progression.cpp).
+// u2mp: editing the clan tag on the multiplayer profile page.
+//
+// On PS3 BUTTON_CLANTAG opened the on-screen keyboard and the page polled it every frame. On PC the
+// runtime's in-window text input takes its place (Enter or Cross accepts, Esc or Circle cancels):
+// remaining.cpp's button callback opens it with edit_clan_tag(), and the page's per-frame event calls
+// clan_tag_frame() until it closes. The tag is kept in NetPlayerData, where the game's label query
+// shows it and progression.cpp saves and publishes it.
+//
+// Reimplemented from the behaviour description u2mp/docs/spec/remaining.md.
+#include "progression.h"
+#include "u2mp_internal.h"
+
 #include <cstdint>
 #include <cstring>
 #include <string>
 
-#include "progression.h"
-#include "u2mp_internal.h"
-
-extern "C" {
-int gow3gpu_text_input_begin(const char *initial_utf8, const char *prompt_utf8);
-int gow3gpu_text_input_poll(char *out_utf8, uint64_t size);
-}
+extern "C" int gow3gpu_text_input_begin(const char *initial_utf8, const char *prompt_utf8);
+extern "C" int gow3gpu_text_input_poll(char *out_utf8, uint64_t size);
 
 namespace u2mp {
 namespace {
 
-constexpr uint64_t kNpd = 0x11474f8, NPD_CLAN_TAG = 0x1a8;
-constexpr int kMaxTag = 4;   // PS3 clan tags: up to 4 letters or digits
-bool editing = false;
+constexpr uint64_t kClanTag = 0x11474f8 + 0x1a8;   // NetPlayerData: 8 bytes, NUL-padded
+constexpr size_t kTagBytes = 8;
+constexpr size_t kTagChars = 4;
 
-void store_tag(const char *text) {
-    char out[8] = {};
-    int n = 0;
-    for (const char *p = text; *p && n < kMaxTag; ++p) {
-        const char c = *p;
-        if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) out[n++] = c;
-        else if (c >= 'a' && c <= 'z') out[n++] = char(c - 'a' + 'A');
+bool g_editing = false;
+
+// Keeps only what a tag may hold: letters (upper-cased) and digits, at most four of them.
+void store_tag(const char *text, size_t size) {
+    char tag[kTagBytes] = {};
+    size_t taken = 0;
+    for (size_t i = 0; i < size && text[i] && taken < kTagChars; ++i) {
+        const char c = text[i];
+        if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
+            tag[taken++] = c;
+        else if (c >= 'a' && c <= 'z')
+            tag[taken++] = char(c - 'a' + 'A');
     }
-    std::memcpy(image.at<char>(kNpd + NPD_CLAN_TAG), out, sizeof out);
-    log("clan tag: [%.4s]", out);
-    progression_publish();   // saved with the profile, sent to the party
+    std::memcpy(image.at<char>(kClanTag), tag, kTagBytes);
+    log("clan tag: [%.4s]", tag);
+    progression_publish();
 }
 
 }  // namespace
 
 bool edit_clan_tag() {
-    if (editing) return true;
-    const char *slot = image.at<char>(kNpd + NPD_CLAN_TAG);
-    const std::string current(slot, strnlen(slot, 8));
+    if (g_editing) return true;
+    const char *stored = image.at<const char>(kClanTag);
+    const std::string current(stored, strnlen(stored, kTagBytes));
     if (!gow3gpu_text_input_begin(current.c_str(), "Clan Tag (up to 4 letters or digits; empty = none)")) {
         log("clan tag: no text input available");
         return false;
     }
-    editing = true;
+    g_editing = true;
     log("clan tag: text input open");
     return true;
 }
 
 void clan_tag_frame() {
-    if (!editing) return;
+    if (!g_editing) return;
     char text[64] = {};
-    const int state = gow3gpu_text_input_poll(text, sizeof text);
-    if (!state) return;
-    editing = false;
-    if (state == 1) store_tag(text);
-    else log("clan tag: unchanged");
+    const int result = gow3gpu_text_input_poll(text, sizeof text);
+    if (result == 0) return;   // still open
+    g_editing = false;
+    if (result == 1)
+        store_tag(text, sizeof text);
+    else
+        log("clan tag: unchanged");
 }
 
 }  // namespace u2mp
