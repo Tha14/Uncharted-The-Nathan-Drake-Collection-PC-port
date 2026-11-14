@@ -1,7 +1,7 @@
 // Recipe steps convert-levels-port / -r2 / -r3: the converted level paks of overlay-port / -r2 / -r3, rebuilt row by
 // row from plan.tsv with the current converter (f525859, and the sky converter for the sky rows), all C++ in dctools/.
 //   u3fix levels <family> --project P --job J --ps4 D --ps3-disc D --ps3-update D --ps3-data2 D --ps3-dlcmaps D
-//                [--apply] [--only REGEX] [--strict] [--jobs N] [--keep-work]
+//                [--apply] [--only REGEX] [--strict] [--jobs N] [--cache-mb N] [--keep-work]
 //
 // A plan row names the level, its method, options, the PS3 source (archive + pak) and the sha256 the result must have.
 // A file already equal to that sha256 is skipped. A row that is not 'identical' never replaces an existing file, except a
@@ -248,9 +248,7 @@ Bytes hud_convert(const fs::path &retail, const fs::path &ps3) {
     return out;
 }
 
-fs::path build(const Row &row, const std::map<std::pair<std::string, std::string>, std::vector<std::string>> &idx) {
-    const fs::path od = g_tmp / "out" / upath(row.at("overlay")), op = od / upath(row.at("name") + ".pak");
-    fs::create_directories(od);
+Bytes build(const Row &row, const std::map<std::pair<std::string, std::string>, std::vector<std::string>> &idx) {
     const std::string m = row.at("method"), opts_s = row.at("opts"), ver = version_of(row);
     Env opts;
     std::set<std::string> flags;
@@ -273,17 +271,12 @@ fs::path build(const Row &row, const std::map<std::pair<std::string, std::string
         make_login_and_vram_page(w, w.page(), {}, {});
         const Bytes d = w.build();
         if (d.size() != 248) throw Stop(fmt("AssertionError: %zu", d.size()));
-        write_file_replace(op, d);
-        return op;
+        return d;
     }
-    if (m == "hud") {   // C++: the retail PS4 hud.pak with two HUD textures replaced by their full-size PS3 versions
-        write_file_replace(op, hud_convert(pak4 / "hud.pak", ps3_source(row, idx)));
-        return op;
-    }
-    if (m == "windoff") {   // C++ (dctools/windoff.cpp)
-        write_file_replace(op, windoff_convert(pak4 / upath(row.at("src") + ".pak"), items));
-        return op;
-    }
+    if (m == "hud")   // C++: the retail PS4 hud.pak with two HUD textures replaced by their full-size PS3 versions
+        return hud_convert(pak4 / "hud.pak", ps3_source(row, idx));
+    if (m == "windoff")   // C++ (dctools/windoff.cpp)
+        return windoff_convert(pak4 / upath(row.at("src") + ".pak"), items);
     if (m == "sky") {   // C++ (dctools/ps4stage.cpp sky_convert, the sky converter's version)
         ps3_source(row, idx);
         // the PS3 sky pak: the first extract in archive priority (build_skies.py's order)
@@ -302,17 +295,10 @@ fs::path build(const Row &row, const std::map<std::pair<std::string, std::string
         o.texdict = texdict;
         o.plan_dir = g_tmp / "sky" / upath(row.at("overlay")) / upath(lv) / "work";
         o.default_lightmaps = default_lightmap_texels();
-        write_file_replace(op, with_map_colors2(stage::sky_convert(sp, lv, o, upath(g_here + "/data/water_templates.json")), row.at("name"), read_file(sp)));
-        return op;
+        return with_map_colors2(stage::sky_convert(sp, lv, o, upath(g_here + "/data/water_templates.json")), row.at("name"), read_file(sp));
     }
-    if (m == "vischeat") {   // C++ (dctools/vischeat.cpp)
-        write_file_replace(op, vischeat_convert(ps3_source(row, idx)));
-        return op;
-    }
-    if (m == "ingame") {   // C++ (dctools/ps4ingame.cpp)
-        write_file_replace(op, ps4ingame_convert(ps3_source(row, idx), g_anim));
-        return op;
-    }
+    if (m == "vischeat") return vischeat_convert(ps3_source(row, idx));   // C++ (dctools/vischeat.cpp)
+    if (m == "ingame") return ps4ingame_convert(ps3_source(row, idx), g_anim);   // C++ (dctools/ps4ingame.cpp)
     if (m != "stage") throw Stop("method " + m + " is not supported");
     // C++ (dctools/ps4stage.cpp); 'mb' = paramfix + cubefix. No converter option sets environment values any more.
     if (!opts.empty()) throw Stop("stage option " + opts.begin()->first + " is not supported");
@@ -331,8 +317,7 @@ fs::path build(const Row &row, const std::map<std::pair<std::string, std::string
     if (fs::exists(ovf)) ov = read_json(ovf);
     if (const json::Value *g = ov.get("gobo"); g && g->truthy()) o.gobo = g;
     const fs::path ps3 = ps3_source(row, idx);
-    write_file_replace(op, with_map_colors2(stage::stage_convert(ps3, o), row.at("name"), read_file(ps3)));
-    return op;
+    return with_map_colors2(stage::stage_convert(ps3, o), row.at("name"), read_file(ps3));
 }
 
 std::set<std::pair<std::string, std::string>> shadowed() {
@@ -386,16 +371,16 @@ int levels(const std::vector<std::string> &argv) {
         else throw Stop("unexpected argument " + argv[i]);
     }
     const Args a(opts, {"--apply", "--strict", "--keep-work"},
-                 {"--project", "--job", "--ps4", "--ps3-disc", "--ps3-update", "--ps3-data2", "--ps3-dlcmaps", "--only", "--jobs"});
+                 {"--project", "--job", "--ps4", "--ps3-disc", "--ps3-update", "--ps3-data2", "--ps3-dlcmaps", "--only", "--jobs", "--cache-mb"});
     if (family.empty()) throw Stop("missing family");
     if (family != "port" && family != "r2" && family != "r3") throw Stop("family " + family + " is not supported (lab and maps-batch are retired)");
     g_project = a.need("--project"); g_here = a.need("--job"); g_ps4 = a.need("--ps4");
     g_disc = a.get("--ps3-disc", ""); g_update = a.get("--ps3-update", ""); g_data2 = a.get("--ps3-data2", ""); g_dlcmaps = a.get("--ps3-dlcmaps", "");
     g_tmp = upath(g_project) / "scratch" / "pak23-levels-work";
     const fs::path work = upath(g_project) / "work";
-    const char *rj = std::getenv("RECIPE_JOBS");
+    const char *lj = std::getenv("RECIPE_LEVELS_JOBS");
     const unsigned hw = std::max(1u, std::thread::hardware_concurrency());
-    const int jobs = a.val.count("--jobs") ? std::stoi(a.get("--jobs", "1")) : (rj && *rj ? std::atoi(rj) : int(std::max(1u, hw / 2)));
+    const int jobs = a.val.count("--jobs") ? std::stoi(a.get("--jobs", "1")) : (lj && *lj ? std::atoi(lj) : int(hw));
     const bool apply = a.has("--apply"), strict = a.has("--strict");
 
     std::vector<Row> rows;
@@ -440,7 +425,7 @@ int levels(const std::vector<std::string> &argv) {
         if (r.at("status") != "identical" && (strict || exists)) continue;   // never replace an existing file by a non-identical build
         todo.push_back(r);
     }
-    std::printf("%s: %zu rows, %d already applied, %zu to build\n", family.c_str(), rows.size(), done, todo.size());
+    std::printf("%s: %zu rows, %d already applied, %zu to build (%d workers)\n", family.c_str(), rows.size(), done, todo.size(), std::max(1, jobs));
     if (todo.empty()) {
         std::printf("already applied\n");
         return 0;
@@ -458,64 +443,108 @@ int levels(const std::vector<std::string> &argv) {
             g_anim = anim_actor_names(ps4main() / "actor33" / "ps4", upath(g_here + "/data/conv_anim_actors.json"));
             break;
         }
-    std::vector<std::string> result(todo.size()), error(todo.size());
-    std::atomic<size_t> next{0};
-    std::vector<std::thread> pool;
-    for (int w = 0; w < std::max(1, jobs); w++)
-        pool.emplace_back([&] {
-            for (size_t i; (i = next++) < todo.size();) {
-                try {
-                    result[i] = utf8(build(todo[i], idx));
-                } catch (const std::exception &e) {
-                    error[i] = e.what();
-                }
-            }
-        });
-    for (auto &t : pool) t.join();
+    const char *rc = std::getenv("RECIPE_CACHE_MB");
+    const size_t cache_mb = a.val.count("--cache-mb") ? size_t(std::stoul(a.get("--cache-mb", "0")))
+                                                      : (rc && *rc ? size_t(std::stoul(rc)) : size_t(3072));
+    set_read_cache_mb(cache_mb);
+    if (cache_mb) std::printf("read cache: %zu MB\n", cache_mb);
+    std::vector<std::string> error(todo.size());
     int bad = 0;
     json::Value report;
     report.kind = json::Value::Array;
-    for (size_t i = 0; i < todo.size(); i++) {
-        const Row &r = todo[i];
-        json::Value e = json::Value::object();
-        e.set("overlay", json::Value::text(r.at("overlay")));
-        e.set("name", json::Value::text(r.at("name")));
-        if (!error[i].empty() || result[i].empty()) {
-            std::printf("FAIL %s/%s: %s\n", r.at("overlay").c_str(), r.at("name").c_str(), error[i].substr(0, 600).c_str());
-            bad++;
-            e.set("result", json::Value::text("fail"));
-            e.set("error", json::Value::text(error[i].substr(0, 2000)));
-            report.items.push_back(e);
-            continue;
+    const fs::path pak4 = ps4main() / "pak23" / "ps4";
+    const size_t batch = std::max<size_t>(8, size_t(std::max(1, jobs)) + 4);
+    const size_t nbatches = (todo.size() + batch - 1) / batch;
+    auto prefetch_rows = [&](size_t b) -> uint64_t {
+        const uint64_t gen = read_cache_new_generation();
+        const size_t s = b * batch, e = std::min(todo.size(), s + batch);
+        for (size_t i = s; i < e; i++) {
+            const Row &r = todo[i];
+            const std::string &m = r.at("method");
+            if (m == "stage" || m == "ingame" || m == "vischeat" || m == "hud" || m == "sky")
+                prefetch_read(g_tmp / "ps3" / upath(r.at("archive")) / upath(r.at("src") + ".pak"));
+            if (m == "windoff") prefetch_read(pak4 / upath(r.at("src") + ".pak"));
+            else if (m == "hud") prefetch_read(pak4 / "hud.pak");
+            else if (m == "stage" || m == "sky") prefetch_read(pak4 / upath(r.at("name") + ".pak"));
         }
-        const std::string h = sha_file(upath(result[i]));
-        const bool same = plan_sha(r, h);
-        if (!same && r.at("status") == "identical") {
-            std::printf("MISMATCH %s/%s: built %s, plan %s (not installed)\n", r.at("overlay").c_str(), r.at("name").c_str(), h.substr(0, 12).c_str(), r.at("sha256").substr(0, 12).c_str());
-            bad++;
-            e.set("result", json::Value::text("mismatch"));
+        return gen;
+    };
+    if (cache_mb) {
+        prefetch_read(g_tmp / "res" / "ps4mats.jsonl.gz");   // generation 0, kept for the whole step
+        prefetch_read(g_tmp / "res" / "ps4tex.tsv");
+        prefetch_rows(0);
+    }
+    for (size_t b = 0; b < nbatches; b++) {
+        const size_t start = b * batch, end = std::min(todo.size(), start + batch);
+        uint64_t next_gen = 0;
+        std::thread pf;
+        if (cache_mb && b + 1 < nbatches)   // read the next batch while this one converts
+            pf = std::thread([&] { next_gen = prefetch_rows(b + 1); });
+        std::vector<Bytes> out(end - start);
+        std::vector<std::string> hashes(end - start);
+        std::atomic<size_t> next{start};
+        std::vector<std::thread> pool;
+        for (int w = 0; w < std::max(1, jobs); w++)
+            pool.emplace_back([&] {
+                for (size_t i; (i = next++) < end;) {
+                    try {
+                        out[i - start] = build(todo[i], idx);
+                        hashes[i - start] = sha256_hex(out[i - start]);
+                    } catch (const std::exception &e) {
+                        error[i] = e.what();
+                    }
+                }
+            });
+        for (auto &t : pool) t.join();
+        if (pf.joinable()) pf.join();   // no reads in flight while this batch is written
+        for (size_t i = start; i < end; i++) {   // writes only, in row order
+            const Row &r = todo[i];
+            const Bytes &data = out[i - start];
+            json::Value e = json::Value::object();
+            e.set("overlay", json::Value::text(r.at("overlay")));
+            e.set("name", json::Value::text(r.at("name")));
+            if (!error[i].empty() || data.empty()) {
+                std::printf("FAIL %s/%s: %s\n", r.at("overlay").c_str(), r.at("name").c_str(), error[i].substr(0, 600).c_str());
+                bad++;
+                e.set("result", json::Value::text("fail"));
+                e.set("error", json::Value::text(error[i].substr(0, 2000)));
+                report.items.push_back(e);
+                continue;
+            }
+            const std::string &h = hashes[i - start];
+            const bool same = plan_sha(r, h);
+            if (!same && r.at("status") == "identical") {
+                std::printf("MISMATCH %s/%s: built %s, plan %s (not installed)\n", r.at("overlay").c_str(), r.at("name").c_str(), h.substr(0, 12).c_str(), r.at("sha256").substr(0, 12).c_str());
+                bad++;
+                e.set("result", json::Value::text("mismatch"));
+                e.set("sha256", json::Value::text(h));
+                report.items.push_back(e);
+                continue;
+            }
+            const std::string tag = same ? "identical" : "equivalent (sha " + h.substr(0, 12) + ", reference " + r.at("sha256").substr(0, 12) + ")";
+            e.set("result", json::Value::text(same ? "identical" : "equivalent"));
             e.set("sha256", json::Value::text(h));
             report.items.push_back(e);
-            continue;
-        }
-        const std::string tag = same ? "identical" : "equivalent (sha " + h.substr(0, 12) + ", reference " + r.at("sha256").substr(0, 12) + ")";
-        e.set("result", json::Value::text(same ? "identical" : "equivalent"));
-        e.set("sha256", json::Value::text(h));
-        report.items.push_back(e);
-        if (apply) {
-            const fs::path dst = upath(r.at("dst"));
-            if (fs::exists(dst) && !r.count("replace")) {   // a replaced earlier build needs no backup
-                const fs::path bk = work / "backup-pak23-levels" / upath(r.at("overlay")) / upath(r.at("name") + ".pak");
-                if (!fs::exists(bk)) {
-                    fs::create_directories(bk.parent_path());
-                    copy2(dst, bk);
+            if (apply) {
+                const fs::path dst = upath(r.at("dst"));
+                if (fs::exists(dst) && !r.count("replace")) {   // a replaced earlier build needs no backup
+                    const fs::path bk = work / "backup-pak23-levels" / upath(r.at("overlay")) / upath(r.at("name") + ".pak");
+                    if (!fs::exists(bk)) {
+                        fs::create_directories(bk.parent_path());
+                        copy2(dst, bk);
+                    }
                 }
+                fs::create_directories(dst.parent_path());
+                write_file_replace(dst, data);
+                std::printf("installed %s/%s: %s\n", r.at("overlay").c_str(), r.at("name").c_str(), tag.c_str());
+            } else {
+                std::printf("ok %s/%s: %s (dry run)\n", r.at("overlay").c_str(), r.at("name").c_str(), tag.c_str());
             }
-            fs::create_directories(dst.parent_path());
-            write_file_replace(dst, read_file(upath(result[i])));
-            std::printf("installed %s/%s: %s\n", r.at("overlay").c_str(), r.at("name").c_str(), tag.c_str());
-        } else {
-            std::printf("ok %s/%s: %s (dry run)\n", r.at("overlay").c_str(), r.at("name").c_str(), tag.c_str());
+        }
+        std::vector<Bytes>().swap(out);
+        if (cache_mb) {
+            if (b + 1 < nbatches) read_cache_discard_before(next_gen);
+            else clear_read_cache();
         }
     }
     write_text(g_tmp / ("report-" + family + ".json"), json_dump_indent1(report));

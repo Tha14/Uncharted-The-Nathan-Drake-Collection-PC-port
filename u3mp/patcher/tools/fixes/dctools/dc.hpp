@@ -34,6 +34,11 @@ std::string fmt(const char *f, ...);            // printf into a std::string
 std::string hex8(uint32_t v);                   // "%08x"
 std::string utf8(const fs::path &p);            // a path for messages
 Bytes read_file(const fs::path &p);
+void set_read_cache_mb(size_t mb);   // bounded RAM cache of read_file() contents (0 = off); shared by all threads
+bool prefetch_read(const fs::path &p);   // read p into that cache without returning a copy
+void clear_read_cache();   // drop every cached file (the prefetcher refills for the next batch)
+uint64_t read_cache_new_generation();   // start a prefetch generation; prefetch_read() tags its files with it
+void read_cache_discard_before(uint64_t gen);   // drop files of older generations (generation 0 is kept)
 void write_file_replace(const fs::path &p, const Bytes &data);   // <p>.tmp, then replaces p
 void copy_once(const fs::path &src, const fs::path &dst);       // backup: only when dst does not exist yet
 std::string sha256_hex(const Bytes &data);

@@ -2,13 +2,94 @@
 #include "dc.hpp"
 
 #include <array>
+#include <atomic>
 #include <cstdarg>
 #include <cstdio>
 #include <chrono>
 #include <fstream>
+#include <memory>
 #include <thread>
+#include <unordered_map>
 
 namespace u3 {
+
+namespace {
+
+struct CacheEntry {
+    std::shared_ptr<Bytes> data;
+    uint64_t used = 0, gen = 0;
+};
+std::mutex g_cache_m;
+std::unordered_map<std::string, CacheEntry> g_cache;
+uint64_t g_cache_bytes = 0, g_cache_limit = 0, g_cache_tick = 0;
+std::atomic<uint64_t> g_cache_gen{0};
+
+void cache_add_locked(const std::string &k, std::shared_ptr<Bytes> d, uint64_t gen) {
+    g_cache_bytes += d->size();
+    g_cache[k] = {std::move(d), ++g_cache_tick, gen};
+    while (g_cache_bytes > g_cache_limit && !g_cache.empty()) {
+        auto old = g_cache.begin();
+        for (auto it = g_cache.begin(); it != g_cache.end(); ++it)
+            if (it->second.used < old->second.used) old = it;
+        g_cache_bytes -= old->second.data->size();
+        g_cache.erase(old);
+    }
+}
+
+void cache_drop_locked(const fs::path &p) {
+    auto it = g_cache.find(utf8(p));
+    if (it == g_cache.end()) return;
+    g_cache_bytes -= it->second.data->size();
+    g_cache.erase(it);
+}
+
+}  // namespace
+
+void set_read_cache_mb(size_t mb) {
+    std::lock_guard<std::mutex> l(g_cache_m);
+    g_cache_limit = uint64_t(mb) << 20;
+    if (!g_cache_limit) {
+        g_cache.clear();
+        g_cache_bytes = 0;
+        return;
+    }
+    while (g_cache_bytes > g_cache_limit && !g_cache.empty()) {
+        auto old = g_cache.begin();
+        for (auto it = g_cache.begin(); it != g_cache.end(); ++it)
+            if (it->second.used < old->second.used) old = it;
+        g_cache_bytes -= old->second.data->size();
+        g_cache.erase(old);
+    }
+}
+
+bool prefetch_read(const fs::path &p) {
+    const std::string k = utf8(p);
+    {
+        std::lock_guard<std::mutex> l(g_cache_m);
+        if (!g_cache_limit) return false;
+        auto it = g_cache.find(k);
+        if (it != g_cache.end()) {
+            it->second.used = ++g_cache_tick;
+            return true;
+        }
+    }
+    std::error_code ec;
+    const auto sz = fs::file_size(p, ec);
+    if (ec) return false;
+    {
+        std::lock_guard<std::mutex> l(g_cache_m);
+        if (sz > g_cache_limit) return false;
+    }
+    std::ifstream f(p, std::ios::binary);
+    if (!f) return false;
+    auto d = std::make_shared<Bytes>(size_t(sz));
+    if (sz) f.read(reinterpret_cast<char *>(d->data()), std::streamsize(sz));
+    if (!f) return false;
+    std::lock_guard<std::mutex> l(g_cache_m);
+    if (!g_cache_limit) return false;
+    if (!g_cache.count(k)) cache_add_locked(k, std::move(d), g_cache_gen.load());
+    return true;
+}
 
 std::string fmt(const char *f, ...) {
     va_list a, b;
@@ -30,9 +111,28 @@ std::string utf8(const fs::path &p) {
 }
 
 Bytes read_file(const fs::path &p) {
+    const std::string k = utf8(p);
+    std::shared_ptr<Bytes> hit;
+    {
+        std::lock_guard<std::mutex> l(g_cache_m);
+        if (g_cache_limit) {
+            auto it = g_cache.find(k);
+            if (it != g_cache.end()) {
+                it->second.used = ++g_cache_tick;
+                hit = it->second.data;
+            }
+        }
+    }
+    if (hit) return *hit;
+    std::error_code ec;
+    const auto sz = fs::file_size(p, ec);
+    if (ec) throw Stop("cannot read " + k);
     std::ifstream f(p, std::ios::binary);
-    if (!f) throw Stop("cannot read " + utf8(p));
-    return Bytes(std::istreambuf_iterator<char>(f), {});
+    if (!f) throw Stop("cannot read " + k);
+    Bytes d(static_cast<size_t>(sz));
+    if (sz) f.read(reinterpret_cast<char *>(d.data()), std::streamsize(sz));
+    if (!f) throw Stop("cannot read " + k);
+    return d;
 }
 
 void write_file_replace(const fs::path &p, const Bytes &data) {
@@ -48,7 +148,13 @@ void write_file_replace(const fs::path &p, const Bytes &data) {
     for (int k = 0;; k++) {
         std::error_code ec;
         fs::rename(tmp, p, ec);
-        if (!ec) return;
+        if (!ec) {
+            {
+                std::lock_guard<std::mutex> l(g_cache_m);
+                cache_drop_locked(p);
+            }
+            return;
+        }
         if (k == 100) fs::rename(tmp, p);   // throws with the error
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
@@ -80,6 +186,25 @@ constexpr std::array<uint32_t, 64> K = {
     0xc67178f2};
 inline uint32_t rotr(uint32_t x, int n) { return (x >> n) | (x << (32 - n)); }
 }  // namespace
+
+void clear_read_cache() {
+    std::lock_guard<std::mutex> l(g_cache_m);
+    g_cache.clear();
+    g_cache_bytes = 0;
+}
+
+uint64_t read_cache_new_generation() { return g_cache_gen.fetch_add(1) + 1; }
+
+void read_cache_discard_before(uint64_t gen) {
+    std::lock_guard<std::mutex> l(g_cache_m);
+    for (auto it = g_cache.begin(); it != g_cache.end();)
+        if (it->second.gen && it->second.gen < gen) {
+            g_cache_bytes -= it->second.data->size();
+            it = g_cache.erase(it);
+        } else {
+            ++it;
+        }
+}
 
 std::string sha256_hex(const Bytes &data) {
     uint32_t h[8] = {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
