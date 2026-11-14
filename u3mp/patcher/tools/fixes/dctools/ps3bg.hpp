@@ -121,7 +121,7 @@ namespace u3::bg {
 // 0x0N values v*2/(2^bits-1) - 1 without the 1-bit sign rule; the skin of a skinned block (errors propagate)
 struct FgBlock {
     uint32_t nverts = 0;
-    std::map<std::string, Mat> attr;   // pos, normal, tangent, uv0, uv1, uv2, color0, color1, attr<id>
+    std::map<std::string, Mat> attr;   // pos, normal, tangent, uv0, uv1, uv2, color0, color1, blend0, attr<id>
     std::vector<std::array<uint32_t, 3>> tris;
     bool has_skin = false;
     std::vector<Influence> skin;
@@ -130,7 +130,9 @@ struct FgBlock {
         return it == attr.end() ? nullptr : &it->second;
     }
 };
-FgBlock decode_fg_block(const Pak &p, uint32_t page, uint64_t blk, bool skin = true);
+// stop_at_blend: stop at attribute 0x15 as the decoder did before 2026-11-13 (that drops the blend factor and the
+// normal / tangent after it); only for a pak whose later recipe steps are pinned to that output
+FgBlock decode_fg_block(const Pak &p, uint32_t page, uint64_t blk, bool skin = true, bool stop_at_blend = false);
 struct FgProto {
     std::string name;
     Ref proto;

@@ -793,7 +793,7 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
         if (!info) throw Stop("IndexError: list index out of range");
         const std::vector<std::string> mnames = ps3_block_materials(src, *pr);
         std::vector<bg::FgBlock> blocks;
-        for (const Ref &b : info->blocks) blocks.push_back(bg::decode_fg_block(src, b.first, b.second));
+        for (const Ref &b : info->blocks) blocks.push_back(bg::decode_fg_block(src, b.first, b.second, true, opt.stop_at_blend));
         if (!opt.basis_targets.empty())
             for (bg::FgBlock &b : blocks) rebuild_basis(b, opt.basis_targets, basis_seen);
         std::vector<Sub> subs;
@@ -1331,6 +1331,24 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
                         if (hi == have.end()) have.push_back({x.slot, x});
                         else hi->second = x;
                     }
+                    // PS3 attribute 0x15 (blend factor; a 0-bit attribute decodes to -1 = none) -> slot 4: r = g = b =
+                    // the factor clamped to 0..1, a = 1 (instead of constant 1: the second layer everywhere)
+                    Bytes blend;
+                    bool any_blend = false;
+                    for (const auto &b : s.blocks) any_blend = any_blend || b.get("blend0");
+                    if (any_blend) {
+                        Mat b4(nv, 4);
+                        size_t r = 0;
+                        for (const auto &b : s.blocks) {
+                            const Mat *m = b.get("blend0");
+                            for (uint32_t i = 0; i < b.nverts; i++, r++) {
+                                const double v = m ? std::clamp(m->at(i, 0), 0.0, 1.0) : 0.0;
+                                b4.at(r, 0) = b4.at(r, 1) = b4.at(r, 2) = v;
+                                b4.at(r, 3) = 1.0;
+                            }
+                        }
+                        f16row(b4, 4, blend);
+                    }
                     std::vector<St> nw;
                     for (const auto &[sl, stride, fb] : ws->second) {
                         auto hi = std::find_if(have.begin(), have.end(), [&](const auto &h) { return h.first == sl; });
@@ -1340,7 +1358,7 @@ Bytes convert(const fs::path &ps3_path, const fs::path &tmpl_path, const Kw &kw,
                         } else if (sl == 1) nw.push_back({sl, stride, Bytes(nv * 4, 0)});
                         else if (sl == 2) nw.push_back({sl, stride, tile({0, 0, 1, 1})});
                         else if (sl == 3) nw.push_back({sl, stride, tile({1, 0, 0, 1})});
-                        else if (sl == 4) nw.push_back({sl, stride, tile({1, 1, 1, 1})});
+                        else if (sl == 4) nw.push_back({sl, stride, any_blend ? blend : tile({1, 1, 1, 1})});
                         else throw Stop(u3::fmt("NotImplementedError: template stream slot %u", sl));
                     }
                     for (auto &h : have) nw.push_back(h.second);

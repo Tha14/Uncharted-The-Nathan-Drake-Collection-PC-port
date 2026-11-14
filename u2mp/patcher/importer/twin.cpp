@@ -148,7 +148,8 @@ std::vector<Block> ps3_lod0_blocks(const U2Src &s) {
     std::vector<Block> out;
     for (uint32_t k = 0; k < nsub; k++) {
         const Ref r = bg::need(s.res(t.first, t.second + 4ull * k));
-        const bg::FgBlock b = bg::decode_fg_block(p, r.first, r.second);
+        // stop_at_blend: U2 keeps the decoding from before PS3 vertex attribute 0x15 was read, like actor.cpp
+        const bg::FgBlock b = bg::decode_fg_block(p, r.first, r.second, true, true);
         Block x;
         x.key = exact_key(b);
         x.pos = *b.get("pos");

@@ -698,7 +698,7 @@ std::vector<std::string> water_materials(const Pak &p) {
 
 namespace u3::bg {
 
-FgBlock decode_fg_block(const Pak &p, uint32_t page, uint64_t blk, bool skin) {
+FgBlock decode_fg_block(const Pak &p, uint32_t page, uint64_t blk, bool skin, bool stop_at_blend) {
     const uint64_t b = p.pbase(page);
     FgBlock res;
     const uint64_t cnt = need(p, page, blk + 0x24).second;
@@ -717,10 +717,12 @@ FgBlock decode_fg_block(const Pak &p, uint32_t page, uint64_t blk, bool skin) {
         for (int k = 0; k < 4; k++) a.w[k] = p.d[b + o + 4 + k];
         attrs.push_back(a);
         o += 8;
-        const uint8_t nxt = u8(p, b + o);   // the parameters begin where no attribute id follows
-        if (!((nxt >= 1 && nxt <= 8) || (nxt >= 0x10 && nxt <= 0x14))) break;
+        // the parameters begin where no attribute id follows. 0x15 is the per-vertex blend factor (3 equal components,
+        // PS4 stream slot 4); it sits between uv0 and normal, so stopping on it lost normal + tangent too (black shading)
+        const uint8_t nxt = u8(p, b + o);
+        if (!((nxt >= 1 && nxt <= 8) || (nxt >= 0x10 && nxt <= (stop_at_blend ? 0x14 : 0x15)))) break;
     }
-    static const std::map<int, std::string> NAMES = {{1, "pos"}, {2, "normal"}, {3, "tangent"}, {0x11, "uv0"}, {0x12, "uv1"}, {0x13, "uv2"}, {4, "color0"}, {5, "color1"}};
+    static const std::map<int, std::string> NAMES = {{1, "pos"}, {2, "normal"}, {3, "tangent"}, {0x11, "uv0"}, {0x12, "uv1"}, {0x13, "uv2"}, {4, "color0"}, {5, "color1"}, {0x15, "blend0"}};
     for (size_t ai = 0; ai < attrs.size(); ai++) {
         const Attr &a = attrs[ai];
         const int n = a.n();

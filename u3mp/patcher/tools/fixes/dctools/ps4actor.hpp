@@ -27,6 +27,7 @@ struct Options {   // the converter's PS4ACTOR_* settings
     std::string drop_mat;
     std::vector<fs::path> donors;
     std::optional<fs::path> skel3;
+    bool stop_at_blend = false;   // bg::decode_fg_block's pre-2026-11-13 attribute 0x15 behaviour (actor33 LEGACY_ATTR15)
     // the actor-materials rules
     bool am = false;
     std::map<std::string, std::string> mat_choice;                       // PS3 material -> part of a template material name
