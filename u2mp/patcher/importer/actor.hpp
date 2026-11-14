@@ -45,6 +45,14 @@ void fix_cbuffer_capacity(Bytes &pak);
 // what the PS4 loader resolves (actors.cpp): every problem found, [] = fine
 std::vector<std::string> ps4check(const Pak &p);
 
+// ------------------------------------------------------------------------------------------------ for validate.cpp
+fs::path skin_template(const fs::path &ps3_path, const fs::path &actor_dir, const std::string &exclude);   // actors.cpp
+std::vector<std::string> actor_check(const fs::path &path);
+BlobP u2_light_table(const Pak &p);                     // stage.cpp: the U2 item layouts
+std::vector<BlobP> u2_collision(const Pak &p);
+BlobP u2_water(const Pak &p);
+std::vector<std::string> u2_collision_problems(const Pak &q, const PakItem &it);   // stagecheck.cpp
+
 // ------------------------------------------------------------------------------------------------ actorparts.cpp
 struct ArtgroupU2 {
     std::string name;

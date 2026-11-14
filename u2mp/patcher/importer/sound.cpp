@@ -18,7 +18,7 @@
 namespace u2imp {
 namespace {
 
-const uint32_t PS4_INTERLEAVE = 0x155;   // frames per channel and block (retail 148/149_JungleExplore)
+// frames per channel and block: XVAG_INTERLEAVE (u2import.hpp; retail 148/149_JungleExplore)
 
 uint32_t be(const Bytes &d, size_t o) {
     if (o + 4 > d.size()) throw std::invalid_argument("XVAG: truncated");
@@ -30,7 +30,7 @@ void le(Bytes &o, uint32_t v) {
 
 }  // namespace
 
-Bytes xvag_convert(const Bytes &d) {
+Bytes xvag_convert(const Bytes &d, uint32_t interleave) {
     if (d.size() < 4 || std::string(d.begin(), d.begin() + 4) != "XVAG") throw std::invalid_argument("ValueError: not an XVAG file");
     const uint32_t hs = be(d, 4);
     if (hs > 0x1000 || d[4] || d[5]) throw std::invalid_argument("ValueError: not a big-endian (PS3) XVAG");
@@ -56,7 +56,7 @@ Bytes xvag_convert(const Bytes &d) {
         throw std::invalid_argument(fmt("ValueError: XVAG data size %u does not hold whole frames for %u channels", dsize, ch));
     const uint8_t *data = d.data() + hs;
     const uint32_t nfr = dsize / 16 / ch;   // frames per channel
-    const uint32_t il = ch > 1 ? PS4_INTERLEAVE : std::max(1u, std::min(PS4_INTERLEAVE, nfr));
+    const uint32_t il = ch > 1 ? interleave : std::max(1u, std::min(interleave, nfr));
     Bytes body_data;
     if (ch > 1) {
         const uint32_t nblk = (nfr + il - 1) / il;

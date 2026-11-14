@@ -437,6 +437,7 @@ std::vector<std::string> convert_stage(const Context &c, const Pak &p, const fs:
     std::string summary;
     o.approx = &approx;
     o.plan_summary = &summary;
+    o.exclude = {S(out.filename())};   // the retail pak of the output's name
     const Bytes data = u3::stage::stage_convert(src, o);
     const fs::path tmp = S(out) + ".tmp";
     write_bytes(tmp, data);
@@ -451,5 +452,10 @@ std::vector<std::string> convert_stage(const Context &c, const Pak &p, const fs:
     if (ec) throw std::runtime_error("cannot write " + S(out) + ": " + ec.message());
     return {summary, fmt("%zu approximations", approx)};
 }
+
+// ------------------------------------------------------------------------------------------------ for validate.cpp
+BlobP u2_light_table(const Pak &p) { return light_table(p); }
+std::vector<BlobP> u2_collision(const Pak &p) { return collision(p); }
+BlobP u2_water(const Pak &p) { return water(p, [](const std::string &n) { return u3::stage::ps4key(n); }); }
 
 }  // namespace u2imp

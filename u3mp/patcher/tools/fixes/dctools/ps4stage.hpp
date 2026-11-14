@@ -41,6 +41,7 @@ struct Options {
     size_t *approx = nullptr;
     // the plan's summary line: '<stage>: N materials, N exact, N fallback; N source paks; N textures requested'
     std::string *plan_summary = nullptr;
+    std::vector<std::string> exclude;   // retail paks the plan takes nothing from (besides the stage's own name)
 };
 Bytes stage_convert(const fs::path &ps3, const Options &o);
 // the sky rows (lib/build_skies.py with paktools-sky): the plan's sky materials re-pointed to retail sky-clouds.fx

@@ -132,7 +132,7 @@ struct Choice {
     fs::path tmpl;
     size_t shared, total;
 };
-Choice choose_template(const fs::path &ps3_path, const fs::path &actor_dir) {
+Choice choose_template(const fs::path &ps3_path, const fs::path &actor_dir, const std::string &exclude = "") {
     const U2Src src(ps3_path);
     const uint32_t sk = skeleton_sid(src.p);
     const std::set<std::string> keys = material_keys(src);
@@ -140,7 +140,7 @@ Choice choose_template(const fs::path &ps3_path, const fs::path &actor_dir) {
     std::optional<std::tuple<size_t, size_t, long long>> best;
     std::string name;
     for (const auto &[n, t] : template_index(actor_dir, false)) {
-        if (t.skel != sk) continue;
+        if (t.skel != sk || n == exclude) continue;
         const auto score = std::make_tuple(common(keys, t.mats), common_prefix(n, base), -(long long)t.size);
         if (!best || score > *best) best = score, name = n;
     }
@@ -391,5 +391,11 @@ Converted convert_actor(const Context &c, const Entry &entry, const fs::path &sr
     notes.push_back(fmt("template %s (%zu of %zu materials by name)", S(ch.tmpl.filename()).c_str(), ch.shared, ch.total));
     return {rel, notes};
 }
+
+// ------------------------------------------------------------------------------------------------ for validate.cpp
+fs::path skin_template(const fs::path &ps3_path, const fs::path &actor_dir, const std::string &exclude) {
+    return choose_template(ps3_path, actor_dir, exclude).tmpl;
+}
+std::vector<std::string> actor_check(const fs::path &path) { return check(path); }
 
 }  // namespace u2imp

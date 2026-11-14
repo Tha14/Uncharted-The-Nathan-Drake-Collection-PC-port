@@ -3,7 +3,7 @@
 //
 //   u2import --ps4 <PS4 game folder> --ps3 <PS3 base folder> [--ps3-dlc <PS3 DLC folder>] --out <folder>
 //            [--ps3-data <PS3 game-data folder>] [--groups A,B,C,D,E] [--speech-langs english,french,...] [--dlc-ruins]
-//            [--drop-navmesh] [--only REGEX] [--ps3-elf EBOOT.elf] [--objdump PATH] [--ffmpeg PATH] [--force] [--update]
+//            [--drop-navmesh] [--only REGEX] [--ps3-elf EBOOT.elf] [--objdump PATH] [--ffmpeg PATH] [--force] [--update] [--validate]
 //   u2import --shipped-id          the fingerprint of the installed import (the launcher compares it with state.json)
 //
 //   --ps4      the Collection's game folder (holds u2data/) or u2data itself
@@ -184,7 +184,7 @@ Value sorted_keys(const Value &v) {
 
 struct Args {
     std::string ps4, ps3, ps3_dlc, ps3_data, out, groups = "A,B,C,D,E", speech_langs, list, only, ffmpeg, ps3_elf, objdump;
-    bool dlc_ruins = false, no_dlc_ruins = false, drop_navmesh = false, no_verify = false, update = false, force = false;
+    bool dlc_ruins = false, no_dlc_ruins = false, drop_navmesh = false, no_verify = false, update = false, force = false, validate = false;
 };
 
 struct Row {
@@ -602,6 +602,7 @@ int Importer::run() {
     std::string fl;
     for (const std::string &f : failed) fl += (fl.empty() ? "" : ", ") + f;
     lg(fmt("done in %.0f s: %s; steps failed: %s", seconds_since(t0), cl.c_str(), fl.empty() ? "none" : fl.c_str()));
+    if (a.validate) state.set("validation", validate(*ps3, *ps4, ctx, work / "validate", [this](const std::string &s) { lg(s); }));
     state.set("recipe_id", str(shipped_id_text()));
     Value fa = Value::object();
     fa.kind = Value::Array;
@@ -1149,15 +1150,15 @@ int wmain(int argc, wchar_t **argv) {
                                                            {"--list", &a.list},       {"--only", &a.only},     {"--ffmpeg", &a.ffmpeg},
                                                            {"--ps3-elf", &a.ps3_elf}, {"--objdump", &a.objdump}};
         const std::map<std::string, bool *> flags = {{"--dlc-ruins", &a.dlc_ruins}, {"--no-dlc-ruins", &a.no_dlc_ruins}, {"--drop-navmesh", &a.drop_navmesh},
-                                                     {"--no-verify", &a.no_verify}, {"--update", &a.update},             {"--force", &a.force}};
+                                                     {"--no-verify", &a.no_verify}, {"--update", &a.update},             {"--force", &a.force},
+                                                     {"--validate", &a.validate}};
         for (size_t i = 0; i < v.size(); i++) {
             if (flags.count(v[i])) *flags.at(v[i]) = true;
             else if (vals.count(v[i]) && i + 1 < v.size()) {
                 std::string *target = vals.at(v[i]);
                 *target = v[++i];
             }
-            else if (v[i] == "--validate") {   // the reference-pair checks are a maintainer tool now (u2mp/tools)
-            } else {
+            else {
                 std::fprintf(stderr, "u2import: unknown argument %s\n", v[i].c_str());
                 return 2;
             }

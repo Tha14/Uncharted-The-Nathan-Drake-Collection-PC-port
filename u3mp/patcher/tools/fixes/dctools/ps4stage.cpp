@@ -2400,7 +2400,7 @@ Bytes convert_two_pass(const fs::path &ps3, const std::string &lv, const Plan &p
 }  // namespace
 
 Bytes stage_convert(const fs::path &ps3, const Options &o) {
-    Plan plan = make_plan(ps3, o.res, o.fixes ? o.water_templates : fs::path());   // fixes: water templates scored (batch98)
+    Plan plan = make_plan(ps3, o.res, o.fixes ? o.water_templates : fs::path(), o.exclude);   // fixes: water templates scored (batch98)
     const std::string lv = plan.stage;
     if (o.plan_summary) {
         size_t ne = 0;

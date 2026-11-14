@@ -78,7 +78,8 @@ public:
 };
 
 // ------------------------------------------------------------------------------------------------ sound.cpp
-Bytes xvag_convert(const Bytes &d);
+const uint32_t XVAG_INTERLEAVE = 0x155;   // the PS4 block: frames per channel
+Bytes xvag_convert(const Bytes &d, uint32_t interleave = XVAG_INTERLEAVE);
 std::string find_ffmpeg(const std::string &arg);
 Bytes bank_convert(const Bytes &ps3, const std::string &ffmpeg, std::string &note);
 
@@ -110,6 +111,10 @@ fs::path launcher_root();    // the folder holding u2mp and u3mp
 
 // stagecheck.cpp: the problems of a converted stage pak ([] = keep it)
 std::vector<std::string> stage_check(const fs::path &path);
+
+// validate.cpp: --validate, the converters checked on the files both platforms have; the report (also <work>/validation.json)
+struct Context;
+json::Value validate(const PS3 &ps3, const PS4 &ps4, const Context &ctx, const fs::path &work, const std::function<void(const std::string &)> &lg);
 
 // overlay.cpp: the menu overlay (main menu with a Multiplayer button) in `out`, made or kept; throws with the reason
 fs::path build_overlay(const fs::path &game, const fs::path &out, const std::optional<fs::path> &update);

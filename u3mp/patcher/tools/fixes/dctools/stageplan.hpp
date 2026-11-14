@@ -43,7 +43,8 @@ struct Plan {
     const PlanMat *get(const std::string &n) const;
 };
 // water_templates: the sky converter's retail water.fx templates (water_templates.json); empty = the old water rule
-Plan make_plan(const fs::path &ps3, const fs::path &res, const fs::path &water_templates = {});
+// also_exclude: more retail paks (file names) the plan takes nothing from; the stage's own name is always left out
+Plan make_plan(const fs::path &ps3, const fs::path &res, const fs::path &water_templates = {}, const std::vector<std::string> &also_exclude = {});
 std::string plan_json(const Plan &p);   // json.dump(plan, indent=1)
 
 // the device bundle: retail material records with their EFFECT closures, and texture descriptors + texels

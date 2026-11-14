@@ -339,4 +339,6 @@ std::vector<std::string> stage_check(const fs::path &path) {
     return errs;
 }
 
+std::vector<std::string> u2_collision_problems(const Pak &q, const PakItem &it) { return collision_problems(q, it); }
+
 }  // namespace u2imp
