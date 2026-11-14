@@ -1,152 +1,165 @@
-// u2mp matchend: watch the match-end conditions while Playing runs, and an optional short time limit
-// for test runs (notes: u2mp/docs/PORT-GAMEPLAY3.md section 6).
+// u2mp matchend: watches what decides the end of a match and drives the per-frame visibility kick.
 //
-// The PS4 host checks game over inside NetGameManager::Update 0x63e6a0 (PS3 CheckGameOver 0x4a49e8,
-// HostUpdate 0x4a8af8), from 0x63f31d:
-//   - not before 1500 frames (5 s) after the match start ngm+0x1d60;
-//   - time limit: game type (record +0xc) != 10, ngm+0x21b8 (float seconds, SetNetGame 0x63dc30 copies
-//     the *net-games* record +0x20) > 0 and debug byte 0x104f4f8 == 0:
-//     frames - ngm+0x1d5c (round start) > limit * 300 -> reason 6;
-//   - score limit ngm+0x21b4 (record +0x14/+0x18/+0x1c by player count, rewritten each frame at
-//     0x63e74c): any of the ngm+0x1c9c team scores (u16 at [0x104ae70] + 0x3dee, stride 0x34) >= limit
-//     -> reason 2;
-//   - round limits for type 10 (elimination) from 0x63f6e4 (ngm+0x21c0 rounds, +0x1d74 played).
-//   The reason goes to the EndGame sender 0x60c7f0(reason, &clock) (PS3 0x489ff8); its Apply 0x62c9f0
-//   sets ngm+0x1e84 / +0x1e88, and Playing::Update 0x5f14d0 then goes to ShowResults (+0x188),
-//   ShowRoundResults (+0x190) or PreResetting (+0x170).
-// Test run 41 left every match through the pause menu before the limit (1-2.5 minutes), so none of
-// this has been seen working. This file logs those values every 10 s and on every change of the end
-// state, so the next run shows where the chain stops.
+// The PS4 game-over checks were never seen to fire, so this wraps Playing::Update (already wrapped
+// by session.cpp) to log the inputs those checks use: every 10 seconds and whenever the NetGameManager's
+// state or end state changes. For test runs UNCHARTED_U2MP_TIME_LIMIT forces a short time limit.
+// After every update it also calls visibility_kick() (visibility.cpp), which needs to run once per
+// frame after the game's own update.
 //
-// After the original update it also runs visibility_kick() (visibility.cpp, PS3 KickVisibilityJob), the
-// job PS3 PostProcessUpdate 0x21db8 kicked at the end of every multiplayer frame.
-//
-// UNCHARTED_U2MP_TIME_LIMIT=<seconds> (test aid, off by default): while Playing runs, the time limit
-// ngm+0x21b8 is set to that value, so a solo match reaches the time-limit game over quickly.
-//
-// Install: wraps the Playing::Update slot 0x100ab98 around whatever is there. It must run after
-// session.cpp wrapped the match states (that install checks the slots still hold the PS4 functions),
-// so it only installs when the slot no longer holds 0x5f14d0.
+// Reimplemented from the behaviour description u2mp/docs/spec/gameplay.md.
 #include <chrono>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 #include "u2mp_internal.h"
 
 namespace u2mp {
 void install_matchend(int &installed);
-void visibility_kick();   // visibility.cpp: PS3 KickVisibilityJob 0x494c38, once per frame after the update
+void visibility_kick();
 
 namespace {
 
-constexpr uint64_t kNgm = 0x113b760;          // g_netGameManager (PS3 0xf1dc80)
-constexpr uint64_t kNetState = 0x14ce97c;     // NET_SM
-constexpr uint64_t kFrames = 0x1116180 + 0x204;   // frame counter, 300 Hz (PS3 [0xe60a00+0x1cc])
-constexpr uint64_t kTeamScorePtr = 0x104ae70; // pointer slot; + 0x3dee: u16 team scores, stride 0x34
-constexpr uint64_t kTimeLimitOff = 0x104f4b0 + 0x48;   // debug byte: time limit off when set
-constexpr uint64_t kNpdCash = 0x11474f8 + 0xd8;   // NetPlayerData money (session.cpp reads the same)
-constexpr uint64_t fLookup = 0xa15e70;        // ScriptManager LookupPointer(id)
-constexpr uint32_t kNetGames = 0x3b9a067d;    // *net-games*: {s32 count; rec* +8}, stride 0x90
-constexpr uint64_t NGM_GAME = 0x1ca0, NGM_TEAMS = 0x1c9c, NGM_ROUND_START = 0x1d5c, NGM_MATCH_START = 0x1d60,
-                   NGM_ROUNDS_PLAYED = 0x1d74, NGM_STATE = 0x1e80, NGM_END_A = 0x1e84, NGM_END_B = 0x1e88,
-                   NGM_SCORE_LIMIT = 0x21b4, NGM_TIME_LIMIT = 0x21b8, NGM_ROUND_LIMIT = 0x21c0;
-constexpr uint64_t sPlayingUpdate = 0x100ab80 + 0x18, hPlayingUpdate = 0x5f14d0;
+constexpr uint64_t kUpdateSlot = 0x100ab98;
+constexpr uint64_t kPlayingUpdate = 0x5f14d0;
 
-using UpdateFn = uint64_t(U2MP_GUEST *)(void *);
-UpdateFn previous_update = nullptr;
-float test_time_limit = 0.0f;
-uint64_t next_log_ms = 0;
-int32_t last_end_a = -1, last_end_b = -1, last_state = -1;
+constexpr uint64_t kNgm = 0x113b760;
+constexpr uint64_t kTeams = kNgm + 0x1c9c;
+constexpr uint64_t kGameIndex = kNgm + 0x1ca0;
+constexpr uint64_t kRoundStart = kNgm + 0x1d5c;
+constexpr uint64_t kMatchStart = kNgm + 0x1d60;
+constexpr uint64_t kRoundsPlayed = kNgm + 0x1d74;
+constexpr uint64_t kNgmState = kNgm + 0x1e80;
+constexpr uint64_t kEndA = kNgm + 0x1e84;
+constexpr uint64_t kEndB = kNgm + 0x1e88;
+constexpr uint64_t kScoreLimit = kNgm + 0x21b4;
+constexpr uint64_t kTimeLimit = kNgm + 0x21b8;
+constexpr uint64_t kRoundLimit = kNgm + 0x21c0;
 
-template <typename T> T G(uint64_t off) {
+constexpr uint64_t kNetState = 0x14ce97c;
+constexpr uint64_t kRealFrames = 0x1116384;
+constexpr uint64_t kScoreTable = 0x104ae70;
+constexpr uint64_t kDebugNoLimit = 0x104f4f8;
+constexpr uint64_t kCash = 0x11475d0;
+constexpr uint64_t kLookupPointer = 0xa15e70;
+constexpr uint32_t kNetGames = sid("*net-games*");
+static_assert(kNetGames == 0x3b9a067du, "net-games id");
+
+constexpr uint64_t kLogEveryMs = 10000;
+
+template <typename T> T peek(const unsigned char *p) {
     T v;
-    std::memcpy(&v, image.base + off, sizeof v);
+    std::memcpy(&v, p, sizeof v);
     return v;
 }
+template <typename T> T peek_image(uint64_t off) { return peek<T>(image.base + off); }
 
+float test_time_limit = 0.0f;   // 0 = leave the game's limit alone
+uint64_t next_log_ms = 0;
+int32_t last_end_a = -1;
+int32_t last_end_b = -1;
+int32_t last_state = -1;
+uint64_t original_update = 0;
+
+using LookupFn = const unsigned char *(U2MP_GUEST *)(uint32_t);
+using UpdateFn = uint64_t(U2MP_GUEST *)(void *);
+
+// Game type of the current *net-games* record, -1 when there is none.
 int32_t game_type() {
-    using Lookup = const uint8_t *(U2MP_GUEST *)(uint32_t);
-    const uint8_t *t = reinterpret_cast<Lookup>(image.base + fLookup)(kNetGames);
-    const int16_t game = G<int16_t>(kNgm + NGM_GAME);
-    if (!t || game < 0) return -1;
-    int32_t count;
-    uint64_t records;
-    std::memcpy(&count, t, 4);
-    std::memcpy(&records, t + 8, 8);
+    const unsigned char *table = reinterpret_cast<LookupFn>(image.base + kLookupPointer)(kNetGames);
+    const int16_t game = peek_image<int16_t>(kGameIndex);
+    if (!table || game < 0) return -1;
+    const int32_t count = peek<int32_t>(table);
+    const unsigned char *records = reinterpret_cast<const unsigned char *>(peek<uint64_t>(table + 8));
     if (game >= count || !records) return -1;
-    int32_t type;
-    std::memcpy(&type, reinterpret_cast<const uint8_t *>(uintptr_t(records)) + 0x90 * game + 0xc, 4);
-    return type;
+    return peek<int32_t>(records + 0x90 * uint64_t(game) + 0xc);
 }
 
-void log_conditions(const char *why) {
-    const int32_t now = G<int32_t>(kFrames);
-    const int32_t teams = G<int32_t>(kNgm + NGM_TEAMS);
-    char scores[96] = "";
-    const uint64_t table = G<uint64_t>(kTeamScorePtr);
-    if (table) {
-        size_t n = 0;
-        for (int32_t i = 0; i < teams && i < 8 && n < sizeof scores - 8; ++i) {
-            uint16_t s;
-            std::memcpy(&s, reinterpret_cast<const void *>(uintptr_t(table + 0x3dee + 0x34 * i)), 2);
-            n += size_t(std::snprintf(scores + n, sizeof scores - n, "%s%u", i ? "/" : "", unsigned(s)));
+// Seconds since a 300 Hz start mark (the subtraction wraps like the game's 32-bit counters).
+double seconds_since(uint64_t start_offset) {
+    const uint32_t frames = peek_image<uint32_t>(kRealFrames) - peek_image<uint32_t>(start_offset);
+    return double(int32_t(frames)) / 300.0;
+}
+
+void condition_log(const char *reason) {
+    const int32_t type = game_type();
+    const int32_t teams = peek_image<int32_t>(kTeams);
+    std::string scores;
+    const unsigned char *table = reinterpret_cast<const unsigned char *>(peek_image<uint64_t>(kScoreTable));
+    if (!table || teams <= 0) {
+        scores = "-";
+    } else {
+        const int shown = teams < 8 ? teams : 8;
+        for (int i = 0; i < shown; ++i) {
+            if (i) scores += '/';
+            scores += std::to_string(peek<uint16_t>(table + 0x3dee + 0x34 * uint64_t(i)));
         }
     }
     log("match end watch (%s): type %d, %.1f s of round (match %.1f s), time limit %.0f s%s, score limit %d, "
         "teams %d scores %s, rounds %d/%d, ngm state %d end %d/%d, NET_SM %d, cash %d",
-        why, game_type(), double(now - G<int32_t>(kNgm + NGM_ROUND_START)) / 300.0,
-        double(now - G<int32_t>(kNgm + NGM_MATCH_START)) / 300.0, double(G<float>(kNgm + NGM_TIME_LIMIT)),
-        G<uint8_t>(kTimeLimitOff) ? " (debug off)" : "", G<int32_t>(kNgm + NGM_SCORE_LIMIT), teams,
-        scores[0] ? scores : "-", G<int32_t>(kNgm + NGM_ROUNDS_PLAYED), G<int32_t>(kNgm + NGM_ROUND_LIMIT),
-        G<int32_t>(kNgm + NGM_STATE), G<int32_t>(kNgm + NGM_END_A), G<int32_t>(kNgm + NGM_END_B),
-        G<int32_t>(kNetState), G<int32_t>(kNpdCash));
+        reason, type, seconds_since(kRoundStart), seconds_since(kMatchStart), double(peek_image<float>(kTimeLimit)),
+        peek_image<uint8_t>(kDebugNoLimit) ? " (debug off)" : "", peek_image<int32_t>(kScoreLimit), teams,
+        scores.c_str(), peek_image<int32_t>(kRoundsPlayed), peek_image<int32_t>(kRoundLimit),
+        peek_image<int32_t>(kNgmState), peek_image<int32_t>(kEndA), peek_image<int32_t>(kEndB),
+        peek_image<int32_t>(kNetState), peek_image<int32_t>(kCash));
 }
 
-U2MP_GUEST uint64_t playing_update(void *state) {
-    if (test_time_limit > 0.0f && G<float>(kNgm + NGM_TIME_LIMIT) != test_time_limit) {
-        log("match end watch: time limit %.0f s -> %.0f s (UNCHARTED_U2MP_TIME_LIMIT)",
-            double(G<float>(kNgm + NGM_TIME_LIMIT)), double(test_time_limit));
-        std::memcpy(image.base + kNgm + NGM_TIME_LIMIT, &test_time_limit, 4);
+uint64_t now_ms() {
+    using namespace std::chrono;
+    return uint64_t(duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+}
+
+U2MP_GUEST uint64_t update_hook(void *state) {
+    if (test_time_limit > 0.0f) {
+        const float current = peek_image<float>(kTimeLimit);
+        if (current != test_time_limit) {
+            log("match end watch: time limit %.0f s -> %.0f s (UNCHARTED_U2MP_TIME_LIMIT)", double(current),
+                double(test_time_limit));
+            std::memcpy(image.base + kTimeLimit, &test_time_limit, 4);
+        }
     }
-    const uint64_t result = previous_update(state);
+    const uint64_t result = reinterpret_cast<UpdateFn>(original_update)(state);
     visibility_kick();
-    const uint64_t now_ms = uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count());
-    const int32_t a = G<int32_t>(kNgm + NGM_END_A), b = G<int32_t>(kNgm + NGM_END_B),
-                  s = G<int32_t>(kNgm + NGM_STATE);
+
+    const uint64_t now = now_ms();
+    const int32_t a = peek_image<int32_t>(kEndA);
+    const int32_t b = peek_image<int32_t>(kEndB);
+    const int32_t s = peek_image<int32_t>(kNgmState);
     if (a != last_end_a || b != last_end_b || s != last_state) {
-        last_end_a = a, last_end_b = b, last_state = s;
-        log_conditions("end state changed");
-    } else if (now_ms >= next_log_ms) {
-        log_conditions("10 s");
-    } else {
-        return result;
+        last_end_a = a;
+        last_end_b = b;
+        last_state = s;
+        condition_log("end state changed");
+        next_log_ms = now + kLogEveryMs;
+    } else if (now >= next_log_ms) {
+        condition_log("10 s");
+        next_log_ms = now + kLogEveryMs;
     }
-    next_log_ms = now_ms + 10000;
     return result;
 }
 
 }  // namespace
 
 void install_matchend(int &installed) {
-    if (!image.base || sPlayingUpdate + 8 > image.size) return;
+    if (!image.base || kUpdateSlot + 8 > image.size) return;
     if (const char *env = std::getenv("UNCHARTED_U2MP_TIME_LIMIT")) {
         const float v = std::strtof(env, nullptr);
         if (v >= 10.0f && v <= 3600.0f) test_time_limit = v;
-        log("match end watch: UNCHARTED_U2MP_TIME_LIMIT=%s -> %s", env, test_time_limit > 0.0f ? "used" : "ignored (10..3600)");
+        // Reports whether a test limit is in force now (one stored by an earlier install counts too).
+        const bool used = test_time_limit > 0.0f;
+        log("match end watch: UNCHARTED_U2MP_TIME_LIMIT=%s -> %s", env, used ? "used" : "ignored (10..3600)");
     }
-    uint64_t &slot = *image.at<uint64_t>(sPlayingUpdate);
-    const uint64_t base = uint64_t(uintptr_t(image.base));
-    if (!slot || slot == base + hPlayingUpdate) {
+    uint64_t *slot = image.at<uint64_t>(kUpdateSlot);
+    // session.cpp wraps the slot first; we chain onto its wrapper, never onto the bare game function.
+    if (*slot == 0 || *slot == uint64_t(uintptr_t(image.base + kPlayingUpdate))) {
         log("match end watch: Playing::Update slot is not wrapped by session.cpp yet, left alone");
         return;
     }
-    previous_update = reinterpret_cast<UpdateFn>(uintptr_t(slot));
-    slot = uint64_t(uintptr_t(&playing_update));
-    log("match end watch: Playing::Update slot 0x%llx wrapped", (unsigned long long)sPlayingUpdate);
-    ++installed;
+    original_update = *slot;
+    *slot = uint64_t(uintptr_t(&update_hook));
+    log("match end watch: Playing::Update slot 0x%llx wrapped", (unsigned long long)kUpdateSlot);
+    installed += 1;
 }
 
 }  // namespace u2mp
