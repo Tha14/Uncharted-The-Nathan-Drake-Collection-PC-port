@@ -10,8 +10,8 @@
 // Output (<out>): work/overlay-*/u3data/... (the overlays), work/backup-* (the steps' backups), scratch/<job>,
 // _recipe/state.json (which steps ran, with the hashes of the files they wrote), _recipe/log.txt.
 //
-// A step is done when it ran with the same code (its fingerprint: the step file, its job folders and the shared helper
-// modules of tools/fixes; for copy steps, its list) and its recorded files are unchanged; a step whose files are all at
+// A step is done when it ran with the same code (its fingerprint: the step file and its job folders; for copy steps,
+// its list) and its recorded files are unchanged; a step whose files are all at
 // the reference hashes needs nothing. Step fingerprints and records are those of the Python recipe, so an import made
 // with it continues where it was.
 #include "recipe.hpp"
@@ -452,8 +452,7 @@ std::vector<std::pair<std::string, std::string>> Inputs::placeholders(const fs::
             {"PS3_U2", u2 ? fwd(*u2) : ""},
             {"PAKTOOLS", fwd(tools_dir() / "paktools")},
             {"TRANSFER_TOOLS", fwd(tools_dir() / "transfer-tools")},
-            {"RECOVERED", fwd(out / "scratch")},
-            {"PYTHON", ""}};
+            {"RECOVERED", fwd(out / "scratch")}};
 }
 
 std::string Inputs::describe() const {
@@ -694,9 +693,6 @@ std::string lf_sha_raw(const fs::path &p) {
     return std::string(d.begin(), d.end());
 }
 
-// the shared helper modules at the top of tools/fixes, by name (sorted)
-const std::vector<const char *> SHARED_FIX_MODULES = {"apply_skins.py", "dc.py", "ins.py", "mp1.py", "txt.py"};
-
 std::string step_fingerprint(const Value &s) {
     Value c = Value::object();
     for (const auto &[k, v] : s.fields)
@@ -710,13 +706,6 @@ std::string step_fingerprint(const Value &s) {
         for (const auto &jb : jobs) {
             const std::string t = tree_fp(tools_dir() / "fixes" / P(jb));
             h.update(t.data(), t.size());
-        }
-        for (const char *f : SHARED_FIX_MODULES) {
-            const fs::path p = tools_dir() / "fixes" / f;
-            if (is_file(p)) {
-                const std::string d = lf_sha_raw(p);
-                h.update(d.data(), d.size());
-            }
         }
     } else if (!val_s(s, "list").empty()) {
         const fs::path p = recipe_dir() / "lists" / P(val_s(s, "list"));
@@ -817,12 +806,6 @@ fs::path render_job(const std::string &job, const fs::path &out, const std::vect
     if (!is_dir(src)) throw u3::Stop("fix job folder missing: " + S(src));
     if (is_dir(dst)) rmtree(dst);
     fs::create_directories(out / "scratch");
-    std::error_code ec;
-    for (const auto &e : fs::directory_iterator(fixes, ec)) {
-        const std::string f = S(e.path().filename());
-        std::error_code e2;
-        if (e.is_regular_file(e2) && ends(f, ".py")) write_text(out / "scratch" / P(f), fill(text_crlf_to_lf(read_text(e.path())), values, f, lg));
-    }
     std::function<void(const fs::path &)> walk = [&](const fs::path &dp) {
         const std::string rel = dp == src ? "" : rel_of(dp, src);
         const fs::path dd = rel.empty() ? dst : dst / P(rel);

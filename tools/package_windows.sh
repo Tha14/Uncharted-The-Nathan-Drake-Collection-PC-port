@@ -5,15 +5,14 @@
 # What the package holds:
 #   Uncharted Launcher.exe   what players start (tools/windows_starter/starter.cpp)
 #   launcher-qt\             the launcher's window (Qt 6), launcher\native\ its core and the game starter
-#   gow3_pc\                 the game runtime with its DLLs and its scripts
+#   gow3_pc\                 the game runtime with its DLLs
 #   u2mp\, u3mp\             the multiplayer importers (u2import.exe, u3import.exe, u3fix.exe, tables, the helper builds, ffmpeg, objdump)
-#   python\                  the Python the importers run with (Pillow, numpy when installed)
+#   python\pythonw.exe       not Python: the bridge older launchers start to install an update (launcher/native/bridge.cpp)
 #   tools\                   the update installer and the base game's file list
 #   licenses\                the licenses of everything bundled
-# Never any game file: each player points the launcher at their own copy.
+# Never any game file: each player points the launcher at their own copy. No Python: everything is C or C++.
 #
 # Run from Git Bash or an MSYS2 CLANG64 shell after gow3_pc/build.sh and tools/build_ffmpeg.sh. Settings:
-#   PYTHON / PYTHON_HOME    the Windows Python (3.10 or newer, with Pillow) to bundle; `python` on PATH by default
 #   MSYS2_ROOT              the MSYS2 folder (/c/msys64 by default)
 #   NVIDIA_DLSS_LICENSE     the DLSS SDK's license file, when the DLSS files were fetched (tools/fetch_aa_files.sh)
 set -euo pipefail
@@ -21,9 +20,6 @@ cd -- "$(dirname -- "$0")/.."
 
 # ---------------------------------------------------------------------------------------------------------- setup
 
-# the Windows Python is found first: MSYS2's own python comes first on PATH after the next lines
-py=${PYTHON:-python}
-py_home=${PYTHON_HOME:-$("$py" -c 'import os, sys; print(os.path.dirname(sys.executable))')}
 msys=${MSYS2_ROOT:-/c/msys64}
 msys=${msys%/}   # MSYS2 at "/" (GitHub's runner) would otherwise make "//usr", a network path
 [[ -d $msys/clang64/bin ]] && export PATH="$msys/clang64/bin:$PATH"
@@ -47,7 +43,7 @@ fi
 out=dist/stage/Uncharted-windows
 lic=$out/licenses
 rm -rf -- dist/stage
-mkdir -p "$out/gow3_pc/out" "$out/gow3_pc/scripts" "$out/tools" "$out/launcher/assets" "$out/launcher/native" \
+mkdir -p "$out/gow3_pc/out" "$out/tools" "$out/launcher/assets" "$out/launcher/native" \
     "$out/analysis/uncharted-user" "$lic"
 
 # the DLLs a program loads from MSYS2 or the small FFmpeg, as ldd lists them
@@ -72,7 +68,6 @@ runtime() {   # the game runtime, without debug information, and what it loads
     llvm-strip --strip-debug -o "$out/gow3_pc/out/gow3-probe.exe" gow3_pc/out/gow3-probe.exe
     local dll
     while read -r dll; do cp "$dll" "$out/gow3_pc/out/"; done < <(shipped_dlls gow3_pc/out/gow3-probe.exe)
-    cp gow3_pc/scripts/*.py "$out/gow3_pc/scripts/"
     for dll in "$out"/gow3_pc/out/*.dll; do note_msys_file clang64 "$dll"; done
 }
 
@@ -113,15 +108,6 @@ u3_import() {   # Uncharted 3's importer, its recipe and tools, and the newest m
     fi
     echo "multiplayer helper build in the package: $newest"
     cp gow3_pc/LICENSE "$out/u3mp/patcher/LICENSE.txt"
-    # the sound-bank encoder compiled (much faster than vagenc.py), kept only when it encodes exactly like the script
-    local enc=$out/u3mp/patcher/tools/fixes/sound-banks/native
-    if clang -O2 -ffp-contract=off -fno-fast-math -shared -o "$enc/vagenc.dll" "$enc/vagenc.c" &&
-            "$py_home/python.exe" "$enc/check_native.py"; then
-        rm -f "$enc"/*.lib "$enc"/*.exp
-    else
-        rm -f "$enc/vagenc.dll"
-        echo "Note: no compiled sound-bank encoder; the import uses vagenc.py" >&2
-    fi
     # u3fix.exe: the recipe steps written in C++ (the list is in tools/fixes/dctools/u3fix.cpp); the steps run it from
     # u3mp/bin, which the importer puts on PATH. Static, no DLL of ours. Without it those steps fail: stop here.
     local fx=u3mp/patcher/tools/fixes
@@ -266,38 +252,6 @@ texts() {
     cp tools/defaults/disabled-optimizations.txt "$out/analysis/uncharted-user/"   # what Uncharted can't take
 }
 
-# Python for the importers: the interpreter, its standard library without tests, tools and the unused modules (Tk,
-# SQLite, ssl; OpenSSL's libcrypto stays for hashlib: much faster SHA-256 on the game files), Pillow without what the
-# importers don't use, numpy when installed
-python_for_imports() {
-    local to=$out/python f
-    mkdir -p "$to/Lib/site-packages"
-    for f in "$py_home"/python.exe "$py_home"/python3*.dll "$py_home"/vcruntime140*.dll \
-            "$py_home"/LICENSE.txt; do
-        [[ -f $f ]] && cp -p "$f" "$to/"
-    done
-    tar -C "$py_home" --exclude=__pycache__ --exclude='_test*.pyd' --exclude='xxlimited*.pyd' --exclude='_ctypes_test*.pyd' \
-        --exclude='_sqlite3*.pyd' --exclude=sqlite3.dll --exclude='_ssl*.pyd' --exclude='libssl-*.dll' \
-        --exclude='_tkinter*.pyd' --exclude='tcl*.dll' --exclude='tk*.dll' -cf - DLLs |
-        tar -C "$to" -xf -
-    tar -C "$py_home" --exclude=site-packages --exclude=test --exclude=tests --exclude=idlelib --exclude=ensurepip \
-        --exclude=turtledemo --exclude=turtle.py --exclude=tkinter --exclude=__pycache__ --exclude=lib2to3 --exclude=venv \
-        --exclude=pydoc_data --exclude=sqlite3 --exclude='*.pyc' -cf - Lib | tar -C "$to" -xf -
-    [[ -d $py_home/Lib/site-packages/PIL ]] || { echo "Pillow is missing in $py_home (pip install pillow)" >&2; exit 1; }
-    tar -C "$py_home/Lib/site-packages" --exclude=__pycache__ --exclude='_avif*.pyd' --exclude='_webp*.pyd' \
-        --exclude='_imagingcms*.pyd' --exclude='_imagingmath*.pyd' --exclude='_imagingmorph*.pyd' \
-        --exclude='_imagingtk*.pyd' --exclude=ImageTk.py -cf - PIL | tar -C "$to/Lib/site-packages" -xf -
-    if [[ -d $py_home/Lib/site-packages/numpy ]]; then
-        for f in numpy numpy.libs; do
-            [[ -d $py_home/Lib/site-packages/$f ]] &&
-                tar -C "$py_home/Lib/site-packages" --exclude=__pycache__ --exclude=tests -cf - "$f" | tar -C "$to/Lib/site-packages" -xf -
-        done
-    else
-        echo "Note: no numpy in this Python: the Uncharted 3 import will skip the steps that need it"
-    fi
-    echo "Python from $py_home"
-}
-
 aa_files() {   # DLAA, when tools/fetch_aa_files.sh fetched it (else the in-game menu leaves it out); FSR 4 models: never shipped
     if [[ -f gow3_pc/out/gow3_dlss.dll && -f gow3_pc/out/nvngx_dlss.dll ]]; then
         cp gow3_pc/out/gow3_dlss.dll gow3_pc/out/nvngx_dlss.dll "$out/gow3_pc/out/"
@@ -330,12 +284,6 @@ licenses() {
     printf '%s\n' "FFmpeg 8.1.1 (https://ffmpeg.org/releases/ffmpeg-8.1.1.tar.xz), LGPL 2.1 or later, unchanged; built by" \
         "tools/build_ffmpeg.sh in the port's source with only the decoders, formats and filters the port uses." \
         > "$lic/ffmpeg/SOURCE.txt"
-    for f in "$py_home"/Lib/site-packages/pillow-*.dist-info/licenses/* "$py_home"/Lib/site-packages/pillow-*.dist-info/LICENSE*; do
-        [[ -f $f ]] && { mkdir -p "$lic/pillow"; cp "$f" "$lic/pillow/"; }
-    done
-    for f in "$py_home"/Lib/site-packages/numpy-*.dist-info/licenses/* "$py_home"/Lib/site-packages/numpy-*.dist-info/LICENSE*; do
-        [[ -f $f && -d $out/python/Lib/site-packages/numpy ]] && { mkdir -p "$lic/numpy"; cp "$f" "$lic/numpy/"; }
-    done
     msys2_licenses
 }
 
@@ -383,12 +331,13 @@ launcher_core
 qt_window
 starter
 texts
-python_for_imports
 aa_files
 licenses
 nothing_from_games
 
 rm -rf dist/Uncharted-windows dist/Uncharted-windows.zip
-"$py_home/python.exe" -m zipfile -c dist/Uncharted-windows.zip "$out"
+# the zip: tools/mkzip.cpp (zlib from CLANG64, linked statically), a build tool only: it does not ship
+clang++ -std=c++17 -O2 -municode -static -s -o dist/stage/mkzip.exe tools/mkzip.cpp -lz
+dist/stage/mkzip.exe dist/Uncharted-windows.zip "$out"
 mv "$out" dist/Uncharted-windows
 du -sh dist/Uncharted-windows dist/Uncharted-windows.zip

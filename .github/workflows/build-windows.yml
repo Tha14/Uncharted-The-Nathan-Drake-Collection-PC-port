@@ -36,16 +36,6 @@ jobs:
         with:
           submodules: recursive
 
-      # The Python the package bundles for the multiplayer importers: Pillow for their pictures, numpy for the map
-      # and character steps.
-      - name: Python for the importers
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.14'
-      - name: Pillow and numpy
-        shell: pwsh
-        run: python -m pip install --disable-pip-version-check pillow numpy
-
       - name: MSYS2 CLANG64
         uses: msys2/setup-msys2@v2
         id: msys2
@@ -109,7 +99,6 @@ jobs:
       - name: Package
         run: |
           export MSYS2_ROOT=$(cygpath -u '${{ steps.msys2.outputs.msys2-location }}')
-          export PYTHON_HOME=$(cygpath -u "$pythonLocation")
           tools/package_windows.sh
 
       # A release: the tag has to equal tools/VERSION (the launcher's updates compare the two). 0.x releases say

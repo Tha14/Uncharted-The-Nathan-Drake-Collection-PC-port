@@ -2,7 +2,7 @@
  "id": "maps-batch-dc",
  "title": "Lab maps 34/34b/37 modes + 24th Classic map (Drydock): net.bin + modules.bin part (u3fix maps-batch-dc, dctools/lab_reg.cpp)",
  "kind": "script",
- "job": "maps-batch",
+ "job": "dctools",
  "family": "overlay-r3/dc1",
  "needs": [
   "ps3_data2"
