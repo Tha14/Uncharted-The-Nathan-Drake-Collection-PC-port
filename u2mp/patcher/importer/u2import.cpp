@@ -894,7 +894,7 @@ void Importer::net_images() {
     const Bytes data = c[0]->read();
     const std::string src_sha = sha1_hex(data);
     const fs::path o = out_path("pak22/ps4/" + out_name);
-    if (!done_before(key, src_sha) || text_of(item(key)->get("netimg")) != NETIMG_VERSION) {
+    if (!done_before(key, src_sha) || !item(key)->get("netimg") || item(key)->get("netimg")->kind != Value::Int || item(key)->get("netimg")->i != NETIMG_VERSION) {
         const fs::path src = work / "ps3-net.pak";
         std::error_code ec;
         fs::create_directories(work, ec);
@@ -912,7 +912,7 @@ void Importer::net_images() {
         fs::remove(src, ec);
         if (names.empty()) return;
         record(key, "A", "pak22/ps4/" + out_name,
-               {{"src", str(c[0]->source)}, {"src_sha1", str(src_sha)}, {"note", str(fmt("%zu menu images", names.size()))}, {"netimg", str(NETIMG_VERSION)}});
+               {{"src", str(c[0]->source)}, {"src_sha1", str(src_sha)}, {"note", str(fmt("%zu menu images", names.size()))}, {"netimg", num(NETIMG_VERSION)}});
         lg(fmt("ok      %s <- %s (%.1fs) %zu menu images", key.c_str(), c[0]->source.c_str(), seconds_since(t), names.size()));
     }
     if (isfile(o)) {

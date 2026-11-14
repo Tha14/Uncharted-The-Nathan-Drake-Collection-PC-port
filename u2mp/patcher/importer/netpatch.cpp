@@ -151,12 +151,14 @@ Bytes convert_net_patch(const Context &c, const Bytes &data, std::string &note) 
         write_text(S(cache) + ".tmp", schema);
         fs::rename(S(cache) + ".tmp", cache, ec);
     }
-    std::map<std::string, int64_t> rep;
+    u3::dcconv::Counts rep;
     const Bytes out = u3_to_u2(u3::dcconv::Converter({schema}).convert(data, &rep), data);
     const auto [nsym, nptr] = check_module(out);
+    // the fallbacks among the report's events, in the order they first occurred
+    static const std::set<std::string> FALLBACKS = {"key-unknown", "layout-extend-failed", "slot-not-ptr", "ptr-target-missing", "sym-target-missing"};
     std::string fb;
-    for (const char *k : {"key-unknown", "layout-extend-failed", "slot-not-ptr", "ptr-target-missing", "sym-target-missing"})
-        if (rep[k]) fb += (fb.empty() ? "" : ", ") + fmt("'%s': %lld", k, (long long)rep[k]);
+    for (const std::string &k : rep.order)
+        if (FALLBACKS.count(k) && rep.n.at(k)) fb += (fb.empty() ? "" : ", ") + fmt("'%s': %lld", k.c_str(), (long long)rep.n.at(k));
     note = fmt("%zu symbols, %zu pointers; fallbacks %s", nsym, nptr, fb.empty() ? "none" : ("{" + fb + "}").c_str());
     return out;
 }

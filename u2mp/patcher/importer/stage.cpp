@@ -433,6 +433,10 @@ std::vector<std::string> convert_stage(const Context &c, const Pak &p, const fs:
     o.light_table = light_table;
     o.collision = collision;
     o.water = water;
+    size_t approx = 0;
+    std::string summary;
+    o.approx = &approx;
+    o.plan_summary = &summary;
     const Bytes data = u3::stage::stage_convert(src, o);
     const fs::path tmp = S(out) + ".tmp";
     write_bytes(tmp, data);
@@ -445,7 +449,7 @@ std::vector<std::string> convert_stage(const Context &c, const Pak &p, const fs:
     }
     fs::rename(tmp, out, ec);
     if (ec) throw std::runtime_error("cannot write " + S(out) + ": " + ec.message());
-    return {};
+    return {summary, fmt("%zu approximations", approx)};
 }
 
 }  // namespace u2imp

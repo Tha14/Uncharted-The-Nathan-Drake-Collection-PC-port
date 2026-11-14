@@ -35,6 +35,12 @@ struct Options {
     std::function<std::shared_ptr<Blob>(const Pak &)> light_table;
     std::function<std::vector<std::shared_ptr<Blob>>(const Pak &)> collision;   // U2: item data 128-aligned in its page
     std::function<std::shared_ptr<Blob>(const Pak &, const std::function<std::string(const std::string &)> &)> water;
+    // counts the approximations the converter makes (the report's 'approx' list): textures capped or re-encoded, a cube
+    // map with short data, unmapped prototype flag bits, an incomplete lightmap set, water materials missing from the
+    // plan, each template material, PS3 params without a template slot
+    size_t *approx = nullptr;
+    // the plan's summary line: '<stage>: N materials, N exact, N fallback; N source paks; N textures requested'
+    std::string *plan_summary = nullptr;
 };
 Bytes stage_convert(const fs::path &ps3, const Options &o);
 // the sky rows (lib/build_skies.py with paktools-sky): the plan's sky materials re-pointed to retail sky-clouds.fx

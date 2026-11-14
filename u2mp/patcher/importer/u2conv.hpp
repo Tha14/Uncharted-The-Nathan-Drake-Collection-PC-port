@@ -25,7 +25,8 @@ Converted convert_actor(const Context &c, const Entry &entry, const fs::path &sr
 // pak22 level paks (stage or data pak) -> out; returns the kind and notes. Throws Unsupported.
 std::vector<std::string> convert_level(const Context &c, const fs::path &src, const fs::path &out);
 // the PS3 net.pak menu images the PS4 net.pak lacks, as pak22/ps4/net-u2mp.pak; the image names (empty: nothing made)
-extern const char *NETIMG_OUT_NAME, *NETIMG_VERSION;
+extern const char *NETIMG_OUT_NAME;
+extern const int NETIMG_VERSION;   // stored as a number, as the Python import did
 std::vector<std::string> convert_net_images(const fs::path &ps3_net, const fs::path &ps4_net, const fs::path &out);
 // dc1/ps4/net-patch9.bin from the PS3 server module: the converted module and its note
 extern const char *NETPATCH_VERSION;

@@ -23,7 +23,7 @@
 namespace u2imp {
 
 const char *NETIMG_OUT_NAME = "net-u2mp.pak";
-const char *NETIMG_VERSION = "3";   // bump when the materials or their formats change: the import converts again
+extern const int NETIMG_VERSION = 3;   // bump when the materials or their formats change: the import converts again
 
 namespace {
 
