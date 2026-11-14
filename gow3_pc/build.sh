@@ -108,4 +108,7 @@ if [[ ${1:-} == --test ]]; then
     out/videodec-test tests/data/tiny.h264
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread -I. -Isrc tests/test_services.c -o out/services-test
     out/services-test
+    # Loader, runtime and semaphore checks that run the executables above as separate processes.
+    "${CXX:-c++}" -std=c++17 -O2 -g -Wall -Wextra -Werror -pthread tests/tool_checks.cpp -o out/tool-checks
+    out/tool-checks
 fi
