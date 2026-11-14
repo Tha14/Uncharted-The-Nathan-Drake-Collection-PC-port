@@ -187,12 +187,9 @@ def decode_block(p, page, blk, skin=True):
         o += 8
         # stop when the next word does not look like an attribute (params begin)
         nxt = p.d[b + o]
-        # 0x15: per-vertex blend factor (3 equal components, PS4 stream slot 4); it sits between uv0 and
-        # normal, so stopping on it lost normal + tangent too (flat / black shading)
-        if nxt not in (1, 2, 3, 4, 5, 6, 7, 8, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15):
+        if nxt not in (1, 2, 3, 4, 5, 6, 7, 8, 0x10, 0x11, 0x12, 0x13, 0x14):
             break
-    names = {1: 'pos', 2: 'normal', 3: 'tangent', 0x11: 'uv0', 0x12: 'uv1', 0x13: 'uv2', 4: 'color0', 5: 'color1',
-             0x15: 'blend0'}
+    names = {1: 'pos', 2: 'normal', 3: 'tangent', 0x11: 'uv0', 0x12: 'uv1', 0x13: 'uv2', 4: 'color0', 5: 'color1'}
     for ai, (aid, af, aoff, widths) in enumerate(attrs):
         n = af & 0xf
         w = widths[:n]
