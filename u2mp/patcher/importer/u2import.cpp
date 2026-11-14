@@ -1133,6 +1133,7 @@ int wmain(int argc, wchar_t **argv) {
             log(shipped_id_text());
             return 0;
         }
+        if (const auto r = dev_command(v)) return *r;   // the maintainers' converter commands (devtools.cpp)
         // the launcher: u2import --overlay <game folder> <overlay folder> [--update <update folder>]; prints the overlay folder
         if (!v.empty() && v[0] == "--overlay") {
             if (v.size() < 3) {

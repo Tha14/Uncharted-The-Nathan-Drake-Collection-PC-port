@@ -163,4 +163,21 @@ Bytes convert_net_patch(const Context &c, const Bytes &data, std::string &note) 
     return out;
 }
 
+// ------------------------------------------------------------------------------------------------ for devtools.cpp
+std::vector<std::tuple<std::string, Bytes, Bytes>> dc_pairs(const PS3 &ps3, const fs::path &dcdir) {
+    std::vector<std::string> names;
+    std::error_code ec;
+    for (const auto &e : fs::directory_iterator(dcdir, ec))
+        if (ends(S(e.path().filename()), ".bin")) names.push_back(S(e.path().filename()));
+    std::sort(names.begin(), names.end());
+    std::vector<std::tuple<std::string, Bytes, Bytes>> pairs;
+    for (const std::string &f : names)
+        if (const auto c = ps3.candidates("dc1/" + f); !c.empty()) pairs.push_back({f, c[0]->read(), read_bytes(dcdir / P(f))});
+    return pairs;
+}
+Bytes dc_convert(const std::string &schema, const Bytes &ps3, u3::dcconv::Counts *rep) {
+    return u3_to_u2(u3::dcconv::Converter({schema}).convert(ps3, rep), ps3);
+}
+std::pair<size_t, size_t> dc_check(const Bytes &ps4) { return check_module(ps4); }
+
 }  // namespace u2imp

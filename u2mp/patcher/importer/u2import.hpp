@@ -8,6 +8,7 @@
 //   levels/stage/netimg/netpatch/actor*/havok/twin.cpp   the converters of levels, menu images, the net-patch DC module, actors
 //   stagecheck.cpp the check of each converted stage pak
 //   overlay.cpp    the menu overlay (main menu with a Multiplayer button)
+//   validate.cpp / devtools.cpp   --validate, and the maintainers' commands (--validate-twins in twin.cpp)
 //
 // Uses the Uncharted 3 importer's helpers (u3mp/patcher/importer/common.cpp: files, hashes, JSON, logging) and the
 // Uncharted 3 converters (u3mp/patcher/tools/fixes/dctools) with their Uncharted 2 differences (u3::g_u2).
@@ -118,6 +119,9 @@ json::Value validate(const PS3 &ps3, const PS4 &ps4, const Context &ctx, const f
 // twin.cpp: --validate-twins, the retail mp-hero skins with a PS4 twin built from PS3 and compared with retail
 // (<work>/twin-validation.json)
 json::Value twin_validate(const PS3 &ps3, const PS4 &ps4, const fs::path &work);
+
+// devtools.cpp: --dc, --hk-tables, --twin-build, --psarc (maintainers); the exit code, or nullopt for other arguments
+std::optional<int> dev_command(const std::vector<std::string> &v);
 
 // overlay.cpp: the menu overlay (main menu with a Multiplayer button) in `out`, made or kept; throws with the reason
 fs::path build_overlay(const fs::path &game, const fs::path &out, const std::optional<fs::path> &update);

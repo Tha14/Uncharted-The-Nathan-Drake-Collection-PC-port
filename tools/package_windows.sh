@@ -86,7 +86,7 @@ u2_import() {   # Uncharted 2's importer and its list of what it makes (it reads
     clang++ -std=c++20 -O2 -municode -static -s -Wl,--gc-sections -Wl,--no-insert-timestamp -I"$u2" -I"$im" -I"$fx/dctools" -Ilauncher/native \
         "$u2/u2import.cpp" "$u2/sources.cpp" "$u2/sound.cpp" "$u2/registry.cpp" "$u2/texts.cpp" "$u2/levels.cpp" "$u2/stage.cpp" \
         "$u2/netimg.cpp" "$u2/netpatch.cpp" "$u2/actor.cpp" "$u2/actorparts.cpp" "$u2/actors.cpp" "$u2/havok.cpp" "$u2/twin.cpp" \
-        "$u2/overlay.cpp" "$u2/stagecheck.cpp" "$u2/validate.cpp" "$im/common.cpp" "$fx/dctools/psarc.cpp" "$fx/dctools/dc.cpp" "$fx/dctools/proc.cpp" "$fx/dctools/fixlib.cpp" \
+        "$u2/overlay.cpp" "$u2/stagecheck.cpp" "$u2/validate.cpp" "$u2/devtools.cpp" "$im/common.cpp" "$fx/dctools/psarc.cpp" "$fx/dctools/dc.cpp" "$fx/dctools/proc.cpp" "$fx/dctools/fixlib.cpp" \
         "$fx/sound-banks/convert_banks.cpp" "$fx/dctools/ndpak.cpp" "$fx/dctools/ps4writer.cpp" "$fx/dctools/ps4ingame.cpp" \
         "$fx/dctools/ps4stage.cpp" "$fx/dctools/stageplan.cpp" "$fx/dctools/ps3bg.cpp" "$fx/dctools/visinfo.cpp" "$fx/dctools/collision.cpp" \
         "$fx/dctools/texcodec.cpp" "$fx/dctools/hkconvert.cpp" "$fx/dctools/ps3fp.cpp" "$fx/dctools/ps4mats.cpp" "$fx/dctools/ps4actor.cpp" \

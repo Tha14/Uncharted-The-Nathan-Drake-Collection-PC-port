@@ -872,6 +872,17 @@ std::optional<std::string> g_failed;
 
 void havok_configure(const Context &c) { g_ctx = &c; }
 
+void havok_tables(const std::string &ps3_elf, const std::string &ps4_game, const fs::path &out, const std::string &objdump) {
+    const PS4 ps4(ps4_game);
+    Context c;
+    c.ps4 = &ps4;
+    c.ps3_elf = ps3_elf;
+    c.ps4_game = ps4_game;
+    c.objdump = objdump;
+    c.work = out.parent_path().empty() ? fs::path(".") : out.parent_path();
+    build_tables(c, out);
+}
+
 Bytes havok_convert(const Bytes &pf3) {
     if (!g_loaded) {
         if (g_failed) throw TablesMissing(*g_failed);
