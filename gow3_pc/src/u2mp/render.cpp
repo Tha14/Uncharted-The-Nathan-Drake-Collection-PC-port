@@ -15,7 +15,7 @@
 // cbuffers (retail states 3 or 4, the number its materials declare). Gompa run 36: entry[0] = the
 // transform cbuffer 0x8704e118/0x2b444d15 with res = 0x33d5c036'f1b17bc2 and buffer =
 // 0x08d9a770'6f1c0396 = the keys of the 3rd and 4th cbuffers of mp-hero.pak. The converter now states
-// the right capacity (u2conv/u2actor.py fix_cbuffer_capacity); this file makes the engine safe for any
+// the right capacity (u2mp/patcher/importer/actor.cpp fix_cbuffer_capacity); this file makes the engine safe for any
 // asset that still states too few:
 //
 //  1. AddCb guard: the two AddCb calls go through add_cbuffer_checked, which grows a full list (new

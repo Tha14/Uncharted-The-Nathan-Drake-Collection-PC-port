@@ -1131,6 +1131,17 @@ int wmain(int argc, wchar_t **argv) {
             log(shipped_id_text());
             return 0;
         }
+        // the launcher: u2import --overlay <game folder> <overlay folder> [--update <update folder>]; prints the overlay folder
+        if (!v.empty() && v[0] == "--overlay") {
+            if (v.size() < 3) {
+                std::fputs("usage: u2import --overlay <game folder> <overlay folder> [--update <folder>]\n", stderr);
+                return 2;
+            }
+            std::optional<fs::path> upd;
+            if (v.size() >= 5 && v[3] == "--update" && !v[4].empty()) upd = P(v[4]);
+            log(S(build_overlay(P(v[1]), P(v[2]), upd)));
+            return 0;
+        }
         Args a;
         a.list = S(patcher_dir().parent_path() / "docs" / "import-list.tsv");
         const std::map<std::string, std::string *> vals = {{"--ps4", &a.ps4},         {"--ps3", &a.ps3},       {"--ps3-dlc", &a.ps3_dlc}, {"--ps3-data", &a.ps3_data},

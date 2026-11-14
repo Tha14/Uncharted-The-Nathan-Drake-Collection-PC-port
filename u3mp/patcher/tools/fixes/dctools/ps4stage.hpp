@@ -31,7 +31,7 @@ struct Options {
     fs::path water_templates;   // with fixes: the retail water.fx templates scored against the PS3 water materials
     const json::Value *gobo = nullptr;                         // {retail pak: {PS3 texture hash hex: PS4 short path}}
     std::shared_ptr<std::vector<BundleTex>> default_lightmaps;   // the two retail default lightmaps
-    // Uncharted 2 (u2conv.exe): its own LIGHT_TABLE_1, COLLISION_DATA_HAVOK_BG and WATER_DATA layouts replace the U3 ones
+    // Uncharted 2 (u2import.exe): its own LIGHT_TABLE_1, COLLISION_DATA_HAVOK_BG and WATER_DATA layouts replace the U3 ones
     std::function<std::shared_ptr<Blob>(const Pak &)> light_table;
     std::function<std::vector<std::shared_ptr<Blob>>(const Pak &)> collision;   // U2: item data 128-aligned in its page
     std::function<std::shared_ptr<Blob>(const Pak &, const std::function<std::string(const std::string &)> &)> water;

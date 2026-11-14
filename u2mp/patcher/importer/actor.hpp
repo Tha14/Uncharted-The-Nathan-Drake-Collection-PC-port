@@ -35,6 +35,8 @@ struct U2Src {
 };
 
 std::set<std::string> ps3_material_names(const U2Src &s);
+// the material of each block of a PS3 prototype (a name without '/' gets the folder u2mp/unnamed)
+std::vector<std::string> ps3_block_materials(const U2Src &s, const Ref &proto);
 uint32_t skeleton_sid(const Pak &p);
 
 // the PS3 actor converted on a PS4 template -> out_path (cbuffer capacities raised)

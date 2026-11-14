@@ -5,7 +5,8 @@
 //   sound.cpp      XVAG streams and SCREAM banks
 //   registry.cpp   pak22_ps4.txt and banks.txt of the overlay
 //   texts.cpp      the text banks completed with the multiplayer strings
-//   the converters of skins, actors, levels, menu images and the net-patch DC module: u2mp/patcher/u2conv
+//   levels/stage/netimg/netpatch/actor*/havok/twin.cpp   the converters of levels, menu images, the net-patch DC module, actors
+//   overlay.cpp    the menu overlay (main menu with a Multiplayer button)
 //
 // Uses the Uncharted 3 importer's helpers (u3mp/patcher/importer/common.cpp: files, hashes, JSON, logging) and the
 // Uncharted 3 converters (u3mp/patcher/tools/fixes/dctools) with their Uncharted 2 differences (u3::g_u2).
@@ -105,5 +106,8 @@ std::map<int, std::pair<std::optional<Bytes>, TextCounts>> texts_complete(const 
 // ------------------------------------------------------------------------------------------------ the import's paths
 fs::path patcher_dir();      // u2mp/patcher (u2import.exe is in u2mp/bin)
 fs::path launcher_root();    // the folder holding u2mp and u3mp
+
+// overlay.cpp: the menu overlay (main menu with a Multiplayer button) in `out`, made or kept; throws with the reason
+fs::path build_overlay(const fs::path &game, const fs::path &out, const std::optional<fs::path> &update);
 
 }  // namespace u2imp

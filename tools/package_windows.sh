@@ -6,7 +6,7 @@
 #   Uncharted Launcher.exe   what players start (tools/windows_starter/starter.cpp)
 #   launcher-qt\             the launcher's window (Qt 6), launcher\native\ its core and the game starter
 #   gow3_pc\                 the game runtime with its DLLs and its scripts
-#   u2mp\, u3mp\             the multiplayer importers (Python scripts, tables, the helper builds, ffmpeg, objdump)
+#   u2mp\, u3mp\             the multiplayer importers (u2import.exe, u3import.exe, u3fix.exe, tables, the helper builds, ffmpeg, objdump)
 #   python\                  the Python the importers run with (Pillow, numpy when installed)
 #   tools\                   the update installer and the base game's file list
 #   licenses\                the licenses of everything bundled
@@ -76,12 +76,22 @@ runtime() {   # the game runtime, without debug information, and what it loads
     for dll in "$out"/gow3_pc/out/*.dll; do note_msys_file clang64 "$dll"; done
 }
 
-u2_import() {   # Uncharted 2's importer: scripts and its list of what it makes (it reads the player's own game)
-    mkdir -p "$out/u2mp/docs"
-    cp -r u2mp/patcher "$out/u2mp/patcher"
+u2_import() {   # Uncharted 2's importer and its list of what it makes (it reads the player's own game)
+    mkdir -p "$out/u2mp/docs" "$out/u2mp/bin"
     cp u2mp/README.md "$out/u2mp/"
     cp u2mp/docs/import-list.tsv "$out/u2mp/docs/"
-    drop_caches "$out/u2mp"
+    # u2import.exe (u2mp/patcher/importer): the import, the menu overlay and the launcher's version check; it links the
+    # Uncharted 3 importer's helpers and converters (from u3mp/patcher: the bank envelope table; u3mp/bin: ffmpeg, objdump)
+    local fx=u3mp/patcher/tools/fixes im=u3mp/patcher/importer u2=u2mp/patcher/importer
+    clang++ -std=c++20 -O2 -municode -static -s -Wl,--gc-sections -Wl,--no-insert-timestamp -I"$u2" -I"$im" -I"$fx/dctools" -Ilauncher/native \
+        "$u2/u2import.cpp" "$u2/sources.cpp" "$u2/sound.cpp" "$u2/registry.cpp" "$u2/texts.cpp" "$u2/levels.cpp" "$u2/stage.cpp" \
+        "$u2/netimg.cpp" "$u2/netpatch.cpp" "$u2/actor.cpp" "$u2/actorparts.cpp" "$u2/actors.cpp" "$u2/havok.cpp" "$u2/twin.cpp" \
+        "$u2/overlay.cpp" "$im/common.cpp" "$fx/dctools/psarc.cpp" "$fx/dctools/dc.cpp" "$fx/dctools/proc.cpp" "$fx/dctools/fixlib.cpp" \
+        "$fx/sound-banks/convert_banks.cpp" "$fx/dctools/ndpak.cpp" "$fx/dctools/ps4writer.cpp" "$fx/dctools/ps4ingame.cpp" \
+        "$fx/dctools/ps4stage.cpp" "$fx/dctools/stageplan.cpp" "$fx/dctools/ps3bg.cpp" "$fx/dctools/visinfo.cpp" "$fx/dctools/collision.cpp" \
+        "$fx/dctools/texcodec.cpp" "$fx/dctools/hkconvert.cpp" "$fx/dctools/ps3fp.cpp" "$fx/dctools/ps4mats.cpp" "$fx/dctools/ps4actor.cpp" \
+        "$fx/dctools/anim.cpp" "$fx/dctools/skel.cpp" "$fx/dctools/fgcoll.cpp" "$fx/dctools/dcconv.cpp" \
+        -lbcrypt -lshell32 -lole32 -luuid -ladvapi32 -o "$out/u2mp/bin/u2import.exe"
 }
 
 u3_import() {   # Uncharted 3's importer, its recipe and tools, and the newest multiplayer helper build

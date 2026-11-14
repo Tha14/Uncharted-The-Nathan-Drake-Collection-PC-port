@@ -124,7 +124,7 @@ int find_by_slash_id(int sel, const MaterialTable *t, uint32_t id) {
     return -1;
 }
 
-// ---- net-u2mp: the PS3 net.pak images the PS4 net.pak lacks (u2mp/patcher/u2conv/u2netimg.py) ----
+// ---- net-u2mp: the PS3 net.pak images the PS4 net.pak lacks (u2mp/patcher/importer/netimg.cpp) ----
 // Leaderboards / Trophies mode buttons, DLC map photos, store skin portraits and icons, rank badges
 // above 63... The import writes them as their own package, materials named with the PS3 names (so
 // their ids are the ids the menus ask for). session.cpp requests it next to "net"; once logged in

@@ -196,6 +196,8 @@ struct SpanTarget {
 
 }  // namespace
 
+std::vector<std::string> ps3_block_materials(const U2Src &s, const Ref &proto) { return block_materials(s, proto); }
+
 // ------------------------------------------------------------------------------------------------ U2 source view
 U2Src::U2Src(const fs::path &path) : p(path) {
     if (!p.ps3) return;

@@ -13,9 +13,9 @@
 //                                        imports, the update, the online section)
 //   un_core_close()                      the window is gone: the online program is told to close
 // Dialogs: an {"ev": "dialog", "dialog": id, "kind", "title", "message", ...} event; the window answers with
-// {"op": "answer", "dialog": id, "value"} and the action goes on from there. Slow work (Python with numpy for the
-// Uncharted 2 import, the Uncharted 2 menu overlay, the recipe fingerprints, the graphics card) runs in threads and goes
-// on at the next tick. The multiplayer importers stay Python programs (the package's python\python.exe runs them).
+// {"op": "answer", "dialog": id, "value"} and the action goes on from there. Slow work (the Uncharted 2 menu overlay, the
+// recipe fingerprints, the graphics card) runs in threads and goes on at the next tick. The multiplayer importers are C++
+// programs the launcher starts (u3mp\bin\u3import.exe, u2mp\bin\u2import.exe).
 #include "native.h"
 #include "json.h"
 
@@ -671,12 +671,6 @@ std::string python_exe() {
     return "python.exe";
 }
 
-// a Python expression printed by the package's Python with `folder` on its path (the recipes' fingerprints, ...)
-std::string python_print(const std::string &folder, const std::string &code) {
-    auto r = run({python_exe(), "-c", "import sys; sys.path.insert(0, sys.argv[1]); " + code, folder}, 120000, folder);
-    return r.first == 0 ? strip(r.second) : "";
-}
-
 // ------------------------------------------------------------------------------------------------ Uncharted 3 multiplayer
 
 std::string u3_data() {
@@ -1076,7 +1070,9 @@ bool u2_running() {
 }
 std::string u2_shipped_id() {
     if (!g.u2_shipped_known) {
-        g.u2_shipped = python_print(join(join(g.root, "u2mp"), "patcher"), "import u2mp_version; print(u2mp_version.shipped_id())");
+        // the installed import's fingerprint (u2mp/bin/u2import.exe --shipped-id), compared with state.json recipe_id
+        auto r = run({join(join(join(g.root, "u2mp"), "bin"), "u2import.exe"), "--shipped-id"}, 120000, join(join(g.root, "u2mp"), "bin"));
+        g.u2_shipped = r.first == 0 ? strip(r.second) : "";
         g.u2_shipped_known = true;
     }
     return g.u2_shipped;
@@ -1127,23 +1123,8 @@ std::string u2_data_folder() {
     return "";
 }
 
-// a Python with numpy for the Uncharted 2 import: the package's, else one the py launcher lists ("" none)
-std::vector<std::string> python_candidates() {
-    std::vector<std::string> list = {python_exe()};
-    auto r = run({"py", "-0p"}, 10000);
-    if (r.first == 0)
-        for (auto &line : lines_of(r.second)) {
-            const size_t sp = line.find_last_of(" \t");
-            const std::string path = strip(sp == std::string::npos ? line : line.substr(sp + 1));
-            if (lower(path).size() >= 10 && lower(path).compare(lower(path).size() - 10, 10, "python.exe") == 0) list.push_back(path);
-        }
-    return list;
-}
-std::string python_with_numpy(const std::vector<std::string> &candidates) {
-    for (auto &p : candidates)
-        if (is_file(p) && run({p, "-c", "import numpy"}, 60000).first == 0) return p;
-    return "";
-}
+// the Uncharted 2 import (u2mp/patcher/importer, C++): u2mp/bin/u2import.exe of the package
+std::string u2import_exe() { return join(join(join(g.root, "u2mp"), "bin"), "u2import.exe"); }
 
 void u2_import(bool silent, const std::string &reason = "") {
     if (u2_running()) {
@@ -1155,64 +1136,29 @@ void u2_import(bool silent, const std::string &reason = "") {
         if (!silent) tell("info", "Choose your PS3 Uncharted 2 folder first.");
         return;
     }
+    const std::string exe = u2import_exe();
+    if (!is_file(exe)) {
+        if (!silent) tell("error", "The Uncharted 2 importer (u2mp\\bin\\u2import.exe) is missing from the launcher folder.");
+        return;
+    }
     const std::string out = u2_dir();
     SHCreateDirectoryExW(nullptr, wide(out).c_str(), nullptr);
-    auto launch = [silent, reason, ps3, out](const std::string &python) {
-        std::vector<std::string> cmd = {python, "-u", join(join(join(g.root, "u2mp"), "patcher"), "u2mp_import.py"), "--ps4",
-                                        game_dir(), "--ps3", ps3, "--out", out};
-        const std::string data = u2_data_folder();   // GOTY data only: the game data folder, no map pack folder
-        if (!data.empty()) { cmd.push_back("--ps3-data"); cmd.push_back(data); }
-        if (silent) cmd.push_back("--update");
-        std::string error;
-        HANDLE proc = spawn_logged(cmd, join(join(g.root, "u2mp"), "patcher"), join(out, "launcher-run.log"), false, error);
-        if (!proc) {
-            if (!silent) tell("error", "Could not start the import:\n" + error);
-            return;
-        }
-        if (g.u2.proc) CloseHandle(g.u2.proc);
-        g.u2.proc = proc;
-        g.u2.automatic = silent ? reason : "";
-        g.u2.log_pos = 0;
-        g.u2.n = g.u2.total = 0;
-        g.u2.step = silent ? "Updating the multiplayer files: " + reason + "..." : "Starting the import...";
-    };
-    auto found = std::make_shared<std::string>();
-    auto candidates = std::make_shared<std::vector<std::string>>();
-    g.u2.step = "Looking for Python with numpy...";
-    background([found, candidates]() {
-        *candidates = python_candidates();
-        *found = python_with_numpy(*candidates);
-    }, [found, candidates, silent, launch]() {
-        g.u2.step.clear();
-        if (!found->empty()) { launch(*found); return; }
-        auto none = [silent]() {
-            if (!silent)
-                tell("error", "The Uncharted 2 import needs Python's numpy (for the characters, maps and menu pictures), and no "
-                              "Python on this PC has it.\n\nInstall it with:  py -m pip install numpy\n(the launcher's release "
-                              "package already carries it).");
-        };
-        if (silent) return;
-        ask("yesno", "The Uncharted 2 import needs Python's numpy package (for the characters, maps and menu pictures), and no "
-                     "Python on this PC has it.\n\nInstall numpy now? (pip downloads it from the Python Package Index into your "
-                     "user packages; this takes a minute.)",
-            [candidates, launch, none](const Value &yes) {
-                if (!yes.truthy()) { none(); return; }
-                auto installed = std::make_shared<std::string>();
-                g.u2.step = "Installing numpy...";
-                background([candidates, installed]() {
-                    for (auto &p : *candidates) {
-                        if (!is_file(p)) continue;
-                        auto r = run({p, "-m", "pip", "install", "--user", "--only-binary=:all:", "--disable-pip-version-check",
-                                      "numpy"}, 900000);
-                        if (r.first == 0 && run({p, "-c", "import numpy"}, 60000).first == 0) { *installed = p; return; }
-                    }
-                }, [installed, launch, none]() {
-                    g.u2.step.clear();
-                    if (installed->empty()) none();
-                    else launch(*installed);
-                });
-            });
-    });
+    std::vector<std::string> cmd = {exe, "--ps4", game_dir(), "--ps3", ps3, "--out", out};
+    const std::string data = u2_data_folder();   // GOTY data only: the game data folder, no map pack folder
+    if (!data.empty()) { cmd.push_back("--ps3-data"); cmd.push_back(data); }
+    if (silent) cmd.push_back("--update");
+    std::string error;
+    HANDLE proc = spawn_logged(cmd, join(join(g.root, "u2mp"), "bin"), join(out, "launcher-run.log"), false, error);
+    if (!proc) {
+        if (!silent) tell("error", "Could not start the import:\n" + error);
+        return;
+    }
+    if (g.u2.proc) CloseHandle(g.u2.proc);
+    g.u2.proc = proc;
+    g.u2.automatic = silent ? reason : "";
+    g.u2.log_pos = 0;
+    g.u2.n = g.u2.total = 0;
+    g.u2.step = silent ? "Updating the multiplayer files: " + reason + "..." : "Starting the import...";
 }
 
 void u2_cancel() {
@@ -1731,7 +1677,7 @@ void u3_env(std::vector<std::pair<std::string, Value>> &env) {
     online_env(env, "u3");
 }
 
-// Uncharted 2's multiplayer: its menu overlay (made by the import's u2mp_overlay.py) and the imported files; set for
+// Uncharted 2's multiplayer: its menu overlay (made by u2import --overlay) and the imported files; set for
 // every start, since the Collection menu can switch to Uncharted 2 from any game. `overlay`: the overlay folder made
 // in the background before ("" none).
 void u2_env(std::vector<std::pair<std::string, Value>> &env, const std::string &overlay) {
@@ -1754,15 +1700,12 @@ bool u2_usable() {
     return (status == "imported" || status == "partial") && is_dir(join(u2_dir(), "u2data")) && !u2_running();
 }
 
-// the overlay folder for Uncharted 2's menu (u2mp_overlay.py builds it from the player's game; "" when it can't)
+// the overlay folder for Uncharted 2's menu (u2import --overlay builds it from the player's game; "" when it can't)
 std::string build_u2_overlay(const std::string &game, const std::string &update) {
-    const std::string patcher = join(join(g.root, "u2mp"), "patcher");
-    auto r = run({python_exe(), "-c",
-                  "import sys; sys.path.insert(0, sys.argv[1]); from pathlib import Path; import u2mp_overlay; "
-                  "print(u2mp_overlay.build(Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4]) if sys.argv[4] else None, "
-                  "log=lambda *a, **k: None))",
-                  patcher, game, join(join(g.user_dir, "u2mp"), "overlay"), update},
-                 600000, patcher);
+    const std::string bin = join(join(g.root, "u2mp"), "bin");
+    std::vector<std::string> cmd = {join(bin, "u2import.exe"), "--overlay", game, join(join(g.user_dir, "u2mp"), "overlay")};
+    if (!update.empty()) cmd.insert(cmd.end(), {"--update", update});
+    auto r = run(cmd, 600000, bin);
     if (r.first != 0) return "";
     const std::vector<std::string> lines = lines_of(r.second);
     return lines.empty() ? "" : strip(lines.back());

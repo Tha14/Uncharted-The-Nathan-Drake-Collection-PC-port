@@ -29,7 +29,7 @@
 //   are loaded and bound at boot, so net.bin's symbols exist when Multiplayer is entered.
 //
 // What this file does: netpatch_load() reads /app0/u2data/build/main/dc1/ps4/net-patch9.bin (written by
-// u2mp_import.py from the player's PS3 GOTY data folder, u2mp/patcher/u2conv/u2dc.py), checks it,
+// u2import.exe from the player's PS3 GOTY data folder, u2mp/patcher/importer/netpatch.cpp), checks it,
 // relocates it with 0xa19a00 and binds each root entry with 0xa16d70 - only the symbols the PS4 game does
 // not define (DcFind NULL), so the PS4 tables (*net-games* with its PS4 record layout, levels ...) stay the
 // PS4 ones. UNCHARTED_U2MP_NETPATCH=all binds every entry (PS3 behaviour: the server data replaces the
