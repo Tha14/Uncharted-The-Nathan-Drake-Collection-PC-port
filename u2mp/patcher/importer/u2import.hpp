@@ -115,6 +115,9 @@ std::vector<std::string> stage_check(const fs::path &path);
 // validate.cpp: --validate, the converters checked on the files both platforms have; the report (also <work>/validation.json)
 struct Context;
 json::Value validate(const PS3 &ps3, const PS4 &ps4, const Context &ctx, const fs::path &work, const std::function<void(const std::string &)> &lg);
+// twin.cpp: --validate-twins, the retail mp-hero skins with a PS4 twin built from PS3 and compared with retail
+// (<work>/twin-validation.json)
+json::Value twin_validate(const PS3 &ps3, const PS4 &ps4, const fs::path &work);
 
 // overlay.cpp: the menu overlay (main menu with a Multiplayer button) in `out`, made or kept; throws with the reason
 fs::path build_overlay(const fs::path &game, const fs::path &out, const std::optional<fs::path> &update);

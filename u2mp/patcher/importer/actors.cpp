@@ -358,7 +358,7 @@ Converted convert_actor(const Context &c, const Entry &entry, const fs::path &sr
                 const fs::path tsrc = c.work / "src" / P(basename(cands[0]->key));
                 const Bytes td = cands[0]->read();
                 if (!(fs::is_regular_file(tsrc, ec) && fs::file_size(tsrc, ec) == td.size())) write_bytes(tsrc, td);
-                std::variant<std::vector<std::string>, std::string> r;
+                std::variant<TwinStats, std::string> r;
                 try {
                     r = twin_build(src, tsrc, c.ps4->files.at("actor27/" + t->second + ".pak"), tmp);
                 } catch (const std::exception &e) {   // the PS3 conversion still works: noted, not fatal
@@ -366,12 +366,12 @@ Converted convert_actor(const Context &c, const Entry &entry, const fs::path &sr
                     fs::remove(S(tmp) + ".conv", ec);
                     r = std::string("twin build error ") + std::string(e.what()).substr(0, 200);
                 }
-                if (const auto *notes = std::get_if<std::vector<std::string>>(&r)) {
+                if (const auto *st = std::get_if<TwinStats>(&r)) {
                     const auto errs = check(tmp);
                     if (errs.empty()) {
                         fs::rename(tmp, out, ec);
                         if (ec) throw std::runtime_error("cannot write " + S(out) + ": " + ec.message());
-                        return {rel, *notes};
+                        return {rel, {st->note()}};
                     }
                     fs::remove(tmp, ec);
                     std::string s;

@@ -424,8 +424,22 @@ void rekey_artgroup(const fs::path &path) {
     write_bytes(path, w.build());
 }
 
+std::string TwinStats::note() const {
+    return fmt("twin %s: %zu/%zu LOD0 submeshes from PS4 (%.0f%% of triangles), %zu/%zu materials from PS4", twin.c_str(), swapped, submeshes, 100 * share,
+               twin_materials, materials);
+}
+Value TwinStats::json() const {
+    Value s;
+    s.kind = Value::Float;
+    s.f = share;
+    auto n = [](size_t v) { return num((long long)v); };
+    return obj({{"twin", str(twin)}, {"submeshes", n(submeshes)}, {"swapped", n(swapped)}, {"loose", n(loose)}, {"share", s}, {"materials", n(materials)},
+                {"twin_materials", n(twin_materials)}, {"artgroup_keys_fixed", n(artgroup_keys_fixed)}, {"textures_added", n(textures_added)},
+                {"geometry_textures_added", n(geometry_textures_added)}, {"size", n(size)}, {"cbuffer_capacity_raised", n(cbuffer_capacity_raised)}});
+}
+
 // ------------------------------------------------------------------------------------------------ the twin build
-std::variant<std::vector<std::string>, std::string> twin_build(const fs::path &ps3_mp, const fs::path &ps3_twin, const fs::path &ps4_twin, const fs::path &out) {
+std::variant<TwinStats, std::string> twin_build(const fs::path &ps3_mp, const fs::path &ps3_twin, const fs::path &ps4_twin, const fs::path &out) {
     try {
         const U2Src src(ps3_mp), tw3(ps3_twin);
         const Pak C(ps4_twin);
@@ -551,7 +565,7 @@ std::variant<std::vector<std::string>, std::string> twin_build(const fs::path &p
         if (swap.size() == l0.size())
             std::copy(C.d.begin() + std::ptrdiff_t(C.pbase(cpr.page) + cpr.off + 0x30), C.d.begin() + std::ptrdiff_t(C.pbase(cpr.page) + cpr.off + 0x38),
                       pages[lpr.page].begin() + std::ptrdiff_t(lpr.off + 0x30));
-        fix_artgroup(L, pages, fix);
+        const size_t keys_fixed = fix_artgroup(L, pages, fix);
         // twin materials: the converter's record is replaced by the twin's own (0x48 bytes + everything it points at);
         // submeshes (+0x48) name it by that string
         std::map<std::string, std::vector<std::string>> cbinds;
@@ -759,15 +773,294 @@ std::variant<std::vector<std::string>, std::string> twin_build(const fs::path &p
         }
         // +0x30 = the scope-3 cbuffer capacity: the twin's LOD0 value is retail's for the twin materials, but the skin
         // keeps converted materials too, and LOD1-3 keep the converter's value
-        fix_cbuffer_capacity(data);
+        TwinStats st;
+        st.twin = twin;
+        st.submeshes = l0.size();
+        st.swapped = swap.size();
+        st.loose = loose;
+        st.share = std::stod(fmt("%.3f", share_raw));   // round(share, 3)
+        st.materials = lg.mats.size();
+        st.twin_materials = twin_materials;
+        st.artgroup_keys_fixed = keys_fixed;
+        st.textures_added = add_tex.size();
+        st.geometry_textures_added = cent.size();
+        st.size = data.size();
+        st.cbuffer_capacity_raised = fix_cbuffer_capacity(data);
         write_bytes(out, data);
-        // round(share, 3), then '%.0f' of 100 times it
-        const double share = std::stod(fmt("%.3f", share_raw));
-        return std::vector<std::string>{fmt("twin %s: %zu/%zu LOD0 submeshes from PS4 (%.0f%% of triangles), %zu/%zu materials from PS4", twin.c_str(), swap.size(),
-                                            l0.size(), 100 * share, twin_materials, lg.mats.size())};
+        return st;
     } catch (const NoTwin &e) {
         return std::string(e.what());
     }
+}
+
+
+// ------------------------------------------------------------------------------------------------ validation
+namespace {
+
+Bytes slice_at(const Pak &q, const Ref &r, uint64_t n) {
+    const uint64_t s = std::min<uint64_t>(q.pbase(r.first) + r.second, q.d.size()), e = std::min<uint64_t>(s + n, q.d.size());
+    return Bytes(q.d.begin() + std::ptrdiff_t(s), q.d.begin() + std::ptrdiff_t(e));
+}
+
+// a submesh's vertex streams by slot (the last of a slot wins) and its index buffer
+std::pair<std::map<int, Bytes>, Bytes> subdata(const Pak &q, const G::S &s) {
+    std::map<int, Bytes> streams;
+    const uint32_t ns = q.pu32(s.page, s.off + 0x28);
+    const ORef st = bg::res(q, s.page, s.off + 0x30);
+    for (uint32_t k = 0; k < ns; k++) {
+        const uint64_t so = bg::need(st).second + 0x18ull * k;
+        const uint32_t ln = q.pu32(st->first, so + 4);
+        const Ref fm = bg::need(q, st->first, so + 8), dr = bg::need(q, st->first, so + 0x10);
+        streams[q.d.at(q.pbase(fm.first) + fm.second)] = slice_at(q, dr, ln);
+    }
+    return {streams, slice_at(q, bg::need(q, s.page, s.off + 0x40), 2ull * s.ni)};
+}
+
+// float32 positions (rows of 3)
+std::vector<std::array<float, 3>> rows3(const Bytes &b) {
+    if (b.size() % 12) throw std::runtime_error(fmt("ValueError: cannot reshape array of size %zu into shape (3)", b.size() / 4));
+    std::vector<std::array<float, 3>> v(b.size() / 12);
+    if (!v.empty()) std::memcpy(v.data(), b.data(), b.size());
+    return v;
+}
+float max_diff(const std::vector<std::array<float, 3>> &x, const std::vector<std::array<float, 3>> &y) {   // numpy broadcasting
+    if (x.size() != y.size() && x.size() != 1 && y.size() != 1)
+        throw std::runtime_error(fmt("ValueError: operands could not be broadcast together with shapes (%zu,3) (%zu,3)", x.size(), y.size()));
+    const size_t n = (x.empty() || y.empty()) ? 0 : std::max(x.size(), y.size());
+    float d = 0;
+    for (size_t i = 0; i < n; i++)
+        for (size_t c = 0; c < 3; c++) d = std::max(d, std::fabs(x[x.size() == 1 ? 0 : i][c] - y[y.size() == 1 ? 0 : i][c]));
+    return d;
+}
+// the rows ordered by their coordinates rounded to 0.01 (z first, then y, then x; equal keys keep their order)
+std::vector<std::array<float, 3>> sorted_rows(const std::vector<std::array<float, 3>> &x) {
+    auto r2 = [](float v) {
+        const float t = v * 100.0f;
+        return std::nearbyint(t) / 100.0f;
+    };
+    std::vector<size_t> ix(x.size());
+    for (size_t i = 0; i < ix.size(); i++) ix[i] = i;
+    std::stable_sort(ix.begin(), ix.end(), [&](size_t a, size_t b) {
+        for (int c = 2; c >= 0; c--) {
+            const float ka = r2(x[a][size_t(c)]), kb = r2(x[b][size_t(c)]);
+            if (ka != kb) return ka < kb;
+        }
+        return false;
+    });
+    std::vector<std::array<float, 3>> o;
+    for (size_t i : ix) o.push_back(x[i]);
+    return o;
+}
+
+std::string lod_key(const std::string &fg) {   // '-lod<n>' of an FG name, else 'lod0'
+    const size_t k = fg.rfind("-lod");
+    if (k != std::string::npos && k + 4 < fg.size() && std::all_of(fg.begin() + std::ptrdiff_t(k + 4), fg.end(), [](char c) { return std::isdigit((unsigned char)c) != 0; }))
+        return fg.substr(k);
+    return "lod0";
+}
+
+// FG sections by name (sorted): (prototype, LOD distance)
+std::map<std::string, std::pair<std::string, float>> fg_sections(const Pak &q) {
+    std::map<std::string, std::pair<std::string, float>> o;
+    for (const PakItem &it : q.items_of("FOREGROUND_SECTION_2")) {
+        const uint64_t base = q.pbase(it.page) + it.data_off();
+        float lod;
+        const uint32_t w = q.u32(base + 0x18);
+        std::memcpy(&lod, &w, 4);
+        o[it.name] = {q.cstr(base + 0x1c), lod};
+    }
+    return o;
+}
+
+bool same_tmat(const actor::TMat &a, const actor::TMat &b) {
+    if (a.name != b.name || a.shader != b.shader || a.hash != b.hash || a.feats != b.feats || a.x3 != b.x3 || a.tail != b.tail) return false;
+    if (a.params.size() != b.params.size() || a.binds.size() != b.binds.size()) return false;
+    for (size_t i = 0; i < a.params.size(); i++)
+        if (a.params[i].name != b.params[i].name || a.params[i].cnt != b.params[i].cnt || a.params[i].vals != b.params[i].vals) return false;
+    for (size_t i = 0; i < a.binds.size(); i++)
+        if (a.binds[i].pname != b.binds[i].pname || a.binds[i].shrt != b.binds[i].shrt || a.binds[i].full != b.binds[i].full) return false;
+    return true;
+}
+
+Value int_array(std::initializer_list<long long> v) {
+    Value a;
+    a.kind = Value::Array;
+    for (long long x : v) a.items.push_back(num(x));
+    return a;
+}
+
+// what of a built skin matches the retail PS4 pak of the same name
+Value twin_compare(const fs::path &built, const fs::path &retail) {
+    const Pak a(built), b(retail);
+    const G ga = geometry(a), gb = geometry(b);
+    const std::vector<std::string> pa = ga.proto(ga.lod0_proto()).subs, pb = gb.proto(gb.lod0_proto()).subs;
+    std::vector<std::string> free = pb;
+    long long same_ib = 0, same_pos = 0, near_pos = 0, same_uv = 0, same_mat = 0, same_n = 0, paired = 0;
+    for (const std::string &n : pa) {
+        const G::S &s = ga.sub(n);
+        // the retail submesh of the same material and index count, else the same index count
+        auto pick = [&](bool by_mat) -> std::optional<size_t> {
+            for (size_t i = 0; i < free.size(); i++) {
+                const G::S &x = gb.sub(free[i]);
+                if (x.ni == s.ni && (!by_mat || mat_key(x.mat) == mat_key(s.mat))) return i;
+            }
+            return std::nullopt;
+        };
+        auto ti = pick(true);
+        if (!ti) ti = pick(false);
+        if (!ti) continue;
+        const G::S &t = gb.sub(free[*ti]);
+        free.erase(free.begin() + std::ptrdiff_t(*ti));
+        paired++;
+        same_mat += mat_key(s.mat) == mat_key(t.mat);
+        same_n += s.nv == t.nv;
+        const auto [sa, ia] = subdata(a, s);
+        const auto [sb, ib] = subdata(b, t);
+        auto slot = [](const std::map<int, Bytes> &m, int k) { return m.count(k) ? std::optional<Bytes>(m.at(k)) : std::nullopt; };
+        same_ib += ia == ib;
+        same_pos += slot(sa, 0) == slot(sb, 0);
+        same_uv += slot(sa, 1) == slot(sb, 1);
+        if (s.nv == t.nv && sa.count(0) && sb.count(0)) {
+            const auto x = rows3(sa.at(0)), y = rows3(sb.at(0));
+            float d = max_diff(x, y);
+            if (d > 1e-3) d = max_diff(sorted_rows(x), sorted_rows(y));   // the same vertices in another order
+            near_pos += d <= 1e-3;
+        }
+    }
+    Value r = Value::object();
+    r.set("lod0", obj({{"submeshes", str(fmt("%zu/%zu", pa.size(), pb.size()))},
+                       {"paired", num(paired)},
+                       {"material", num(same_mat)},
+                       {"vertex_count", num(same_n)},
+                       {"index", num(same_ib)},
+                       {"positions", num(same_pos)},
+                       {"positions_1mm", num(near_pos)},
+                       {"uv", num(same_uv)}}));
+    // per LOD: (submeshes, indices, LOD distance) of the built and the retail pak
+    Value lods = Value::object();
+    const auto fa = fg_sections(a), fb = fg_sections(b);
+    auto add_lods = [&](const G &gg, const std::map<std::string, std::pair<std::string, float>> &fgs, const char *tag) {
+        for (const auto &[fn, f] : fgs) {
+            const G::Pr &pr = gg.proto(f.first);
+            long long ni = 0;
+            for (const std::string &s : pr.subs) ni += gg.sub(s).ni;
+            Value v = int_array({(long long)pr.subs.size(), ni});
+            Value lodv;
+            lodv.kind = Value::Float;
+            lodv.f = double(f.second);
+            v.items.push_back(lodv);
+            const std::string key = lod_key(fn);
+            if (!lods.get(key)) lods.set(key, Value::object());
+            lods.get(key)->set(tag, v);
+        }
+    };
+    add_lods(ga, fa, "built");
+    add_lods(gb, fb, "retail");
+    r.set("lods", lods);
+    std::set<std::string> ma, mb;
+    for (const auto &m : ga.mats) ma.insert(m.name);
+    for (const auto &m : gb.mats) mb.insert(m.name);
+    long long same_name = 0;
+    for (const std::string &m : ma) same_name += (long long)mb.count(m);
+    std::map<std::string, actor::TMat> ra, rb;
+    for (actor::TMat &m : actor::tmpl_materials(a)) ra[m.name] = m;
+    for (actor::TMat &m : actor::tmpl_materials(b)) rb[m.name] = m;
+    long long same_record = 0;
+    for (const auto &[k, m] : ra)
+        if (rb.count(k) && same_tmat(m, rb.at(k))) same_record++;
+    r.set("materials", obj({{"built", num((long long)ma.size())}, {"retail", num((long long)mb.size())}, {"same_name", num(same_name)}, {"same_record", num(same_record)}}));
+    auto texmap = [](const Pak &q) {
+        std::map<std::string, std::array<uint32_t, 6>> m;
+        for (const PakTexture &t : q.textures()) m[t.path] = {t.hash, t.format, t.width, t.height, t.mips, t.unk34};
+        return m;
+    };
+    const auto ta = texmap(a), tb = texmap(b);
+    long long same_tex = 0;
+    for (const auto &[k, v] : ta)
+        if (tb.count(k) && tb.at(k) == v) same_tex++;
+    r.set("textures", obj({{"built", num((long long)ta.size())}, {"retail", num((long long)tb.size())}, {"same", num(same_tex)}}));
+    auto tags = [](const Pak &q) {
+        std::vector<std::tuple<std::string, std::string, Bytes>> o;
+        for (const PakItem &it : q.items)
+            if (starts(it.type, "TAG")) {
+                const uint64_t base = q.pbase(it.page) + it.data_off();
+                o.emplace_back(it.type, it.name, Bytes(q.d.begin() + std::ptrdiff_t(base), q.d.begin() + std::ptrdiff_t(std::min<uint64_t>(base + it.size, q.d.size()))));
+            }
+        std::sort(o.begin(), o.end());
+        return o;
+    };
+    r.set("tags_equal", Value::boolean(tags(a) == tags(b)));
+    auto fg_list = [](const std::map<std::string, std::pair<std::string, float>> &f) {
+        std::vector<std::pair<std::string, std::string>> o;
+        for (const auto &[k, v] : f) o.emplace_back(k, fmt("%.2f", double(v.second)));   // round(lod, 2)
+        return o;
+    };
+    r.set("fg_equal", Value::boolean(fg_list(fa) == fg_list(fb)));
+    // the artgroup's bucket keys: 16-byte {u32 key, u32 0xaaaaaaaa, ptr} entries (layout independent)
+    auto artgroup_keys = [](const Pak &q) {
+        const auto its = q.items_of("ARTGROUP_DATA");
+        if (its.empty()) throw std::runtime_error("IndexError: list index out of range");
+        const PakItem &it = its[0];
+        const uint64_t base = q.pbase(it.page) + it.data_off();
+        std::vector<uint32_t> keys;
+        for (uint64_t o = 0; o + 15 < it.size; o += 8) {
+            const uint32_t k = q.u32(base + o), pad = q.u32(base + o + 4);
+            if (k && pad == 0xaaaaaaaa && q.is_ptr(it.page, uint32_t(it.data_off() + o + 8))) keys.push_back(k);
+        }
+        std::sort(keys.begin(), keys.end());
+        return std::make_tuple(keys, q.pu32(it.page, it.data_off()), it.name);
+    };
+    r.set("artgroup_equal", Value::boolean(artgroup_keys(a) == artgroup_keys(b)));
+    auto types = [](const Pak &q) {
+        std::map<std::string, long long> c;
+        for (const PakItem &i : q.items)
+            if (i.type != "RAW_DATA") c[i.type]++;
+        return c;
+    };
+    r.set("types_equal", Value::boolean(types(a) == types(b)));
+    auto login = [](const Pak &q) {
+        std::vector<std::string> o;
+        for (const auto &[pg, off] : q.login) o.push_back(q.item_at(pg, off).type);
+        return o;
+    };
+    r.set("login_types", Value::boolean(login(a) == login(b)));
+    return r;
+}
+
+}  // namespace
+
+// the retail PS4 mp-hero skins that have a PS4 twin, built from their PS3 files and compared with retail
+Value twin_validate(const PS3 &ps3, const PS4 &ps4, const fs::path &work) {
+    std::error_code ec;
+    fs::create_directories(work, ec);
+    Value res = Value::object();
+    for (const auto &[name, twin] : TWINS) {
+        const fs::path ret = ps4.actor_dir / P(name + ".pak"), c4 = ps4.actor_dir / P(twin + ".pak");
+        if (!fs::is_regular_file(ret, ec) || !fs::is_regular_file(c4, ec)) continue;
+        std::vector<fs::path> paths;
+        for (const std::string &k : {name, twin}) {
+            const auto c = ps3.candidates("actor27/" + k + ".pak");
+            const fs::path p = work / P("ps3-" + k + ".pak");
+            if (!c.empty() && !fs::exists(p, ec)) write_bytes(p, c[0]->read());
+            paths.push_back(p);
+        }
+        const fs::path out = work / P(name + ".pak");
+        Value r;
+        const auto built = twin_build(paths[0], paths[1], c4, out);
+        if (const auto *why = std::get_if<std::string>(&built))
+            r = obj({{"no_twin", str(*why)}});
+        else {
+            const Value notes = std::get<TwinStats>(built).json();
+            Value chk;
+            chk.kind = Value::Array;
+            for (const std::string &e : actor_check(out)) chk.items.push_back(str(e));
+            r = obj({{"notes", notes}, {"cmp", twin_compare(out, ret)}, {"ps4check", chk}});
+        }
+        log(name + " " + dumps(r));
+        res.set(name, r);
+    }
+    write_text(work / "twin-validation.json", dump_indent1(res));
+    return res;
 }
 
 }  // namespace u2imp

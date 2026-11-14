@@ -4,6 +4,7 @@
 //   u2import --ps4 <PS4 game folder> --ps3 <PS3 base folder> [--ps3-dlc <PS3 DLC folder>] --out <folder>
 //            [--ps3-data <PS3 game-data folder>] [--groups A,B,C,D,E] [--speech-langs english,french,...] [--dlc-ruins]
 //            [--drop-navmesh] [--only REGEX] [--ps3-elf EBOOT.elf] [--objdump PATH] [--ffmpeg PATH] [--force] [--update] [--validate]
+//        u2import --validate-twins --ps4 <folder> --ps3 <folder> [--ps3-dlc <folder>] --work <folder>   (maintainers)
 //   u2import --shipped-id          the fingerprint of the installed import (the launcher compares it with state.json)
 //
 //   --ps4      the Collection's game folder (holds u2data/) or u2data itself
@@ -1141,6 +1142,19 @@ int wmain(int argc, wchar_t **argv) {
             std::optional<fs::path> upd;
             if (v.size() >= 5 && v[3] == "--update" && !v[4].empty()) upd = P(v[4]);
             log(S(build_overlay(P(v[1]), P(v[2]), upd)));
+            return 0;
+        }
+        // maintainers: u2import --validate-twins --ps4 <folder> --ps3 <folder> [--ps3-dlc <folder>] --work <folder>
+        if (!v.empty() && v[0] == "--validate-twins") {
+            std::map<std::string, std::string> o;
+            for (size_t i = 1; i + 1 < v.size(); i += 2) o[v[i]] = v[i + 1];
+            if (o["--ps4"].empty() || o["--ps3"].empty() || o["--work"].empty()) {
+                std::fputs("usage: u2import --validate-twins --ps4 <folder> --ps3 <folder> [--ps3-dlc <folder>] --work <folder>\n", stderr);
+                return 2;
+            }
+            const PS3 ps3(o["--ps3"], o["--ps3-dlc"]);
+            const PS4 ps4(o["--ps4"]);
+            twin_validate(ps3, ps4, P(o["--work"]));
             return 0;
         }
         Args a;
