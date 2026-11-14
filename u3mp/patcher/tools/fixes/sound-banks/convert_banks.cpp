@@ -27,6 +27,8 @@
 #include <set>
 #include <thread>
 
+#include <windows.h>
+
 #if defined(__clang__)
 #pragma clang fp contract(off)
 #endif
@@ -312,8 +314,54 @@ struct Skip : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
-// an MP3 (codec 3) or PCM16 BE sample of the PS3 audio section -> PS4 0x20 header + PS-ADPCM
-Bytes encode_sample(const Bytes &A, size_t ao, size_t asz, const std::string &ff) {
+bool is_mp3(const Bytes &A, size_t ao, size_t asz) { return asz >= 56 && ao + asz <= A.size() && be32(A, ao) == 1 && be32(A, ao + 4) == 3; }
+
+// The MP3 samples of one bank decoded by one ffmpeg run instead of one run each: every sample is its own input file and
+// its own output (-map <n>:a, its own -ar), so each is decoded and resampled exactly as in a run of its own. Starting a
+// process costs far more on Windows than decoding a short sample (2 084 runs were 84% of the step). Up to 64 samples a
+// run (the command line limit). nullopt when a run fails: the samples are then decoded one by one, which reports the
+// failing sample's error.
+std::optional<std::vector<Bytes>> decode_mp3_batch(const std::string &ff, const std::vector<std::pair<Bytes, uint32_t>> &in) {
+    static std::atomic<unsigned> serial{0};
+    const fs::path dir = fs::temp_directory_path() / ("u3fix-mp3-" + std::to_string(GetCurrentProcessId()) + "-" + std::to_string(serial++));
+    struct Cleanup {
+        fs::path d;
+        ~Cleanup() {
+            std::error_code ec;
+            fs::remove_all(d, ec);
+        }
+    } cleanup{dir};
+    std::error_code ec;
+    fs::create_directories(dir, ec);
+    if (ec) return std::nullopt;
+    std::vector<Bytes> out;
+    for (size_t first = 0; first < in.size(); first += 64) {
+        const size_t n = std::min<size_t>(64, in.size() - first);
+        std::vector<std::string> cmd = {ff, "-v", "error", "-y"};
+        for (size_t i = 0; i < n; i++) {
+            const fs::path p = dir / ("in" + std::to_string(i) + ".mp3");
+            std::ofstream(p, std::ios::binary).write(reinterpret_cast<const char *>(in[first + i].first.data()), std::streamsize(in[first + i].first.size()));
+            cmd.insert(cmd.end(), {"-f", "mp3", "-i", utf8(p)});
+        }
+        for (size_t i = 0; i < n; i++)
+            cmd.insert(cmd.end(), {"-map", std::to_string(i) + ":a", "-f", "s16le", "-ac", "1", "-ar", std::to_string(in[first + i].second),
+                                   utf8(dir / ("out" + std::to_string(i) + ".raw"))});
+        Bytes ignored;
+        std::string err;
+        if (run_pipe(cmd, {}, ignored, err)) return std::nullopt;
+        for (size_t i = 0; i < n; i++) {
+            const fs::path p = dir / ("out" + std::to_string(i) + ".raw");
+            if (!fs::is_regular_file(p, ec)) return std::nullopt;
+            std::ifstream f(p, std::ios::binary);
+            out.emplace_back((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+        }
+    }
+    return out;
+}
+
+// an MP3 (codec 3) or PCM16 BE sample of the PS3 audio section -> PS4 0x20 header + PS-ADPCM. `decoded`: the MP3's
+// PCM from decode_mp3_batch, if it ran.
+Bytes encode_sample(const Bytes &A, size_t ao, size_t asz, const std::string &ff, const Bytes *decoded = nullptr) {
     const Bytes src = sub(A, ao, ao + asz);
     std::vector<int16_t> x;
     if (src.size() >= 56 && be32(src, 0) == 1 && be32(src, 4) == 3) {   // MP3 with its header
@@ -321,8 +369,9 @@ Bytes encode_sample(const Bytes &A, size_t ao, size_t asz, const std::string &ff
         if (ff.empty()) throw Skip("needs ffmpeg (MP3 sample)");
         Bytes pcm;
         std::string err;
-        const int rc = run_pipe({ff, "-v", "error", "-f", "mp3", "-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", std::to_string(rate), "pipe:1"},
-                                sub(A, ao + 0x80, ao + 0x80 + dsz), pcm, err);
+        const int rc = decoded ? (pcm = *decoded, 0)
+                               : run_pipe({ff, "-v", "error", "-f", "mp3", "-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", std::to_string(rate), "pipe:1"},
+                                          sub(A, ao + 0x80, ao + 0x80 + dsz), pcm, err);
         if (rc) throw Skip("ffmpeg: " + (err.size() > 300 ? err.substr(err.size() - 300) : err));
         for (size_t i = 0; i + 1 < pcm.size(); i += 2) x.push_back(int16_t(pcm[i] | pcm[i + 1] << 8));
         if (nsmp && x.size() > nsmp) x.resize(nsmp);
@@ -382,6 +431,20 @@ Bytes convert(const Bytes &d, const std::string &ff) {
         if (g[0] == 1 && b.size() <= 15) throw Stop("IndexError: index out of range");
     }
     std::stable_partition(order.begin(), order.end(), [](const K &k) { return k.kind == 's'; });
+    // the bank's MP3 samples decoded by one ffmpeg run
+    std::map<K, Bytes> decoded;
+    if (!ff.empty()) {
+        std::vector<K> keys;
+        std::vector<std::pair<Bytes, uint32_t>> in;
+        for (const K &k : order)
+            if (k.kind == 's' && is_mp3(A, k.ao, k.asz)) {
+                keys.push_back(k);
+                in.push_back({sub(A, k.ao + 0x80, size_t(k.ao) + 0x80 + be32(A, k.ao + 0x34)), be32(A, k.ao + 0xc)});
+            }
+        if (!keys.empty())
+            if (auto pcm = decode_mp3_batch(ff, in))
+                for (size_t i = 0; i < keys.size(); i++) decoded[keys[i]] = std::move((*pcm)[i]);
+    }
     Bytes audio4;
     std::map<K, std::pair<uint32_t, uint32_t>> amap;
     for (const K &k : order) {
@@ -400,7 +463,7 @@ Bytes convert(const Bytes &d, const std::string &ff) {
                 blob = sample_header(smp, ls, le);
                 app(blob, src);
             } else
-                blob = encode_sample(A, k.ao, k.asz, ff);
+                blob = encode_sample(A, k.ao, k.asz, ff, decoded.count(k) ? &decoded.at(k) : nullptr);
         }
         amap[k] = {uint32_t(audio4.size()), uint32_t(blob.size())};
         app(audio4, blob);
@@ -498,6 +561,28 @@ Bytes convert(const Bytes &d, const std::string &ff) {
 }
 
 }  // namespace
+
+// one PS3 bank converted (the Uncharted 2 import): the envelope table from adsr_env.json (read once), MP3 samples
+// through ffmpeg. Throws Stop; a bank with MP3 samples and no ffmpeg throws std::invalid_argument("needs ffmpeg").
+Bytes sound_bank_convert(const Bytes &ps3, const std::string &ffmpeg, const fs::path &adsr_env, std::string &note) {
+    if (g_env.empty()) {
+        json::Value e;
+        if (!json::parse(text_file(adsr_env), e)) throw Stop("adsr_env.json is not JSON");
+        for (const auto &[k, v] : e.fields) {
+            const size_t c = k.find(':');
+            g_env.push_back({{uint32_t(std::stoul(k.substr(0, c), nullptr, 16)), uint32_t(std::stoul(k.substr(c + 1), nullptr, 16))}, v.s});
+        }
+    }
+    Bytes out;
+    try {
+        out = convert(ps3, ffmpeg);
+    } catch (const Skip &) {
+        throw std::invalid_argument("bank has MP3 samples and ffmpeg was not found");
+    }
+    const size_t s = be32(ps3, 8);
+    note = fmt("SBlk v%u -> v13, %u sounds, %u grains", be32(ps3, s + 4), be32(ps3, s + 20), be32(ps3, s + 24) >> 16);
+    return out;
+}
 
 std::string find_ffmpeg(const std::string &arg) {
     std::vector<std::string> c = {arg};
