@@ -1066,8 +1066,9 @@ bool install_batch_result_probe(uint64_t at_entry, int &installed) {
 }
 
 void install_spawn(int &installed) {
-    install_update_slot_probes();
-    install_factory_probe(installed);
+    // Off while the boot crash is tracked: both patch the image at startup.
+    // install_update_slot_probes();
+    // install_factory_probe(installed);
     install_result_probe(0x4bdfad, installed);
     install_batch_result_probe(0x4bf925, installed);
     // GetSpawnLocator must pass the NetGameManager to the call and read the group at result+0x9a0.

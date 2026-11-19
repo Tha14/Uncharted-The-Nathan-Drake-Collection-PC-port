@@ -7,12 +7,9 @@ CLANG64=${CLANG64:-/c/msys64/clang64}
 export PATH="$CLANG64/bin:$PATH"
 mkdir -p build
 FLAGS=(-O2 -DNDEBUG -fno-ident -ffunction-sections -fdata-sections -std=c++17 -Wall -Wextra -Wno-unused-parameter -municode)
-SOURCES=(session_value steam hang memstat config display controls system gamepads patcher starter runtime_env starter_files patch_tables prepare link start play updater gamefiles gameupdate pages shortcuts actions updates core)
-CXXFLAGS="${FLAGS[*]}"
-export CXXFLAGS
-printf '%s\n' "${SOURCES[@]}" | xargs -P "$(nproc)" -n 1 bash -c 'clang++ $CXXFLAGS -c "$0.cpp" -o "build/$0.o"'
 OBJECTS=()
-for s in "${SOURCES[@]}"; do
+for s in session_value steam hang memstat config display controls system gamepads patcher starter runtime_env starter_files patch_tables prepare link start play updater gamefiles gameupdate pages shortcuts actions updates core; do
+    clang++ "${FLAGS[@]}" -c "$s.cpp" -o "build/$s.o"
     OBJECTS+=("build/$s.o")
 done
 clang++ -shared -static -s -Wl,--gc-sections -Wl,--no-insert-timestamp -o uncharted_native.dll \
